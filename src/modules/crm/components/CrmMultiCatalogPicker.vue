@@ -3,11 +3,14 @@ import { computed, ref, watch } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import { isCompatibleBenefitLocation, type BenefitMode, type RouteRole } from '../utils/crmBenefitRouteCatalog'
 
 const props = withDefaults(defineProps<{
   modelValue: string[]
   label: string
   catalogGroupSlugs: string[]
+  routeMode?: BenefitMode
+  routeRole?: RouteRole
   placeholder?: string
 }>(), { placeholder: 'Todas las opciones (sin restricción)' })
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
@@ -22,7 +25,9 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 const selectedOptions = computed(() => props.modelValue.map(value => ({
   value, label: savedLabels.value[value] ?? options.value.find(x => x.code === value)?.label ?? value,
 })))
-const filtered = computed(() => options.value.filter(x => x.isActive !== false))
+const filtered = computed(() => options.value.filter(item => item.isActive !== false &&
+  (!props.routeMode || !props.routeRole ||
+    isCompatibleBenefitLocation(item, props.routeMode, props.routeRole))))
 function toggle(value: string) {
   if (!value) return
   emit('update:modelValue', props.modelValue.includes(value)
@@ -59,7 +64,8 @@ function search(value: string) {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => void reload(), 250)
 }
-watch(() => props.catalogGroupSlugs.join('|'), () => {
+watch(() => [props.catalogGroupSlugs.join('|'), props.routeMode, props.routeRole], () => {
+  open.value = false
   generation++
   options.value = []
   query.value = ''
@@ -70,33 +76,38 @@ watch(() => props.catalogGroupSlugs.join('|'), () => {
 <template>
   <div class="min-w-0 space-y-2" data-crm-multi-catalog>
     <label class="block text-xs font-bold text-[var(--dh-text-muted)]">{{ label }}</label>
-    <div class="relative">
+    <div>
       <button type="button" :aria-expanded="open" :aria-label="label"
-        class="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-left text-sm"
+        class="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-left text-sm transition hover:border-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
         @click="openPicker">
-        <span>{{ modelValue.length ? modelValue.length + ' seleccionados' : placeholder }}</span>
-        <ChevronDown class="h-4 w-4" />
+        <span class="min-w-0 truncate">{{ modelValue.length ? modelValue.length + ' seleccionados' : placeholder }}</span>
+        <ChevronDown class="h-4 w-4 shrink-0 transition-transform" :class="open ? 'rotate-180' : ''" />
       </button>
-      <div v-if="open" class="absolute left-0 right-0 top-full z-40 mt-1 min-w-[250px] rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-xl">
+      <!-- Remain in document flow: expanding the menu moves following grid rows,
+           rather than covering POD, notes or the sticky account navigation. -->
+      <div v-if="open" class="mt-2 min-w-0 overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-solid,var(--dh-card))] p-2 shadow-lg" :aria-label="label + ' opciones'">
         <div class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2">
           <Search class="h-4 w-4 shrink-0" />
-          <input :value="query" type="search" class="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          <input :value="query" type="search" :aria-label="'Buscar '+label" class="min-w-0 flex-1 bg-transparent text-sm outline-none"
             placeholder="Buscar por nombre o código…" @input="search(($event.target as HTMLInputElement).value)" />
         </div>
         <p v-if="loading" role="status" class="p-2 text-xs">Consultando Config…</p>
         <p v-else-if="error" role="status" class="p-2 text-xs text-amber-500">{{ error }}</p>
-        <div class="max-h-56 space-y-1 overflow-auto py-2">
+        <div class="max-h-52 space-y-1 overflow-y-auto py-2" role="group" :aria-label="label">
           <button v-for="option in filtered" :key="option.code" type="button"
             class="flex w-full items-center gap-2 rounded-lg p-2 text-left text-xs hover:bg-[var(--dh-shell)]"
             :aria-pressed="modelValue.includes(option.code)" @click="toggle(option.code)">
-            <span class="flex h-4 w-4 items-center justify-center rounded border border-[var(--dh-border)]">
+            <span class="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-[var(--dh-border)]">
               <Check v-if="modelValue.includes(option.code)" class="h-3 w-3 text-[var(--dh-primary)]" />
             </span>
-            <span class="flex-1">{{ option.label || option.value || option.code }}</span>
+            <span class="min-w-0 flex-1 break-words">{{ option.label || option.value || option.code }}</span>
           </button>
         </div>
-        <div class="flex justify-end border-t border-[var(--dh-border)] pt-2">
-          <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs"
+        <p v-if="!loading && !error && !filtered.length" class="p-2 text-xs text-[var(--dh-text-muted)]">No hay ubicaciones de este tipo para la modalidad seleccionada.</p>
+        <div class="flex items-center justify-between gap-2 border-t border-[var(--dh-border)] pt-2">
+          <button type="button" class="rounded-lg px-3 py-1.5 text-xs text-[var(--dh-text-muted)] hover:bg-[var(--dh-shell)]"
+            :disabled="!modelValue.length" @click="emit('update:modelValue', [])">Quitar selección</button>
+          <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold"
             @click="open=false">Listo</button>
         </div>
       </div>
