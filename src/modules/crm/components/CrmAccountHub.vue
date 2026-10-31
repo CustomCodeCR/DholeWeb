@@ -105,6 +105,111 @@ const routesCapturedFromQuotes = computed(() =>
   routeHistory.value.filter(x => x.sourceKind === 'QUOTE').length)
 
 const countryName = ref('')
+const assignedSellerName = ref('')
+const sellerLoading = ref(false)
+let sellerGeneration = 0
+const displaySeller = computed(() =>
+  props.account.isCastroFallasExecutive === true ? 'Castro Fallas' :
+  assignedSellerName.value || (sellerLoading.value ? 'Consultando vendedor…' : 'No disponible'))
+async function loadAssignedSeller() {
+  const generation = ++sellerGeneration
+  if (props.account.isCastroFallasExecutive === true) {
+    assignedSellerName.value = 'Castro Fallas'
+    sellerLoading.value = false
+    return
+  }
+  assignedSellerName.value = ''
+  sellerLoading.value = true
+  try {
+    const response = await crmRequest<{ displayName?: string | null }>(
+      crmPath('accounts', String(props.account.id), 'assigned-executive'))
+    if (generation === sellerGeneration)
+      assignedSellerName.value = String(response.displayName ?? '').trim()
+  } catch {
+    if (generation === sellerGeneration) assignedSellerName.value = ''
+  } finally {
+    if (generation === sellerGeneration) sellerLoading.value = false
+  }
+}
+watch(() => [props.account.id, props.account.executiveUserId, props.account.isCastroFallasExecutive],
+  () => { void loadAssignedSeller() }, { immediate: true })
+
+// Code/ID values are persisted and sent to CRM, but only Config descriptions are rendered.
+type RouteCatalog = 'pol' | 'poe' | 'pod'
+const routeCatalogLabels = ref<Record<string,string>>({})
+let routeCatalogGeneration = 0
+const isOpaqueCode = (value: string) =>
+  /^(?:POL|POE|POD|APT|CY|SD|NAV|SRV|MKT)-[A-Za-z0-9-]+$/i.test(value) ||
+  /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value)
+function readableCatalogItem(item: { label?: string | null; value?: string | null; code?: string | null }) {
+  const candidates = [item.label, item.value]
+    .map(value => String(value ?? '').trim()).filter(Boolean)
+  return candidates.find(value => value !== item.code && !isOpaqueCode(value)) ?? ''
+}
+function routeDisplay(code: unknown, group: RouteCatalog): string {
+  const key = String(code ?? '').trim()
+  return key ? routeCatalogLabels.value[group + ':' + key] || 'Ubicación no disponible' : '—'
+}
+const taxTypeDisplay = (value: unknown) =>
+  ({'01':'Persona física','1':'Persona física','02':'Persona jurídica','2':'Persona jurídica',
+    '03':'DIMEX','3':'DIMEX','04':'NITE','4':'NITE',
+    FISICA:'Persona física',JURIDICA:'Persona jurídica',DIMEX:'DIMEX',NITE:'NITE'} as Record<string,string>)
+  [String(value ?? '').trim().toUpperCase()] || 'No especificado'
+const categoryDisplay = (kind: unknown, code: unknown) => {
+  const type = String(kind ?? '')
+  const label = ({CUSTOMER:'Cliente',NVOCC:'Agente / NVOCC',LITTLE:'Cargas Little'} as Record<string,string>)[type]
+  const rank = String(code ?? '')
+  return label ? (type === 'LITTLE' ? label : label + (['A','B','C','D'].includes(rank) ? ' categoría ' + rank : '')) : 'No especificada'
+}
+const statusDisplay = (value: unknown) =>
+  ({Pending:'Pendiente',Verified:'Verificada',Active:'Activa',Inactive:'Inactiva',
+    PendingApproval:'Pendiente de aprobación',Approved:'Aprobado',Rejected:'Rechazado',
+    Superseded:'Sustituido',Draft:'Borrador'} as Record<string,string>)[String(value ?? '')] ?? 'No especificado'
+const frequencyDisplay = (value: unknown) =>
+  ({WEEKLY:'Semanal',MONTHLY:'Mensual',QUARTERLY:'Trimestral',YEARLY:'Anual',
+    DAILY:'Diaria'} as Record<string,string>)[String(value ?? '')] || 'No especificada'
+function collectRouteCodes(group: RouteCatalog): string[] {
+  const key = group === 'pol' ? 'polCode' : group === 'poe' ? 'poeCode' : 'podCode'
+  const fallbacks = group === 'pol' ? ['preferredOriginCode'] :
+    group === 'poe' ? ['preferredDestinationCode'] : []
+  const rows = [...overview.value.routes, ...overview.value.analysisRoutes,
+    ...popularRoutes.value, ...routeHistory.value, ...quoteRouteSnapshots.value]
+  const values = rows.flatMap(row => [row[key], ...fallbacks.map(fallback => row[fallback])])
+  values.push(group === 'pol' ? originCode.value : group === 'poe' ? poeCode.value : podCode.value)
+  values.push(group === 'pol' ? routePol.value : group === 'poe' ? routePoe.value : routePod.value)
+  return [...new Set(values.map(value => String(value ?? '').trim()).filter(Boolean))]
+}
+async function loadRouteCatalogLabels() {
+  const generation = ++routeCatalogGeneration
+  const groups: RouteCatalog[] = ['pol','poe','pod']
+  const labels: Record<string,string> = {}
+  await Promise.all(groups.map(async group => {
+    const required = collectRouteCodes(group)
+    if (!required.length) return
+    let options = await CatalogItemsService.select({catalogGroupSlug:group}).catch(() => [])
+    const save = (items: typeof options) => {
+      for (const item of items) {
+        const display = readableCatalogItem(item)
+        if (!display) continue
+        for (const key of [item.code, item.value, item.slug, item.id]) {
+          if (key) labels[group + ':' + String(key)] = display
+        }
+      }
+    }
+    save(options)
+    const missing = required.filter(code => !labels[group + ':' + code])
+    // Config select can be paginated. Search unresolved historical codes by exact value.
+    for (const code of missing) {
+      const found = await CatalogItemsService.select({catalogGroupSlug:group,search:code}).catch(() => [])
+      save(found)
+    }
+  }))
+  if (generation === routeCatalogGeneration) routeCatalogLabels.value = labels
+}
+watch([overview, popularRoutes, routeHistory, quoteRouteSnapshots,
+  originCode, poeCode, podCode, routePol, routePoe, routePod],
+  () => { void loadRouteCatalogLabels() })
+
 const businessPhonePrefix = ref<string | null>(null)
 watch(() => String(props.account.countryId || ''), async countryId => {
   businessPhonePrefix.value = null
@@ -510,7 +615,7 @@ async function saveRoute() {
               <span class="inline-flex items-center gap-1"><MapPin class="h-3.5 w-3.5" />{{ countryName || 'País sin definir' }}</span>
               <span>{{ text(account.taxId) }}</span>
               <span>{{ account.customerTypeCode === 'credit' ? 'Cliente crédito' : 'Cliente contado' }}</span>
-              <span v-if="account.isCastroFallasExecutive === true" class="font-semibold text-[var(--dh-primary)]">Vendedor: Castro Fallas</span>
+              <span class="inline-flex items-center gap-1 font-semibold text-[var(--dh-primary)]"><UsersRound class="h-3.5 w-3.5" />Vendedor asignado: {{ displaySeller }}</span>
             </div>
           </div>
         </div>
@@ -550,13 +655,14 @@ async function saveRoute() {
               compactRow('Razón social', account.legalName),
               compactRow('Nombre comercial', account.displayName),
               compactRow('Identificación', account.taxId),
-              compactRow('Tipo identificación', account.taxIdTypeCode),
+              compactRow('Tipo identificación', taxTypeDisplay(account.taxIdTypeCode)),
               compactRow('País', countryName),
+              compactRow('Vendedor asignado', displaySeller),
               compactRow('Tipo de cliente', account.customerTypeCode === 'credit' ? 'Crédito' : 'Contado'),
-              compactRow('Categoría', [account.categoryType, account.categoryCode].filter(Boolean).join(' / ')),
+              compactRow('Categoría', categoryDisplay(account.categoryType, account.categoryCode)),
               compactRow('Relación comercial', account.relationshipTypeCode),
               compactRow('Origen de la cuenta', account.sourceCode),
-              compactRow('Estado fiscal', account.verificationStatus),
+              compactRow('Estado fiscal', statusDisplay(account.verificationStatus)),
             ]" :key="item.label" class="hub-kv">
               <dt>{{ item.label }}</dt><dd>{{ text(item.value) }}</dd>
             </div>
@@ -584,7 +690,7 @@ async function saveRoute() {
           <div class="hub-panel-heading"><MapPin class="h-4 w-4 text-[var(--dh-primary)]" />Direcciones <span class="hub-count">{{ addresses.length }}</span></div>
           <p v-if="!addresses.length" class="hub-empty">Sin direcciones registradas.</p>
           <div v-for="address in addresses.slice(0,6)" :key="address.id" class="hub-list-item">
-            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">{{ text(address.addressType) }}</p>
+            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">{{ ({WORK:'Oficina',BILLING:'Facturación',WAREHOUSE:'Bodega',OTHER:'Otra'} as Record<string,string>)[String(address.addressType)] || 'Dirección' }}</p>
             <p class="mt-1 text-xs">{{ text(address.addressText) }}</p>
           </div>
         </section>
@@ -592,7 +698,7 @@ async function saveRoute() {
           <div class="hub-panel-heading"><Wallet class="h-4 w-4 text-[var(--dh-primary)]" />Condiciones financieras</div>
           <p v-if="!credit.length" class="hub-empty">No hay crédito configurado.</p>
           <dl v-for="profile in credit.slice(0,1)" :key="profile.id" class="divide-y divide-[var(--dh-border)]">
-            <div class="hub-kv"><dt>Estado</dt><dd>{{ text(profile.status) }}</dd></div>
+            <div class="hub-kv"><dt>Estado</dt><dd>{{ statusDisplay(profile.status) }}</dd></div>
             <div class="hub-kv"><dt>Días de crédito</dt><dd>{{ profile.creditDays ?? '—' }}</dd></div>
             <div class="hub-kv"><dt>Límite aprobado</dt><dd>{{ profile.creditLimit ?? '—' }} {{ text(profile.currencyCode) }}</dd></div>
             <div class="hub-kv"><dt>Condiciones</dt><dd>{{ text(profile.paymentConditions) }}</dd></div>
@@ -623,17 +729,17 @@ async function saveRoute() {
             <button type="button" class="hub-text-link" @click="activeTab='history'">Ver historial de reuniones y cotizaciones</button>
           </div>
           <div v-for="route in popularRoutes.slice(0,3)" :key="String(route.polCode)+String(route.podCode)+String(route.poeCode)" class="hub-list-item">
-            <p class="text-xs font-extrabold">{{ text(route.polCode) }} → <span v-if="route.poeCode">{{ text(route.poeCode) }} → </span>{{ text(route.podCode) }}</p>
+            <p class="text-xs font-extrabold">{{ routeDisplay(route.polCode, 'pol') }} → <span v-if="route.poeCode">{{ routeDisplay(route.poeCode, 'poe') }} → </span>{{ routeDisplay(route.podCode, 'pod') }}</p>
             <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ route.occurrences }} registros · {{ route.meetingCount }} reuniones · {{ route.quoteCount }} cotizaciones</p>
           </div>
           <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
           <div v-for="route in activeRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
-            <p class="text-xs font-semibold">{{ text(route.polCode || route.preferredOriginCode) }} →
-              {{ text(route.poeCode || route.preferredDestinationCode) }} <span v-if="route.podCode">→ {{ text(route.podCode) }}</span></p>
-            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ modeName(route.modalityCode) }} · {{ text(route.frequency) }}</p>
+            <p class="text-xs font-semibold">{{ routeDisplay(route.polCode || route.preferredOriginCode, 'pol') }} →
+              {{ routeDisplay(route.poeCode || route.preferredDestinationCode, 'poe') }} <span v-if="route.podCode">→ {{ routeDisplay(route.podCode, 'pod') }}</span></p>
+            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ modeName(route.modalityCode) }} · {{ frequencyDisplay(route.frequency) }}</p>
           </div>
           <div v-for="route in overview.analysisRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
-            <p class="text-xs font-semibold">{{ text(route.polCode) }} → {{ text(route.poeCode) }} → {{ text(route.podCode) }}</p>
+            <p class="text-xs font-semibold">{{ routeDisplay(route.polCode, 'pol') }} → {{ routeDisplay(route.poeCode, 'poe') }} → {{ routeDisplay(route.podCode, 'pod') }}</p>
             <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Ruta de análisis · {{ route.frequencyPerMonth ?? '—' }} al mes</p>
           </div>
         </section>
@@ -762,8 +868,8 @@ async function saveRoute() {
               <CrmCatalogPicker v-if="poeCode && routeNeedsPod" v-model="podCode"
                 label="POD · Destino final *" catalog-group-slug="pod" value-kind="code" terminal-type="SD" />
               <p v-if="routeReady" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
-                {{ modeName(routeModalityCode) }} · {{ originCode }} → {{ poeCode }}
-                <span v-if="routeNeedsPod"> → {{ podCode }}</span>
+                {{ modeName(routeModalityCode) }} · {{ routeDisplay(originCode, 'pol') }} → {{ routeDisplay(poeCode, 'poe') }}
+                <span v-if="routeNeedsPod"> → {{ routeDisplay(podCode, 'pod') }}</span>
               </p>
             </section>
             <section class="space-y-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
@@ -787,12 +893,12 @@ async function saveRoute() {
         </DhDrawer>
         <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
         <div v-for="r in overview.routes" :key="r.id" class="grid gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto]">
-          <div class="font-bold">{{ text(r.polCode || r.preferredOriginCode) }} → {{ text(r.poeCode || r.preferredDestinationCode) }}<span v-if="r.podCode"> → {{ text(r.podCode) }}</span></div>
-          <div>{{ modeName(r.modalityCode) }} · {{ text(r.frequency) }}</div>
+          <div class="font-bold">{{ routeDisplay(r.polCode || r.preferredOriginCode, 'pol') }} → {{ routeDisplay(r.poeCode || r.preferredDestinationCode, 'poe') }}<span v-if="r.podCode"> → {{ routeDisplay(r.podCode, 'pod') }}</span></div>
+          <div>{{ modeName(r.modalityCode) }} · {{ frequencyDisplay(r.frequency) }}</div>
         </div>
         <h3 v-if="overview.analysisRoutes.length" class="mt-5 mb-2 text-xs font-extrabold uppercase tracking-wider text-[var(--dh-text-muted)]">Rutas en análisis (POL / POE / POD)</h3>
         <div v-for="r in overview.analysisRoutes" :key="r.id" class="grid gap-2 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 sm:grid-cols-[1fr_auto]">
-          <div><b>{{ text(r.polCode) }}</b> → <b>{{ text(r.poeCode) }}</b> → <b>{{ text(r.podCode) }}</b></div>
+          <div><b>{{ routeDisplay(r.polCode, 'pol') }}</b> → <b>{{ routeDisplay(r.poeCode, 'poe') }}</b> → <b>{{ routeDisplay(r.podCode, 'pod') }}</b></div>
           <span class="text-xs text-[var(--dh-text-muted)]">{{ r.frequencyPerMonth || '—' }} / mes</span>
         </div>
       </section>
@@ -880,7 +986,7 @@ async function saveRoute() {
         <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más utilizadas (registros documentados)</h3>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div v-for="(r, idx) in popularRoutes" :key="idx" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-            <p class="text-sm font-extrabold">{{ text(r.polCode) }} → {{ r.poeCode ? text(r.poeCode) + ' → ' : '' }}{{ text(r.podCode) }}</p>
+            <p class="text-sm font-extrabold">{{ routeDisplay(r.polCode, 'pol') }} → {{ r.poeCode ? routeDisplay(r.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(r.podCode, 'pod') }}</p>
             <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--dh-text-muted)]">
               <span>{{ r.occurrences }} registros</span><span>{{ r.meetingCount }} reuniones</span><span>{{ r.quoteCount }} cotizaciones</span>
             </div>
@@ -905,7 +1011,7 @@ async function saveRoute() {
         <ol v-else class="divide-y divide-[var(--dh-border)]">
           <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
             <div class="min-w-0">
-              <p class="text-sm font-extrabold">{{ text(record.polCode) }} → {{ record.poeCode ? text(record.poeCode) + ' → ' : '' }}{{ text(record.podCode) }}</p>
+              <p class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ text(record.serviceCode) }}</p>
               <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
             </div>
