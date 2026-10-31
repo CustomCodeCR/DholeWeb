@@ -45,52 +45,20 @@ const cells = (...items: [string, unknown][]): Cell[] =>
 
 const companyIdentity = computed(() => cells(
   ['Nombre de cuenta', props.account.displayName],
-  ['Razón social', props.account.legalName],
+  ...(props.account.legalName && props.account.legalName !== props.account.displayName ? [['Razón social', props.account.legalName] as [string, unknown]] : []),
   ['Identificación', props.account.taxId],
-  ['Tipo de identificación', props.account.taxIdTypeCode],
   ['País', props.country],
-  ['Tipo de relación', props.account.relationshipTypeCode],
+  ['Relación comercial', props.account.relationshipTypeCode],
   ['Categoría', [props.account.categoryType, props.account.categoryCode].filter(Boolean).join(' · ')],
-  ['Origen de la cuenta', props.account.sourceCode],
 ))
 const companyDetails = computed(() => cells(
   ['Teléfono', props.profile?.phone],
   ['Correo electrónico', props.profile?.email],
-  ['Correo comercial / marketing', props.profile?.marketingEmail],
   ['Sitio web', props.profile?.website],
-  ['Sector productivo', props.profile?.sector],
-  ['Actividad de la empresa', props.profile?.businessActivity],
-  ['Líneas de productos o mercancías', props.profile?.products],
-  ['Historia de la empresa', props.profile?.companyHistory],
-  ['Servicios activos', props.profile?.activeServices],
-  ['Países con presencia', props.profile?.presenceCountries],
-  ['Referencia cliente web', props.profile?.webCustomerReference],
 ))
 const commercialDetails = computed(() => cells(
-  ['Observaciones comerciales', props.profile?.commercialObservations],
-  ['Estrategia comercial', props.profile?.commercialStrategy],
-  ['Proyectos de interés', props.profile?.projectsOfInterest],
-  ['Observaciones Pricing', props.profile?.pricingObservations],
-  ['Monitoreo de tarifas', props.profile?.tariffMonitoringNotes],
-  ['Tarifas enviadas', props.profile?.tariffSendingNotes],
-  ['Competidores', props.profile?.competitorObservations],
-  ['Mercados en análisis', props.analyses.map(a => display(a.marketCode)).filter(x => x !== '—').join(', ')],
-  ['Nacionalización de aduanas', props.analyses.length
-    ? props.analyses.some(a => a.customsNationalizationRequired === true) : null],
-  ['Volumen estimado', props.analyses.map(a =>
-    [a.estimatedMonthlyVolume, a.volumeUnit].filter(v => v !== null && v !== undefined && v !== '').join(' ')
-  ).filter(Boolean).join(' · ')],
   ['Rutas habituales', props.routes.filter(r => r.isActive !== false).length],
-))
-const operationDetails = computed(() => cells(
-  ['Observaciones e instrucciones operativas', props.profile?.operationalInstructions],
-  ['Operativa asignada', props.profile?.assignedOperations],
-  ['Instrucciones aduaneras', props.profile?.customsInstructions],
-  ['Recolección de carga', props.profile?.cargoCollectionInstructions],
-  ['Revisión de documentos', props.profile?.documentReviewInstructions],
-  ['Tratados y acuerdos', props.profile?.tradeAgreementNotes],
-  ['Correo de facturación', props.profile?.billingEmail],
-  ['Direcciones registradas', props.addresses.length],
+  ['Análisis registrados', props.analyses.length],
 ))
 const primaryContact = computed(() =>
   props.contacts.find(c => c.isPrimary === true || c.primary === true) ?? null)
@@ -172,7 +140,7 @@ const creditData = computed(() => props.credit[0])
             <dt>{{ cell.label }}</dt><dd>{{ display(cell.value) }}</dd>
           </div>
         </dl>
-        <div v-for="analysis in analyses.slice(0, 4)" :key="String(analysis.id)" class="sheet-related">
+        <div v-for="analysis in analyses.slice(0, 3)" :key="String(analysis.id)" class="sheet-related">
           <RouterLink :to="'/crm/analyses/' + linkId(analysis)" class="sheet-link">
             {{ display(analysis.marketCode) }}
           </RouterLink>
@@ -181,14 +149,6 @@ const creditData = computed(() => props.credit[0])
         <button type="button" class="sheet-link mt-3" @click="emit('open-tab', 'history')">
           Ver rutas procedentes de reuniones y cotizaciones
         </button>
-      </section>
-      <section class="sheet-panel">
-        <h2 class="sheet-title"><FileText class="h-4 w-4" />Análisis operativo e instrucciones</h2>
-        <dl class="sheet-fields">
-          <div v-for="cell in operationDetails" :key="cell.label" class="sheet-field">
-            <dt>{{ cell.label }}</dt><dd>{{ display(cell.value) }}</dd>
-          </div>
-        </dl>
       </section>
       <section v-if="canReadCredit" class="sheet-panel">
         <div class="sheet-heading">
