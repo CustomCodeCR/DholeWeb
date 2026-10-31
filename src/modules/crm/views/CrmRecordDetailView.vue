@@ -7,6 +7,8 @@ import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
+import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
 import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
@@ -47,6 +49,8 @@ const discardOpen = ref(false)
 let discardAction: (() => void) | null = null
 let navigationDecision: ((allowed: boolean) => void) | null = null
 const selectedExecutive = ref('')
+const leadTaxTypeLoading = ref(false)
+const leadTaxTypeMessage = ref('')
 const executiveReason = ref('')
 const createRelationPermissions: Record<string, string> = {
   'accounts:addresses': 'crm.account.update',
@@ -111,7 +115,9 @@ const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 const tabs = computed(() => {
   if (section.value === 'accounts') return ['contacts', 'addresses', 'business-activities', 'trade-profiles', 'credit-profiles', 'credit-contracts', 'followup-policy']
-  if (section.value === 'leads') return ['activities']
+  // Activities are a top-level /activities?leadId= endpoint, not /leads/{id}/activities.
+  // The prospect's calendar below owns the activity and followup history.
+  if (section.value === 'leads') return []
   if (section.value === 'opportunities') return ['stage-history', 'quotes', 'rate-requests', 'negotiations', 'contacts']
   if (section.value === 'activities') return ['notes', 'participants']
   if (section.value === 'followups') return ['history']
@@ -165,6 +171,13 @@ async function load() {
       if (!record.value) throw new Error('Pipeline no encontrado')
     } else {
       record.value = await crmGet(section.value, id.value)
+    }
+    if (section.value === 'leads') {
+      // Do not ask for a tax ID again: this is the fiscal identity saved with the lead.
+      // Hacienda's identificationType was not stored on the original prospect model.
+      // Refresh it on demand using the existing ID and country, without changing the lead.
+      if (record.value?.taxId && record.value?.countryId && !drafts.taxIdTypeCode.trim())
+        void populateLeadTaxType()
     }
     if (section.value === 'opportunities') {
       const pipelineId = String(record.value?.pipelineId ?? '')
@@ -285,10 +298,27 @@ function onLinkedContactSaved() {
   void loadRelation()
   void load()
 }
+async function populateLeadTaxType() {
+  const lead = record.value
+  if (!lead?.taxId || !lead?.countryId || leadTaxTypeLoading.value) return
+  const leadId = String(lead.id)
+  leadTaxTypeLoading.value = true
+  leadTaxTypeMessage.value = ''
+  try {
+    const params = new URLSearchParams({ identificacion: String(lead.taxId).replace(/[\\s-]/g, ''), countryId: String(lead.countryId) })
+    const response = await crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params)
+    if (record.value?.id !== leadId) return
+    if (response.identificationType) drafts.taxIdTypeCode = response.identificationType
+    else leadTaxTypeMessage.value = 'Hacienda no devolvió el tipo de identificación. Seleccionalo antes de convertir.'
+  } catch {
+    if (record.value?.id === leadId)
+      leadTaxTypeMessage.value = 'No se pudo recuperar el tipo de identificación de Hacienda. Podés indicarlo manualmente.'
+  } finally { leadTaxTypeLoading.value = false }
+}
 async function convertLead() {
   if (!record.value || !can('crm.lead.convert') || !can('crm.account.create') || saving.value) return
   if (record.value.taxId && !drafts.taxIdTypeCode.trim()) {
-    error.value = 'Para convertir un prospecto con identificación fiscal indicá el tipo de cédula.'
+    error.value = 'No es necesario volver a ingresar la cédula. Seleccioná únicamente el tipo de identificación si Hacienda no lo completó.'
     return
   }
   saving.value = true; error.value = ''
@@ -577,6 +607,16 @@ onMounted(() => { if (crmEnabled()) void load() })
           :account="record" :open="true" @close="leaveAccountEditing"
           @dirty-change="accountEditingDirty=$event"
           @saved="load" @manage-related="openRelatedManagement" />
+        <dl v-else-if="section === 'leads'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div v-for="[label,value] in [
+            ['Prospecto',record.name],['Empresa',record.companyName],['Identificación fiscal',record.taxId],
+            ['Correo',record.contactEmail],['Teléfono',record.phone],['Estado',record.qualificationStatus],
+            ['Origen',record.sourceCode],['Relación comercial',record.relationshipTypeCode]
+          ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] p-3">
+            <dt class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ label }}</dt>
+            <dd class="break-words text-sm">{{ value || '—' }}</dd>
+          </div>
+        </dl>
         <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
@@ -589,6 +629,12 @@ onMounted(() => { if (crmEnabled()) void load() })
         </dl>
       </section>
 
+      <section v-if="section === 'leads' && (can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage'))"
+        class="crm-panel space-y-3 p-4">
+        <h2 class="text-base font-extrabold">Agenda y seguimiento del prospecto</h2>
+        <p class="text-xs text-[var(--dh-text-muted)]">Programá visitas, llamadas, reuniones y seguimientos. Se asocian a este prospecto y se muestran en el calendario comercial, sin volver a ingresar la cédula.</p>
+        <CrmSalesCalendar :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
+      </section>
       <section v-if="section === 'leads' && can('crm.lead.convert') && can('crm.account.create')" class="crm-panel space-y-3 p-4">
         <h2 class="font-bold">Convertir prospecto en cuenta</h2>
         <template v-if="record.convertedAccountId">
@@ -596,8 +642,17 @@ onMounted(() => { if (crmEnabled()) void load() })
           <DhButton label="Ver cuenta creada" @click="router.push('/crm/accounts/'+encodeURIComponent(String(record.convertedAccountId)))" />
         </template>
         <form v-else class="grid gap-3 sm:grid-cols-2" @submit.prevent="convertLead">
-          <DhInput v-if="record.taxId" v-model="drafts.taxIdTypeCode" label="Tipo de cédula / identificación fiscal *"
-            placeholder="Física, jurídica, DIMEX u otra" />
+          <div v-if="record.taxId" class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+            <p class="text-xs text-[var(--dh-text-muted)]">Cédula del prospecto (ya registrada)</p>
+            <p class="text-sm font-bold">{{ record.taxId }}</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">No se solicita nuevamente: se conserva al convertir la cuenta.</p>
+          </div>
+          <div v-if="record.taxId" class="space-y-2">
+            <DhInput v-model="drafts.taxIdTypeCode" label="Tipo de identificación *" placeholder="Hacienda: física, jurídica, DIMEX u otra" />
+            <p v-if="leadTaxTypeMessage" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ leadTaxTypeMessage }}</p>
+            <DhButton v-if="!drafts.taxIdTypeCode" label="Consultar tipo en Hacienda" variant="secondary"
+              :loading="leadTaxTypeLoading" @click="populateLeadTaxType" />
+          </div>
           <DhSelect label="Condición comercial" v-model="drafts.conversionCustomerType"
             :options="[{value:'cash',label:'Contado'},{value:'credit',label:'Crédito'}]" />
           <DhSelect label="Tipo de cuenta" v-model="drafts.conversionCategoryType"
