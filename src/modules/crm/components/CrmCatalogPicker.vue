@@ -13,7 +13,7 @@ const props = withDefaults(defineProps<{
   valueKind?: 'id' | 'code' | 'value'
   terminalType?: 'CY' | 'SD' | 'APT'
 }>(), { valueKind: 'id' })
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string]; 'resolved-label': [item: {value:string;label:string}] }>()
 const items = ref<CatalogItemSelectDto[]>([])
 const query = ref('')
 const open = ref(false)
@@ -76,6 +76,7 @@ async function reload() {
       if (selected) items.value = [selected, ...result]
     }
     selectedLabel.value = selected ? labelFor(selected) : ''
+    if (selected) emit('resolved-label', {value: optionValue(selected),label:labelFor(selected)})
   } catch {
     if (id !== generation) return
     error.value = 'No se pudo consultar el catálogo de Config. Reintentá la búsqueda.'
@@ -93,6 +94,7 @@ function onSearch(value: string) {
 }
 function select(item: CatalogItemSelectDto) {
   selectedLabel.value = labelFor(item)
+  emit('resolved-label', {value: optionValue(item), label: labelFor(item)})
   emit('update:modelValue', optionValue(item))
   query.value = ''
   open.value = false
@@ -121,7 +123,7 @@ onBeforeUnmount(() => { generation++; if (searchTimer) clearTimeout(searchTimer)
   <div class="relative min-w-0 space-y-1.5" data-crm-catalog-picker>
     <div class="flex items-center justify-between gap-2">
       <label class="text-xs font-bold text-[var(--dh-text-muted)]">{{ label }}</label>
-      <span class="text-[10px] text-[var(--dh-text-muted)]"></span>
+
     </div>
     <div class="flex min-w-0 items-center gap-1.5">
       <button type="button" :aria-expanded="open" :aria-label="label" aria-haspopup="listbox"
