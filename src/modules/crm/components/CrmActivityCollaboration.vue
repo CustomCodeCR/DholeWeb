@@ -151,7 +151,7 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
             :options="[{value:'ORGANIZER',label:'Organizador'},{value:'RESPONSIBLE',label:'Responsable'},{value:'ATTENDEE',label:'Asistente'},{value:'GUEST',label:'Invitado'}]" />
           <div class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" size="sm" @click="showParticipantForm=false" />
-            <DhButton label="Guardar participante" size="sm" submit :loading="saving" />
+            <DhButton label="Guardar participante" size="sm" type="submit" :loading="saving" />
           </div>
         </form>
         <p v-if="!participants.length && !loading" class="mt-5 rounded-xl border border-dashed border-[var(--dh-border)] px-4 py-7 text-center text-sm text-[var(--dh-text-muted)]">
@@ -178,7 +178,7 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
         </div>
         <form v-if="canManage" class="mt-4 space-y-3" @submit.prevent="addNote">
           <DhTextarea v-model="note" label="Nueva observación" placeholder="Acuerdos, detalles o próximos pasos…" />
-          <div class="flex justify-end"><DhButton label="Guardar observación" submit size="sm" :loading="saving" :disabled="!note.trim()" /></div>
+          <div class="flex justify-end"><DhButton label="Guardar observación" type="submit" size="sm" :loading="saving" :disabled="!note.trim()" /></div>
         </form>
         <p v-if="!notes.length && !loading" class="mt-4 rounded-xl border border-dashed border-[var(--dh-border)] px-4 py-7 text-center text-sm text-[var(--dh-text-muted)]">No hay observaciones registradas.</p>
         <ol v-else class="mt-4 space-y-3">
