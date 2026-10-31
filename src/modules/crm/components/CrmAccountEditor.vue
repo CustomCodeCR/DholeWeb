@@ -274,7 +274,13 @@ async function save() {
             <CrmCatalogPicker label="País" catalog-group-slug="countries" value-kind="id"
               :model-value="accountDraft.countryId" @update:model-value="accountDraft.countryId=$event" />
             <DhInput v-model="accountDraft.taxId" label="Identificación fiscal" />
-            <DhInput v-model="accountDraft.taxIdTypeCode" label="Tipo de identificación" />
+            <DhSelect label="Tipo de identificación" :model-value="accountDraft.taxIdTypeCode"
+              :options="[
+                {value:'01',label:'Persona física'},
+                {value:'02',label:'Persona jurídica'},
+                {value:'03',label:'DIMEX'},
+                {value:'04',label:'NITE'}
+              ]" @update:model-value="accountDraft.taxIdTypeCode=String($event)" />
             <div class="flex flex-col justify-end"><CrmHaciendaLookup :country-id="accountDraft.countryId"
               :tax-id="accountDraft.taxId" @resolved="resolved" /></div>
           </div>
