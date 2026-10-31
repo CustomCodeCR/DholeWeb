@@ -37,6 +37,7 @@ const emit = defineEmits<{
   (e: 'change-executive'): void
   (e: 'edit-account'): void
   (e: 'manage-related'): void
+  (e: 'create-contract'): void
   (e: 'logo-updated'): void
 }>()
 const router = useRouter()
@@ -1059,7 +1060,11 @@ async function saveRoute() {
         <CrmCreditCoverageManager :account-id="String(account.id)" :editable="has('crm.credit.manage')" @updated="load" />
       </section>
       <section v-if="has('crm.contract.read')" class="hub-panel">
-        <h2 class="mb-3 font-extrabold">Contratos y renovaciones</h2>
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 class="font-extrabold">Contratos y renovaciones</h2>
+          <button v-if="has('crm.contract.manage')" type="button" class="hub-outline-button hub-small"
+            @click="emit('create-contract')"><Plus class="h-3.5 w-3.5" />Nuevo contrato</button>
+        </div>
         <p v-if="!contracts.length" class="text-sm text-[var(--dh-text-muted)]">No hay contratos registrados.</p>
         <div v-for="c in contracts" :key="c.id" class="border-b border-[var(--dh-border)] py-3 text-sm last:border-0">
           <p class="font-bold">{{ text(c.contractNumber) }} · {{ text(c.status) }}</p>
