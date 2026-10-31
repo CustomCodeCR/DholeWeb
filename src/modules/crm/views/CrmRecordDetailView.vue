@@ -377,7 +377,12 @@ function addNegotiation() {
   }, 'crm.opportunity.update')
 }
 
-function back() { router.push('/crm/' + section.value) }
+function back() {
+  const source = typeof route.query.fromAccount === 'string' ? route.query.fromAccount : ''
+  if (section.value !== 'accounts' && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(source))
+    void router.push('/crm/accounts/' + encodeURIComponent(source))
+  else void router.push('/crm/' + section.value)
+}
 onBeforeRouteLeave(() => {
   if (saving.value) return window.confirm(t('crm.leaveDuringSave'))
   if (accountEditingDirty.value) return window.confirm('Hay cambios en la ficha sin guardar. ¿Querés salir sin guardarlos?')
@@ -394,7 +399,7 @@ onMounted(() => { if (crmEnabled()) void load() })
 
 <template>
   <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
-    <DhButton :label="t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
+    <DhButton :label="section !== 'accounts' && route.query.fromAccount ? 'Volver a la cuenta' : t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
     <p v-if="section === 'accounts' && route.query.onboarding === 'partial'" role="alert"
       class="rounded-xl border border-amber-500/40 bg-[var(--dh-card)] p-3 text-xs text-[var(--dh-text)]">
