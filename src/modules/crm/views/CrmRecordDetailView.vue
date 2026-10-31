@@ -117,6 +117,42 @@ const drafts = reactive({
 })
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
+const agendaEditable = computed(() => section.value === 'activities'
+  ? record.value?.status === 'Scheduled'
+  : ['Pending','Overdue'].includes(String(record.value?.status ?? '')))
+const agendaStatusChoices = computed(() => section.value === 'activities'
+  ? [{value:'Scheduled',label:'Programada'},{value:'Completed',label:'Completada'},{value:'Cancelled',label:'Cancelada'}]
+  : [{value:'Pending',label:'Pendiente'},{value:'Overdue',label:'Vencida'},{value:'Completed',label:'Completada'},{value:'Cancelled',label:'Cancelada'}])
+function agendaLabel(value: unknown, kind: 'status' | 'type' | 'channel' = 'status'): string {
+  const labels: Record<string, Record<string,string>> = {
+    status: {Scheduled:'Programada',Pending:'Pendiente',Overdue:'Vencida',Completed:'Completada',Cancelled:'Cancelada'},
+    type: {VISIT:'Visita',CALL:'Llamada',EMAIL:'Correo',MEETING:'Reunión',OTHER:'Actividad'},
+    channel: {BOTH:'Correo y sistema',EMAIL:'Correo',SYSTEM:'Sistema'}
+  }
+  return labels[kind][String(value ?? '')] || String(value || '—')
+}
+function agendaDate(value: unknown): string {
+  const when = typeof value === 'string' ? new Date(value) : null
+  return when && Number.isFinite(when.getTime())
+    ? new Intl.DateTimeFormat('es-CR',{dateStyle:'long',timeStyle:'short'}).format(when)
+    : '—'
+}
+async function saveAgendaStatus() {
+  if (!record.value || !agendaEditable.value || saving.value) return
+  if (drafts.status === 'Completed') {
+    if (section.value === 'activities') await completeActivity()
+    else await completeFollowup()
+  } else if (drafts.status === 'Cancelled') {
+    if (!drafts.reason.trim()) { error.value = 'Ingresá el motivo de cancelación.'; return }
+    await perform('cancel',{expectedVersion:version(),reason:drafts.reason},section.value === 'activities' ? 'crm.activity.update' : 'crm.task.manage')
+  } else if (drafts.date && drafts.date !== fromUtc(
+    section.value === 'activities' ? record.value.scheduledStartAt : record.value.dueAt)) {
+    if (section.value === 'activities') await rescheduleActivity()
+    else await rescheduleFollowup()
+  } else {
+    error.value = 'Elegí un estado distinto o modificá la fecha para reprogramar.'
+  }
+}
 const tabs = computed(() => {
   if (section.value === 'accounts') return ['contacts', 'addresses', 'business-activities', 'trade-profiles', 'credit-profiles', 'credit-contracts', 'followup-policy']
   // Activities are a top-level /activities?leadId= endpoint, not /leads/{id}/activities.
@@ -186,6 +222,12 @@ async function load() {
     if (section.value === 'opportunities') {
       const pipelineId = String(record.value?.pipelineId ?? '')
       if (pipelineId) stages.value = await crmRequest<CrmRow[]>(crmPath('pipelines', pipelineId, 'stages'))
+    }
+    if (record.value && (section.value === 'activities' || section.value === 'followups')) {
+      drafts.status = String(record.value.status ?? '')
+      drafts.date = fromUtc(section.value === 'activities' ? record.value.scheduledStartAt : record.value.dueAt)
+      drafts.reason = ''
+      drafts.note = ''
     }
     if (!tabs.value.includes(relation.value)) relation.value = tabs.value.find(permitted) ?? ''
     if (relation.value) await loadRelation()
@@ -627,7 +669,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       <section :class="section === 'accounts' ? 'space-y-0' : 'crm-panel space-y-3 p-4 sm:p-5'">
         <DhPageHeader v-if="section !== 'accounts'" :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
-          :subtitle="t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
+          :subtitle="section === 'activities' ? 'Actividad comercial' : section === 'followups' ? 'Seguimiento comercial' : t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
         <DhDrawer :open="showExecutiveDrawer" title="Asignar ejecutivo comercial" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
             <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo"
@@ -658,6 +700,21 @@ onMounted(() => { if (crmEnabled()) void load() })
           ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] p-3">
             <dt class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ label }}</dt>
             <dd class="break-words text-sm">{{ value || '—' }}</dd>
+          </div>
+        </dl>
+        <dl v-else-if="section === 'activities' || section === 'followups'" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div v-for="[label,value] in [
+            ['Tipo de gestión', section === 'activities' ? agendaLabel(record.type,'type') : 'Seguimiento'],
+            ['Estado',agendaLabel(record.status)],
+            ['Inicio programado',agendaDate(section === 'activities' ? record.scheduledStartAt : record.dueAt)],
+            ['Finalización',section === 'activities' ? agendaDate(record.scheduledEndAt) : '—'],
+            ['Ubicación',section === 'activities' ? (record.locationText || 'No especificada') : '—'],
+            ['Notificar por',agendaLabel(record.reminderChannelStrategy || 'BOTH','channel')],
+            ['Avisar antes',(record.reminderLeadMinutes ?? 60) + ' minutos'],
+            ['Resultado',record.outcome || 'Pendiente de completar']
+          ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3.5">
+            <dt class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ label }}</dt>
+            <dd class="mt-1 break-words text-sm font-semibold">{{ value }}</dd>
           </div>
         </dl>
         <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -723,25 +780,29 @@ onMounted(() => { if (crmEnabled()) void load() })
         <button v-if="can('crm.opportunity.close')" class="crm-action" :disabled="saving" @click="closeOpportunity">{{ t('crm.closeOpportunity') }}</button>
       </section>
 
-      <section v-if="section === 'activities' && can('crm.activity.update')" class="crm-panel space-y-3 p-4">
-        <h2 class="font-bold">{{ t('crm.activityActions') }}</h2>
-        <input v-model="drafts.outcome" class="crm-input" :placeholder="t('crm.outcome')" />
-        <textarea v-model="drafts.note" class="crm-input" :placeholder="t('crm.notes')" />
-        <button class="crm-action" :disabled="saving" @click="completeActivity">{{ t('crm.complete') }}</button>
-        <input v-model="drafts.date" type="datetime-local" class="crm-input" />
-        <input v-model="drafts.reason" class="crm-input" :placeholder="t('crm.reason')" />
-        <button class="crm-action" :disabled="saving" @click="rescheduleActivity">{{ t('crm.reschedule') }}</button>
-        <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.activity.update')">{{ t('crm.cancelActivity') }}</button>
-      </section>
-
-      <section v-if="section === 'followups' && can('crm.task.manage')" class="crm-panel space-y-3 p-4">
-        <h2 class="font-bold">{{ t('crm.followupActions') }}</h2>
-        <input v-model="drafts.outcome" class="crm-input" :placeholder="t('crm.outcome')" />
-        <button class="crm-action" :disabled="saving" @click="completeFollowup">{{ t('crm.complete') }}</button>
-        <input v-model="drafts.date" type="datetime-local" class="crm-input" />
-        <input v-model="drafts.reason" class="crm-input" :placeholder="t('crm.reason')" />
-        <button class="crm-action" :disabled="saving" @click="rescheduleFollowup">{{ t('crm.reschedule') }}</button>
-        <button class="crm-action" :disabled="saving" @click="perform('cancel',{expectedVersion:version(),reason:drafts.reason||'Cancelado'},'crm.task.manage')">{{ t('crm.cancelActivity') }}</button>
+      <section v-if="(section === 'activities' && can('crm.activity.update')) || (section === 'followups' && can('crm.task.manage'))"
+        class="crm-panel space-y-4 p-4 sm:p-5">
+        <div>
+          <h2 class="text-base font-bold">Gestionar {{ section === 'activities' ? 'actividad' : 'seguimiento' }}</h2>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Actualizá el estado o reprogramá la gestión. Se conserva su historial.</p>
+        </div>
+        <template v-if="agendaEditable">
+          <DhSelect v-model="drafts.status" label="Estado" :options="agendaStatusChoices" />
+          <DhInput v-if="drafts.status === 'Completed' && section === 'activities'"
+            v-model="drafts.outcome" label="Resultado (código configurado)" />
+          <DhTextarea v-if="drafts.status === 'Completed' && section === 'activities'"
+            v-model="drafts.note" label="Observaciones" />
+          <label v-if="drafts.status !== 'Completed' && drafts.status !== 'Cancelled'" class="block space-y-1.5 text-sm font-semibold">
+            Nueva fecha y hora
+            <input v-model="drafts.date" type="datetime-local" class="crm-input w-full" />
+          </label>
+          <DhTextarea v-if="drafts.status === 'Cancelled' || drafts.status === 'Scheduled' || drafts.status === 'Pending' || drafts.status === 'Overdue'"
+            v-model="drafts.reason" :label="drafts.status === 'Cancelled' ? 'Motivo de cancelación' : 'Motivo de reprogramación'" />
+          <div class="flex justify-end">
+            <DhButton label="Guardar cambios" :loading="saving" :disabled="saving" @click="saveAgendaStatus" />
+          </div>
+        </template>
+        <p v-else class="text-sm text-[var(--dh-text-muted)]">Esta gestión ya está finalizada y no puede modificarse.</p>
       </section>
 
       <section v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management"
