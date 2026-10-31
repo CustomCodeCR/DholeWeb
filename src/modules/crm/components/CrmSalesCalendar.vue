@@ -246,7 +246,7 @@ async function fetchAll(resource: string, from: string, to: string): Promise<{ i
   for (let page = 1; page <= 10; page++) {
     const response = await crmList(resource, { from, to, page, pageSize: 100,
       accountId: props.accountId || undefined,
-      leadId: resource === 'activities' ? props.leadId || undefined : undefined })
+      leadId: props.leadId || undefined })
     total = response.total
     all.push(...response.items)
     if (all.length >= total || !response.items.length) break
