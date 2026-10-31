@@ -128,6 +128,20 @@ async function countryGist(): Promise<GistCountry[]> {
   }
   return gistData
 }
+function isoForCountry(country: Pick<CatalogItemDetailDto,
+  'code' | 'slug' | 'name' | 'value' | 'metadataJson'>): string | null {
+  for (const value of [country.code, country.value, country.slug, country.name]) {
+    const token = String(value ?? '').toUpperCase().trim()
+    if (callingCodes.has(token)) return token
+    const iso2 = iso3Codes.get(token)
+    if (iso2) return iso2
+    const name = normalize(value)
+    const translated = aliases[name] ?? isoNameMap.get(name)
+    if (translated) return translated
+  }
+  return null
+}
+
 export async function publicDialCodeForCountry(country: Pick<CatalogItemDetailDto,
   'code' | 'slug' | 'name' | 'value' | 'metadataJson'>): Promise<string | null> {
   // Config administrators can override any default with metadata.phoneCode.
