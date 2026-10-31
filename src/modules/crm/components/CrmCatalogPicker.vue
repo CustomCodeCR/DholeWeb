@@ -52,8 +52,9 @@ const options = computed(() => items.value.filter(item =>
   item.isActive !== false &&
   (!props.terminalType || !itemTerminalType(item) || itemTerminalType(item) === props.terminalType)))
 const displayedValue = computed(() =>
-  selectedLabel.value || (props.modelValue ? options.value.find(x => optionValue(x) === props.modelValue)?.label ||
-    props.modelValue : ''))
+  selectedLabel.value || (props.modelValue
+    ? options.value.find(x => optionValue(x) === props.modelValue)?.label || 'Consultando descripción…'
+    : ''))
 async function reload() {
   const id = ++generation
   loading.value = true
@@ -65,8 +66,16 @@ async function reload() {
     })
     if (id !== generation) return
     items.value = result
-    const selected = result.find(x => optionValue(x) === props.modelValue)
-    if (selected) selectedLabel.value = labelFor(selected)
+    let selected = result.find(x => optionValue(x) === props.modelValue)
+    if (!selected && props.modelValue) {
+      const matches = await CatalogItemsService.select({
+        catalogGroupSlug:props.catalogGroupSlug, search:props.modelValue
+      }).catch(() => [])
+      if (id !== generation) return
+      selected = matches.find(x => optionValue(x) === props.modelValue)
+      if (selected) items.value = [selected, ...result]
+    }
+    selectedLabel.value = selected ? labelFor(selected) : ''
   } catch {
     if (id !== generation) return
     error.value = 'No se pudo consultar el catálogo de Config. Reintentá la búsqueda.'
@@ -112,7 +121,7 @@ onBeforeUnmount(() => { generation++; if (searchTimer) clearTimeout(searchTimer)
   <div class="relative min-w-0 space-y-1.5" data-crm-catalog-picker>
     <div class="flex items-center justify-between gap-2">
       <label class="text-xs font-bold text-[var(--dh-text-muted)]">{{ label }}</label>
-      <span class="text-[10px] text-[var(--dh-text-muted)]">Config</span>
+      <span class="text-[10px] text-[var(--dh-text-muted)]"></span>
     </div>
     <div class="flex min-w-0 items-center gap-1.5">
       <button type="button" :aria-expanded="open" :aria-label="label" aria-haspopup="listbox"
