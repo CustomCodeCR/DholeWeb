@@ -160,7 +160,6 @@ const needsMoney = computed(() => ['FIXED_AMOUNT', 'DISCOUNT_AMOUNT'].includes(d
   (draft.rateType === 'INSURANCE_PERCENT' && draft.minimumCharge.trim() !== ''))
 const isPercent = computed(() => draft.rateType === 'DISCOUNT_PERCENT' || draft.rateType === 'INSURANCE_PERCENT')
 const unitVisible = computed(() => draft.rateType === 'FIXED_AMOUNT')
-const selectedCharge = computed(() => charges.find(x => x.value === draft.chargeCode)?.label ?? draft.chargeCode)
 
 function endpoint() {
   return crmPath('accounts', props.accountId, 'commercial-benefits')
@@ -467,7 +466,8 @@ function readableDate(s: string | null) {
             </select>
           </label>
           <label class="benefit-label">Concepto beneficiado
-            <select v-model="draft.chargeCode" class="benefit-input">
+            <select v-model="draft.chargeCode" class="benefit-input"
+              @change="draft.rateType==='INSURANCE_PERCENT' && draft.chargeCode!=='INSURANCE' ? selectType('FIXED_AMOUNT') : undefined">
               <option v-for="item in charges" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
