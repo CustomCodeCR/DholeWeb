@@ -124,7 +124,13 @@ const tableRows = computed(() => rows.value.map(item => ({
     : String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
   _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
-  _crmCategory: [item.categoryType, item.categoryCode].filter(Boolean).join(' · ') || '—',
+  _crmCategory: (() => {
+    const category = String(item.categoryType ?? '')
+    const description = ({ CUSTOMER: 'Cliente', NVOCC: 'Agente / NVOCC', LITTLE: 'Cargas Little' }
+      as Record<string,string>)[category] || 'Cuenta'
+    const tier = String(item.categoryCode ?? '')
+    return description + (category !== 'LITTLE' && ['A','B','C','D'].includes(tier) ? ' categoría ' + tier : '')
+  })(),
   _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
   _crmEmail: String(item.contactEmail ?? '—'),
   _crmPhone: String(item.phone ?? '—'),
