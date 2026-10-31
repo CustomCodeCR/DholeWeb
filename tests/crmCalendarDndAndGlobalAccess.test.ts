@@ -45,8 +45,8 @@ test('Castro Fallas access is global and restricted to administrators', () => {
   assert.ok(!detail.includes('<CrmAccountViewerManager'))
 })
 
-test('Country calling prefix uses an external public API with fallback', () => {
-  assert.ok(phone.includes('https://restcountries.com/v3.1/alpha/'))
+test('Country calling prefix uses the requested Spanish/English JSON source with offline fallback', () => {
+  assert.ok(phone.includes('gist.githubusercontent.com/eduardolat/b2a252d17b17363fab0974bb0634d259/raw/countries.json'))
   assert.ok(phone.includes('dialCodeForCountry(country)'))
   assert.ok(phone.includes('AbortController'))
 })
