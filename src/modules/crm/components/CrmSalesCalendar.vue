@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { DhModal } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
@@ -405,7 +406,7 @@ function openEvent(item: CalendarEvent) {
 
 <template>
   <section class="space-y-4" data-crm-sales-calendar>
-    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+    <div class="sticky top-[112px] z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-sm">
       <div>
         <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-primary)]">Agenda comercial</p>
         <h2 class="mt-1 text-xl font-extrabold capitalize">{{ heading }}</h2>
@@ -443,11 +444,12 @@ function openEvent(item: CalendarEvent) {
       </div>
       <div class="grid grid-cols-7">
         <div v-for="day in visibleDays" :key="dateKey(day)"
-          class="min-w-0 border-b border-r border-[var(--dh-border)] p-1.5 sm:p-2"
+          class="min-w-0 cursor-pointer border-b border-r border-[var(--dh-border)] p-1.5 transition-colors hover:bg-[var(--dh-shell)] sm:p-2"
           :class="['min-h-[115px]',
             dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':'']"
           @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
-          @dragleave="dropKey=''" @drop="onDrop($event,day)">
+          @dragleave="dropKey=''" @drop="onDrop($event,day)"
+          @click.self="selected=day;openCreation(day)">
           <button type="button" :aria-label="'Crear actividad el '+dateKey(day)"
             class="mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
             :class="[dateKey(day)===dateKey(new Date())?'bg-[var(--dh-primary)] text-white':'hover:bg-[var(--dh-shell)]',
@@ -525,7 +527,8 @@ function openEvent(item: CalendarEvent) {
         </button>
       </section>
     </div>
-    <div v-if="active" class="rounded-2xl border border-[var(--dh-primary)]/35 bg-[var(--dh-card)] p-4" role="region" aria-label="Detalle de actividad">
+    <DhModal :open="Boolean(active)" title="Detalle de actividad comercial" size="lg" @close="active=null">
+      <div v-if="active" class="space-y-3">
       <div class="flex justify-between gap-3">
         <div><h3 class="font-extrabold">{{ active.subject }}</h3>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(active.status) }} · {{ active.at.toLocaleString('es-CR') }}</p>
@@ -545,8 +548,10 @@ function openEvent(item: CalendarEvent) {
         <button v-if="active.accountId" type="button" class="calendar-btn"
           @click="router.push('/crm/accounts/'+encodeURIComponent(active.accountId))">Volver a la cuenta</button>
       </div>
-    </div>
-    <div v-if="creationOpen" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-lg" aria-label="Nueva actividad comercial">
+      </div>
+    </DhModal>
+    <DhModal :open="creationOpen" title="Programar visita, llamada o seguimiento" size="lg" @close="creationOpen=false">
+      <div class="space-y-4">
       <div class="mb-4 flex items-start justify-between gap-3">
         <div><h3 class="text-lg font-extrabold">Programar actividad</h3>
           <p class="text-xs text-[var(--dh-text-muted)]">El vendedor asignado recibirá recordatorios por los canales seleccionados.</p>
@@ -623,7 +628,8 @@ function openEvent(item: CalendarEvent) {
           </button>
         </div>
       </form>
-    </div>
+      </div>
+    </DhModal>
   </section>
 </template>
 
