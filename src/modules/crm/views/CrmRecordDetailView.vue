@@ -38,6 +38,9 @@ const showRelationForm = ref(false)
 const creditIncluded = ref<string[]>([])
 const creditExcluded = ref<string[]>([])
 const signedContractFile = ref<File | null>(null)
+const newlyCreatedContractId = ref('')
+const contractCreateKey = ref(crmUuid())
+const contractRenewalDrafts = ref<Record<string, string>>({})
 const contractFiles = ref<Record<string, File | null>>({})
 const documentBusy = ref(false)
 const documentStatus = ref('')
@@ -105,7 +108,7 @@ const drafts = reactive({
   polCode: '', poeCode: '', podCode: '', creditDays: '30', creditLimit: '0',
   monthlyFinancingPct: '0', currencyCode: 'USD', paymentConditions: '',
   contractNumber: '', renewalDate: '', expiryDate: '', startDate: '',
-  marketCode: 'OTHER', decisionRole: 'INFLUENCER', fileId: '', timezoneId: 'America/Costa_Rica',
+  marketCode: 'OTHER', decisionRole: 'INFLUENCER', timezoneId: 'America/Costa_Rica',
   channelStrategy: 'BOTH', frequencyDays: '7', reminderLeadMinutes: '60',
   assignedUserId: String(auth.userId || ''), operationId: crmUuid(),
   addressText: '', addressType: 'WORK', transportModeCode: 'SEA', modalityCode: 'FCL',
@@ -454,27 +457,51 @@ async function downloadSignedContract(fileId: string) {
   } catch (cause) { error.value = crmError(cause) }
 }
 async function createContract() {
-  if (!drafts.startDate || !drafts.renewalDate) { error.value = t('crm.required'); return }
   if (!can('crm.contract.manage') || saving.value) return
+  if (!drafts.startDate || !drafts.renewalDate) {
+    error.value = 'Indicá la fecha de inicio y la próxima renovación.'
+    return
+  }
+  const startDate = new Date(drafts.startDate).getTime()
+  const renewalDate = new Date(drafts.renewalDate).getTime()
+  const expiryDate = drafts.expiryDate ? new Date(drafts.expiryDate).getTime() : null
+  if (!Number.isFinite(startDate) || !Number.isFinite(renewalDate) ||
+      renewalDate < startDate || (expiryDate !== null &&
+      (!Number.isFinite(expiryDate) || expiryDate < startDate))) {
+    error.value = 'Revisá las fechas: la renovación y el vencimiento no pueden ser anteriores al inicio.'
+    return
+  }
+  if (signedContractFile.value && signedContractFile.value.size > 25 * 1024 * 1024) {
+    error.value = 'El documento supera los 25 MB permitidos.'
+    return
+  }
   saving.value = true; error.value = ''; success.value = ''
-  let createdId = ''
   try {
-    const contract = await crmRequest<CrmRow>(crmPath('accounts', id.value, 'credit-contracts'), 'POST', {
-      creditProfileId: null, contractNumber: drafts.contractNumber || null,
-      startDate: toUtc(drafts.startDate), renewalDate: toUtc(drafts.renewalDate),
-      expiryDate: drafts.expiryDate ? toUtc(drafts.expiryDate) : null,
-      paymentTerms: drafts.paymentConditions, autoRenew: false,
-    }, crmUuid())
-    createdId = String(contract.id)
+    // Never create a second contract if the first creation succeeded but
+    // the separate Storage upload / signed-document association failed.
+    if (!newlyCreatedContractId.value) {
+      const contract = await crmRequest<CrmRow>(crmPath('accounts', id.value, 'credit-contracts'), 'POST', {
+        creditProfileId: null, contractNumber: drafts.contractNumber.trim() || null,
+        startDate: toUtc(drafts.startDate), renewalDate: toUtc(drafts.renewalDate),
+        expiryDate: drafts.expiryDate ? toUtc(drafts.expiryDate) : null,
+        paymentTerms: drafts.paymentConditions, autoRenew: false,
+      }, contractCreateKey.value)
+      newlyCreatedContractId.value = String(contract.id)
+    }
     const hasSignedFile = Boolean(signedContractFile.value)
-    if (signedContractFile.value) await uploadSignedContract(createdId, signedContractFile.value)
+    if (signedContractFile.value)
+      await uploadSignedContract(newlyCreatedContractId.value, signedContractFile.value)
     signedContractFile.value = null
+    newlyCreatedContractId.value = ''
+    contractCreateKey.value = crmUuid()
     showRelationForm.value = false
     await loadRelation()
-    success.value = 'Contrato guardado' + (hasSignedFile ? ' con documento firmado.' : '.')
+    success.value = 'Contrato creado correctamente' + (hasSignedFile ? ' con su documento firmado.' : '.') 
   } catch (cause) {
     await loadRelation()
-    error.value = crmError(cause) + (createdId ? ' El contrato sí se creó; adjuntá el documento desde el registro existente. No dupliqués el contrato.' : '')
+    error.value = crmError(cause) + (newlyCreatedContractId.value
+      ? ' El contrato ya está creado. Volvé a intentar asociar el archivo; no se generará otro contrato.'
+      : ' Verificá los datos e intentá nuevamente.')
   } finally { saving.value = false }
 }
 async function createRoute() {
@@ -778,8 +805,10 @@ onMounted(() => { if (crmEnabled()) void load() })
             <p v-if="section === 'accounts'" class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ accountRelationInfo?.description }}</p>
           </div>
           <DhButton v-if="canAddRelation" :icon="Plus"
-            :label="section === 'accounts' && relation === 'contacts' ? 'Nuevo contacto' : t('common.create')"
-            @click="showRelationForm = true" />
+            :label="section === 'accounts' && relation === 'contacts' ? 'Nuevo contacto' :
+              relation === 'credit-profiles' ? 'Añadir crédito' :
+              relation === 'credit-contracts' ? 'Nuevo contrato' : t('common.create')"
+            @click="showRelationForm = true; error = ''" />
         </div>
         <p v-if="documentStatus && relation==='credit-contracts'" role="status" class="text-sm text-emerald-500">{{ documentStatus }}</p>
         <div v-if="!relationRows.length"
@@ -833,6 +862,18 @@ onMounted(() => { if (crmEnabled()) void load() })
               </div>
             </div>
           </template>
+          <template v-else-if="relation === 'credit-contracts'">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h4 class="text-sm font-extrabold">Contrato {{ item.contractNumber || 'sin número de referencia' }}</h4>
+              <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-bold">{{ item.status === 'Draft' ? 'Borrador' : item.status === 'Active' ? 'Vigente' : item.status }}</span>
+            </div>
+            <dl class="mt-3 grid gap-3 text-xs sm:grid-cols-3">
+              <div><dt class="text-[var(--dh-text-muted)]">Inicio</dt><dd class="mt-1 font-semibold">{{ item.startDate ? fromUtc(String(item.startDate)) : '—' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">Próxima renovación</dt><dd class="mt-1 font-semibold">{{ item.renewalDate ? fromUtc(String(item.renewalDate)) : '—' }}</dd></div>
+              <div><dt class="text-[var(--dh-text-muted)]">Vencimiento</dt><dd class="mt-1 font-semibold">{{ item.expiryDate ? fromUtc(String(item.expiryDate)) : 'Sin definir' }}</dd></div>
+            </dl>
+            <p v-if="item.paymentTerms" class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ item.paymentTerms }}</p>
+          </template>
           <template v-else>
             <p class="font-bold">{{ item.name ?? item.activityCode ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.addressText ?? 'Registro' }}</p>
             <p v-if="item.activityDescription || item.email || item.reason || item.paymentTerms || item.statusSnapshot"
@@ -870,24 +911,25 @@ onMounted(() => { if (crmEnabled()) void load() })
               @click="actOnChild(item,'cancel','crm.contract.manage',{reason:drafts.reason||'Cancelación'})">
               {{ t('crm.cancelContract') }}
             </button>
-            <button v-if="item.status==='Active' && drafts.renewalDate" :disabled="saving" class="crm-action"
-              @click="actOnChild(item,'renew','crm.contract.manage',{
-                operationId:drafts.operationId,renewalDate:toUtc(drafts.renewalDate),
-                expiryDate:drafts.expiryDate?toUtc(drafts.expiryDate):null,
-                reason:drafts.reason||'Renovación'
-              })">
-              {{ t('crm.renewContract') }}
-            </button>
-            <button v-if="drafts.fileId" :disabled="saving" class="crm-action"
-              @click="actOnChild(item,'signed-document','crm.contract.manage',{fileId:drafts.fileId})">
-              {{ t('crm.attachSigned') }}
-            </button>
+            <div v-if="item.status==='Active'" class="w-full space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+              <label class="block text-xs font-semibold">Nueva fecha de renovación
+                <input v-model="contractRenewalDrafts[String(item.id)]" type="datetime-local" class="crm-input mt-2 w-full" />
+              </label>
+              <button type="button" :disabled="saving || !contractRenewalDrafts[String(item.id)]"
+                class="crm-action crm-drawer-primary"
+                @click="actOnChild(item,'renew','crm.contract.manage',{
+                  operationId:crmUuid(),renewalDate:toUtc(contractRenewalDrafts[String(item.id)]),
+                  expiryDate:item.expiryDate ?? null, reason:'Renovación solicitada por el cliente'
+                })">Renovar contrato</button>
+            </div>
           </div>
 
         </div>
         <DhDrawer :open="showRelationForm && canAddRelation"
           :title="section === 'accounts'
-             ? (relation === 'contacts' ? 'Nuevo contacto' : 'Nuevo · ' + (accountRelationInfo?.label ?? relation))
+             ? (relation === 'contacts' ? 'Nuevo contacto' :
+                relation === 'credit-contracts' ? 'Registrar contrato de crédito' :
+                relation === 'credit-profiles' ? 'Nueva solicitud de crédito' : 'Nuevo · ' + (accountRelationInfo?.label ?? relation))
              : t('common.create') + ' · ' + relation" size="lg" @close="showRelationForm = false">
           <p v-if="error" role="alert" class="mb-3 rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
         <form v-if="section==='accounts' && relation==='addresses' && can('crm.account.update')"
@@ -965,12 +1007,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           <input v-model.trim="drafts.summary" required class="crm-input" :placeholder="t('crm.negotiationSummary')" />
           <button type="submit" class="crm-action" :disabled="saving">{{ t('crm.addNegotiation') }}</button>
         </form>
-        <div v-if="section==='accounts' && relation==='credit-contracts' && can('crm.contract.manage')"
-          class="grid gap-3 sm:grid-cols-3">
-          <input v-model.trim="drafts.fileId" class="crm-input" :placeholder="t('crm.signedFileId')" />
-          <input v-model.trim="drafts.reason" class="crm-input" :placeholder="t('crm.reason')" />
-          <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
-        </div>
+
         <CrmContactForm v-if="section==='accounts' && relation==='contacts' && showRelationForm && can('crm.contact.create')"
           :account-id="id" @saved="onLinkedContactSaved" @cancel="showRelationForm=false" />
         <form v-if="section==='accounts' && relation==='credit-profiles' && can('crm.credit.manage')"
@@ -1000,30 +1037,48 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
         </form>
         <form v-if="section==='accounts' && relation==='credit-contracts' && can('crm.contract.manage')"
-          class="grid gap-4 p-1 sm:grid-cols-2" @submit.prevent="createContract">
-          <label class="crm-drawer-field">Número de contrato
-            <input v-model.trim="drafts.contractNumber" class="crm-input" maxlength="100" placeholder="Número o referencia" />
-          </label>
-          <label class="crm-drawer-field">Fecha de inicio
-            <input v-model="drafts.startDate" required type="datetime-local" class="crm-input" />
-          </label>
-          <label class="crm-drawer-field">Próxima renovación
-            <input v-model="drafts.renewalDate" required type="datetime-local" class="crm-input" />
-          </label>
-          <label class="crm-drawer-field">Fecha de vencimiento
-            <input v-model="drafts.expiryDate" type="datetime-local" class="crm-input" />
-          </label>
-          <label class="crm-drawer-field sm:col-span-2">Condiciones del contrato
-            <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" placeholder="Condiciones y acuerdos" />
-          </label>
-          <label class="crm-drawer-field sm:col-span-2">Adjuntar contrato de crédito firmado (PDF o imagen)
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="crm-input"
-              @change="signedContractFile=selectedFile($event)" />
-            <span class="text-[11px] text-[var(--dh-text-muted)]">Se carga en DholeStorage y queda asociado al contrato. Máximo 25 MB.</span>
-          </label>
-          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
-            <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
-            <button class="crm-action crm-drawer-primary" type="submit" :disabled="saving">{{ saving?'Guardando…':'Crear contrato borrador' }}</button>
+          class="space-y-5 p-2" data-crm-contract-form @submit.prevent="createContract">
+          <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+            <h3 class="text-base font-extrabold">Registrar contrato de crédito</h3>
+            <p class="mt-2 text-xs leading-relaxed text-[var(--dh-text-muted)]">Ingresá las fechas y, si ya está firmado, adjuntá el documento. El sistema gestiona los identificadores y lo vincula automáticamente a este cliente.</p>
+          </div>
+          <section class="space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+            <h4 class="text-sm font-bold">Información principal</h4>
+            <label class="crm-drawer-field">Número o referencia del contrato (opcional)
+              <input v-model.trim="drafts.contractNumber" class="crm-input" maxlength="100" placeholder="Ej. CR-2026-015" />
+            </label>
+            <label class="crm-drawer-field">Condiciones del acuerdo (opcional)
+              <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" maxlength="4000" placeholder="Detalle de condiciones y acuerdos comerciales" />
+            </label>
+          </section>
+          <section class="space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+            <h4 class="text-sm font-bold">Fechas y vigencia</h4>
+            <p class="text-xs text-[var(--dh-text-muted)]">El inicio y la próxima renovación son obligatorios. El vencimiento se puede completar después.</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label class="crm-drawer-field">Fecha de inicio *
+                <input v-model="drafts.startDate" required type="datetime-local" class="crm-input" />
+              </label>
+              <label class="crm-drawer-field">Próxima renovación *
+                <input v-model="drafts.renewalDate" required type="datetime-local" class="crm-input" />
+              </label>
+              <label class="crm-drawer-field sm:col-span-2">Fecha de vencimiento (opcional)
+                <input v-model="drafts.expiryDate" type="datetime-local" class="crm-input" />
+              </label>
+            </div>
+          </section>
+          <section class="space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+            <h4 class="text-sm font-bold">Documento del contrato</h4>
+            <label class="crm-drawer-field">Adjuntar contrato firmado (opcional)
+              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="crm-input"
+                :disabled="saving" @change="signedContractFile=selectedFile($event)" />
+            </label>
+            <p v-if="signedContractFile" class="text-xs font-semibold text-[var(--dh-primary)]">{{ signedContractFile.name }}</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">PDF, Word o imagen. Máximo 25 MB. Se almacenará y asociará al contrato automáticamente; no necesitás ningún UUID.</p>
+          </section>
+          <p v-if="newlyCreatedContractId" role="status" class="rounded-xl border border-amber-500/40 p-3 text-xs text-amber-600">El contrato ya fue creado. Si falló el adjunto, podés volver a guardarlo sin duplicar el registro.</p>
+          <div class="sticky bottom-0 flex justify-end gap-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] py-4">
+            <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm font-semibold" :disabled="saving" @click="showRelationForm=false">Cancelar</button>
+            <button class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50" type="submit" :disabled="saving">{{ saving?'Guardando…':newlyCreatedContractId?'Reintentar adjunto':'Guardar contrato' }}</button>
           </div>
         </form>
         <form v-if="section==='opportunities' && relation==='quotes' && can('crm.quote.link')"
