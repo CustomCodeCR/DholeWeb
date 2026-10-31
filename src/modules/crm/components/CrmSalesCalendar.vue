@@ -5,6 +5,7 @@ import { DhModal } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
@@ -77,6 +78,47 @@ const eventTypes = [
   { value: 'FOLLOWUP', label: 'Seguimiento' },
   { value: 'OTHER', label: 'Tarea' },
 ] as const
+const configuredActivityTypes = ref<Array<{ value: string; label: string }>>([])
+const activityTypesLoading = ref(false)
+const activityTypesError = ref('')
+let activityTypesFetched = false
+// Validate against Config instead of sending static VISIT/CALL/MEETING values
+// that the CRM API may reject as "Unknown activity type in Config".
+async function loadConfiguredActivityTypes() {
+  if (activityTypesLoading.value || (activityTypesFetched && configuredActivityTypes.value.length)) return
+  activityTypesLoading.value = true
+  activityTypesError.value = ''
+  try {
+    const groupSlugs = ['crm-activity-types', 'activity-types', 'crm-activities', 'activity-type']
+    for (const catalogGroupSlug of groupSlugs) {
+      const items = await CatalogItemsService.select({ catalogGroupSlug }).catch(() => [])
+      if (!items.length) continue
+      const values = items.filter(item => item.isActive !== false).map(item => {
+        // Catalog codes may be internal IDs; the semantic value takes priority.
+        const candidates = [item.value, item.code, item.slug].map(value => String(value ?? '').trim())
+        const matched = eventTypes.find(type => candidates.some(value =>
+          value.toUpperCase().replace(/[- ]/g, '_') === type.value))
+        const value = matched?.value ?? String(item.value || item.code || '').trim()
+        return { value, label: matched?.label ?? String(item.label || item.value || item.code) }
+      }).filter(item => item.value && item.value !== 'FOLLOWUP')
+      if (values.length) {
+        configuredActivityTypes.value = Array.from(new Map(values.map(x => [x.value, x])).values())
+        activityTypesFetched = true
+        break
+      }
+    }
+    if (!configuredActivityTypes.value.length) {
+      activityTypesError.value = 'No hay tipos de actividad disponibles en Config. El administrador debe configurar Visita, Llamada y Reunión en el catálogo de tipos de actividad para poder registrarlos.'
+    } else if (!configuredActivityTypes.value.some(type => type.value === editor.value.type)) {
+      editor.value.type = configuredActivityTypes.value[0]?.value ?? 'FOLLOWUP'
+    }
+  } finally { activityTypesLoading.value = false }
+}
+const selectableActivityTypes = computed(() => [
+  ...configuredActivityTypes.value.filter(() => can('crm.activity.create')),
+  ...(can('crm.followup.manage') || can('crm.task.manage')
+    ? [{ value: 'FOLLOWUP', label: 'Seguimiento' }] : []),
+])
 const reminderOptions = [
   { value: 5, label: '5 minutos antes' }, { value: 15, label: '15 minutos antes' },
   { value: 30, label: '30 minutos antes' }, { value: 60, label: '1 hora antes' },
@@ -185,6 +227,7 @@ function openCreation(date?: Date, preserveTime = false) {
   }
   error.value = ''
   creationOpen.value = true
+  void loadConfiguredActivityTypes()
   if (!scopedRecord.value) {
     if (can('crm.lead.read') || can('crm.lead.read-all')) void searchLeads()
     void searchAccounts()
@@ -308,6 +351,11 @@ watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), 
 async function create() {
   const data = editor.value
   if (saving.value) return
+  if (activityTypesLoading.value) { error.value = 'Consultando los tipos de actividad de Config…'; return }
+  if (data.type !== 'FOLLOWUP' && !configuredActivityTypes.value.some(item => item.value === data.type)) {
+    error.value = activityTypesError.value || 'El tipo de actividad no existe en Config. Actualizá el catálogo y volvé a intentar.'
+    return
+  }
   if (!data.subject.trim() || (!data.accountId && !data.leadId)) {
     error.value = 'Ingresá un título y seleccioná una cuenta o prospecto.'; return
   }
@@ -585,18 +633,18 @@ function openEvent(item: CalendarEvent) {
     </DhModal>
     <DhModal :open="creationOpen" title="Programar visita, llamada o seguimiento" size="lg" @close="creationOpen=false">
       <div class="space-y-4">
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <div><h3 class="text-lg font-extrabold">Programar actividad</h3>
-          <p class="text-xs text-[var(--dh-text-muted)]">El vendedor asignado recibirá recordatorios por los canales seleccionados.</p>
-        </div>
-        <button type="button" aria-label="Cancelar creación" @click="creationOpen=false"><X class="h-4 w-4" /></button>
+      <p class="text-xs text-[var(--dh-text-muted)]">El vendedor asignado recibirá recordatorios por los canales seleccionados.</p>
+      <div v-if="activityTypesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando tipos de actividades en Config…</div>
+      <div v-if="activityTypesError" role="alert" class="rounded-xl border border-amber-500/40 p-3 text-xs text-amber-600">
+        {{ activityTypesError }}
+        <button type="button" class="ml-2 font-bold underline" @click="loadConfiguredActivityTypes">Reintentar consulta</button>
       </div>
       <p v-if="error" role="alert" class="mb-3 text-sm text-red-500">{{ error }}</p>
       <form class="grid gap-4 sm:grid-cols-2" @submit.prevent="create">
         <label class="calendar-label">Tipo de actividad
           <select v-model="editor.type" class="calendar-input" required>
-            <option v-for="item in eventTypes.filter(x=>x.value==='FOLLOWUP'?(can('crm.followup.manage')||can('crm.task.manage')):can('crm.activity.create'))"
-              :key="item.value" :value="item.value">{{ item.label }}</option>
+            <option v-if="!selectableActivityTypes.some(item => item.value === editor.type)" :value="editor.type" disabled>Seleccionar tipo disponible</option>
+            <option v-for="item in selectableActivityTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
         <label class="calendar-label">Asunto o motivo
@@ -671,7 +719,7 @@ function openEvent(item: CalendarEvent) {
         </label>
         <div class="flex flex-wrap justify-end gap-2 sm:col-span-2">
           <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
-          <button type="submit" class="calendar-btn calendar-primary" :disabled="saving || !editor.ownerId">
+          <button type="submit" class="calendar-btn calendar-primary" :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
             {{ saving?'Guardando…':'Guardar y programar recordatorio' }}
           </button>
         </div>
