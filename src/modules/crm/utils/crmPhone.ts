@@ -99,6 +99,51 @@ export function dialCodeForCountry(country: Pick<CatalogItemDetailDto,
   return null
 }
 
+// REST Countries is a public, read-only ISO/IDD source; Config/local codes are fallback.
+const remoteDialCache = new Map<string, string | null>()
+function isoForCountry(country: Pick<CatalogItemDetailDto,
+  'code' | 'slug' | 'name' | 'value' | 'metadataJson'>): string | null {
+  for (const value of [country.code, country.value, country.slug, country.name]) {
+    const token = String(value ?? '').toUpperCase().trim()
+    if (callingCodes.has(token)) return token
+    const iso2 = iso3Codes.get(token)
+    if (iso2) return iso2
+    const translated = aliases[normalize(value)] ?? isoNameMap.get(normalize(value))
+    if (translated) return translated
+  }
+  return null
+}
+function iddPrefix(data: unknown): string | null {
+  const country = (Array.isArray(data) ? data[0] : data) as
+    { idd?: { root?: unknown; suffixes?: unknown } } | undefined
+  const root = typeof country?.idd?.root === 'string' ? country.idd.root : ''
+  const suffixes = Array.isArray(country?.idd?.suffixes) ? country.idd.suffixes : []
+  return validPrefix(root + (typeof suffixes[0] === 'string' ? suffixes[0] : ''))
+}
+export async function publicDialCodeForCountry(country: Pick<CatalogItemDetailDto,
+  'code' | 'slug' | 'name' | 'value' | 'metadataJson'>): Promise<string | null> {
+  const iso = isoForCountry(country)
+  // Never send internal Config identifiers or contact details to the public API.
+  if (!iso) return dialCodeForCountry(country)
+  if (remoteDialCache.has(iso)) return remoteDialCache.get(iso) ?? dialCodeForCountry(country)
+  const fallback = dialCodeForCountry(country)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 4000)
+  try {
+    const response = await fetch(
+      'https://restcountries.com/v3.1/alpha/' + encodeURIComponent(iso) + '?fields=idd',
+      { signal: controller.signal, headers: { Accept: 'application/json' } },
+    )
+    if (!response.ok) return fallback
+    const prefix = iddPrefix(await response.json()) ?? fallback
+    remoteDialCache.set(iso, prefix)
+    return prefix
+  } catch {
+    // Connectivity and CORS errors must not prevent editing a client.
+    return fallback
+  } finally { clearTimeout(timeout) }
+}
+
 /** Never add the same country prefix twice; preserve existing international values. */
 export function localPhonePart(phone: string, prefix: string | null): string {
   const value = phone.trim()
