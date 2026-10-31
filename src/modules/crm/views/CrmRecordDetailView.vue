@@ -129,7 +129,7 @@ function agendaLabel(value: unknown, kind: 'status' | 'type' | 'channel' = 'stat
     type: {VISIT:'Visita',CALL:'Llamada',EMAIL:'Correo',MEETING:'Reunión',OTHER:'Actividad'},
     channel: {BOTH:'Correo y sistema',EMAIL:'Correo',SYSTEM:'Sistema'}
   }
-  return labels[kind][String(value ?? '')] || String(value || '—')
+  return (labels[kind] ?? {})[String(value ?? '')] || String(value || '—')
 }
 function agendaDate(value: unknown): string {
   const when = typeof value === 'string' ? new Date(value) : null
