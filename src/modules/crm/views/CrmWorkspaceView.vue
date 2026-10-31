@@ -114,6 +114,7 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
 })
 const tableRows = computed(() => rows.value.map(item => ({
   ...item,
+  _crmResource: item._crmResource,
   _crmTitle: section.value === 'followups'
     ? String(item.subject || (item._crmResource === 'followups' ? 'Seguimiento comercial' : 'Actividad comercial'))
     : String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
