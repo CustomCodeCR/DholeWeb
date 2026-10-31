@@ -476,7 +476,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
             :label="viewMode === 'kanban' ? t('crm.table') : t('crm.kanban')"
             :variant="viewMode === 'kanban' ? 'primary' : 'secondary'"
             @click="viewMode=viewMode==='kanban'?'table':'kanban'" />
-          <DhButton v-if="section === 'followups' || section === 'activities'"
+          <DhButton v-if="section === 'activities'"
             :label="viewMode === 'week' ? t('crm.table') : t('crm.week')"
             :variant="viewMode === 'week' ? 'primary' : 'secondary'"
             @click="viewMode=viewMode==='week'?'table':'week'" />
@@ -496,7 +496,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           </article>
         </DhCard>
       </div>
-      <div v-else-if="section === 'activities' || section === 'followups' ? viewMode === 'week' : false"
+      <div v-else-if="section === 'activities' && viewMode === 'week'"
         class="space-y-3 rounded-[var(--dh-radius-xl)] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
         <h2 class="text-lg font-bold">{{ t('crm.week') }}</h2>
         <p v-if="total > rows.length" class="text-sm text-amber-700" role="status">{{ t('crm.partialAgenda', { loaded: rows.length, total }) }}</p>
