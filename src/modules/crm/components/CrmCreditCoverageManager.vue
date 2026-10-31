@@ -10,6 +10,8 @@ const emit = defineEmits<{ (e: 'updated'): void }>()
 const auth = useAuthStore()
 const canRead = computed(() => auth.hasScope('crm.credit.read'))
 const canManage = computed(() => props.editable && auth.hasScope('crm.credit.manage'))
+const canRequest = computed(() => props.editable &&
+  (auth.hasScope('crm.credit.manage') || auth.hasScope('crm.account.update')))
 const canApprove = computed(() => auth.hasScope('crm.credit.approve'))
 const approvalReason = ref('')
 const options = CRM_CREDIT_COVERAGE_OPTIONS
@@ -36,6 +38,7 @@ const days = ref('30')
 const creditLimit = ref('')
 const currency = ref('USD')
 const financing = ref('0')
+const lateInterest = ref('0')
 const paymentConditions = ref('')
 let requestGeneration = 0
 
@@ -174,6 +177,7 @@ async function proposeRevision() {
         creditLimit: current.creditLimit,
         currencyCode: current.currencyCode,
         monthlyFinancingPct: current.monthlyFinancingPct,
+        lateInterestMonthlyPct: Number(current.lateInterestMonthlyPct ?? 0),
         paymentConditions: current.paymentConditions,
         effectiveFrom: current.effectiveFrom,
         reviewAt: current.reviewAt ?? null,
@@ -206,7 +210,7 @@ function proposalFailure(cause: unknown): string {
     ? cause as { status?: number; data?: { title?: string; detail?: string }; message?: string }
     : null
   const description = issue?.data?.detail || issue?.data?.title || issue?.message || crmError(cause)
-  if (issue?.status === 403) return 'El backend rechazó la solicitud: faltan permisos para esta cuenta (403).'
+  if (issue?.status === 403) return 'No se pudo solicitar crédito para esta cuenta. Confirmá que tenés permiso para actualizarla o gestionar créditos y que está dentro de tus cuentas autorizadas. (403) ' + description
   if (issue?.status === 409) return 'La cuenta ya tiene una propuesta pendiente o hubo un conflicto (409). ' + description
   if (issue?.status === 400) return 'CRM rechazó los datos de la solicitud (400): ' + description
   if (issue?.status === 503) return 'El servicio de referencias (Config) no está disponible (503). ' + description
@@ -216,9 +220,9 @@ async function proposeNew() {
   if (busy.value) return
   proposalError.value = ''
   proposalStatus.value = 'Validando solicitud de crédito…'
-  if (!canManage.value) {
+  if (!canRequest.value) {
     proposalStatus.value = ''
-    proposalError.value = 'Tu usuario no tiene permiso para solicitar crédito (crm.credit.manage).'
+    proposalError.value = 'Tu usuario requiere permisos de gestión de crédito o actualización de la cuenta para solicitarlo.'
     return
   }
   if (profile.value) {
@@ -229,13 +233,16 @@ async function proposeNew() {
   const limit = Number(creditLimit.value)
   const totalDays = Number(days.value)
   const monthly = Number(financing.value)
+  const overdue = Number(lateInterest.value)
   if (!String(creditLimit.value ?? '').trim() || !Number.isFinite(limit) || limit <= 0 ||
       Math.abs(Math.round(limit * 100) - limit * 100) > 1e-6 ||
       !Number.isInteger(totalDays) || totalDays < 1 || totalDays > 3650 ||
       !Number.isFinite(monthly) || monthly < 0 || monthly > 100 ||
-      Math.abs(Math.round(monthly * 10000) - monthly * 10000) > 1e-6) {
+      Math.abs(Math.round(monthly * 10000) - monthly * 10000) > 1e-6 ||
+      !Number.isFinite(overdue) || overdue < 0 || overdue > 100 ||
+      Math.abs(Math.round(overdue * 10000) - overdue * 10000) > 1e-6) {
     proposalStatus.value = ''
-    proposalError.value = 'Ingresá un límite con máximo 2 decimales, plazo de 1 a 3650 días y financiamiento de 0% a 100% con máximo 4 decimales.'
+    proposalError.value = 'Ingresá un límite con máximo 2 decimales, plazo de 1 a 3650 días, financiamiento e interés moratorio de 0% a 100% con máximo 4 decimales.'
     return
   }
   if (!props.accountId) {
@@ -251,6 +258,7 @@ async function proposeNew() {
     const created = await crmRequest<CrmRow>(crmPath('accounts', props.accountId, 'credit-profiles'), 'POST', {
       creditEnabled: true, creditDays: totalDays, creditLimit: limit,
       currencyCode: currency.value, monthlyFinancingPct: monthly,
+      lateInterestMonthlyPct: overdue,
       paymentConditions: paymentConditions.value.trim(),
       effectiveFrom: new Date().toISOString(), reviewAt: null,
     }, proposalOperationKey.value)
@@ -310,7 +318,8 @@ async function proposeNew() {
     <template v-else-if="profile">
       <p class="text-xs text-[var(--dh-text-muted)]">
         {{ profile.creditDays }} días · {{ profile.currencyCode }} {{ profile.creditLimit }} ·
-        Financiamiento mensual: {{ profile.monthlyFinancingPct }}%
+        Financiamiento mensual: {{ profile.monthlyFinancingPct }}% ·
+        Interés moratorio mensual: {{ profile.lateInterestMonthlyPct ?? 0 }}%
       </p>
       <div v-if="profile.status === 'PendingApproval'" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
         <p class="text-xs font-semibold">Aprobación: únicamente usuarios autorizados con permiso <code>crm.credit.approve</code> (responsable de crédito o gerencia).</p>
@@ -396,7 +405,7 @@ async function proposeNew() {
           :disabled="busy || !changeReason.trim()" @click="proposeRevision">Crear revisión de crédito</button>
       </div>
     </template>
-    <div v-else-if="canManage && !loading" class="space-y-4">
+    <div v-else-if="canRequest && !loading" class="space-y-4">
       <div v-if="!showNewProposal" class="rounded-xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-shell)] p-5">
         <h4 class="font-bold">Este cliente todavía no tiene crédito configurado</h4>
         <p class="mt-2 text-sm text-[var(--dh-text-muted)]">Registrá primero el plazo y el límite. Quedará pendiente de aprobación; no se activará automáticamente.</p>
@@ -427,7 +436,12 @@ async function proposeNew() {
           <label class="block space-y-1.5 text-sm font-semibold">Financiamiento mensual (%)
             <input v-model="financing" type="number" min="0" max="100" step="0.0001"
               class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
-            <span class="block text-xs font-normal text-[var(--dh-text-muted)]">Usá 0 si no se cobra interés.</span>
+            <span class="block text-xs font-normal text-[var(--dh-text-muted)]">Usá 0 si no se cobra interés por financiamiento.</span>
+          </label>
+          <label class="block space-y-1.5 text-sm font-semibold">Interés moratorio mensual (%)
+            <input v-model="lateInterest" type="number" min="0" max="100" step="0.0001"
+              class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+            <span class="block text-xs font-normal text-[var(--dh-text-muted)]">Aplicable a pagos vencidos según las condiciones aprobadas. Usá 0 si no aplica.</span>
           </label>
         </div>
         <label class="block space-y-1.5 text-sm font-semibold">Condiciones adicionales (opcional)
