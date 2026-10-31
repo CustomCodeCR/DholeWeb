@@ -9,6 +9,9 @@ import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
+import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
+import { creditCoverageLabel } from '../model/crmCreditCoverage'
+import { StorageService } from '@/core/services/storageService'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -30,6 +33,12 @@ const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
 const showRelationForm = ref(false)
+const creditIncluded = ref<string[]>([])
+const creditExcluded = ref<string[]>([])
+const signedContractFile = ref<File | null>(null)
+const contractFiles = ref<Record<string, File | null>>({})
+const documentBusy = ref(false)
+const documentStatus = ref('')
 const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
 const showAccountEditor = ref(false)
@@ -346,21 +355,93 @@ async function createPricingRequest() {
   }, 'crm.quote.link')
 }
 async function createCredit() {
-  await createRelation('credit-profiles', {
-    creditEnabled: true, creditDays: Number(drafts.creditDays), creditLimit: Number(drafts.creditLimit),
-    currencyCode: drafts.currencyCode, monthlyFinancingPct: Number(drafts.monthlyFinancingPct),
-    paymentConditions: drafts.paymentConditions, effectiveFrom: new Date().toISOString(),
-    reviewAt: drafts.renewalDate ? toUtc(drafts.renewalDate) : null,
-  }, 'crm.credit.manage')
+  if (!can('crm.credit.manage') || saving.value) return
+  if (creditIncluded.value.some(code => creditExcluded.value.includes(code))) {
+    error.value = 'Un concepto no puede estar incluido y excluido del crédito simultáneamente.'
+    return
+  }
+  saving.value = true; error.value = ''; success.value = ''
+  let created = false
+  try {
+    const profile = await crmRequest<CrmRow>(crmPath('accounts', id.value, 'credit-profiles'), 'POST', {
+      creditEnabled: true, creditDays: Number(drafts.creditDays), creditLimit: Number(drafts.creditLimit),
+      currencyCode: drafts.currencyCode, monthlyFinancingPct: Number(drafts.monthlyFinancingPct),
+      paymentConditions: drafts.paymentConditions, effectiveFrom: new Date().toISOString(),
+      reviewAt: drafts.renewalDate ? toUtc(drafts.renewalDate) : null,
+    }, crmUuid())
+    created = true
+    for (const [kind, codes] of [['INCLUDED', creditIncluded.value], ['EXCLUDED', creditExcluded.value]] as const) {
+      for (const code of codes) {
+        const current = await crmRequest<CrmRow>(crmPath('credit-profiles', String(profile.id)))
+        await crmRequest(crmPath('credit-profiles', String(profile.id), 'coverages'), 'POST', {
+          expectedVersion: current.rowVersion,
+          serviceCode: code, coverageType: kind, description: creditCoverageLabel(code),
+        }, crmUuid())
+      }
+    }
+    showRelationForm.value = false
+    creditIncluded.value = []; creditExcluded.value = []
+    await loadRelation()
+    success.value = 'Solicitud de crédito pendiente de aprobación. El responsable debe tener permiso crm.credit.approve.'
+  } catch (cause) {
+    await loadRelation()
+    error.value = crmError(cause) + (created ? ' La propuesta sí se creó: revisá y completá las coberturas antes de aprobar; no creés otra solicitud.' : '')
+  } finally { saving.value = false }
+}
+function selectedFile(event: Event): File | null {
+  return (event.target as HTMLInputElement).files?.[0] ?? null
+}
+async function uploadSignedContract(contractId: string, file: File) {
+  if (file.size > 25 * 1024 * 1024) throw new Error('El documento no debe superar los 25 MB.')
+  const uploaded = await StorageService.uploadFile({
+    file, sourceService: 'DholeCRMService', entityType: 'CreditContract',
+    entityId: contractId,
+  })
+  const current = await crmRequest<CrmRow>(crmPath('credit-contracts', contractId))
+  await crmRequest(crmPath('credit-contracts', contractId, 'signed-document'), 'POST', {
+    expectedVersion: current.rowVersion, fileId: uploaded.id,
+  })
+}
+async function attachExistingContract(item: CrmRow, file: File | null) {
+  if (!file || !can('crm.contract.manage') || documentBusy.value) return
+  documentBusy.value = true; documentStatus.value = ''; error.value = ''
+  try {
+    await uploadSignedContract(String(item.id), file)
+    contractFiles.value[String(item.id)] = null
+    await loadRelation()
+    documentStatus.value = 'Documento firmado adjuntado correctamente al contrato.'
+  } catch (cause) { error.value = crmError(cause) }
+  finally { documentBusy.value = false }
+}
+async function downloadSignedContract(fileId: string) {
+  error.value = ''
+  try {
+    const stored = await StorageService.getFile(fileId)
+    await StorageService.downloadFile(stored)
+  } catch (cause) { error.value = crmError(cause) }
 }
 async function createContract() {
   if (!drafts.startDate || !drafts.renewalDate) { error.value = t('crm.required'); return }
-  await createRelation('credit-contracts', {
-    creditProfileId: null, contractNumber: drafts.contractNumber || null,
-    startDate: toUtc(drafts.startDate), renewalDate: toUtc(drafts.renewalDate),
-    expiryDate: drafts.expiryDate ? toUtc(drafts.expiryDate) : null,
-    paymentTerms: drafts.paymentConditions, autoRenew: false,
-  }, 'crm.contract.manage')
+  if (!can('crm.contract.manage') || saving.value) return
+  saving.value = true; error.value = ''; success.value = ''
+  let createdId = ''
+  try {
+    const contract = await crmRequest<CrmRow>(crmPath('accounts', id.value, 'credit-contracts'), 'POST', {
+      creditProfileId: null, contractNumber: drafts.contractNumber || null,
+      startDate: toUtc(drafts.startDate), renewalDate: toUtc(drafts.renewalDate),
+      expiryDate: drafts.expiryDate ? toUtc(drafts.expiryDate) : null,
+      paymentTerms: drafts.paymentConditions, autoRenew: false,
+    }, crmUuid())
+    createdId = String(contract.id)
+    if (signedContractFile.value) await uploadSignedContract(createdId, signedContractFile.value)
+    signedContractFile.value = null
+    showRelationForm.value = false
+    await loadRelation()
+    success.value = 'Contrato guardado' + (contract.signedDocumentFileId || signedContractFile.value ? ' con documento firmado.' : '.')
+  } catch (cause) {
+    await loadRelation()
+    error.value = crmError(cause) + (createdId ? ' El contrato sí se creó; adjuntá el documento desde el registro existente. No dupliqués el contrato.' : '')
+  } finally { saving.value = false }
 }
 async function createRoute() {
   await createRelation('routes', {
@@ -641,6 +722,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             :label="section === 'accounts' && relation === 'contacts' ? 'Nuevo contacto' : t('common.create')"
             @click="showRelationForm = true" />
         </div>
+        <p v-if="documentStatus && relation==='credit-contracts'" role="status" class="text-sm text-emerald-500">{{ documentStatus }}</p>
         <div v-if="!relationRows.length"
           class="rounded-xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-8 text-center">
           <p class="text-sm font-semibold">{{ section === 'accounts' ? (accountRelationInfo?.empty ?? 'Sin información registrada.') : t('common.noData') }}</p>
@@ -699,6 +781,10 @@ onMounted(() => { if (crmEnabled()) void load() })
               {{ item.activityDescription ?? item.email ?? item.reason ?? item.paymentTerms ?? item.statusSnapshot }}
             </p>
           </template>
+          <button v-if="relation==='credit-contracts' && item.signedDocumentFileId" type="button"
+            class="crm-action mt-2 text-xs" @click="downloadSignedContract(String(item.signedDocumentFileId))">
+            Descargar contrato firmado
+          </button>
           <div v-if="relation==='credit-profiles' && section==='accounts' && item.status==='PendingApproval'
             && can('crm.credit.approve')" class="mt-3 flex flex-wrap gap-2">
             <button :disabled="saving" class="crm-action"
@@ -711,7 +797,12 @@ onMounted(() => { if (crmEnabled()) void load() })
             </button>
           </div>
           <div v-if="relation==='credit-contracts' && section==='accounts' && can('crm.contract.manage')"
-            class="mt-3 flex flex-wrap gap-2">
+            class="mt-3 flex flex-wrap items-center gap-2">
+            <label class="crm-drawer-field">Adjuntar documento firmado
+              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="crm-input"
+                :disabled="documentBusy"
+                @change="attachExistingContract(item, selectedFile($event))" />
+            </label>
             <button v-if="item.status==='Draft'" :disabled="saving" class="crm-action"
               @click="actOnChild(item,'activate','crm.contract.manage',{reason:drafts.reason||'Activación'})">
               {{ t('crm.activateContract') }}
@@ -835,9 +926,12 @@ onMounted(() => { if (crmEnabled()) void load() })
             <input v-model.number="drafts.monthlyFinancingPct" type="number" min="0" max="100" step=".0001" class="crm-input" />
           </label>
           <CrmCatalogPicker label="Moneda" catalog-group-slug="currencies" value-kind="value" v-model="drafts.currencyCode" />
-          <label class="crm-drawer-field sm:col-span-2">Condiciones de pago
-            <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" placeholder="Condiciones acordadas con el cliente" />
+          <label class="crm-drawer-field sm:col-span-2">Condiciones generales de pago (texto complementario)
+            <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" placeholder="Condiciones generales de pago" />
           </label>
+          <CrmCreditCoveragePicker v-model="creditIncluded" label="Crédito incluye · selección múltiple" />
+          <CrmCreditCoveragePicker v-model="creditExcluded" label="Crédito NO incluye · selección múltiple" />
+          <p class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">El crédito queda pendiente de aprobación. Un usuario con crm.credit.approve decidirá aprobarlo o rechazarlo.</p>
           <label class="crm-drawer-field">Próxima revisión
             <input v-model="drafts.renewalDate" type="datetime-local" class="crm-input" />
           </label>
@@ -862,6 +956,11 @@ onMounted(() => { if (crmEnabled()) void load() })
           </label>
           <label class="crm-drawer-field sm:col-span-2">Condiciones del contrato
             <textarea v-model="drafts.paymentConditions" class="crm-input" rows="3" placeholder="Condiciones y acuerdos" />
+          </label>
+          <label class="crm-drawer-field sm:col-span-2">Adjuntar contrato de crédito firmado (PDF o imagen)
+            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="crm-input"
+              @change="signedContractFile=selectedFile($event)" />
+            <span class="text-[11px] text-[var(--dh-text-muted)]">Se carga en DholeStorage y queda asociado al contrato. Máximo 25 MB.</span>
           </label>
           <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
             <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
