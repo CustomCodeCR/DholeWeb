@@ -69,6 +69,7 @@ function groupSection(title: string): EditorSection {
   if (title === 'Operaciones y logística') return 'operations'
   return 'company'
 }
+const activeProfileGroup = computed(() => profileGroups.find(group => groupSection(group.title) === activeEditorSection.value))
 const profileVersion = ref<number | null>(null)
 const relatedContacts = ref<CrmRow[]>([])
 const relatedAddresses = ref<CrmRow[]>([])
@@ -307,12 +308,12 @@ async function save() {
               @update:model-value="accountDraft.relationshipTypeCode=$event" />
           </div>
         </section>
-        <section v-show="['company','strategy','operations'].includes(activeEditorSection)" id="crm-edit-company" class="space-y-4">
+        <section v-if="['company','strategy','operations'].includes(activeEditorSection)" id="crm-edit-company" class="space-y-4">
           <h3 class="px-1 text-sm font-extrabold">{{ editorSections.find(item=>item.id===activeEditorSection)?.label }}</h3>
-          <section v-for="group in profileGroups" v-show="activeEditorSection===groupSection(group.title)" :key="group.title" class="crm-editor-section">
-          <div class="crm-editor-heading"><ShieldCheck class="h-5 w-5" /><div><h3>{{ group.title }}</h3><p>Información complementaria del cliente</p></div></div>
+          <section v-if="activeProfileGroup" :key="activeEditorSection" class="crm-editor-section">
+          <div class="crm-editor-heading"><ShieldCheck class="h-5 w-5" /><div><h3>{{ activeProfileGroup.title }}</h3><p>Información complementaria del cliente</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
-            <div v-for="[key,label] in group.fields" :key="key"
+            <div v-for="[key,label] in activeProfileGroup.fields" :key="key"
               :class="['email','website','phone','billingEmail','marketingEmail','sector','webCustomerReference','assignedOperations'].includes(key) ? '' : 'md:col-span-2'">
               <DhTextarea v-if="!['email','website','phone','billingEmail','marketingEmail','sector','webCustomerReference','assignedOperations'].includes(key)"
                 :label="label"  :model-value="profileDraft[key] ?? ''" @update:model-value="profileDraft[key]=$event" :rows="2" />
