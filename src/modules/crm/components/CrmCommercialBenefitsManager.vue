@@ -246,8 +246,11 @@ function selectType(next: BenefitType) {
   if (next === 'INSURANCE_PERCENT') draft.chargeCode = 'Insurance'
 }
 function selectCharge(next: CostDetailType) {
-  draft.chargeCode = next; draft.customChargeName = ''
-  if (next !== 'Insurance' && insurance.value) selectType('FIXED_AMOUNT')
+  const wasInsurance = insurance.value
+  draft.chargeCode = next
+  draft.customChargeName = ''
+  if (next === 'Insurance') selectType('INSURANCE_PERCENT')
+  else if (wasInsurance) selectType('FIXED_AMOUNT')
 }
 function payload() {
   const ins = insurance.value
