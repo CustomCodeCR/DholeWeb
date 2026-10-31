@@ -229,7 +229,7 @@ async function proposeNew() {
   const limit = Number(creditLimit.value)
   const totalDays = Number(days.value)
   const monthly = Number(financing.value)
-  if (!creditLimit.value.trim() || !Number.isFinite(limit) || limit <= 0 ||
+  if (!String(creditLimit.value ?? '').trim() || !Number.isFinite(limit) || limit <= 0 ||
       Math.abs(Math.round(limit * 100) - limit * 100) > 1e-6 ||
       !Number.isInteger(totalDays) || totalDays < 1 || totalDays > 3650 ||
       !Number.isFinite(monthly) || monthly < 0 || monthly > 100 ||
@@ -439,7 +439,7 @@ async function proposeNew() {
           <p class="max-w-md text-xs text-[var(--dh-text-muted)]">Al guardar, la solicitud queda pendiente de aprobación.</p>
           <div class="flex gap-2">
             <button type="button" :disabled="busy" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm" @click="showNewProposal=false;proposalError=''">Cancelar</button>
-            <button type="button" :disabled="busy" data-crm-credit-submit @click.stop="proposeNew"
+            <button type="submit" :disabled="busy" data-crm-credit-submit
               class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{{ busy ? 'Guardando solicitud…' : 'Solicitar crédito' }}</button>
           </div>
         </div>
