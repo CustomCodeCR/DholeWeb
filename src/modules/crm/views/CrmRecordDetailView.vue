@@ -108,7 +108,7 @@ const drafts = reactive({
   quoteId: '', pricingRequestId: '', priority: 'Green', shipmentMode: 'Fcl',
   originName: '', destinationName: '', payload: '{}', serviceCode: '', volume: '1',
   polCode: '', poeCode: '', podCode: '', creditDays: '30', creditLimit: '0',
-  monthlyFinancingPct: '0', currencyCode: 'USD', paymentConditions: '',
+  monthlyFinancingPct: '0', lateInterestMonthlyPct: '0', currencyCode: 'USD', paymentConditions: '',
   contractNumber: '', renewalDate: '', expiryDate: '', startDate: '',
   marketCode: 'OTHER', decisionRole: 'INFLUENCER', timezoneId: 'America/Costa_Rica',
   channelStrategy: 'BOTH', frequencyDays: '7', reminderLeadMinutes: '60',
@@ -452,6 +452,7 @@ async function createCredit() {
     const profile = await crmRequest<CrmRow>(crmPath('accounts', id.value, 'credit-profiles'), 'POST', {
       creditEnabled: true, creditDays: Number(drafts.creditDays), creditLimit: Number(drafts.creditLimit),
       currencyCode: drafts.currencyCode, monthlyFinancingPct: Number(drafts.monthlyFinancingPct),
+      lateInterestMonthlyPct: Number(drafts.lateInterestMonthlyPct),
       paymentConditions: drafts.paymentConditions, effectiveFrom: new Date().toISOString(),
       reviewAt: drafts.renewalDate ? toUtc(drafts.renewalDate) : null,
     }, crmUuid())
@@ -1097,8 +1098,11 @@ onMounted(() => { if (crmEnabled()) void load() })
           <label class="crm-drawer-field">Límite de crédito
             <input v-model.number="drafts.creditLimit" type="number" min="0" step=".01" class="crm-input" required />
           </label>
-          <label class="crm-drawer-field">Interés mensual (%)
+          <label class="crm-drawer-field">Financiamiento mensual (%)
             <input v-model.number="drafts.monthlyFinancingPct" type="number" min="0" max="100" step=".0001" class="crm-input" />
+          </label>
+          <label class="crm-drawer-field">Interés moratorio mensual (%)
+            <input v-model.number="drafts.lateInterestMonthlyPct" type="number" min="0" max="100" step=".0001" class="crm-input" />
           </label>
           <CrmCatalogPicker label="Moneda" catalog-group-slug="currencies" value-kind="value" v-model="drafts.currencyCode" />
           <label class="crm-drawer-field sm:col-span-2">Condiciones generales de pago (texto complementario)
