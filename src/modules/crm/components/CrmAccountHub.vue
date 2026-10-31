@@ -10,6 +10,7 @@ import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
+import CrmSalesCalendar from './CrmSalesCalendar.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
@@ -41,6 +42,9 @@ const { locale } = useI18n()
 const has = (scope: string) => auth.hasScope(scope)
 const lang = computed(() => locale.value === 'en' ? 'en-US' : 'es-CR')
 const activeTab = ref<Section>('summary')
+function returnToAccount(path: string): string {
+  return path + (path.includes('?') ? '&' : '?') + 'fromAccount=' + encodeURIComponent(String(props.account.id))
+}
 const compactRow = (label: string, value: unknown) => ({ label, value })
 const tabs = computed(() => [
   { key: 'summary' as const, label: locale.value === 'en' ? 'Customer' : 'Cliente', icon: UserRound },
@@ -473,7 +477,8 @@ async function saveRoute() {
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
         <span class="ml-auto text-[var(--dh-text-muted)]">ID {{ String(account.id).slice(0, 8) }}</span>
       </div>
-      <nav v-if="!editing" role="tablist" class="flex max-w-full gap-1 overflow-x-auto border-t border-[var(--dh-border)] px-3 py-2 sm:px-4"
+    </header>
+      <nav v-if="!editing" role="tablist" class="hub-sticky-tabs sticky z-20 flex max-w-full flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4"
         :aria-label="locale === 'en' ? 'Account sections' : 'Secciones del cliente'">
         <button v-for="tab in tabs" :key="tab.key" type="button" role="tab"
           :aria-selected="activeTab === tab.key" :aria-controls="'crm-account-' + tab.key"
@@ -481,7 +486,6 @@ async function saveRoute() {
           <component :is="tab.icon" class="h-3.5 w-3.5" />{{ tab.label }}
         </button>
       </nav>
-    </header>
     <div v-if="!editing" class="space-y-4">
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="saved" role="status" class="text-sm text-emerald-500">{{ saved }}</p>
@@ -640,7 +644,7 @@ async function saveRoute() {
             <p v-if="!visibleTimeline.length" class="hub-empty">Aún no se han registrado llamadas, visitas o seguimientos.</p>
             <ol v-else class="hub-timeline">
               <li v-for="entry in visibleTimeline.slice(0,8)" :key="entry.kind + entry.id">
-                <RouterLink :to="entry.href" class="block truncate text-xs font-bold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>
+                <RouterLink  :to="returnToAccount(entry.href)" class="block truncate text-xs font-bold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>
                 <span class="mt-1 block text-[11px] text-[var(--dh-text-muted)]">{{ entry.kind }} · {{ entry.status }}</span>
                 <time class="mt-1 block text-[10px] text-[var(--dh-text-muted)]">{{ date(entry.time) }}</time>
               </li>
@@ -651,7 +655,7 @@ async function saveRoute() {
           <h2 class="hub-panel-heading"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" />Contactos relacionados <span class="hub-count">{{ contacts.length }}</span></h2>
           <p v-if="!contacts.length" class="hub-empty">No hay contactos asociados.</p>
           <div v-for="contact in contacts.slice(0,8)" :key="contact.id" class="hub-list-item">
-            <RouterLink :to="'/crm/contacts/' + encodeURIComponent(rowId(contact.id))" class="block truncate text-xs font-bold text-[var(--dh-primary)] hover:underline">{{ text(contact.name || contact.displayName) }}</RouterLink>
+            <RouterLink  :to="returnToAccount('/crm/contacts/' + encodeURIComponent(rowId(contact.id)))" class="block truncate text-xs font-bold text-[var(--dh-primary)] hover:underline">{{ text(contact.name || contact.displayName) }}</RouterLink>
             <p class="mt-1 truncate text-[11px] text-[var(--dh-text-muted)]">{{ text(contact.jobTitle || contact.email) }}</p>
           </div>
         </section>
@@ -921,7 +925,9 @@ async function saveRoute() {
       </div>
     </section>
 
-    <section v-else-if="activeTab === 'agenda'" id="crm-account-agenda" role="tabpanel" class="hub-panel">
+    <section v-else-if="activeTab === 'agenda'" id="crm-account-agenda" role="tabpanel" class="space-y-4">
+      <CrmSalesCalendar :account-id="String(account.id)" :account-name="String(account.displayName || account.legalName)" />
+      <div class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div><h2 class="font-extrabold">Actividad comercial y seguimientos</h2>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Visitas, llamadas, tareas y recordatorios en una sola línea de tiempo.</p></div>
@@ -961,6 +967,7 @@ async function saveRoute() {
             type="button" class="hub-text-link mt-2" @click="openRouteEvidence('MEETING', entry.id)">Documentar ruta acordada en esta reunión</button>
         </li>
       </ol>
+      </div>
     </section>
 
     <div v-else-if="activeTab === 'finance'" id="crm-account-finance" role="tabpanel" class="grid items-start gap-3 lg:grid-cols-2 xl:grid-cols-3">
@@ -1026,9 +1033,11 @@ async function saveRoute() {
 .hub-summary-strip{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;border:1px solid var(--dh-border);border-radius:.8rem;background:var(--dh-card);padding:.85rem 1rem;font-size:.75rem;color:var(--dh-text-muted)}
 .hub-summary-strip>span:first-child{color:var(--dh-text)}
 .hub-record-header{backdrop-filter:blur(16px)}
-.hub-tab{display:inline-flex;align-items:center;gap:.4rem;white-space:nowrap;padding:.67rem .85rem;border-radius:.65rem;font-size:.74rem;font-weight:700;color:var(--dh-text-muted);transition:background .15s,color .15s}
+.hub-sticky-tabs{top:84px;backdrop-filter:blur(18px)}
+@media(min-width:768px){.hub-sticky-tabs{top:144px}}
+.hub-tab{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;padding:.75rem 1rem;border:1px solid var(--dh-border);border-radius:.7rem;font-size:.8rem;font-weight:800;color:var(--dh-text);background:var(--dh-shell);transition:background .15s,color .15s}
 .hub-tab:hover,.hub-tab:focus-visible{color:var(--dh-text);background:var(--dh-primary-light,transparent);outline-offset:-2px}
-.hub-tab-active{color:var(--dh-primary);background:var(--dh-primary-light,var(--dh-shell));box-shadow:inset 0 0 0 1px var(--dh-border)}
+.hub-tab-active{color:white;background:var(--dh-primary);border-color:var(--dh-primary);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .hub-header-meta{display:inline-flex;align-items:center;gap:.35rem;color:var(--dh-text-muted);font-weight:600}
 .hub-panel{min-width:0;border:1px solid var(--dh-border);border-radius:1.15rem;background:var(--dh-card);padding:1.15rem;box-shadow:var(--dh-shadow-sm)}
 .hub-panel-heading{display:flex;align-items:center;gap:.55rem;margin-bottom:.8rem;font-size:.82rem;font-weight:800;color:var(--dh-text)}
