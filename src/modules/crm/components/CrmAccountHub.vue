@@ -178,6 +178,8 @@ const routeReady = computed(() => Boolean(routeModalityCode.value && originCode.
 const modeName = (mode: unknown) =>
   ({ MARITIME: 'Marítimo', LAND: 'Terrestre', AIR: 'Aéreo' } as Record<string,string>)[String(mode)] || String(mode || 'Sin modalidad')
 watch(routeModalityCode, () => {originCode.value = '';poeCode.value = '';podCode.value = ''})
+watch(originCode, () => { poeCode.value = ''; podCode.value = '' })
+watch(poeCode, () => { podCode.value = '' })
 function selectRouteModality(mode: string) {
   if (mode === 'MARITIME' || mode === 'LAND' || mode === 'AIR')
     routeModalityCode.value = mode
