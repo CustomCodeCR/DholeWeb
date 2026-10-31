@@ -4,6 +4,9 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
+import { phoneWithCountryPrefix } from '../utils/crmPhone'
+import CrmPhoneInput from './CrmPhoneInput.vue'
 import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/crmApi'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
@@ -101,6 +104,13 @@ const routesCapturedFromQuotes = computed(() =>
   routeHistory.value.filter(x => x.sourceKind === 'QUOTE').length)
 
 const countryName = ref('')
+const businessPhonePrefix = ref<string | null>(null)
+watch(() => String(props.account.countryId || ''), async countryId => {
+  businessPhonePrefix.value = null
+  const prefix = await resolveCrmCountryPrefix(countryId)
+  if (String(props.account.countryId || '') === countryId)
+    businessPhonePrefix.value = prefix
+}, { immediate: true })
 const businessProfile = ref<CrmRow | null>(null)
 const businessProfileError = ref('')
 const profileOpen = ref(false)
@@ -551,7 +561,7 @@ async function saveRoute() {
           <dl v-else class="divide-y divide-[var(--dh-border)]">
             <div v-for="field in visibleProfileFields" :key="field.key" class="hub-kv">
               <dt>{{ field.label }}</dt>
-              <dd>{{ text(businessProfile[field.key]) }}</dd>
+              <dd>{{ field.key === 'phone' ? text(phoneWithCountryPrefix(String(businessProfile[field.key] || ''), businessPhonePrefix)) : text(businessProfile[field.key]) }}</dd>
             </div>
           </dl>
         </section>
@@ -693,7 +703,7 @@ async function saveRoute() {
           class="rounded-lg border border-[var(--dh-border)] p-4 hover:border-[var(--dh-primary)]">
           <p class="text-sm font-bold text-[var(--dh-primary)]">{{ text(contact.name || contact.displayName) }}</p>
           <p class="mt-2 text-xs">{{ text(contact.jobTitle) }}</p>
-          <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ text(contact.email) }} · {{ text(contact.phone) }}</p>
+          <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ text(contact.email) }} · {{ text(contact.countryId && contact.countryId !== account.countryId ? contact.phone : phoneWithCountryPrefix(String(contact.phone || ''), businessPhonePrefix)) }}</p>
         </RouterLink>
       </div>
     </section>
@@ -1010,6 +1020,8 @@ async function saveRoute() {
           <div class="grid gap-3 sm:grid-cols-2">
             <div v-for="field in group.fields" :key="field.key" :class="field.long ? 'sm:col-span-2' : ''">
               <DhTextarea v-if="field.long" :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :rows="3" />
+              <CrmPhoneInput v-else-if="field.key === 'phone'" :country-id="String(account.countryId || '')"
+                :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" />
               <DhInput v-else :model-value="profileDraft[field.key] ?? ''" @update:model-value="profileDraft[field.key] = $event" :label="field.label" :type="field.type === 'email' ? 'email' : 'text'" />
             </div>
           </div>
