@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { callingCodes, dialCodeForCountry, internationalPhone, localPhonePart } from '../src/modules/crm/utils/crmPhone.ts'
+import { callingCodes, dialCodeForCountry, internationalPhone, localPhonePart, phoneWithCountryPrefix } from '../src/modules/crm/utils/crmPhone.ts'
 
 const country = (code: string, name: string, metadataJson: string | null = null) =>
   ({ code, name, slug: name.toLowerCase(), value: code, metadataJson })
@@ -29,4 +29,11 @@ test('Phone input stores national digits with prefix without double prefix', () 
   assert.equal(internationalPhone('+506', '+34 612 34 56 78'), '+34612345678')
   assert.equal(internationalPhone('+506', ''), '')
   assert.equal(internationalPhone(null, '83130794'), '83130794')
+})
+
+test('Existing local phones display the account/contact prefix without double prefix', () => {
+  assert.equal(phoneWithCountryPrefix('83130794', '+506'), '+506 83130794')
+  assert.equal(phoneWithCountryPrefix('+50683130794', '+506'), '+50683130794')
+  assert.equal(phoneWithCountryPrefix('0050683130794', '+506'), '+50683130794')
+  assert.equal(phoneWithCountryPrefix('83130794', null), '83130794')
 })
