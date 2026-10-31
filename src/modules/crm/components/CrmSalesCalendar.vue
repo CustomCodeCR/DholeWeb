@@ -7,6 +7,8 @@ import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
+const props = withDefaults(defineProps<{ accountId?: string; accountName?: string }>(), { accountId: '', accountName: '' })
+const scopedAccount = computed(() => Boolean(props.accountId))
 interface CalendarEvent {
   key: string
   source: Source
@@ -15,6 +17,7 @@ interface CalendarEvent {
   type: string
   status: string
   at: Date
+  endsAt: Date | null
   accountId: string
   leadId: string
   ownerId: string
@@ -39,6 +42,10 @@ const saving = ref(false)
 const error = ref('')
 const notice = ref('')
 const partial = ref(false)
+const draggedKey = ref('')
+const dropKey = ref('')
+const moving = ref(false)
+const moveAt = ref('')
 let loadGeneration = 0
 const editor = ref({
   type: 'VISIT',
@@ -144,7 +151,7 @@ function openCreation(date?: Date) {
   if (!date) when.setMinutes(Math.ceil(when.getMinutes() / 15) * 15)
   else when.setHours(9, 0, 0, 0)
   editor.value = {
-    type: 'VISIT', subject: '', accountId: '', leadId: '', contactId: '',
+    type: 'VISIT', subject: '', accountId: props.accountId, leadId: '', contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 30 * 60000)),
     location: '', reminderMinutes: 60, channel: 'BOTH',
@@ -190,7 +197,8 @@ async function fetchAll(resource: string, from: string, to: string): Promise<{ i
   const all: CrmRow[] = []
   let total = 0
   for (let page = 1; page <= 10; page++) {
-    const response = await crmList(resource, { from, to, page, pageSize: 100 })
+    const response = await crmList(resource, { from, to, page, pageSize: 100,
+      accountId: props.accountId || undefined })
     total = response.total
     all.push(...response.items)
     if (all.length >= total || !response.items.length) break
@@ -233,6 +241,7 @@ async function load() {
         subject: String(item.subject ?? (source === 'followup' ? 'Seguimiento comercial' : 'Actividad')),
         type: source === 'followup' ? 'FOLLOWUP' : String(item.type ?? 'OTHER'),
         status: String(item.status ?? ''), at,
+        endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt) : null,
         accountId: String(item.accountId ?? ''), leadId: String(item.leadId ?? ''),
         ownerId: String(source === 'followup' ? item.assignedUserId ?? '' : item.ownerUserId ?? ''),
         rowVersion: Number(item.rowVersion ?? 0),
@@ -244,7 +253,7 @@ async function load() {
   rows.value = events.sort((a, b) => a.at.getTime() - b.at.getTime())
   pending.value = false
 }
-watch(rangeKey, () => void load(), { immediate: true })
+watch([rangeKey, () => props.accountId], () => void load(), { immediate: true })
 async function create() {
   const data = editor.value
   if (saving.value) return
@@ -283,8 +292,83 @@ async function create() {
   } catch (cause) { error.value = crmError(cause) }
   finally { saving.value = false }
 }
-function detail(event: CalendarEvent) { void router.push('/crm/' + (event.source === 'activity' ? 'activities' : 'followups') + '/' + encodeURIComponent(event.id)) }
-function openEvent(event: CalendarEvent) { active.value = event; error.value = ''; notice.value = '' }
+function canMove(item: CalendarEvent): boolean {
+  if (moving.value) return false
+  if (item.source === 'activity')
+    return item.status === 'Scheduled' && can('crm.activity.update')
+  return (item.status === 'Pending' || item.status === 'Overdue') &&
+    (can('crm.followup.manage') || can('crm.task.manage'))
+}
+function onDragStart(e: DragEvent, item: CalendarEvent) {
+  if (!canMove(item) || !e.dataTransfer) { e.preventDefault(); return }
+  draggedKey.value = item.key
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', item.key)
+}
+function onDragEnd() { draggedKey.value = ''; dropKey.value = '' }
+function onDragOver(e: DragEvent, day: Date) {
+  if (!draggedKey.value) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dropKey.value = dateKey(day)
+}
+async function reschedule(item: CalendarEvent, proposed: Date) {
+  if (!canMove(item) || Number.isNaN(proposed.getTime())) return
+  if (proposed.getTime() <= Date.now()) {
+    error.value = 'La nueva fecha y hora debe estar en el futuro.'
+    return
+  }
+  if (item.at.getTime() === proposed.getTime()) return
+  moving.value = true
+  error.value = ''; notice.value = ''
+  try {
+    if (item.source === 'activity') {
+      const durationMs = item.endsAt ? item.endsAt.getTime() - item.at.getTime() : 30 * 60000
+      await crmRequest(crmPath('activities', item.id, 'reschedule'), 'POST', {
+        expectedVersion: item.rowVersion,
+        scheduledStartAt: proposed.toISOString(),
+        scheduledEndAt: new Date(proposed.getTime() + Math.max(60000, durationMs)).toISOString(),
+        reason: 'Reprogramación desde el calendario CRM',
+      })
+    } else {
+      await crmRequest(crmPath('followups', item.id, 'reschedule'), 'POST', {
+        expectedVersion: item.rowVersion, dueAt: proposed.toISOString(),
+        reason: 'Reprogramación desde el calendario CRM',
+      })
+    }
+    active.value = null
+    selected.value = proposed
+    notice.value = 'Actividad reprogramada y guardada. Se actualizarán sus recordatorios.'
+    await load()
+  } catch (cause) {
+    error.value = crmError(cause)
+    await load()
+  } finally { moving.value = false; onDragEnd() }
+}
+function onDrop(e: DragEvent, day: Date) {
+  e.preventDefault()
+  const key = e.dataTransfer?.getData('text/plain') || draggedKey.value
+  const item = rows.value.find(row => row.key === key)
+  onDragEnd()
+  if (!item || !canMove(item)) return
+  const proposed = new Date(day.getFullYear(), day.getMonth(), day.getDate(),
+    item.at.getHours(), item.at.getMinutes(), item.at.getSeconds())
+  void reschedule(item, proposed)
+}
+function applyManualMove() {
+  if (!active.value || !moveAt.value) return
+  void reschedule(active.value, new Date(moveAt.value))
+}
+function detail(item: CalendarEvent) {
+  void router.push({
+    path: '/crm/' + (item.source === 'activity' ? 'activities' : 'followups') + '/' + encodeURIComponent(item.id),
+    query: props.accountId ? { fromAccount: props.accountId } : undefined,
+  })
+}
+function openEvent(item: CalendarEvent) {
+  active.value = item; moveAt.value = localInput(item.at)
+  error.value = ''; notice.value = ''
+}
 </script>
 
 <template>
@@ -293,6 +377,7 @@ function openEvent(event: CalendarEvent) { active.value = event; error.value = '
       <div>
         <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-primary)]">Agenda comercial</p>
         <h2 class="mt-1 text-xl font-extrabold capitalize">{{ heading }}</h2>
+        <p v-if="scopedAccount" class="mt-1 text-xs font-bold text-[var(--dh-primary)]">Calendario de {{ accountName || 'esta cuenta' }}</p>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ pendingCount }} actividades pendientes en este período · Fechas en tu zona horaria</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -314,6 +399,8 @@ function openEvent(event: CalendarEvent) { active.value = event; error.value = '
     <p v-if="error && !creationOpen" role="alert" class="rounded-xl border border-red-500/30 px-4 py-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="notice" role="status" class="rounded-xl border border-emerald-500/30 px-4 py-3 text-sm text-emerald-600">{{ notice }}</p>
     <p v-if="partial" role="status" class="text-sm text-amber-500">Hay más de 1000 registros en este período; afiná las fechas para consultar el resto.</p>
+    <p class="text-xs text-[var(--dh-text-muted)]">Arrastrá una visita, llamada o seguimiento pendiente a otro día para reprogramarlo. También podés elegir fecha y hora desde el detalle.</p>
+    <p v-if="moving" role="status" class="text-sm text-[var(--dh-primary)]">Guardando nueva fecha en CRM…</p>
     <div v-if="mode==='month' || mode==='week' || mode==='day'"
       class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div :class="mode==='day'?'grid grid-cols-1':'grid grid-cols-7'">
@@ -325,14 +412,20 @@ function openEvent(event: CalendarEvent) { active.value = event; error.value = '
       <div :class="mode==='day'?'grid grid-cols-1':'grid grid-cols-7'">
         <div v-for="day in visibleDays" :key="dateKey(day)"
           class="min-w-0 border-b border-r border-[var(--dh-border)] p-1.5 sm:p-2"
-          :class="mode==='month'?'min-h-[115px]':mode==='week'?'min-h-[280px]':'min-h-[320px]'">
+          :class="[mode==='month'?'min-h-[115px]':mode==='week'?'min-h-[280px]':'min-h-[320px]',
+            dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':'']"
+          @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
+          @dragleave="dropKey=''" @drop="onDrop($event,day)">
           <button type="button" :aria-label="'Crear actividad el '+dateKey(day)"
             class="mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
             :class="[dateKey(day)===dateKey(new Date())?'bg-[var(--dh-primary)] text-white':'hover:bg-[var(--dh-shell)]',
               mode==='month'&&day.getMonth()!==selected.getMonth()?'opacity-40':'']"
             @click="selected=day;openCreation(day)">{{ day.getDate() }}</button>
           <button v-for="event in (eventsByDay[dateKey(day)] ?? []).slice(0,mode==='month'?3:100)"
-            :key="event.key" type="button" :title="event.subject" @click="openEvent(event)"
+            :key="event.key" type="button" :title="event.subject"
+            :draggable="canMove(event)" :aria-label="event.subject + (canMove(event)?' · arrastrable':'')"
+            @dragstart="onDragStart($event,event)" @dragend="onDragEnd"
+            @click="openEvent(event)"
             class="mb-1 block w-full truncate rounded-md border px-1.5 py-1 text-left text-[11px] font-semibold"
             :class="eventTone(event)">
             <span class="tabular-nums">{{ event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
@@ -366,7 +459,18 @@ function openEvent(event: CalendarEvent) { active.value = event; error.value = '
         </div>
         <button type="button" aria-label="Cerrar detalle" @click="active=null"><X class="h-4 w-4" /></button>
       </div>
-      <button type="button" class="calendar-btn mt-3" @click="detail(active)">Abrir y gestionar actividad</button>
+      <div v-if="canMove(active)" class="mt-3 flex flex-wrap items-end gap-2">
+        <label class="calendar-label">Cambiar fecha y hora
+          <input v-model="moveAt" class="calendar-input" type="datetime-local" />
+        </label>
+        <button type="button" class="calendar-btn calendar-primary" :disabled="moving || !moveAt"
+          @click="applyManualMove">Reprogramar</button>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button type="button" class="calendar-btn" @click="detail(active)">Abrir y gestionar actividad</button>
+        <button v-if="active.accountId" type="button" class="calendar-btn"
+          @click="router.push('/crm/accounts/'+encodeURIComponent(active.accountId))">Volver a la cuenta</button>
+      </div>
     </div>
     <div v-if="creationOpen" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 shadow-lg" aria-label="Nueva actividad comercial">
       <div class="mb-4 flex items-start justify-between gap-3">
@@ -386,7 +490,7 @@ function openEvent(event: CalendarEvent) { active.value = event; error.value = '
         <label class="calendar-label">Asunto o motivo
           <input v-model.trim="editor.subject" class="calendar-input" required maxlength="250" placeholder="Ej. Visita de seguimiento comercial" />
         </label>
-        <div class="sm:col-span-2 space-y-2">
+        <div v-if="!scopedAccount" class="sm:col-span-2 space-y-2">
           <label class="calendar-label">Buscar cuenta
             <div class="flex gap-2">
               <input v-model="accountQuery" class="calendar-input min-w-0 flex-1" placeholder="Nombre del cliente" @keyup.enter.prevent="searchAccounts" />
@@ -398,13 +502,13 @@ function openEvent(event: CalendarEvent) { active.value = event; error.value = '
             <option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.displayName || item.legalName }}</option>
           </select>
         </div>
-        <label v-if="can('crm.lead.read')||can('crm.lead.read-all')" class="calendar-label">Prospecto (si no hay cuenta)
+        <label v-if="!scopedAccount && (can('crm.lead.read')||can('crm.lead.read-all'))" class="calendar-label">Prospecto (si no hay cuenta)
           <select v-model="editor.leadId" class="calendar-input" @focus="searchLeads">
             <option value="">Ninguno</option>
             <option v-for="item in leads" :key="item.id" :value="item.id">{{ item.name || item.companyName }}</option>
           </select>
         </label>
-        <label v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
+        <label v-if="!scopedAccount && editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
           <select v-model="editor.contactId" class="calendar-input">
             <option value="">Sin contacto específico</option>
             <option v-for="contact in contactRows" :key="contact.id" :value="contact.id">{{ contact.name }}</option>
