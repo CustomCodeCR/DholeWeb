@@ -7,6 +7,8 @@ import { DhButton, DhInput } from '@/shared/components/atoms'
 import { DhDrawer } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmPhoneInput from '../components/CrmPhoneInput.vue'
+import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
+import { phoneWithCountryPrefix } from '../utils/crmPhone'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmGet, crmPatch, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 
@@ -18,6 +20,8 @@ const en = computed(() => locale.value === 'en')
 const contact = ref<CrmRow | null>(null)
 const linkedAccounts = ref<Array<{ accountId: string; accountName: string }>>([])
 const preferences = ref<CrmRow | null>(null)
+const linkedAccountCountryId = ref('')
+const contactDialPrefix = ref<string | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const editOpen = ref(false)
@@ -25,6 +29,7 @@ const error = ref('')
 const success = ref('')
 const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
 const contactId = computed(() => String(route.params.id ?? ''))
+const displayedPhone = computed(() => phoneWithCountryPrefix(String(contact.value?.phone ?? ''), contactDialPrefix.value))
 const display = (value: unknown): string =>
   typeof value === 'string' && value.trim() ? value : '—'
 async function load() {
@@ -37,6 +42,19 @@ async function load() {
       linkedAccounts.value = await crmRequest<Array<{ accountId: string; accountName: string }>>(
         '/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/accounts')
     } catch { linkedAccounts.value = [] }
+    // Older contacts may have no country; inherit the linked account country.
+    linkedAccountCountryId.value = ''
+    const requestedAccountId = typeof route.query.fromAccount === 'string' ? route.query.fromAccount : ''
+    const relatedAccountId = linkedAccounts.value.find(account => account.accountId === requestedAccountId)?.accountId
+      || linkedAccounts.value[0]?.accountId
+    if (!contact.value.countryId && relatedAccountId) {
+      try {
+        const account = await crmGet('accounts', relatedAccountId)
+        linkedAccountCountryId.value = String(account.countryId ?? '')
+      } catch { /* The contact remains editable if account details are restricted. */ }
+    }
+    const phoneCountryId = String(contact.value.countryId || linkedAccountCountryId.value || '')
+    contactDialPrefix.value = await resolveCrmCountryPrefix(phoneCountryId)
     try { preferences.value = await crmRequest<CrmRow | null>('/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/preferences') }
     catch { preferences.value = null }
   } catch (e) { contact.value = null; linkedAccounts.value = []; error.value = crmError(e) }
@@ -48,7 +66,7 @@ function edit() {
   draft.value = { firstName: String(contact.value.firstName || ''), lastName: String(contact.value.lastName || ''),
     jobTitle: String(contact.value.jobTitle || ''),
     email: String(contact.value.email || ''), phone: String(contact.value.phone || ''),
-    countryId: String(contact.value.countryId || '') }
+    countryId: String(contact.value.countryId || linkedAccountCountryId.value || '') }
   editOpen.value = true
 }
 async function save() {
@@ -113,7 +131,7 @@ watch(contactId, load)
             <div v-for="item in [
               {label:'Nombre(s)',value:contact.firstName}, {label:'Apellido(s)',value:contact.lastName},
               {label:'Nombre completo',value:contact.name}, {label:'Puesto',value:contact.jobTitle},
-              {label:'Correo',value:contact.email}, {label:'Teléfono',value:contact.phone},
+              {label:'Correo',value:contact.email}, {label:'Teléfono',value:displayedPhone},
               {label:'Estado',value:contact.status},
             ]" :key="item.label" class="grid grid-cols-[42%_minmax(0,1fr)] gap-3 py-3 text-xs">
               <dt class="font-semibold text-[var(--dh-text-muted)]">{{ item.label }}</dt><dd class="break-words font-semibold">{{ display(item.value) }}</dd>
@@ -148,7 +166,7 @@ watch(contactId, load)
             <h2 class="mb-3 text-sm font-bold">Comunicación</h2>
             <div class="flex flex-col gap-2">
               <a v-if="contact.email" :href="'mailto:'+encodeURIComponent(String(contact.email))" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Mail class="h-4 w-4" />Enviar correo</a>
-              <a v-if="contact.phone" :href="'tel:'+String(contact.phone)" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Phone class="h-4 w-4" />Llamar</a>
+              <a v-if="contact.phone" :href="'tel:'+displayedPhone.replace(/[^+\\d]/g, '')" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Phone class="h-4 w-4" />Llamar</a>
             </div>
           </section>
         </aside>
