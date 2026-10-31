@@ -12,6 +12,7 @@ import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
 import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
+import CrmContractFileDropzone from '../components/CrmContractFileDropzone.vue'
 import { creditCoverageLabel } from '../model/crmCreditCoverage'
 import { StorageService } from '@/core/services/storageService'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
@@ -434,9 +435,6 @@ function contractDate(value: unknown): string {
   // Contract dates are civil dates; do not shift them one day through timezone conversion.
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''))
   return match ? match[3] + '/' + match[2] + '/' + match[1] : '—'
-}
-function selectedFile(event: Event): File | null {
-  return (event.target as HTMLInputElement).files?.[0] ?? null
 }
 async function uploadSignedContract(contractId: string, file: File) {
   if (file.size > 25 * 1024 * 1024) throw new Error('El documento no debe superar los 25 MB.')
@@ -912,11 +910,9 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
           <div v-if="relation==='credit-contracts' && section==='accounts' && can('crm.contract.manage')"
             class="mt-3 flex flex-wrap items-center gap-2">
-            <label class="crm-drawer-field">Adjuntar documento firmado
-              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="crm-input"
-                :disabled="documentBusy"
-                @change="attachExistingContract(item, selectedFile($event))" />
-            </label>
+            <CrmContractFileDropzone :model-value="contractFiles[String(item.id)] ?? null"
+              label="Documento firmado" :disabled="documentBusy"
+              @update:model-value="file => { contractFiles[String(item.id)] = file; if (file) void attachExistingContract(item, file) }" />
             <button v-if="item.status==='Draft'" :disabled="saving" class="crm-action"
               @click="actOnChild(item,'activate','crm.contract.manage',{reason:drafts.reason||'Activación'})">
               {{ t('crm.activateContract') }}
@@ -1082,12 +1078,8 @@ onMounted(() => { if (crmEnabled()) void load() })
           </section>
           <section class="space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
             <h4 class="text-sm font-bold">Documento del contrato</h4>
-            <label class="crm-drawer-field">Adjuntar contrato firmado (opcional)
-              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" class="crm-input"
-                :disabled="saving" @change="signedContractFile=selectedFile($event)" />
-            </label>
-            <p v-if="signedContractFile" class="text-xs font-semibold text-[var(--dh-primary)]">{{ signedContractFile.name }}</p>
-            <p class="text-xs text-[var(--dh-text-muted)]">PDF, Word o imagen. Máximo 25 MB. Se almacenará y asociará al contrato automáticamente; no necesitás ningún UUID.</p>
+            <CrmContractFileDropzone v-model="signedContractFile"
+              label="Contrato firmado (opcional)" :disabled="saving" />
           </section>
           <p v-if="newlyCreatedContractId" role="status" class="rounded-xl border border-amber-500/40 p-3 text-xs text-amber-600">El contrato ya fue creado. Si falló el adjunto, podés volver a guardarlo sin duplicar el registro.</p>
           <div class="sticky bottom-0 flex justify-end gap-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] py-4">
