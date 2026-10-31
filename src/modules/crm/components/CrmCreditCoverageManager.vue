@@ -28,6 +28,9 @@ const opened = ref<CoverageKind | null>(null)
 const filter = ref('')
 const changeReason = ref('')
 const showNewProposal = ref(false)
+const proposalError = ref('')
+// Reuse the idempotency key when a connection failure leaves the result uncertain.
+const proposalOperationKey = ref(crmUuid())
 const days = ref('30')
 const creditLimit = ref('')
 const currency = ref('USD')
@@ -199,30 +202,46 @@ async function resolveCredit(approve: boolean) {
 }
 async function proposeNew() {
   if (!canManage.value || profile.value || busy.value) return
+  proposalError.value = ''
   const limit = Number(creditLimit.value)
   const totalDays = Number(days.value)
   const monthly = Number(financing.value)
-  if (!creditLimit.value.trim() || !Number.isFinite(limit) || limit < 0 ||
-      !Number.isInteger(totalDays) || totalDays < 0 || totalDays > 3650 ||
+  if (!creditLimit.value.trim() || !Number.isFinite(limit) || limit <= 0 ||
+      !Number.isInteger(totalDays) || totalDays < 1 || totalDays > 3650 ||
       !Number.isFinite(monthly) || monthly < 0 || monthly > 100) {
-    error.value = 'Ingresá límite, días y financiamiento válidos para la propuesta.'
+    proposalError.value = 'Ingresá un límite mayor a cero, días entre 1 y 3650 y financiamiento entre 0% y 100%.'
     return
   }
   busy.value = true
   error.value = ''
+  success.value = ''
   try {
-    await crmRequest(crmPath('accounts', props.accountId, 'credit-profiles'), 'POST', {
+    const created = await crmRequest<CrmRow>(crmPath('accounts', props.accountId, 'credit-profiles'), 'POST', {
       creditEnabled: true, creditDays: totalDays, creditLimit: limit,
       currencyCode: currency.value, monthlyFinancingPct: monthly,
-      paymentConditions: paymentConditions.value,
+      paymentConditions: paymentConditions.value.trim(),
       effectiveFrom: new Date().toISOString(), reviewAt: null,
-    }, crmUuid())
+    }, proposalOperationKey.value)
+    proposalOperationKey.value = crmUuid()
+    if (created?.id && !profiles.value.some(p => p.id === created.id))
+      profiles.value = [created, ...profiles.value]
     showNewProposal.value = false
     await refresh()
-    success.value = 'Propuesta de crédito creada. Ahora podés elegir las coberturas antes de solicitar su aprobación.'
+    success.value = 'Propuesta registrada. Podés configurar lo incluido y excluido antes de aprobar el crédito.'
     emit('updated')
-  } catch (cause) { error.value = crmError(cause) }
-  finally { busy.value = false }
+  } catch (cause) {
+    proposalError.value = crmError(cause)
+    // The server may have committed the request before the network failed.
+    // Reconcile by reloading instead of asking the user to create it again.
+    await refresh()
+    if (profile.value) {
+      showNewProposal.value = false
+      proposalError.value = ''
+      success.value = 'Se encontró la propuesta de crédito registrada. No se duplicó.'
+      proposalOperationKey.value = crmUuid()
+      emit('updated')
+    }
+  } finally { busy.value = false }
 }
 </script>
 
@@ -336,36 +355,53 @@ async function proposeNew() {
           :disabled="busy || !changeReason.trim()" @click="proposeRevision">Crear revisión de crédito</button>
       </div>
     </template>
-    <div v-else-if="canManage && !loading" class="space-y-3">
-      <p class="text-xs text-[var(--dh-text-muted)]">No hay un perfil de crédito aprobado o pendiente para esta cuenta.</p>
-      <button v-if="!showNewProposal" type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
-        @click="showNewProposal=true">Crear propuesta de crédito</button>
-      <div v-else class="grid gap-3 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-2">
-        <label class="text-xs font-semibold">Días de crédito
-          <input v-model="days" type="number" min="0" max="3650" class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2" />
-        </label>
-        <label class="text-xs font-semibold">Límite de crédito
-          <input v-model="creditLimit" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2" />
-        </label>
-        <label class="text-xs font-semibold">Moneda
-          <select v-model="currency" class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2">
-            <option value="USD">USD</option><option value="CRC">CRC</option>
-          </select>
-        </label>
-        <label class="text-xs font-semibold">Financiamiento mensual (%)
-          <input v-model="financing" type="number" min="0" max="100" step="0.0001" class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2" />
-        </label>
-        <label class="text-xs font-semibold sm:col-span-2">Condiciones de pago
-          <textarea v-model="paymentConditions" rows="2" maxlength="4000"
-            class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2" />
-        </label>
-        <div class="flex items-center justify-end gap-2 sm:col-span-2">
-          <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs"
-            @click="showNewProposal=false">Cancelar</button>
-          <button type="button" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-            :disabled="busy" @click="proposeNew">Guardar propuesta pendiente</button>
-        </div>
+    <div v-else-if="canManage && !loading" class="space-y-4">
+      <div v-if="!showNewProposal" class="rounded-xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-shell)] p-5">
+        <h4 class="font-bold">Este cliente todavía no tiene crédito configurado</h4>
+        <p class="mt-2 text-sm text-[var(--dh-text-muted)]">Registrá primero el plazo y el límite. Quedará pendiente de aprobación; no se activará automáticamente.</p>
+        <button type="button" class="mt-4 rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white"
+          @click="proposalError='';showNewProposal=true">Añadir crédito</button>
       </div>
+      <form v-else class="space-y-5 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
+        data-crm-credit-proposal @submit.prevent="proposeNew">
+        <header class="border-b border-[var(--dh-border)] pb-4">
+          <h4 class="text-base font-extrabold">Nueva solicitud de crédito</h4>
+          <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Completá el plazo y el monto autorizado que se desea solicitar. Un responsable revisará la propuesta antes de activarla.</p>
+        </header>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block space-y-1.5 text-sm font-semibold">Plazo de pago (días) *
+            <input v-model="days" required type="number" min="1" max="3650" step="1"
+              class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+            <span class="block text-xs font-normal text-[var(--dh-text-muted)]">Ejemplo: 30 días después de la facturación.</span>
+          </label>
+          <label class="block space-y-1.5 text-sm font-semibold">Límite de crédito *
+            <input v-model="creditLimit" required type="number" min="0.01" step="0.01" placeholder="Ej. 100000"
+              class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+          </label>
+          <label class="block space-y-1.5 text-sm font-semibold">Moneda
+            <select v-model="currency" class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm">
+              <option value="USD">USD · Dólares</option><option value="CRC">CRC · Colones</option>
+            </select>
+          </label>
+          <label class="block space-y-1.5 text-sm font-semibold">Financiamiento mensual (%)
+            <input v-model="financing" type="number" min="0" max="100" step="0.0001"
+              class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+            <span class="block text-xs font-normal text-[var(--dh-text-muted)]">Usá 0 si no se cobra interés.</span>
+          </label>
+        </div>
+        <label class="block space-y-1.5 text-sm font-semibold">Condiciones adicionales (opcional)
+          <textarea v-model="paymentConditions" rows="3" maxlength="4000" placeholder="Ej. Se factura al cierre de cada mes."
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+        </label>
+        <p v-if="proposalError" role="alert" class="rounded-xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ proposalError }}</p>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4">
+          <p class="max-w-md text-xs text-[var(--dh-text-muted)]">Al guardar, la solicitud queda pendiente de aprobación.</p>
+          <div class="flex gap-2">
+            <button type="button" :disabled="busy" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm" @click="showNewProposal=false;proposalError=''">Cancelar</button>
+            <button type="submit" :disabled="busy" class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{{ busy ? 'Guardando solicitud…' : 'Solicitar crédito' }}</button>
+          </div>
+        </div>
+      </form>
     </div>
     <p v-else-if="!loading" class="text-xs text-[var(--dh-text-muted)]">No hay un perfil de crédito aprobado o pendiente.</p>
   </section>
