@@ -432,16 +432,16 @@ function openEvent(item: CalendarEvent) {
     <p v-if="moving" role="status" class="text-sm text-[var(--dh-primary)]">Guardando nueva fecha en CRM…</p>
     <div v-if="mode==='month'"
       class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
-      <div :class="mode==='day'?'grid grid-cols-1':'grid grid-cols-7'">
-        <div v-for="day in visibleDays.slice(0,mode==='day'?1:7)" :key="'header'+dateKey(day)"
+      <div class="grid grid-cols-7">
+        <div v-for="day in visibleDays.slice(0,7)" :key="'header'+dateKey(day)"
           class="border-b border-[var(--dh-border)] p-3 text-center text-xs font-bold capitalize text-[var(--dh-text-muted)]">
           {{ day.toLocaleDateString('es-CR',{weekday:'short'}) }}
         </div>
       </div>
-      <div :class="mode==='day'?'grid grid-cols-1':'grid grid-cols-7'">
+      <div class="grid grid-cols-7">
         <div v-for="day in visibleDays" :key="dateKey(day)"
           class="min-w-0 border-b border-r border-[var(--dh-border)] p-1.5 sm:p-2"
-          :class="[mode==='month'?'min-h-[115px]':mode==='week'?'min-h-[280px]':'min-h-[320px]',
+          :class="['min-h-[115px]',
             dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':'']"
           @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
           @dragleave="dropKey=''" @drop="onDrop($event,day)">
