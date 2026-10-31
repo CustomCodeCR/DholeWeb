@@ -66,6 +66,7 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
     { key: '_crmTax', label: 'Identificación' },
     { key: '_crmCountry', label: 'País' },
     { key: '_crmType', label: 'Tipo de cliente' },
+    { key: '_crmSeller', label: 'Vendedor asignado' },
     { key: '_crmCategory', label: 'Categoría' },
     { key: '_crmStatus', label: t('common.status') },
     action,
@@ -134,6 +135,8 @@ const tableRows = computed(() => rows.value.map(item => ({
     : String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
   _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
+  _crmSeller: section.value === 'accounts'
+    ? (sellerNames.value[String(item.id)] ?? 'Consultando vendedor…') : '—',
   _crmCategory: accountCategoryLabel(item),
   _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
   _crmEmail: String(item.contactEmail ?? '—'),
@@ -189,6 +192,38 @@ const configWarning = ref('')
 const accountTypeFilter = ref('')
 const accountCategoryFilter = ref('')
 const accountFormTab = ref<'identity' | 'commercial'>('identity')
+const sellerNames = ref<Record<string, string>>({})
+let sellerRequestGeneration = 0
+async function loadAccountSellers(accounts: CrmRow[]) {
+  const generation = ++sellerRequestGeneration
+  const labels: Record<string, string> = {}
+  const needLookup: string[] = []
+  for (const account of accounts) {
+    const id = String(account.id ?? '')
+    if (!id) continue
+    if (account.isCastroFallasExecutive === true) labels[id] = 'Castro Fallas'
+    else if (!account.executiveUserId) labels[id] = 'Sin asignar'
+    else { labels[id] = 'Consultando…'; needLookup.push(id) }
+  }
+  sellerNames.value = labels
+  if (!needLookup.length) return
+  try {
+    // The CRM endpoint checks account visibility and resolves Auth names server-side.
+    // One batched request per page avoids exposing Auth user-directory permissions.
+    const result = await crmRequest<{ sellers: Record<string, string> }>(
+      crmPath('accounts', 'assigned-executives') + '?ids=' +
+        encodeURIComponent(needLookup.join(',')))
+    if (generation !== sellerRequestGeneration || section.value !== 'accounts') return
+    const updated = { ...labels }
+    for (const id of needLookup) updated[id] = result.sellers?.[id] || 'Vendedor no disponible'
+    sellerNames.value = updated
+  } catch {
+    if (generation !== sellerRequestGeneration || section.value !== 'accounts') return
+    const updated = { ...labels }
+    for (const id of needLookup) updated[id] = 'No se pudo consultar'
+    sellerNames.value = updated
+  }
+}
 const countryLabels = ref<Record<string, string>>({})
 async function loadCountryLabels() {
   try {
@@ -372,6 +407,7 @@ async function load() {
       })
       rows.value = response.items
       total.value = response.total
+      if (section.value === 'accounts') void loadAccountSellers(response.items)
       if (section.value === 'opportunities') await loadStages()
     }
   } catch (e) { error.value = crmError(e); rows.value = [] }
@@ -650,6 +686,9 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           </template>
           <template #cell-_crmType="{ value }">
             <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ value }}</span>
+          </template>
+          <template #cell-_crmSeller="{ value }">
+            <span class="text-xs font-semibold text-[var(--dh-text)]">{{ value }}</span>
           </template>
           <template #cell-_crmStatus="{ value }">
             <span class="inline-flex max-w-48 truncate rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">
