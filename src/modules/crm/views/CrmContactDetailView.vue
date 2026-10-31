@@ -166,7 +166,7 @@ watch(contactId, load)
             <h2 class="mb-3 text-sm font-bold">Comunicación</h2>
             <div class="flex flex-col gap-2">
               <a v-if="contact.email" :href="'mailto:'+encodeURIComponent(String(contact.email))" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Mail class="h-4 w-4" />Enviar correo</a>
-              <a v-if="contact.phone" :href="'tel:'+displayedPhone.replace(/[^+\\d]/g, '')" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Phone class="h-4 w-4" />Llamar</a>
+              <a v-if="contact.phone" :href="'tel:'+displayedPhone.replace(/[^+\d]/g, '')" class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold hover:text-[var(--dh-primary)]"><Phone class="h-4 w-4" />Llamar</a>
             </div>
           </section>
         </aside>
