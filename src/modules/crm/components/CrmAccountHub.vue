@@ -901,7 +901,7 @@ async function saveRoute() {
     </section>
 
     <section v-else-if="activeTab === 'agenda'" id="crm-account-agenda" role="tabpanel" class="space-y-4">
-      <CrmSalesCalendar :account-id="String(account.id)" :account-name="String(account.displayName || account.legalName)" />
+      <CrmSalesCalendar :account-id="String(account.id)" :account-name="String(account.displayName || account.legalName)" @changed="load" />
       <div class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div><h2 class="font-extrabold">Actividad comercial y seguimientos</h2>
