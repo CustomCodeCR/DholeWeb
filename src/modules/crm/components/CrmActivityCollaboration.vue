@@ -64,7 +64,7 @@ async function load() {
   if (request !== generation) return
   if (results[0]?.status === 'fulfilled') notes.value = results[0].value
   if (results[1]?.status === 'fulfilled') participants.value = results[1].value
-  if (results[2]?.status === 'fulfilled') contacts.value = results[2].value
+  if (results[2]?.status === 'fulfilled') contacts.value = results[2].value.map(row => row.contact ? row.contact as CrmRow : row)
   if (results.some(x => x.status === 'rejected'))
     error.value = 'No se pudo consultar toda la información. Revisá tus permisos y actualizá.'
   loading.value = false
