@@ -607,11 +607,11 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                     :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
                     @update:model-value="form.customerTypeCode=$event" />
                   <DhSelect label="Tipo de cuenta" :model-value="String(form.categoryType ?? 'CUSTOMER')" :disabled="!!edited"
-                    :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'}]"
+                    :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'},{label:'Cargas Little',value:'LITTLE'}]"
                     @update:model-value="form.categoryType=$event;form.categoryCode='A'" />
                   <DhSelect label="Categoría *" data-required-field="categoryCode" :error="fieldError('categoryCode')"
                     :model-value="String(form.categoryCode ?? 'A')" :disabled="!!edited"
-                    :options="(String(form.categoryType)==='NVOCC' ? ['A','B'] : ['A','B','C','D']).map(value=>({label:'Categoría '+value,value}))"
+                    :options="(String(form.categoryType)==='LITTLE'?['A']:String(form.categoryType)==='NVOCC' ? ['A','B'] : ['A','B','C','D']).map(value=>({label:String(form.categoryType)==='LITTLE'?'Cargas Little':'Categoría '+value,value}))"
                     @update:model-value="form.categoryCode=$event" />
                   <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')" @update:model-value="form.sourceCode=$event" />
                   <CrmRelationshipPicker label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
