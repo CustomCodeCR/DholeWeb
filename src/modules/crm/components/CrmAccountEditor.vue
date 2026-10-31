@@ -52,6 +52,23 @@ const profileGroups = [
 ] as const
 const profileDraft = reactive<Record<string, string>>({})
 for (const group of profileGroups) for (const [key] of group.fields) profileDraft[key] = ''
+type EditorSection = 'identity' | 'commercial' | 'company' | 'strategy' | 'operations' | 'contacts' | 'addresses' | 'credit'
+const activeEditorSection = ref<EditorSection>('identity')
+const editorSections: Array<{id: EditorSection; label: string; detail: string}> = [
+  { id: 'identity', label: 'Datos de la cuenta', detail: 'Identificación y datos fiscales' },
+  { id: 'commercial', label: 'Clasificación', detail: 'Tipo, categoría y relaciones' },
+  { id: 'company', label: 'Datos empresariales', detail: 'Información general de la empresa' },
+  { id: 'strategy', label: 'Estrategia comercial', detail: 'Gestión de ventas' },
+  { id: 'operations', label: 'Operaciones y logística', detail: 'Instrucciones operativas' },
+  { id: 'contacts', label: 'Contactos', detail: 'Personas relacionadas' },
+  { id: 'addresses', label: 'Direcciones', detail: 'Ubicaciones de la cuenta' },
+  { id: 'credit', label: 'Crédito', detail: 'Cobertura y condiciones' },
+]
+function groupSection(title: string): EditorSection {
+  if (title === 'Estrategia y seguimiento comercial') return 'strategy'
+  if (title === 'Operaciones y logística') return 'operations'
+  return 'company'
+}
 const profileVersion = ref<number | null>(null)
 const relatedContacts = ref<CrmRow[]>([])
 const relatedAddresses = ref<CrmRow[]>([])
@@ -176,7 +193,7 @@ async function load() {
   } finally { loading.value = false }
 }
 watch(() => [props.open, props.account.id], ([open]) => {
-  if (open) void load()
+  if (open) { activeEditorSection.value = 'identity'; void load() }
 }, { immediate: true })
 function resolved(data: HaciendaResult) {
   if (data.identification.replace(/[\s-]/g, '') !== accountDraft.taxId.replace(/[\s-]/g, '')) return
@@ -247,13 +264,20 @@ async function save() {
         <p class="mb-3 text-sm text-[var(--dh-text-muted)]">No se puede editar hasta cargar la versión actual de la cuenta.</p>
         <button type="button" class="crm-editor-secondary" @click="load">Reintentar carga</button>
       </div>
-      <nav v-if="!loading && loadedProfile" class="flex gap-2 overflow-x-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 text-xs font-bold" aria-label="Secciones editables">
-        <a v-for="section in [{id:'identity',text:'Datos de la cuenta'}, {id:'commercial',text:'Ficha comercial'}, {id:'company',text:'Datos empresariales'}, {id:'contacts',text:'Contactos'}, {id:'addresses',text:'Direcciones'}, {id:'credit',text:'Cobertura del crédito'}]"
-          :key="section.id" :href="'#crm-edit-' + section.id"
-          class="shrink-0 rounded-lg bg-[var(--dh-shell)] px-3 py-2 hover:text-[var(--dh-primary)]">{{ section.text }}</a>
-      </nav>
+      <div v-if="!loading && loadedProfile" class="grid gap-4 lg:grid-cols-[235px_minmax(0,1fr)]" data-crm-editor-tabs>
+        <nav class="flex min-w-0 gap-2 overflow-x-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 lg:flex-col lg:overflow-visible lg:self-start" aria-label="Secciones editables">
+          <button v-for="section in editorSections.filter(item=>item.id!=='credit'||can('crm.credit.read'))"
+            :key="section.id" type="button" class="crm-editor-tab"
+            :aria-current="activeEditorSection===section.id?'step':undefined"
+            :class="activeEditorSection===section.id?'crm-editor-tab-active':''"
+            @click="activeEditorSection=section.id">
+            <span class="block whitespace-nowrap text-left text-sm font-bold">{{ section.label }}</span>
+            <span class="hidden text-left text-[11px] text-[var(--dh-text-muted)] lg:block">{{ section.detail }}</span>
+          </button>
+        </nav>
+        <div class="min-w-0">
       <form v-if="!loading && loadedProfile" class="space-y-4" @submit.prevent="save">
-        <section id="crm-edit-identity" class="crm-editor-section scroll-mt-24">
+        <section v-show="activeEditorSection==='identity'" id="crm-edit-identity" class="crm-editor-section">
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div><h3>Identidad del cliente</h3><p>Información comercial y tributaria</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
             <DhInput v-model="accountDraft.displayName" label="Nombre comercial *" />
@@ -266,7 +290,7 @@ async function save() {
               :tax-id="accountDraft.taxId" @resolved="resolved" /></div>
           </div>
         </section>
-        <section id="crm-edit-commercial" class="crm-editor-section scroll-mt-24">
+        <section v-show="activeEditorSection==='commercial'" id="crm-edit-commercial" class="crm-editor-section">
           <div class="crm-editor-heading"><UserRound class="h-5 w-5" /><div><h3>Clasificación comercial</h3><p>Datos que utiliza el equipo de ventas</p></div></div>
           <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <DhSelect label="Condición de cliente" :model-value="accountDraft.customerTypeCode"
@@ -283,9 +307,9 @@ async function save() {
               @update:model-value="accountDraft.relationshipTypeCode=$event" />
           </div>
         </section>
-        <section id="crm-edit-company" class="space-y-4 scroll-mt-24">
-          <h3 class="px-1 text-sm font-extrabold">Información de la empresa y sus operaciones</h3>
-          <section v-for="group in profileGroups" :key="group.title" class="crm-editor-section">
+        <section v-show="['company','strategy','operations'].includes(activeEditorSection)" id="crm-edit-company" class="space-y-4">
+          <h3 class="px-1 text-sm font-extrabold">{{ editorSections.find(item=>item.id===activeEditorSection)?.label }}</h3>
+          <section v-for="group in profileGroups" v-show="activeEditorSection===groupSection(group.title)" :key="group.title" class="crm-editor-section">
           <div class="crm-editor-heading"><ShieldCheck class="h-5 w-5" /><div><h3>{{ group.title }}</h3><p>Información complementaria del cliente</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
             <div v-for="[key,label] in group.fields" :key="key"
@@ -298,7 +322,7 @@ async function save() {
           </div>
         </section>
         </section>
-        <section v-if="can('crm.contact.read')" id="crm-edit-contacts" class="crm-editor-section scroll-mt-24">
+        <section v-if="can('crm.contact.read')" v-show="activeEditorSection==='contacts'" id="crm-edit-contacts" class="crm-editor-section">
           <div class="crm-editor-heading"><UserRound class="h-5 w-5" /><div>
             <h3>Contactos vinculados</h3><p>Editá los contactos sin salir de esta cuenta.</p>
           </div></div>
@@ -330,7 +354,7 @@ async function save() {
             </div>
           </div>
         </section>
-        <section id="crm-edit-addresses" class="crm-editor-section scroll-mt-24">
+        <section v-show="activeEditorSection==='addresses'" id="crm-edit-addresses" class="crm-editor-section">
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div>
             <h3>Direcciones</h3><p>Direcciones registradas de la empresa</p>
           </div></div>
@@ -354,9 +378,9 @@ async function save() {
             </div>
           </div>
         </section>
-        <p v-if="relatedError" role="alert" class="text-sm text-red-500">{{ relatedError }}</p>
-        <p v-if="relatedSuccess" role="status" class="text-sm text-emerald-500">{{ relatedSuccess }}</p>
-        <section class="crm-editor-section flex flex-wrap items-center justify-between gap-3">
+        <p v-if="relatedError && ['contacts','addresses'].includes(activeEditorSection)" role="alert" class="text-sm text-red-500">{{ relatedError }}</p>
+        <p v-if="relatedSuccess && ['contacts','addresses'].includes(activeEditorSection)" role="status" class="text-sm text-emerald-500">{{ relatedSuccess }}</p>
+        <section v-show="['contacts','addresses'].includes(activeEditorSection)" class="crm-editor-section flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3"><Wallet class="h-5 w-5 text-[var(--dh-primary)]" /><p class="text-sm">Contactos, direcciones, rutas, crédito y contratos se gestionan desde esta misma cuenta con sus respectivos permisos.</p></div>
           <button type="button" class="crm-editor-link" @click="emit('manage-related')">Administrar registros vinculados</button>
         </section>
@@ -368,16 +392,22 @@ async function save() {
           </button>
         </div>
       </form>
-      <section v-if="loadedProfile && can('crm.credit.read')" id="crm-edit-credit"
-        class="crm-editor-section scroll-mt-24">
+      <section v-if="loadedProfile && can('crm.credit.read')" v-show="activeEditorSection==='credit'" id="crm-edit-credit"
+        class="crm-editor-section">
         <CrmCreditCoverageManager :account-id="String(account.id)" :editable="can('crm.credit.manage')" @updated="emit('saved')" />
       </section>
+        </div>
+      </div>
     </div>
   </section>
 </template>
 
 <style scoped>
 .crm-editor-section{border:1px solid var(--dh-border);border-radius:1.15rem;padding:1.25rem 1.4rem;background:var(--dh-card);box-shadow:var(--dh-shadow-sm)}
+.crm-editor-tab{display:block;min-width:max-content;text-align:left;border:1px solid transparent;border-radius:.8rem;padding:.75rem .9rem;transition:background .15s}
+.crm-editor-tab:hover{background:var(--dh-card-hover)}
+.crm-editor-tab-active{background:var(--dh-primary);color:white;border-color:var(--dh-primary)}
+.crm-editor-tab-active span{color:white}
 .crm-editor-heading{display:flex;align-items:center;gap:.75rem;margin-bottom:1.2rem;color:var(--dh-primary)}
 .crm-editor-heading h3{font-size:.94rem;font-weight:850;color:var(--dh-text)}
 .crm-editor-heading p{font-size:.72rem;color:var(--dh-text-muted);margin-top:.2rem}
