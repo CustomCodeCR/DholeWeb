@@ -447,6 +447,10 @@ async function uploadSignedContract(contractId: string, file: File) {
     expectedVersion: current.rowVersion, fileId: uploaded.id,
   })
 }
+function selectExistingContractFile(item: CrmRow, file: File | null) {
+  contractFiles.value[String(item.id)] = file
+  if (file) void attachExistingContract(item, file)
+}
 async function attachExistingContract(item: CrmRow, file: File | null) {
   if (!file || !can('crm.contract.manage') || documentBusy.value) return
   documentBusy.value = true; documentStatus.value = ''; error.value = ''
@@ -912,7 +916,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             class="mt-3 flex flex-wrap items-center gap-2">
             <CrmContractFileDropzone :model-value="contractFiles[String(item.id)] ?? null"
               label="Documento firmado" :disabled="documentBusy"
-              @update:model-value="file => { contractFiles[String(item.id)] = file; if (file) void attachExistingContract(item, file) }" />
+              @update:model-value="selectExistingContractFile(item, $event)" />
             <button v-if="item.status==='Draft'" :disabled="saving" class="crm-action"
               @click="actOnChild(item,'activate','crm.contract.manage',{reason:drafts.reason||'Activación'})">
               {{ t('crm.activateContract') }}
