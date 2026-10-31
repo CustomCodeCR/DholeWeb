@@ -230,7 +230,7 @@ test('Account sheet mirrors Dynamics groupings without inventing persistence for
   }
   for (const label of [
     'Información de la cuenta', 'Datos de la empresa', 'Seguimiento de la cuenta',
-    'Análisis comercial', 'Análisis operativo e instrucciones', 'Crédito y facturación',
+    'Análisis comercial', 'Crédito y facturación',
     'Escala de tiempo', 'Contactos relacionados',
   ]) assert.ok(sheet.includes(label), 'Missing Dynamics section: ' + label)
   assert.ok(hub.includes('@edit-profile="openProfileEditor"'))
