@@ -417,7 +417,10 @@ async function downloadSignedContract(fileId: string) {
   error.value = ''
   try {
     const stored = await StorageService.getFile(fileId)
-    await StorageService.downloadFile(stored)
+    await StorageService.downloadFile({
+      id: stored.id, fileName: stored.originalFileName,
+      contentType: stored.contentType, extension: stored.extension,
+    })
   } catch (cause) { error.value = crmError(cause) }
 }
 async function createContract() {
@@ -433,11 +436,12 @@ async function createContract() {
       paymentTerms: drafts.paymentConditions, autoRenew: false,
     }, crmUuid())
     createdId = String(contract.id)
+    const hasSignedFile = Boolean(signedContractFile.value)
     if (signedContractFile.value) await uploadSignedContract(createdId, signedContractFile.value)
     signedContractFile.value = null
     showRelationForm.value = false
     await loadRelation()
-    success.value = 'Contrato guardado' + (contract.signedDocumentFileId || signedContractFile.value ? ' con documento firmado.' : '.')
+    success.value = 'Contrato guardado' + (hasSignedFile ? ' con documento firmado.' : '.')
   } catch (cause) {
     await loadRelation()
     error.value = crmError(cause) + (createdId ? ' El contrato sí se creó; adjuntá el documento desde el registro existente. No dupliqués el contrato.' : '')
