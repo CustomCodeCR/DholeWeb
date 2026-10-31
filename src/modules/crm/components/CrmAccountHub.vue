@@ -165,19 +165,27 @@ const channel = ref('PHONE')
 const routeEditor = ref(false)
 const routeFormError = ref('')
 const routeCreateKey = ref(crmUuid())
+const routeModalityCode = ref<'MARITIME' | 'LAND' | 'AIR' | ''>('')
+const originCode = ref('')
+const poeCode = ref('')
+const podCode = ref('')
+const frequency = ref('MONTHLY')
+const routeTerminalType = computed<'CY' | 'SD' | 'APT'>(() =>
+  routeModalityCode.value === 'AIR' ? 'APT' : routeModalityCode.value === 'LAND' ? 'SD' : 'CY')
+const routeNeedsPod = computed(() => routeModalityCode.value === 'MARITIME')
+const routeReady = computed(() => Boolean(routeModalityCode.value && originCode.value && poeCode.value &&
+  (!routeNeedsPod.value || podCode.value)))
+const modeName = (mode: unknown) =>
+  ({ MARITIME: 'Marítimo', LAND: 'Terrestre', AIR: 'Aéreo' } as Record<string,string>)[String(mode)] || String(mode || 'Sin modalidad')
+watch(routeModalityCode, () => {originCode.value = '';poeCode.value = '';podCode.value = ''})
 function openNewRoute() {
-  serviceCode.value = ''; originCode.value = ''; destinationCode.value = ''
-  frequency.value = 'MONTHLY'; expectedVolume.value = '0'; volumeUnit.value = 'CBM'
+  routeModalityCode.value = ''
+  originCode.value = ''; poeCode.value = ''; podCode.value = ''
+  frequency.value = 'MONTHLY'
   routeFormError.value = ''
   routeCreateKey.value = crmUuid()
   routeEditor.value = true
 }
-const serviceCode = ref('')
-const originCode = ref('')
-const destinationCode = ref('')
-const frequency = ref('MONTHLY')
-const expectedVolume = ref('0')
-const volumeUnit = ref('CBM')
 let requestGeneration = 0
 
 function date(value: unknown) {
@@ -431,17 +439,13 @@ async function saveActivity() {
 async function saveRoute() {
   if (!routeEditor.value || busy.value) return
   routeFormError.value = ''
-  const volume = Number(expectedVolume.value)
-  if (!serviceCode.value || !originCode.value || !destinationCode.value) {
-    routeFormError.value = 'Elegí el servicio, el origen y el destino antes de guardar.'
+  if (!routeReady.value) {
+    routeFormError.value = 'Seleccioná la modalidad y los puntos POL, POE y POD que correspondan.'
     return
   }
-  if (!Number.isFinite(volume) || volume < 0) {
-    routeFormError.value = 'El volumen no puede ser negativo.'
-    return
-  }
-  if (originCode.value === destinationCode.value) {
-    routeFormError.value = 'El origen y el destino deben ser diferentes.'
+  if (originCode.value === poeCode.value ||
+      (routeNeedsPod.value && (podCode.value === originCode.value || podCode.value === poeCode.value))) {
+    routeFormError.value = 'Los puntos de la ruta deben ser diferentes.'
     return
   }
   busy.value = true
@@ -449,20 +453,26 @@ async function saveRoute() {
   saved.value = ''
   try {
     await crmRequest(crmPath('accounts', rowId(props.account.id), 'trade-profiles'), 'POST', {
-      serviceCode: serviceCode.value,
+      serviceCode: 'INT_TRANSPORT',
+      modalityCode: routeModalityCode.value,
+      polCode: originCode.value,
+      poeCode: poeCode.value,
+      podCode: routeNeedsPod.value ? podCode.value : null,
       preferredOriginCode: originCode.value,
-      preferredDestinationCode: destinationCode.value,
+      preferredDestinationCode: routeNeedsPod.value ? podCode.value : poeCode.value,
       frequency: frequency.value,
-      expectedVolume: volume,
-      volumeUnit: volumeUnit.value,
+      // Legacy API fields remain for backward compatibility; no measures are
+      // requested or inferred for a customer's variable-volume route.
+      expectedVolume: 0,
+      volumeUnit: 'CBM',
     }, routeCreateKey.value)
     routeCreateKey.value = crmUuid()
     routeEditor.value = false
-    saved.value = locale.value === 'en' ? 'Usual route added.' : 'Ruta habitual guardada.'
+    saved.value = 'Ruta comercial guardada.'
     await load()
     activeTab.value = 'commercial'
   } catch (cause) { routeFormError.value = message(cause) }
-  finally {busy.value = false}
+  finally { busy.value = false }
 }
 </script>
 
@@ -612,8 +622,9 @@ async function saveRoute() {
           </div>
           <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
           <div v-for="route in activeRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
-            <p class="text-xs font-semibold">{{ text(route.preferredOriginCode) }} <span class="text-[var(--dh-primary)]">→</span> {{ text(route.preferredDestinationCode) }}</p>
-            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(route.serviceCode) }} · {{ text(route.frequency) }}</p>
+            <p class="text-xs font-semibold">{{ text(route.polCode || route.preferredOriginCode) }} →
+              {{ text(route.poeCode || route.preferredDestinationCode) }} <span v-if="route.podCode">→ {{ text(route.podCode) }}</span></p>
+            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ modeName(route.modalityCode) }} · {{ text(route.frequency) }}</p>
           </div>
           <div v-for="route in overview.analysisRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
             <p class="text-xs font-semibold">{{ text(route.polCode) }} → {{ text(route.poeCode) }} → {{ text(route.podCode) }}</p>
@@ -711,76 +722,67 @@ async function saveRoute() {
       <section class="hub-panel">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div><h2 class="font-extrabold">{{ locale === 'en' ? 'Usual services and routes' : 'Servicios y rutas habituales' }}</h2>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Origen → destino · servicio · frecuencia · volumen</p></div>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas según modalidad y frecuencia</p></div>
           <button v-if="has('crm.analysis.manage')" type="button"
             class="inline-flex items-center gap-2 rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white"
             @click="openNewRoute"><Plus class="h-4 w-4" />Añadir ruta</button>
         </div>
         <DhDrawer :open="routeEditor" title="Nueva ruta comercial" size="lg" @close="routeEditor=false">
-          <form class="space-y-5 p-2 pb-6" data-crm-route-form @submit.prevent="saveRoute">
-            <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 text-sm leading-relaxed text-[var(--dh-text-muted)]">
-              Registrá los servicios y trayectos que utiliza habitualmente este cliente. Los datos quedan vinculados a su ficha comercial.
+          <form class="space-y-4 p-2 pb-6" data-crm-route-form @submit.prevent="saveRoute">
+            <p class="text-sm text-[var(--dh-text-muted)]">
+              Registrá los trayectos habituales de esta cuenta. No es necesario indicar pesos ni medidas: cambian según cada envío.
             </p>
             <section class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-              <div class="flex items-start gap-3">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)] text-xs font-extrabold text-white">1</span>
-                <div><h3 class="font-extrabold">Servicio y frecuencia</h3><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Seleccioná qué servicio realiza el cliente y con qué frecuencia.</p></div>
+              <h3 class="text-sm font-extrabold">1. Modalidad de transporte</h3>
+              <div class="grid grid-cols-3 gap-2">
+                <button v-for="mode in [{code:'MARITIME',label:'Marítimo'},{code:'LAND',label:'Terrestre'},{code:'AIR',label:'Aéreo'}]"
+                  :key="mode.code" type="button" :aria-pressed="routeModalityCode === mode.code"
+                  class="rounded-xl border p-3 text-xs font-bold transition-colors"
+                  :class="routeModalityCode === mode.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]' : 'border-[var(--dh-border)]'"
+                  @click="routeModalityCode = mode.code as typeof routeModalityCode">{{ mode.label }}</button>
               </div>
-              <CrmCatalogPicker v-model="serviceCode" label="Servicio habitual *" catalog-group-slug="pricing-services" value-kind="code" />
-              <label class="block space-y-2 text-xs font-bold">Frecuencia de uso
-                <select v-model="frequency" class="crm-input w-full">
-                  <option value="WEEKLY">Semanal</option><option value="MONTHLY">Mensual</option>
-                  <option value="QUARTERLY">Trimestral</option><option value="YEARLY">Anual</option>
-                </select>
-              </label>
             </section>
-            <section class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4" :class="!serviceCode && 'opacity-60'">
-              <div class="flex items-start gap-3">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)] text-xs font-extrabold text-white">2</span>
-                <div><h3 class="font-extrabold">Trayecto</h3><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Primero indicá el origen y luego el destino. Se consultan los catálogos de ubicaciones de Config.</p></div>
-              </div>
-              <template v-if="serviceCode">
-                <CrmCatalogPicker v-model="originCode" label="Origen de la carga *" catalog-group-slug="pol" value-kind="code" />
-                <CrmCatalogPicker v-if="originCode" v-model="destinationCode" label="Destino de la carga *" catalog-group-slug="pod" value-kind="code" />
-                <p v-else class="text-xs text-[var(--dh-text-muted)]">Elegí el origen para habilitar el destino.</p>
-                <div v-if="originCode && destinationCode" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
-                  Ruta seleccionada: {{ originCode }} → {{ destinationCode }}
-                </div>
-              </template>
-              <p v-else class="text-xs text-[var(--dh-text-muted)]">Seleccioná el servicio en el paso 1 para continuar.</p>
+            <section v-if="routeModalityCode" class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <h3 class="text-sm font-extrabold">2. Ruta {{ modeName(routeModalityCode) }}</h3>
+              <p class="text-xs text-[var(--dh-text-muted)]">
+                {{ routeModalityCode === 'AIR' ? 'Seleccioná aeropuertos.' :
+                   routeModalityCode === 'LAND' ? 'Seleccioná las ubicaciones terrestres.' :
+                   'Seleccioná los puertos marítimos y el destino final.' }}
+              </p>
+              <CrmCatalogPicker v-model="originCode" label="POL · Origen *" catalog-group-slug="pol"
+                value-kind="code" :terminal-type="routeTerminalType" />
+              <CrmCatalogPicker v-if="originCode" v-model="poeCode" label="POE · Entrada o destino *"
+                catalog-group-slug="poe" value-kind="code" :terminal-type="routeTerminalType" />
+              <CrmCatalogPicker v-if="poeCode && routeNeedsPod" v-model="podCode"
+                label="POD · Destino final *" catalog-group-slug="pod" value-kind="code" terminal-type="SD" />
+              <p v-if="routeReady" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
+                {{ modeName(routeModalityCode) }} · {{ originCode }} → {{ poeCode }}
+                <span v-if="routeNeedsPod"> → {{ podCode }}</span>
+              </p>
             </section>
-            <section class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4" :class="(!originCode || !destinationCode) && 'opacity-60'">
-              <div class="flex items-start gap-3">
-                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)] text-xs font-extrabold text-white">3</span>
-                <div><h3 class="font-extrabold">Volumen habitual</h3><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cantidad aproximada transportada por operación. Indicá 0 si todavía no se conoce.</p></div>
-              </div>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <label class="block space-y-2 text-xs font-bold">Cantidad estimada
-                  <input v-model="expectedVolume" type="number" min="0" step="0.01" class="crm-input w-full" />
-                </label>
-                <label class="block space-y-2 text-xs font-bold">Unidad de medida
-                  <select v-model="volumeUnit" class="crm-input w-full">
-                    <option value="CBM">CBM · Metros cúbicos</option>
-                    <option value="KG">KG · Kilogramos</option>
-                    <option value="TEU">TEU · Contenedores equivalentes</option>
-                    <option value="CFT">CFT · Pies cúbicos</option>
-                  </select>
-                </label>
-              </div>
+            <section class="space-y-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+              <h3 class="text-sm font-extrabold">3. Frecuencia habitual</h3>
+              <select v-model="frequency" aria-label="Frecuencia habitual" class="crm-input w-full">
+                <option value="WEEKLY">Semanal</option>
+                <option value="MONTHLY">Mensual</option>
+                <option value="QUARTERLY">Trimestral</option>
+                <option value="YEARLY">Anual</option>
+              </select>
             </section>
             <p v-if="routeFormError" role="alert" class="rounded-xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ routeFormError }}</p>
-            <div class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-1 py-4">
-              <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm font-semibold" :disabled="busy" @click="routeEditor=false">Cancelar</button>
-              <button type="submit" class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-                :disabled="busy || !serviceCode || !originCode || !destinationCode">{{ busy ? 'Guardando…' : 'Guardar ruta' }}</button>
+            <div class="sticky bottom-0 flex justify-end gap-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] py-4">
+              <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm" :disabled="busy" @click="routeEditor=false">Cancelar</button>
+              <button type="submit" :disabled="busy || !routeReady"
+                class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
+                {{ busy ? 'Guardando…' : 'Guardar ruta' }}
+              </button>
             </div>
           </form>
         </DhDrawer>
         <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
         <div v-for="r in overview.routes" :key="r.id" class="grid gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto]">
-          <div class="font-bold">{{ text(r.preferredOriginCode) }} → {{ text(r.preferredDestinationCode) }}</div>
-          <div>{{ text(r.serviceCode) }} · {{ text(r.frequency) }}</div>
-          <span class="text-xs text-[var(--dh-text-muted)]">{{ r.expectedVolume }} {{ r.volumeUnit }}</span>
+          <div class="font-bold">{{ text(r.polCode || r.preferredOriginCode) }} → {{ text(r.poeCode || r.preferredDestinationCode) }}<span v-if="r.podCode"> → {{ text(r.podCode) }}</span></div>
+          <div>{{ modeName(r.modalityCode) }} · {{ text(r.frequency) }}</div>
         </div>
         <h3 v-if="overview.analysisRoutes.length" class="mt-5 mb-2 text-xs font-extrabold uppercase tracking-wider text-[var(--dh-text-muted)]">Rutas en análisis (POL / POE / POD)</h3>
         <div v-for="r in overview.analysisRoutes" :key="r.id" class="grid gap-2 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 sm:grid-cols-[1fr_auto]">
