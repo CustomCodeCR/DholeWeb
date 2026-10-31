@@ -161,11 +161,11 @@ function navigate(step: number) {
   else if (mode.value === 'week') selected.value = dayOffset(selected.value, 7 * step)
   else selected.value = new Date(selected.value.getFullYear(), selected.value.getMonth() + step, 1)
 }
-function openCreation(date?: Date) {
+function openCreation(date?: Date, preserveTime = false) {
   const when = date ? new Date(date) : new Date()
   when.setSeconds(0, 0)
   if (!date) when.setMinutes(Math.ceil(when.getMinutes() / 15) * 15)
-  else when.setHours(9, 0, 0, 0)
+  else if (!preserveTime) when.setHours(9, 0, 0, 0)
   editor.value = {
     type: 'VISIT', subject: '', accountId: props.accountId, leadId: '', contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
@@ -485,7 +485,10 @@ function openEvent(item: CalendarEvent) {
             :class="dropKey===slotDate(day,slot).toISOString()?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
             @dragover="onSlotOver($event,slotDate(day,slot))"
             @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
-            @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))">
+            @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))"
+            tabindex="0" :aria-label="'Agendar actividad el '+dateKey(day)+' a las '+slot.label"
+            @click.self="openCreation(slotDate(day,slot),true)"
+            @keydown.enter.self="openCreation(slotDate(day,slot),true)">
             <button v-for="item in slotEvents(day,slot)" :key="item.key" type="button"
               :draggable="canMove(item)" :title="item.subject"
               @dragstart="onDragStart($event,item)" @dragend="onDragEnd"
