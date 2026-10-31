@@ -93,19 +93,15 @@ async function loadConfiguredActivityTypes() {
     for (const catalogGroupSlug of groupSlugs) {
       const items = await CatalogItemsService.select({ catalogGroupSlug }).catch(() => [])
       if (!items.length) continue
-      const values = items.filter(item => item.isActive !== false).map(item => {
-        // Catalog codes may be internal IDs; the semantic value takes priority.
-        const candidates = [item.value, item.code, item.slug, item.label].map(value =>
-          String(value ?? '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[- ]/g, '_'))
-        const aliases: Record<string, string> = {
-          VISITA: 'VISIT', LLAMADA: 'CALL', REUNION: 'MEETING',
-          CORREO: 'EMAIL', TAREA: 'OTHER',
-        }
-        const matched = eventTypes.find(type => candidates.some(value =>
-          (aliases[value] ?? value) === type.value))
-        const value = matched?.value ?? String(item.value || item.code || '').trim()
-        return { value, label: matched?.label ?? String(item.label || item.value || item.code) }
-      }).filter(item => item.value && item.value !== 'FOLLOWUP')
+      const values: Array<{ value: string; label: string }> = []
+      for (const item of items) {
+        if (item.isActive === false) continue
+        // CRM checks the exact Config item CODE with GetCatalogItemByCode,
+        // and CommercialRules only accepts these five canonical codes.
+        const code = String(item.code ?? '').trim().toUpperCase()
+        const known = eventTypes.find(type => type.value === code && code !== 'FOLLOWUP')
+        if (known) values.push({ value: code, label: known.label })
+      }
       if (values.length) {
         configuredActivityTypes.value = Array.from(new Map(values.map(x => [x.value, x])).values())
         activityTypesFetched = true
