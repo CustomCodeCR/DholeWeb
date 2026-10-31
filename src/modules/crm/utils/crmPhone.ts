@@ -99,64 +99,49 @@ export function dialCodeForCountry(country: Pick<CatalogItemDetailDto,
   return null
 }
 
-// REST Countries is a public, read-only ISO/IDD source; Config/local codes are fallback.
-const remoteDialCache = new Map<string, string | null>()
-function isoForCountry(country: Pick<CatalogItemDetailDto,
-  'code' | 'slug' | 'name' | 'value' | 'metadataJson'>): string | null {
-  for (const value of [country.code, country.value, country.slug, country.name]) {
-    const token = String(value ?? '').toUpperCase().trim()
-    if (callingCodes.has(token)) return token
-    const iso2 = iso3Codes.get(token)
-    if (iso2) return iso2
-    const translated = aliases[normalize(value)] ?? isoNameMap.get(normalize(value))
-    if (translated) return translated
-  }
-  return null
+// Public data source selected for CRM:
+// https://gist.github.com/eduardolat/b2a252d17b17363fab0974bb0634d259
+// The bundled ISO map above is mandatory offline fallback: no public network is required.
+export const COUNTRY_DIAL_SOURCE =
+  'https://gist.githubusercontent.com/eduardolat/b2a252d17b17363fab0974bb0634d259/raw/countries.json'
+interface GistCountry {
+  nameES: string; nameEN: string; iso2: string; iso3: string; phoneCode: string
 }
-function iddPrefix(data: unknown): string | null {
-  const country = (Array.isArray(data) ? data[0] : data) as
-    { idd?: { root?: unknown; suffixes?: unknown } } | undefined
-  const root = typeof country?.idd?.root === 'string' ? country.idd.root : ''
-  const suffixes = Array.isArray(country?.idd?.suffixes) ? country.idd.suffixes : []
-  return validPrefix(root + (typeof suffixes[0] === 'string' ? suffixes[0] : ''))
+let gistData: Promise<GistCountry[]> | null = null
+async function countryGist(): Promise<GistCountry[]> {
+  if (!gistData) {
+    gistData = (async () => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 3000)
+      try {
+        const response = await fetch(COUNTRY_DIAL_SOURCE, {
+          signal: controller.signal, headers: { Accept: 'application/json' },
+        })
+        if (!response.ok) return []
+        const body: unknown = await response.json()
+        if (!Array.isArray(body)) return []
+        return body.filter((x): x is GistCountry => !!x && typeof x === 'object' &&
+          typeof x.iso2 === 'string' && typeof x.phoneCode === 'string' &&
+          typeof x.nameES === 'string' && typeof x.nameEN === 'string')
+      } catch { return [] } finally { clearTimeout(timeout) }
+    })()
+  }
+  return gistData
 }
 export async function publicDialCodeForCountry(country: Pick<CatalogItemDetailDto,
   'code' | 'slug' | 'name' | 'value' | 'metadataJson'>): Promise<string | null> {
-  const iso = isoForCountry(country)
-  // Never send internal Config identifiers or contact details to the public API.
-  if (!iso) return dialCodeForCountry(country)
-  if (remoteDialCache.has(iso)) return remoteDialCache.get(iso) ?? dialCodeForCountry(country)
+  // Config administrators can override any default with metadata.phoneCode.
+  const explicit = fromMetadata(country.metadataJson)
+  if (explicit) return explicit
   const fallback = dialCodeForCountry(country)
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 4000)
-  try {
-    const response = await fetch(
-      'https://restcountries.com/v3.1/alpha/' + encodeURIComponent(iso) + '?fields=idd',
-      { signal: controller.signal, headers: { Accept: 'application/json' } },
-    )
-    if (!response.ok) return fallback
-    const prefix = iddPrefix(await response.json()) ?? fallback
-    remoteDialCache.set(iso, prefix)
-    return prefix
-  } catch {
-    // Connectivity and CORS errors must not prevent editing a client.
-    return fallback
-  } finally { clearTimeout(timeout) }
-}
-
-/** Never add the same country prefix twice; preserve existing international values. */
-export function localPhonePart(phone: string, prefix: string | null): string {
-  const value = phone.trim()
-  if (!prefix) return value
-  if (value.startsWith(prefix)) return value.slice(prefix.length).replace(/^[\s()-]+/, '')
-  return value
-}
-export function internationalPhone(prefix: string | null, local: string): string {
-  const value = local.trim()
-  if (!value) return ''
-  // Pasted international numbers must remain international, not become +506+34....
-  if (value.startsWith('+')) return '+' + value.slice(1).replace(/\D/g, '')
-  if (!prefix) return value
-  const digits = value.replace(/\D/g, '')
-  return digits ? prefix + digits : ''
+  const countryIso = isoForCountry(country)
+  const values = [country.code, country.name, country.value, country.slug]
+    .map(x => normalize(x)).filter(Boolean)
+  // Always have the locally bundled mapping even when GitHub is unavailable.
+  if (countryIso && fallback) return fallback
+  const rows = await countryGist()
+  const matched = rows.find(x => x.iso2.toUpperCase() === countryIso ||
+    x.iso3.toUpperCase() === String(country.code ?? '').trim().toUpperCase() ||
+    values.includes(normalize(x.nameES)) || values.includes(normalize(x.nameEN)))
+  return validPrefix(matched?.phoneCode) ?? fallback
 }
