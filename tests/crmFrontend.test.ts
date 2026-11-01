@@ -455,3 +455,15 @@ test('CRM Eliminar always uses soft-delete, and agenda renders a table', () => {
   assert.match(agenda, /Convertir a cuenta/)
   assert.match(detail, /crm-lead-conversion/)
 })
+
+
+test('Lead conversion reuses the existing account and bypasses navigation guard only after success', () => {
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.match(detail, /const conversionRedirectAllowed = ref\(false\)/)
+  assert.match(detail, /conversionRedirectAllowed\.value = true/)
+  assert.match(detail, /saving\.value && !conversionRedirectAllowed\.value/)
+  assert.match(detail, /conversion\.accountId/)
+  assert.match(detail, /alreadyConverted: boolean/)
+  assert.match(detail, /record\.value\.convertedAccountId/)
+  assert.match(detail, /conversionRedirectAllowed\.value = false/)
+})
