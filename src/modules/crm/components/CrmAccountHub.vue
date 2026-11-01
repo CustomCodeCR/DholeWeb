@@ -9,6 +9,7 @@ import { phoneWithCountryPrefix } from '../utils/crmPhone'
 import CrmPhoneInput from './CrmPhoneInput.vue'
 import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/crmApi'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
+import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
@@ -191,6 +192,7 @@ function collectRouteCodes(group: RouteCatalog): string[] {
   const rows = [...overview.value.routes, ...overview.value.analysisRoutes,
     ...popularRoutes.value, ...routeHistory.value, ...quoteRouteSnapshots.value]
   const values = rows.flatMap(row => [row[key], ...fallbacks.map(fallback => row[fallback])])
+  values.push(...(group === 'pol' ? originCodes.value : group === 'poe' ? poeCodes.value : podCodes.value))
   values.push(group === 'pol' ? originCode.value : group === 'poe' ? poeCode.value : podCode.value)
   values.push(group === 'pol' ? routePol.value : group === 'poe' ? routePoe.value : routePod.value)
   return [...new Set(values.map(value => String(value ?? '').trim()).filter(Boolean))]
@@ -288,15 +290,25 @@ const routeModalityCode = ref<'MARITIME' | 'LAND' | 'AIR' | ''>('')
 const originCode = ref('')
 const poeCode = ref('')
 const podCode = ref('')
+const originCodes = ref<string[]>([])
+const poeCodes = ref<string[]>([])
+const podCodes = ref<string[]>([])
+const routeCombinations = computed(() => originCodes.value.flatMap(pol =>
+  poeCodes.value.flatMap(poe => (routeNeedsPod.value ? podCodes.value : [null])
+    .map(pod => ({pol,poe,pod})))))
 const frequency = ref('MONTHLY')
 const routeTerminalType = computed<'CY' | 'SD' | 'APT'>(() =>
   routeModalityCode.value === 'AIR' ? 'APT' : routeModalityCode.value === 'LAND' ? 'SD' : 'CY')
 const routeNeedsPod = computed(() => routeModalityCode.value === 'MARITIME')
-const routeReady = computed(() => Boolean(routeModalityCode.value && originCode.value && poeCode.value &&
-  (!routeNeedsPod.value || podCode.value)))
+const routeReady = computed(() => Boolean(routeModalityCode.value && originCodes.value.length &&
+  poeCodes.value.length && (!routeNeedsPod.value || podCodes.value.length) &&
+  routeCombinations.value.length <= 24))
 const modeName = (mode: unknown) =>
   ({ MARITIME: 'Marítimo', LAND: 'Terrestre', AIR: 'Aéreo' } as Record<string,string>)[String(mode)] || String(mode || 'Sin modalidad')
-watch(routeModalityCode, () => {originCode.value = '';poeCode.value = '';podCode.value = ''})
+watch(routeModalityCode, () => {
+  originCode.value = ''; poeCode.value = ''; podCode.value = ''
+  originCodes.value = []; poeCodes.value = []; podCodes.value = []
+})
 watch(originCode, () => { poeCode.value = ''; podCode.value = '' })
 watch(poeCode, () => { podCode.value = '' })
 watch([overview, popularRoutes, routeHistory, quoteRouteSnapshots,
@@ -309,6 +321,7 @@ function selectRouteModality(mode: string) {
 function openNewRoute() {
   routeModalityCode.value = ''
   originCode.value = ''; poeCode.value = ''; podCode.value = ''
+  originCodes.value = []; poeCodes.value = []; podCodes.value = []
   frequency.value = 'MONTHLY'
   routeFormError.value = ''
   routeCreateKey.value = crmUuid()
@@ -569,35 +582,39 @@ async function saveRoute() {
   if (!routeEditor.value || busy.value) return
   routeFormError.value = ''
   if (!routeReady.value) {
-    routeFormError.value = 'Seleccioná la modalidad y los puntos POL, POE y POD que correspondan.'
+    routeFormError.value = routeCombinations.value.length > 24
+      ? 'Seleccioná hasta 24 combinaciones de POL, POE y POD por registro.'
+      : 'Seleccioná al menos un POL, un POE y, para marítimo, un POD.'
     return
   }
-  if (originCode.value === poeCode.value ||
-      (routeNeedsPod.value && (podCode.value === originCode.value || podCode.value === poeCode.value))) {
-    routeFormError.value = 'Los puntos de la ruta deben ser diferentes.'
+  if (routeCombinations.value.some(r =>
+    r.pol === r.poe || (r.pod && (r.pod === r.pol || r.pod === r.poe)))) {
+    routeFormError.value = 'El origen, la entrada y el destino deben ser diferentes en cada ruta.'
     return
   }
   busy.value = true
   error.value = ''
   saved.value = ''
   try {
-    await crmRequest(crmPath('accounts', rowId(props.account.id), 'trade-profiles'), 'POST', {
+    const routes = routeCombinations.value.map(r => ({
       serviceCode: 'INT_TRANSPORT',
       modalityCode: routeModalityCode.value,
-      polCode: originCode.value,
-      poeCode: poeCode.value,
-      podCode: routeNeedsPod.value ? podCode.value : null,
-      preferredOriginCode: originCode.value,
-      preferredDestinationCode: routeNeedsPod.value ? podCode.value : poeCode.value,
+      polCode: r.pol,
+      poeCode: r.poe,
+      podCode: r.pod,
+      preferredOriginCode: r.pol,
+      preferredDestinationCode: r.pod ?? r.poe,
       frequency: frequency.value,
-      // Legacy API fields remain for backward compatibility; no measures are
-      // requested or inferred for a customer's variable-volume route.
       expectedVolume: 0,
       volumeUnit: 'CBM',
-    }, routeCreateKey.value)
+    }))
+    const result = await crmRequest<{created:number;alreadyExisting:number}>(
+      crmPath('accounts',rowId(props.account.id),'trade-profiles/bulk'),
+      'POST',{routes},routeCreateKey.value)
     routeCreateKey.value = crmUuid()
     routeEditor.value = false
-    saved.value = 'Ruta comercial guardada.'
+    saved.value = result.created + ' rutas guardadas' +
+      (result.alreadyExisting ? ' · ' + result.alreadyExisting + ' existentes' : '') + '.'
     await load()
     activeTab.value = 'commercial'
   } catch (cause) { routeFormError.value = message(cause) }
@@ -904,15 +921,24 @@ async function saveRoute() {
                    routeModalityCode === 'LAND' ? 'Seleccioná las ubicaciones terrestres.' :
                    'Seleccioná los puertos marítimos y el destino final.' }}
               </p>
-              <CrmCatalogPicker v-model="originCode" label="POL · Origen *" catalog-group-slug="pol"
-                value-kind="code" :terminal-type="routeTerminalType" @resolved-label="acceptRouteLabel('pol', $event)" />
-              <CrmCatalogPicker v-if="originCode" v-model="poeCode" label="POE · Entrada o destino *"
-                catalog-group-slug="poe" value-kind="code" :terminal-type="routeTerminalType" @resolved-label="acceptRouteLabel('poe', $event)" />
-              <CrmCatalogPicker v-if="poeCode && routeNeedsPod" v-model="podCode"
-                label="POD · Destino final *" catalog-group-slug="pod" value-kind="code" terminal-type="SD" @resolved-label="acceptRouteLabel('pod', $event)" />
-              <p v-if="routeReady" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
-                {{ modeName(routeModalityCode) }} · {{ routeDisplay(originCode, 'pol') }} → {{ routeDisplay(poeCode, 'poe') }}
-                <span v-if="routeNeedsPod"> → {{ routeDisplay(podCode, 'pod') }}</span>
+              <CrmMultiCatalogPicker v-model="originCodes" label="POL · Orígenes *"
+                :catalog-group-slugs="['pol']" :route-mode="routeModalityCode === 'MARITIME' ? 'FCL' : routeModalityCode === 'LAND' ? 'FTL' : 'AIR'"
+                route-role="pol" placeholder="Seleccionar uno o más orígenes"
+                @resolved-label="acceptRouteLabel('pol',$event)" />
+              <CrmMultiCatalogPicker v-if="originCodes.length" v-model="poeCodes" label="POE · Entradas o destinos *"
+                :catalog-group-slugs="['poe']" :route-mode="routeModalityCode === 'MARITIME' ? 'FCL' : routeModalityCode === 'LAND' ? 'FTL' : 'AIR'"
+                route-role="poe" placeholder="Seleccionar uno o más puntos"
+                @resolved-label="acceptRouteLabel('poe',$event)" />
+              <CrmMultiCatalogPicker v-if="poeCodes.length && routeNeedsPod" v-model="podCodes"
+                label="POD · Destinos finales *" :catalog-group-slugs="['pod']" route-mode="FCL"
+                route-role="pod" placeholder="Seleccionar uno o más destinos"
+                @resolved-label="acceptRouteLabel('pod',$event)" />
+              <p v-if="routeCombinations.length" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
+                {{ routeCombinations.length }} combinaciones de rutas · {{ modeName(routeModalityCode) }}.
+                Se guardará una ruta por cada combinación seleccionada.
+              </p>
+              <p v-if="routeCombinations.length > 24" class="text-xs text-amber-500">
+                Máximo 24 combinaciones por guardado. Quitá algunos puntos.
               </p>
             </section>
             <section class="space-y-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
