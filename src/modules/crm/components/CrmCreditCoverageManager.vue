@@ -37,6 +37,36 @@ const proposalOperationKey = ref(crmUuid())
 const days = ref('30')
 const creditLimit = ref('')
 const currency = ref('USD')
+type CreditCurrencyOption = { code: string; label: string }
+const currencyOptions = ref<CreditCurrencyOption[]>([])
+const currencyLoading = ref(false)
+const currencyError = ref('')
+let currencyGeneration = 0
+async function loadCurrencies() {
+  if (!canRead.value && !canRequest.value) return
+  const generation = ++currencyGeneration
+  currencyLoading.value = true
+  currencyError.value = ''
+  try {
+    const available = await crmRequest<CreditCurrencyOption[]>(crmPath('credit-currencies'))
+    if (generation !== currencyGeneration) return
+    currencyOptions.value = available.filter(item => /^[A-Z]{3}$/.test(item.code))
+    if (!currencyOptions.value.length) {
+      currency.value = ''
+      currencyError.value = 'No hay monedas ISO activas disponibles en Config. Revisá el catálogo de monedas.'
+    } else if (!currencyOptions.value.some(item => item.code === currency.value)) {
+      currency.value = currencyOptions.value.find(item => item.code === 'USD')?.code ??
+        currencyOptions.value[0]?.code ?? ''
+    }
+  } catch (cause) {
+    if (generation !== currencyGeneration) return
+    currencyOptions.value = []
+    currencyError.value = 'No se pudo cargar el catálogo de monedas activas. ' + crmError(cause)
+  } finally {
+    if (generation === currencyGeneration) currencyLoading.value = false
+  }
+}
+watch([canRead, canRequest], () => { void loadCurrencies() }, { immediate: true })
 const financing = ref('0')
 const lateInterest = ref('0')
 const paymentConditions = ref('')
@@ -212,6 +242,8 @@ function proposalFailure(cause: unknown): string {
   const description = issue?.data?.detail || issue?.data?.title || issue?.message || crmError(cause)
   if (issue?.status === 403) return 'No se pudo solicitar crédito para esta cuenta. Confirmá que tenés permiso para actualizarla o gestionar créditos y que está dentro de tus cuentas autorizadas. (403) ' + description
   if (issue?.status === 409) return 'La cuenta ya tiene una propuesta pendiente o hubo un conflicto (409). ' + description
+  if (issue?.status === 400 && description.includes('Inactive Config currency'))
+    return 'La moneda elegida no está disponible o activa en Config. Actualizá el selector de monedas antes de reintentar.'
   if (issue?.status === 400) return 'CRM rechazó los datos de la solicitud (400): ' + description
   if (issue?.status === 503) return 'El servicio de referencias (Config) no está disponible (503). ' + description
   return description
@@ -228,6 +260,11 @@ async function proposeNew() {
   if (profile.value) {
     proposalStatus.value = ''
     proposalError.value = 'Esta cuenta ya tiene una propuesta pendiente o aprobada. Actualizá las condiciones existentes.'
+    return
+  }
+  if (currencyLoading.value || !currencyOptions.value.some(item => item.code === currency.value)) {
+    proposalStatus.value = ''
+    proposalError.value = currencyError.value || 'Seleccioná una moneda activa de Config.'
     return
   }
   const limit = Number(creditLimit.value)
@@ -272,6 +309,9 @@ async function proposeNew() {
     emit('updated')
   } catch (cause) {
     proposalError.value = proposalFailure(cause)
+    const reason = cause && typeof cause === 'object'
+      ? String((cause as {data?: {title?: string}}).data?.title ?? '') : ''
+    if (reason === 'Inactive Config currency') void loadCurrencies()
     const status = cause && typeof cause === 'object' && 'status' in cause
       ? Number((cause as { status?: number }).status) : 0
     // Reconcile only uncertain writes, not ordinary validation errors.
@@ -428,10 +468,20 @@ async function proposeNew() {
             <input v-model="creditLimit" required type="number" min="0.01" step="0.01" placeholder="Ej. 100000"
               class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
           </label>
-          <label class="block space-y-1.5 text-sm font-semibold">Moneda
-            <select v-model="currency" class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm">
-              <option value="USD">USD · Dólares</option><option value="CRC">CRC · Colones</option>
+          <label class="block space-y-1.5 text-sm font-semibold">Moneda *
+            <select v-model="currency" :disabled="currencyLoading || !currencyOptions.length"
+              class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm">
+              <option v-if="!currencyOptions.length" value="">Sin monedas disponibles</option>
+              <option v-for="option in currencyOptions" :key="option.code" :value="option.code">
+                {{ option.code }} · {{ option.label }}
+              </option>
             </select>
+            <span v-if="currencyLoading" class="block text-xs font-normal text-[var(--dh-text-muted)]">Consultando monedas activas en Config…</span>
+            <span v-if="currencyError" role="alert" class="block text-xs font-normal text-red-500">{{ currencyError }}</span>
+            <button v-if="currencyError" type="button" :disabled="currencyLoading"
+              class="text-xs font-semibold text-[var(--dh-primary)]" @click="loadCurrencies">
+              Volver a consultar monedas
+            </button>
           </label>
           <label class="block space-y-1.5 text-sm font-semibold">Financiamiento mensual (%)
             <input v-model="financing" type="number" min="0" max="100" step="0.0001"
@@ -453,7 +503,7 @@ async function proposeNew() {
           <p class="max-w-md text-xs text-[var(--dh-text-muted)]">Al guardar, la solicitud queda pendiente de aprobación.</p>
           <div class="flex gap-2">
             <button type="button" :disabled="busy" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm" @click="showNewProposal=false;proposalError=''">Cancelar</button>
-            <button type="submit" :disabled="busy" data-crm-credit-submit
+            <button type="submit" :disabled="busy || currencyLoading || !currencyOptions.some(item => item.code === currency)" data-crm-credit-submit
               class="rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">{{ busy ? 'Guardando solicitud…' : 'Solicitar crédito' }}</button>
           </div>
         </div>
