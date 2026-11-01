@@ -22,6 +22,7 @@ import { crmSectionScope } from '../model/crmForms'
 import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
+import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -700,6 +701,11 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <DhButton :label="t('common.details')" size="sm" variant="ghost" @click="details(row)" />
               <DhButton v-if="canEdit() && !['activities','followups'].includes(section)"
                 :label="t('common.edit')" size="sm" variant="secondary" @click="beginEdit(row)" />
+              <CrmArchiveAction v-if="['accounts','leads','contacts','activities','followups'].includes(section)"
+                :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
+                :record-id="String(row.id)" :row-version="Number(row.rowVersion)"
+                :record-name="String(row._crmTitle || row.name || row.displayName || row.subject || 'Registro')"
+                @archived="page=1;load()" />
             </div>
           </template>
         </DhDataTable>
