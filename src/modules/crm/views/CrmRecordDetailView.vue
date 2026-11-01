@@ -38,7 +38,7 @@ const prospectQuotesError = ref('')
 let prospectQuoteGeneration = 0
 
 async function loadProspectQuotes(append = false) {
-  if (section.value !== 'leads' || !auth.hasScope('crm.quote.read')) return
+  if (section.value !== 'leads' || !(auth.hasScope('crm.lead.read') || auth.hasScope('crm.lead.read-all'))) return
   const currentId = id.value
   const generation = ++prospectQuoteGeneration
   const page = append ? prospectQuotePage.value + 1 : 1
@@ -811,7 +811,7 @@ onMounted(() => { if (crmEnabled()) void load() })
         <p class="text-xs text-[var(--dh-text-muted)]">Programá visitas, llamadas, reuniones y seguimientos. Se asocian a este prospecto y se muestran en el calendario comercial, sin volver a ingresar la cédula.</p>
         <CrmSalesCalendar :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
       </section>
-      <section v-if="section === 'leads' && can('crm.quote.read')" class="crm-panel space-y-3 p-4">
+      <section v-if="section === 'leads' && (can('crm.lead.read') || can('crm.lead.read-all'))" class="crm-panel space-y-3 p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 class="text-base font-extrabold">Cotizaciones y rutas del prospecto</h2>
