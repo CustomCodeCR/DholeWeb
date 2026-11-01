@@ -343,7 +343,7 @@ const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.fl
 }))
 // CRM refs must exist before Vite's seller plugins register watchers at setup.
 interface PricingCrmClient {
-  id:string; displayName:string; legalName:string; taxId?:string|null
+  kind:'account' | 'lead'; id:string; displayName:string; legalName:string; taxId?:string|null
   executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
 }
 interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
@@ -1440,7 +1440,7 @@ function validateSelectedCrmCustomer(){
       (!props.sellerRequestMode || Boolean(requestSellerUserId.value &&
         chosenCrmClient.value.executiveUserId===requestSellerUserId.value)))
     return true
-  crmCustomerError.value='Seleccioná un cliente activo del CRM que corresponda al vendedor autorizado.'
+  crmCustomerError.value='Seleccioná una cuenta o prospecto activo del CRM que corresponda al vendedor autorizado.'
   step.value=3
   return false
 }
@@ -2089,7 +2089,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   if (step.value === 1) add(!form.modality, 'modality', 'Modalidad')
   if (step.value === 2) add(!form.shipmentMode, 'shipmentMode', 'Tipo de embarque')
   if (step.value === 3) {
-    add(!isEditing.value && (!form.clientId || chosenCrmClient.value?.id!==form.clientId), 'client', 'Cliente CRM')
+    add(!isEditing.value && (!form.clientId || chosenCrmClient.value?.id!==form.clientId), 'client', 'Cuenta o prospecto CRM')
     add(props.sellerRequestMode && !requestSellerUserId.value, 'client', 'Vendedor autorizado')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
@@ -3771,7 +3771,7 @@ async function hydrateExistingRate() {
     form.validTo = String(rate.validTo).slice(0,10)
     form.selectedImportRateId = rate.sourceImportFclRateId ?? ''
     form.manualRate = !rate.sourceImportFclRateId
-    form.clientId = rate.clientAccountId ?? ''
+    form.clientId = rate.clientAccountId ?? rate.clientLeadId ?? ''
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
@@ -4485,7 +4485,12 @@ async function saveOpenRequest() {
       currencyName: displayValue(currency),
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
-      clientAccountId: form.clientId || editingRate.value?.clientAccountId || null,
+      clientAccountId: chosenCrmClient.value
+        ? (chosenCrmClient.value.kind === 'account' ? form.clientId : null)
+        : (editingRate.value?.clientAccountId ?? null),
+      clientLeadId: chosenCrmClient.value
+        ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
+        : (editingRate.value?.clientLeadId ?? null),
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -4895,7 +4900,12 @@ async function saveRate() {
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
-      clientAccountId: form.clientId || editingRate.value?.clientAccountId || null,
+      clientAccountId: chosenCrmClient.value
+        ? (chosenCrmClient.value.kind === 'account' ? form.clientId : null)
+        : (editingRate.value?.clientAccountId ?? null),
+      clientLeadId: chosenCrmClient.value
+        ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
+        : (editingRate.value?.clientLeadId ?? null),
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -5563,8 +5573,8 @@ onMounted(async () => {
                   @update:model-value="form.clientId=$event" />
               </div>
               <div v-else class="rounded-xl border border-[var(--dh-border)] p-3">
-                <p class="text-xs font-black text-[var(--dh-text-muted)]">Cliente de la tarifa existente</p>
-                <p class="mt-1 font-bold">{{ form.clientName || 'No indicado' }}</p>
+                <p class="text-xs font-black text-[var(--dh-text-muted)]">Cuenta o prospecto de la tarifa existente</p>
+                <p class="mt-1 font-bold">{{ form.clientName || 'No indicado' }} <span class="text-xs text-[var(--dh-text-muted)]">{{ editingRate?.clientLeadId ? '· Prospecto original' : '· Cuenta' }}</span></p>
               </div>
               <div class="rounded-xl border border-[var(--dh-border)] p-3">
                 <p v-if="sellerRequestMode && sellerOptionsError" class="mb-2 text-xs font-bold text-red-500">{{sellerOptionsError}}</p>

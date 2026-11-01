@@ -4,6 +4,7 @@ import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 
 interface PricingCrmClient {
+  kind: 'account' | 'lead'
   id: string
   displayName: string
   legalName: string
@@ -112,12 +113,12 @@ onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
 <template>
   <div class="relative min-w-0">
     <label class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-      Cliente CRM *
+      Cuenta o prospecto CRM *
     </label>
     <div class="relative">
       <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-primary)]"/>
       <input type="search" :value="query" :disabled="disabled"
-        :aria-invalid="!!error" autocomplete="off" placeholder="Buscar cliente por nombre o cédula…"
+        :aria-invalid="!!error" autocomplete="off" placeholder="Buscar cuenta o prospecto por nombre o cédula…"
         class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-10 text-sm font-semibold outline-none dh-focus-primary disabled:opacity-60"
         @input="typeSearch(($event.target as HTMLInputElement).value)"
         @focus="open=true;void load()" @keydown.escape="open=false"/>
@@ -133,7 +134,10 @@ onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
         class="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left hover:bg-[var(--dh-card-hover)]"
         @click="choose(client)">
         <span class="min-w-0">
-          <span class="block truncate text-sm font-bold">{{client.displayName}}</span>
+          <span class="flex items-center gap-2">
+            <span class="truncate text-sm font-bold">{{client.displayName}}</span>
+            <span class="shrink-0 rounded-md border border-[var(--dh-border)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">{{client.kind === 'lead' ? 'Prospecto' : 'Cuenta'}}</span>
+          </span>
           <span class="block truncate text-xs text-[var(--dh-text-muted)]">
             {{client.taxId || client.legalName}} · {{client.executiveName}}
           </span>
@@ -141,7 +145,7 @@ onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
         <Check v-if="client.id===modelValue" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]"/>
       </button>
       <p v-if="loading" class="p-3 text-center text-xs text-[var(--dh-text-muted)]">Buscando clientes…</p>
-      <p v-else-if="!items.length && !failure" class="p-3 text-center text-xs text-[var(--dh-text-muted)]">No hay clientes disponibles para esta búsqueda.</p>
+      <p v-else-if="!items.length && !failure" class="p-3 text-center text-xs text-[var(--dh-text-muted)]">No hay cuentas o prospectos disponibles para esta búsqueda.</p>
       <button v-if="canLoadMore && !loading" type="button"
         class="w-full rounded-lg px-3 py-2 text-xs font-bold text-[var(--dh-primary)] hover:bg-[var(--dh-card-hover)]"
         @click="nextPage">Ver más clientes ({{items.length}} de {{total}})</button>

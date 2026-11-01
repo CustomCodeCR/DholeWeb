@@ -481,6 +481,7 @@ export interface PricingRateDashboardItemDto extends Record<string, unknown> {
   lastModifiedByDisplayName?: string | null
   clientName?: string | null
   clientAccountId?: string | null
+  clientLeadId?: string | null
   executiveName?: string | null
   carrierName?: string | null
   polName: string
@@ -850,6 +851,7 @@ export interface RateDto extends Record<string, unknown> {
   validTo: string
   clientName?: string | null
   clientAccountId?: string | null
+  clientLeadId?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
   otherReferences?: string | null
@@ -1009,6 +1011,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   containerQuantity: number
   clientName?: string | null
   clientAccountId?: string | null
+  clientLeadId?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
   otherReferences?: string | null
@@ -1063,6 +1066,7 @@ export interface DuplicateRateRequest extends Record<string, unknown> {
   identicalCopy?: boolean
   clientName?: string | null
   clientAccountId?: string | null
+  clientLeadId?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
 }
