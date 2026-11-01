@@ -1394,9 +1394,6 @@ interface PricingCrmClient {
 }
 interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
 const authorizedSellers = ref<AuthorizedSeller[]>([])
-const sellerOptions = computed(() => authorizedSellers.value.map(seller => ({
-  value:seller.userId, label:seller.displayName || seller.userName || 'Vendedor'
-})))
 const requestSellerUserId = ref('')
 const sellerOptionsError = ref('')
 const chosenCrmClient = ref<PricingCrmClient|null>(null)
