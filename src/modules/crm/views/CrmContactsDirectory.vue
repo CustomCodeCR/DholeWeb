@@ -8,6 +8,7 @@ import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmContactForm from '../components/CrmContactForm.vue'
+import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import { crmList, crmError, type CrmRow } from '../services/crmApi'
 
 const router = useRouter()
@@ -30,6 +31,7 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => [
   { key: 'email', label: en.value ? 'Email' : 'Correo electrónico' },
   { key: 'phone', label: en.value ? 'Phone' : 'Teléfono' },
   { key: 'relationRole', label: en.value ? 'Relationship' : 'Relación' },
+  { key: 'actions', label: en.value ? 'Actions' : 'Acciones' },
 ])
 const visibleRows = computed<CrmRow[]>(() => rows.value.map(r => ({ ...r, name: r.name || '—',
   accountName: r.accountName || '—', jobTitle: r.jobTitle || '—',
@@ -97,6 +99,15 @@ watch(locale, () => { /* localized headers recompute without reloading */ })
         <template #cell-name="{ value }"><strong class="text-[var(--dh-text)]">{{ value }}</strong></template>
         <template #cell-accountName="{ value, row }">
           <RouterLink :to="'/crm/accounts/' + encodeURIComponent(String(row.accountId))" class="text-[var(--dh-primary)] hover:underline" @click.stop>{{ value }}</RouterLink>
+        </template>
+        <template #cell-actions="{ row }">
+          <div class="flex justify-end gap-2" @click.stop>
+            <DhButton label="Ver detalle" size="sm" variant="ghost"
+              @click="router.push('/crm/contacts/' + encodeURIComponent(String(row.id)))" />
+            <CrmArchiveAction resource="contacts" :record-id="String(row.id)"
+              :row-version="Number(row.rowVersion)" :record-name="String(row.name)"
+              @archived="page=1;load()" />
+          </div>
         </template>
       </DhDataTable>
     </section>
