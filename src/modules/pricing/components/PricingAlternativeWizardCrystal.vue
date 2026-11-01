@@ -22,6 +22,8 @@ import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { fetchClient } from '@/core/api/fetchConfig'
+import PricingCrmClientSelect, { type PricingCrmClient } from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -1387,7 +1389,46 @@ const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
   }
 }))
 const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
-const salesExecutiveOptions = computed(() => catalogs.salesExecutives.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
+interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
+const authorizedSellers = ref<AuthorizedSeller[]>([])
+const sellerOptions = computed(() => authorizedSellers.value.map(seller => ({
+  value:seller.userId, label:seller.displayName || seller.userName || 'Vendedor'
+})))
+const requestSellerUserId = ref('')
+const sellerOptionsError = ref('')
+const chosenCrmClient = ref<PricingCrmClient|null>(null)
+const crmCustomerError = ref('')
+async function loadAuthorizedRequestSellers(){
+  if(!props.sellerRequestMode)return
+  try{
+    const result = await fetchClient<{viewerUserId:string;sellers:AuthorizedSeller[]}>(
+      '/api/pricing/seller-visibility/me/options',{method:'GET'})
+    authorizedSellers.value=result.sellers || []
+    const mine=authorizedSellers.value.find(s=>s.userId===result.viewerUserId)
+    requestSellerUserId.value=mine?.userId ?? authorizedSellers.value[0]?.userId ?? ''
+    sellerOptionsError.value=requestSellerUserId.value?'':'No tenés vendedores autorizados para solicitar tarifas.'
+  }catch{
+    sellerOptionsError.value='No se pudieron consultar los vendedores autorizados. Actualizá la pantalla.'
+  }
+}
+function useCrmClient(account:PricingCrmClient|null){
+  chosenCrmClient.value=account
+  form.clientId=account?.id ?? ''
+  form.clientName=account?.displayName ?? ''
+  form.executiveId=account?.executiveUserId ?? ''
+  form.executiveName=account?.executiveName ?? ''
+  crmCustomerError.value=''
+}
+function validateSelectedCrmCustomer(){
+  if(isEditing.value)return true
+  if(chosenCrmClient.value?.id===form.clientId && form.clientId &&
+      (!props.sellerRequestMode || Boolean(requestSellerUserId.value &&
+        chosenCrmClient.value.executiveUserId===requestSellerUserId.value)))
+    return true
+  crmCustomerError.value='Seleccioná un cliente activo del CRM que corresponda al vendedor autorizado.'
+  step.value=3
+  return false
+}
 
 const shipmentModeForApi = computed<ShipmentMode>(() => {
   const value = form.shipmentMode.toUpperCase().replace(/[\s_-]+/g, '')
@@ -2000,7 +2041,8 @@ const canNext = computed(() => {
       form.incotermId &&
       form.serviceIds.length &&
       form.loadDate &&
-      (!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim())) &&
+      (isEditing.value || Boolean(form.clientId && chosenCrmClient.value?.id===form.clientId)) &&
+      (!props.sellerRequestMode || Boolean(requestSellerUserId.value && form.executiveId===requestSellerUserId.value)) &&
       exwLocationReady.value &&
       fcaLocationReady.value &&
       inlandServiceLocationsReady.value &&
@@ -2032,7 +2074,8 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   if (step.value === 1) add(!form.modality, 'modality', 'Modalidad')
   if (step.value === 2) add(!form.shipmentMode, 'shipmentMode', 'Tipo de embarque')
   if (step.value === 3) {
-    add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
+    add(!isEditing.value && (!form.clientId || chosenCrmClient.value?.id!==form.clientId), 'client', 'Cliente CRM')
+    add(props.sellerRequestMode && !requestSellerUserId.value, 'client', 'Vendedor autorizado')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
     add(maritimePodRequired.value && !String(form.podId ?? '').trim(), 'podId', 'POD (destino final)')
@@ -4369,7 +4412,7 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
-  if (!validateWizardReferences()) return
+  if (!validateSelectedCrmCustomer() || !validateWizardReferences()) return
   const origin = selectedOrigin.value
   const poe = selectedDestination.value
   const equipment = selectedEquipment.value
@@ -4427,6 +4470,8 @@ async function saveOpenRequest() {
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
+      executiveUserId: form.executiveId || null,
+      executiveUserId: form.executiveId || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
       freeDays: 0,
@@ -4553,7 +4598,7 @@ async function saveRate() {
     return
   }
 
-  if (!validateRequiredFields() || !validateWizardReferences()) return
+  if (!validateSelectedCrmCustomer() || !validateRequiredFields() || !validateWizardReferences()) return
   // Los POL sin matriz propia utilizan la tarifa Guangzhou más alta,
   // pero la recolecta Wuhan → Shanghai siempre debe ser real y editable en Pantalla 7.
   // Mantener el marcador en notes también protege revisiones de tarifas ya guardadas.
@@ -5212,26 +5257,10 @@ watch(
   },
 )
 
-watch(
-  () => form.clientId,
-  (clientId) => {
-    const client = findById(catalogs.clients, clientId)
-    if (!client) return
-    form.clientName = displayValue(client) || client.label
-    const assignedExecutiveId = metadata(client)?.salesExecutiveId
-    if (assignedExecutiveId && catalogs.salesExecutives.some((item) => item.id === assignedExecutiveId)) {
-      form.executiveId = assignedExecutiveId
-    }
-  },
-)
-
-watch(
-  () => form.executiveId,
-  (executiveId) => {
-    const executive = findById(catalogs.salesExecutives, executiveId)
-    if (executive) form.executiveName = displayValue(executive) || executive.label
-  },
-)
+watch(requestSellerUserId,()=>{
+  if(!props.sellerRequestMode)return
+  useCrmClient(null)
+})
 
 watch(
   () => form.originId,
@@ -5328,7 +5357,7 @@ watch(step, (value) => {
 })
 
 onMounted(async () => {
-  await loadCatalogs()
+  await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])
   if (props.rateId) await hydrateExistingRate()
   else await loadHaciendaExchangeRate(true)
 })
@@ -5513,12 +5542,29 @@ onMounted(async () => {
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
             <div class="grid gap-4 md:grid-cols-2">
-              <DhSelect v-if="clientOptions.length" v-model="form.clientId" data-required-field="client" :error="fieldError('client')" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
-              <DhInput v-else v-model="form.clientName" data-required-field="client" :error="fieldError('client')" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
-              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
-              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
+              <div v-if="!isEditing" class="space-y-2">
+                <PricingCrmClientSelect :model-value="form.clientId"
+                  :mode="sellerRequestMode ? 'request' : 'create'"
+                  :seller-user-id="sellerRequestMode ? requestSellerUserId : ''"
+                  :error="crmCustomerError || fieldError('client')"
+                  @selected="useCrmClient"
+                  @update:model-value="form.clientId=$event" />
+              </div>
+              <div v-else class="rounded-xl border border-[var(--dh-border)] p-3">
+                <p class="text-xs font-black text-[var(--dh-text-muted)]">Cliente de la tarifa existente</p>
+                <p class="mt-1 font-bold">{{ form.clientName || 'No indicado' }}</p>
+              </div>
+              <div v-if="sellerRequestMode" class="space-y-2">
+                <DhSelect v-model="requestSellerUserId" label="Vendedor autorizado"
+                  placeholder="Seleccione vendedor" :options="sellerOptions" />
+                <p v-if="sellerOptionsError" class="text-xs font-bold text-red-500">{{sellerOptionsError}}</p>
+              </div>
+              <div v-else class="rounded-xl border border-[var(--dh-border)] p-3">
+                <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Vendedor asignado al cliente</p>
+                <p class="mt-1 text-sm font-bold">{{form.executiveName || 'Seleccioná un cliente del CRM'}}</p>
+              </div>
             </div>
-            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">Clientes y ejecutivos usan catálogos temporales de Config para evitar duplicar el futuro módulo Comercial.</p>
+            <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">Los clientes y sus vendedores se consultan en CRM. No se pueden ingresar nombres de cliente manualmente.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">
