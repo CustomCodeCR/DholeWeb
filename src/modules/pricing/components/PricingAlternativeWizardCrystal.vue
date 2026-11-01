@@ -1433,7 +1433,7 @@ function useCrmClient(account:PricingCrmClient|null){
   crmCustomerError.value=''
 }
 function validateSelectedCrmCustomer(){
-  if(isEditing.value || props.rateRequestId || props.modificationRequestId || props.sellerEditRequestId || props.sellerModificationRateId)return true
+  if(isEditing.value || props.rateRequestId || props.modificationRequestId || props.sellerEditRequestId)return true
   if(chosenCrmClient.value?.id===form.clientId && form.clientId &&
       (!props.sellerRequestMode || Boolean(requestSellerUserId.value &&
         chosenCrmClient.value.executiveUserId===requestSellerUserId.value)))
