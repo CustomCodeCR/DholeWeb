@@ -127,6 +127,7 @@ function accountCategoryLabel(item: CrmRow): string {
 const tableRows = computed(() => rows.value.map(item => ({
   ...item,
   _crmResource: item._crmResource,
+  _crmConvertedAccountId: item.convertedAccountId,
   _crmTitle: section.value === 'followups'
     ? String(item.subject || (item._crmResource === 'followups' ? 'Seguimiento comercial' : 'Actividad comercial'))
     : String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
@@ -753,7 +754,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <DhButton :label="t('common.details')" size="sm" variant="ghost" @click="details(row)" />
               <DhButton v-if="canEdit() && !['activities','followups'].includes(section)"
                 :label="t('common.edit')" size="sm" variant="secondary" @click="beginEdit(row)" />
-              <DhButton v-if="section === 'leads' && !row.convertedAccountId
+              <DhButton v-if="section === 'leads' && !row._crmConvertedAccountId
                   && can('crm.lead.convert') && can('crm.account.create')"
                 label="Convertir a cuenta" size="sm" @click="router.push('/crm/leads/' +
                   encodeURIComponent(String(row.id)) + '#crm-lead-conversion')" />
