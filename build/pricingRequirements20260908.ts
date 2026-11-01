@@ -219,13 +219,15 @@ function patchWizard(source: string) {
     `const supportAccept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.xlsb'\nconst hasDangerousTechSheet = computed(() => supportDocuments.value.some((document) => document.category === 'msds-tech-sheet'))`,
     'hazardous tech sheet state',
   )
-  code = replaceRequired(code, `label="Cliente" placeholder="Seleccione cliente"`, `:label="props.sellerRequestMode ? 'Cliente *' : 'Cliente'" placeholder="Seleccione cliente"`, 'required client select label')
-  code = replaceRequired(code, `label="Nombre del cliente" placeholder="Escriba el nombre del cliente"`, `:label="props.sellerRequestMode ? 'Nombre del cliente *' : 'Nombre del cliente'" placeholder="Escriba el nombre del cliente"`, 'required client input label')
+  if (!code.includes('<PricingCrmClientSelect')) {
+    code = replaceRequired(code, `label="Cliente" placeholder="Seleccione cliente"`, `:label="props.sellerRequestMode ? 'Cliente *' : 'Cliente'" placeholder="Seleccione cliente"`, 'required client select label')
+    code = replaceRequired(code, `label="Nombre del cliente" placeholder="Escriba el nombre del cliente"`, `:label="props.sellerRequestMode ? 'Nombre del cliente *' : 'Nombre del cliente'" placeholder="Escriba el nombre del cliente"`, 'required client input label')
+  }
 
   code = replaceRequired(
     code,
     `const canNext = computed(() => {`,
-    `const requirements20260908Ready = computed(() => {\n  if (step.value === 3) {\n    if (props.sellerRequestMode && !form.clientId && !form.clientName.trim()) return false\n    if (!landEquipmentSelectionValid.value) return false\n  }\n  if (step.value === 4 && form.dangerousCargo && !hasDangerousTechSheet.value) return false\n  return true\n})\n\nconst canNext = computed(() => {`,
+    `const requirements20260908Ready = computed(() => {\n  if (step.value === 3) {\n    if (props.sellerRequestMode && !form.clientId) return false\n    if (!landEquipmentSelectionValid.value) return false\n  }\n  if (step.value === 4 && form.dangerousCargo && !hasDangerousTechSheet.value) return false\n  return true\n})\n\nconst canNext = computed(() => {`,
     'commercial validation state',
   )
   code = replaceAllRequired(code, `if (!canNext.value) return`, `if (!canNext.value || !requirements20260908Ready.value) return`, 'next requirements guard')
@@ -242,7 +244,7 @@ function patchWizard(source: string) {
   // of earlier Vite plugins adding their own preamble at the top of saveOpenRequest.
   const saveRequestStart = 'async function saveOpenRequest() {'
   const sellerRequestValidation = `
-  if (!form.clientId && !form.clientName.trim()) {
+  if (!form.clientId) {
     toastStore.error('Seleccione el cliente antes de enviar la solicitud a Pricing.')
     return
   }
