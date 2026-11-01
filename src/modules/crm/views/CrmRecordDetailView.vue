@@ -9,6 +9,7 @@ import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
+import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
@@ -658,7 +659,14 @@ onMounted(() => { if (crmEnabled()) void load() })
         <DhButton label="Descartar cambios" @click="confirmDiscard" />
       </div>
     </DhModal>
-    <DhButton :label="section !== 'accounts' && route.query.fromAccount ? 'Volver a la cuenta' : t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <DhButton :label="section !== 'accounts' && route.query.fromAccount ? 'Volver a la cuenta' : t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
+      <CrmArchiveAction v-if="record && ['accounts','leads','contacts','activities','followups'].includes(section)"
+        :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
+        :record-id="id" :row-version="Number(record.rowVersion)"
+        :record-name="String(record.displayName || record.name || record.subject || 'Registro')"
+        @archived="router.push('/crm/' + (section === 'activities' ? 'followups' : section))" />
+    </div>
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
     <p v-if="section === 'accounts' && route.query.onboarding === 'partial'" role="alert"
       class="rounded-xl border border-amber-500/40 bg-[var(--dh-card)] p-3 text-xs text-[var(--dh-text)]">
