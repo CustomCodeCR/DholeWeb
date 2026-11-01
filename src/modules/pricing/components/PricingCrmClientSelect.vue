@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 
-export interface PricingCrmClient {
+interface PricingCrmClient {
   id: string
   displayName: string
   legalName: string
