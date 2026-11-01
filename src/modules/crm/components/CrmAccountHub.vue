@@ -1370,12 +1370,15 @@ async function saveRoute() {
           <div class="grid gap-3 sm:grid-cols-2">
             <CrmMultiCatalogPicker v-model="routePolCodes" label="POL / Orígenes *"
               :catalog-group-slugs="['pol']" placeholder="Seleccionar uno o más orígenes"
+              empty-hint="Seleccioná al menos un POL para documentar la ruta."
               @resolved-label="acceptRouteLabel('pol', $event)" />
             <CrmMultiCatalogPicker v-model="routePoeCodes" label="POE / Puertos intermedios"
               :catalog-group-slugs="['poe']" placeholder="Seleccionar uno o más puertos (opcional)"
+              empty-hint="Opcional: sin POE se documenta una ruta directa POL → POD."
               @resolved-label="acceptRouteLabel('poe', $event)" />
             <CrmMultiCatalogPicker v-model="routePodCodes" label="POD / Destinos *"
               :catalog-group-slugs="['pod']" placeholder="Seleccionar uno o más destinos"
+              empty-hint="Seleccioná al menos un POD para documentar la ruta."
               @resolved-label="acceptRouteLabel('pod', $event)" />
             <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
           </div>
