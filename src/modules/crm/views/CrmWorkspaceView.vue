@@ -170,6 +170,9 @@ const search = ref('')
 const agendaStatusFilter = ref('')
 const agendaSourceFilter = ref('')
 const agendaTruncated = ref(false)
+const agendaView = ref<'list' | 'calendar'>('list')
+const agendaUpcoming = computed(() => rows.value.filter(item => ['Scheduled','Pending','Overdue'].includes(String(item.status))).length)
+const agendaCompleted = computed(() => rows.value.filter(item => String(item.status)==='Completed').length)
 const showForm = ref(false)
 const pendingCreateKey = ref(crmUuid())
 const edited = ref<CrmRow | null>(null)
@@ -525,7 +528,26 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.dashboardNote') }}</p>
       </template>
 
-      <CrmSalesCalendar v-else-if="section === 'followups'" @changed="page=1;load()" />
+      <section v-else-if="section === 'followups'" class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="rounded-xl bg-[var(--dh-primary)]/10 p-2.5 text-[var(--dh-primary)]"><CalendarClock class="h-6 w-6" /></div>
+            <div>
+              <h2 class="text-lg font-extrabold">Agenda comercial</h2>
+              <p class="text-xs text-[var(--dh-text-muted)]">Visitas, llamadas, reuniones y tareas en un solo lugar.</p>
+            </div>
+          </div>
+          <div class="inline-flex rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1">
+            <button type="button" class="rounded-lg px-4 py-2 text-xs font-bold"
+              :class="agendaView==='list' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
+              @click="agendaView='list'">Listado</button>
+            <button type="button" class="rounded-lg px-4 py-2 text-xs font-bold"
+              :class="agendaView==='calendar' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
+              @click="agendaView='calendar'">Calendario</button>
+          </div>
+        </div>
+        <CrmSalesCalendar v-if="agendaView === 'calendar'" @changed="page=1;load()" />
+      </section>
 
       <template v-else-if="section === 'finance'">
         <DhCard class="space-y-4">
@@ -611,32 +633,51 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
             class="block text-sm underline" @click="details(item)">{{ item.subject ?? item.channel }}</button>
         </div>
       </div>
-      <div v-else-if="section === 'followups'" class="space-y-4">
+      <div v-else-if="section === 'followups' && agendaView === 'list'" class="space-y-4">
         <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 class="flex items-center gap-2 text-base font-extrabold"><CalendarClock class="h-5 w-5 text-[var(--dh-primary)]" />Mis actividades y seguimientos</h2>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Visitas, reuniones, llamadas y tareas registradas. Seleccioná cualquiera para ver su detalle.</p>
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-extrabold">Actividades y seguimientos registrados</h2>
+            <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ total }} resultados</span>
+          </div>
+          <div class="mb-4 grid gap-2 sm:grid-cols-3">
+            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <p class="text-[11px] text-[var(--dh-text-muted)]">Registros cargados</p>
+              <p class="mt-1 text-xl font-bold">{{ total }}</p>
             </div>
-            <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-semibold">{{ total }} registros</span>
+            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <p class="text-[11px] text-[var(--dh-text-muted)]">Por gestionar</p>
+              <p class="mt-1 text-xl font-bold">{{ agendaUpcoming }}</p>
+            </div>
+            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <p class="text-[11px] text-[var(--dh-text-muted)]">Completadas en esta página</p>
+              <p class="mt-1 text-xl font-bold">{{ agendaCompleted }}</p>
+            </div>
           </div>
-          <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr),180px,180px]">
-            <DhInput v-model="search" label="Buscar actividad" placeholder="Nombre, tipo o estado…" @keyup.enter="page=1;load()" />
-            <DhSelect v-model="agendaSourceFilter" label="Mostrar" :options="[
-              {value:'',label:'Todas'},
-              {value:'activities',label:'Actividades'},
-              {value:'followups',label:'Seguimientos'}
-            ]" />
-            <DhSelect v-model="agendaStatusFilter" label="Estado" :options="[
-              {value:'',label:'Todos'},
-              {value:'Scheduled',label:'Programada'},
-              {value:'Pending',label:'Pendiente'},
-              {value:'Overdue',label:'Vencida'},
-              {value:'Completed',label:'Completada'},
-              {value:'Cancelled',label:'Cancelada'}
-            ]" />
+          <form class="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_170px_160px_auto]" @submit.prevent="page=1;load()">
+            <label class="space-y-1 text-xs font-semibold">
+              <span>Buscar actividad</span>
+              <input v-model="search" type="search" placeholder="Nombre, tipo, estado…"
+                class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm" />
+            </label>
+            <label class="space-y-1 text-xs font-semibold">
+              <span>Mostrar</span>
+              <select v-model="agendaSourceFilter" class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm">
+                <option value="">Todas las gestiones</option><option value="activities">Actividades</option><option value="followups">Seguimientos</option>
+              </select>
+            </label>
+            <label class="space-y-1 text-xs font-semibold">
+              <span>Estado</span>
+              <select v-model="agendaStatusFilter" class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm">
+                <option value="">Todos</option><option value="Scheduled">Programada</option><option value="Pending">Pendiente</option>
+                <option value="Overdue">Vencida</option><option value="Completed">Completada</option><option value="Cancelled">Cancelada</option>
+              </select>
+            </label>
+            <DhButton type="submit" label="Filtrar" variant="secondary" :disabled="loading" />
+          </form>
+          <div v-if="search || agendaStatusFilter || agendaSourceFilter" class="mt-2 text-right">
+            <button type="button" class="text-xs font-bold text-[var(--dh-primary)]"
+              @click="search='';agendaStatusFilter='';agendaSourceFilter='';page=1;load()">Limpiar filtros</button>
           </div>
-          <div class="mt-3 flex justify-end"><DhButton label="Aplicar filtros" variant="secondary" :disabled="loading" @click="page=1;load()" /></div>
           <p v-if="agendaTruncated" class="mt-3 text-xs text-amber-500" role="status">Hay más de 1000 registros por tipo. Ajustá el período del calendario para revisar otros eventos.</p>
         </section>
         <div v-if="!loading && !tableRows.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-10 text-center">
@@ -645,17 +686,22 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Los eventos del calendario y los seguimientos se consultan desde CRM.</p>
         </div>
         <div v-else class="grid gap-3 lg:grid-cols-2">
-          <button v-for="item in tableRows" :key="String(item._crmResource)+item.id" type="button"
-            class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-left transition-colors hover:border-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
-            @click="details(item)">
+          <article v-for="item in tableRows" :key="String(item._crmResource)+item.id"
+            class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 transition-colors hover:border-[var(--dh-primary)]">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="text-xs font-bold text-[var(--dh-primary)]">{{ item._crmChannel }}</span>
               <span class="rounded-full border border-[var(--dh-border)] px-2.5 py-1 text-xs font-semibold">{{ item._crmStatus }}</span>
             </div>
             <h3 class="mt-3 text-base font-extrabold">{{ item._crmTitle }}</h3>
             <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ item._crmDue }}</p>
-            <span class="mt-3 inline-block text-xs font-bold text-[var(--dh-primary)]">Ver detalle</span>
-          </button>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--dh-border)] pt-3">
+              <button type="button" class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
+                @click="details(item)">Abrir gestión</button>
+              <CrmArchiveAction :resource="item._crmResource === 'activities' ? 'activities' : 'followups'"
+                :record-id="String(item.id)" :row-version="Number(item.rowVersion)"
+                :record-name="String(item._crmTitle)" @archived="page=1;load()" />
+            </div>
+          </article>
         </div>
         <footer class="flex items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
           <span>{{ rows.length }} de {{ total }}</span>
@@ -666,7 +712,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           </div>
         </footer>
       </div>
-      <div v-else-if="section !== 'dashboard'" class="space-y-3">
+      <div v-else-if="section !== 'dashboard' && section !== 'followups'" class="space-y-3">
         <div v-if="section === 'accounts'" class="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
           <div class="flex items-center gap-2">
             <Building2 class="h-4 w-4 text-[var(--dh-primary)]" />
