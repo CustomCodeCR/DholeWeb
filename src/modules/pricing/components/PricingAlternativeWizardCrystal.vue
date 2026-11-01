@@ -1407,15 +1407,28 @@ async function loadAuthorizedRequestSellers(){
     const result = await fetchClient<{viewerUserId:string;sellers:AuthorizedSeller[]}>(
       '/api/pricing/seller-visibility/me/options',{method:'GET'})
     authorizedSellers.value=result.sellers || []
-    const mine=authorizedSellers.value.find(s=>s.userId===result.viewerUserId)
-    requestSellerUserId.value=mine?.userId ?? authorizedSellers.value[0]?.userId ?? ''
-    sellerOptionsError.value=requestSellerUserId.value?'':'No tenés vendedores autorizados para solicitar tarifas.'
+    // The chosen CRM account determines the sales representative; never preselect
+    // a seller and accidentally hide other authorized portfolios.
+    requestSellerUserId.value=''
+    sellerOptionsError.value=authorizedSellers.value.length?'':'No tenés vendedores autorizados para solicitar tarifas.'
   }catch{
     sellerOptionsError.value='No se pudieron consultar los vendedores autorizados. Actualizá la pantalla.'
   }
 }
 function useCrmClient(account:PricingCrmClient|null){
+  if(account && props.sellerRequestMode &&
+      !authorizedSellers.value.some(s=>s.userId===account.executiveUserId)){
+    chosenCrmClient.value=null
+    form.clientId=''
+    form.clientName=''
+    form.executiveId=''
+    form.executiveName=''
+    requestSellerUserId.value=''
+    crmCustomerError.value='Este cliente no corresponde a un vendedor que puedas gestionar.'
+    return
+  }
   chosenCrmClient.value=account
+  if(props.sellerRequestMode)requestSellerUserId.value=account?.executiveUserId ?? ''
   form.clientId=account?.id ?? ''
   form.clientName=account?.displayName ?? ''
   form.executiveId=account?.executiveUserId ?? ''
@@ -5546,7 +5559,8 @@ onMounted(async () => {
               <div v-if="!isEditing" class="space-y-2">
                 <PricingCrmClientSelect :model-value="form.clientId"
                   :mode="sellerRequestMode ? 'request' : 'create'"
-                  :seller-user-id="sellerRequestMode ? requestSellerUserId : ''"
+                  :seller-user-id="''"
+                  :disabled="sellerRequestMode && !!sellerOptionsError"
                   :error="crmCustomerError || fieldError('client')"
                   @selected="useCrmClient"
                   @update:model-value="form.clientId=$event" />
@@ -5555,12 +5569,8 @@ onMounted(async () => {
                 <p class="text-xs font-black text-[var(--dh-text-muted)]">Cliente de la tarifa existente</p>
                 <p class="mt-1 font-bold">{{ form.clientName || 'No indicado' }}</p>
               </div>
-              <div v-if="sellerRequestMode" class="space-y-2">
-                <DhSelect v-model="requestSellerUserId" label="Vendedor autorizado"
-                  placeholder="Seleccione vendedor" :options="sellerOptions" />
-                <p v-if="sellerOptionsError" class="text-xs font-bold text-red-500">{{sellerOptionsError}}</p>
-              </div>
-              <div v-else class="rounded-xl border border-[var(--dh-border)] p-3">
+              <div class="rounded-xl border border-[var(--dh-border)] p-3">
+                <p v-if="sellerRequestMode && sellerOptionsError" class="mb-2 text-xs font-bold text-red-500">{{sellerOptionsError}}</p>
                 <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Vendedor asignado al cliente</p>
                 <p class="mt-1 text-sm font-bold">{{form.executiveName || 'Seleccioná un cliente del CRM'}}</p>
               </div>
