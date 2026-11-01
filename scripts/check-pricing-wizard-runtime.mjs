@@ -2,7 +2,7 @@
 // not execute eager watchers and cannot detect "Cannot access lexical declaration
 // before initialization". Running an SSR mount executes setup without live API calls.
 import { createServer } from 'vite'
-import { createSSRApp, h, createRenderer, nextTick } from 'vue'
+import { createSSRApp, h, createRenderer, nextTick, ssrContextKey } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -82,6 +82,9 @@ try {
       runtimeApp.use(createPinia())
       runtimeApp.use(createRouter({ history: createMemoryHistory(), routes: [] }))
       runtimeApp.use(createI18n({ legacy: false, locale: 'es', messages: { es: {} } }))
+      // ssrLoadModule injects a registration call to useSSRContext().modules;
+      // provide that context when exercising the compiled setup with a client renderer.
+      runtimeApp.provide(ssrContextKey, { modules: new Set() })
       runtimeApp.mount(node('root'))
       await nextTick()
       runtimeApp.unmount()
