@@ -661,6 +661,12 @@ onMounted(() => { if (crmEnabled()) void load() })
     </DhModal>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <DhButton :label="section !== 'accounts' && route.query.fromAccount ? 'Volver a la cuenta' : t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
+      <a v-if="record && section === 'leads' && !record.convertedAccountId &&
+            can('crm.lead.convert') && can('crm.account.create')"
+          href="#crm-lead-conversion"
+          class="inline-flex items-center rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-sm font-bold text-white">
+          Convertir a cuenta
+        </a>
       <CrmArchiveAction v-if="record && ['accounts','leads','contacts','activities','followups'].includes(section)"
         :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
         :record-id="id" :row-version="Number(record.rowVersion)"
@@ -745,7 +751,8 @@ onMounted(() => { if (crmEnabled()) void load() })
         <p class="text-xs text-[var(--dh-text-muted)]">Programá visitas, llamadas, reuniones y seguimientos. Se asocian a este prospecto y se muestran en el calendario comercial, sin volver a ingresar la cédula.</p>
         <CrmSalesCalendar :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
       </section>
-      <section v-if="section === 'leads' && can('crm.lead.convert') && can('crm.account.create')" class="crm-panel space-y-3 p-4">
+      <section id="crm-lead-conversion" v-if="section === 'leads' && can('crm.lead.convert') && can('crm.account.create')"
+        class="crm-panel scroll-mt-32 space-y-3 p-4">
         <h2 class="font-bold">Convertir prospecto en cuenta</h2>
         <template v-if="record.convertedAccountId">
           <p class="text-sm text-[var(--dh-text-muted)]">Este prospecto ya fue convertido.</p>
