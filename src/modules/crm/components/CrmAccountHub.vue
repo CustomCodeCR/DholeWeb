@@ -101,11 +101,26 @@ const routeHistoryError = ref('')
 const routeCaptureOpen = ref(false)
 const routeSourceKind = ref<'MEETING' | 'QUOTE'>('MEETING')
 const routeSourceId = ref('')
-const routePol = ref('')
-const routePoe = ref('')
-const routePod = ref('')
+const routePolCodes = ref<string[]>([])
+const routePoeCodes = ref<string[]>([])
+const routePodCodes = ref<string[]>([])
+const routeCaptureError = ref('')
 const routeService = ref('')
 const routeNotes = ref('')
+// Same multi-select combination model as the account's commercial analysis.
+const routeEvidenceCombinations = computed(() =>
+  routePolCodes.value.flatMap(pol =>
+    (routePoeCodes.value.length ? routePoeCodes.value : [null]).flatMap(poe =>
+      routePodCodes.value.map(pod => ({ polCode: pol, poeCode: poe, podCode: pod })))))
+const routeEvidenceHasOverlap = computed(() =>
+  routeEvidenceCombinations.value.some(route =>
+    [route.polCode, route.poeCode, route.podCode]
+      .filter((value): value is string => Boolean(value))
+      .some((value, index, values) =>
+        values.findIndex(x => x.toUpperCase() === value.toUpperCase()) !== index)))
+const routeEvidenceReady = computed(() => Boolean(
+  routeSourceId.value && routePolCodes.value.length && routePodCodes.value.length &&
+  routeEvidenceCombinations.value.length <= 24 && !routeEvidenceHasOverlap.value))
 const sourceMeetings = computed(() => overview.value.activities.filter(a =>
   ['VISIT','MEETING'].includes(String(a.type)) && String(a.status) === 'Completed'))
 const sourceList = computed(() => routeSourceKind.value === 'MEETING'
@@ -209,7 +224,7 @@ function collectRouteCodes(group: RouteCatalog): string[] {
   const values = rows.flatMap(row => [row[key], ...fallbacks.map(fallback => row[fallback])])
   values.push(...(group === 'pol' ? originCodes.value : group === 'poe' ? poeCodes.value : podCodes.value))
   values.push(group === 'pol' ? originCode.value : group === 'poe' ? poeCode.value : podCode.value)
-  values.push(group === 'pol' ? routePol.value : group === 'poe' ? routePoe.value : routePod.value)
+  values.push(...(group === 'pol' ? routePolCodes.value : group === 'poe' ? routePoeCodes.value : routePodCodes.value))
   return [...new Set(values.map(value => String(value ?? '').trim()).filter(Boolean))]
 }
 async function loadRouteCatalogLabels() {
@@ -327,7 +342,7 @@ watch(routeModalityCode, () => {
 watch(originCode, () => { poeCode.value = ''; podCode.value = '' })
 watch(poeCode, () => { podCode.value = '' })
 watch([overview, popularRoutes, routeHistory, quoteRouteSnapshots,
-  originCode, poeCode, podCode, routePol, routePoe, routePod],
+  originCode, poeCode, podCode, routePolCodes, routePoeCodes, routePodCodes],
   () => { void loadRouteCatalogLabels() })
 function selectRouteModality(mode: string) {
   if (mode === 'MARITIME' || mode === 'LAND' || mode === 'AIR')
@@ -674,35 +689,47 @@ function changeQuoteRoutePage(delta: number) {
 function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING', sourceId = '') {
   routeSourceKind.value = kind
   routeSourceId.value = sourceId
-  routePol.value = ''
-  routePoe.value = ''
-  routePod.value = ''
+  routePolCodes.value = []
+  routePoeCodes.value = []
+  routePodCodes.value = []
+  routeCaptureError.value = ''
   routeService.value = ''
   routeNotes.value = ''
   routeCaptureOpen.value = true
   activeTab.value = 'history'
 }
 async function saveRouteEvidence() {
-  if (busy.value || !routeSourceId.value || !routePol.value || !routePod.value) return
+  if (busy.value) return
+  routeCaptureError.value = ''
+  if (!routeEvidenceReady.value) {
+    routeCaptureError.value = routeEvidenceCombinations.value.length > 24
+      ? 'Podés documentar hasta 24 combinaciones en un mismo guardado.'
+      : routeEvidenceHasOverlap.value
+        ? 'En cada ruta, POL, POE y POD deben ser ubicaciones diferentes.'
+        : 'Seleccioná el registro de origen, uno o más POL y uno o más POD.'
+    return
+  }
   busy.value = true
   error.value = ''
   saved.value = ''
   try {
-    await crmRequest(crmPath('accounts', rowId(props.account.id), 'route-history'), 'POST', {
-      sourceKind: routeSourceKind.value,
-      sourceId: routeSourceId.value,
-      polCode: routePol.value,
-      poeCode: routePoe.value || null,
-      podCode: routePod.value,
-      serviceCode: routeService.value || null,
-      notes: routeNotes.value.trim() || null,
-    }, crmUuid())
+    const result = await crmRequest<{ created: number; alreadyExisting: number; total: number }>(
+      crmPath('accounts', rowId(props.account.id), 'route-history/bulk'), 'POST', {
+        sourceKind: routeSourceKind.value,
+        sourceId: routeSourceId.value,
+        routes: routeEvidenceCombinations.value,
+        serviceCode: routeService.value || null,
+        notes: routeNotes.value.trim() || null,
+      }, crmUuid())
     routeCaptureOpen.value = false
     routeHistoryPage.value = 1
     await loadRouteHistory()
-    saved.value = 'Ruta incorporada al historial con su reunión o cotización de origen.'
-  } catch (cause) { error.value = message(cause) }
-  finally { busy.value = false }
+    saved.value = result.created + ' rutas documentadas' +
+      (result.alreadyExisting ? ' · ' + result.alreadyExisting + ' ya registradas' : '') +
+      ' con su reunión o cotización de origen.'
+  } catch (cause) {
+    routeCaptureError.value = message(cause)
+  } finally { busy.value = false }
 }
 function changeRouteHistoryPage(delta: number) {
   routeHistoryPage.value += delta
@@ -1341,17 +1368,36 @@ async function saveRoute() {
             {{ routeSourceKind === 'MEETING' ? 'No hay reuniones completadas visibles en el historial reciente. Abrí Actividades para registrar o completar una visita.' : 'No hay cotizaciones vinculadas a las oportunidades de este cliente.' }}
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
-            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" @resolved-label="acceptRouteLabel('pol', $event)" />
-            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" @resolved-label="acceptRouteLabel('poe', $event)" />
-            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" @resolved-label="acceptRouteLabel('pod', $event)" />
+            <CrmMultiCatalogPicker v-model="routePolCodes" label="POL / Orígenes *"
+              :catalog-group-slugs="['pol']" placeholder="Seleccionar uno o más orígenes"
+              @resolved-label="acceptRouteLabel('pol', $event)" />
+            <CrmMultiCatalogPicker v-model="routePoeCodes" label="POE / Puertos intermedios"
+              :catalog-group-slugs="['poe']" placeholder="Seleccionar uno o más puertos (opcional)"
+              @resolved-label="acceptRouteLabel('poe', $event)" />
+            <CrmMultiCatalogPicker v-model="routePodCodes" label="POD / Destinos *"
+              :catalog-group-slugs="['pod']" placeholder="Seleccionar uno o más destinos"
+              @resolved-label="acceptRouteLabel('pod', $event)" />
             <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
           </div>
+          <p v-if="routeEvidenceCombinations.length" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
+            {{ routeEvidenceCombinations.length }} {{ routeEvidenceCombinations.length === 1 ? 'ruta' : 'rutas' }} para documentar.
+            Se guardará cada combinación de POL, POE (si aplica) y POD con el origen seleccionado.
+          </p>
+          <p v-if="routeEvidenceCombinations.length > 24" class="text-xs text-amber-600">
+            Máximo 24 combinaciones por guardado. Quitá algunas ubicaciones.
+          </p>
+          <p v-if="routeEvidenceHasOverlap" class="text-xs text-amber-600">
+            POL, POE y POD no pueden repetirse dentro de una misma ruta.
+          </p>
+          <p v-if="routeCaptureError" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ routeCaptureError }}</p>
           <label class="block space-y-1.5 text-xs font-bold">Observaciones de la ruta
             <textarea v-model="routeNotes" maxlength="2000" rows="3" class="crm-input w-full" placeholder="Información confirmada durante la reunión o cotización"></textarea>
           </label>
           <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
             <button type="button" class="hub-outline-button" @click="routeCaptureOpen=false">Cancelar</button>
-            <button type="submit" class="crm-action" :disabled="busy || !routeSourceId || !routePol || !routePod">Guardar ruta con origen</button>
+            <button type="submit" class="crm-action" :disabled="busy || !routeEvidenceReady">
+              {{ busy ? 'Guardando…' : 'Documentar ' + routeEvidenceCombinations.length + (routeEvidenceCombinations.length === 1 ? ' ruta' : ' rutas') }}
+            </button>
           </div>
         </form>
       </DhDrawer>
