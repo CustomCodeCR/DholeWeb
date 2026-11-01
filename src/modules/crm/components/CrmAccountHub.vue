@@ -1231,11 +1231,12 @@ async function saveRoute() {
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran cotizaciones de Pricing asociadas por el identificador de este cliente y vínculos históricos de CRM. Pricing conserva el estado oficial.</p>
       </div>
       <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones asociadas a esta cuenta todavía.</p>
-      <div v-else class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm">
-        <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Cotización</th><th class="px-3 py-3">Modalidad</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3">Vinculada</th><th class="px-3 py-3">Acción</th></tr></thead>
+      <div v-else class="overflow-x-auto"><table class="w-full min-w-[740px] text-left text-sm">
+        <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Cotización</th><th class="px-3 py-3">Modalidad</th><th class="px-3 py-3">Origen</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3">Vinculada</th><th class="px-3 py-3">Acción</th></tr></thead>
         <tbody><tr v-for="q in recentQuotes" :key="rowId(q.pricingQuoteId)" class="border-b border-[var(--dh-border)] last:border-0">
           <td class="px-3 py-3 font-bold">{{ text(q.quoteNumberSnapshot) }}</td>
           <td class="px-3 py-3">{{ text(q.shipmentModeSnapshot) }}</td>
+          <td class="px-3 py-3">{{ q.clientLeadId ? 'Prospecto convertido' : isOpportunityLinkedQuote(q) && !accountPricingQuotes.some(x => x.pricingQuoteId === q.pricingQuoteId) ? 'Vínculo histórico CRM' : 'Cuenta' }}</td>
           <td class="px-3 py-3">{{ text(q.commercialStatusSnapshot) }}</td>
           <td class="px-3 py-3">{{ date(q.linkedAt) }}</td>
           <td class="px-3 py-3">
