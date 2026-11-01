@@ -14,6 +14,7 @@ const canRequest = computed(() => props.editable &&
   (auth.hasScope('crm.credit.manage') || auth.hasScope('crm.account.update')))
 const canApprove = computed(() => auth.hasScope('crm.credit.approve'))
 const approvalReason = ref('')
+const confirmEmptyCoverageApproval = ref(false)
 const options = CRM_CREDIT_COVERAGE_OPTIONS
 type CoverageKind = 'INCLUDED' | 'EXCLUDED'
 type CreditCoverage = CrmRow & { serviceCode?: string; coverageType?: string; description?: string; isActive?: boolean }
@@ -241,14 +242,22 @@ function approvalCoverageSnapshot() {
 async function resolveCredit(approve: boolean) {
   if (!canApprove.value || !profile.value || profile.value.status !== 'PendingApproval' || busy.value) return
   if (!approvalReason.value.trim()) { error.value = 'Indicá un motivo antes de aprobar o rechazar.'; return }
+  if (approve && !approvalCoverageSnapshot().length && !confirmEmptyCoverageApproval.value) {
+    error.value = 'Seleccioná los servicios incluidos o confirmá expresamente la aprobación sin coberturas.'
+    return
+  }
   busy.value = true; error.value = ''; success.value = ''
   try {
     const selectedCoverages = approve ? approvalCoverageSnapshot() : null
     await crmRequest(crmPath('credit-profiles', String(profile.value.id), approve ? 'approve' : 'reject'), 'POST', {
       expectedVersion: profile.value.rowVersion, reason: approvalReason.value.trim(),
-      ...(approve ? { coverages: selectedCoverages } : {}),
+      ...(approve ? {
+        coverages: selectedCoverages,
+        confirmEmptyCoverages: confirmEmptyCoverageApproval.value,
+      } : {}),
     })
     approvalReason.value = ''
+    confirmEmptyCoverageApproval.value = false
     await refresh()
     success.value = approve
       ? 'Crédito aprobado con ' + (selectedCoverages?.filter(x => x.coverageType === 'INCLUDED').length ?? 0) +
@@ -390,12 +399,16 @@ async function proposeNew() {
         <p v-if="dirty" role="status" class="rounded-lg border border-amber-500/30 p-2 text-xs text-amber-500">
           Hay cambios de coberturas sin guardar. Al aprobar se registrarán automáticamente en la misma operación.
         </p>
+        <label v-if="!approvalCoverageSnapshot().length" class="flex items-start gap-2 rounded-lg border border-amber-500/30 p-3 text-xs text-amber-500">
+          <input v-model="confirmEmptyCoverageApproval" type="checkbox" class="mt-0.5 accent-[var(--dh-primary)]" />
+          Confirmo que este crédito debe aprobarse sin servicios incluidos ni excluidos.
+        </label>
         <template v-if="canApprove">
           <label class="block text-xs font-bold">Justificación de la decisión
             <textarea v-model.trim="approvalReason" maxlength="1000" rows="2" class="mt-2 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-3" placeholder="Motivo obligatorio para aprobar o rechazar" />
           </label>
           <div class="flex flex-wrap gap-2">
-            <button type="button" :disabled="busy || !approvalReason" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">{{ dirty ? 'Guardar coberturas y aprobar' : 'Aprobar crédito' }}</button>
+            <button type="button" :disabled="busy || !approvalReason || (!approvalCoverageSnapshot().length && !confirmEmptyCoverageApproval)" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">{{ dirty ? 'Guardar coberturas y aprobar' : 'Aprobar crédito' }}</button>
             <button type="button" :disabled="busy || !approvalReason" class="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500" @click="resolveCredit(false)">Rechazar solicitud</button>
           </div>
         </template>
