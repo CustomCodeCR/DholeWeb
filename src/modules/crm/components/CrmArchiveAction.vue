@@ -31,18 +31,20 @@ const kind: Record<Resource, string> = {
 }
 const show = ref(false)
 const reason = ref('')
+const confirmation = ref('')
 const busy = ref(false)
 const error = ref('')
 async function archive() {
-  if (busy.value || !canArchive.value || !reason.value.trim()) return
+  if (busy.value || !canArchive.value || !reason.value.trim() || confirmation.value !== 'ELIMINAR') return
   busy.value = true
   error.value = ''
   try {
-    await crmRequest(crmPath(props.resource, props.recordId, 'archive'), 'POST', {
+    await crmRequest(crmPath(props.resource, props.recordId, 'delete'), 'POST', {
       expectedVersion: props.rowVersion, reason: reason.value.trim(),
     })
     show.value = false
     reason.value = ''
+    confirmation.value = ''
     emit('archived')
   } catch(cause) {
     error.value = crmError(cause)
@@ -50,38 +52,44 @@ async function archive() {
     busy.value = false
   }
 }
-function open() { error.value = ''; reason.value = ''; show.value = true }
+function open() { error.value = ''; reason.value = ''; confirmation.value=''; show.value = true }
 </script>
 
 <template>
   <span v-if="canArchive" class="inline-flex" @click.stop @keydown.stop>
-    <DhButton :icon="Archive" label="Archivar" variant="ghost" :size="size"
+    <DhButton :icon="Archive" label="Eliminar" variant="ghost" :size="size"
       @click="open" />
-    <DhModal :open="show" :title="'Archivar ' + kind[resource]" size="md"
+    <DhModal :open="show" :title="'Eliminar permanentemente ' + kind[resource]" size="md"
       @close="!busy && (show=false)">
       <div class="space-y-4 p-2">
         <div class="flex gap-3 rounded-xl border border-amber-500/30 p-3">
           <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <div class="space-y-1">
-            <p class="text-sm font-bold">El registro dejará de aparecer entre los activos</p>
+            <p class="text-sm font-bold">Esta acción elimina el registro de forma permanente.</p>
             <p class="text-xs text-[var(--dh-text-muted)]">
-              Se conservarán los datos y el historial. No es un borrado permanente.
-              Las gestiones pendientes archivadas dejarán de estar activas.
+              No se puede deshacer. Si existen créditos, actividades u otras referencias históricas,
+              el servidor impedirá el borrado para proteger la información vinculada.
             </p>
           </div>
         </div>
         <p class="break-words text-sm font-semibold">{{ recordName || kind[resource] }}</p>
         <label class="block space-y-1.5 text-sm font-semibold">
-          Motivo del archivo *
+          Motivo de la eliminación *
           <textarea v-model="reason" rows="3" maxlength="1000"
-            placeholder="Indicá por qué se archiva este registro…"
+            placeholder="Indicá por qué querés eliminarlo permanentemente…"
             class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm" />
+        </label>
+        <label class="block space-y-1.5 text-sm font-semibold">
+          Escribí ELIMINAR para confirmar *
+          <input v-model="confirmation" type="text" autocomplete="off"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm"
+            placeholder="ELIMINAR" />
         </label>
         <p v-if="error" class="text-sm text-red-500" role="alert">{{ error }}</p>
         <div class="flex justify-end gap-2">
           <DhButton label="Volver" variant="secondary" :disabled="busy" @click="show=false" />
-          <DhButton label="Confirmar archivo" variant="danger" :loading="busy"
-            :disabled="!reason.trim() || busy" @click="archive" />
+          <DhButton label="Eliminar permanentemente" variant="danger" :loading="busy"
+            :disabled="!reason.trim() || confirmation !== 'ELIMINAR' || busy" @click="archive" />
         </div>
       </div>
     </DhModal>
