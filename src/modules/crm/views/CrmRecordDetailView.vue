@@ -30,6 +30,38 @@ const { t } = useI18n()
 const section = computed(() => String(route.meta.crmSection ?? 'accounts'))
 const id = computed(() => String(route.params.id ?? ''))
 const record = ref<CrmRow | null>(null)
+const prospectQuotes = ref<CrmRow[]>([])
+const prospectQuoteTotal = ref(0)
+const prospectQuotePage = ref(1)
+const prospectQuotesLoading = ref(false)
+const prospectQuotesError = ref('')
+let prospectQuoteGeneration = 0
+
+async function loadProspectQuotes(append = false) {
+  if (section.value !== 'leads' || !auth.hasScope('crm.quote.read')) return
+  const currentId = id.value
+  const generation = ++prospectQuoteGeneration
+  const page = append ? prospectQuotePage.value + 1 : 1
+  prospectQuotesLoading.value = true
+  prospectQuotesError.value = ''
+  try {
+    const result = await crmRequest<{ items: CrmRow[]; total: number }>(
+      crmPath('leads', currentId, 'pricing-quotations') + '?page=' + page + '&pageSize=100')
+    if (generation !== prospectQuoteGeneration || currentId !== id.value) return
+    prospectQuotes.value = append
+      ? [...prospectQuotes.value, ...(result.items || [])]
+      : (result.items || [])
+    prospectQuoteTotal.value = result.total || 0
+    prospectQuotePage.value = page
+  } catch (cause) {
+    if (generation !== prospectQuoteGeneration) return
+    prospectQuotesError.value = crmError(cause)
+    if (!append) { prospectQuotes.value = []; prospectQuoteTotal.value = 0 }
+  } finally {
+    if (generation === prospectQuoteGeneration) prospectQuotesLoading.value = false
+  }
+}
+
 const error = ref('')
 const success = ref('')
 const loading = ref(false)
@@ -217,6 +249,7 @@ async function load() {
       record.value = await crmGet(section.value, id.value)
     }
     if (section.value === 'leads') {
+      void loadProspectQuotes()
       // Do not ask for a tax ID again: this is the fiscal identity saved with the lead.
       // Hacienda's identificationType was not stored on the original prospect model.
       // Refresh it on demand using the existing ID and country, without changing the lead.
@@ -777,6 +810,37 @@ onMounted(() => { if (crmEnabled()) void load() })
         <h2 class="text-base font-extrabold">Agenda y seguimiento del prospecto</h2>
         <p class="text-xs text-[var(--dh-text-muted)]">Programá visitas, llamadas, reuniones y seguimientos. Se asocian a este prospecto y se muestran en el calendario comercial, sin volver a ingresar la cédula.</p>
         <CrmSalesCalendar :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
+      </section>
+      <section v-if="section === 'leads' && can('crm.quote.read')" class="crm-panel space-y-3 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base font-extrabold">Cotizaciones y rutas del prospecto</h2>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Las cotizaciones conservan su origen y pasan a estar disponibles en el historial de la cuenta cuando se convierte este prospecto.</p>
+          </div>
+          <DhButton label="Actualizar" variant="secondary" :disabled="prospectQuotesLoading" @click="loadProspectQuotes()" />
+        </div>
+        <p v-if="prospectQuotesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando Pricing…</p>
+        <p v-if="prospectQuotesError" role="alert" class="text-xs text-red-500">{{ prospectQuotesError }}</p>
+        <p v-if="!prospectQuotes.length && !prospectQuotesLoading && !prospectQuotesError" class="text-sm text-[var(--dh-text-muted)]">Este prospecto todavía no tiene cotizaciones registradas.</p>
+        <div v-if="prospectQuotes.length" class="overflow-x-auto">
+          <table class="w-full min-w-[640px] text-left text-xs">
+            <thead class="border-b border-[var(--dh-border)] text-[var(--dh-text-muted)]">
+              <tr><th class="px-3 py-2">Cotización</th><th class="px-3 py-2">Modalidad</th><th class="px-3 py-2">Ruta POL / POE / POD</th><th class="px-3 py-2">Estado</th><th class="px-3 py-2">Ver</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="quote in prospectQuotes" :key="String(quote.pricingQuoteId)" class="border-b border-[var(--dh-border)]">
+                <td class="px-3 py-3 font-bold">{{ quote.quoteNumberSnapshot || '—' }}</td>
+                <td class="px-3 py-3">{{ quote.shipmentModeSnapshot || '—' }}</td>
+                <td class="px-3 py-3">{{ quote.polName || '—' }} → {{ quote.poeName ? quote.poeName + ' → ' : '' }}{{ quote.podName || '—' }}</td>
+                <td class="px-3 py-3">{{ quote.commercialStatusSnapshot || '—' }}</td>
+                <td class="px-3 py-3"><RouterLink class="font-bold text-[var(--dh-primary)] hover:underline"
+                  :to="'/pricing/rates/' + encodeURIComponent(String(quote.pricingQuoteId)) + '/wizard?mode=view'">Consultar</RouterLink></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <DhButton v-if="prospectQuoteTotal > prospectQuotes.length" label="Ver más cotizaciones" variant="secondary"
+          :loading="prospectQuotesLoading" :disabled="prospectQuotesLoading" @click="loadProspectQuotes(true)" />
       </section>
       <section id="crm-lead-conversion" v-if="section === 'leads' && can('crm.lead.convert') && can('crm.account.create')"
         class="crm-panel scroll-mt-32 space-y-3 p-4">
