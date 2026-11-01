@@ -1034,7 +1034,7 @@ async function saveRoute() {
       <section class="hub-panel">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div><h2 class="font-extrabold">{{ locale === 'en' ? 'Usual services and routes' : 'Servicios y rutas habituales' }}</h2>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas según modalidad y frecuencia</p></div>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas registradas y rutas obtenidas de cotizaciones</p></div>
           <button v-if="has('crm.analysis.manage')" type="button"
             class="inline-flex items-center gap-2 rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white"
             @click="openNewRoute"><Plus class="h-4 w-4" />Añadir ruta</button>
@@ -1100,7 +1100,13 @@ async function saveRoute() {
             </div>
           </form>
         </DhDrawer>
-        <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
+        <p v-if="!overview.routes.length && !overview.analysisRoutes.length && !frequentPricingRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
+        <h3 v-if="frequentPricingRoutes.length" class="mb-2 text-xs font-extrabold uppercase tracking-wider text-[var(--dh-text-muted)]">Rutas detectadas en cotizaciones</h3>
+        <div v-for="r in frequentPricingRoutes" :key="[r.pol,r.poe,r.pod].join('|')"
+          class="grid gap-2 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_auto]">
+          <p class="font-bold">{{ r.pol }} → {{ r.poe ? r.poe + (r.pod ? ' → ' : '') : '' }}{{ r.pod }}</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ r.count }} {{ r.count === 1 ? 'cotización' : 'cotizaciones' }} · Obtenida de Pricing</p>
+        </div>
         <div v-for="r in overview.routes" :key="r.id" class="grid gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto]">
           <div class="font-bold">{{ routeDisplay(r.polCode || r.preferredOriginCode, 'pol') }} → {{ routeDisplay(r.poeCode || r.preferredDestinationCode, 'poe') }}<span v-if="r.podCode"> → {{ routeDisplay(r.podCode, 'pod') }}</span></div>
           <div>{{ modeName(r.modalityCode) }} · {{ frequencyDisplay(r.frequency) }}</div>
@@ -1154,7 +1160,7 @@ async function saveRoute() {
           <div class="hub-mini-stat"><span>Rutas de cotizaciones</span><strong>{{ allQuoteRouteSnapshots.length }}</strong></div>
         </div>
       </div>
-      <div v-if="has('crm.quote.read')" class="hub-panel">
+      <div v-if="has('crm.account.read') || has('crm.account.read-all')" class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="hub-panel-heading mb-0"><FileText class="h-4 w-4 text-[var(--dh-primary)]" />Rutas de cotizaciones (Pricing)</h3>
