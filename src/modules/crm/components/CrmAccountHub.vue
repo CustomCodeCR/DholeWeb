@@ -735,9 +735,9 @@ async function saveRoute() {
         </div>
       </div>
       <div class="flex flex-wrap gap-2 px-4 pb-3 text-[11px] sm:px-5">
-        <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'linked quotes' : 'tarifas vinculadas' }}</span>
-        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal }} rutas con historial</button>
-        <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
+        <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'quotes' : 'cotizaciones' }}</span>
+        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal + allQuoteRouteSnapshots.length }} registros de rutas</button>
+        <span class="hub-header-meta">{{ activeRoutes.length + frequentPricingRoutes.length }} rutas conocidas</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
 
@@ -766,10 +766,16 @@ async function saveRoute() {
           </div>
           <div class="grid grid-cols-3 gap-2">
             <div class="hub-mini-stat"><span>Documentadas</span><strong>{{ routeHistoryTotal }}</strong></div>
-            <div class="hub-mini-stat"><span>Habituales</span><strong>{{ popularRoutes.length }}</strong></div>
-            <div class="hub-mini-stat"><span>Tarifas vinculadas</span><strong>{{ quoteRouteTotal }}</strong></div>
+            <div class="hub-mini-stat"><span>Rutas de Pricing</span><strong>{{ frequentPricingRoutes.length }}</strong></div>
+            <div class="hub-mini-stat"><span>Cotizaciones</span><strong>{{ recentQuotes.length }}</strong></div>
           </div>
           <p v-if="routeHistoryError" class="mt-3 text-xs text-amber-600">{{ routeHistoryError }}</p>
+          <div v-if="frequentPricingRoutes.length" class="mt-3 divide-y divide-[var(--dh-border)]">
+            <div v-for="r in frequentPricingRoutes.slice(0,3)" :key="[r.pol,r.poe,r.pod].join('|')" class="py-3">
+              <p class="text-xs font-extrabold">{{ r.pol }} → {{ r.poe ? r.poe + (r.pod ? ' → ' : '') : '' }}{{ r.pod }}</p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ r.count }} cotizaciones verificadas en Pricing</p>
+            </div>
+          </div>
           <div v-if="popularRoutes.length" class="mt-3 divide-y divide-[var(--dh-border)]">
             <div v-for="(r, idx) in popularRoutes.slice(0,3)" :key="idx" class="py-3">
               <p class="text-xs font-extrabold">{{ routeDisplay(r.polCode, 'pol') }} → {{ r.poeCode ? routeDisplay(r.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(r.podCode, 'pod') }}</p>
