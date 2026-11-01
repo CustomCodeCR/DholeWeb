@@ -61,8 +61,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `async function saveOpenRequest() {\n  const origin = selectedOrigin.value`,
-    `async function saveOpenRequest() {\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }\n\n  const origin = selectedOrigin.value`,
+    `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  const origin = selectedOrigin.value`,
+    `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }\n\n  const origin = selectedOrigin.value`,
     'seller request sanitization',
   )
 
