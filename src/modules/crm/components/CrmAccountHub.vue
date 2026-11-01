@@ -414,7 +414,16 @@ const visibleTimeline = computed(() => {
     time: String(x.dueAt ?? ''), status: text(x.status),
     href: '/crm/followups/' + encodeURIComponent(rowId(x.id)),
   }))
-  return [...activities, ...followups].sort((a, b) => b.time.localeCompare(a.time))
+  // A quote is part of the account's commercial timeline, but its createdAt
+  // must never be represented as the date of a later status transition.
+  const quotations = recentQuotes.value.map(q => ({
+    id: rowId(q.pricingQuoteId), kind: 'COTIZACIÓN',
+    subject: 'Cotización ' + text(q.quoteNumberSnapshot),
+    time: String(q.linkedAt ?? ''),
+    status: text(q.commercialStatusSnapshot), href: quoteLink(q),
+  }))
+  return [...activities, ...followups, ...quotations]
+    .sort((a, b) => b.time.localeCompare(a.time))
 })
 async function get<T>(endpoint: string): Promise<T> { return crmRequest<T>(endpoint) }
 async function load() {
