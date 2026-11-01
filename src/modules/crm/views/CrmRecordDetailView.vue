@@ -34,6 +34,8 @@ const error = ref('')
 const success = ref('')
 const loading = ref(false)
 const saving = ref(false)
+// Only a confirmed conversion may navigate while the conversion request is unwinding.
+const conversionRedirectAllowed = ref(false)
 const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
 const relation = ref('')
@@ -374,23 +376,45 @@ async function populateLeadTaxType() {
 }
 async function convertLead() {
   if (!record.value || !can('crm.lead.convert') || !can('crm.account.create') || saving.value) return
+  if (record.value.convertedAccountId) {
+    // An already-converted lead must reuse its linked account, never create another.
+    await router.push('/crm/accounts/' + encodeURIComponent(String(record.value.convertedAccountId)))
+    return
+  }
   if (record.value.taxId && !drafts.taxIdTypeCode.trim()) {
     error.value = 'No es necesario volver a ingresar la cédula. Seleccioná únicamente el tipo de identificación si Hacienda no lo completó.'
     return
   }
-  saving.value = true; error.value = ''
+  saving.value = true; error.value = ''; success.value = ''
   try {
-    const conversion = await crmRequest<{accountId: string}>(crmPath('leads', id.value, 'convert'), 'POST', {
+    const conversion = await crmRequest<{
+      leadId: string; accountId: string | null; alreadyConverted: boolean
+    }>(crmPath('leads', id.value, 'convert'), 'POST', {
       existingAccountId: null, notes: drafts.reason.trim() || null,
       taxIdTypeCode: drafts.taxIdTypeCode.trim() || null,
       customerTypeCode: drafts.conversionCustomerType,
       categoryType: drafts.conversionCategoryType,
       categoryCode: drafts.conversionCategoryCode,
     }, crmUuid())
-    if (conversion.accountId) await router.push('/crm/accounts/' + encodeURIComponent(conversion.accountId))
-    else error.value = 'Se convirtió el prospecto, pero Hacienda no devolvió el identificador de la cuenta.'
+    if (!conversion.accountId) {
+      error.value = 'El prospecto figura como convertido, pero CRM no devolvió la cuenta vinculada. Revisá el registro antes de repetir la conversión.'
+      await load()
+      return
+    }
+    // This is a successful, deliberate redirect. Other navigation while saving
+    // remains blocked by onBeforeRouteLeave.
+    conversionRedirectAllowed.value = true
+    const target = '/crm/accounts/' + encodeURIComponent(conversion.accountId)
+    const failure = await router.push(target)
+    if (failure) {
+      error.value = 'El prospecto ya fue convertido. Abrí la cuenta vinculada desde el detalle; no repitás la conversión.'
+      await load()
+    }
   } catch (cause) { error.value = crmError(cause) }
-  finally { saving.value = false }
+  finally {
+    conversionRedirectAllowed.value = false
+    saving.value = false
+  }
 }
 async function stageMove() {
   if (!drafts.stageId) return
@@ -635,7 +659,10 @@ function back() {
   else void router.push('/crm/' + section.value)
 }
 onBeforeRouteLeave(() => {
-  if (saving.value) { error.value = 'Hay un guardado en curso. No se puede salir hasta que termine.'; return false }
+  if (saving.value && !conversionRedirectAllowed.value) {
+    error.value = 'Hay un guardado en curso. No se puede salir hasta que termine.'
+    return false
+  }
   if (!accountEditingDirty.value) return true
   discardOpen.value = true
   discardAction = null
