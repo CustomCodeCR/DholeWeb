@@ -220,17 +220,41 @@ async function proposeRevision() {
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
 }
+function approvalCoverageSnapshot() {
+  // Existing historical catalog entries are preserved even when the local list of
+  // selectable services does not know their codes.
+  const selected = new Map<string, { serviceCode: string; coverageType: CoverageKind; description: string }>()
+  for (const item of activeUnknown.value) {
+    const code = String(item.serviceCode ?? '').toUpperCase()
+    if (code && (item.coverageType === 'INCLUDED' || item.coverageType === 'EXCLUDED'))
+      selected.set(code, { serviceCode: code, coverageType: item.coverageType,
+        description: String(item.description || labelFor(code)) })
+  }
+  for (const code of included.value)
+    selected.set(code.toUpperCase(), { serviceCode: code.toUpperCase(),
+      coverageType: 'INCLUDED', description: labelFor(code) })
+  for (const code of excluded.value)
+    selected.set(code.toUpperCase(), { serviceCode: code.toUpperCase(),
+      coverageType: 'EXCLUDED', description: labelFor(code) })
+  return [...selected.values()]
+}
 async function resolveCredit(approve: boolean) {
   if (!canApprove.value || !profile.value || profile.value.status !== 'PendingApproval' || busy.value) return
   if (!approvalReason.value.trim()) { error.value = 'Indicá un motivo antes de aprobar o rechazar.'; return }
   busy.value = true; error.value = ''; success.value = ''
   try {
+    const selectedCoverages = approve ? approvalCoverageSnapshot() : null
     await crmRequest(crmPath('credit-profiles', String(profile.value.id), approve ? 'approve' : 'reject'), 'POST', {
       expectedVersion: profile.value.rowVersion, reason: approvalReason.value.trim(),
+      ...(approve ? { coverages: selectedCoverages } : {}),
     })
     approvalReason.value = ''
     await refresh()
-    success.value = approve ? 'Crédito aprobado por el usuario autorizado.' : 'Solicitud de crédito rechazada.'
+    success.value = approve
+      ? 'Crédito aprobado con ' + (selectedCoverages?.filter(x => x.coverageType === 'INCLUDED').length ?? 0) +
+        ' servicios incluidos y ' + (selectedCoverages?.filter(x => x.coverageType === 'EXCLUDED').length ?? 0) +
+        ' excluidos. Guardados en CRM.'
+      : 'Solicitud de crédito rechazada.'
     emit('updated')
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -362,13 +386,16 @@ async function proposeNew() {
         Interés moratorio mensual: {{ profile.lateInterestMonthlyPct ?? 0 }}%
       </p>
       <div v-if="profile.status === 'PendingApproval'" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
-        <p class="text-xs font-semibold">Aprobación: únicamente usuarios autorizados con permiso <code>crm.credit.approve</code> (responsable de crédito o gerencia).</p>
+        <p class="text-xs font-semibold">Las coberturas seleccionadas se guardarán junto con la aprobación del crédito.</p>
+        <p v-if="dirty" role="status" class="rounded-lg border border-amber-500/30 p-2 text-xs text-amber-500">
+          Hay cambios de coberturas sin guardar. Al aprobar se registrarán automáticamente en la misma operación.
+        </p>
         <template v-if="canApprove">
           <label class="block text-xs font-bold">Justificación de la decisión
             <textarea v-model.trim="approvalReason" maxlength="1000" rows="2" class="mt-2 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-3" placeholder="Motivo obligatorio para aprobar o rechazar" />
           </label>
           <div class="flex flex-wrap gap-2">
-            <button type="button" :disabled="busy || !approvalReason" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">Aprobar crédito</button>
+            <button type="button" :disabled="busy || !approvalReason" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">{{ dirty ? 'Guardar coberturas y aprobar' : 'Aprobar crédito' }}</button>
             <button type="button" :disabled="busy || !approvalReason" class="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500" @click="resolveCredit(false)">Rechazar solicitud</button>
           </div>
         </template>
@@ -437,12 +464,16 @@ async function proposeNew() {
         </div>
       </div>
       <div v-else-if="canManage && profile.status === 'Approved'" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+        <p v-if="!savedIncluded.length && !savedExcluded.length" class="text-xs text-amber-500">
+          Este crédito fue aprobado sin servicios de cobertura registrados. Para agregar los conceptos faltantes,
+          creá una revisión, elegí los servicios y aprobá la nueva propuesta.
+        </p>
         <label class="block text-xs font-semibold" for="credit-coverage-reason">Motivo de la modificación</label>
         <textarea id="credit-coverage-reason" v-model="changeReason" rows="2" maxlength="1000"
           class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2 text-sm"
-          placeholder="Explicá por qué debe cambiar la cobertura…" />
+          placeholder="Indicá los servicios que faltaron y por qué se debe corregir la aprobación…" />
         <button type="button" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-          :disabled="busy || !changeReason.trim()" @click="proposeRevision">Crear revisión de crédito</button>
+          :disabled="busy || !changeReason.trim()" @click="proposeRevision">Corregir coberturas (crear revisión)</button>
       </div>
     </template>
     <div v-else-if="canRequest && !loading" class="space-y-4">
