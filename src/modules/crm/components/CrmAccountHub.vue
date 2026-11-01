@@ -423,12 +423,15 @@ const quotationModeSummary = computed(() => {
   }
   return [...counts.values()].sort((a, b) => b.count - a.count)
 })
-const routeTimeline = computed(() => {
-  const documented = routeHistory.value.map(record => ({ ...record, pricingPreview: false }))
+// Preserve the common CRM row shape across documented and Pricing-only routes.
+// Without the explicit type, Vue's template checker infers a narrower object
+// and rejects dynamic route fields (sourceKind, polName, observedAt, etc.).
+const routeTimeline = computed<CrmRow[]>(() => {
+  const documented: CrmRow[] = routeHistory.value.map(record => ({ ...record, pricingPreview: false }))
   const documentedQuotes = new Set(documented
     .filter(record => record.sourceKind === 'QUOTE')
     .map(record => rowId(record.sourceId)))
-  const quotes = allQuoteRouteSnapshots.value
+  const quotes: CrmRow[] = allQuoteRouteSnapshots.value
     .filter(quote => !documentedQuotes.has(rowId(quote.pricingQuoteId)))
     .map(quote => ({
       ...quote,
