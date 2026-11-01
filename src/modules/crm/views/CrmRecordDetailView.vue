@@ -697,7 +697,7 @@ onMounted(() => { if (crmEnabled()) void load() })
         <CrmAccountHub v-if="section === 'accounts'" :account="record"
           :editing="showAccountEditor && can('crm.account.update')"
           @change-executive="openExecutiveDrawer" @edit-account="toggleAccountEditing"
-          @manage-related="openRelatedManagement" @create-contract="openContractCreation" @logo-updated="load" />
+          @manage-related="openRelatedManagement" @create-contract="openContractCreation" @logo-updated="load" @credit-updated="load" />
         <CrmAccountEditor v-if="section === 'accounts' && showAccountEditor && can('crm.account.update')"
           :account="record" :open="true" @close="leaveAccountEditing"
           @dirty-change="accountEditingDirty=$event"
