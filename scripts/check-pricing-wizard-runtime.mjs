@@ -8,6 +8,20 @@ import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createI18n } from 'vue-i18n'
 
+// SSR has no browser storage. Mirror empty storage rather than changing auth
+// code or introducing a live session in this isolated component smoke test.
+const memoryStorage = () => {
+  const data = new Map()
+  return {
+    getItem: (key) => data.get(String(key)) ?? null,
+    setItem: (key, value) => { data.set(String(key), String(value)) },
+    removeItem: (key) => { data.delete(String(key)) },
+    clear: () => data.clear(),
+  }
+}
+globalThis.localStorage = memoryStorage()
+globalThis.sessionStorage = memoryStorage()
+
 const server = await createServer({
   server: { middlewareMode: true, hmr: false },
   appType: 'custom',
