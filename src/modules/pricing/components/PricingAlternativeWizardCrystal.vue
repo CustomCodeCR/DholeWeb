@@ -1423,7 +1423,7 @@ function useCrmClient(account:PricingCrmClient|null){
   crmCustomerError.value=''
 }
 function validateSelectedCrmCustomer(){
-  if(isEditing.value)return true
+  if(isEditing.value || props.rateRequestId || props.modificationRequestId || props.sellerEditRequestId || props.sellerModificationRateId)return true
   if(chosenCrmClient.value?.id===form.clientId && form.clientId &&
       (!props.sellerRequestMode || Boolean(requestSellerUserId.value &&
         chosenCrmClient.value.executiveUserId===requestSellerUserId.value)))
@@ -4473,7 +4473,6 @@ async function saveOpenRequest() {
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
-      executiveUserId: form.executiveId || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
       freeDays: 0,
@@ -4883,7 +4882,6 @@ async function saveRate() {
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
-      executiveUserId: form.executiveId || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
       freeDays: (form.modality === 'Land' || shipmentModeForApi.value === 'Lcl') ? 0 : number(form.freeDays),
