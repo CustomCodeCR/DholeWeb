@@ -5,6 +5,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { useToastStore } from '@/core/stores/toastStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+import PricingWizardBoundary from '@/modules/pricing/components/PricingWizardBoundary.vue'
 import SellerGuideButton from '@/modules/pricing/components/SellerGuideButton.vue'
 
 const route = useRoute()
@@ -92,10 +93,12 @@ const sellerModificationRateId = computed(() => {
       <SellerGuideButton context="request" :modification="Boolean(sellerModificationRateId)"
         :step="activeWizardStep" />
     </div>
-    <PricingAlternativeWizardCrystal seller-request-mode
-      :key="sellerDuplicateRequestId ?? sellerEditRequestId ?? sellerModificationRateId ?? 'new-request'"
-      :seller-edit-request-id="sellerEditRequestId"
-      :seller-duplicate-request-id="sellerDuplicateRequestId"
-      :seller-modification-rate-id="sellerModificationRateId" />
+    <PricingWizardBoundary>
+      <PricingAlternativeWizardCrystal seller-request-mode
+        :key="sellerDuplicateRequestId ?? sellerEditRequestId ?? sellerModificationRateId ?? 'new-request'"
+        :seller-edit-request-id="sellerEditRequestId"
+        :seller-duplicate-request-id="sellerDuplicateRequestId"
+        :seller-modification-rate-id="sellerModificationRateId" />
+    </PricingWizardBoundary>
   </div>
 </template>
