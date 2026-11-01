@@ -13,7 +13,10 @@ const props = withDefaults(defineProps<{
   routeRole?: RouteRole
   placeholder?: string
 }>(), { placeholder: 'Todas las opciones (sin restricción)' })
-const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: string[]]
+  'resolved-label': [item: {value:string;label:string}]
+}>()
 const open = ref(false)
 const query = ref('')
 const loading = ref(false)
@@ -30,6 +33,8 @@ const filtered = computed(() => options.value.filter(item => item.isActive !== f
     isCompatibleBenefitLocation(item, props.routeMode, props.routeRole))))
 function toggle(value: string) {
   if (!value) return
+  const picked = options.value.find(item=>item.code===value)
+  if(picked)emit('resolved-label',{value,label:String(picked.label||picked.value||'Ubicación')})
   emit('update:modelValue', props.modelValue.includes(value)
     ? props.modelValue.filter(x => x !== value)
     : [...props.modelValue, value])
