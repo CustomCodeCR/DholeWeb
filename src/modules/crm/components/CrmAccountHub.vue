@@ -40,6 +40,7 @@ const emit = defineEmits<{
   (e: 'manage-related'): void
   (e: 'create-contract'): void
   (e: 'logo-updated'): void
+  (e: 'credit-updated'): void
 }>()
 const router = useRouter()
 const auth = useAuthStore()
@@ -1195,7 +1196,7 @@ async function saveRoute() {
       </section>
       <section v-if="has('crm.credit.read')" class="hub-panel lg:col-span-2">
         <CrmCreditCoverageManager :account-id="String(account.id)"
-        :editable="has('crm.credit.manage') || has('crm.account.update')" @updated="load" />
+        :editable="has('crm.credit.manage') || has('crm.account.update')" @updated="load();emit('credit-updated')" />
       </section>
       <section v-if="has('crm.contract.read')" class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
