@@ -12,7 +12,11 @@ const props = withDefaults(defineProps<{
   routeMode?: BenefitMode
   routeRole?: RouteRole
   placeholder?: string
-}>(), { placeholder: 'Todas las opciones (sin restricción)' })
+  emptyHint?: string
+}>(), {
+  placeholder: 'Todas las opciones (sin restricción)',
+  emptyHint: 'Sin selección = aplica a todos.',
+})
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
   'resolved-label': [item: {value:string;label:string}]
@@ -122,6 +126,6 @@ watch(() => [props.catalogGroupSlugs.join('|'), props.routeMode, props.routeRole
         class="flex items-center gap-1 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-1 text-xs"
         @click="toggle(item.value)">{{ item.label }} <X class="h-3 w-3" /></button>
     </div>
-    <p v-else class="text-[11px] text-[var(--dh-text-muted)]">Sin selección = aplica a todos.</p>
+    <p v-else class="text-[11px] text-[var(--dh-text-muted)]">{{ emptyHint }}</p>
   </div>
 </template>
