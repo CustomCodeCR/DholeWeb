@@ -35,14 +35,14 @@ export function pricingRequirements20260908PreCompat(): Plugin {
         `              <span class="text-lg font-black">{{ option.label }}</span>\n              <Check v-if="form.shipmentMode === option.value"`,
       )
 
-      const sellerRequestPrefix = `async function saveOpenRequest() {\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }\n\n  const origin = selectedOrigin.value`
+      const sellerRequestPrefix = `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }\n\n  const origin = selectedOrigin.value`
       if (!code.includes(sellerRequestPrefix)) {
         throw new Error('[pricingRequirements20260908PreCompat] Seller request prefix was not found after the ownership/responsibility transformations.')
       }
 
       code = code.replace(
         sellerRequestPrefix,
-        `async function saveOpenRequest() {\n  const origin = selectedOrigin.value\n\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }`,
+        `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  const origin = selectedOrigin.value\n\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {\n    // Ventas no define el proveedor del inland ni la vigencia comercial.\n    form.merchantHaulage = false\n    form.carrierHaulage = false\n    form.validTo = ''\n  }`,
       )
 
       return { code, map: null }
