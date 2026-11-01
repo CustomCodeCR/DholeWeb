@@ -34,7 +34,46 @@ function patchDetailDrawer(source: string) {
   const oldCallback = `      onDuplicated: async (duplicatedRateId: string) => {\n        const duplicatedRate = await PricingService.getRate(duplicatedRateId)\n        drawerStore.open({\n          title: 'Revisar tarifa duplicada',\n          component: PricingRateFormDrawer,\n          size: 'full',\n          props: {\n            rate: duplicatedRate,\n            onSaved: async () => {\n              await props.onSaved?.()\n            },\n          },\n        })\n        await props.onSaved?.()\n      },`
   const newCallback = `      onDuplicated: async (duplicatedRateId: string) => {\n        drawerStore.close()\n        await props.onSaved?.()\n        await router.push({\n          name: 'pricing-rate-wizard',\n          params: { rateId: duplicatedRateId },\n          query: { mode: 'edit', duplicateReview: '1' },\n        })\n      },`
 
-  return replaceOne(code, oldCallback, newCallback, 'detail drawer duplicate callback')
+  // The newer modal already distinguishes identical copies from editable copies.
+  // Only editable duplicates may navigate to the edit wizard.
+  if (code.includes(oldCallback)) {
+    return replaceOne(code, oldCallback, newCallback, 'detail drawer duplicate callback')
+  }
+  const modernCallback = `      onDuplicated: async (duplicatedRateId: string, mode: 'identical' | 'editable') => {
+        if (mode === 'identical') {
+          await props.onSaved?.()
+          return
+        }
+        const duplicatedRate = await PricingService.getRate(duplicatedRateId)
+        drawerStore.open({
+          title: 'Revisar tarifa duplicada',
+          component: PricingRateFormDrawer,
+          size: 'full',
+          props: {
+            rate: duplicatedRate,
+            onSaved: async () => {
+              await props.onSaved?.()
+            },
+          },
+        })
+        await props.onSaved?.()
+      },`
+  const modernReplacement = `      onDuplicated: async (duplicatedRateId: string, mode: 'identical' | 'editable') => {
+        if (mode === 'identical') {
+          await props.onSaved?.()
+          return
+        }
+        drawerStore.close()
+        await props.onSaved?.()
+        await router.push({
+          name: 'pricing-rate-wizard',
+          params: { rateId: duplicatedRateId },
+          query: { mode: 'edit', duplicateReview: '1' },
+        })
+      },`
+  return replaceOne(code, modernCallback, modernReplacement,
+    'detail drawer duplicate callback (modal with mode)')
+
 }
 
 function patchWizard(source: string) {
