@@ -367,9 +367,10 @@ const recentQuotes = computed<CrmRow[]>(() => {
   const byId = new Map<string, CrmRow>()
   // Confirmed IDs take precedence; possible legacy matches are visible as
   // read-only previews until a CRM editor explicitly verifies the identity.
-  for (const q of [...accountPricingQuotes.value, ...overview.value.quotes, ...legacyCandidates.value.map(candidate => ({
+  const previewQuotes: CrmRow[] = legacyCandidates.value.map(candidate => ({
     ...candidate, pendingReconciliation: true,
-  }))]) {
+  }))
+  for (const q of [...accountPricingQuotes.value, ...overview.value.quotes, ...previewQuotes]) {
     const id = rowId(q.pricingQuoteId)
     if (id && !byId.has(id)) byId.set(id, q)
   }
