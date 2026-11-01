@@ -365,7 +365,11 @@ const pendingCount = computed(() => overview.value.followups.filter(x =>
 const activeRoutes = computed(() => overview.value.routes.filter(x => x.isActive !== false))
 const recentQuotes = computed<CrmRow[]>(() => {
   const byId = new Map<string, CrmRow>()
-  for (const q of [...accountPricingQuotes.value, ...overview.value.quotes]) {
+  // Confirmed IDs take precedence; possible legacy matches are visible as
+  // read-only previews until a CRM editor explicitly verifies the identity.
+  for (const q of [...accountPricingQuotes.value, ...overview.value.quotes, ...legacyCandidates.value.map(candidate => ({
+    ...candidate, pendingReconciliation: true,
+  }))]) {
     const id = rowId(q.pricingQuoteId)
     if (id && !byId.has(id)) byId.set(id, q)
   }
@@ -376,7 +380,7 @@ const isOpportunityLinkedQuote = (quote: CrmRow) =>
   overview.value.quotes.some(q => rowId(q.pricingQuoteId) === rowId(quote.pricingQuoteId))
 const allQuoteRouteSnapshots = computed<CrmRow[]>(() => {
   const byId = new Map<string, CrmRow>()
-  for (const q of accountPricingQuotes.value) {
+  for (const q of recentQuotes.value) {
     const id = rowId(q.pricingQuoteId)
     if (id && q.available) byId.set(id, {
       ...q, id, quoteNumber: q.quoteNumberSnapshot, shipmentMode: q.shipmentModeSnapshot,
@@ -390,7 +394,7 @@ const allQuoteRouteSnapshots = computed<CrmRow[]>(() => {
     String(b.linkedAt ?? '').localeCompare(String(a.linkedAt ?? '')))
 })
 const frequentPricingRoutes = computed(() => {
-  const counts = new Map<string, { pol: string; poe: string; pod: string; count: number }>()
+  const counts = new Map<string, { pol: string; poe: string; pod: string; count: number; pending: number }>()
   for (const q of allQuoteRouteSnapshots.value) {
     const pol = String(q.polName ?? '').trim()
     const poe = String(q.poeName ?? '').trim()
@@ -398,8 +402,10 @@ const frequentPricingRoutes = computed(() => {
     if (!pol || (!pod && !poe)) continue
     const key = [pol, poe, pod].join('|').toLowerCase()
     const match = counts.get(key)
-    if (match) match.count += 1
-    else counts.set(key, {pol, poe, pod, count: 1})
+    if (match) {
+      match.count += 1
+      if (q.pendingReconciliation) match.pending += 1
+    } else counts.set(key, {pol, poe, pod, count: 1, pending: q.pendingReconciliation ? 1 : 0})
   }
   return [...counts.values()].sort((a, b) => b.count - a.count)
 })
@@ -478,6 +484,7 @@ async function load() {
     if (has('crm.account.read') || has('crm.account.read-all')) {
       jobs.push(loadQuotedRoutes(generation))
       jobs.push(loadAccountPricingQuotes(generation))
+      jobs.push(loadLegacyCandidates(false, generation))
     }
     await Promise.all(jobs)
   } catch (cause) { if (generation === requestGeneration) error.value = message(cause) }
@@ -499,6 +506,10 @@ watch(() => props.account.id, () => {
   accountPricingTotal.value = 0
   accountPricingPage.value = 1
   accountPricingError.value = ''
+  legacyCandidates.value = []
+  legacyTotal.value = 0
+  legacyPage.value = 1
+  legacySelected.value = []
   legacySuccess.value = ''
   legacyError.value = ''
   legacyOpen.value = false
@@ -552,7 +563,7 @@ async function loadAccountPricingQuotes(generation = requestGeneration, append =
     if (generation === requestGeneration) accountPricingLoading.value = false
   }
 }
-async function loadLegacyCandidates(append = false) {
+async function loadLegacyCandidates(append = false, generation = requestGeneration) {
   legacyLoading.value = true
   legacyError.value = ''
   try {
@@ -560,6 +571,7 @@ async function loadLegacyCandidates(append = false) {
     const response = await get<{ items: CrmRow[]; total: number }>(
       crmPath('accounts', rowId(props.account.id), 'pricing-quotation-candidates') +
       '?page=' + page + '&pageSize=100')
+    if (generation !== requestGeneration) return
     const existingIds = new Set(legacyCandidates.value.map(x => rowId(x.pricingQuoteId)))
     legacyCandidates.value = append
       ? [...legacyCandidates.value, ...(response.items ?? []).filter(x => !existingIds.has(rowId(x.pricingQuoteId)))]
@@ -567,16 +579,19 @@ async function loadLegacyCandidates(append = false) {
     legacyTotal.value = response.total ?? 0
     legacyPage.value = page
   } catch (cause) {
-    legacyError.value = message(cause)
-    if (!append) { legacyCandidates.value = []; legacyTotal.value = 0 }
-  } finally { legacyLoading.value = false }
+    if (generation === requestGeneration) {
+      legacyError.value = message(cause)
+      if (!append) { legacyCandidates.value = []; legacyTotal.value = 0 }
+    }
+  } finally {
+    if (generation === requestGeneration) legacyLoading.value = false
+  }
 }
 async function openLegacyCandidates() {
   legacyOpen.value = true
   legacySelected.value = []
   legacyPage.value = 1
-  legacyCandidates.value = []
-  await loadLegacyCandidates()
+  if (!legacyCandidates.value.length) await loadLegacyCandidates()
 }
 async function reconcileLegacyQuotes() {
   if (legacyBusy.value || !legacySelected.value.length) return
@@ -614,7 +629,7 @@ async function loadQuotedRoutes(generation = requestGeneration) {
   } finally { if (generation === requestGeneration) quoteRouteLoading.value = false }
 }
 watch(activeTab, tab => {
-  if (tab === 'history' && has('crm.quote.read')) void loadQuotedRoutes()
+  if (tab === 'history' && (has('crm.account.read') || has('crm.account.read-all'))) void loadQuotedRoutes()
 })
 function changeQuoteRoutePage(delta: number) {
   quoteRoutePage.value += delta
