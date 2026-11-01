@@ -445,3 +445,19 @@ test('Account advanced management is readable and follow-ups remain on account',
   assert.ok(hub.includes("newActivity('FOLLOWUP')"))
   assert.ok(account.includes("'followup-policy'"))
 })
+
+
+test('CRM Eliminar always uses soft-delete, and agenda renders a table', () => {
+  const removal = read('src/modules/crm/components/CrmArchiveAction.vue')
+  const contacts = read('src/modules/crm/views/CrmContactsDirectory.vue')
+  const agenda = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.match(removal, /crmPath\(props\.resource, props\.recordId, 'archive'\)/)
+  assert.doesNotMatch(removal, /crmPath\(props\.resource, props\.recordId, 'delete'\)/)
+  assert.match(removal, /label="Eliminar"/)
+  assert.match(removal, /confirmation !== 'ELIMINAR'/)
+  assert.match(contacts, /<CrmArchiveAction resource="contacts"/)
+  assert.match(agenda, /<DhDataTable v-else :columns="columns" :rows="tableRows"/)
+  assert.match(agenda, /Convertir a cuenta/)
+  assert.match(detail, /crm-lead-conversion/)
+})
