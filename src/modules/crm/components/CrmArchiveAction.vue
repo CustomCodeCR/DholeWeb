@@ -73,7 +73,7 @@ function open() { error.value = ''; reason.value = ''; show.value = true }
         <p class="break-words text-sm font-semibold">{{ recordName || kind[resource] }}</p>
         <label class="block space-y-1.5 text-sm font-semibold">
           Motivo del archivo *
-          <textarea v-model="reason" rows="3" maxlength="2000"
+          <textarea v-model="reason" rows="3" maxlength="1000"
             placeholder="Indicá por qué se archiva este registro…"
             class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm" />
         </label>
