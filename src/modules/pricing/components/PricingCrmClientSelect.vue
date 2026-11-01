@@ -42,9 +42,6 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 const canLoadMore = computed(() => items.value.length < total.value)
 async function load(reset=true) {
   if(reset)page.value=1
-  if(props.mode==='request' && !props.sellerUserId) {
-    items.value=[];total.value=0;return
-  }
   const seq=++requestId
   loading.value=true
   failure.value=''
@@ -119,7 +116,7 @@ onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
     </label>
     <div class="relative">
       <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-primary)]"/>
-      <input type="search" :value="query" :disabled="disabled || (mode==='request'&&!sellerUserId)"
+      <input type="search" :value="query" :disabled="disabled"
         :aria-invalid="!!error" autocomplete="off" placeholder="Buscar cliente por nombre o cédula…"
         class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-10 text-sm font-semibold outline-none dh-focus-primary disabled:opacity-60"
         @input="typeSearch(($event.target as HTMLInputElement).value)"
