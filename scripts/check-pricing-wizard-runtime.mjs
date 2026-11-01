@@ -2,7 +2,7 @@
 // not execute eager watchers and cannot detect "Cannot access lexical declaration
 // before initialization". Running an SSR mount executes setup without live API calls.
 import { createServer } from 'vite'
-import { createSSRApp, h } from 'vue'
+import { createSSRApp, h, createRenderer, nextTick } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -41,9 +41,53 @@ try {
     app.use(createI18n({ legacy: false, locale: 'es', messages: { es: {} } }))
     try {
       await renderToString(app)
-      console.info('[pricing-wizard-runtime] Setup OK:', label)
+      console.info('[pricing-wizard-runtime] SSR setup OK:', label)
+      // Vue SSR uses a different watch scheduler from the browser.
+      // Exercise setup with the CLIENT renderer too, without requiring a
+      // network connection, a DOM driver or login credentials.
+      const node = (type, text = '') => ({ type, text, props: {}, children: [], parent: null })
+      const renderer = createRenderer({
+        createElement: (type) => node(type),
+        createText: (text) => node('#text', text),
+        createComment: (text) => node('#comment', text),
+        patchProp(el, key, _previous, value) { el.props[key] = value },
+        setText(el, text) { el.text = text },
+        setElementText(el, text) { el.text = text; el.children = [] },
+        insert(child, parent, anchor = null) {
+          if (child.parent) {
+            const prior = child.parent.children.indexOf(child)
+            if (prior >= 0) child.parent.children.splice(prior, 1)
+          }
+          parent.children ||= []
+          const index = anchor ? parent.children.indexOf(anchor) : -1
+          if (index < 0) parent.children.push(child)
+          else parent.children.splice(index, 0, child)
+          child.parent = parent
+        },
+        remove(child) {
+          const parent = child.parent
+          if (!parent) return
+          const index = parent.children.indexOf(child)
+          if (index >= 0) parent.children.splice(index, 1)
+          child.parent = null
+        },
+        parentNode: (el) => el.parent,
+        nextSibling(el) {
+          const siblings = el.parent?.children || []
+          return siblings[siblings.indexOf(el) + 1] || null
+        },
+        querySelector: () => node('teleport-target'),
+      })
+      const runtimeApp = renderer.createApp(Wizard, props)
+      runtimeApp.use(createPinia())
+      runtimeApp.use(createRouter({ history: createMemoryHistory(), routes: [] }))
+      runtimeApp.use(createI18n({ legacy: false, locale: 'es', messages: { es: {} } }))
+      runtimeApp.mount(node('root'))
+      await nextTick()
+      runtimeApp.unmount()
+      console.info('[pricing-wizard-runtime] Client setup OK:', label)
     } catch (error) {
-      console.error('[pricing-wizard-runtime] Setup FAILED:', label, error)
+      console.error('[pricing-wizard-runtime] CLIENT setup FAILED:', label, error)
       process.exitCode = 1
       break
     }
