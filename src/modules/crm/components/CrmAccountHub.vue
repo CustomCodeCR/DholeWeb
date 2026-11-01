@@ -572,7 +572,7 @@ async function reconcileLegacyQuotes() {
   legacyError.value = ''
   try {
     const result = await crmRequest<{ linked: number; total: number }>(
-      crmPath('accounts', rowId(props.account.id), 'pricing-quotations', 'reconcile'),
+      crmPath('accounts', rowId(props.account.id), 'pricing-quotations/reconcile'),
       'POST', { quoteIds: legacySelected.value }, crmUuid())
     legacySuccess.value = 'Se vincularon ' + result.total + ' cotizaciones históricas con esta cuenta.'
     legacySelected.value = []
