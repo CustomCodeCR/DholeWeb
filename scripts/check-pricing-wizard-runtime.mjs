@@ -21,6 +21,17 @@ const memoryStorage = () => {
 }
 globalThis.localStorage = memoryStorage()
 globalThis.sessionStorage = memoryStorage()
+// Mounted lifecycle hooks attempt to contact live Auth/Config. Suppress browser
+// notifications and timers only in this offline smoke test; never change the
+// actual application or contact external services.
+globalThis.window = {
+  dispatchEvent() { return true },
+  addEventListener() {},
+  removeEventListener() {},
+  setTimeout() { return 0 },
+  clearTimeout() {},
+  location: { href: 'https://dhole.customcodecr.com/', origin: 'https://dhole.customcodecr.com' },
+}
 
 const server = await createServer({
   server: { middlewareMode: true, hmr: false },
