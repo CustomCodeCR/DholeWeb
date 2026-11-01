@@ -3771,6 +3771,7 @@ async function hydrateExistingRate() {
     form.validTo = String(rate.validTo).slice(0,10)
     form.selectedImportRateId = rate.sourceImportFclRateId ?? ''
     form.manualRate = !rate.sourceImportFclRateId
+    form.clientId = rate.clientAccountId ?? ''
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
@@ -4484,6 +4485,7 @@ async function saveOpenRequest() {
       currencyName: displayValue(currency),
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
+      clientAccountId: form.clientId || editingRate.value?.clientAccountId || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -4893,6 +4895,7 @@ async function saveRate() {
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
+      clientAccountId: form.clientId || editingRate.value?.clientAccountId || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
