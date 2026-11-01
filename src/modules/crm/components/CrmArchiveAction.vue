@@ -31,11 +31,10 @@ const kind: Record<Resource, string> = {
 }
 const show = ref(false)
 const reason = ref('')
-const confirmation = ref('')
 const busy = ref(false)
 const error = ref('')
 async function archive() {
-  if (busy.value || !canArchive.value || !reason.value.trim() || confirmation.value !== 'ELIMINAR') return
+  if (busy.value || !canArchive.value || !reason.value.trim()) return
   busy.value = true
   error.value = ''
   try {
@@ -44,7 +43,6 @@ async function archive() {
     })
     show.value = false
     reason.value = ''
-    confirmation.value = ''
     emit('archived')
   } catch(cause) {
     error.value = crmError(cause)
@@ -52,7 +50,7 @@ async function archive() {
     busy.value = false
   }
 }
-function open() { error.value = ''; reason.value = ''; confirmation.value=''; show.value = true }
+function open() { error.value = ''; reason.value = ''; show.value = true }
 </script>
 
 <template>
@@ -66,10 +64,6 @@ function open() { error.value = ''; reason.value = ''; confirmation.value=''; sh
           <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <div class="space-y-1">
             <p class="text-sm font-bold">El registro dejará de aparecer entre los activos.</p>
-            <p class="text-xs text-[var(--dh-text-muted)]">
-              Se realizará un borrado lógico (soft delete): los datos y relaciones históricas
-              permanecerán en la base de datos para auditoría.
-            </p>
           </div>
         </div>
         <p class="break-words text-sm font-semibold">{{ recordName || kind[resource] }}</p>
@@ -79,17 +73,11 @@ function open() { error.value = ''; reason.value = ''; confirmation.value=''; sh
             placeholder="Indicá el motivo para eliminar este registro…"
             class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm" />
         </label>
-        <label class="block space-y-1.5 text-sm font-semibold">
-          Escribí ELIMINAR para confirmar *
-          <input v-model="confirmation" type="text" autocomplete="off"
-            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm"
-            placeholder="ELIMINAR" />
-        </label>
         <p v-if="error" class="text-sm text-red-500" role="alert">{{ error }}</p>
         <div class="flex justify-end gap-2">
           <DhButton label="Volver" variant="secondary" :disabled="busy" @click="show=false" />
           <DhButton label="Eliminar" variant="danger" :loading="busy"
-            :disabled="!reason.trim() || confirmation !== 'ELIMINAR' || busy" @click="archive" />
+            :disabled="!reason.trim() || busy" @click="archive" />
         </div>
       </div>
     </DhModal>
