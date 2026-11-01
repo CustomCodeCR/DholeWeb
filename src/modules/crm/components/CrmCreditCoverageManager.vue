@@ -21,6 +21,7 @@ type CreditCoverage = CrmRow & { serviceCode?: string; coverageType?: string; de
 const availableCodes = new Set<string>(options.map(x => x.code))
 const profiles = ref<CrmRow[]>([])
 const coverage = ref<CreditCoverage[]>([])
+const loadedCoverageProfileId = ref('')
 const included = ref<string[]>([])
 const excluded = ref<string[]>([])
 const loading = ref(false)
@@ -98,6 +99,7 @@ async function refresh() {
   const generation = ++requestGeneration
   loading.value = true
   error.value = ''
+  loadedCoverageProfileId.value = ''
   try {
     const list = await crmRequest<CrmRow[]>(crmPath('accounts', props.accountId, 'credit-profiles'))
     if (generation !== requestGeneration) return
@@ -109,6 +111,7 @@ async function refresh() {
       : []
     if (generation !== requestGeneration) return
     coverage.value = results
+    loadedCoverageProfileId.value = current ? String(current.id) : ''
     included.value = results.filter(x => x.isActive && x.coverageType === 'INCLUDED' &&
       availableCodes.has(String(x.serviceCode))).map(x => String(x.serviceCode))
     excluded.value = results.filter(x => x.isActive && x.coverageType === 'EXCLUDED' &&
@@ -242,6 +245,10 @@ function approvalCoverageSnapshot() {
 async function resolveCredit(approve: boolean) {
   if (!canApprove.value || !profile.value || profile.value.status !== 'PendingApproval' || busy.value) return
   if (!approvalReason.value.trim()) { error.value = 'Indicá un motivo antes de aprobar o rechazar.'; return }
+  if (approve && loadedCoverageProfileId.value !== String(profile.value.id)) {
+    error.value = 'No se pudieron verificar los servicios de crédito en CRM. Actualizá las coberturas antes de aprobar.'
+    return
+  }
   if (approve && !approvalCoverageSnapshot().length && !confirmEmptyCoverageApproval.value) {
     error.value = 'Seleccioná los servicios incluidos o confirmá expresamente la aprobación sin coberturas.'
     return
@@ -408,7 +415,7 @@ async function proposeNew() {
             <textarea v-model.trim="approvalReason" maxlength="1000" rows="2" class="mt-2 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-3" placeholder="Motivo obligatorio para aprobar o rechazar" />
           </label>
           <div class="flex flex-wrap gap-2">
-            <button type="button" :disabled="busy || !approvalReason || (!approvalCoverageSnapshot().length && !confirmEmptyCoverageApproval)" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">{{ dirty ? 'Guardar coberturas y aprobar' : 'Aprobar crédito' }}</button>
+            <button type="button" :disabled="busy || loadedCoverageProfileId !== String(profile.id) || !approvalReason || (!approvalCoverageSnapshot().length && !confirmEmptyCoverageApproval)" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white" @click="resolveCredit(true)">{{ dirty ? 'Guardar coberturas y aprobar' : 'Aprobar crédito' }}</button>
             <button type="button" :disabled="busy || !approvalReason" class="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-500" @click="resolveCredit(false)">Rechazar solicitud</button>
           </div>
         </template>
