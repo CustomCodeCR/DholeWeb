@@ -457,7 +457,7 @@ async function load() {
         })
         .catch(() => {if (generation === requestGeneration) countryName.value = ''}))
     if (has('crm.analysis.read')) jobs.push(loadRouteHistory(generation))
-    if (has('crm.quote.read')) {
+    if (has('crm.account.read') || has('crm.account.read-all')) {
       jobs.push(loadQuotedRoutes(generation))
       jobs.push(loadAccountPricingQuotes(generation))
     }
@@ -508,7 +508,7 @@ async function loadRouteHistory(generation = requestGeneration) {
   }
 }
 async function loadAccountPricingQuotes(generation = requestGeneration, append = false) {
-  if (!has('crm.quote.read')) return
+  if (!has('crm.account.read') && !has('crm.account.read-all')) return
   accountPricingLoading.value = true
   try {
     const page = append ? accountPricingPage.value + 1 : 1
@@ -532,7 +532,7 @@ async function loadAccountPricingQuotes(generation = requestGeneration, append =
   }
 }
 async function loadQuotedRoutes(generation = requestGeneration) {
-  if (!has('crm.quote.read')) return
+  if (!has('crm.account.read') && !has('crm.account.read-all')) return
   quoteRouteLoading.value = true
   try {
     const result = await get<{ items: CrmRow[], total: number }>(
@@ -1230,7 +1230,8 @@ async function saveRoute() {
         <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran cotizaciones de Pricing asociadas por el identificador de este cliente y vínculos históricos de CRM. Pricing conserva el estado oficial.</p>
       </div>
-      <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones asociadas a esta cuenta todavía.</p>
+      <p v-if="!recentQuotes.length && accountPricingLoading" role="status" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Consultando cotizaciones de Pricing…</p>
+      <p v-else-if="!recentQuotes.length && !accountPricingError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones identificadas para esta cuenta.</p>
       <div v-else class="overflow-x-auto"><table class="w-full min-w-[740px] text-left text-sm">
         <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Cotización</th><th class="px-3 py-3">Modalidad</th><th class="px-3 py-3">Origen</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3">Vinculada</th><th class="px-3 py-3">Acción</th></tr></thead>
         <tbody><tr v-for="q in recentQuotes" :key="rowId(q.pricingQuoteId)" class="border-b border-[var(--dh-border)] last:border-0">
