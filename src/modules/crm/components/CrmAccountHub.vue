@@ -86,6 +86,15 @@ const accountPricingTotal = ref(0)
 const accountPricingPage = ref(1)
 const accountPricingLoading = ref(false)
 const accountPricingError = ref('')
+const legacyOpen = ref(false)
+const legacyBusy = ref(false)
+const legacyLoading = ref(false)
+const legacyCandidates = ref<CrmRow[]>([])
+const legacySelected = ref<string[]>([])
+const legacyPage = ref(1)
+const legacyTotal = ref(0)
+const legacyError = ref('')
+const legacySuccess = ref('')
 const routeHistoryPage = ref(1)
 const routeHistoryTotal = ref(0)
 const routeHistoryError = ref('')
@@ -530,6 +539,48 @@ async function loadAccountPricingQuotes(generation = requestGeneration, append =
   } finally {
     if (generation === requestGeneration) accountPricingLoading.value = false
   }
+}
+async function loadLegacyCandidates(append = false) {
+  legacyLoading.value = true
+  legacyError.value = ''
+  try {
+    const page = append ? legacyPage.value + 1 : 1
+    const response = await get<{ items: CrmRow[]; total: number }>(
+      crmPath('accounts', rowId(props.account.id), 'pricing-quotation-candidates') +
+      '?page=' + page + '&pageSize=100')
+    const existingIds = new Set(legacyCandidates.value.map(x => rowId(x.pricingQuoteId)))
+    legacyCandidates.value = append
+      ? [...legacyCandidates.value, ...(response.items ?? []).filter(x => !existingIds.has(rowId(x.pricingQuoteId)))]
+      : (response.items ?? [])
+    legacyTotal.value = response.total ?? 0
+    legacyPage.value = page
+  } catch (cause) {
+    legacyError.value = message(cause)
+    if (!append) { legacyCandidates.value = []; legacyTotal.value = 0 }
+  } finally { legacyLoading.value = false }
+}
+async function openLegacyCandidates() {
+  legacyOpen.value = true
+  legacySelected.value = []
+  legacyPage.value = 1
+  legacyCandidates.value = []
+  await loadLegacyCandidates()
+}
+async function reconcileLegacyQuotes() {
+  if (legacyBusy.value || !legacySelected.value.length) return
+  legacyBusy.value = true
+  legacyError.value = ''
+  try {
+    const result = await crmRequest<{ linked: number; total: number }>(
+      crmPath('accounts', rowId(props.account.id), 'pricing-quotations', 'reconcile'),
+      'POST', { quoteIds: legacySelected.value }, crmUuid())
+    legacySuccess.value = 'Se vincularon ' + result.total + ' cotizaciones históricas con esta cuenta.'
+    legacySelected.value = []
+    legacyOpen.value = false
+    await load()
+  } catch (cause) {
+    legacyError.value = message(cause)
+  } finally { legacyBusy.value = false }
 }
 async function loadQuotedRoutes(generation = requestGeneration) {
   if (!has('crm.account.read') && !has('crm.account.read-all')) return
@@ -1226,10 +1277,16 @@ async function saveRoute() {
     </section>
 
     <section v-else-if="activeTab === 'quotes'" id="crm-account-quotes" role="tabpanel" class="hub-panel">
-      <div class="mb-4">
-        <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
-        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran cotizaciones de Pricing asociadas por el identificador de este cliente y vínculos históricos de CRM. Pricing conserva el estado oficial.</p>
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran cotizaciones de Pricing asociadas por el identificador de este cliente y vínculos históricos de CRM. Pricing conserva el estado oficial.</p>
+        </div>
+        <button v-if="has('crm.account.update')" class="hub-outline-button" type="button" @click="openLegacyCandidates">
+          <FileText class="h-4 w-4" />Vincular cotizaciones anteriores
+        </button>
       </div>
+      <p v-if="legacySuccess" role="status" class="mb-3 rounded-lg border border-[var(--dh-border)] p-3 text-xs font-bold">{{ legacySuccess }}</p>
       <p v-if="!recentQuotes.length && accountPricingLoading" role="status" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Consultando cotizaciones de Pricing…</p>
       <p v-else-if="!recentQuotes.length && !accountPricingError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones identificadas para esta cuenta.</p>
       <div v-else class="overflow-x-auto"><table class="w-full min-w-[740px] text-left text-sm">
@@ -1347,6 +1404,36 @@ async function saveRoute() {
         </div>
       </section>
     </div>
+    <DhDrawer :open="legacyOpen" title="Recuperar historial de cotizaciones" size="xl" @close="legacyOpen=false">
+      <div class="space-y-4 p-2">
+        <p class="text-sm text-[var(--dh-text-muted)]">Cotizaciones anteriores sin ID de cliente, encontradas por coincidencia exacta con la razón social registrada. Revisá los números QUO y rutas antes de confirmar. No se modifica el precio, estado ni contenido de las cotizaciones.</p>
+        <p v-if="legacyError" role="alert" class="rounded-lg border border-red-500/30 p-3 text-xs text-red-500">{{ legacyError }}</p>
+        <p v-if="legacyLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando cotizaciones anteriores…</p>
+        <p v-else-if="!legacyCandidates.length && !legacyError" class="hub-empty">No hay cotizaciones anteriores pendientes de vincular con esta razón social.</p>
+        <div v-if="legacyCandidates.length" class="space-y-2">
+          <label v-for="q in legacyCandidates" :key="rowId(q.pricingQuoteId)" class="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <input v-model="legacySelected" type="checkbox" :value="rowId(q.pricingQuoteId)" class="mt-1 h-4 w-4 accent-[var(--dh-primary)]" />
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-extrabold">{{ text(q.quoteNumberSnapshot) }}</span>
+              <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ text(q.clientName) }} · {{ text(q.shipmentModeSnapshot) }}</span>
+              <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Ruta: {{ text(q.polName) }} → {{ q.poeName ? text(q.poeName) + ' → ' : '' }}{{ text(q.podName) }}</span>
+            </span>
+            <RouterLink :to="quoteLink(q)" class="hub-text-link" @click.stop>Abrir tarifa</RouterLink>
+          </label>
+        </div>
+        <div v-if="legacyCandidates.length" class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs text-[var(--dh-text-muted)]">{{ legacySelected.length }} seleccionadas · {{ legacyTotal }} pendientes</span>
+          <button v-if="legacyTotal > legacyCandidates.length" type="button" class="hub-outline-button hub-small"
+            :disabled="legacyLoading" @click="loadLegacyCandidates(true)">Cargar más</button>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
+          <button type="button" class="hub-outline-button" @click="legacyOpen=false">Cancelar</button>
+          <button type="button" class="crm-action" :disabled="legacyBusy || !legacySelected.length" @click="reconcileLegacyQuotes">
+            {{ legacyBusy ? 'Vinculando…' : 'Confirmar y vincular (' + legacySelected.length + ')' }}
+          </button>
+        </div>
+      </div>
+    </DhDrawer>
     <DhDrawer :open="profileOpen" title="Datos empresariales" size="xl" @close="profileOpen=false">
       <form class="space-y-4 p-2" @submit.prevent="saveProfile">
         <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>
