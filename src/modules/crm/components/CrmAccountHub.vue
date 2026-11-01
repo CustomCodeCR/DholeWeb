@@ -490,6 +490,9 @@ watch(() => props.account.id, () => {
   accountPricingTotal.value = 0
   accountPricingPage.value = 1
   accountPricingError.value = ''
+  legacySuccess.value = ''
+  legacyError.value = ''
+  legacyOpen.value = false
   countryName.value = ''
   businessProfile.value = null
   businessProfileError.value = ''
@@ -786,7 +789,7 @@ async function saveRoute() {
         </div>
       </div>
       <div class="flex flex-wrap gap-2 px-4 pb-3 text-[11px] sm:px-5">
-        <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'quotes' : 'cotizaciones' }}</span>
+        <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ accountPricingError ? '—' : recentQuotes.length }} {{ locale === 'en' ? 'quotes' : 'cotizaciones' }}</span>
         <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal + allQuoteRouteSnapshots.length }} registros de rutas</button>
         <span class="hub-header-meta">{{ activeRoutes.length + frequentPricingRoutes.length }} rutas conocidas</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
@@ -817,8 +820,8 @@ async function saveRoute() {
           </div>
           <div class="grid grid-cols-3 gap-2">
             <div class="hub-mini-stat"><span>Documentadas</span><strong>{{ routeHistoryTotal }}</strong></div>
-            <div class="hub-mini-stat"><span>Rutas de Pricing</span><strong>{{ frequentPricingRoutes.length }}</strong></div>
-            <div class="hub-mini-stat"><span>Cotizaciones</span><strong>{{ recentQuotes.length }}</strong></div>
+            <div class="hub-mini-stat"><span>Rutas de Pricing</span><strong>{{ accountPricingError ? '—' : frequentPricingRoutes.length }}</strong></div>
+            <div class="hub-mini-stat"><span>Cotizaciones</span><strong>{{ accountPricingError ? '—' : recentQuotes.length }}</strong></div>
           </div>
           <p v-if="routeHistoryError" class="mt-3 text-xs text-amber-600">{{ routeHistoryError }}</p>
           <div v-if="frequentPricingRoutes.length" class="mt-3 divide-y divide-[var(--dh-border)]">
