@@ -343,7 +343,7 @@ const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.fl
 }))
 // CRM refs must exist before Vite's seller plugins register watchers at setup.
 interface PricingCrmClient {
-  kind:'account' | 'lead'; id:string; displayName:string; legalName:string; taxId?:string|null
+  kind?:'account' | 'lead'; id:string; displayName:string; legalName:string; taxId?:string|null
   executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
 }
 interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
@@ -4486,7 +4486,7 @@ async function saveOpenRequest() {
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
       clientAccountId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind === 'account' ? form.clientId : null)
+        ? (chosenCrmClient.value.kind !== 'lead' ? form.clientId : null)
         : (editingRate.value?.clientAccountId ?? null),
       clientLeadId: chosenCrmClient.value
         ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
@@ -4901,7 +4901,7 @@ async function saveRate() {
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
       clientAccountId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind === 'account' ? form.clientId : null)
+        ? (chosenCrmClient.value.kind !== 'lead' ? form.clientId : null)
         : (editingRate.value?.clientAccountId ?? null),
       clientLeadId: chosenCrmClient.value
         ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)

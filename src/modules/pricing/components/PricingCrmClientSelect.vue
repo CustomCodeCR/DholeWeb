@@ -4,7 +4,7 @@ import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 
 interface PricingCrmClient {
-  kind: 'account' | 'lead'
+  kind?: 'account' | 'lead'
   id: string
   displayName: string
   legalName: string
