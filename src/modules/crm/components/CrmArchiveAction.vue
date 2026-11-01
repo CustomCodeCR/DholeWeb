@@ -80,7 +80,7 @@ function open() { error.value = ''; reason.value = ''; show.value = true }
         <p v-if="error" class="text-sm text-red-500" role="alert">{{ error }}</p>
         <div class="flex justify-end gap-2">
           <DhButton label="Volver" variant="secondary" :disabled="busy" @click="show=false" />
-          <DhButton label="Confirmar archivo" color="danger" :loading="busy"
+          <DhButton label="Confirmar archivo" variant="danger" :loading="busy"
             :disabled="!reason.trim() || busy" @click="archive" />
         </div>
       </div>
