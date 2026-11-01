@@ -750,7 +750,7 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <CrmArchiveAction v-if="['accounts','leads','contacts','activities','followups'].includes(section)"
                 :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
                 :record-id="String(row.id)" :row-version="Number(row.rowVersion)"
-                :record-name="String(row._crmTitle || row.name || row.displayName || row.subject || 'Registro')"
+                :record-name="String(row._crmTitle || 'Registro')"
                 @archived="page=1;load()" />
             </div>
           </template>
