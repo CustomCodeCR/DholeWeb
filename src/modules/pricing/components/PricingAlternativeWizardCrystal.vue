@@ -341,6 +341,18 @@ const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.fl
     selected: false,
   }]
 }))
+// CRM refs must exist before Vite's seller plugins register watchers at setup.
+interface PricingCrmClient {
+  id:string; displayName:string; legalName:string; taxId?:string|null
+  executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
+}
+interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
+const authorizedSellers = ref<AuthorizedSeller[]>([])
+const requestSellerUserId = ref('')
+const sellerOptionsError = ref('')
+const chosenCrmClient = ref<PricingCrmClient|null>(null)
+const crmCustomerError = ref('')
+
 const supportEntityId = ref(crypto.randomUUID())
 const supportDocuments = ref<SupportDocument[]>([])
 const uploadingSupportKey = ref('')
@@ -1388,16 +1400,6 @@ const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
     ].filter(Boolean).join(' '),
   }
 }))
-interface PricingCrmClient {
-  id:string; displayName:string; legalName:string; taxId?:string|null
-  executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
-}
-interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
-const authorizedSellers = ref<AuthorizedSeller[]>([])
-const requestSellerUserId = ref('')
-const sellerOptionsError = ref('')
-const chosenCrmClient = ref<PricingCrmClient|null>(null)
-const crmCustomerError = ref('')
 async function loadAuthorizedRequestSellers(){
   if(!props.sellerRequestMode)return
   try{
@@ -5267,11 +5269,6 @@ watch(
     if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()
   },
 )
-
-watch(requestSellerUserId,()=>{
-  if(!props.sellerRequestMode)return
-  useCrmClient(null)
-})
 
 watch(
   () => form.originId,
