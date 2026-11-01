@@ -39,7 +39,7 @@ async function archive() {
   busy.value = true
   error.value = ''
   try {
-    await crmRequest(crmPath(props.resource, props.recordId, 'delete'), 'POST', {
+    await crmRequest(crmPath(props.resource, props.recordId, 'archive'), 'POST', {
       expectedVersion: props.rowVersion, reason: reason.value.trim(),
     })
     show.value = false
@@ -59,16 +59,16 @@ function open() { error.value = ''; reason.value = ''; confirmation.value=''; sh
   <span v-if="canArchive" class="inline-flex" @click.stop @keydown.stop>
     <DhButton :icon="Archive" label="Eliminar" variant="ghost" :size="size"
       @click="open" />
-    <DhModal :open="show" :title="'Eliminar permanentemente ' + kind[resource]" size="md"
+    <DhModal :open="show" :title="'Eliminar ' + kind[resource]" size="md"
       @close="!busy && (show=false)">
       <div class="space-y-4 p-2">
         <div class="flex gap-3 rounded-xl border border-amber-500/30 p-3">
           <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <div class="space-y-1">
-            <p class="text-sm font-bold">Esta acción elimina el registro de forma permanente.</p>
+            <p class="text-sm font-bold">El registro dejará de aparecer entre los activos.</p>
             <p class="text-xs text-[var(--dh-text-muted)]">
-              No se puede deshacer. Si existen créditos, actividades u otras referencias históricas,
-              el servidor impedirá el borrado para proteger la información vinculada.
+              Se realizará un borrado lógico (soft delete): los datos y relaciones históricas
+              permanecerán en la base de datos para auditoría.
             </p>
           </div>
         </div>
@@ -76,7 +76,7 @@ function open() { error.value = ''; reason.value = ''; confirmation.value=''; sh
         <label class="block space-y-1.5 text-sm font-semibold">
           Motivo de la eliminación *
           <textarea v-model="reason" rows="3" maxlength="1000"
-            placeholder="Indicá por qué querés eliminarlo permanentemente…"
+            placeholder="Indicá el motivo para eliminar este registro…"
             class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm" />
         </label>
         <label class="block space-y-1.5 text-sm font-semibold">
@@ -88,7 +88,7 @@ function open() { error.value = ''; reason.value = ''; confirmation.value=''; sh
         <p v-if="error" class="text-sm text-red-500" role="alert">{{ error }}</p>
         <div class="flex justify-end gap-2">
           <DhButton label="Volver" variant="secondary" :disabled="busy" @click="show=false" />
-          <DhButton label="Eliminar permanentemente" variant="danger" :loading="busy"
+          <DhButton label="Eliminar" variant="danger" :loading="busy"
             :disabled="!reason.trim() || confirmation !== 'ELIMINAR' || busy" @click="archive" />
         </div>
       </div>
