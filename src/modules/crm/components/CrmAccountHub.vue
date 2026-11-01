@@ -409,6 +409,37 @@ const frequentPricingRoutes = computed(() => {
   }
   return [...counts.values()].sort((a, b) => b.count - a.count)
 })
+// Show real quotations as sourced commercial evidence, not as manually-created
+// analysis records. Rates with an unresolved legacy match stay visibly pending.
+const quotationModeSummary = computed(() => {
+  const counts = new Map<string, { mode: string; count: number; pending: number }>()
+  for (const quote of recentQuotes.value) {
+    const mode = text(quote.shipmentModeSnapshot)
+    const existing = counts.get(mode) ?? { mode, count: 0, pending: 0 }
+    existing.count += 1
+    if (quote.pendingReconciliation) existing.pending += 1
+    counts.set(mode, existing)
+  }
+  return [...counts.values()].sort((a, b) => b.count - a.count)
+})
+const routeTimeline = computed(() => {
+  const documented = routeHistory.value.map(record => ({ ...record, pricingPreview: false }))
+  const documentedQuotes = new Set(documented
+    .filter(record => record.sourceKind === 'QUOTE')
+    .map(record => rowId(record.sourceId)))
+  const quotes = allQuoteRouteSnapshots.value
+    .filter(quote => !documentedQuotes.has(rowId(quote.pricingQuoteId)))
+    .map(quote => ({
+      ...quote,
+      id: 'pricing:' + rowId(quote.pricingQuoteId),
+      pricingPreview: true,
+      sourceKind: 'QUOTE_PRICING',
+      sourceId: quote.pricingQuoteId,
+      observedAt: quote.linkedAt,
+    }))
+  return [...documented, ...quotes].sort((a, b) =>
+    String(b.observedAt ?? '').localeCompare(String(a.observedAt ?? '')))
+})
 const visibleTimeline = computed(() => {
   const activities = overview.value.activities.map(x => ({
     id: rowId(x.id), kind: text(x.type), subject: text(x.subject),
@@ -1132,7 +1163,7 @@ async function saveRoute() {
         <div v-for="r in frequentPricingRoutes" :key="[r.pol,r.poe,r.pod].join('|')"
           class="grid gap-2 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_auto]">
           <p class="font-bold">{{ r.pol }} → {{ r.poe ? r.poe + (r.pod ? ' → ' : '') : '' }}{{ r.pod }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">{{ r.count }} {{ r.count === 1 ? 'cotización' : 'cotizaciones' }} · Obtenida de Pricing</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ r.count }} {{ r.count === 1 ? 'cotización' : 'cotizaciones' }} · Pricing<span v-if="r.pending"> · {{ r.pending }} por vincular</span></p>
         </div>
         <div v-for="r in overview.routes" :key="r.id" class="grid gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto]">
           <div class="font-bold">{{ routeDisplay(r.polCode || r.preferredOriginCode, 'pol') }} → {{ routeDisplay(r.poeCode || r.preferredDestinationCode, 'poe') }}<span v-if="r.podCode"> → {{ routeDisplay(r.podCode, 'pod') }}</span></div>
@@ -1146,7 +1177,16 @@ async function saveRoute() {
       </section>
       <section class="hub-panel">
         <h2 class="mb-3 font-extrabold">Análisis comercial ({{ overview.analyses.length }})</h2>
-        <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis registrados.</p>
+        <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis comerciales registrados manualmente.</p>
+        <div v-if="quotationModeSummary.length" class="mt-4 border-t border-[var(--dh-border)] pt-4">
+          <h3 class="text-xs font-extrabold uppercase tracking-wider text-[var(--dh-text-muted)]">Actividad real según cotizaciones ({{ recentQuotes.length }})</h3>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Resumen calculado a partir de QUO existentes en Pricing; no reemplaza un análisis comercial elaborado por el vendedor.</p>
+          <div v-for="entry in quotationModeSummary" :key="entry.mode" class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0">
+            <span class="font-semibold">{{ entry.mode }}</span>
+            <span>{{ entry.count }} {{ entry.count === 1 ? 'cotización' : 'cotizaciones' }}<span v-if="entry.pending" class="ml-1 text-amber-600">({{ entry.pending }} por verificar)</span></span>
+          </div>
+          <div class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ frequentPricingRoutes.length }} rutas identificadas en cotizaciones.</div>
+        </div>
         <button v-for="a in overview.analyses" :key="a.id" class="flex w-full items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-left text-sm last:border-0 hover:text-[var(--dh-primary)]"
           @click="router.push('/crm/analyses/' + encodeURIComponent(rowId(a.id)))">
           <span>{{ marketDisplay(a.marketCode) }} · {{ a.customsNationalizationRequired ? 'Incluye aduanas' : 'Sin aduanas' }}</span>
@@ -1248,11 +1288,11 @@ async function saveRoute() {
       </div>
       <div class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 class="hub-panel-heading mb-0">Cronología de rutas · {{ routeHistoryTotal }} registros</h3>
+          <h3 class="hub-panel-heading mb-0">Cronología de rutas · {{ routeTimeline.length }} en esta vista</h3>
           <button type="button" class="hub-outline-button hub-small" @click="loadRouteHistory()"><RefreshCw class="h-3.5 w-3.5" />Actualizar</button>
         </div>
         <p v-if="routeHistoryError" role="alert" class="mb-3 rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ routeHistoryError }}</p>
-        <div v-if="!routeHistory.length && !routeHistoryError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
+        <div v-if="!routeTimeline.length && !routeHistoryError && !legacyLoading" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
           <Route class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
           <p class="mt-3 text-sm font-extrabold">Todavía no hay rutas con origen documentado</p>
           <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">
@@ -1261,10 +1301,11 @@ async function saveRoute() {
           <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="activeTab='agenda';newActivity('VISIT')">Programar una visita</button>
         </div>
         <ol v-else class="divide-y divide-[var(--dh-border)]">
-          <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <li v-for="record in routeTimeline" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
             <div class="min-w-0">
-              <p class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ serviceDisplay(record.serviceCode) }}</p>
+              <p v-if="record.pricingPreview" class="text-sm font-extrabold">{{ text(record.polName) }} → {{ record.poeName ? text(record.poeName) + ' → ' : '' }}{{ text(record.podName) }}</p>
+              <p v-else class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.pricingPreview ? (record.pendingReconciliation ? 'QUO histórica por verificar' : 'Ruta de cotización de Pricing') : record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización documentada' }} · {{ date(record.observedAt) }}<span v-if="!record.pricingPreview"> · {{ serviceDisplay(record.serviceCode) }}</span></p>
               <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
             </div>
             <RouterLink :to="record.sourceKind === 'MEETING' ? returnToAccount('/crm/activities/' + encodeURIComponent(rowId(record.sourceId))) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
