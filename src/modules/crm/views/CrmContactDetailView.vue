@@ -7,6 +7,7 @@ import { DhButton, DhInput } from '@/shared/components/atoms'
 import { DhDrawer } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmPhoneInput from '../components/CrmPhoneInput.vue'
+import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
 import { phoneWithCountryPrefix } from '../utils/crmPhone'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -123,6 +124,9 @@ watch(contactId, load)
           <div class="flex gap-2">
             <DhButton :icon="RefreshCw" label="Actualizar" variant="secondary" :disabled="loading" @click="load" />
             <DhButton v-if="auth.hasScope('crm.contact.update')" :icon="Pencil" label="Editar" @click="edit" />
+            <CrmArchiveAction resource="contacts" :record-id="contactId"
+              :row-version="Number(contact.rowVersion)" :record-name="String(contact.name)"
+              @archived="router.push('/crm/contacts')" />
           </div>
         </div>
       </header>
