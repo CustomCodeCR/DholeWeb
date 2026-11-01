@@ -23,7 +23,7 @@ import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { fetchClient } from '@/core/api/fetchConfig'
-import PricingCrmClientSelect, { type PricingCrmClient } from '@/modules/pricing/components/PricingCrmClientSelect.vue'
+import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -1388,7 +1388,10 @@ const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
     ].filter(Boolean).join(' '),
   }
 }))
-const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
+interface PricingCrmClient {
+  id:string; displayName:string; legalName:string; taxId?:string|null
+  executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
+}
 interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
 const authorizedSellers = ref<AuthorizedSeller[]>([])
 const sellerOptions = computed(() => authorizedSellers.value.map(seller => ({
@@ -4471,7 +4474,6 @@ async function saveOpenRequest() {
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
       executiveUserId: form.executiveId || null,
-      executiveUserId: form.executiveId || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
       freeDays: 0,
@@ -4881,6 +4883,7 @@ async function saveRate() {
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
+      executiveUserId: form.executiveId || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
       freeDays: (form.modality === 'Land' || shipmentModeForApi.value === 'Lcl') ? 0 : number(form.freeDays),
