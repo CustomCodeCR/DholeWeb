@@ -685,24 +685,30 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
           <p class="mt-3 font-semibold">No hay actividades con esos filtros</p>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Los eventos del calendario y los seguimientos se consultan desde CRM.</p>
         </div>
-        <div v-else class="grid gap-3 lg:grid-cols-2">
-          <article v-for="item in tableRows" :key="String(item._crmResource)+item.id"
-            class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 transition-colors hover:border-[var(--dh-primary)]">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="text-xs font-bold text-[var(--dh-primary)]">{{ item._crmChannel }}</span>
-              <span class="rounded-full border border-[var(--dh-border)] px-2.5 py-1 text-xs font-semibold">{{ item._crmStatus }}</span>
+        <DhDataTable v-else :columns="columns" :rows="tableRows" :loading="loading"
+          empty-text="No hay actividades o seguimientos registrados"
+          @row-click="details($event)">
+          <template #cell-_crmTitle="{ value }">
+            <span class="font-bold text-[var(--dh-text)]">{{ value }}</span>
+          </template>
+          <template #cell-_crmChannel="{ value }">
+            <span class="text-sm font-medium">{{ value }}</span>
+          </template>
+          <template #cell-_crmDue="{ value }">
+            <span class="text-sm">{{ value }}</span>
+          </template>
+          <template #cell-_crmStatus="{ value }">
+            <span class="inline-flex rounded-full border border-[var(--dh-border)] px-2.5 py-1 text-xs font-semibold">{{ value }}</span>
+          </template>
+          <template #cell-actions="{ row }">
+            <div class="flex flex-wrap items-center justify-end gap-2" @click.stop>
+              <DhButton label="Abrir" size="sm" variant="secondary" @click="details(row)" />
+              <CrmArchiveAction :resource="row._crmResource === 'activities' ? 'activities' : 'followups'"
+                :record-id="String(row.id)" :row-version="Number(row.rowVersion)"
+                :record-name="String(row._crmTitle)" @archived="page=1;load()" />
             </div>
-            <h3 class="mt-3 text-base font-extrabold">{{ item._crmTitle }}</h3>
-            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ item._crmDue }}</p>
-            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--dh-border)] pt-3">
-              <button type="button" class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
-                @click="details(item)">Abrir gestión</button>
-              <CrmArchiveAction :resource="item._crmResource === 'activities' ? 'activities' : 'followups'"
-                :record-id="String(item.id)" :row-version="Number(item.rowVersion)"
-                :record-name="String(item._crmTitle)" @archived="page=1;load()" />
-            </div>
-          </article>
-        </div>
+          </template>
+        </DhDataTable>
         <footer class="flex items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
           <span>{{ rows.length }} de {{ total }}</span>
           <div class="flex items-center gap-2">
@@ -747,6 +753,10 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <DhButton :label="t('common.details')" size="sm" variant="ghost" @click="details(row)" />
               <DhButton v-if="canEdit() && !['activities','followups'].includes(section)"
                 :label="t('common.edit')" size="sm" variant="secondary" @click="beginEdit(row)" />
+              <DhButton v-if="section === 'leads' && !row.convertedAccountId
+                  && can('crm.lead.convert') && can('crm.account.create')"
+                label="Convertir a cuenta" size="sm" @click="router.push('/crm/leads/' +
+                  encodeURIComponent(String(row.id)) + '#crm-lead-conversion')" />
               <CrmArchiveAction v-if="['accounts','leads','contacts','activities','followups'].includes(section)"
                 :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
                 :record-id="String(row.id)" :row-version="Number(row.rowVersion)"
