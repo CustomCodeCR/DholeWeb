@@ -81,10 +81,22 @@ const example = computed(() => {
   const query = target.method === 'GET' && draft.value.inputs.length
     ? '?' + draft.value.inputs.map(f => encodeURIComponent(f.public) + '=valor').join('&')
     : ''
+  const requestValue = (f: Mapping): unknown => {
+    if (target.code === 'pricing-rate-request-create') {
+      if (f.internal === 'priority') return 'Green'
+      if (f.internal === 'sellerUserId') return 'UUID_VENDEDOR'
+      if (f.internal === 'clientName') return 'Cliente de ejemplo'
+      if (f.internal === 'shipmentMode') return 'Fcl'
+      if (f.internal === 'originName') return 'Shanghai'
+      if (f.internal === 'destinationName') return 'San José'
+      if (f.internal === 'payload') return { descripcion: 'Detalles de la carga' }
+    }
+    return f.public === 'ids' ? ['ID_DEL_REGISTRO'] : 'valor'
+  }
   const body = target.method !== 'GET' && draft.value.inputs.length
     ? ' \\\n  -H "Content-Type: application/json" \\\n  -d ' +
       "'" + JSON.stringify(Object.fromEntries(draft.value.inputs.map(f =>
-        [f.public, f.public === 'ids' ? ['ID_DEL_REGISTRO'] : 'valor']))) + "'"
+        [f.public, requestValue(f)]))) + "'"
     : ''
   const idempotency = target.method === 'POST'
     ? ' \\\n  -H "Idempotency-Key: solicitud-unica-12345678"' : ''
@@ -150,6 +162,9 @@ function initialInputs(code: string): Mapping[] {
   return []
 }
 function initialOutputs(code: string): Mapping[] {
+  if (code === 'pricing-rate-request-create') return [
+    { public: 'solicitudId', internal: 'value', required: false },
+  ]
   if (code === 'pricing-usd-crc') return [
     { public: 'compra', internal: 'purchase', required: false },
     { public: 'venta', internal: 'sale', required: false },
