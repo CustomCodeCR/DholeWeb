@@ -67,6 +67,10 @@ const showClassificationResult = computed(() =>
   (current.value?.status === 'NeedsReview' && Boolean(current.value?.classificationReason)),
 )
 
+// Keep the original MIME HTML intact for display. MarkItDown/normalized text
+// are extraction inputs, not a faithful rendering of the received email.
+const originalEmailHtml = computed(() => current.value?.bodyHtml?.trim() || '')
+
 const bodyPreview = computed(() => {
   if (!current.value) return ''
   if (current.value.bodyText?.trim()) return current.value.bodyText.trim()
@@ -586,9 +590,26 @@ onMounted(load)
         </p>
       </section>
 
-      <section v-if="bodyPreview" class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5">
-        <h3 class="font-black text-[var(--dh-text)]">Vista previa del correo</h3>
-        <p class="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm font-medium leading-6 text-[var(--dh-text-soft)]">
+      <section
+        v-if="originalEmailHtml || bodyPreview"
+        class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5"
+      >
+        <h3 class="mb-3 font-black text-[var(--dh-text)]">Vista previa del correo original</h3>
+        <!-- Isolate untrusted sender HTML from Dhole: no scripts, same-origin,
+             forms, or parent navigation. HTML layout, tables, and inline styles
+             remain visible as in the received message. -->
+        <iframe
+          v-if="originalEmailHtml"
+          :srcdoc="originalEmailHtml"
+          title="Contenido HTML original del correo"
+          class="h-[620px] w-full rounded-xl border border-[var(--dh-border)] bg-white"
+          sandbox=""
+          referrerpolicy="no-referrer"
+        />
+        <p
+          v-else
+          class="max-h-[620px] overflow-y-auto whitespace-pre-wrap rounded-xl bg-white p-4 text-sm leading-6 text-slate-800"
+        >
           {{ bodyPreview }}
         </p>
       </section>
