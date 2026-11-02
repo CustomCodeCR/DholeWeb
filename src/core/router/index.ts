@@ -75,6 +75,12 @@ export const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         {
+          path: 'integrations/third-party',
+          name: 'third-party-apis',
+          component: () => import('@/modules/integrations/views/ThirdPartyApisView.vue'),
+          meta: { tabTitle: 'APIs para terceros', closable: true, requiredScope: 'integrations.thirdparty.manage' },
+        },
+        {
           path: 'dynamics',
           name: 'dynamics-connections',
           component: () => import('@/modules/dynamics/views/DynamicsView.vue'),
