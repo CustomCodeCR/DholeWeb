@@ -68,18 +68,25 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         name: 'dashboard',
       },
       {
-        labelKey: 'sidebar.thirdPartyApis',
+        labelKey: 'sidebar.apis',
         icon: Globe2,
-        to: '/integrations/third-party',
-        name: 'third-party-apis',
-        requiredScope: 'integrations.thirdparty.manage',
-      },
-      {
-        labelKey: 'sidebar.dynamics',
-        icon: Database,
-        to: '/dynamics',
-        name: 'dynamics-connections',
-        requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
+        name: 'apis-root',
+        children: [
+          {
+            labelKey: 'sidebar.thirdPartyApis',
+            icon: Globe2,
+            to: '/integrations/third-party',
+            name: 'third-party-apis',
+            requiredScope: 'integrations.thirdparty.manage',
+          },
+          {
+            labelKey: 'sidebar.dynamics',
+            icon: Database,
+            to: '/dynamics',
+            name: 'dynamics-connections',
+            requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
+          },
+        ],
       },
       {
         labelKey: 'crm.title',
@@ -404,7 +411,7 @@ function mapItem(
 
   return {
     ...item,
-    label: item.name === 'third-party-apis' ? 'APIs para terceros' : t(item.labelKey),
+    label: item.name === 'apis-root' ? 'APIs' : item.name === 'third-party-apis' ? 'APIs para terceros' : t(item.labelKey),
     children,
   }
 }
