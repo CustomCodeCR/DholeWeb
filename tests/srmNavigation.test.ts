@@ -32,9 +32,8 @@ test('SRM supplier pages require dedicated scopes and Dhole drawers', () => {
   assert.match(view, /<DhDrawer :open="formVisible"/)
 })
 
-test('SRM uses Dhole multi-selects and preserves legacy single-value fields', () => {
+test('SRM uses Dhole multi-selects for categories and countries and preserves legacy fields', () => {
   assert.match(view, /<DhMultiSelect v-model="supplierType"/)
-  assert.match(view, /<DhMultiSelect v-model="shipmentModes"/)
   assert.match(view, /<DhMultiSelect v-model="countryIds"/)
   assert.match(view, /supplierTypes: selectedTypes/)
   assert.match(view, /countryIds: selectedCountries/)
@@ -46,11 +45,14 @@ test('SRM uses Dhole multi-selects and preserves legacy single-value fields', ()
   assert.doesNotMatch(view, /<input v-model="shipmentModes" type="checkbox"/)
 })
 
-test('SRM offers one air mode and maps previous air-consolidated records', () => {
-  assert.match(view, /\{ value: 'Air', label: 'Aéreo' \}/)
-  assert.doesNotMatch(view, /Aéreo consolidado/)
-  assert.match(view, /mode === 'AirConsol' \? 'Air' : mode/)
-  assert.match(view, /shipmentModes\.value = normalizeSupplierModes\(info\.shipmentModes\)/)
+test('SRM does not request or render shipment modes and retains historical metadata', () => {
+  assert.doesNotMatch(view, /<DhMultiSelect v-model="shipmentModes"/)
+  assert.doesNotMatch(view, /const shipmentModes = ref|const modeOptions =|normalizeSupplierModes/)
+  assert.doesNotMatch(view, /Modalidades|Shipment modes|!shipmentModes\.length|!shipmentModes\.value\.length/)
+  assert.doesNotMatch(view, /shipmentModes: \[\.\.\.new Set\(shipmentModes\.value\)\]/)
+  assert.match(view, /const retained = editing\.value \? metadata\(editing\.value\) : \{\}/)
+  assert.match(view, /\.\.\.retained,/)
+  assert.match(view, /if \(!countryIds\.value\.length\)/)
 })
 
 test('SRM category picker has exactly seven fixed options and safely maps legacy categories', () => {
