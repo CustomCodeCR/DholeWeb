@@ -11,6 +11,7 @@ import {
 } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { fetchClient } from '@/core/api/fetchConfig'
 import { unwrapPagedResponse } from '@/core/api/apiResponse'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useDrawerStore } from '@/core/stores/drawerStore'
@@ -42,6 +43,10 @@ const displayCost = (cost: CostDto) => catalogs.resolveCostLabels(cost)
 const pricingBandLabel = (cost: CostDto) => cost.pricingRulesJson ? `${readCostPricingRules(cost.pricingRulesJson).length} tramos` : null
 
 const rows = ref<CostDto[]>([])
+type CostPayee = { supplierId: string | null; supplierName: string | null;
+  supplierCode: string | null; supplierType: string | null }
+const payees = ref<Record<string, CostPayee>>({})
+const payeeName = (id: string) => payees.value[id]?.supplierName || 'Sin asignar'
 let lastOpenedRecordId: string | null = null
 const loading = ref(false)
 const exporting = ref(false)
@@ -76,6 +81,7 @@ const columns: DhTableColumn<CostDto>[] = [
   { key: 'costType', label: 'Aplicación', width: '108px' },
   { key: 'costDetailType', label: 'Rubro', width: '120px' },
   { key: 'relation', label: 'Naviera / agente', width: '165px' },
+  { key: 'payee', label: 'Pagar a · SRM', width: '180px' },
   { key: 'portName', label: 'Ruta / puerto', width: '290px' },
   { key: 'incoterms', label: 'Incoterms', width: '130px' },
   { key: 'operationalConditions', label: 'Pantalla 4', width: '190px' },
@@ -334,6 +340,17 @@ async function load() {
     })
     const result = unwrapPagedResponse<CostDto>(response)
     rows.value = result.items
+    payees.value = {}
+    try {
+      const query = new URLSearchParams()
+      for (const cost of rows.value) query.append('costId', cost.id)
+      if (rows.value.length)
+        payees.value = await fetchClient<Record<string, CostPayee>>(
+          '/api/pricing/costs/payees?' + query.toString(), { method: 'GET' })
+    } catch {
+      // A missing optional payee lookup must never hide the cost master data.
+      payees.value = {}
+    }
     const requestedId = typeof route.query.recordId === 'string' ? route.query.recordId : ''
     if (requestedId && lastOpenedRecordId !== requestedId && canUpdate.value) {
       const selected = rows.value.find((cost) => cost.id === requestedId)
@@ -633,6 +650,10 @@ onMounted(async () => {
             </div>
 
             <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Proveedor de pago · SRM</p>
+              <p class="mt-1 truncate text-xs font-bold" :title="payeeName(row.id)">{{ payeeName(row.id) }}</p>
+            </div>
+            <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Base de cobro</p>
               <p class="mt-1 text-xs font-black text-[var(--dh-text)]">{{ chargeBasisLabel(effectiveChargeBasis(row)) }}</p>
             </div>
@@ -750,6 +771,10 @@ onMounted(async () => {
                 />
               </div>
             </div>
+          </template>
+          <template #cell-payee="{ row }">
+            <span class="block max-w-[180px] truncate text-xs font-semibold"
+              :title="payeeName(row.id)">{{ payeeName(row.id) }}</span>
           </template>
           <template #cell-portName="{ row }">
             <div class="max-w-[290px] space-y-1.5">
