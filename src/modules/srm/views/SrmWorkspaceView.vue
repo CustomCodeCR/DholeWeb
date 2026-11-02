@@ -90,6 +90,31 @@ const supplierDescription = ref('')
 const contactName = ref('')
 const contactEmail = ref('')
 const contactPhone = ref('')
+type SupplierContact = { name: string; email: string; phone: string; role: string }
+const contacts = ref<SupplierContact[]>([])
+const shipmentModes = ref<string[]>([])
+const modeOptions = [
+  { value: 'Fcl', label: 'Marítimo FCL' }, { value: 'Lcl', label: 'Marítimo LCL' },
+  { value: 'Ftl', label: 'Terrestre FTL' }, { value: 'Ltl', label: 'Terrestre LTL' },
+  { value: 'Air', label: 'Aéreo' }, { value: 'AirConsol', label: 'Aéreo consolidado' },
+]
+function newContact(): SupplierContact { return { name: '', email: '', phone: '', role: '' } }
+function supplierContacts(item: Supplier): SupplierContact[] {
+  const info = metadata(item)
+  const saved = Array.isArray(info.contacts) ? info.contacts : []
+  const mapped = saved.filter((row): row is Record<string, unknown> =>
+    !!row && typeof row === 'object' && !Array.isArray(row))
+    .map(row => ({
+      name: String(row.name || ''), email: String(row.email || ''),
+      phone: String(row.phone || ''), role: String(row.role || ''),
+    })).filter(row => row.name.trim())
+  if (mapped.length) return mapped
+  if (info.contactName) return [{
+    name: String(info.contactName), email: String(info.contactEmail || ''),
+    phone: String(info.contactPhone || ''), role: '',
+  }]
+  return []
+}
 const editing = ref<Supplier | null>(null)
 const score = ref(5)
 const note = ref('')
@@ -205,6 +230,8 @@ function resetForm() {
   contactName.value = ''
   contactEmail.value = ''
   contactPhone.value = ''
+  contacts.value = []
+  shipmentModes.value = []
   score.value = 5
   note.value = ''
   reference.value = ''
@@ -234,6 +261,10 @@ function openEdit(item: Supplier) {
   contactName.value = String(info.contactName || '')
   contactEmail.value = String(info.contactEmail || '')
   contactPhone.value = String(info.contactPhone || '')
+  contacts.value = supplierContacts(item)
+  shipmentModes.value = Array.isArray(info.shipmentModes) ?
+    info.shipmentModes.filter((mode): mode is string =>
+      typeof mode === 'string' && modeOptions.some(option => option.value === mode)) : []
   countryId.value = String(info.countryId || '')
   taxId.value = String(info.taxId || '')
   website.value = String(info.website || '')
@@ -244,6 +275,10 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
       !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
+  if (!shipmentModes.value.length || contacts.value.some(contact => !contact.name.trim())) {
+    error.value = 'Seleccioná al menos una modalidad y completá los nombres de los contactos.'
+    return
+  }
   saving.value = true
   error.value = ''
   try {
@@ -251,8 +286,14 @@ async function saveSupplier() {
     const metadataJson = JSON.stringify({
       ...retained,
       supplierType: resolvedSupplierType.value,
-      contactName: contactName.value.trim(), contactEmail: contactEmail.value.trim(),
-      contactPhone: contactPhone.value.trim(),
+      shipmentModes: [...new Set(shipmentModes.value)],
+      contacts: contacts.value.map(contact => ({
+        name: contact.name.trim(), email: contact.email.trim(),
+        phone: contact.phone.trim(), role: contact.role.trim(),
+      })),
+      contactName: contacts.value[0]?.name.trim() || '',
+      contactEmail: contacts.value[0]?.email.trim() || '',
+      contactPhone: contacts.value[0]?.phone.trim() || '',
       countryId: countryId.value || null,
       taxId: taxId.value.trim() || null,
       website: website.value.trim() || null,
@@ -503,6 +544,9 @@ onMounted(() => {
                     <div v-for="field in [
                       {label: 'Razón social', value: selected.name},
                       {label: 'Tipo', value: typeLabel(selected.category)},
+                      {label: 'Modalidades', value: Array.isArray(metadata(selected).shipmentModes)
+                        ? (metadata(selected).shipmentModes as string[])
+                            .map(mode => modeOptions.find(x => x.value === mode)?.label || mode).join(', ') : 'No indicadas'},
                       {label: 'Código', value: selected.code},
                       {label: 'País', value: countryLabel(metadata(selected).countryId)},
                       {label: 'Identificación fiscal', value: metadata(selected).taxId},
@@ -516,16 +560,13 @@ onMounted(() => {
                 </section>
                 <div class="space-y-3">
                   <section class="rounded-xl border border-[var(--dh-border)] p-4">
-                    <h3 class="mb-3 text-xs font-extrabold uppercase tracking-wider">Contacto principal</h3>
-                    <dl class="divide-y divide-[var(--dh-border)]">
-                      <div v-for="field in [
-                        {label: 'Nombre', value: metadata(selected).contactName},
-                        {label: 'Correo', value: metadata(selected).contactEmail},
-                        {label: 'Teléfono', value: metadata(selected).contactPhone},
-                      ]" :key="field.label" class="grid grid-cols-[38%_minmax(0,1fr)] gap-2 py-2.5 text-xs">
-                        <dt class="text-[var(--dh-text-muted)]">{{ field.label }}</dt><dd class="break-all font-semibold">{{ field.value || '—' }}</dd>
-                      </div>
-                    </dl>
+                    <h3 class="mb-3 text-xs font-extrabold uppercase tracking-wider">Contactos ({{ supplierContacts(selected).length }})</h3>
+                    <p v-if="!supplierContacts(selected).length" class="text-xs text-[var(--dh-text-muted)]">Sin contactos registrados.</p>
+                    <div v-for="(contact, index) in supplierContacts(selected)" :key="index" class="space-y-1 border-b border-[var(--dh-border)] py-3 text-xs last:border-0">
+                      <p class="font-bold">{{ contact.name }}<span v-if="contact.role"> · {{ contact.role }}</span></p>
+                      <p v-if="contact.email">{{ contact.email }}</p>
+                      <p v-if="contact.phone">{{ contact.phone }}</p>
+                    </div>
                   </section>
                   <section class="rounded-xl border border-[var(--dh-border)] p-4">
                     <h3 class="mb-2 text-xs font-extrabold uppercase tracking-wider">Relación comercial</h3>
@@ -642,6 +683,15 @@ onMounted(() => {
               class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
             <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Se guardará con el proveedor en el catálogo SRM y podrás reutilizarlo con otros proveedores.</span>
           </label>
+          <fieldset class="md:col-span-2 rounded-xl border border-[var(--dh-border)] p-4">
+            <legend class="px-2 text-sm font-bold">Modalidades (selección múltiple) *</legend>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label v-for="mode in modeOptions" :key="mode.value" class="flex items-center gap-2 text-sm">
+                <input v-model="shipmentModes" type="checkbox" :value="mode.value" class="h-4 w-4" />
+                {{ mode.label }}
+              </label>
+            </div>
+          </fieldset>
           <label class="text-sm font-semibold">{{ en ? 'Country' : 'País' }}
             <select v-model="countryId" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
               <option value="">{{ en ? 'Select country' : 'Seleccione país' }}</option>
@@ -654,19 +704,33 @@ onMounted(() => {
           <label class="text-sm font-semibold">Sitio web
             <input v-model="website" type="url" maxlength="200" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-                    <label class="text-sm font-semibold">{{ en ? 'Contact name' : 'Nombre de contacto' }}
-            <input v-model="contactName" maxlength="140" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
-          <label class="text-sm font-semibold">Email
-            <input v-model="contactEmail" type="email" maxlength="180" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
-          <label class="text-sm font-semibold">{{ en ? 'Phone' : 'Teléfono' }}
-            <input v-model="contactPhone" maxlength="40" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
+                    <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold">Contactos del proveedor</h3>
+              <button type="button" :disabled="contacts.length >= 30"
+                class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
+                @click="contacts.push(newContact())">+ Agregar contacto</button>
+            </div>
+            <div v-for="(contact, index) in contacts" :key="index" class="grid gap-3 border-t border-[var(--dh-border)] pt-3 md:grid-cols-2">
+              <label class="text-xs font-semibold">Nombre *
+                <input v-model="contact.name" required maxlength="140" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+              </label>
+              <label class="text-xs font-semibold">Cargo
+                <input v-model="contact.role" maxlength="100" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+              </label>
+              <label class="text-xs font-semibold">Correo
+                <input v-model="contact.email" type="email" maxlength="180" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+              </label>
+              <label class="text-xs font-semibold">Teléfono
+                <input v-model="contact.phone" maxlength="40" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+              </label>
+              <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
+            </div>
+          </section>
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
+          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || contacts.some(c => !c.name.trim())" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
         </form>
       </DhDrawer>
     </template>
