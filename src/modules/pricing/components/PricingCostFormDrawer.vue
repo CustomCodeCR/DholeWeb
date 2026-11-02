@@ -80,7 +80,7 @@ const payeeOptions = computed(() => [
   ...suppliers.value.filter(row => row.isActive &&
       (!concreteShipmentModes.value.length || !row.shipmentModes.length ||
         row.shipmentModes.some(mode => concreteShipmentModes.value.includes(mode as ShipmentMode))))
-    .map(row => ({ value: row.id, label: row.name + ' · ' + row.code })),
+    .map(row => ({ value: row.id, label: row.name })),
   ...(existingPayee.value?.supplierId &&
      !suppliers.value.some(row => row.id === existingPayee.value?.supplierId)
     ? [{ value: existingPayee.value.supplierId,
@@ -947,14 +947,14 @@ onMounted(() => {
           placeholder="Condiciones, alcance o evidencia del costo..."
         />
       </div>
-      <div class="mt-4 space-y-2 rounded-xl border border-[var(--dh-border)] p-4">
-        <label for="srm-cost-supplier" class="block text-xs font-extrabold uppercase tracking-wider">Proveedor</label>
-        <select id="srm-cost-supplier" v-model="payeeSupplierId" aria-label="Proveedor"
-          class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-sm">
-          <option v-for="supplier in payeeOptions" :key="supplier.value" :value="supplier.value">
-            {{ supplier.label }}
-          </option>
-        </select>
+      <div class="mt-4 space-y-2">
+        <DhSelect
+          v-model="payeeSupplierId"
+          label="Proveedor"
+          :placeholder="''"
+          :options="payeeOptions"
+          :disabled="payeeLoading"
+        />
         <p v-if="supplierLoadError || payeeLoadError" role="alert" class="text-xs text-amber-500">{{ supplierLoadError || payeeLoadError }}</p>
       </div>
     </section>
