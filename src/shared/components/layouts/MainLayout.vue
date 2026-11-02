@@ -407,12 +407,28 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     items.push({ label: t('sidebar.security'), icon: LockKeyhole, children: securityChildren.value })
   }
 
-  // MainLayout owns the visible navigation; useSidebarItems alone does not render.
+  // Keep integration entry points together. Each child retains its own scope:
+  // users with access to one API only see that option, not the other.
+  const apiChildren: SidebarItem[] = []
+  if (canView('integrations.thirdparty.manage')) {
+    apiChildren.push({
+      label: 'APIs para terceros',
+      path: '/integrations/third-party',
+      icon: Globe2,
+    })
+  }
   if (canView('dynamics.admin') || canView('dynamics.security.admin')) {
-    items.push({
+    apiChildren.push({
       label: t('sidebar.dynamics'),
       path: '/dynamics',
       icon: Database,
+    })
+  }
+  if (apiChildren.length > 0) {
+    items.push({
+      label: 'APIs',
+      icon: Globe2,
+      children: apiChildren,
     })
   }
 
