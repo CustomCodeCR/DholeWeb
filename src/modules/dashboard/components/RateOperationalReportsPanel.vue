@@ -220,7 +220,7 @@ async function load() {
     const query = new URLSearchParams()
     if (from.value) query.set('from', from.value)
     if (to.value) query.set('to', to.value)
-    const response = await callEndpoint<unknown>({
+    const response = await callEndpoint<ReportDto>({
       method: 'GET',
       path: `/api/pricing/rate-requests/operational-report?${query.toString()}`,
       headers: { Accept: 'application/json' },
