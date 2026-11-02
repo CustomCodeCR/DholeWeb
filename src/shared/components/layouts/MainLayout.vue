@@ -4,7 +4,6 @@ import {
   Bot,
   CalendarClock,
   FileCode2,
-  Gauge,
   Globe2,
   History,
   Ship,
