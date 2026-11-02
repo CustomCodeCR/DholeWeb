@@ -469,3 +469,27 @@ test('Lead conversion reuses the existing account and bypasses navigation guard 
   assert.match(detail, /record\.value\.convertedAccountId/)
   assert.match(detail, /conversionRedirectAllowed\.value = false/)
 })
+
+test('CRM account identification uses DhSelect with country-aware legal and natural person options', async () => {
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  const editor = read('src/modules/crm/components/CrmAccountEditor.vue')
+  const model = await import('../src/modules/crm/model/crmIdentification.ts')
+  assert.deepEqual(model.identificationOptionsForCountry('Panamá').map(option => option.label),
+    ['Persona física', 'Persona jurídica'])
+  assert.deepEqual(model.identificationOptionsForCountry('Costa Rica').map(option => option.label),
+    ['Persona física', 'Persona jurídica', 'DIMEX', 'NITE'])
+  assert.deepEqual(model.identificationOptionsForCountry('CR').map(option => option.value),
+    ['01', '02', '03', '04'])
+  assert.deepEqual(model.identificationOptionsForCountry('Guatemala').map(option => option.value),
+    ['01', '02'])
+  assert.equal(model.normalizeIdentificationType('FISICA'), '01')
+  assert.equal(model.normalizeIdentificationType('JURIDICA'), '02')
+  assert.equal(model.normalizeIdentificationType('DIMEX'), '03')
+  assert.match(workspace, /<DhSelect label="Tipo de identificación"/)
+  assert.match(editor, /<DhSelect label="Tipo de identificación"/)
+  assert.match(workspace, /:options="accountIdentificationOptions"/)
+  assert.match(editor, /:options="accountIdentificationOptions"/)
+  assert.match(workspace, /@resolved-label="rememberAccountCountry"/)
+  assert.match(editor, /@resolved-label="rememberAccountCountry"/)
+  assert.doesNotMatch(workspace, /<DhInput label="Tipo de identificación"/)
+})
