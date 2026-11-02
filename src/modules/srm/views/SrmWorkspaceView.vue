@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Building2, FolderOpen, Pencil, Plus, RefreshCw, Search, ShieldAlert, X } from 'lucide-vue-next'
+import { Building2, ChevronLeft, ChevronRight, Eye, FolderOpen, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { DhDrawer } from '@/shared/components/organisms'
-import { DhMultiSelect } from '@/shared/components/atoms'
+import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -22,12 +22,16 @@ const saving = ref(false)
 const error = ref('')
 const success = ref('')
 const formVisible = ref(false)
+const detailsVisible = ref(false)
 const suppliers = ref<Supplier[]>([])
 const evaluations = ref<SrmRecord[]>([])
 const contracts = ref<SrmRecord[]>([])
 const selected = ref<Supplier | null>(null)
 const query = ref('')
 const category = ref('all')
+const statusFilter = ref('all')
+const currentPage = ref(1)
+const pageSize = 15
 const supplierName = ref('')
 const supplierType = ref<string[]>([])
 const categoryOptions = [
@@ -137,8 +141,24 @@ const filteredLegacy = computed(() => pendingLegacy.value.filter(item =>
   [item.name, item.code].some(value => value.toLocaleLowerCase().includes(legacyQuery.value.trim().toLocaleLowerCase()))))
 const filteredSuppliers = computed(() => suppliers.value.filter(item =>
   (category.value === 'all' || supplierCategories(item).includes(category.value)) &&
-  [item.name, item.description || '', ...supplierCategories(item).map(typeLabel)]
-    .some(value => value.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))))
+  (statusFilter.value === 'all' || (statusFilter.value === 'active' ? item.isActive : !item.isActive)) &&
+  [item.name, item.description || '', supplierCountries(item), ...supplierCategories(item).map(typeLabel)]
+    .some(value => value.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())))
+  .sort((a, b) => a.name.localeCompare(b.name, 'es')))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredSuppliers.value.length / pageSize)))
+const pagedSuppliers = computed(() => filteredSuppliers.value.slice(
+  (currentPage.value - 1) * pageSize, currentPage.value * pageSize))
+const categoryFilterOptions = computed(() => [
+  { value: 'all', label: en.value ? 'All categories' : 'Todas las categorías' },
+  ...categoryOptions,
+])
+const statusOptions = computed(() => [
+  { value: 'all', label: en.value ? 'All statuses' : 'Todos los estados' },
+  { value: 'active', label: en.value ? 'Active' : 'Activos' },
+  { value: 'inactive', label: en.value ? 'Inactive' : 'Inactivos' },
+])
+watch([query, category, statusFilter], () => { currentPage.value = 1 })
+watch(totalPages, pageCount => { if (currentPage.value > pageCount) currentPage.value = pageCount })
 const supplierContracts = computed(() => selected.value && auth.hasScope('srm.contract.read')
   ? contracts.value.filter(item => item.supplierId === selected.value?.id) : [])
 const supplierEvaluations = computed(() => selected.value && auth.hasScope('srm.performance.read')
@@ -181,7 +201,7 @@ function resetForm() {
   contacts.value = []
   countryIds.value = []
 }
-function openCreate() { resetForm(); formVisible.value = true; error.value = ''; success.value = '' }
+function openCreate() { resetForm(); detailsVisible.value = false; formVisible.value = true; error.value = ''; success.value = '' }
 function openEdit(item: Supplier) {
   if (!canEditSuppliers.value) return
   resetForm()
@@ -194,9 +214,15 @@ function openEdit(item: Supplier) {
   countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
     ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
     : typeof info.countryId === 'string' && info.countryId ? [info.countryId] : []
+  detailsVisible.value = false
   formVisible.value = true
 }
-function openDetails(item: Supplier) { selected.value = item; formVisible.value = false }
+function openDetails(item: Supplier) {
+  selected.value = item
+  detailsVisible.value = true
+  formVisible.value = false
+}
+function closeDetails() { detailsVisible.value = false }
 function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
@@ -255,7 +281,10 @@ async function saveSupplier() {
     closeForm()
     success.value = t('crm.saved')
     await load()
-    if (editingId) selected.value = suppliers.value.find(item => item.id === editingId) || selected.value
+    if (editingId) {
+      selected.value = suppliers.value.find(item => item.id === editingId) || selected.value
+      detailsVisible.value = Boolean(selected.value)
+    }
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('srm.loadError') }
   finally { saving.value = false }
 }
@@ -274,7 +303,7 @@ async function importLegacy(item: SrmLegacyPartner) {
   } finally {importBusy.value = ''}
 }
 
-watch(canReadSection, () => { closeForm(); void load() })
+watch(canReadSection, () => { closeForm(); closeDetails(); selected.value = null; void load() })
 onMounted(() => {
   void load()
   void CatalogItemsService.select({ catalogGroupSlug: 'countries' })
@@ -309,142 +338,211 @@ onMounted(() => {
     <template v-else>
       <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">{{ error }}</p>
       <p v-if="success" role="status" class="rounded-xl border border-emerald-500/30 p-3 text-sm text-emerald-500">{{ success }}</p>
-      <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
-        <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
-          <div class="space-y-3 border-b border-[var(--dh-border)] p-4 sm:p-5">
-            <div class="flex items-center justify-between gap-3">
+      <section class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+        <div class="space-y-4 border-b border-[var(--dh-border)] p-4 sm:p-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
               <h2 class="text-base font-bold">{{ en ? 'Suppliers' : 'Proveedores' }}</h2>
-              <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ filteredSuppliers.length }} {{ en ? 'registered' : 'registrados' }}</span>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                {{ en ? 'Select a supplier to view details in the side panel.' : 'Seleccioná un proveedor para ver sus datos en el panel lateral.' }}
+              </p>
             </div>
-            <div class="flex flex-col gap-2 sm:flex-row">
-              <label class="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3">
-                <Search class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
-                <input v-model="query" type="search" :placeholder="en ? 'Search suppliers...' : 'Buscar proveedores...'"
-                  :aria-label="en ? 'Search suppliers' : 'Buscar proveedores'"
-                  class="min-w-0 w-full bg-transparent py-2.5 text-sm outline-none" />
-              </label>
-              <select v-model="category" :aria-label="en ? 'Filter by category' : 'Filtrar por categoría'"
-                class="min-h-10 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 text-sm font-semibold">
-                <option value="all">{{ en ? 'All categories' : 'Todas las categorías' }}</option>
-                <option v-for="option in categoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-              </select>
+            <span class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ filteredSuppliers.length }} {{ en ? 'suppliers' : 'proveedores' }}
+            </span>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
+            <label class="flex min-w-0 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
+              <Search class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
+              <input v-model="query" type="search" :placeholder="en ? 'Search suppliers...' : 'Buscar proveedores...'"
+                :aria-label="en ? 'Search suppliers' : 'Buscar proveedores'"
+                class="h-11 min-w-0 w-full bg-transparent text-sm font-semibold text-[var(--dh-text)] outline-none placeholder:text-[var(--dh-text-muted)]" />
+            </label>
+            <DhSelect v-model="category" :options="categoryFilterOptions" placeholder=""
+              :label="en ? 'Category' : 'Categoría'" />
+            <DhSelect v-model="statusFilter" :options="statusOptions" placeholder=""
+              :label="en ? 'Status' : 'Estado'" />
+          </div>
+        </div>
+
+        <div v-if="loading" class="px-5 py-12 text-center text-sm text-[var(--dh-text-muted)]">{{ t('common.loading') }}</div>
+        <div v-else-if="!filteredSuppliers.length" class="flex flex-col items-center px-5 py-14 text-center">
+          <FolderOpen class="h-8 w-8 text-[var(--dh-text-muted)]" />
+          <p class="mt-3 text-sm font-semibold">{{ en ? 'No suppliers found' : 'No se encontraron proveedores' }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Try another search or register a supplier.' : 'Cambiá los filtros o registrá un proveedor.' }}</p>
+        </div>
+        <div v-else class="w-full overflow-x-auto">
+          <table class="w-full min-w-[840px] text-left text-sm">
+            <thead class="bg-[var(--dh-input)] text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">
+              <tr>
+                <th scope="col" class="px-4 py-3 sm:px-5">{{ en ? 'Supplier' : 'Proveedor' }}</th>
+                <th scope="col" class="px-4 py-3">{{ en ? 'Categories' : 'Categorías' }}</th>
+                <th scope="col" class="px-4 py-3">{{ en ? 'Countries' : 'Países' }}</th>
+                <th scope="col" class="px-4 py-3 text-center">{{ en ? 'Contacts' : 'Contactos' }}</th>
+                <th scope="col" class="px-4 py-3">{{ en ? 'Status' : 'Estado' }}</th>
+                <th scope="col" class="px-4 py-3 text-right">{{ en ? 'Actions' : 'Acciones' }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--dh-border)]">
+              <tr v-for="item in pagedSuppliers" :key="item.id" class="transition hover:bg-[var(--dh-card-hover)]">
+                <td class="px-4 py-3 sm:px-5">
+                  <button type="button" class="flex min-w-0 items-center gap-3 text-left hover:text-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                    @click="openDetails(item)">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-[var(--dh-primary)]">
+                      <Building2 class="h-4 w-4" />
+                    </span>
+                    <span class="min-w-0 break-words font-bold">{{ item.name }}</span>
+                  </button>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex max-w-[270px] flex-wrap gap-1">
+                    <span v-for="cat in supplierCategories(item)" :key="cat" class="rounded-md bg-[var(--dh-input)] px-2 py-1 text-xs font-semibold">
+                      {{ typeLabel(cat) }}
+                    </span>
+                  </div>
+                </td>
+                <td class="max-w-[220px] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">{{ supplierCountries(item) }}</td>
+                <td class="px-4 py-3 text-center tabular-nums">{{ supplierContacts(item).length }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                    :class="item.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-[var(--dh-text-muted)]'">
+                    {{ en ? (item.isActive ? 'Active' : 'Inactive') : (item.isActive ? 'Activo' : 'Inactivo') }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-end gap-1.5">
+                    <button type="button" class="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-[var(--dh-border)] px-3 text-xs font-bold hover:border-[var(--dh-primary)] hover:text-[var(--dh-primary)]"
+                      :aria-label="(en ? 'Details of ' : 'Detalles de ') + item.name" @click="openDetails(item)">
+                      <Eye class="h-4 w-4" />{{ en ? 'Details' : 'Detalles' }}
+                    </button>
+                    <button v-if="canEditSuppliers" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--dh-border)] hover:border-[var(--dh-primary)] hover:text-[var(--dh-primary)]"
+                      :aria-label="(en ? 'Edit ' : 'Editar ') + item.name" @click="openEdit(item)">
+                      <Pencil class="h-4 w-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="filteredSuppliers.length > pageSize && !loading" class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] px-4 py-3 sm:px-5">
+          <span class="text-xs text-[var(--dh-text-muted)]">
+            {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, filteredSuppliers.length) }}
+            {{ en ? 'of' : 'de' }} {{ filteredSuppliers.length }}
+          </span>
+          <div class="flex items-center gap-2">
+            <button type="button" :disabled="currentPage <= 1" :aria-label="en ? 'Previous page' : 'Página anterior'"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--dh-border)] disabled:opacity-40"
+              @click="currentPage--"><ChevronLeft class="h-4 w-4" /></button>
+            <span class="text-xs font-semibold">{{ currentPage }} / {{ totalPages }}</span>
+            <button type="button" :disabled="currentPage >= totalPages" :aria-label="en ? 'Next page' : 'Página siguiente'"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--dh-border)] disabled:opacity-40"
+              @click="currentPage++"><ChevronRight class="h-4 w-4" /></button>
+          </div>
+        </div>
+
+        <details v-if="canCreateSuppliers && pendingLegacy.length" class="border-t border-[var(--dh-border)] px-4 py-4 sm:px-5">
+          <summary class="cursor-pointer text-xs font-semibold text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]">
+            {{ en ? 'Import existing suppliers' : 'Importar proveedores existentes' }} ({{ pendingLegacy.length }})
+          </summary>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <input v-model="legacyQuery" type="search" :aria-label="en ? 'Search imports' : 'Buscar importaciones'"
+              :placeholder="en ? 'Search...' : 'Buscar...'"
+              class="min-w-0 flex-1 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs" />
+            <select v-model="legacyGroup" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs">
+              <option value="all">{{ en ? 'All' : 'Todos' }}</option>
+              <option value="carriers">{{ en ? 'Carriers' : 'Navieras' }}</option>
+              <option value="agents">{{ en ? 'Agents' : 'Agentes' }}</option>
+            </select>
+          </div>
+          <div class="mt-2 max-h-56 space-y-1 overflow-y-auto">
+            <div v-for="item in filteredLegacy" :key="item.sourceGroup + item.id" class="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-[var(--dh-card-hover)]">
+              <div class="min-w-0">
+                <p class="truncate text-xs font-semibold">{{ item.name }}</p>
+                <p class="text-[11px] text-[var(--dh-text-muted)]">{{ item.sourceGroup === 'carriers' ? 'Naviera' : 'Agente' }}</p>
+              </div>
+              <button type="button" :disabled="Boolean(importBusy)" @click="importLegacy(item)"
+                class="shrink-0 rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--dh-primary)] disabled:opacity-50">
+                {{ importBusy === item.id ? '…' : (en ? 'Import' : 'Importar') }}
+              </button>
             </div>
           </div>
-          <div v-if="loading" class="px-5 py-12 text-center text-sm text-[var(--dh-text-muted)]">{{ t('common.loading') }}</div>
-          <div v-else-if="!filteredSuppliers.length" class="flex flex-col items-center px-5 py-14 text-center">
-            <FolderOpen class="h-8 w-8 text-[var(--dh-text-muted)]" />
-            <p class="mt-3 text-sm font-semibold">{{ en ? 'No suppliers found' : 'No se encontraron proveedores' }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Adjust the filters or create a supplier.' : 'Cambiá los filtros o registrá un proveedor.' }}</p>
-          </div>
-          <div v-else class="divide-y divide-[var(--dh-border)]">
-            <button v-for="item in filteredSuppliers" :key="item.id" type="button"
-              :aria-pressed="selected?.id === item.id"
-              class="flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-[var(--dh-card-hover)] sm:px-5"
-              :class="selected?.id === item.id ? 'bg-[var(--dh-card-hover)]' : ''" @click="openDetails(item)">
-              <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-[var(--dh-primary)]">
+        </details>
+      </section>
+
+      <DhDrawer :open="detailsVisible && !!selected" :title="selected?.name || (en ? 'Supplier details' : 'Detalle del proveedor')"
+        size="lg" @close="closeDetails">
+        <div v-if="selected" class="space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] pb-4">
+            <div class="flex items-center gap-3">
+              <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-[var(--dh-primary)]">
                 <Building2 class="h-5 w-5" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-extrabold">{{ item.name }}</p>
-                <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ supplierCategories(item).map(typeLabel).join(' · ') }}</p>
-              </div>
-              <span class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                :class="item.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-[var(--dh-text-muted)]'">
-                {{ en ? (item.isActive ? 'Active' : 'Inactive') : (item.isActive ? 'Activo' : 'Inactivo') }}
               </span>
+              <div>
+                <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ en ? 'Supplier' : 'Proveedor' }}</p>
+                <p class="text-sm font-bold">{{ selected.name }}</p>
+              </div>
+            </div>
+            <button v-if="canEditSuppliers" type="button"
+              class="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] px-3 text-sm font-bold hover:border-[var(--dh-primary)]"
+              @click="openEdit(selected)">
+              <Pencil class="h-4 w-4" />{{ en ? 'Edit supplier' : 'Editar proveedor' }}
             </button>
           </div>
-          <details v-if="canCreateSuppliers && pendingLegacy.length" class="border-t border-[var(--dh-border)] px-4 py-4 sm:px-5">
-            <summary class="cursor-pointer text-xs font-semibold text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]">
-              {{ en ? 'Import existing suppliers' : 'Importar proveedores existentes' }} ({{ pendingLegacy.length }})
-            </summary>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <input v-model="legacyQuery" type="search" :aria-label="en ? 'Search imports' : 'Buscar importaciones'"
-                :placeholder="en ? 'Search...' : 'Buscar...'"
-                class="min-w-0 flex-1 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-xs" />
-              <select v-model="legacyGroup" class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-xs">
-                <option value="all">{{ en ? 'All' : 'Todos' }}</option>
-                <option value="carriers">{{ en ? 'Carriers' : 'Navieras' }}</option>
-                <option value="agents">{{ en ? 'Agents' : 'Agentes' }}</option>
-              </select>
+          <dl class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-1">
+              <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Categories' : 'Categorías' }}</dt>
+              <dd class="flex flex-wrap gap-1.5">
+                <span v-for="cat in supplierCategories(selected)" :key="cat"
+                  class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.1)] px-2.5 py-1 text-xs font-semibold text-[var(--dh-primary)]">{{ typeLabel(cat) }}</span>
+              </dd>
             </div>
-            <div class="mt-2 max-h-56 space-y-1 overflow-y-auto">
-              <div v-for="item in filteredLegacy" :key="item.sourceGroup + item.id" class="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-[var(--dh-card-hover)]">
-                <div class="min-w-0">
-                  <p class="truncate text-xs font-semibold">{{ item.name }}</p>
-                  <p class="text-[11px] text-[var(--dh-text-muted)]">{{ item.sourceGroup === 'carriers' ? 'Naviera' : 'Agente' }}</p>
-                </div>
-                <button type="button" :disabled="Boolean(importBusy)" @click="importLegacy(item)"
-                  class="shrink-0 rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--dh-primary)] disabled:opacity-50">
-                  {{ importBusy === item.id ? '…' : (en ? 'Import' : 'Importar') }}
-                </button>
+            <div class="space-y-1">
+              <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Status' : 'Estado' }}</dt>
+              <dd class="text-sm font-semibold">{{ en ? (selected.isActive ? 'Active' : 'Inactive') : (selected.isActive ? 'Activo' : 'Inactivo') }}</dd>
+            </div>
+            <div class="space-y-1 sm:col-span-2">
+              <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Countries' : 'Países' }}</dt>
+              <dd class="text-sm font-semibold">{{ supplierCountries(selected) }}</dd>
+            </div>
+          </dl>
+          <section class="border-t border-[var(--dh-border)] pt-4">
+            <h3 class="mb-3 text-sm font-bold">{{ en ? 'Contacts' : 'Contactos' }}
+              <span class="font-normal text-[var(--dh-text-muted)]">({{ supplierContacts(selected).length }})</span>
+            </h3>
+            <div v-if="supplierContacts(selected).length" class="grid gap-2 sm:grid-cols-2">
+              <div v-for="(contact, index) in supplierContacts(selected)" :key="index" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs">
+                <p class="font-bold">{{ contact.name }}<span v-if="contact.role" class="font-normal text-[var(--dh-text-muted)]"> · {{ contact.role }}</span></p>
+                <a v-if="contact.email" :href="'mailto:' + contact.email" class="mt-2 block break-all text-[var(--dh-primary)] hover:underline">{{ contact.email }}</a>
+                <a v-if="contact.phone" :href="'tel:' + contact.phone" class="mt-1 block text-[var(--dh-text-muted)] hover:underline">{{ contact.phone }}</a>
+              </div>
+            </div>
+            <p v-else class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'No contacts registered.' : 'No hay contactos registrados.' }}</p>
+          </section>
+          <section v-if="selected.description" class="border-t border-[var(--dh-border)] pt-4">
+            <h3 class="mb-2 text-sm font-bold">{{ en ? 'Description' : 'Descripción' }}</h3>
+            <p class="whitespace-pre-wrap text-sm text-[var(--dh-text-muted)]">{{ selected.description }}</p>
+          </section>
+          <details v-if="supplierContracts.length || supplierEvaluations.length"
+            class="border-t border-[var(--dh-border)] pt-4">
+            <summary class="cursor-pointer text-sm font-semibold">{{ en ? 'Commercial history' : 'Historial comercial' }}</summary>
+            <div v-if="supplierContracts.length" class="mt-3 space-y-2">
+              <h3 class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Agreements' : 'Acuerdos' }}</h3>
+              <div v-for="item in supplierContracts" :key="item.id" class="rounded-lg border border-[var(--dh-border)] p-3">
+                <p class="text-xs font-semibold">{{ item.name }}</p>
+                <p v-if="item.expiresAt" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Expires' : 'Vence' }}: {{ item.expiresAt }}</p>
+              </div>
+            </div>
+            <div v-if="supplierEvaluations.length" class="mt-3 space-y-2">
+              <h3 class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Reviews' : 'Evaluaciones' }}</h3>
+              <div v-for="item in supplierEvaluations" :key="item.id"
+                class="flex items-center justify-between gap-3 rounded-lg border border-[var(--dh-border)] p-3 text-xs">
+                <span>{{ item.name }}</span><strong>{{ item.score ?? '—' }} / 5</strong>
               </div>
             </div>
           </details>
-        </section>
-        <aside class="min-w-0 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
-          <template v-if="selected">
-            <div class="flex items-start justify-between gap-3 border-b border-[var(--dh-border)] px-5 py-5">
-              <div class="min-w-0">
-                <p class="text-[11px] font-bold uppercase tracking-widest text-[var(--dh-text-muted)]">{{ en ? 'Supplier' : 'Proveedor' }}</p>
-                <h2 class="mt-1 break-words text-xl font-extrabold">{{ selected.name }}</h2>
-              </div>
-              <div class="flex shrink-0 gap-2">
-                <button v-if="canEditSuppliers" type="button"
-                  class="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 text-xs font-bold hover:border-[var(--dh-primary)]"
-                  @click="openEdit(selected)"><Pencil class="h-3.5 w-3.5" />{{ en ? 'Edit' : 'Editar' }}</button>
-                <button type="button" :aria-label="t('common.close')" @click="selected = null"
-                  class="grid h-9 w-9 place-items-center rounded-lg border border-[var(--dh-border)]"><X class="h-4 w-4" /></button>
-              </div>
-            </div>
-            <div class="space-y-5 p-5">
-              <dl class="space-y-4">
-                <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ en ? 'Categories' : 'Categorías' }}</dt>
-                  <dd class="flex flex-wrap gap-1.5"><span v-for="cat in supplierCategories(selected)" :key="cat"
-                    class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.1)] px-2.5 py-1 text-xs font-semibold text-[var(--dh-primary)]">{{ typeLabel(cat) }}</span></dd>
-                </div>
-                <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ en ? 'Countries' : 'Países' }}</dt>
-                  <dd class="text-sm font-semibold">{{ supplierCountries(selected) }}</dd></div>
-              </dl>
-              <div v-if="supplierContacts(selected).length" class="border-t border-[var(--dh-border)] pt-4">
-                <h3 class="mb-2 text-sm font-bold">{{ en ? 'Contacts' : 'Contactos' }}</h3>
-                <div v-for="(contact, index) in supplierContacts(selected)" :key="index" class="py-2 text-xs">
-                  <p class="font-semibold">{{ contact.name }}<span v-if="contact.role" class="text-[var(--dh-text-muted)]"> · {{ contact.role }}</span></p>
-                  <p v-if="contact.email" class="mt-1 text-[var(--dh-text-muted)]">{{ contact.email }}</p>
-                  <p v-if="contact.phone" class="mt-1 text-[var(--dh-text-muted)]">{{ contact.phone }}</p>
-                </div>
-              </div>
-              <div v-if="selected.description" class="border-t border-[var(--dh-border)] pt-4">
-                <h3 class="mb-1 text-sm font-bold">{{ en ? 'Description' : 'Descripción' }}</h3>
-                <p class="whitespace-pre-wrap text-sm text-[var(--dh-text-muted)]">{{ selected.description }}</p>
-              </div>
-              <details v-if="supplierContracts.length || supplierEvaluations.length"
-                class="border-t border-[var(--dh-border)] pt-4">
-                <summary class="cursor-pointer text-sm font-semibold">{{ en ? 'Commercial history' : 'Historial comercial' }}</summary>
-                <div v-if="supplierContracts.length" class="mt-3 space-y-2">
-                  <h3 class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Agreements' : 'Acuerdos' }}</h3>
-                  <div v-for="item in supplierContracts" :key="item.id" class="rounded-lg border border-[var(--dh-border)] p-3">
-                    <p class="text-xs font-semibold">{{ item.name }}</p>
-                    <p v-if="item.expiresAt" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Expires' : 'Vence' }}: {{ item.expiresAt }}</p>
-                  </div>
-                </div>
-                <div v-if="supplierEvaluations.length" class="mt-3 space-y-2">
-                  <h3 class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Reviews' : 'Evaluaciones' }}</h3>
-                  <div v-for="item in supplierEvaluations" :key="item.id"
-                    class="flex items-center justify-between gap-3 rounded-lg border border-[var(--dh-border)] p-3 text-xs">
-                    <span>{{ item.name }}</span><strong>{{ item.score ?? '—' }} / 5</strong>
-                  </div>
-                </div>
-              </details>
-            </div>
-          </template>
-          <div v-else class="flex min-h-[340px] flex-col items-center justify-center px-6 py-10 text-center">
-            <Building2 class="h-9 w-9 text-[var(--dh-text-muted)]" />
-            <p class="mt-3 text-sm font-bold">{{ en ? 'Select a supplier' : 'Seleccioná un proveedor' }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Choose a company to see its details.' : 'Elegí una empresa para ver sus datos.' }}</p>
-          </div>
-        </aside>
-      </div>
+        </div>
+      </DhDrawer>
       <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
         size="xl" @close="closeForm">
         <form class="grid gap-4 md:grid-cols-2" @submit.prevent="saveSupplier">
