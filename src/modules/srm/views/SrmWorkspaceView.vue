@@ -87,9 +87,6 @@ const resolvedSupplierType = computed(() =>
 const validSupplierType = computed(() =>
   resolvedSupplierType.value.length > 0 && resolvedSupplierType.value.length <= 60)
 const supplierDescription = ref('')
-const contactName = ref('')
-const contactEmail = ref('')
-const contactPhone = ref('')
 type SupplierContact = { name: string; email: string; phone: string; role: string }
 const contacts = ref<SupplierContact[]>([])
 const shipmentModes = ref<string[]>([])
@@ -227,9 +224,6 @@ function resetForm() {
   supplierType.value = ''
   customSupplierType.value = ''
   supplierDescription.value = ''
-  contactName.value = ''
-  contactEmail.value = ''
-  contactPhone.value = ''
   contacts.value = []
   shipmentModes.value = []
   score.value = 5
@@ -258,9 +252,6 @@ function openEdit(item: Supplier) {
   }
   supplierDescription.value = item.description || ''
   const info = metadata(item)
-  contactName.value = String(info.contactName || '')
-  contactEmail.value = String(info.contactEmail || '')
-  contactPhone.value = String(info.contactPhone || '')
   contacts.value = supplierContacts(item)
   shipmentModes.value = Array.isArray(info.shipmentModes) ?
     info.shipmentModes.filter((mode): mode is string =>
