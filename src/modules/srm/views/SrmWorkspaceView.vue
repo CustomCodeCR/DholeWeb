@@ -58,44 +58,21 @@ const category = ref('all')
 const supplierId = ref('')
 const supplierName = ref('')
 const supplierType = ref<string[]>([])
-const customSupplierType = ref('')
-const supplierTypes = ref<CatalogItemDto[]>([])
-const fallbackTypes = [
+const categoryOptions = [
+  { value: 'agent', label: 'Agente' },
+  { value: 'coloader', label: 'Coloader' },
+  { value: 'road', label: 'Transportista' },
   { value: 'carrier', label: 'Naviera' },
-  { value: 'agent', label: 'Agente de carga' },
-  { value: 'road', label: 'Transportista terrestre' },
   { value: 'airline', label: 'Aerolínea' },
-  { value: 'customs-foreign', label: 'Agencia aduanal extranjera' },
-  { value: 'bonded-warehouse-foreign', label: 'Almacén fiscal extranjero' },
   { value: 'sister-company', label: 'Empresa hermana' },
-  { value: 'coloader', label: 'Coloader / consolidador' },
-  { value: 'warehouse', label: 'Almacenaje' },
-  { value: 'insurance', label: 'Seguros' },
-  { value: 'other', label: 'Otros servicios' },
+  { value: 'other', label: 'Otros' },
 ]
-const typeOptions = computed(() => {
-  const values = new Map(fallbackTypes.map(item => [item.value, item.label]))
-  for (const item of supplierTypes.value) if (item.isActive) values.set(item.slug, item.name)
-  for (const item of suppliers.value)
-    for (const type of supplierCategories(item))
-      if (!values.has(type)) values.set(type, type)
-  return [...values].map(([value, label]) => ({ value, label }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'es'))
-})
+const categoryValues = new Set(categoryOptions.map(option => option.value))
 const typeLabel = (value: string) =>
-  typeOptions.value.find(item => item.value === value)?.label || value
-const categoryOptions = computed(() => [
-  ...typeOptions.value,
-  { value: '__custom__', label: en.value ? 'Other supplier category…' : 'Otra categoría de proveedor…' },
-])
-const resolvedSupplierTypes = computed(() => [...new Set([
-  ...supplierType.value.filter(value => value !== '__custom__'),
-  ...(supplierType.value.includes('__custom__') ? [customSupplierType.value] : []),
-].map(value => value.trim().toLowerCase()).filter(Boolean))])
-const validSupplierType = computed(() =>
-  resolvedSupplierTypes.value.length > 0 &&
-  resolvedSupplierTypes.value.every(value => value.length <= 60) &&
-  (!supplierType.value.includes('__custom__') || !!customSupplierType.value.trim()))
+  categoryOptions.find(item => item.value === value)?.label || 'Otros'
+const resolvedSupplierTypes = computed(() =>
+  [...new Set(supplierType.value.filter(value => categoryValues.has(value)))])
+const validSupplierType = computed(() => resolvedSupplierTypes.value.length > 0)
 const supplierDescription = ref('')
 type SupplierContact = { name: string; email: string; phone: string; role: string }
 const contacts = ref<SupplierContact[]>([])
@@ -155,15 +132,38 @@ function metadata(row: CatalogItemDto): Record<string, unknown> {
     return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj as Record<string, unknown> : {}
   } catch { return {} }
 }
-function supplierCategories(row: CatalogItemDto): string[] {
+function normalizeSupplierCategory(value: string): string {
+  const slug = value.trim().toLowerCase()
+  // Preserve existing internal slugs for Pricing and map former specific types to "Otros".
+  const aliases: Record<string, string> = {
+    transportista: 'road',
+    transporter: 'road',
+    'road-carrier': 'road',
+    'transportista-terrestre': 'road',
+    naviera: 'carrier',
+    agente: 'agent',
+    'agente-de-carga': 'agent',
+    aerolinea: 'airline',
+    'aerolínea': 'airline',
+    'empresa-hermana': 'sister-company',
+    consolidador: 'coloader',
+    otros: 'other',
+  }
+  const resolved = aliases[slug] || slug
+  return categoryValues.has(resolved) ? resolved : 'other'
+}
+function rawSupplierCategories(row: CatalogItemDto): string[] {
   const info = metadata(row)
-  if (Array.isArray(info.supplierTypes)) {
+  if (Array.isArray(info.supplierTypes) && info.supplierTypes.length) {
     const types = info.supplierTypes.filter((type): type is string =>
       typeof type === 'string' && !!type.trim())
     if (types.length) return [...new Set(types)]
   }
   return typeof info.supplierType === 'string' && info.supplierType.trim()
     ? [info.supplierType] : ['other']
+}
+function supplierCategories(row: CatalogItemDto): string[] {
+  return [...new Set(rawSupplierCategories(row).map(normalizeSupplierCategory))]
 }
 function supplierCategory(row: CatalogItemDto) {
   return supplierCategories(row)[0] || 'other'
@@ -235,8 +235,6 @@ async function load() {
     try {
       legacyPartners.value = await SrmApi.legacyPartners()
     } catch { legacyPartners.value = [] }
-    try { supplierTypes.value = await SrmApi.listTypes() }
-    catch { supplierTypes.value = [] }
     // These catalogs are optional until the first record is created by a Config administrator.
     let index = 1
     if (auth.hasScope('srm.performance.read') || auth.hasScope('srm.performance.manage')) {
@@ -256,7 +254,6 @@ function resetForm() {
   supplierId.value = ''
   supplierName.value = ''
   supplierType.value = []
-  customSupplierType.value = ''
   supplierDescription.value = ''
   contacts.value = []
   shipmentModes.value = []
@@ -306,12 +303,20 @@ async function saveSupplier() {
   error.value = ''
   try {
     const retained = editing.value ? metadata(editing.value) : {}
+    const previousTypes = editing.value ? rawSupplierCategories(editing.value) : []
+    const previousSpecificTypes = previousTypes.filter(type =>
+      !categoryValues.has(type.trim().toLowerCase()))
     const selectedTypes = resolvedSupplierTypes.value
     const selectedCountries = [...new Set(countryIds.value)]
     const metadataJson = JSON.stringify({
       ...retained,
       supplierType: selectedTypes[0] || null,
       supplierTypes: selectedTypes,
+      // Keep the previous detailed classification for reference, never as a selectable category.
+      ...(previousSpecificTypes.length ? { legacySupplierTypes:
+        [...new Set([...(Array.isArray(retained.legacySupplierTypes)
+          ? retained.legacySupplierTypes.filter((item): item is string => typeof item === 'string') : []),
+          ...previousSpecificTypes])] } : {}),
       shipmentModes: [...new Set(shipmentModes.value)],
       contacts: contacts.value.map(contact => ({
         name: contact.name.trim(), email: contact.email.trim(),
@@ -704,11 +709,6 @@ onMounted(() => {
               :placeholder="en ? 'Select categories' : 'Seleccionar categorías'"
               :search-placeholder="en ? 'Search categories...' : 'Buscar categorías...'" />
           </div>
-          <label v-if="supplierType.includes('__custom__')" class="text-sm font-semibold">{{ en ? 'Specify another category' : 'Especificar otra categoría' }}
-            <input v-model="customSupplierType" required maxlength="60" placeholder="Ej. Empresa de inspección de carga"
-              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Se guardará con el proveedor en el catálogo SRM y podrás reutilizarlo con otros proveedores.</span>
-          </label>
           <div class="min-w-0 md:col-span-2">
             <DhMultiSelect v-model="shipmentModes" :options="modeOptions"
               :label="en ? 'Shipment modes *' : 'Modalidades *'"
