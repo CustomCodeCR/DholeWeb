@@ -111,7 +111,18 @@ function targetName(value: ApprovedTarget): string {
   if (value.code === 'pricing-rate-create') return 'Crear tarifa'
   if (value.code === 'pricing-rate-update') return 'Actualizar tarifa por ID'
   if (value.code === 'pricing-rate-delete') return 'Eliminar tarifas por ID'
-  return value.description || value.path
+  return value.description || 'Función del módulo'
+}
+function targetHelp(value: ApprovedTarget): string {
+  switch (value.code) {
+    case 'pricing-usd-crc': return 'Compartir el precio de compra y venta del dólar.'
+    case 'pricing-rate-detail': return 'El tercero consulta una tarifa indicando su identificador.'
+    case 'pricing-rates-list': return 'El tercero consulta una lista de tarifas disponibles para su acceso.'
+    case 'pricing-rate-create': return 'El tercero envía los datos para registrar una nueva tarifa.'
+    case 'pricing-rate-update': return 'El tercero envía cambios a una tarifa existente.'
+    case 'pricing-rate-delete': return 'El tercero solicita eliminar tarifas por identificador.'
+    default: return 'Compartir esta función con un sistema externo.'
+  }
 }
 function initialOutputs(code: string): Mapping[] {
   if (code === 'pricing-usd-crc') return [
@@ -137,6 +148,7 @@ function create() {
   keyName.value = ''
   error.value = ''
   notice.value = ''
+  pickOnlyAvailableAction()
   drawer.value = true
 }
 function edit(row: PublishedEndpoint) {
@@ -154,17 +166,31 @@ function edit(row: PublishedEndpoint) {
   drawer.value = true
   void loadKeys(row.id)
 }
+function pickOnlyAvailableAction() {
+  const matches = catalog.value.filter(t => t.service === service.value && t.method === method.value)
+  if (matches.length === 1) chooseTarget(matches[0]!)
+}
 function chooseMethod(value: HttpMethod) {
+  if (method.value === value) return
   method.value = value
   draft.value.target = ''
   draft.value.inputs = []
   draft.value.outputs = []
+  pickOnlyAvailableAction()
 }
 function chooseService(value: string | number) {
+  if (service.value === String(value)) return
   service.value = String(value)
   draft.value.target = ''
   draft.value.inputs = []
   draft.value.outputs = []
+  pickOnlyAvailableAction()
+}
+function renameField(kind: 'inputs' | 'outputs', index: number, value: string) {
+  const field = draft.value[kind][index]
+  if (!field) return
+  if (!field.internal || field.internal === field.public) field.internal = value
+  field.public = value
 }
 function chooseTarget(target: ApprovedTarget) {
   if (draft.value.target === target.code) return
@@ -419,11 +445,11 @@ onMounted(() => { void load() })
                 </button>
               </div>
             </div>
-            <div>
-              <h3 class="font-bold">Seleccioná la función</h3>
-              <p class="text-xs text-[var(--dh-text-muted)]">Las operaciones disponibles corresponden a funciones reales del módulo.</p>
+            <div v-if="operations.length > 1">
+              <h3 class="font-bold">¿Qué información querés compartir?</h3>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Elegí lo que necesita consultar el otro sistema. Dhole se ocupa de la conexión.</p>
             </div>
-            <div v-if="operations.length" class="grid gap-2">
+            <div v-if="operations.length > 1" class="grid gap-2">
               <button v-for="item in operations" :key="item.code" type="button"
                 class="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--dh-primary)]"
                 :class="draft.target === item.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
@@ -433,13 +459,19 @@ onMounted(() => { void load() })
                 </span>
                 <span class="min-w-0 flex-1">
                   <span class="block font-semibold">{{ targetName(item) }}</span>
-                  <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ item.description }}</span>
-                  <code class="mt-1 block break-all text-xs text-[var(--dh-text-muted)]">{{ item.method }} {{ item.path }}</code>
+                  <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ targetHelp(item) }}</span>
                 </span>
               </button>
             </div>
+            <div v-else-if="operations.length === 1" class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] p-4">
+              <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+              <div>
+                <strong class="block">{{ targetName(operations[0]!) }}</strong>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ targetHelp(operations[0]!) }} No tenés que configurar nada técnico.</p>
+              </div>
+            </div>
             <div v-else class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-sm text-[var(--dh-text-muted)]">
-              No hay funciones {{ method }} aprobadas para este módulo. No se creará una ruta ficticia: primero debe existir una función interna permitida en Gateway.
+              Esta acción todavía no está disponible en el módulo seleccionado. Probá otra combinación.
             </div>
           </section>
         </template>
@@ -463,6 +495,9 @@ onMounted(() => { void load() })
               </div>
               <p v-if="selectedTarget?.path.includes('{id}')" class="mt-2 text-xs text-[var(--dh-text-muted)]">El valor {id} se reemplaza por el identificador real del registro.</p>
             </div>
+            <button type="button" class="text-left text-xs font-semibold text-[var(--dh-primary)]" @click="advanced = !advanced">
+              {{ advanced ? 'Ocultar configuración avanzada' : 'Mostrar configuración avanzada' }}
+            </button>
           </section>
           <section class="space-y-3 border-t border-[var(--dh-border)] pt-4">
             <div class="flex flex-wrap items-center justify-between gap-2">
@@ -476,9 +511,9 @@ onMounted(() => { void load() })
             <div v-if="!draft.inputs.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
               No hay campos definidos. {{ method === 'GET' ? 'Podés dejarlo así si no requiere filtros.' : 'Si la función requiere un cuerpo JSON, añadí sus campos o pegá un ejemplo.' }}
             </div>
-            <div v-for="(field, i) in draft.inputs" :key="'in-' + i" class="grid items-end gap-2 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-[1fr_1fr_auto_auto]">
-              <DhInput v-model="field.public" label="Dato del tercero" placeholder="clienteId" />
-              <DhInput v-model="field.internal" label="Campo en Dhole" placeholder="clientId" />
+            <div v-for="(field, i) in draft.inputs" :key="'in-' + i" class="grid items-end gap-2 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <DhInput :model-value="field.public" label="Dato que recibe" placeholder="clienteId" @update:model-value="renameField('inputs', i, String($event))" />
+              <DhInput v-if="advanced" v-model="field.internal" label="Nombre dentro de Dhole" placeholder="clientId" />
               <DhCheckbox v-model="field.required" label="Requerido" />
               <DhButton variant="ghost" :icon="Trash2" size="sm" label="Quitar" @click="removeField('inputs', i)" />
             </div>
@@ -489,14 +524,11 @@ onMounted(() => { void load() })
               <DhButton variant="secondary" size="sm" :icon="Plus" label="Añadir campo" @click="addField('outputs')" />
             </div>
             <div v-if="method !== 'GET' && !draft.outputs.length" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">Opcional para {{ method }}. Si no agregás campos, la respuesta será un objeto vacío cuando el servicio devuelva JSON.</div>
-            <div v-for="(field, i) in draft.outputs" :key="'out-' + i" class="grid items-end gap-2 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-[1fr_1fr_auto]">
-              <DhInput v-model="field.public" label="Nombre público" placeholder="estado" />
-              <DhInput v-model="field.internal" label="Campo en Dhole" placeholder="status" />
+            <div v-for="(field, i) in draft.outputs" :key="'out-' + i" class="grid items-end gap-2 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <DhInput :model-value="field.public" label="Dato que devuelve" placeholder="estado" @update:model-value="renameField('outputs', i, String($event))" />
+              <DhInput v-if="advanced" v-model="field.internal" label="Nombre dentro de Dhole" placeholder="status" />
               <DhButton variant="ghost" :icon="Trash2" size="sm" label="Quitar" @click="removeField('outputs', i)" />
             </div>
-            <button type="button" class="text-left text-xs font-semibold text-[var(--dh-primary)]" @click="advanced = !advanced">
-              {{ advanced ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas' }}
-            </button>
             <div v-if="advanced" class="rounded-xl border border-[var(--dh-border)] p-3">
               <DhInput v-model="draft.responseRoot" label="Ubicación de los datos en el JSON (opcional)" placeholder="data.items" />
               <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Usalo si la respuesta del servicio viene dentro de una propiedad, por ejemplo data o data.items.</p>
@@ -522,7 +554,7 @@ onMounted(() => { void load() })
               <span>La API se guarda inicialmente como borrador. Para publicarla necesitás una identidad técnica limitada al cliente y a la operación seleccionada. Los campos de salida no sustituyen los permisos de acceso por cliente.</span>
             </div>
             <div v-if="!ready" class="rounded-xl border border-amber-500/50 p-3 text-xs">
-              Esta función todavía no tiene configurada su credencial interna. Podés guardar la ruta, pero no publicarla ni usarla desde un tercero.
+              La conexión de esta operación todavía no está lista. Podés guardar tu API, pero un administrador debe habilitarla antes de compartirla.
             </div>
           </section>
           <section v-if="draft.id" class="space-y-4 border-t border-[var(--dh-border)] pt-4">
