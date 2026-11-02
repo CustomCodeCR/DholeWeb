@@ -67,7 +67,7 @@ const catalogs = usePricingCatalogs()
 type CostPayee = { supplierId: string | null; supplierName: string | null;
   supplierCode: string | null; supplierType: string | null }
 type PricingPayeeOption = { id: string; name: string; code: string;
-  isActive: boolean; supplierType: string; shipmentModes: string[] }
+  isActive: boolean; supplierType: string }
 const suppliers = ref<PricingPayeeOption[]>([])
 const supplierLoadError = ref('')
 const payeeLoadError = ref('')
@@ -77,9 +77,8 @@ const existingPayee = ref<CostPayee | null>(null)
 let persistedCostId = props.cost?.id ?? ''
 const payeeOptions = computed(() => [
   { value: '', label: 'Sin proveedor asignado' },
-  ...suppliers.value.filter(row => row.isActive &&
-      (!concreteShipmentModes.value.length || !row.shipmentModes.length ||
-        row.shipmentModes.some(mode => concreteShipmentModes.value.includes(mode as ShipmentMode))))
+  // SRM suppliers are no longer assigned shipment modes; any active supplier can be paid.
+  ...suppliers.value.filter(row => row.isActive)
     .map(row => ({ value: row.id, label: row.name })),
   ...(existingPayee.value?.supplierId &&
      !suppliers.value.some(row => row.id === existingPayee.value?.supplierId)
