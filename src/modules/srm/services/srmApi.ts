@@ -22,6 +22,11 @@ export interface SrmLegacyPartner {
 const base = '/api/config/srm'
 
 export const SrmApi = {
+  // Config-owned classification catalog, read via SRM-only permissions.
+  async listTypes(): Promise<CatalogItemDto[]> {
+    const response = await fetchClient<unknown>(base + '/supplier-types', { method: 'GET' })
+    return unwrapListResponse<CatalogItemDto>(response)
+  },
   async legacyPartners(): Promise<SrmLegacyPartner[]> {
     return fetchClient<SrmLegacyPartner[]>(base + '/legacy-partners', { method: 'GET' })
   },

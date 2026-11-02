@@ -22,9 +22,7 @@ const auth = useAuthStore()
 const { t, locale } = useI18n()
 const section = computed(() => String(route.meta.srmSection || 'dashboard') as SrmSection)
 const en = computed(() => locale.value === 'en')
-const heading = computed(() => section.value === 'performance' ? t('srm.performance')
-  : section.value === 'contracts' ? t('srm.contracts')
-  : section.value === 'suppliers' ? t('srm.suppliers') : t('srm.dashboard'))
+const heading = computed(() => t('srm.suppliers'))
 const canReadSuppliers = computed(() => auth.hasScope('srm.supplier.read'))
 const canCreateSuppliers = computed(() => auth.hasScope('srm.supplier.create'))
 const canEditSuppliers = computed(() => auth.hasScope('srm.supplier.update'))
@@ -38,12 +36,6 @@ const canWriteSection = computed(() => section.value === 'performance'
   ? auth.hasScope('srm.performance.manage')
   : section.value === 'contracts'
     ? auth.hasScope('srm.contract.manage') : canCreateSuppliers.value)
-const sections = [
-  { path: '/srm', value: 'dashboard', label: 'srm.dashboard', icon: Building2 },
-  { path: '/srm/suppliers', value: 'suppliers', label: 'srm.suppliers', icon: Truck },
-  { path: '/srm/performance', value: 'performance', label: 'srm.performance', icon: ClipboardCheck },
-  { path: '/srm/contracts', value: 'contracts', label: 'srm.contracts', icon: FileSignature },
-] as const
 
 const loading = ref(false)
 const saving = ref(false)
@@ -64,7 +56,36 @@ const query = ref('')
 const category = ref('all')
 const supplierId = ref('')
 const supplierName = ref('')
-const supplierType = ref('road')
+const supplierType = ref('')
+const customSupplierType = ref('')
+const supplierTypes = ref<CatalogItemDto[]>([])
+const fallbackTypes = [
+  { value: 'carrier', label: 'Naviera' },
+  { value: 'agent', label: 'Agente de carga' },
+  { value: 'road', label: 'Transportista terrestre' },
+  { value: 'airline', label: 'Aerolínea' },
+  { value: 'customs-foreign', label: 'Agencia aduanal extranjera' },
+  { value: 'bonded-warehouse-foreign', label: 'Almacén fiscal extranjero' },
+  { value: 'sister-company', label: 'Empresa hermana' },
+  { value: 'coloader', label: 'Coloader / consolidador' },
+  { value: 'warehouse', label: 'Almacenaje' },
+  { value: 'insurance', label: 'Seguros' },
+  { value: 'other', label: 'Otros servicios' },
+]
+const typeOptions = computed(() => {
+  const values = new Map(fallbackTypes.map(item => [item.value, item.label]))
+  for (const item of supplierTypes.value) if (item.isActive) values.set(item.slug, item.name)
+  for (const item of suppliers.value)
+    if (!values.has(item.category)) values.set(item.category, item.category)
+  return [...values].map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'))
+})
+const typeLabel = (value: string) =>
+  typeOptions.value.find(item => item.value === value)?.label || value
+const resolvedSupplierType = computed(() =>
+  (supplierType.value === '__custom__' ? customSupplierType.value : supplierType.value).trim().toLowerCase())
+const validSupplierType = computed(() =>
+  resolvedSupplierType.value.length > 0 && resolvedSupplierType.value.length <= 60)
 const supplierDescription = ref('')
 const contactName = ref('')
 const contactEmail = ref('')
@@ -117,7 +138,8 @@ const filteredLegacy = computed(() => pendingLegacy.value.filter(x =>
   (legacyGroup.value === 'all' || legacyGroup.value === x.sourceGroup) &&
   [x.name, x.code].some(value => value.toLocaleLowerCase().includes(legacyQuery.value.trim().toLocaleLowerCase()))))
 const importedLegacy = computed(() => legacyPartners.value.filter(x => x.imported).length)
-const categories = computed(() => [...new Set(suppliers.value.map(item => item.category))].sort())
+const categories = computed(() => [...new Set(suppliers.value.map(item => item.category))]
+  .sort((a, b) => typeLabel(a).localeCompare(typeLabel(b), 'es')))
 const filteredSuppliers = computed(() => suppliers.value.filter(item =>
   (category.value === 'all' || item.category === category.value) &&
   [item.name, item.code, item.description || ''].some(text => text.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))))
@@ -157,6 +179,8 @@ async function load() {
     try {
       legacyPartners.value = await SrmApi.legacyPartners()
     } catch { legacyPartners.value = [] }
+    try { supplierTypes.value = await SrmApi.listTypes() }
+    catch { supplierTypes.value = [] }
     // These catalogs are optional until the first record is created by a Config administrator.
     let index = 1
     if (auth.hasScope('srm.performance.read') || auth.hasScope('srm.performance.manage')) {
@@ -175,7 +199,8 @@ function resetForm() {
   editing.value = null
   supplierId.value = ''
   supplierName.value = ''
-  supplierType.value = 'road'
+  supplierType.value = ''
+  customSupplierType.value = ''
   supplierDescription.value = ''
   contactName.value = ''
   contactEmail.value = ''
@@ -198,7 +223,12 @@ function openEdit(item: Supplier) {
   resetForm()
   editing.value = item
   supplierName.value = item.name
-  supplierType.value = item.category
+  if (typeOptions.value.some(type => type.value === item.category)) {
+    supplierType.value = item.category
+  } else {
+    supplierType.value = '__custom__'
+    customSupplierType.value = item.category
+  }
   supplierDescription.value = item.description || ''
   const info = metadata(item)
   contactName.value = String(info.contactName || '')
@@ -212,14 +242,15 @@ function openEdit(item: Supplier) {
 function openDetails(item: Supplier) { selected.value = item; supplierTab.value = 'profile'; formVisible.value = false }
 function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
-  if (saving.value || !supplierName.value.trim() || (!canCreateSuppliers.value && !canEditSuppliers.value)) return
+  if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
+      !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
   saving.value = true
   error.value = ''
   try {
     const retained = editing.value ? metadata(editing.value) : {}
     const metadataJson = JSON.stringify({
       ...retained,
-      supplierType: supplierType.value.trim().toLowerCase() || 'other',
+      supplierType: resolvedSupplierType.value,
       contactName: contactName.value.trim(), contactEmail: contactEmail.value.trim(),
       contactPhone: contactPhone.value.trim(),
       countryId: countryId.value || null,
@@ -313,18 +344,11 @@ onMounted(() => {
         <button type="button" class="inline-flex items-center gap-2 rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--dh-card)]"
           :disabled="loading || !canReadSection" @click="load"><RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" />{{ t('srm.refresh') }}</button>
         <button v-if="canWriteSection" type="button" class="inline-flex items-center gap-2 rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90" @click="openCreate">
-          <Plus class="h-4 w-4" />{{ section === 'performance' ? (en ? 'New evaluation' : 'Nueva evaluación') : section === 'contracts' ? (en ? 'New contract' : 'Nuevo contrato') : (en ? 'New supplier' : 'Nuevo proveedor') }}
+          <Plus class="h-4 w-4" />{{ en ? 'New supplier' : 'Nuevo proveedor' }}
         </button>
       </div>
     </header>
 
-    <nav class="flex gap-2 overflow-x-auto pb-1" :aria-label="t('srm.title')">
-      <RouterLink v-for="item in sections" :key="item.path" :to="item.path"
-        class="inline-flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2.5 text-xs font-bold transition"
-        :class="section === item.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]' : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'">
-        <component :is="item.icon" class="h-4 w-4" />{{ t(item.label) }}
-      </RouterLink>
-    </nav>
 
     <div v-if="!canReadSection" role="alert" class="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
       <ShieldAlert class="h-5 w-5 shrink-0 text-amber-500" />
@@ -410,7 +434,7 @@ onMounted(() => {
               </div>
               <select v-model="category" :aria-label="t('srm.type')" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-xs font-semibold">
                 <option value="all">{{ t('srm.all') }}</option>
-                <option v-for="type in categories" :key="type" :value="type">{{ type }}</option>
+                <option v-for="type in categories" :key="type" :value="type">{{ typeLabel(type) }}</option>
               </select>
             </div>
           </div>
@@ -427,7 +451,7 @@ onMounted(() => {
                 class="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-[var(--dh-card-hover)]" @click="openDetails(row)">
                 <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-shell)]"><Building2 class="h-5 w-5 text-[var(--dh-primary)]" /></div>
                 <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ row.name }}</p>
-                  <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ row.category }} · {{ row.code }}</p></div>
+                  <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ typeLabel(row.category) }} · {{ row.code }}</p></div>
                 <span class="hidden rounded-full px-2.5 py-1 text-xs font-semibold sm:inline-flex" :class="row.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-[var(--dh-text-muted)]'">{{ t(row.isActive ? 'srm.active' : 'srm.inactive') }}</span>
                 <ArrowRight class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
               </button>
@@ -458,7 +482,7 @@ onMounted(() => {
                   <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)]/10 font-extrabold text-[var(--dh-primary)]">{{ selected.name.slice(0, 2).toUpperCase() }}</div>
                   <div class="min-w-0"><p class="text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">SRM · Ficha del proveedor</p>
                     <h2 class="mt-1 truncate text-lg font-extrabold">{{ selected.name }}</h2>
-                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ selected.category }} · {{ selected.code }}</p>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ typeLabel(selected.category) }} · {{ selected.code }}</p>
                   </div>
                 </div>
                 <div class="flex gap-2">
@@ -478,7 +502,7 @@ onMounted(() => {
                   <dl class="divide-y divide-[var(--dh-border)]">
                     <div v-for="field in [
                       {label: 'Razón social', value: selected.name},
-                      {label: 'Tipo', value: selected.category},
+                      {label: 'Tipo', value: typeLabel(selected.category)},
                       {label: 'Código', value: selected.code},
                       {label: 'País', value: countryLabel(metadata(selected).countryId)},
                       {label: 'Identificación fiscal', value: metadata(selected).taxId},
@@ -513,7 +537,7 @@ onMounted(() => {
               <div v-else-if="supplierTab === 'terms'" class="p-4">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 class="text-xs font-extrabold uppercase tracking-wider">Contratos y condiciones con el proveedor</h3>
-                  <RouterLink v-if="auth.hasScope('srm.contract.read')" to="/srm/contracts" class="text-xs font-bold text-[var(--dh-primary)]">Gestionar contratos</RouterLink>
+                  <span class="text-xs text-[var(--dh-text-muted)]">Historial vinculado al proveedor</span>
                 </div>
                 <p v-if="!supplierContracts.length" class="py-5 text-center text-xs text-[var(--dh-text-muted)]">No hay acuerdos registrados o no tiene permisos para consultarlos.</p>
                 <article v-for="contract in supplierContracts" :key="contract.id" class="mb-3 rounded-xl border border-[var(--dh-border)] p-4">
@@ -528,7 +552,7 @@ onMounted(() => {
               </div>
               <div v-else class="p-4">
                 <div class="mb-3 flex items-center justify-between"><h3 class="text-xs font-extrabold uppercase tracking-wider">Evaluación y cumplimiento</h3>
-                  <RouterLink v-if="auth.hasScope('srm.performance.read')" to="/srm/performance" class="text-xs font-bold text-[var(--dh-primary)]">Evaluaciones</RouterLink></div>
+                  <span class="text-xs text-[var(--dh-text-muted)]">Historial vinculado al proveedor</span></div>
                 <p v-if="!supplierEvaluations.length" class="py-5 text-center text-xs text-[var(--dh-text-muted)]">Todavía no hay evaluaciones registradas o autorizadas.</p>
                 <div v-for="evaluation in supplierEvaluations" :key="evaluation.id" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-3 text-xs last:border-0">
                   <span>{{ evaluation.name }}</span><strong>{{ evaluation.score ?? '—' }} / 5</strong>
@@ -607,8 +631,16 @@ onMounted(() => {
             <input v-model="supplierName" required maxlength="220" placeholder="Ej. Transportes Romo" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
           <label class="text-sm font-semibold">{{ t('srm.type') }}
-            <input v-model="supplierType" required maxlength="60" list="srm-types" placeholder="road, warehouse, agent..." class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-            <datalist id="srm-types"><option value="road" /><option value="carrier" /><option value="agent" /><option value="warehouse" /><option value="coloader" /><option value="insurance" /><option value="customs" /><option value="other" /></datalist>
+            <select v-model="supplierType" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <option value="" disabled>Seleccionar tipo de proveedor</option>
+              <option v-for="type in typeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
+              <option value="__custom__">Otro tipo de proveedor…</option>
+            </select>
+          </label>
+          <label v-if="supplierType === '__custom__'" class="text-sm font-semibold">Especificar nuevo tipo de proveedor
+            <input v-model="customSupplierType" required maxlength="60" placeholder="Ej. Empresa de inspección de carga"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Se guardará con el proveedor en el catálogo SRM y podrás reutilizarlo con otros proveedores.</span>
           </label>
           <label class="text-sm font-semibold">{{ en ? 'Country' : 'País' }}
             <select v-model="countryId" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
@@ -634,7 +666,7 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim()" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
+          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
         </form>
       </DhDrawer>
     </template>
