@@ -92,10 +92,7 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         name: 'srm-root',
         requiredScope: 'srm.supplier.read',
         children: [
-          { labelKey: 'srm.dashboard', icon: LayoutDashboard, to: '/srm', name: 'srm-home', requiredScope: 'srm.supplier.read' },
           { labelKey: 'srm.suppliers', icon: Users, to: '/srm/suppliers', name: 'srm-suppliers', requiredScope: 'srm.supplier.read' },
-          { labelKey: 'srm.performance', icon: BarChart3, to: '/srm/performance', name: 'srm-performance', requiredAllScopes: ['srm.supplier.read', 'srm.performance.read'] },
-          { labelKey: 'srm.contracts', icon: FileText, to: '/srm/contracts', name: 'srm-contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read'] },
         ],
       },
       {

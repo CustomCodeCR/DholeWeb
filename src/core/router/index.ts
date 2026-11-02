@@ -215,8 +215,8 @@ export const router = createRouter({
         {
           path: 'srm',
           name: 'srm-home',
-          component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.title', closable: true, srmSection: 'dashboard', requiredScope: 'srm.supplier.read' },
+          redirect: { name: 'srm-suppliers' },
+          meta: { requiredScope: 'srm.supplier.read' },
         },
         {
           path: 'srm/suppliers',
@@ -224,18 +224,11 @@ export const router = createRouter({
           component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
           meta: { tabTitleKey: 'srm.suppliers', closable: true, srmSection: 'suppliers', requiredScope: 'srm.supplier.read' },
         },
-        {
-          path: 'srm/performance',
-          name: 'srm-performance',
-          component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.performance', closable: true, srmSection: 'performance', requiredAllScopes: ['srm.supplier.read', 'srm.performance.read'] },
-        },
-        {
-          path: 'srm/contracts',
-          name: 'srm-contracts',
-          component: () => import('@/modules/srm/views/SrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'srm.contracts', closable: true, srmSection: 'contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read'] },
-        },
+        // Previous SRM bookmarks route into the only available workspace.
+        ...(['srm/performance', 'srm/contracts'] as const).map(path => ({
+          path, redirect: { name: 'srm-suppliers' },
+          meta: { requiredScope: 'srm.supplier.read' },
+        })),
 
         {
           path: 'auth/users',

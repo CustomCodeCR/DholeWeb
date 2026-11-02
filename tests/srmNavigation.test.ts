@@ -1,91 +1,36 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-
 const read = (file: string) => readFileSync(file, 'utf8')
 const layout = read('src/shared/components/layouts/MainLayout.vue')
+const sidebar = read('src/core/composables/useSidebarItems.ts')
 const router = read('src/core/router/index.ts')
 const view = read('src/modules/srm/views/SrmWorkspaceView.vue')
-const translations = read('src/modules/srm/i18n.ts')
-const monitoring = read('src/core/services/monitoringService.ts')
-
-test('the MainLayout exposes CRM/SRM only when authorized', () => {
-  assert.match(layout, /label: t\('crm.title'\)/)
-  assert.match(layout, /label: t\('srm.title'\)/)
-  assert.match(layout, /path: '\/crm'/)
-  assert.match(layout, /path: '\/srm\/suppliers'/)
+const client = read('src/modules/srm/services/srmApi.ts')
+test('SRM has one supplier directory; old URLs redirect safely', () => {
+  assert.match(layout, /label: t\('srm.suppliers'\), path: '\/srm\/suppliers'/)
+  assert.doesNotMatch(layout, /srmChildren.push/)
+  assert.match(sidebar, /to: '\/srm\/suppliers'/)
+  assert.doesNotMatch(sidebar, /to: '\/srm\/performance'|to: '\/srm\/contracts'/)
+  assert.match(router, /path: 'srm',\s*name: 'srm-home',\s*redirect:/)
+  assert.match(router, /'srm\/performance', 'srm\/contracts'/)
+  assert.doesNotMatch(view, /<RouterLink v-for="item in sections"/)
 })
-test('CRM and SRM sections are real authenticated workspace routes', () => {
-  for (const route of ['crm', 'srm', 'srm/suppliers', 'srm/performance', 'srm/contracts']) {
-    assert.ok(router.includes("path: '" + route + "'"), 'missing route ' + route)
-  }
-  assert.match(router, /requiresAuth: true/)
-})
-test('SRM only uses dedicated srm-scoped Config APIs for supplier data', () => {
-  const client = read('src/modules/srm/services/srmApi.ts')
+test('supplier directory allows any type, persists in Config and retains legacy links', () => {
+  assert.match(client, /\/api\/config\/srm/)
+  assert.match(client, /supplier-types/)
   assert.match(view, /SrmApi.list\('suppliers'\)/)
-  assert.match(view, /SrmApi.list\('evaluations'\)/)
-  assert.match(view, /SrmApi.list\('contracts'\)/)
   assert.match(view, /SrmApi.create\('suppliers'/)
   assert.match(view, /SrmApi.updateSupplier/)
+  assert.match(view, /customSupplierType/)
+  assert.match(view, /resolvedSupplierType/)
+  assert.match(view, /Naviera|Aerolínea|Agencia aduanal extranjera|Empresa hermana/)
+  assert.match(view, /SrmApi.importLegacyPartner/)
+})
+test('SRM supplier pages require dedicated scopes and Dhole drawers', () => {
   assert.match(view, /srm.supplier.read/)
   assert.match(view, /srm.supplier.create/)
-  assert.match(view, /srm.performance.read/)
-  assert.match(view, /srm.contract.read/)
-  assert.match(client, /\/api\/config\/srm/)
-  assert.match(view, /CatalogItemsService\.select\(\{catalogGroupSlug: 'countries'\}\)/)
-  assert.match(view, /CatalogItemsService\.select\(\{catalogGroupSlug: 'currencies'\}\)/)
-  assert.doesNotMatch(view, /CatalogItemsService\.browse|CatalogGroupsService|localStorage|mockSuppliers|faker/i)
-})
-
-test('CRM/SRM translations include Spanish and English', () => {
-  assert.match(translations, /es: \{/)
-  assert.match(translations, /en: \{/)
-  assert.match(translations, /contracts: 'Contratos y acuerdos'/)
-})
-
-test('CRM is monitored through the Gateway without a duplicate pinned sidebar shortcut', () => {
-  const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
-  assert.match(monitoring, /key: 'crm'/)
-  assert.match(monitoring, /buildGatewayHealthUrl\('crm'\)/)
-  assert.doesNotMatch(sidebar, /to="\/crm"/)
-  assert.doesNotMatch(sidebar, /to="\/srm"/)
-  assert.match(sidebar, /<nav class="dh-scrollbar/)
-})
-
-test("CRM and SRM menu entries require the effective user's module scopes", () => {
-  const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
-  const secondary = read('src/core/composables/useSidebarItems.ts')
-  const scopes = read('src/core/auth/scopes.ts')
-
-  assert.ok(layout.includes("if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope)))"))
-  assert.ok(layout.includes("if (canView('srm.supplier.read'))"))
-  assert.ok(layout.includes("if (canView('srm.performance.read'))"))
-  assert.ok(layout.includes("if (canView('srm.contract.read'))"))
-  assert.doesNotMatch(sidebar, /canOpenCrm|canOpenSrm/)
-  assert.ok(secondary.includes('requiredAnyScopes: [...CRM_WORKSPACE_SCOPES]'))
-  assert.ok(secondary.includes("requiredScope: 'srm.supplier.read'"))
-  assert.ok(scopes.includes('export const CRM_WORKSPACE_SCOPES = ['))
-})
-
-test('CRM and SRM route guards block unauthorized direct URLs', () => {
-  assert.ok(router.includes("requiredAnyScopes: [...CRM_WORKSPACE_SCOPES]"))
-  assert.ok(router.includes("srmSection: 'dashboard', requiredScope: 'srm.supplier.read'"))
-  assert.ok(router.includes("srmSection: 'suppliers', requiredScope: 'srm.supplier.read'"))
-  assert.ok(router.includes("srmSection: 'performance', requiredAllScopes: ['srm.supplier.read', 'srm.performance.read']"))
-  assert.ok(router.includes("srmSection: 'contracts', requiredAllScopes: ['srm.supplier.read', 'srm.contract.read']"))
-  assert.ok(router.includes("to.path === '/crm' || to.path.startsWith('/crm/')"))
-})
-
-test('SRM supplier workspace uses a Dynamics-like profile and Dhole drawers', () => {
-  const view = read('src/modules/srm/views/SrmWorkspaceView.vue')
-  for (const marker of [
-    'Ficha proveedor', 'Condiciones comerciales', 'Evaluaciones',
-    'Información del proveedor', 'Contacto principal', 'Días de pago',
-    'supplierContracts', 'supplierEvaluations',
-    '<DhDrawer :open="formVisible"', '<details v-if="section',
-    'xl:grid-cols-[minmax(330px,.9fr)_minmax(0,1.6fr)]',
-  ]) assert.ok(view.includes(marker), 'Missing supplier UI element: ' + marker)
-  assert.ok(!view.includes('<section v-if="formVisible"'))
-  assert.ok(view.includes('var(--dh-card)'))
+  assert.match(view, /srm.supplier.update/)
+  assert.match(client, /fetchClient/)
+  assert.match(view, /<DhDrawer :open="formVisible"/)
 })

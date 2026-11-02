@@ -355,17 +355,9 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   }
 
   if (canView('srm.supplier.read')) {
-    const srmChildren: SidebarItem[] = [
-      { label: t('srm.dashboard'), path: '/srm', icon: Home },
+    items.push({ label: t('srm.title'), icon: Truck, children: [
       { label: t('srm.suppliers'), path: '/srm/suppliers', icon: Users },
-    ]
-    if (canView('srm.performance.read')) {
-      srmChildren.push({ label: t('srm.performance'), path: '/srm/performance', icon: Gauge })
-    }
-    if (canView('srm.contract.read')) {
-      srmChildren.push({ label: t('srm.contracts'), path: '/srm/contracts', icon: FileText })
-    }
-    items.push({ label: t('srm.title'), icon: Truck, children: srmChildren })
+    ] })
   }
 
     const ownConsolidationChildren: SidebarItem[] = []
