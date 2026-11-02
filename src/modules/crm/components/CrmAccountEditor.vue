@@ -9,6 +9,7 @@ import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmPhoneInput from './CrmPhoneInput.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
+import { identificationOptionsForCountry, normalizeIdentificationType } from '../model/crmIdentification'
 import { crmPatch, crmPath, crmRequest, crmUuid, crmError, type CrmRow } from '../services/crmApi'
 
 const props = defineProps<{ account: CrmRow; open: boolean }>()
@@ -28,6 +29,19 @@ const accountDraft = reactive({
   customerTypeCode: 'cash', categoryType: 'CUSTOMER', categoryCode: 'A',
   sourceCode: '', relationshipTypeCode: '',
 })
+const countryLabels = ref<Record<string, string>>({})
+const accountIdentificationOptions = computed(() =>
+  identificationOptionsForCountry(countryLabels.value[accountDraft.countryId] || ''))
+function rememberAccountCountry(item: { value: string; label: string }) {
+  countryLabels.value = { ...countryLabels.value, [item.value]: item.label }
+}
+function updateAccountCountry(id: string) {
+  if (id !== accountDraft.countryId &&
+      !['01', '02'].includes(normalizeIdentificationType(accountDraft.taxIdTypeCode))) {
+    accountDraft.taxIdTypeCode = ''
+  }
+  accountDraft.countryId = id
+}
 type IdentityField = keyof typeof accountDraft
 // Retain historic profile fields in the PUT payload so legacy data is not cleared.
 const historicalProfileKeys = [
@@ -188,7 +202,7 @@ function resolved(data: HaciendaResult) {
   if (data.identification.replace(/[\s-]/g, '') !== accountDraft.taxId.replace(/[\s-]/g, '')) return
   accountDraft.displayName = data.name
   accountDraft.legalName = data.name
-  if (data.identificationType) accountDraft.taxIdTypeCode = data.identificationType
+  if (data.identificationType) accountDraft.taxIdTypeCode = normalizeIdentificationType(data.identificationType)
 }
 async function save() {
   if (!can('crm.account.update') || !loadedProfile.value || !canSave.value) return
@@ -271,16 +285,13 @@ async function save() {
           <div class="grid gap-4 md:grid-cols-2">
             <DhInput v-model="accountDraft.displayName" label="Nombre comercial *" />
             <DhInput v-model="accountDraft.legalName" label="Razón social *" />
-            <CrmCatalogPicker label="País" catalog-group-slug="countries" value-kind="id"
-              :model-value="accountDraft.countryId" @update:model-value="accountDraft.countryId=$event" />
+            <CrmCatalogPicker :key="props.account.id" label="País" catalog-group-slug="countries" value-kind="id"
+              :model-value="accountDraft.countryId" @resolved-label="rememberAccountCountry"
+              @update:model-value="updateAccountCountry" />
             <DhInput v-model="accountDraft.taxId" label="Identificación fiscal" />
-            <DhSelect label="Tipo de identificación" :model-value="accountDraft.taxIdTypeCode"
-              :options="[
-                {value:'01',label:'Persona física'},
-                {value:'02',label:'Persona jurídica'},
-                {value:'03',label:'DIMEX'},
-                {value:'04',label:'NITE'}
-              ]" @update:model-value="accountDraft.taxIdTypeCode=String($event)" />
+            <DhSelect label="Tipo de identificación" :model-value="normalizeIdentificationType(accountDraft.taxIdTypeCode)"
+              :disabled="!accountDraft.countryId" placeholder="Seleccionar tipo de identificación"
+              :options="accountIdentificationOptions" @update:model-value="accountDraft.taxIdTypeCode=String($event)" />
             <div class="flex flex-col justify-end"><CrmHaciendaLookup :country-id="accountDraft.countryId"
               :tax-id="accountDraft.taxId" @resolved="resolved" /></div>
           </div>
