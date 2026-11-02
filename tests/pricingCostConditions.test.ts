@@ -169,3 +169,11 @@ test('Supplier selector uses DhSelect below notes and hides internal supplier co
   assert.doesNotMatch(source, /row\.name \+ ' · ' \+ row\.code/)
   assert.doesNotMatch(source, /<select id="srm-cost-supplier"|Proveedor de pago · SRM|Independiente de la naviera o agente|acarreo pagado a Junier/)
 })
+ 
+test('SRM payee selection does not depend on shipment modes', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingCostFormDrawer.vue', import.meta.url), 'utf8')
+  const payeeOptions = source.slice(source.indexOf('const payeeOptions = computed'), source.indexOf('const selectedPayee = computed'))
+  assert.match(payeeOptions, /suppliers\.value\.filter\(row => row\.isActive\)/)
+  assert.doesNotMatch(payeeOptions, /row\.shipmentModes|concreteShipmentModes/)
+  assert.match(payeeOptions, /\.map\(row => \(\{ value: row\.id, label: row\.name \}\)\)/)
+})
