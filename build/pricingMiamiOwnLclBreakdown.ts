@@ -47,7 +47,7 @@ function enforceMiamiNvoccAMinimum() {
   const freight = rateLines.value.find((line) =>
     line.included && line.costDetailType === 'Freight'
     && ['PerChargeableCft', 'PerCft'].includes(line.chargeBasis)
-    && /LCL\\s*PROPIO|ConsolidadoId:/i.test(String(line.notes ?? ''))
+    && /LCL\s*PROPIO|ConsolidadoId:/i.test(String(line.notes ?? ''))
     && canonicalCurrencyCode(line) === 'USD',
   )
   if (!freight) return
