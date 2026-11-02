@@ -111,7 +111,7 @@ async function save() {
   if (!d.name.trim() || !/^[a-z][a-z0-9-]{2,63}$/.test(d.slug) || !d.target) {
     error.value = 'Ingresá un nombre, identificador válido y operación interna.'; return
   }
-  if (!d.outputs.length || !validFields(d.outputs) || !validFields(d.inputs)) {
+  if ((selectedTarget.value?.method === 'GET' && !d.outputs.length) || !validFields(d.outputs) || !validFields(d.inputs)) {
     error.value = 'Completá los campos de entrada y salida sin nombres duplicados.'; return
   }
   if (d.responseRoot && !/^[A-Za-z][\w.]*$/.test(d.responseRoot)) {
