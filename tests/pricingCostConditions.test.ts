@@ -164,7 +164,7 @@ test('Supplier selector uses DhSelect below notes and hides internal supplier co
   assert.ok(notes >= 0 && supplier > notes && footer > supplier)
   assert.match(source, /<DhSelect\s+v-model="payeeSupplierId"\s+label="Proveedor"/)
   assert.match(source, /:options="payeeOptions"/)
-  assert.match(source, /\{ value: '', label: 'Sin proveedor de pago asignado' \}/)
+  assert.match(source, /\{ value: '', label: 'Sin proveedor asignado' \}/)
   assert.match(source, /\.map\(row => \(\{ value: row\.id, label: row\.name \}\)\)/)
   assert.doesNotMatch(source, /row\.name \+ ' · ' \+ row\.code/)
   assert.doesNotMatch(source, /<select id="srm-cost-supplier"|Proveedor de pago · SRM|Independiente de la naviera o agente|acarreo pagado a Junier/)
