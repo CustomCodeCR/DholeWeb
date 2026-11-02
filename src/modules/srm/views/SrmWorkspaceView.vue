@@ -286,11 +286,20 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
       !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
-  if (!shipmentModes.value.length || !countryIds.value.length || !contacts.value.length ||
-      contacts.value.some(contact => !contact.name.trim())) {
+  if (!shipmentModes.value.length || !countryIds.value.length) {
     error.value = en.value
-      ? 'Select at least one category, mode, country and a contact with a name.'
-      : 'Seleccioná al menos una categoría, una modalidad, un país y un contacto con nombre.'
+      ? 'Select at least one shipment mode and country.'
+      : 'Seleccioná al menos una modalidad y un país.'
+    return
+  }
+  const filledContacts = contacts.value.map(contact => ({
+    name: contact.name.trim(), email: contact.email.trim(),
+    phone: contact.phone.trim(), role: contact.role.trim(),
+  })).filter(contact => contact.name || contact.email || contact.phone || contact.role)
+  if (filledContacts.some(contact => !contact.name)) {
+    error.value = en.value
+      ? 'Enter a name for every added contact, or remove the incomplete contact.'
+      : 'Ingresá el nombre de cada contacto agregado o eliminá el contacto incompleto.'
     return
   }
   saving.value = true
@@ -312,13 +321,10 @@ async function saveSupplier() {
           ? retained.legacySupplierTypes.filter((item): item is string => typeof item === 'string') : []),
           ...previousSpecificTypes])] } : {}),
       shipmentModes: [...new Set(shipmentModes.value)],
-      contacts: contacts.value.map(contact => ({
-        name: contact.name.trim(), email: contact.email.trim(),
-        phone: contact.phone.trim(), role: contact.role.trim(),
-      })),
-      contactName: contacts.value[0]?.name.trim() || '',
-      contactEmail: contacts.value[0]?.email.trim() || '',
-      contactPhone: contacts.value[0]?.phone.trim() || '',
+      contacts: filledContacts,
+      contactName: filledContacts[0]?.name || '',
+      contactEmail: filledContacts[0]?.email || '',
+      contactPhone: filledContacts[0]?.phone || '',
       countryId: selectedCountries[0] || null,
       countryIds: selectedCountries,
     })
@@ -713,14 +719,14 @@ onMounted(() => {
           </div>
                     <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold">Contactos del proveedor *</h3>
+              <h3 class="text-sm font-bold">Contactos del proveedor <span class="font-medium text-[var(--dh-text-muted)]">(opcional)</span></h3>
               <button type="button" :disabled="contacts.length >= 30"
                 class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
                 @click="contacts.push(newContact())">+ Agregar contacto</button>
             </div>
             <div v-for="(contact, index) in contacts" :key="index" class="grid gap-3 border-t border-[var(--dh-border)] pt-3 md:grid-cols-2">
               <label class="text-xs font-semibold">Nombre *
-                <input v-model="contact.name" required maxlength="140" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+                <input v-model="contact.name" :required="Boolean(contact.email.trim() || contact.phone.trim() || contact.role.trim())" maxlength="140" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
               </label>
               <label class="text-xs font-semibold">Cargo
                 <input v-model="contact.role" maxlength="100" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
@@ -737,7 +743,7 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || !countryIds.length || !contacts.length || contacts.some(c => !c.name.trim())" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
+          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || !countryIds.length" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
         </form>
       </DhDrawer>
     </template>
