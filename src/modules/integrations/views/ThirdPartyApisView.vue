@@ -7,7 +7,6 @@ import {
 import { fetchClient } from '@/core/api/fetchConfig'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
-import DhSelect from '@/shared/components/atoms/DhSelect.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import DhCheckbox from '@/shared/components/atoms/DhCheckbox.vue'
 import DhDrawer from '@/shared/components/organisms/DhDrawer.vue'
@@ -409,7 +408,17 @@ onMounted(() => { void load() })
             </div>
           </section>
           <section class="space-y-3">
-            <DhSelect :model-value="service" label="¿En qué módulo de Dhole?" :options="services" placeholder="Seleccionar módulo" @update:model-value="chooseService" />
+            <div class="space-y-2">
+              <h3 class="text-xs font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">¿En qué módulo de Dhole?</h3>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="option in services" :key="option.value" type="button"
+                  class="flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition hover:border-[var(--dh-primary)]"
+                  :class="service === option.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+                  @click="chooseService(option.value)">
+                  <Database class="h-4 w-4" />{{ option.label }}
+                </button>
+              </div>
+            </div>
             <div>
               <h3 class="font-bold">Seleccioná la función</h3>
               <p class="text-xs text-[var(--dh-text-muted)]">Las operaciones disponibles corresponden a funciones reales del módulo.</p>
