@@ -79,3 +79,13 @@ test('supplier forms hide tax IDs and website without losing historical metadata
   assert.match(view, /const retained = editing\.value \? metadata\(editing\.value\) : \{\}/)
   assert.match(view, /\.\.\.retained,/)
 })
+
+test('supplier contacts are optional and empty rows do not block saving', () => {
+  assert.match(view, /Contactos del proveedor <span[^>]+>\(opcional\)<\/span>/)
+  assert.match(view, /const filledContacts = contacts\.value\.map/)
+  assert.match(view, /\.filter\(contact => contact\.name \|\| contact\.email \|\| contact\.phone \|\| contact\.role\)/)
+  assert.match(view, /contacts: filledContacts/)
+  assert.match(view, /filledContacts\[0\]\?\.name/)
+  assert.doesNotMatch(view, /!contacts\.value\.length|!contacts\.length/)
+  assert.match(view, /:required="Boolean\(contact\.email\.trim\(\) \|\| contact\.phone\.trim\(\) \|\| contact\.role\.trim\(\)\)"/)
+})
