@@ -69,6 +69,7 @@ const statusOptions = [
   { label: 'Extraídos', value: 'Extracted' },
   { label: 'Necesitan revisión', value: 'NeedsReview' },
   { label: 'Fallidos', value: 'Failed' },
+  { label: 'No válidas', value: 'Invalid' },
   { label: 'Ignorados', value: 'Ignored' },
   { label: 'Duplicados', value: 'Duplicated' },
 ]
@@ -150,6 +151,7 @@ function messageStatusLabel(status: EmailMessageStatus | string) {
       Ignored: 'Ignorado',
       Duplicated: 'Duplicado',
       Failed: 'Fallido',
+      Invalid: 'No válida',
     } as Record<string, string>
   )[status] ?? status
 }
@@ -174,7 +176,7 @@ function jobStatusLabel(status: EmailExtractionJobStatus | string) {
 
 function statusVariant(status: string) {
   if (status === 'Extracted' || status === 'SentToPricing') return 'success' as const
-  if (status === 'Failed') return 'danger' as const
+  if (status === 'Failed' || status === 'Invalid') return 'danger' as const
   if (status === 'NeedsReview' || status === 'Queued' || status === 'Pending') return 'warning' as const
   if (status === 'Processing' || status === 'Received' || status === 'AwaitingPricing') return 'primary' as const
   return 'neutral' as const
