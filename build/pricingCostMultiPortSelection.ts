@@ -180,7 +180,23 @@ function patchCostForm(source: string) {
       carrierIds: isCarrierCost.value ? [...form.carrierIds] : [],
       agentIds: isAgentCost.value ? [...form.agentIds] : [],
     })`
-  code = replaceOne(code, submitAnchor, submitReplacement, 'cost submit')
+  // Since the SRM payee feature, the raw cost form tracks persistedCostId to
+  // safely retry a failed payee update. Preserve that idempotency while
+  // attaching multi-port / multi-party selections before saving the payee.
+  const payeeSubmitAnchor = `    if (persistedCostId) await PricingService.updateCost(persistedCostId, payload)
+    else persistedCostId = await PricingService.createCost(payload)`
+  const payeeSubmitReplacement = `${payeeSubmitAnchor}
+
+    await PricingService.replaceCostRoutePorts(persistedCostId, {
+      polIds: scopeIncludes('Pol') ? [...form.polIds] : [],
+      poeIds: scopeIncludes('Poe') ? [...form.poeIds] : [],
+      podIds: scopeIncludes('Pod') ? [...form.podIds] : [],
+      carrierIds: isCarrierCost.value ? [...form.carrierIds] : [],
+      agentIds: isAgentCost.value ? [...form.agentIds] : [],
+    })`
+  code = code.includes(payeeSubmitAnchor)
+    ? replaceOne(code, payeeSubmitAnchor, payeeSubmitReplacement, 'cost submit with SRM payee')
+    : replaceOne(code, submitAnchor, submitReplacement, 'cost submit')
 
   const mountedAnchor = `onMounted(catalogs.loadAll)`
   const mountedReplacement = `onMounted(async () => {
@@ -228,7 +244,16 @@ function patchCostForm(source: string) {
     form.agentIds = embeddedAgentIds
   }
 })`
-  code = replaceOne(code, mountedAnchor, mountedReplacement, 'cost form mounted hydration')
+  const payeeMountedAnchor = `onMounted(() => {
+  void catalogs.loadAll()
+  void loadSrmPayee()
+})`
+  code = code.includes(payeeMountedAnchor)
+    ? replaceOne(code, payeeMountedAnchor,
+      mountedReplacement.replace('  await catalogs.loadAll()',
+        '  await catalogs.loadAll()\\n  void loadSrmPayee()'),
+      'cost form mounted hydration including SRM payee')
+    : replaceOne(code, mountedAnchor, mountedReplacement, 'cost form mounted hydration')
 
   code = replaceRegexOne(
     code,
