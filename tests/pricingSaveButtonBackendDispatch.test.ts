@@ -19,3 +19,8 @@ test('exceptions before API dispatch are reported and do not leave a stuck butto
   assert.match(wizard, /catch \(error\) \{\s+console\.error\('\[Pricing\] Guardado/)
   assert.match(wizard, /finally \{\s+saveButtonWorking\.value = false/)
 })
+
+test('saveRate has no unbound rateSaveInFlight reference', () => {
+  assert.doesNotMatch(wizard, /rateSaveInFlight/)
+  assert.match(wizard, /if \(saveButtonWorking\.value \|\| saving\.value \|\| uploadingFinalBackups\.value\) return/)
+})

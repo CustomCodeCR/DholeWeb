@@ -4616,12 +4616,7 @@ async function retrySavedModificationDelivery() {
   }
 }
 
-let rateSaveInFlight = false
-
 async function saveRate() {
-  if (rateSaveInFlight) return
-  rateSaveInFlight = true
-  try {
   if (pendingModificationDelivery.value) {
     await retrySavedModificationDelivery()
     return
@@ -5213,9 +5208,6 @@ async function saveRate() {
       : isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
   } finally {
     saving.value = false
-  }
-  } finally {
-    rateSaveInFlight = false
   }
 }
 
