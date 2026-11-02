@@ -37,6 +37,38 @@ function miamiFreightMatrixParts(line: RateLine) {
     return { ...part, cft, cost }
   })
 }
+
+function enforceMiamiNvoccAMinimum() {
+  // The matrix API calculates the USD 95 minimum, but older persisted quotes
+  // and unit-price rounding may still show a lower freight subtotal. Correct
+  // the actual editable line, not only the Pantalla 8 preview.
+  if (props.viewOnly || hydratingExistingRate.value || !isMiamiLcl.value
+      || form.miamiCommercialPlan !== 'NVOCC-A' || !isOwnLclMatrixContext()) return
+  const freight = rateLines.value.find((line) =>
+    line.included && line.costDetailType === 'Freight'
+    && ['PerChargeableCft', 'PerCft'].includes(line.chargeBasis)
+    && /LCL\\s*PROPIO|ConsolidadoId:/i.test(String(line.notes ?? ''))
+    && canonicalCurrencyCode(line) === 'USD',
+  )
+  if (!freight) return
+  const quantity = number(quantityForRateLine(freight))
+  const minimum = number(miamiCommercialRate.value.minimumFreightSale)
+  if (!Number.isFinite(quantity) || quantity <= 0 || minimum <= 0) return
+  // The API persists SaleAmount with only two decimals. Compare against the
+  // value that will actually survive the database's (18,2) precision.
+  const persistedUnitSale = Math.round(number(freight.saleAmount) * 100) / 100
+  if (persistedUnitSale * quantity + 0.000001 >= minimum) return
+  // Round UP, not to nearest, to guarantee subtotal >= minimum after save.
+  const minimumUnitSale = Math.ceil(minimum / quantity * 100 - 1e-9) / 100
+  freight.saleAmount = minimumUnitSale
+  form.freightSale = minimumUnitSale
+}
+watch(
+  () => [isMiamiLcl.value, form.miamiCommercialPlan, rateLines.value,
+    hydratingExistingRate.value, miamiChargeableCft.value, step.value],
+  () => enforceMiamiNvoccAMinimum(),
+  { immediate: true, flush: 'post' },
+)
 `;
 const FREIGHT_ROWS = String.raw`
                   <template v-if="showMiamiFreightCostMatrix && line.costDetailType === 'Freight'">
@@ -97,9 +129,13 @@ function patch(source: string) {
   const replacement = '<template v-for="line in includedLines" :key="line.key">\n'
     + FREIGHT_ROWS + '\n' + standardRow + '\n</template>'
   const newScreen = screen.replace(oldRow, replacement)
+  const saveAnchor = 'async function saveRate() {'
+  if (source.split(saveAnchor).length !== 2) throw new Error('[MiamiFreightMatrix] No se encontró una única función de guardado')
   const anchor = 'const providerCost = computed(() =>'
   if (source.split(anchor).length !== 2) throw new Error('[MiamiFreightMatrix] Sin ancla de cálculo')
-  return source.replace(anchor, HELPERS + '\n' + anchor).replace(screen, newScreen)
+  return source.replace(anchor, HELPERS + '\n' + anchor)
+    .replace(screen, newScreen)
+    .replace(saveAnchor, saveAnchor + '\n  enforceMiamiNvoccAMinimum()')
 }
 export function pricingMiamiOwnLclBreakdown(): Plugin {
   return {
