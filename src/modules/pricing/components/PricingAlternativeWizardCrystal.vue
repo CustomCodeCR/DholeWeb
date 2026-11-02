@@ -4970,6 +4970,7 @@ async function saveRate() {
         expectedRevisionNumber: editingRate.value.revisionNumber,
         modificationRequestId: props.modificationRequestId ?? null,
       } as UpdateRateRequest
+      saveRequestSentToBackend.value = true
       await PricingService.updateRate(editingRate.value.id, updatePayload)
       // A successful HTTP status is not enough: edited prices must be readable
       // from the persisted quotation, otherwise don't show a false success toast.
@@ -5126,6 +5127,7 @@ async function saveRate() {
             : 'La nueva revisión está pendiente de envío. Revísela y márquela como Enviada desde su detalle.',
       )
     } else {
+      saveRequestSentToBackend.value = true
       rateId = await PricingService.createRate(createPayload)
     }
     createdRateId.value = rateId
@@ -5158,6 +5160,48 @@ async function saveRate() {
   }
   } finally {
     rateSaveInFlight = false
+  }
+}
+
+
+const saveButtonWorking = ref(false)
+const saveButtonFeedback = ref('')
+const saveRequestSentToBackend = ref(false)
+
+// The button must always give an observable result, even if validation
+// exits before fetch or an earlier wizard transform throws synchronously.
+async function handleSaveRateClick() {
+  if (saveButtonWorking.value || saving.value || uploadingFinalBackups.value) return
+  saveButtonWorking.value = true
+  saveRequestSentToBackend.value = false
+  saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
+  const initialStep = step.value
+  try {
+    if (pendingModificationDelivery.value) {
+      saveButtonFeedback.value = 'Reintentando la entrega de la revisión guardada…'
+      await retrySavedModificationDelivery()
+      return
+    }
+    await saveRate()
+    if (!saveRequestSentToBackend.value) {
+      const fields = [...new Set(missingFields.value.map((issue) => issue.label))]
+      const details = fields.length
+        ? 'Faltan datos: ' + fields.join(', ') + '.'
+        : step.value !== initialStep
+          ? 'Revise los datos señalados en la pantalla ' + step.value + '.'
+          : 'Revise el motivo de modificación, las fechas, los importes, los tipos de cambio y las referencias.'
+      saveButtonFeedback.value = 'No se envió la tarifa al backend. ' + details
+      toastStore.warning('Guardado detenido antes de Pricing', details)
+    } else {
+      saveButtonFeedback.value = 'Se intentó guardar en Pricing. Revise la respuesta de la API si la pantalla no cambió.'
+    }
+  } catch (error) {
+    console.error('[Pricing] Guardado interrumpido antes de completar la solicitud', error)
+    saveButtonFeedback.value = 'Error al guardar: ' +
+      (error instanceof Error ? error.message : String(error))
+    toastStore.backendError(error, 'Ocurrió un error al preparar el guardado de la tarifa.')
+  } finally {
+    saveButtonWorking.value = false
   }
 }
 
@@ -6878,7 +6922,8 @@ onMounted(async () => {
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
-        <DhButton :disabled="saving || uploadingFinalBackups" @click="pendingModificationDelivery ? retrySavedModificationDelivery() : saveRate()">
+        <p v-if="saveButtonFeedback" class="max-w-lg text-xs font-semibold text-[var(--dh-text)]" role="status" aria-live="polite" data-testid="pricing-save-feedback">{{ saveButtonFeedback }}</p>
+        <DhButton :disabled="saving || uploadingFinalBackups || saveButtonWorking" @click="handleSaveRateClick">
           <Check class="h-4 w-4" /> {{ saving ? 'Procesando…' : pendingModificationDelivery ? 'Reintentar envío sin duplicar revisión' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
       </div>
