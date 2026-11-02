@@ -1050,6 +1050,8 @@ export interface UpdateRateRequest extends Omit<
   extraDetails: UpsertRateExtraDetailRequest[]
   removedExtraDetailIds: string[]
   replaceExtraDetails?: boolean
+  expectedRevisionNumber?: number
+  modificationRequestId?: string | null
   updateReason?: string | null
 }
 

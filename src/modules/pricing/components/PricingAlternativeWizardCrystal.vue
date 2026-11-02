@@ -4567,7 +4567,12 @@ async function retrySavedModificationDelivery() {
   }
 }
 
+let rateSaveInFlight = false
+
 async function saveRate() {
+  if (rateSaveInFlight) return
+  rateSaveInFlight = true
+  try {
   if (pendingModificationDelivery.value) {
     await retrySavedModificationDelivery()
     return
@@ -4587,6 +4592,31 @@ async function saveRate() {
       'Complete el costo y la venta de la recolecta del POL comercial al consolidado físico en Pantalla 7.',
     )
     return
+  }
+  // Seller changes to screens 1-4 must not erase the pre-existing LCL
+  // international freight when a catalog/source refresh drops the row.
+  const persistedFreight = props.modificationRequestId && editingRate.value?.shipmentMode === 'Lcl'
+    ? editingRate.value.rateDetails.find(detail => detail.costDetailType === 'Freight')
+    : null
+  if (persistedFreight && shipmentModeForApi.value === 'Lcl'
+    && incotermBuyerPaysMainTransport(selectedIncotermCode.value)
+    && !includedLines.value.some(line => line.costDetailType === 'Freight')) {
+    rateLines.value = [{
+      key: `existing:${persistedFreight.id}`, detailId: persistedFreight.id,
+      section: sectionForDetail(persistedFreight.costDetailType, persistedFreight.name),
+      name: persistedFreight.name, costDetailType: 'Freight',
+      costType: persistedFreight.costType, chargeBasis: persistedFreight.chargeBasis,
+      costId: persistedFreight.costId ?? null, notes: persistedFreight.notes ?? null,
+      billToClient: persistedFreight.billToClient ?? null,
+      currencyId: persistedFreight.currencyId, currencyName: persistedFreight.currencyName,
+      currencyCode: persistedFreight.currencyCode,
+      amountCurrencyCode: persistedFreight.currencyCode,
+      costAmount: Number(persistedFreight.costAmount || 0),
+      saleAmount: Number(persistedFreight.saleAmount || 0),
+      included: true, optional: false, manual: !persistedFreight.costId,
+      applyDestinationTax: Boolean(persistedFreight.applyDestinationTax),
+      destinationTaxRate: Number(persistedFreight.destinationTaxRate || 0),
+    }, ...rateLines.value.filter(line => line.detailId !== persistedFreight.id)]
   }
   if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
     syncDeclaredCargoInsuranceOnEdit()
@@ -4936,6 +4966,8 @@ async function saveRate() {
         extraDetails,
         removedExtraDetailIds,
         replaceExtraDetails: true,
+        expectedRevisionNumber: editingRate.value.revisionNumber,
+        modificationRequestId: props.modificationRequestId ?? null,
       } as UpdateRateRequest
       await PricingService.updateRate(editingRate.value.id, updatePayload)
       // A successful HTTP status is not enough: edited prices must be readable
@@ -5122,6 +5154,9 @@ async function saveRate() {
       : isEditing.value ? 'No se pudo actualizar la tarifa.' : 'No se pudo crear la tarifa.')
   } finally {
     saving.value = false
+  }
+  } finally {
+    rateSaveInFlight = false
   }
 }
 
