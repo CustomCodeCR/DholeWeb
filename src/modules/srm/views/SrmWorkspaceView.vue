@@ -103,8 +103,15 @@ const shipmentModes = ref<string[]>([])
 const modeOptions = [
   { value: 'Fcl', label: 'Marítimo FCL' }, { value: 'Lcl', label: 'Marítimo LCL' },
   { value: 'Ftl', label: 'Terrestre FTL' }, { value: 'Ltl', label: 'Terrestre LTL' },
-  { value: 'Air', label: 'Aéreo' }, { value: 'AirConsol', label: 'Aéreo consolidado' },
+  { value: 'Air', label: 'Aéreo' },
 ]
+function normalizeSupplierModes(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value
+    .filter((mode): mode is string => typeof mode === 'string')
+    .map(mode => mode === 'AirConsol' ? 'Air' : mode)
+    .filter(mode => modeOptions.some(option => option.value === mode)))]
+}
 function newContact(): SupplierContact { return { name: '', email: '', phone: '', role: '' } }
 function supplierContacts(item: Supplier): SupplierContact[] {
   const info = metadata(item)
@@ -275,9 +282,7 @@ function openEdit(item: Supplier) {
   supplierDescription.value = item.description || ''
   const info = metadata(item)
   contacts.value = supplierContacts(item)
-  shipmentModes.value = Array.isArray(info.shipmentModes) ?
-    info.shipmentModes.filter((mode): mode is string =>
-      typeof mode === 'string' && modeOptions.some(option => option.value === mode)) : []
+  shipmentModes.value = normalizeSupplierModes(info.shipmentModes)
   countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
     ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
     : typeof info.countryId === 'string' && info.countryId ? [info.countryId] : []
@@ -566,9 +571,9 @@ onMounted(() => {
                     <div v-for="field in [
                       {label: 'Razón social', value: selected.name},
                       {label: 'Categorías', value: supplierCategories(selected).map(typeLabel).join(', ')},
-                      {label: 'Modalidades', value: Array.isArray(metadata(selected).shipmentModes)
-                        ? (metadata(selected).shipmentModes as string[])
-                            .map(mode => modeOptions.find(x => x.value === mode)?.label || mode).join(', ') : 'No indicadas'},
+                      {label: 'Modalidades', value: normalizeSupplierModes(metadata(selected).shipmentModes)
+                          .map(mode => modeOptions.find(x => x.value === mode)?.label || mode)
+                          .join(', ') || 'No indicadas'},
                       {label: 'Código', value: selected.code},
                       {label: 'Países', value: supplierCountries(selected)},
                       {label: 'Identificación fiscal', value: metadata(selected).taxId},
