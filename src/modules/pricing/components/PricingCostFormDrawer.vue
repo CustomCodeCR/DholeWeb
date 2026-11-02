@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { BadgeDollarSign, Info, Save, Plus, Trash2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { PricingService } from '@/core/services/pricingService'
+import { SrmApi } from '@/modules/srm/services/srmApi'
+import { fetchClient } from '@/core/api/fetchConfig'
+import type { CatalogItemDto } from '@/core/interfaces/catalogs'
 import type {
   ChargeBasis,
   CostDetailType,
@@ -63,6 +66,41 @@ const { locale, t } = useI18n()
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
+type CostPayee = { supplierId: string | null; supplierName: string | null;
+  supplierCode: string | null; supplierType: string | null }
+const suppliers = ref<CatalogItemDto[]>([])
+const supplierLoadError = ref('')
+const payeeSupplierId = ref('')
+const existingPayee = ref<CostPayee | null>(null)
+let persistedCostId = props.cost?.id ?? ''
+const payeeOptions = computed(() => [
+  { value: '', label: 'Sin proveedor de pago asignado' },
+  ...suppliers.value.filter(row => row.isActive)
+    .map(row => ({ value: row.id, label: row.name + ' · ' + row.code })),
+  ...(existingPayee.value?.supplierId &&
+     !suppliers.value.some(row => row.id === existingPayee.value?.supplierId)
+    ? [{ value: existingPayee.value.supplierId,
+      label: existingPayee.value.supplierName || 'Proveedor histórico' }] : []),
+])
+const selectedPayee = computed(() => suppliers.value.find(row => row.id === payeeSupplierId.value))
+async function loadSrmPayee() {
+  try {
+    suppliers.value = await SrmApi.list('suppliers')
+    supplierLoadError.value = ''
+  } catch {
+    supplierLoadError.value = 'No se puede consultar SRM: se requiere permiso para leer proveedores.'
+  }
+  if (!props.cost) return
+  try {
+    const stored = await fetchClient<CostPayee>(
+      '/api/pricing/costs/' + encodeURIComponent(props.cost.id) + '/payee', { method: 'GET' })
+    existingPayee.value = stored
+    payeeSupplierId.value = stored?.supplierId || ''
+  } catch {
+    supplierLoadError.value = 'No se pudo consultar el proveedor de pago actual. No guardes el costo hasta recuperar este dato.'
+  }
+}
+
 
 function initialChargeBasis(cost?: CostDto): ChargeBasis {
   if (!cost) return 'PerShipment'
@@ -520,8 +558,29 @@ async function submit() {
 
   try {
     form.saving = true
-    if (props.cost) await PricingService.updateCost(props.cost.id, payload)
-    else await PricingService.createCost(payload)
+    // Creation is idempotent within this drawer: if payee persistence fails,
+    // retry the update against the already-created cost, never create a duplicate.
+    if (persistedCostId) await PricingService.updateCost(persistedCostId, payload)
+    else persistedCostId = await PricingService.createCost(payload)
+    if (persistedCostId && !supplierLoadError.value) {
+      const payee = selectedPayee.value
+      const old = existingPayee.value
+      await fetchClient<CostPayee>(
+        '/api/pricing/costs/' + encodeURIComponent(persistedCostId) + '/payee', {
+          method: 'PUT',
+          body: {
+            supplierId: payee?.id ?? (old?.supplierId === payeeSupplierId.value ? old?.supplierId : null) ?? null,
+            supplierName: payee?.name ?? (old?.supplierId === payeeSupplierId.value ? old?.supplierName : null) ?? null,
+            supplierCode: payee?.code ?? (old?.supplierId === payeeSupplierId.value ? old?.supplierCode : null) ?? null,
+            supplierType: payee ? (() => {
+              try { return JSON.parse(payee.metadataJson || '{}').supplierType || null }
+              catch { return null }
+            })() : (old?.supplierId === payeeSupplierId.value ? old?.supplierType : null),
+          },
+        })
+    } else if (supplierLoadError.value) {
+      throw new Error('El costo se guardó, pero no se pudo verificar su proveedor SRM. Recuperá SRM y volvé a guardar sin duplicar.')
+    }
     toastStore.success(
       props.cost ? 'Costo actualizado' : 'Costo creado',
       'La matriz de costos quedó actualizada.',
@@ -538,7 +597,10 @@ async function submit() {
   }
 }
 
-onMounted(catalogs.loadAll)
+onMounted(() => {
+  void catalogs.loadAll()
+  void loadSrmPayee()
+})
 </script>
 
 <template>
@@ -619,6 +681,23 @@ onMounted(catalogs.loadAll)
           :options="catalogs.carrierOptions.value"
           :error="fieldError(form.carrierId, 'Seleccione la naviera.')"
         />
+        <div class="md:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-4">
+          <label class="block text-xs font-extrabold uppercase tracking-wider">Proveedor de pago · SRM</label>
+          <p class="text-xs text-[var(--dh-text-muted)]">
+            Independiente de la naviera o agente al que aplica el costo. Por ejemplo,
+            naviera vinculada al Merchant, pero pago de flete a Romo, o acarreo pagado a Junier.
+          </p>
+          <select v-model="payeeSupplierId" aria-label="Proveedor al que se le paga"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-sm">
+            <option v-for="supplier in payeeOptions" :key="supplier.value" :value="supplier.value">
+              {{ supplier.label }}
+            </option>
+          </select>
+          <p v-if="supplierLoadError" role="alert" class="text-xs text-amber-500">{{ supplierLoadError }}</p>
+          <p v-else-if="selectedPayee" class="text-xs text-[var(--dh-text-muted)]">
+            Se guardará la referencia SRM y el nombre del proveedor de pago en este costo.
+          </p>
+        </div>
         <DhSelect
           v-if="form.routeScope === 'Any'"
           v-model="form.portId"
