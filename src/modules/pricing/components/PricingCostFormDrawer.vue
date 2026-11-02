@@ -76,7 +76,7 @@ const payeeSupplierId = ref('')
 const existingPayee = ref<CostPayee | null>(null)
 let persistedCostId = props.cost?.id ?? ''
 const payeeOptions = computed(() => [
-  { value: '', label: 'Sin proveedor de pago asignado' },
+  { value: '', label: 'Sin proveedor asignado' },
   ...suppliers.value.filter(row => row.isActive &&
       (!concreteShipmentModes.value.length || !row.shipmentModes.length ||
         row.shipmentModes.some(mode => concreteShipmentModes.value.includes(mode as ShipmentMode))))
