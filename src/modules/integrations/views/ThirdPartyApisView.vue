@@ -111,6 +111,11 @@ function targetName(value: ApprovedTarget): string {
   if (value.code === 'pricing-rate-create') return 'Crear tarifa'
   if (value.code === 'pricing-rate-update') return 'Actualizar tarifa por ID'
   if (value.code === 'pricing-rate-delete') return 'Eliminar tarifas por ID'
+  if (value.code === 'pricing-rate-request-create') return 'Solicitar tarifa'
+  if (value.code === 'pricing-rate-requests-open') return 'Solicitudes pendientes'
+  if (value.code === 'pricing-rate-request-detail') return 'Consultar una solicitud'
+  if (value.code === 'pricing-rate-requests-linked') return 'Historial de solicitudes'
+  if (value.code === 'pricing-rate-exchange-eur-usd') return 'Tipo de cambio EUR / USD'
   return value.description || 'Función del módulo'
 }
 function targetHelp(value: ApprovedTarget): string {
@@ -121,14 +126,45 @@ function targetHelp(value: ApprovedTarget): string {
     case 'pricing-rate-create': return 'El tercero envía los datos para registrar una nueva tarifa.'
     case 'pricing-rate-update': return 'El tercero envía cambios a una tarifa existente.'
     case 'pricing-rate-delete': return 'El tercero solicita eliminar tarifas por identificador.'
+    case 'pricing-rate-request-create': return 'Permite enviar una solicitud de cotización al equipo de Pricing, sin crear directamente una tarifa.'
+    case 'pricing-rate-requests-open': return 'Consultar las solicitudes que aún necesitan atención.'
+    case 'pricing-rate-request-detail': return 'Consultar el estado y los datos de una solicitud mediante su identificador.'
+    case 'pricing-rate-requests-linked': return 'Consultar las solicitudes que ya tienen una tarifa vinculada.'
+    case 'pricing-rate-exchange-eur-usd': return 'Compartir el tipo de cambio entre euro y dólar.'
     default: return 'Compartir esta función con un sistema externo.'
   }
+}
+function initialInputs(code: string): Mapping[] {
+  if (code === 'pricing-rate-delete') return [
+    { public: 'ids', internal: 'ids', required: true },
+  ]
+  if (code === 'pricing-rate-request-create') return [
+    { public: 'prioridad', internal: 'priority', required: true },
+    { public: 'vendedorId', internal: 'sellerUserId', required: true },
+    { public: 'cliente', internal: 'clientName', required: false },
+    { public: 'modalidad', internal: 'shipmentMode', required: false },
+    { public: 'origen', internal: 'originName', required: false },
+    { public: 'destino', internal: 'destinationName', required: false },
+    { public: 'detalles', internal: 'payload', required: true },
+  ]
+  return []
 }
 function initialOutputs(code: string): Mapping[] {
   if (code === 'pricing-usd-crc') return [
     { public: 'compra', internal: 'purchase', required: false },
     { public: 'venta', internal: 'sale', required: false },
     { public: 'fecha', internal: 'rateDate', required: false },
+  ]
+  if (code === 'pricing-rate-exchange-eur-usd') return [
+    { public: 'dolares', internal: 'dollars', required: false },
+    { public: 'colones', internal: 'colones', required: false },
+    { public: 'fecha', internal: 'rateDate', required: false },
+  ]
+  if (code === 'pricing-rate-requests-open' || code === 'pricing-rate-request-detail' || code === 'pricing-rate-requests-linked') return [
+    { public: 'id', internal: 'id', required: false },
+    { public: 'estado', internal: 'status', required: false },
+    { public: 'cliente', internal: 'clientName', required: false },
+    { public: 'prioridad', internal: 'priority', required: false },
   ]
   if (code === 'pricing-rate-detail' || code === 'pricing-rates-list') return [
     { public: 'id', internal: 'id', required: false },
@@ -194,12 +230,13 @@ function renameField(kind: 'inputs' | 'outputs', index: number, value: string) {
 }
 function chooseTarget(target: ApprovedTarget) {
   if (draft.value.target === target.code) return
+  const previous = catalog.value.find(x => x.code === draft.value.target)
+  const nameWasGenerated = !draft.value.name || (previous && draft.value.name === targetName(previous))
   draft.value.target = target.code
-  draft.value.inputs = target.code === 'pricing-rate-delete'
-    ? [{ public: 'ids', internal: 'ids', required: true }] : []
+  draft.value.inputs = initialInputs(target.code)
   draft.value.outputs = initialOutputs(target.code)
   draft.value.responseRoot = null
-  if (isNew.value && !draft.value.name) draft.value.name = targetName(target)
+  if (isNew.value && nameWasGenerated) draft.value.name = targetName(target)
 }
 function validFields(fields: Mapping[]): boolean {
   return fields.every(f => /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(f.public)
@@ -420,7 +457,7 @@ onMounted(() => { void load() })
           <section class="space-y-3">
             <div>
               <h3 class="font-bold">¿Qué querés hacer?</h3>
-              <p class="text-xs text-[var(--dh-text-muted)]">Elegí el tipo de solicitud que podrá realizar el sistema externo.</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">Por ejemplo, con POST podés solicitar una tarifa o crear una cotización. Cada acción tiene una función distinta.</p>
             </div>
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <button v-for="option in METHODS" :key="option.value" type="button"
@@ -503,6 +540,9 @@ onMounted(() => { void load() })
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div><h3 class="font-bold">Datos que recibe</h3><p class="text-xs text-[var(--dh-text-muted)]">{{ method === 'GET' ? 'Filtros opcionales en la URL (query).' : 'Campos permitidos del cuerpo JSON.' }}</p></div>
               <DhButton variant="secondary" size="sm" :icon="Plus" label="Añadir campo" @click="addField('inputs')" />
+            </div>
+            <div v-if="draft.target === 'pricing-rate-request-create'" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
+              Los campos de una solicitud ya están preparados. En «prioridad» se utilizan Green, Yellow o Red; «vendedorId» debe ser un identificador de vendedor con acceso autorizado, y «detalles» contiene el JSON de la operación. La API no reemplaza las validaciones de vendedores y clientes de Pricing.
             </div>
             <div v-if="method !== 'GET'" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
               <DhTextarea v-model="jsonExample" :rows="3" label="¿Ya tenés un JSON de ejemplo? (opcional)" placeholder='{"clienteId":"...","monto":100}' />
