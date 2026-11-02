@@ -9,6 +9,7 @@ import {
 import { useAuthStore } from '@/core/stores/authStore'
 import { CONFIG_SCOPES } from '@/core/auth/scopes'
 import { DhDrawer } from '@/shared/components/organisms'
+import { DhMultiSelect } from '@/shared/components/atoms'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -56,7 +57,7 @@ const query = ref('')
 const category = ref('all')
 const supplierId = ref('')
 const supplierName = ref('')
-const supplierType = ref('')
+const supplierType = ref<string[]>([])
 const customSupplierType = ref('')
 const supplierTypes = ref<CatalogItemDto[]>([])
 const fallbackTypes = [
@@ -76,16 +77,25 @@ const typeOptions = computed(() => {
   const values = new Map(fallbackTypes.map(item => [item.value, item.label]))
   for (const item of supplierTypes.value) if (item.isActive) values.set(item.slug, item.name)
   for (const item of suppliers.value)
-    if (!values.has(item.category)) values.set(item.category, item.category)
+    for (const type of supplierCategories(item))
+      if (!values.has(type)) values.set(type, type)
   return [...values].map(([value, label]) => ({ value, label }))
     .sort((a, b) => a.label.localeCompare(b.label, 'es'))
 })
 const typeLabel = (value: string) =>
   typeOptions.value.find(item => item.value === value)?.label || value
-const resolvedSupplierType = computed(() =>
-  (supplierType.value === '__custom__' ? customSupplierType.value : supplierType.value).trim().toLowerCase())
+const categoryOptions = computed(() => [
+  ...typeOptions.value,
+  { value: '__custom__', label: en.value ? 'Other supplier category…' : 'Otra categoría de proveedor…' },
+])
+const resolvedSupplierTypes = computed(() => [...new Set([
+  ...supplierType.value.filter(value => value !== '__custom__'),
+  ...(supplierType.value.includes('__custom__') ? [customSupplierType.value] : []),
+].map(value => value.trim().toLowerCase()).filter(Boolean))])
 const validSupplierType = computed(() =>
-  resolvedSupplierType.value.length > 0 && resolvedSupplierType.value.length <= 60)
+  resolvedSupplierTypes.value.length > 0 &&
+  resolvedSupplierTypes.value.every(value => value.length <= 60) &&
+  (!supplierType.value.includes('__custom__') || !!customSupplierType.value.trim()))
 const supplierDescription = ref('')
 type SupplierContact = { name: string; email: string; phone: string; role: string }
 const contacts = ref<SupplierContact[]>([])
@@ -122,7 +132,7 @@ const legacyQuery = ref('')
 const legacyGroup = ref<'all' | 'carriers' | 'agents'>('all')
 const currencies = ref<CatalogItemSelectDto[]>([])
 const importBusy = ref('')
-const countryId = ref('')
+const countryIds = ref<string[]>([])
 const taxId = ref('')
 const website = ref('')
 const paymentDays = ref('30')
@@ -130,6 +140,7 @@ const contractCurrency = ref('USD')
 const rateReference = ref('')
 const serviceCoverage = ref('')
 const countries = ref<CatalogItemSelectDto[]>([])
+const countryOptions = computed(() => countries.value.map(row => ({ value: row.id, label: row.label || row.value || row.id })))
 
 function metadata(row: CatalogItemDto): Record<string, unknown> {
   try {
@@ -137,9 +148,18 @@ function metadata(row: CatalogItemDto): Record<string, unknown> {
     return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj as Record<string, unknown> : {}
   } catch { return {} }
 }
+function supplierCategories(row: CatalogItemDto): string[] {
+  const info = metadata(row)
+  if (Array.isArray(info.supplierTypes)) {
+    const types = info.supplierTypes.filter((type): type is string =>
+      typeof type === 'string' && !!type.trim())
+    if (types.length) return [...new Set(types)]
+  }
+  return typeof info.supplierType === 'string' && info.supplierType.trim()
+    ? [info.supplierType] : ['other']
+}
 function supplierCategory(row: CatalogItemDto) {
-  const value = metadata(row).supplierType
-  return typeof value === 'string' && value.trim() ? value : 'other'
+  return supplierCategories(row)[0] || 'other'
 }
 function mapRecords(items: CatalogItemDto[]): SrmRecord[] {
   return items.map(item => {
@@ -160,16 +180,23 @@ const filteredLegacy = computed(() => pendingLegacy.value.filter(x =>
   (legacyGroup.value === 'all' || legacyGroup.value === x.sourceGroup) &&
   [x.name, x.code].some(value => value.toLocaleLowerCase().includes(legacyQuery.value.trim().toLocaleLowerCase()))))
 const importedLegacy = computed(() => legacyPartners.value.filter(x => x.imported).length)
-const categories = computed(() => [...new Set(suppliers.value.map(item => item.category))]
+const categories = computed(() => [...new Set(suppliers.value.flatMap(supplierCategories))]
   .sort((a, b) => typeLabel(a).localeCompare(typeLabel(b), 'es')))
 const filteredSuppliers = computed(() => suppliers.value.filter(item =>
-  (category.value === 'all' || item.category === category.value) &&
+  (category.value === 'all' || supplierCategories(item).includes(category.value)) &&
   [item.name, item.code, item.description || ''].some(text => text.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase()))))
 const activeCount = computed(() => suppliers.value.filter(row => row.isActive).length)
 const selectedRecords = computed(() => section.value === 'contracts' ? contracts.value : evaluations.value)
 const supplierContracts = computed(() => selected.value && auth.hasScope('srm.contract.read') ? contracts.value.filter(x => x.supplierId === selected.value?.id) : [])
 const supplierEvaluations = computed(() => selected.value && auth.hasScope('srm.performance.read') ? evaluations.value.filter(x => x.supplierId === selected.value?.id) : [])
 function countryLabel(value: unknown) { return countries.value.find(x => x.id === value)?.label || '—' }
+function supplierCountries(row: CatalogItemDto) {
+  const info = metadata(row)
+  const ids = Array.isArray(info.countryIds) && info.countryIds.length
+    ? info.countryIds : info.countryId ? [info.countryId] : []
+  return [...new Set(ids.filter((id): id is string => typeof id === 'string' && !!id.trim()))]
+    .map(countryLabel).join(', ') || '—'
+}
 const recordCount = computed(() => evaluations.value.length + contracts.value.length)
 const overdueCount = computed(() => contracts.value.filter(row => row.expiresAt && row.expiresAt < new Date().toISOString().slice(0, 10)).length)
 const averageScore = computed(() => evaluations.value.length
@@ -221,7 +248,7 @@ function resetForm() {
   editing.value = null
   supplierId.value = ''
   supplierName.value = ''
-  supplierType.value = ''
+  supplierType.value = []
   customSupplierType.value = ''
   supplierDescription.value = ''
   contacts.value = []
@@ -230,7 +257,7 @@ function resetForm() {
   note.value = ''
   reference.value = ''
   expiresAt.value = ''
-  countryId.value = ''
+  countryIds.value = []
   taxId.value = ''
   website.value = ''
   paymentDays.value = '30'
@@ -244,19 +271,16 @@ function openEdit(item: Supplier) {
   resetForm()
   editing.value = item
   supplierName.value = item.name
-  if (typeOptions.value.some(type => type.value === item.category)) {
-    supplierType.value = item.category
-  } else {
-    supplierType.value = '__custom__'
-    customSupplierType.value = item.category
-  }
+  supplierType.value = supplierCategories(item)
   supplierDescription.value = item.description || ''
   const info = metadata(item)
   contacts.value = supplierContacts(item)
   shipmentModes.value = Array.isArray(info.shipmentModes) ?
     info.shipmentModes.filter((mode): mode is string =>
       typeof mode === 'string' && modeOptions.some(option => option.value === mode)) : []
-  countryId.value = String(info.countryId || '')
+  countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
+    ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
+    : typeof info.countryId === 'string' && info.countryId ? [info.countryId] : []
   taxId.value = String(info.taxId || '')
   website.value = String(info.website || '')
   formVisible.value = true
@@ -266,18 +290,23 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
       !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
-  if (!shipmentModes.value.length || !countryId.value || !contacts.value.length ||
+  if (!shipmentModes.value.length || !countryIds.value.length || !contacts.value.length ||
       contacts.value.some(contact => !contact.name.trim())) {
-    error.value = 'Seleccioná una modalidad, un país y al menos un contacto con nombre.'
+    error.value = en.value
+      ? 'Select at least one category, mode, country and a contact with a name.'
+      : 'Seleccioná al menos una categoría, una modalidad, un país y un contacto con nombre.'
     return
   }
   saving.value = true
   error.value = ''
   try {
     const retained = editing.value ? metadata(editing.value) : {}
+    const selectedTypes = resolvedSupplierTypes.value
+    const selectedCountries = [...new Set(countryIds.value)]
     const metadataJson = JSON.stringify({
       ...retained,
-      supplierType: resolvedSupplierType.value,
+      supplierType: selectedTypes[0] || null,
+      supplierTypes: selectedTypes,
       shipmentModes: [...new Set(shipmentModes.value)],
       contacts: contacts.value.map(contact => ({
         name: contact.name.trim(), email: contact.email.trim(),
@@ -286,7 +315,8 @@ async function saveSupplier() {
       contactName: contacts.value[0]?.name.trim() || '',
       contactEmail: contacts.value[0]?.email.trim() || '',
       contactPhone: contacts.value[0]?.phone.trim() || '',
-      countryId: countryId.value || null,
+      countryId: selectedCountries[0] || null,
+      countryIds: selectedCountries,
       taxId: taxId.value.trim() || null,
       website: website.value.trim() || null,
     })
@@ -484,7 +514,7 @@ onMounted(() => {
                 class="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-[var(--dh-card-hover)]" @click="openDetails(row)">
                 <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-shell)]"><Building2 class="h-5 w-5 text-[var(--dh-primary)]" /></div>
                 <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ row.name }}</p>
-                  <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ typeLabel(row.category) }} · {{ row.code }}</p></div>
+                  <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ supplierCategories(row).map(typeLabel).join(', ') }} · {{ row.code }}</p></div>
                 <span class="hidden rounded-full px-2.5 py-1 text-xs font-semibold sm:inline-flex" :class="row.isActive ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-[var(--dh-text-muted)]'">{{ t(row.isActive ? 'srm.active' : 'srm.inactive') }}</span>
                 <ArrowRight class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
               </button>
@@ -515,7 +545,7 @@ onMounted(() => {
                   <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)]/10 font-extrabold text-[var(--dh-primary)]">{{ selected.name.slice(0, 2).toUpperCase() }}</div>
                   <div class="min-w-0"><p class="text-[10px] font-extrabold uppercase tracking-widest text-[var(--dh-text-muted)]">SRM · Ficha del proveedor</p>
                     <h2 class="mt-1 truncate text-lg font-extrabold">{{ selected.name }}</h2>
-                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ typeLabel(selected.category) }} · {{ selected.code }}</p>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ supplierCategories(selected).map(typeLabel).join(', ') }} · {{ selected.code }}</p>
                   </div>
                 </div>
                 <div class="flex gap-2">
@@ -535,12 +565,12 @@ onMounted(() => {
                   <dl class="divide-y divide-[var(--dh-border)]">
                     <div v-for="field in [
                       {label: 'Razón social', value: selected.name},
-                      {label: 'Tipo', value: typeLabel(selected.category)},
+                      {label: 'Categorías', value: supplierCategories(selected).map(typeLabel).join(', ')},
                       {label: 'Modalidades', value: Array.isArray(metadata(selected).shipmentModes)
                         ? (metadata(selected).shipmentModes as string[])
                             .map(mode => modeOptions.find(x => x.value === mode)?.label || mode).join(', ') : 'No indicadas'},
                       {label: 'Código', value: selected.code},
-                      {label: 'País', value: countryLabel(metadata(selected).countryId)},
+                      {label: 'Países', value: supplierCountries(selected)},
                       {label: 'Identificación fiscal', value: metadata(selected).taxId},
                       {label: 'Sitio web', value: metadata(selected).website},
                       {label: 'Estado', value: selected.isActive ? 'Activo' : 'Inactivo'},
@@ -663,33 +693,29 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Company name' : 'Nombre de empresa' }}
             <input v-model="supplierName" required maxlength="220" placeholder="Ej. Transportes Romo" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <label class="text-sm font-semibold">{{ t('srm.type') }}
-            <select v-model="supplierType" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-              <option value="" disabled>Seleccionar tipo de proveedor</option>
-              <option v-for="type in typeOptions" :key="type.value" :value="type.value">{{ type.label }}</option>
-              <option value="__custom__">Otro tipo de proveedor…</option>
-            </select>
-          </label>
-          <label v-if="supplierType === '__custom__'" class="text-sm font-semibold">Especificar nuevo tipo de proveedor
+          <div class="min-w-0">
+            <DhMultiSelect v-model="supplierType" :options="categoryOptions"
+              :label="en ? 'Categories *' : 'Categorías *'"
+              :placeholder="en ? 'Select categories' : 'Seleccionar categorías'"
+              :search-placeholder="en ? 'Search categories...' : 'Buscar categorías...'" />
+          </div>
+          <label v-if="supplierType.includes('__custom__')" class="text-sm font-semibold">{{ en ? 'Specify another category' : 'Especificar otra categoría' }}
             <input v-model="customSupplierType" required maxlength="60" placeholder="Ej. Empresa de inspección de carga"
               class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
             <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Se guardará con el proveedor en el catálogo SRM y podrás reutilizarlo con otros proveedores.</span>
           </label>
-          <fieldset class="md:col-span-2 rounded-xl border border-[var(--dh-border)] p-4">
-            <legend class="px-2 text-sm font-bold">Modalidades (selección múltiple) *</legend>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label v-for="mode in modeOptions" :key="mode.value" class="flex items-center gap-2 text-sm">
-                <input v-model="shipmentModes" type="checkbox" :value="mode.value" class="h-4 w-4" />
-                {{ mode.label }}
-              </label>
-            </div>
-          </fieldset>
-          <label class="text-sm font-semibold">{{ en ? 'Country' : 'País' }}
-            <select v-model="countryId" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-              <option value="">{{ en ? 'Select country' : 'Seleccione país' }}</option>
-              <option v-for="country in countries" :key="country.id" :value="country.id">{{ country.label || country.value }}</option>
-            </select>
-          </label>
+          <div class="min-w-0 md:col-span-2">
+            <DhMultiSelect v-model="shipmentModes" :options="modeOptions"
+              :label="en ? 'Shipment modes *' : 'Modalidades *'"
+              :placeholder="en ? 'Select shipment modes' : 'Seleccionar modalidades'"
+              :search-placeholder="en ? 'Search modes...' : 'Buscar modalidades...'" />
+          </div>
+          <div class="min-w-0">
+            <DhMultiSelect v-model="countryIds" :options="countryOptions"
+              :label="en ? 'Countries *' : 'Países *'"
+              :placeholder="en ? 'Select countries' : 'Seleccionar países'"
+              :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
+          </div>
           <label class="text-sm font-semibold">{{ en ? 'Fiscal identification' : 'Identificación fiscal' }}
             <input v-model="taxId" maxlength="80" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
@@ -722,7 +748,7 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || !countryId || !contacts.length || contacts.some(c => !c.name.trim())" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
+          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || !countryIds.length || !contacts.length || contacts.some(c => !c.name.trim())" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
         </form>
       </DhDrawer>
     </template>
