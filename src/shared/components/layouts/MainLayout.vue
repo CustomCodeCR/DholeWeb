@@ -4,7 +4,6 @@ import {
   Ship,
   History,
   Globe2,
-  Gauge,
   FileCode2,
   CalendarClock,
   BadgeDollarSign,
