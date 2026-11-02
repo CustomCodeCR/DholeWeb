@@ -117,8 +117,6 @@ const legacyGroup = ref<'all' | 'carriers' | 'agents'>('all')
 const currencies = ref<CatalogItemSelectDto[]>([])
 const importBusy = ref('')
 const countryIds = ref<string[]>([])
-const taxId = ref('')
-const website = ref('')
 const paymentDays = ref('30')
 const contractCurrency = ref('USD')
 const rateReference = ref('')
@@ -262,8 +260,6 @@ function resetForm() {
   reference.value = ''
   expiresAt.value = ''
   countryIds.value = []
-  taxId.value = ''
-  website.value = ''
   paymentDays.value = '30'
   contractCurrency.value = 'USD'
   rateReference.value = ''
@@ -283,8 +279,6 @@ function openEdit(item: Supplier) {
   countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
     ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
     : typeof info.countryId === 'string' && info.countryId ? [info.countryId] : []
-  taxId.value = String(info.taxId || '')
-  website.value = String(info.website || '')
   formVisible.value = true
 }
 function openDetails(item: Supplier) { selected.value = item; supplierTab.value = 'profile'; formVisible.value = false }
@@ -327,8 +321,6 @@ async function saveSupplier() {
       contactPhone: contacts.value[0]?.phone.trim() || '',
       countryId: selectedCountries[0] || null,
       countryIds: selectedCountries,
-      taxId: taxId.value.trim() || null,
-      website: website.value.trim() || null,
     })
     if (editing.value) {
       await SrmApi.updateSupplier(editing.value.id, {
@@ -581,8 +573,6 @@ onMounted(() => {
                           .join(', ') || 'No indicadas'},
                       {label: 'Código', value: selected.code},
                       {label: 'Países', value: supplierCountries(selected)},
-                      {label: 'Identificación fiscal', value: metadata(selected).taxId},
-                      {label: 'Sitio web', value: metadata(selected).website},
                       {label: 'Estado', value: selected.isActive ? 'Activo' : 'Inactivo'},
                     ]" :key="field.label" class="grid grid-cols-[42%_minmax(0,1fr)] gap-3 py-2.5 text-xs">
                       <dt class="font-semibold text-[var(--dh-text-muted)]">{{ field.label }}</dt>
@@ -721,12 +711,6 @@ onMounted(() => {
               :placeholder="en ? 'Select countries' : 'Seleccionar países'"
               :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
           </div>
-          <label class="text-sm font-semibold">{{ en ? 'Fiscal identification' : 'Identificación fiscal' }}
-            <input v-model="taxId" maxlength="80" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
-          <label class="text-sm font-semibold">Sitio web
-            <input v-model="website" type="url" maxlength="200" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
                     <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold">Contactos del proveedor *</h3>
