@@ -266,8 +266,9 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
       !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
-  if (!shipmentModes.value.length || contacts.value.some(contact => !contact.name.trim())) {
-    error.value = 'Seleccioná al menos una modalidad y completá los nombres de los contactos.'
+  if (!shipmentModes.value.length || !countryId.value || !contacts.value.length ||
+      contacts.value.some(contact => !contact.name.trim())) {
+    error.value = 'Seleccioná una modalidad, un país y al menos un contacto con nombre.'
     return
   }
   saving.value = true
@@ -684,7 +685,7 @@ onMounted(() => {
             </div>
           </fieldset>
           <label class="text-sm font-semibold">{{ en ? 'Country' : 'País' }}
-            <select v-model="countryId" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <select v-model="countryId" required class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
               <option value="">{{ en ? 'Select country' : 'Seleccione país' }}</option>
               <option v-for="country in countries" :key="country.id" :value="country.id">{{ country.label || country.value }}</option>
             </select>
@@ -697,7 +698,7 @@ onMounted(() => {
           </label>
                     <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold">Contactos del proveedor</h3>
+              <h3 class="text-sm font-bold">Contactos del proveedor *</h3>
               <button type="button" :disabled="contacts.length >= 30"
                 class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
                 @click="contacts.push(newContact())">+ Agregar contacto</button>
@@ -721,7 +722,7 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || contacts.some(c => !c.name.trim())" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
+          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || !countryId || !contacts.length || contacts.some(c => !c.name.trim())" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier in Config' : 'Guardar proveedor en Config') }}</button></div>
         </form>
       </DhDrawer>
     </template>
