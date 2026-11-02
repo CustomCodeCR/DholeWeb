@@ -49,19 +49,6 @@ const validSupplierType = computed(() => resolvedSupplierTypes.value.length > 0)
 const supplierDescription = ref('')
 type SupplierContact = { name: string; email: string; phone: string; role: string }
 const contacts = ref<SupplierContact[]>([])
-const shipmentModes = ref<string[]>([])
-const modeOptions = [
-  { value: 'Fcl', label: 'Marítimo FCL' }, { value: 'Lcl', label: 'Marítimo LCL' },
-  { value: 'Ftl', label: 'Terrestre FTL' }, { value: 'Ltl', label: 'Terrestre LTL' },
-  { value: 'Air', label: 'Aéreo' },
-]
-function normalizeSupplierModes(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return [...new Set(value
-    .filter((mode): mode is string => typeof mode === 'string')
-    .map(mode => mode === 'AirConsol' ? 'Air' : mode)
-    .filter(mode => modeOptions.some(option => option.value === mode)))]
-}
 function newContact(): SupplierContact { return { name: '', email: '', phone: '', role: '' } }
 function supplierContacts(item: Supplier): SupplierContact[] {
   const info = metadata(item)
@@ -192,7 +179,6 @@ function resetForm() {
   supplierType.value = []
   supplierDescription.value = ''
   contacts.value = []
-  shipmentModes.value = []
   countryIds.value = []
 }
 function openCreate() { resetForm(); formVisible.value = true; error.value = ''; success.value = '' }
@@ -205,7 +191,6 @@ function openEdit(item: Supplier) {
   supplierDescription.value = item.description || ''
   const info = metadata(item)
   contacts.value = supplierContacts(item)
-  shipmentModes.value = normalizeSupplierModes(info.shipmentModes)
   countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
     ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
     : typeof info.countryId === 'string' && info.countryId ? [info.countryId] : []
@@ -216,10 +201,8 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
   if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
       !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
-  if (!shipmentModes.value.length || !countryIds.value.length) {
-    error.value = en.value
-      ? 'Select at least one shipment mode and country.'
-      : 'Seleccioná al menos una modalidad y un país.'
+  if (!countryIds.value.length) {
+    error.value = en.value ? 'Select at least one country.' : 'Seleccioná al menos un país.'
     return
   }
   const filledContacts = contacts.value.map(contact => ({
@@ -250,7 +233,6 @@ async function saveSupplier() {
         [...new Set([...(Array.isArray(retained.legacySupplierTypes)
           ? retained.legacySupplierTypes.filter((item): item is string => typeof item === 'string') : []),
           ...previousSpecificTypes])] } : {}),
-      shipmentModes: [...new Set(shipmentModes.value)],
       contacts: filledContacts,
       contactName: filledContacts[0]?.name || '',
       contactEmail: filledContacts[0]?.email || '',
@@ -421,9 +403,6 @@ onMounted(() => {
                   <dd class="flex flex-wrap gap-1.5"><span v-for="cat in supplierCategories(selected)" :key="cat"
                     class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.1)] px-2.5 py-1 text-xs font-semibold text-[var(--dh-primary)]">{{ typeLabel(cat) }}</span></dd>
                 </div>
-                <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ en ? 'Shipment modes' : 'Modalidades' }}</dt>
-                  <dd class="text-sm font-semibold">{{ normalizeSupplierModes(metadata(selected).shipmentModes)
-                    .map(mode => modeOptions.find(option => option.value === mode)?.label || mode).join(' · ') || '—' }}</dd></div>
                 <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ en ? 'Countries' : 'Países' }}</dt>
                   <dd class="text-sm font-semibold">{{ supplierCountries(selected) }}</dd></div>
               </dl>
@@ -478,12 +457,6 @@ onMounted(() => {
               :placeholder="en ? 'Select categories' : 'Seleccionar categorías'"
               :search-placeholder="en ? 'Search categories...' : 'Buscar categorías...'" />
           </div>
-          <div class="min-w-0 md:col-span-2">
-            <DhMultiSelect v-model="shipmentModes" :options="modeOptions"
-              :label="en ? 'Shipment modes *' : 'Modalidades *'"
-              :placeholder="en ? 'Select shipment modes' : 'Seleccionar modalidades'"
-              :search-placeholder="en ? 'Search modes...' : 'Buscar modalidades...'" />
-          </div>
           <div class="min-w-0">
             <DhMultiSelect v-model="countryIds" :options="countryOptions"
               :label="en ? 'Countries *' : 'Países *'"
@@ -516,7 +489,7 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !shipmentModes.length || !countryIds.length" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier' : 'Guardar proveedor') }}</button></div>
+          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !countryIds.length" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier' : 'Guardar proveedor') }}</button></div>
         </form>
       </DhDrawer>
     </template>
