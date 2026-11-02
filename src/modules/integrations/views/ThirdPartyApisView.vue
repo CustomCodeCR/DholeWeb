@@ -13,11 +13,12 @@ import DhModal from '@/shared/components/organisms/DhModal.vue'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 type Mapping = { public: string; internal: string; required: boolean }
-type FieldOption = { public: string; internal: string; label: string; required: boolean; selected: boolean }
+type FieldOption = { public: string; internal: string; label: string; required: boolean; selected: boolean; type?: string; group?: string }
 type ApprovedTarget = {
   code: string; service: string; method: HttpMethod; path: string
   description: string; ready?: boolean
   inputFields: FieldOption[]; outputFields: FieldOption[]
+  nestedInputFields?: Record<string, FieldOption[]>
 }
 type PublishedEndpoint = {
   id: string; name: string; slug: string; target: string
@@ -68,8 +69,21 @@ const fieldCatalogLoaded = computed(() =>
   Boolean(selectedTarget.value && Array.isArray(selectedTarget.value.inputFields) && Array.isArray(selectedTarget.value.outputFields)))
 const mandatoryInputs = computed(() => inputCatalog.value.filter(f => f.required))
 const optionalInputOptions = computed(() => inputCatalog.value.filter(f => !f.required)
-  .map(f => ({ value: f.public, label: f.label })))
-const outputOptions = computed(() => outputCatalog.value.map(f => ({ value: f.public, label: f.label })))
+  .map(f => ({ value: f.public, label: f.label, description: [f.group, f.type].filter(Boolean).join(' · ') })))
+const outputOptions = computed(() => outputCatalog.value.map(f =>
+  ({ value: f.public, label: f.label, description: [f.group, f.type].filter(Boolean).join(' · ') })))
+const nestedStructures = computed(() => Object.entries(selectedTarget.value?.nestedInputFields ?? {})
+  .map(([name, fields]) => ({
+    name, fields, selected: draft.value.inputs.some(f => f.public === name),
+    label: inputCatalog.value.find(f => f.public === name)?.label || name,
+  }))
+  .filter(section => section.selected && section.fields.length > 0))
+function selectAllInputs() {
+  selectedOptionalInputs.value = inputCatalog.value.filter(f => !f.required).map(f => f.public)
+}
+function clearOptionalInputs() { selectedOptionalInputs.value = [] }
+function selectAllOutputs() { selectedOutputs.value = outputCatalog.value.map(f => f.public) }
+function clearOutputs() { selectedOutputs.value = [] }
 function mapSelected(options: FieldOption[], selected: string[]): Mapping[] {
   return options.filter(option => option.required || selected.includes(option.public))
     .map(option => ({ public: option.public, internal: option.internal, required: option.required }))
@@ -543,7 +557,10 @@ onMounted(() => { void load() })
 
           <section v-else class="space-y-4 border-t border-[var(--dh-border)] pt-4">
             <div>
-              <h3 class="font-bold">Datos que recibirá tu API</h3>
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h3 class="font-bold">Request · Datos de entrada</h3>
+                <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ draft.inputs.length }} de {{ inputCatalog.length }} campos</span>
+              </div>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Los campos necesarios se incluyen automáticamente. Solo seleccioná los adicionales que querás permitir.</p>
             </div>
             <div v-if="mandatoryInputs.length" class="rounded-xl border border-[var(--dh-border)] p-3">
@@ -555,6 +572,10 @@ onMounted(() => { void load() })
                 </span>
               </div>
             </div>
+            <div v-if="optionalInputOptions.length" class="flex flex-wrap gap-2">
+              <DhButton variant="secondary" size="sm" label="Seleccionar todos" @click="selectAllInputs" />
+              <DhButton variant="ghost" size="sm" label="Solo obligatorios" @click="clearOptionalInputs" />
+            </div>
             <DhMultiSelect
               v-if="optionalInputOptions.length"
               v-model="selectedOptionalInputs"
@@ -563,14 +584,38 @@ onMounted(() => { void load() })
               placeholder="Seleccionar campos opcionales"
               search-placeholder="Buscar un dato..."
             />
+            <div v-if="nestedStructures.length" class="space-y-2">
+              <p class="text-xs font-semibold uppercase text-[var(--dh-text-muted)]">Estructuras internas de los datos JSON</p>
+              <details v-for="section in nestedStructures" :key="section.name" class="rounded-xl border border-[var(--dh-border)] p-3">
+                <summary class="cursor-pointer text-sm font-semibold">
+                  {{ section.label }} · {{ section.fields.length }} campos incluidos en el objeto
+                </summary>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div v-for="child in section.fields" :key="child.internal" class="rounded-lg bg-[var(--dh-input)] p-2 text-xs">
+                    <strong class="block">{{ child.label }}</strong>
+                    <span class="text-[var(--dh-text-muted)]">{{ child.type }}{{ child.required ? ' · Obligatorio en el elemento' : '' }}</span>
+                  </div>
+                </div>
+              </details>
+            </div>
+            <p v-if="draft.target === 'pricing-rate-request-create'" class="text-xs text-[var(--dh-text-muted)]">
+              El contenido de «Datos de operación» cambia según la modalidad de transporte. Pricing lo recibe como JSON y valida las reglas de la solicitud.
+            </p>
             <p v-if="!inputCatalog.length" class="text-xs text-[var(--dh-text-muted)]">
               Esta operación no necesita parámetros de entrada.
             </p>
           </section>
 
           <section v-if="fieldCatalogLoaded" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
-            <h3 class="font-bold">Datos que podrá consultar el tercero</h3>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h3 class="font-bold">Response · Datos de salida</h3>
+              <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ draft.outputs.length }} de {{ outputCatalog.length }} campos</span>
+            </div>
             <p class="text-xs text-[var(--dh-text-muted)]">Seleccioná qué información devolverá la API. Solo aparecen datos disponibles para esta operación.</p>
+            <div v-if="outputOptions.length" class="flex flex-wrap gap-2">
+              <DhButton variant="secondary" size="sm" label="Seleccionar todos" @click="selectAllOutputs" />
+              <DhButton variant="ghost" size="sm" label="Limpiar selección" @click="clearOutputs" />
+            </div>
             <DhMultiSelect
               v-if="outputOptions.length"
               v-model="selectedOutputs"
@@ -580,7 +625,10 @@ onMounted(() => { void load() })
               search-placeholder="Buscar información..."
             />
             <p v-else class="text-xs text-[var(--dh-text-muted)]">
-              Esta operación no tiene campos de respuesta configurables.
+              Esta operación no devuelve un cuerpo de respuesta (HTTP 204).
+            </p>
+            <p v-if="draft.target === 'pricing-rates-list'" class="text-xs text-[var(--dh-text-muted)]">
+              La paginación (número de página, tamaño, total de registros) se incluye automáticamente. Los campos elegidos se aplican a cada tarifa de la lista.
             </p>
             <p v-if="method === 'GET' && !selectedOutputs.length" class="text-xs text-amber-500">
               Para consultar datos, seleccioná por lo menos un campo de respuesta.
