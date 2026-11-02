@@ -16,6 +16,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { useRequiredFieldFeedback } from '@/core/composables/useRequiredFieldFeedback'
 import { useI18n } from 'vue-i18n'
 import { CRM_MODULES, crmDefaults, crmPayload, type CrmSection } from '../model/crmForms'
+import { identificationOptionsForCountry, normalizeIdentificationType } from '../model/crmIdentification'
 import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
@@ -50,7 +51,7 @@ function applyHacienda(result: HaciendaResult) {
   if (String(form.taxId ?? '').replace(/[\s-]/g, '') !== result.identification.replace(/[\s-]/g, '')) return
   form.legalName = result.name
   form.displayName = result.name
-  if (result.identificationType) form.taxIdTypeCode = result.identificationType
+  if (result.identificationType) form.taxIdTypeCode = normalizeIdentificationType(result.identificationType)
 }
 
 function applyLeadHacienda(result: HaciendaResult) {
@@ -230,6 +231,21 @@ async function loadAccountSellers(accounts: CrmRow[]) {
   }
 }
 const countryLabels = ref<Record<string, string>>({})
+const accountCountryLabels = ref<Record<string, string>>({})
+const accountIdentificationOptions = computed(() => {
+  const id = String(form.countryId ?? '')
+  return identificationOptionsForCountry(accountCountryLabels.value[id] || countryLabels.value[id] || '')
+})
+function rememberAccountCountry(item: { value: string; label: string }) {
+  accountCountryLabels.value = { ...accountCountryLabels.value, [item.value]: item.label }
+}
+function updateAccountCountry(id: string) {
+  if (id !== String(form.countryId ?? '') &&
+      !['01', '02'].includes(normalizeIdentificationType(form.taxIdTypeCode))) {
+    form.taxIdTypeCode = ''
+  }
+  form.countryId = id
+}
 async function loadCountryLabels() {
   try {
     const items = await CatalogItemsService.select({ catalogGroupSlug: 'countries' })
@@ -809,11 +825,14 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                   <DhInput label="Razón social *" data-required-field="legalName" :error="fieldError('legalName')"
                     :model-value="String(form.legalName ?? '')" @update:model-value="form.legalName=$event" />
                   <CrmCatalogPicker v-if="!edited" label="País · catálogo Config" catalog-group-slug="countries" value-kind="id"
-                    :model-value="String(form.countryId ?? '')" @update:model-value="form.countryId=$event" />
+                    :model-value="String(form.countryId ?? '')" @resolved-label="rememberAccountCountry" @update:model-value="updateAccountCountry" />
                   <DhInput v-else label="País registrado (solo lectura)" :disabled="true"
                     :model-value="countryLabels[String(form.countryId ?? '')] || String(form.countryId ?? '')" />
                   <DhInput label="Identificación fiscal" :disabled="!!edited" :model-value="String(form.taxId ?? '')" @update:model-value="form.taxId=$event" />
-                  <DhInput label="Tipo de identificación" :disabled="!!edited" :model-value="String(form.taxIdTypeCode ?? '')" @update:model-value="form.taxIdTypeCode=$event" />
+                  <DhSelect label="Tipo de identificación" :disabled="!!edited || !form.countryId"
+                    placeholder="Seleccionar tipo de identificación" :options="accountIdentificationOptions"
+                    :model-value="normalizeIdentificationType(form.taxIdTypeCode)"
+                    @update:model-value="form.taxIdTypeCode=String($event)" />
                   <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs text-[var(--dh-text-muted)]">
                     <p class="font-bold text-[var(--dh-text)]">Verificación tributaria</p>
                     <p class="mt-1">Al indicar una identificación, debés seleccionar el país y su tipo. La consulta a Hacienda valida los datos costarricenses.</p>
