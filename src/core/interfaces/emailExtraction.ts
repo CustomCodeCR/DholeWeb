@@ -7,6 +7,7 @@ export type EmailMessageStatus =
   | 'Ignored'
   | 'Duplicated'
   | 'Failed'
+  | 'Invalid'
 
 export type EmailExtractionJobStatus =
   | 'Pending'
