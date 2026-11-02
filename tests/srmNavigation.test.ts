@@ -48,3 +48,10 @@ test('SRM uses Dhole multi-selects and preserves legacy single-value fields', ()
   assert.doesNotMatch(view, /<select v-model="countryId"/)
   assert.doesNotMatch(view, /<input v-model="shipmentModes" type="checkbox"/)
 })
+
+test('SRM offers one air mode and maps previous air-consolidated records', () => {
+  assert.match(view, /\{ value: 'Air', label: 'Aéreo' \}/)
+  assert.doesNotMatch(view, /Aéreo consolidado/)
+  assert.match(view, /mode === 'AirConsol' \? 'Air' : mode/)
+  assert.match(view, /shipmentModes\.value = normalizeSupplierModes\(info\.shipmentModes\)/)
+})
