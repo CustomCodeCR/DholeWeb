@@ -92,7 +92,14 @@ const selectedOptionalInputs = computed<string[]>({
   get: () => draft.value.inputs.filter(f => !mandatoryInputs.value.some(x => x.public === f.public))
     .map(f => f.public),
   set: values => {
-    draft.value.inputs = mapSelected(inputCatalog.value, values)
+    // Whole payload and individually selected nested payload fields are exclusive.
+    // Selecting any nested field automatically switches to granular mode.
+    const granular = draft.value.target === 'pricing-rate-request-create' &&
+      values.some(value => inputCatalog.value.find(f => f.public === value)?.internal.startsWith('payload.'))
+    const selected = granular
+      ? values.filter(value => inputCatalog.value.find(f => f.public === value)?.internal !== 'payload')
+      : values
+    draft.value.inputs = mapSelected(inputCatalog.value, selected)
   },
 })
 const selectedOutputs = computed<string[]>({
@@ -298,6 +305,10 @@ function next() {
     if (!d.name.trim() || !/^[a-z][a-z0-9-]{2,63}$/.test(d.slug)) {
       error.value = 'Ingresá un nombre y una ruta de al menos 3 caracteres, con letras, números o guiones.'; return
     }
+    if (d.target === 'pricing-rate-request-create' &&
+        !d.inputs.some(f => f.internal === 'payload' || f.internal.startsWith('payload.'))) {
+      error.value = 'Seleccioná payload completo o los datos de la solicitud que vas a compartir.'; return
+    }
     if ((method.value === 'GET' && !d.outputs.length) ||
       !validFields(d.inputs) || !validFields(d.outputs)) {
       error.value = 'Revisá los campos: para GET elegí al menos un dato de respuesta.'; return
@@ -328,6 +339,10 @@ async function loadKeys(id: string) {
 async function save() {
   error.value = ''
   const d = draft.value
+  if (d.target === 'pricing-rate-request-create' &&
+      !d.inputs.some(f => f.internal === 'payload' || f.internal.startsWith('payload.'))) {
+    error.value = 'Seleccioná los datos de la operación antes de guardar.'; step.value = 2; return
+  }
   if (!fieldCatalogLoaded.value || !selectedTarget.value || !d.name.trim() || !/^[a-z][a-z0-9-]{2,63}$/.test(d.slug) ||
     (method.value === 'GET' && !d.outputs.length) || !validFields(d.inputs) || !validFields(d.outputs)) {
     step.value = 2
@@ -562,6 +577,9 @@ onMounted(() => { void load() })
                 <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ draft.inputs.length }} de {{ inputCatalog.length }} campos</span>
               </div>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Los campos necesarios se incluyen automáticamente. Solo seleccioná los adicionales que querás permitir.</p>
+            </div>
+            <div v-if="draft.target === 'pricing-rate-request-create'" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
+              Podés permitir que el tercero envíe el <strong>payload completo</strong> como en el JSON original, o seleccionar cada campo de <strong>formulario, contenedores y contextos</strong>. Al elegir campos individuales, Dhole construirá automáticamente el JSON anidado.
             </div>
             <div v-if="mandatoryInputs.length" class="rounded-xl border border-[var(--dh-border)] p-3">
               <p class="mb-2 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Obligatorios · incluidos automáticamente</p>
