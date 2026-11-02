@@ -404,7 +404,7 @@ function mapItem(
 
   return {
     ...item,
-    label: t(item.labelKey),
+    label: item.name === 'third-party-apis' ? 'APIs para terceros' : t(item.labelKey),
     children,
   }
 }
