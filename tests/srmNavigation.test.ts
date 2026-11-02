@@ -16,15 +16,12 @@ test('SRM has one supplier directory; old URLs redirect safely', () => {
   assert.match(router, /'srm\/performance', 'srm\/contracts'/)
   assert.doesNotMatch(view, /<RouterLink v-for="item in sections"/)
 })
-test('supplier directory allows any type, persists in Config and retains legacy links', () => {
+test('supplier directory uses fixed categories, persists in Config and retains legacy links', () => {
   assert.match(client, /\/api\/config\/srm/)
-  assert.match(client, /supplier-types/)
   assert.match(view, /SrmApi.list\('suppliers'\)/)
   assert.match(view, /SrmApi.create\('suppliers'/)
   assert.match(view, /SrmApi.updateSupplier/)
-  assert.match(view, /customSupplierType/)
-  assert.match(view, /resolvedSupplierType/)
-  assert.match(view, /Naviera|Aerolínea|Agencia aduanal extranjera|Empresa hermana/)
+  assert.match(view, /resolvedSupplierTypes/)
   assert.match(view, /SrmApi.importLegacyPartner/)
 })
 test('SRM supplier pages require dedicated scopes and Dhole drawers', () => {
@@ -54,4 +51,23 @@ test('SRM offers one air mode and maps previous air-consolidated records', () =>
   assert.doesNotMatch(view, /Aéreo consolidado/)
   assert.match(view, /mode === 'AirConsol' \? 'Air' : mode/)
   assert.match(view, /shipmentModes\.value = normalizeSupplierModes\(info\.shipmentModes\)/)
+})
+
+test('SRM category picker has exactly seven fixed options and safely maps legacy categories', () => {
+  const expected = [
+    ['agent', 'Agente'],
+    ['coloader', 'Coloader'],
+    ['road', 'Transportista'],
+    ['carrier', 'Naviera'],
+    ['airline', 'Aerolínea'],
+    ['sister-company', 'Empresa hermana'],
+    ['other', 'Otros'],
+  ]
+  const categoryList = view.match(/const categoryOptions = \[([\s\S]*?)\]/)?.[1] ?? ''
+  const values = [...categoryList.matchAll(/\{ value: '([^']+)', label: '([^']+)' \}/g)]
+    .map((match) => [match[1], match[2]])
+  assert.deepEqual(values, expected)
+  assert.doesNotMatch(view, /customSupplierType|__custom__/)
+  assert.match(view, /normalizeSupplierCategory/)
+  assert.match(view, /legacySupplierTypes/)
 })
