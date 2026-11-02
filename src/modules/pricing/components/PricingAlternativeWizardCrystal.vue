@@ -4645,7 +4645,7 @@ async function saveRate() {
   }
   // Seller changes to screens 1-4 must not erase the pre-existing LCL
   // international freight when a catalog/source refresh drops the row.
-  const persistedFreight = props.modificationRequestId && editingRate.value?.shipmentMode === 'Lcl'
+  const persistedFreight = editingRate.value?.shipmentMode === 'Lcl'
     ? editingRate.value.rateDetails.find(detail => detail.costDetailType === 'Freight')
     : null
   if (persistedFreight && shipmentModeForApi.value === 'Lcl'
@@ -4702,18 +4702,35 @@ async function saveRate() {
   const agent = selectedAgent.value
   const carrier = selectedCarrier.value
   const currency = selectedCurrency.value
+  // An existing LCL may use GCF's internal agent or a coloader without a
+  // catalog naviera. Reuse the persisted agent and the backend's LCL carrier
+  // sentinel instead of treating a deliberately empty selector as invalid.
+  const existingLcl = editingRate.value && shipmentModeForApi.value === 'Lcl'
+    && editingRate.value.shipmentMode === 'Lcl' ? editingRate.value : null
+  const agentId = agent?.id
+    ?? (existingLcl && (!form.agentId || form.agentId === existingLcl.agentId)
+      ? existingLcl.agentId : null)
+  const agentName = agent ? displayValue(agent) : (existingLcl?.agentName ?? '')
+  const agentCode = agent?.code ?? (existingLcl?.agentCode ?? '')
+  const carrierId = carrier?.id
+    ?? (existingLcl && !form.carrierId
+      ? '00000000-0000-0000-0000-000000000000' : null)
+  const carrierName = carrier ? displayValue(carrier) : (existingLcl ? 'No aplica (LCL)' : '')
+  const carrierCode = carrier?.code ?? (existingLcl ? 'LCL' : '')
 
   const missing: string[] = []
   if (!origin) missing.push('origen')
   if (!poe) missing.push('destino/POE')
   if (!equipment) missing.push(form.modality === 'Land' ? 'furgón / equipo terrestre' : 'equipo')
   if (!incoterm) missing.push('Incoterm')
-  if (!agent) missing.push('agente')
-  if (!carrier) missing.push('proveedor')
+  if (!agentId) missing.push('agente')
+  if (!carrierId) missing.push('proveedor')
   if (!currency) missing.push('moneda')
 
   if (missing.length) {
     step.value = !origin || !poe || !equipment || !incoterm ? 3 : 6
+    toastStore.warning('No se puede guardar todavía',
+      'Complete o recupere estos datos: ' + missing.join(', ') + '. Los valores anteriores de LCL se mantienen si son válidos.')
     void Promise.resolve().then(() => { validateRequiredFields() })
     return
   }
@@ -4895,12 +4912,12 @@ async function saveRate() {
     const equipmentName = displayValue(equipment!)
     const createPayload: CreateRateRequest = {
       sourceImportFclRateId: form.selectedImportRateId || null,
-      agentId: agent!.id,
-      agentName: displayValue(agent),
-      agentCode: agent!.code,
-      carrierId: carrier!.id,
-      carrierName: displayValue(carrier),
-      carrierCode: carrier!.code,
+      agentId: agentId!,
+      agentName,
+      agentCode,
+      carrierId: carrierId!,
+      carrierName,
+      carrierCode,
       polId: origin!.id,
       polName: displayValue(origin),
       polCode: origin!.code,
@@ -5009,12 +5026,12 @@ async function saveRate() {
       const { sourceImportFclRateId: _sourceImportFclRateId, details: _details, ...baseUpdate } = createPayload
       const updatePayload = {
         ...baseUpdate,
-        agentId: agent!.id,
-        agentName: displayValue(agent),
-        agentCode: agent!.code,
-        carrierId: carrier!.id,
-        carrierName: displayValue(carrier),
-        carrierCode: carrier!.code,
+        agentId: agentId!,
+        agentName,
+        agentCode,
+        carrierId: carrierId!,
+        carrierName,
+        carrierCode,
         rateType: editingRate.value.rateType,
         quoNumber: editingRate.value.quoNumber ?? null,
         // Includes / SubjectTo / Excludes already come from baseUpdate, recalculated by
