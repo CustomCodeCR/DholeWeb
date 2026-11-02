@@ -6,6 +6,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
 import SellerRoleDashboard from '@/modules/dashboard/components/SellerRoleDashboard.vue'
+import RateOperationalReportsPanel from '@/modules/dashboard/components/RateOperationalReportsPanel.vue'
 import PricingRateRequestsPanel from '@/modules/pricing/components/PricingRateRequestsPanel.vue'
 
 const { t } = useI18n()
@@ -130,5 +131,11 @@ const activeDashboardRole = computed<DashboardRole>(() => {
       <PricingRateRequestsPanel v-if="canManageSellerRequests" />
       <PricingRoleDashboard />
     </template>
+
+    <RateOperationalReportsPanel
+      v-if="(activeDashboardRole === 'seller' && hasSellerDashboardAccess) || (activeDashboardRole === 'pricing' && canUsePricing)"
+      :key="activeDashboardRole"
+      :role="activeDashboardRole"
+    />
   </section>
 </template>
