@@ -323,8 +323,8 @@ onMounted(load)
     <div class="grid gap-3 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:grid-cols-2 xl:grid-cols-4">
       <DhInput v-model="from" type="date" label="Solicitadas desde" />
       <DhInput v-model="to" type="date" label="Solicitadas hasta" />
-      <DhSelect v-model="seller" label="Vendedor" :options="sellerOptions" />
-      <DhSelect v-model="mode" label="Modalidad" :options="modeOptions" />
+      <DhSelect v-model="seller" label="Vendedor" placeholder="" :options="sellerOptions" />
+      <DhSelect v-model="mode" label="Modalidad" placeholder="" :options="modeOptions" />
       <div class="sm:col-span-2 xl:col-span-4 flex flex-wrap items-center justify-between gap-2">
         <p class="text-xs text-[var(--dh-text-muted)]">
           Fechas para solicitudes finalizadas; solicitudes abiertas y tarifas pendientes siempre incluyen las anteriores.
