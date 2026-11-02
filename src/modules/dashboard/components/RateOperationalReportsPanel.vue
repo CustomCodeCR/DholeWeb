@@ -180,6 +180,20 @@ const pendingGroups = computed(() => [
   { stage: 'Expired' as PendingStage, label: 'Vencidas', count: pendingRates.value.filter(x => x.pendingStage === 'Expired').length },
 ])
 const maxPending = computed(() => Math.max(1, ...pendingGroups.value.map(x => x.count)))
+const pendingBySeller = computed(() => {
+  const groups = new Map<string, { label: string; count: number }>()
+  for (const row of pendingRates.value) {
+    const key = row.sellerUserId || row.sellerName || 'sin-vendedor'
+    const current = groups.get(key) ?? {
+      label: row.sellerName || 'Sin vendedor asignado', count: 0,
+    }
+    current.count += 1
+    groups.set(key, current)
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'es'))
+})
+const maxSellerPending = computed(() => Math.max(1, ...pendingBySeller.value.map(x => x.count)))
+
 
 function pendingLabel(value: PendingStage) {
   return ({
@@ -284,6 +298,9 @@ function exportPendingExcel() {
         { metric: 'Total pendientes', value: pendingRates.value.length },
         ...pendingGroups.value.map(group => ({ metric: group.label, value: group.count })),
       ] },
+      { name: 'Por vendedor', columns: [
+        { key: 'seller', label: 'Vendedor' }, { key: 'count', label: 'Pendientes' },
+      ], rows: pendingBySeller.value.map(group => ({ seller: group.label, count: group.count })) },
       { name: 'Pendientes vendedores', columns: [
         { key: 'quo', label: 'QUO' }, { key: 'seller', label: 'Vendedor' },
         { key: 'client', label: 'Cliente' }, { key: 'mode', label: 'Modalidad' },
@@ -434,15 +451,29 @@ onMounted(load)
           </div>
         </div>
 
-        <div class="mt-4 rounded-xl bg-[var(--dh-input)] p-4">
-          <p class="mb-3 text-sm font-bold text-[var(--dh-text)]">Distribución de pendientes</p>
-          <div v-for="group in pendingGroups" :key="group.stage" class="mb-3 last:mb-0">
-            <div class="mb-1 flex justify-between text-xs text-[var(--dh-text-muted)]">
-              <span>{{ group.label }}</span><span>{{ group.count }}</span>
+        <div class="mt-4 grid gap-3 lg:grid-cols-2">
+          <div class="rounded-xl bg-[var(--dh-input)] p-4">
+            <p class="mb-3 text-sm font-bold text-[var(--dh-text)]">Distribución de pendientes</p>
+            <div v-for="group in pendingGroups" :key="group.stage" class="mb-3 last:mb-0">
+              <div class="mb-1 flex justify-between text-xs text-[var(--dh-text-muted)]">
+                <span>{{ group.label }}</span><span>{{ group.count }}</span>
+              </div>
+              <div class="h-3 overflow-hidden rounded-full bg-[var(--dh-card)]">
+                <div class="h-full rounded-full bg-[var(--dh-primary)]" :style="{ width: `${group.count / maxPending * 100}%` }" />
+              </div>
             </div>
-            <div class="h-3 overflow-hidden rounded-full bg-[var(--dh-card)]">
-              <div class="h-full rounded-full bg-[var(--dh-primary)]" :style="{ width: `${group.count / maxPending * 100}%` }" />
+          </div>
+          <div class="rounded-xl bg-[var(--dh-input)] p-4">
+            <p class="mb-3 text-sm font-bold text-[var(--dh-text)]">Pendientes por vendedor</p>
+            <div v-for="group in pendingBySeller.slice(0, 10)" :key="group.label" class="mb-3 last:mb-0">
+              <div class="mb-1 flex justify-between gap-2 text-xs text-[var(--dh-text-muted)]">
+                <span class="truncate">{{ group.label }}</span><span>{{ group.count }}</span>
+              </div>
+              <div class="h-3 overflow-hidden rounded-full bg-[var(--dh-card)]">
+                <div class="h-full rounded-full bg-[var(--dh-primary)]" :style="{ width: `${group.count / maxSellerPending * 100}%` }" />
+              </div>
             </div>
+            <p v-if="!pendingBySeller.length" class="text-xs text-[var(--dh-text-muted)]">No hay pendientes por vendedor.</p>
           </div>
         </div>
 
