@@ -156,12 +156,16 @@ test('cost lines no longer force CRC on importation or Costa Rica POE', async ()
   }
 })
 
-test('Supplier selector is last in cost editor and contains no redundant explanation', async () => {
+test('Supplier selector uses DhSelect below notes and hides internal supplier codes', async () => {
   const source = await readFile(new URL('../src/modules/pricing/components/PricingCostFormDrawer.vue', import.meta.url), 'utf8')
   const notes = source.indexOf('v-model="form.notes"')
-  const supplier = source.indexOf('id="srm-cost-supplier"')
+  const supplier = source.indexOf('v-model="payeeSupplierId"')
   const footer = source.indexOf('class="sticky bottom-0')
   assert.ok(notes >= 0 && supplier > notes && footer > supplier)
-  assert.match(source, />Proveedor<\/label>/)
-  assert.doesNotMatch(source, /Proveedor de pago · SRM|Independiente de la naviera o agente|acarreo pagado a Junier/)
+  assert.match(source, /<DhSelect\s+v-model="payeeSupplierId"\s+label="Proveedor"/)
+  assert.match(source, /:options="payeeOptions"/)
+  assert.match(source, /\{ value: '', label: 'Sin proveedor de pago asignado' \}/)
+  assert.match(source, /\.map\(row => \(\{ value: row\.id, label: row\.name \}\)\)/)
+  assert.doesNotMatch(source, /row\.name \+ ' · ' \+ row\.code/)
+  assert.doesNotMatch(source, /<select id="srm-cost-supplier"|Proveedor de pago · SRM|Independiente de la naviera o agente|acarreo pagado a Junier/)
 })
