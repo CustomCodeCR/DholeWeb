@@ -442,8 +442,12 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
 function ownSelectionBlockReason(row: OwnLclConsolidationDto): string | null {
   if (!ownConsolidationSupportsPol(row)) return 'Otro POL'
   if (ownDepartureExpired(row)) return 'Revisar ETD'
-  if (row.capacityReached === true || remainingCbm(row) + 0.000001 < requested()) return 'Sin capacidad'
   return null
+}
+
+// La capacidad es informativa durante la cotización y no reserva espacios.
+function ownHasInsufficientCapacity(row: OwnLclConsolidationDto) {
+  return row.capacityReached === true || remainingCbm(row) + 0.000001 < requested()
 }
 
 function ownConsolidationSupportsPoe(row: OwnLclConsolidationDto) {
@@ -578,7 +582,7 @@ async function chooseOwn(row: OwnLclConsolidationDto) {
       ? 'Este consolidado utiliza otro puerto de origen. Seleccione su POL en Pantalla 3 para cotizarlo.'
       : unavailableReason === 'Revisar ETD'
         ? `El consolidado ${row.name} tiene ETD ${row.etd}, anterior a la fecha de carga. Corrija su salida antes de cotizar.`
-        : 'Este consolidado no tiene capacidad suficiente para el volumen solicitado.'
+        : `El consolidado ${row.name} no está disponible para la fecha de carga seleccionada.`
     return
   }
   if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row)) {
@@ -819,13 +823,13 @@ onMounted(load)
     </div>
 
     <div v-if="tab === 'Own' && ownPoeEligible" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE y la capacidad.' : unlistedShanghaiOrigin ? 'POL de China sin tarifa directa: Shanghai como referencia y recolecta editable en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE. La capacidad es informativa.' : unlistedShanghaiOrigin ? 'POL de China sin tarifa directa: Shanghai como referencia y recolecta editable en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
         {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
       </button>
     </div>
     <div v-if="error" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">{{ error }}</div>
-    <div v-if="tab === 'Own' && filteredOwn.some((row) => ownSelectionBlockReason(row))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Solo se muestran salidas con ETD vigente. Los consolidados de otro POL o sin capacidad quedan para consulta; Shanghai se puede cotizar desde los puertos incluidos en su matriz FOB.</div>
+    <div v-if="tab === 'Own' && filteredOwn.some((row) => ownHasInsufficientCapacity(row) || ownSelectionBlockReason(row))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Puede cotizar un consolidado aunque su capacidad sea insuficiente. La cotización no reserva ni confirma espacio: verifique disponibilidad antes de gestionar el embarque. Las salidas de otro POL quedan solo para consulta.</div>
 
     <div v-if="tab === 'Own'">
       <DhDataTable :columns="ownColumns" :rows="filteredOwn" :loading="loading" empty-text="No hay consolidados propios disponibles para este POL.">
@@ -839,6 +843,7 @@ onMounted(load)
           <div class="space-y-0.5 text-right">
             <p class="whitespace-nowrap font-black">{{ remainingCbm(row).toFixed(2) }} CBM disponibles</p>
             <p class="whitespace-nowrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ approvedCbm(row).toFixed(2) }} aprobados / {{ n(row.maximumCbm).toFixed(2) }} totales</p>
+            <DhBadge v-if="ownHasInsufficientCapacity(row)" label="Capacidad insuficiente · Solo cotización" variant="warning" />
           </div>
         </template>
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>
