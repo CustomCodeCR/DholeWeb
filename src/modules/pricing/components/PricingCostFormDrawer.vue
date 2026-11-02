@@ -689,23 +689,6 @@ onMounted(() => {
           :options="catalogs.carrierOptions.value"
           :error="fieldError(form.carrierId, 'Seleccione la naviera.')"
         />
-        <div class="md:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-4">
-          <label class="block text-xs font-extrabold uppercase tracking-wider">Proveedor de pago · SRM</label>
-          <p class="text-xs text-[var(--dh-text-muted)]">
-            Independiente de la naviera o agente al que aplica el costo. Por ejemplo,
-            naviera vinculada al Merchant, pero pago de flete a Romo, o acarreo pagado a Junier.
-          </p>
-          <select v-model="payeeSupplierId" aria-label="Proveedor al que se le paga"
-            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-sm">
-            <option v-for="supplier in payeeOptions" :key="supplier.value" :value="supplier.value">
-              {{ supplier.label }}
-            </option>
-          </select>
-          <p v-if="supplierLoadError || payeeLoadError" role="alert" class="text-xs text-amber-500">{{ supplierLoadError || payeeLoadError }}</p>
-          <p v-else-if="selectedPayee" class="text-xs text-[var(--dh-text-muted)]">
-            Se guardará la referencia SRM y el nombre del proveedor de pago en este costo.
-          </p>
-        </div>
         <DhSelect
           v-if="form.routeScope === 'Any'"
           v-model="form.portId"
@@ -963,6 +946,16 @@ onMounted(() => {
           label="Notas"
           placeholder="Condiciones, alcance o evidencia del costo..."
         />
+      </div>
+      <div class="mt-4 space-y-2 rounded-xl border border-[var(--dh-border)] p-4">
+        <label for="srm-cost-supplier" class="block text-xs font-extrabold uppercase tracking-wider">Proveedor</label>
+        <select id="srm-cost-supplier" v-model="payeeSupplierId" aria-label="Proveedor"
+          class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-sm">
+          <option v-for="supplier in payeeOptions" :key="supplier.value" :value="supplier.value">
+            {{ supplier.label }}
+          </option>
+        </select>
+        <p v-if="supplierLoadError || payeeLoadError" role="alert" class="text-xs text-amber-500">{{ supplierLoadError || payeeLoadError }}</p>
       </div>
     </section>
 
