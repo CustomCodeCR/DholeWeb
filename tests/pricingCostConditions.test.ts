@@ -155,3 +155,13 @@ test('cost lines no longer force CRC on importation or Costa Rica POE', async ()
     assert.match(source, /function enforceLineCurrency\(_line: RateLine\)/)
   }
 })
+
+test('Supplier selector is last in cost editor and contains no redundant explanation', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingCostFormDrawer.vue', import.meta.url), 'utf8')
+  const notes = source.indexOf('v-model="form.notes"')
+  const supplier = source.indexOf('id="srm-cost-supplier"')
+  const footer = source.indexOf('class="sticky bottom-0')
+  assert.ok(notes >= 0 && supplier > notes && footer > supplier)
+  assert.match(source, />Proveedor<\/label>/)
+  assert.doesNotMatch(source, /Proveedor de pago · SRM|Independiente de la naviera o agente|acarreo pagado a Junier/)
+})
