@@ -144,10 +144,6 @@ function mapRecords(items: CatalogItemDto[]): SrmRecord[] {
     }
   })
 }
-function supplierLabel(id: string) {
-  return suppliers.value.find(item => item.id === id)?.name || (en.value ? 'Unknown supplier' : 'Proveedor no disponible')
-}
-
 const pendingLegacy = computed(() => legacyPartners.value.filter(item => !item.imported))
 const filteredLegacy = computed(() => pendingLegacy.value.filter(item =>
   (legacyGroup.value === 'all' || legacyGroup.value === item.sourceGroup) &&
@@ -273,10 +269,11 @@ async function saveSupplier() {
         value: supplierName.value.trim(), metadataJson, sortOrder: suppliers.value.length + 1,
       })
     }
+    const editingId = editing.value?.id
     closeForm()
     success.value = t('crm.saved')
     await load()
-    if (editing.value) selected.value = suppliers.value.find(item => item.id === editing.value?.id) || selected.value
+    if (editingId) selected.value = suppliers.value.find(item => item.id === editingId) || selected.value
   } catch (cause) { error.value = cause instanceof Error ? cause.message : t('srm.loadError') }
   finally { saving.value = false }
 }
@@ -493,7 +490,7 @@ onMounted(() => {
               :placeholder="en ? 'Select countries' : 'Seleccionar países'"
               :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
           </div>
-                    <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+          <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold">Contactos del proveedor <span class="font-medium text-[var(--dh-text-muted)]">(opcional)</span></h3>
               <button type="button" :disabled="contacts.length >= 30"
