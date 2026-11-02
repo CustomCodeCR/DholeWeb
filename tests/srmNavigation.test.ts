@@ -89,3 +89,16 @@ test('supplier contacts are optional and empty rows do not block saving', () => 
   assert.doesNotMatch(view, /!contacts\.value\.length|!contacts\.length/)
   assert.match(view, /:required="Boolean\(contact\.email\.trim\(\) \|\| contact\.phone\.trim\(\) \|\| contact\.role\.trim\(\)\)"/)
 })
+
+test('SRM has a clean directory layout without visible internal codes or dashboard cards', () => {
+  const template = view.split('<template>')[1] ?? ''
+  assert.match(template, /Directorio de proveedores/)
+  assert.match(template, /Seleccioná un proveedor/)
+  assert.match(template, /filteredSuppliers\.length/)
+  assert.match(template, /openDetails\(item\)/)
+  assert.doesNotMatch(template, /selected\.code|item\.code|row\.code|legacyCode/)
+  assert.doesNotMatch(template, /Origen de la información|Proveedores disponibles|Incorporación a SRM|<nav/)
+  assert.doesNotMatch(template, /Condiciones comerciales|Ficha proveedor/)
+  assert.match(template, /Historial comercial/)
+  assert.match(view, /SrmApi\.importLegacyPartner/)
+})
