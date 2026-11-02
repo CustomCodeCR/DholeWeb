@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
-  ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, Database, FileJson2,
+  ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, Database,
   Globe2, KeyRound, Pencil, Plus, Power, RefreshCw, ShieldCheck, Trash2,
 } from 'lucide-vue-next'
 import { fetchClient } from '@/core/api/fetchConfig'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
-import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
-import DhCheckbox from '@/shared/components/atoms/DhCheckbox.vue'
+import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
 import DhDrawer from '@/shared/components/organisms/DhDrawer.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 type Mapping = { public: string; internal: string; required: boolean }
+type FieldOption = { public: string; internal: string; label: string; required: boolean; selected: boolean }
 type ApprovedTarget = {
   code: string; service: string; method: HttpMethod; path: string
   description: string; ready?: boolean
+  inputFields: FieldOption[]; outputFields: FieldOption[]
 }
 type PublishedEndpoint = {
   id: string; name: string; slug: string; target: string
@@ -41,9 +42,6 @@ const drawer = ref(false)
 const step = ref(1)
 const method = ref<HttpMethod>('GET')
 const service = ref('pricing')
-const jsonExample = ref('')
-const advanced = ref(false)
-const slugCustomized = ref(false)
 const keyName = ref('')
 const expiresDays = ref('90')
 const maxPerMinute = ref('30')
@@ -65,6 +63,32 @@ const draft = ref<PublishedEndpoint>(blank())
 const isNew = computed(() => !draft.value.id)
 const selectedTarget = computed(() => catalog.value.find(t => t.code === draft.value.target))
 const ready = computed(() => selectedTarget.value?.ready === true)
+const inputCatalog = computed(() => selectedTarget.value?.inputFields ?? [])
+const outputCatalog = computed(() => selectedTarget.value?.outputFields ?? [])
+const fieldCatalogLoaded = computed(() =>
+  Boolean(selectedTarget.value && Array.isArray(selectedTarget.value.inputFields) && Array.isArray(selectedTarget.value.outputFields)))
+const mandatoryInputs = computed(() => inputCatalog.value.filter(f => f.required))
+const optionalInputOptions = computed(() => inputCatalog.value.filter(f => !f.required)
+  .map(f => ({ value: f.public, label: f.label })))
+const outputOptions = computed(() => outputCatalog.value.map(f => ({ value: f.public, label: f.label })))
+function mapSelected(options: FieldOption[], selected: string[]): Mapping[] {
+  return options.filter(option => option.required || selected.includes(option.public))
+    .map(option => ({ public: option.public, internal: option.internal, required: option.required }))
+}
+const selectedOptionalInputs = computed<string[]>({
+  get: () => draft.value.inputs.filter(f => !mandatoryInputs.value.some(x => x.public === f.public))
+    .map(f => f.public),
+  set: values => {
+    draft.value.inputs = mapSelected(inputCatalog.value, values)
+  },
+})
+const selectedOutputs = computed<string[]>({
+  get: () => draft.value.outputs.map(f => f.public),
+  set: values => {
+    draft.value.outputs = mapSelected(outputCatalog.value, values)
+  },
+})
+
 const services = computed(() => [...new Set(catalog.value.map(t => t.service))].map(s => ({
   label: s.toUpperCase(), value: s,
 })))
@@ -102,11 +126,6 @@ const example = computed(() => {
     ? ' \\\n  -H "Idempotency-Key: solicitud-unica-12345678"' : ''
   return 'curl -X ' + target.method + ' "' + address + query + '" \\\n' +
     '  -H "X-Api-Key: TU_API_KEY"' + idempotency + body
-})
-
-watch(() => draft.value.name, name => {
-  if (!isNew.value || slugCustomized.value) return
-  draft.value.slug = slugify(name)
 })
 
 function slugify(value: string): string {
@@ -192,9 +211,6 @@ function create() {
   service.value = catalog.value[0]?.service || 'pricing'
   method.value = 'GET'
   step.value = 1
-  advanced.value = false
-  slugCustomized.value = false
-  jsonExample.value = ''
   keys.value = []
   keyName.value = ''
   error.value = ''
@@ -208,9 +224,6 @@ function edit(row: PublishedEndpoint) {
   service.value = target?.service || 'pricing'
   method.value = target?.method || 'GET'
   step.value = 2
-  advanced.value = false
-  slugCustomized.value = true
-  jsonExample.value = ''
   keys.value = []
   keyName.value = ''
   error.value = ''
@@ -227,6 +240,7 @@ function chooseMethod(value: HttpMethod) {
   draft.value.target = ''
   draft.value.inputs = []
   draft.value.outputs = []
+  if (isNew.value) { draft.value.name = ''; draft.value.slug = '' }
   pickOnlyAvailableAction()
 }
 function chooseService(value: string | number) {
@@ -235,47 +249,28 @@ function chooseService(value: string | number) {
   draft.value.target = ''
   draft.value.inputs = []
   draft.value.outputs = []
+  if (isNew.value) { draft.value.name = ''; draft.value.slug = '' }
   pickOnlyAvailableAction()
-}
-function renameField(kind: 'inputs' | 'outputs', index: number, value: string) {
-  const field = draft.value[kind][index]
-  if (!field) return
-  if (!field.internal || field.internal === field.public) field.internal = value
-  field.public = value
 }
 function chooseTarget(target: ApprovedTarget) {
   if (draft.value.target === target.code) return
-  const previous = catalog.value.find(x => x.code === draft.value.target)
-  const nameWasGenerated = !draft.value.name || (previous && draft.value.name === targetName(previous))
   draft.value.target = target.code
-  draft.value.inputs = initialInputs(target.code)
-  draft.value.outputs = initialOutputs(target.code)
+  draft.value.inputs = mapSelected(target.inputFields || [], (target.inputFields || [])
+    .filter(field => field.selected).map(field => field.public))
+  draft.value.outputs = mapSelected(target.outputFields || [], (target.outputFields || [])
+    .filter(field => field.selected).map(field => field.public))
   draft.value.responseRoot = null
-  if (isNew.value && nameWasGenerated) draft.value.name = targetName(target)
+  if (isNew.value) {
+    draft.value.name = targetName(target)
+    // Automatic unique address: no one needs to invent or edit a slug.
+    draft.value.slug = slugify(targetName(target)).slice(0, 53).replace(/-+$/, '') +
+      '-' + Date.now().toString(36).slice(-7)
+  }
 }
 function validFields(fields: Mapping[]): boolean {
   return fields.every(f => /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(f.public)
     && /^[A-Za-z][A-Za-z0-9_.]{0,159}$/.test(f.internal)) &&
     new Set(fields.map(f => f.public)).size === fields.length
-}
-function addField(kind: 'inputs' | 'outputs') {
-  draft.value[kind].push({ public: '', internal: '', required: false })
-}
-function removeField(kind: 'inputs' | 'outputs', i: number) { draft.value[kind].splice(i, 1) }
-function importJson() {
-  error.value = ''
-  try {
-    const parsed: unknown = JSON.parse(jsonExample.value)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      error.value = 'Pegá un objeto JSON, por ejemplo {"clienteId":"...","monto":100}.'; return
-    }
-    const fields = Object.keys(parsed).map(key => ({ public: key, internal: key, required: false }))
-    if (!fields.length || !validFields(fields) || fields.length > 64) {
-      error.value = 'El JSON debe tener de 1 a 64 campos con nombres válidos.'; return
-    }
-    draft.value.inputs = fields
-    notice.value = 'Campos detectados. Podés editarlos antes de guardar.'
-  } catch { error.value = 'El ejemplo no es un JSON válido. Revisá las comillas y las llaves.' }
 }
 function next() {
   error.value = ''
@@ -286,6 +281,9 @@ function next() {
   }
   if (step.value === 2) {
     const d = draft.value
+    if (!fieldCatalogLoaded.value) {
+      error.value = 'No se pudo cargar la lista de campos. Actualizá la página después del despliegue de Gateway.'; return
+    }
     if (!d.name.trim() || !/^[a-z][a-z0-9-]{2,63}$/.test(d.slug)) {
       error.value = 'Ingresá un nombre y una ruta de al menos 3 caracteres, con letras, números o guiones.'; return
     }
@@ -319,7 +317,7 @@ async function loadKeys(id: string) {
 async function save() {
   error.value = ''
   const d = draft.value
-  if (!selectedTarget.value || !d.name.trim() || !/^[a-z][a-z0-9-]{2,63}$/.test(d.slug) ||
+  if (!fieldCatalogLoaded.value || !selectedTarget.value || !d.name.trim() || !/^[a-z][a-z0-9-]{2,63}$/.test(d.slug) ||
     (method.value === 'GET' && !d.outputs.length) || !validFields(d.inputs) || !validFields(d.outputs)) {
     step.value = 2
     error.value = 'Revisá los datos y campos de la API antes de guardarla.'
@@ -530,64 +528,67 @@ onMounted(() => { void load() })
 
         <template v-else-if="step === 2">
           <section class="space-y-3">
-            <div>
-              <h3 class="font-bold">Nombre y dirección pública</h3>
-              <p class="text-xs text-[var(--dh-text-muted)]">El nombre es para identificarla; la ruta es lo que utilizará el tercero.</p>
-            </div>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <DhInput v-model="draft.name" label="Nombre de la API" placeholder="Consulta de tarifas" />
-              <DhInput v-model="draft.slug" label="Ruta pública" placeholder="consulta-tarifas" @update:model-value="slugCustomized = true" />
-            </div>
-            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-              <div class="mb-1 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Así la llamará el tercero</div>
-              <div class="flex flex-wrap items-center gap-2">
+            <h3 class="font-bold">Tu API</h3>
+            <p class="text-xs text-[var(--dh-text-muted)]">Dhole asigna automáticamente el nombre y la dirección. No necesitás escribir rutas.</p>
+            <div class="rounded-xl border border-[var(--dh-border)] p-4">
+              <strong class="block">{{ draft.name }}</strong>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
                 <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 font-mono text-xs font-bold">{{ method }}</span>
                 <code class="min-w-0 flex-1 break-all text-xs">{{ externalUrl(draft) }}</code>
                 <DhButton variant="ghost" size="sm" :icon="Copy" label="Copiar" @click="copy(externalUrl(draft))" />
               </div>
-              <p v-if="selectedTarget?.path.includes('{id}')" class="mt-2 text-xs text-[var(--dh-text-muted)]">El valor {id} se reemplaza por el identificador real del registro.</p>
-            </div>
-            <button type="button" class="text-left text-xs font-semibold text-[var(--dh-primary)]" @click="advanced = !advanced">
-              {{ advanced ? 'Ocultar configuración avanzada' : 'Mostrar configuración avanzada' }}
-            </button>
-          </section>
-          <section class="space-y-3 border-t border-[var(--dh-border)] pt-4">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div><h3 class="font-bold">Datos que recibe</h3><p class="text-xs text-[var(--dh-text-muted)]">{{ method === 'GET' ? 'Filtros opcionales en la URL (query).' : 'Campos permitidos del cuerpo JSON.' }}</p></div>
-              <DhButton variant="secondary" size="sm" :icon="Plus" label="Añadir campo" @click="addField('inputs')" />
-            </div>
-            <div v-if="draft.target === 'pricing-rate-request-create'" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
-              Los campos de una solicitud ya están preparados. En «prioridad» se utilizan Green, Yellow o Red; «vendedorId» debe ser un identificador de vendedor con acceso autorizado, y «detalles» contiene el JSON de la operación. La API no reemplaza las validaciones de vendedores y clientes de Pricing.
-            </div>
-            <div v-if="method !== 'GET'" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
-              <DhTextarea v-model="jsonExample" :rows="3" label="¿Ya tenés un JSON de ejemplo? (opcional)" placeholder='{"clienteId":"...","monto":100}' />
-              <DhButton size="sm" variant="secondary" :icon="FileJson2" label="Generar campos desde JSON" :disabled="!jsonExample.trim()" @click="importJson" />
-            </div>
-            <div v-if="!draft.inputs.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
-              No hay campos definidos. {{ method === 'GET' ? 'Podés dejarlo así si no requiere filtros.' : 'Si la función requiere un cuerpo JSON, añadí sus campos o pegá un ejemplo.' }}
-            </div>
-            <div v-for="(field, i) in draft.inputs" :key="'in-' + i" class="grid items-end gap-2 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <DhInput :model-value="field.public" label="Dato que recibe" placeholder="clienteId" @update:model-value="renameField('inputs', i, String($event))" />
-              <DhInput v-if="advanced" v-model="field.internal" label="Nombre dentro de Dhole" placeholder="clientId" />
-              <DhCheckbox v-model="field.required" label="Requerido" />
-              <DhButton variant="ghost" :icon="Trash2" size="sm" label="Quitar" @click="removeField('inputs', i)" />
+              <p v-if="selectedTarget?.path.includes('{id}')" class="mt-2 text-xs text-[var(--dh-text-muted)]">El tercero indicará el identificador del registro al llamar a la API.</p>
             </div>
           </section>
-          <section class="space-y-3 border-t border-[var(--dh-border)] pt-4">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div><h3 class="font-bold">Datos que devuelve</h3><p class="text-xs text-[var(--dh-text-muted)]">Elegí exactamente qué información puede ver el tercero.</p></div>
-              <DhButton variant="secondary" size="sm" :icon="Plus" label="Añadir campo" @click="addField('outputs')" />
+
+          <div v-if="!fieldCatalogLoaded" class="rounded-xl border border-amber-500/40 p-4 text-sm">
+            El listado de campos aún no está disponible. Actualizá la página cuando termine la actualización de API Gateway.
+          </div>
+
+          <section v-else class="space-y-4 border-t border-[var(--dh-border)] pt-4">
+            <div>
+              <h3 class="font-bold">Datos que recibirá tu API</h3>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Los campos necesarios se incluyen automáticamente. Solo seleccioná los adicionales que querás permitir.</p>
             </div>
-            <div v-if="method !== 'GET' && !draft.outputs.length" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">Opcional para {{ method }}. Si no agregás campos, la respuesta será un objeto vacío cuando el servicio devuelva JSON.</div>
-            <div v-for="(field, i) in draft.outputs" :key="'out-' + i" class="grid items-end gap-2 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <DhInput :model-value="field.public" label="Dato que devuelve" placeholder="estado" @update:model-value="renameField('outputs', i, String($event))" />
-              <DhInput v-if="advanced" v-model="field.internal" label="Nombre dentro de Dhole" placeholder="status" />
-              <DhButton variant="ghost" :icon="Trash2" size="sm" label="Quitar" @click="removeField('outputs', i)" />
+            <div v-if="mandatoryInputs.length" class="rounded-xl border border-[var(--dh-border)] p-3">
+              <p class="mb-2 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Obligatorios · incluidos automáticamente</p>
+              <div class="flex flex-wrap gap-1.5">
+                <span v-for="field in mandatoryInputs" :key="field.public"
+                  class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1.5 text-xs font-semibold">
+                  {{ field.label }}
+                </span>
+              </div>
             </div>
-            <div v-if="advanced" class="rounded-xl border border-[var(--dh-border)] p-3">
-              <DhInput v-model="draft.responseRoot" label="Ubicación de los datos en el JSON (opcional)" placeholder="data.items" />
-              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Usalo si la respuesta del servicio viene dentro de una propiedad, por ejemplo data o data.items.</p>
-            </div>
+            <DhMultiSelect
+              v-if="optionalInputOptions.length"
+              v-model="selectedOptionalInputs"
+              label="Datos adicionales que puede enviar el tercero"
+              :options="optionalInputOptions"
+              placeholder="Seleccionar campos opcionales"
+              search-placeholder="Buscar un dato..."
+            />
+            <p v-if="!inputCatalog.length" class="text-xs text-[var(--dh-text-muted)]">
+              Esta operación no necesita parámetros de entrada.
+            </p>
+          </section>
+
+          <section v-if="fieldCatalogLoaded" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
+            <h3 class="font-bold">Datos que podrá consultar el tercero</h3>
+            <p class="text-xs text-[var(--dh-text-muted)]">Seleccioná qué información devolverá la API. Solo aparecen datos disponibles para esta operación.</p>
+            <DhMultiSelect
+              v-if="outputOptions.length"
+              v-model="selectedOutputs"
+              label="Campos de respuesta"
+              :options="outputOptions"
+              placeholder="Seleccionar campos de respuesta"
+              search-placeholder="Buscar información..."
+            />
+            <p v-else class="text-xs text-[var(--dh-text-muted)]">
+              Esta operación no tiene campos de respuesta configurables.
+            </p>
+            <p v-if="method === 'GET' && !selectedOutputs.length" class="text-xs text-amber-500">
+              Para consultar datos, seleccioná por lo menos un campo de respuesta.
+            </p>
           </section>
         </template>
 
