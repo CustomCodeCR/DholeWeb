@@ -85,7 +85,12 @@ const accountOptions = computed(() => [
 const latestJobByMessage = computed(() => {
   const result = new Map<string, EmailExtractionJobDto>()
   for (const job of jobs.value) {
-    if (!result.has(job.emailMessageId)) result.set(job.emailMessageId, job)
+    const previous = result.get(job.emailMessageId)
+    // The source email is already extracted when at least one of its jobs
+    // reached Pricing. Show the successful batch, not a pending sibling.
+    if (!previous || (job.status === 'SentToPricing' && previous.status !== 'SentToPricing')) {
+      result.set(job.emailMessageId, job)
+    }
   }
   return result
 })
@@ -95,7 +100,8 @@ const summary = computed(() => {
     jobs.value.filter((job) => job.status === 'SentToPricing').map((job) => job.emailMessageId),
   )
   const inProgress = rows.value.filter((message) =>
-    ['Received', 'Queued', 'Processing'].includes(message.status),
+    ['Received', 'Queued', 'Processing'].includes(message.status)
+      && !sentMessageIds.has(message.id),
   ).length
   const review = rows.value.filter((message) => message.status === 'NeedsReview').length
   const failed = rows.value.filter((message) => message.status === 'Failed').length
@@ -519,14 +525,14 @@ onBeforeUnmount(() => {
           </template>
           <template #cell-pricing="{ row }">
             <DhBadge
-              v-if="latestJob(row.id)"
-              :label="jobStatusLabel(latestJob(row.id)!.status)"
-              :variant="statusVariant(latestJob(row.id)!.status)"
-            />
-            <DhBadge
-              v-else-if="row.status === 'Extracted'"
+              v-if="row.status === 'Extracted' || latestJob(row.id)?.status === 'SentToPricing'"
               label="Enviado"
               variant="success"
+            />
+            <DhBadge
+              v-else-if="latestJob(row.id)"
+              :label="jobStatusLabel(latestJob(row.id)!.status)"
+              :variant="statusVariant(latestJob(row.id)!.status)"
             />
             <span v-else class="text-xs font-semibold text-[var(--dh-text-muted)]">—</span>
           </template>
