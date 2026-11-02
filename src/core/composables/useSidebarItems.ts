@@ -25,6 +25,7 @@ import {
   Truck,
   PackagePlus,
   Database,
+  Globe2,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
@@ -65,6 +66,13 @@ const SIDEBAR_NAVIGATION: SidebarSection[] = [
         icon: LayoutDashboard,
         to: '/home',
         name: 'dashboard',
+      },
+      {
+        labelKey: 'sidebar.thirdPartyApis',
+        icon: Globe2,
+        to: '/integrations/third-party',
+        name: 'third-party-apis',
+        requiredScope: 'integrations.thirdparty.manage',
       },
       {
         labelKey: 'sidebar.dynamics',
