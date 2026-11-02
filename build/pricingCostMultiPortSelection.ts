@@ -251,7 +251,7 @@ function patchCostForm(source: string) {
   code = code.includes(payeeMountedAnchor)
     ? replaceOne(code, payeeMountedAnchor,
       mountedReplacement.replace('  await catalogs.loadAll()',
-        '  await catalogs.loadAll()\\n  void loadSrmPayee()'),
+        '  await catalogs.loadAll()\n  void loadSrmPayee()'),
       'cost form mounted hydration including SRM payee')
     : replaceOne(code, mountedAnchor, mountedReplacement, 'cost form mounted hydration')
 
