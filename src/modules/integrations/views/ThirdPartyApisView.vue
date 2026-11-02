@@ -42,7 +42,6 @@ const drawer = ref(false)
 const step = ref(1)
 const method = ref<HttpMethod>('GET')
 const service = ref('pricing')
-const keyName = ref('')
 const expiresDays = ref('90')
 const maxPerMinute = ref('30')
 const secretModal = ref(false)
@@ -212,7 +211,6 @@ function create() {
   method.value = 'GET'
   step.value = 1
   keys.value = []
-  keyName.value = ''
   error.value = ''
   notice.value = ''
   pickOnlyAvailableAction()
@@ -225,7 +223,6 @@ function edit(row: PublishedEndpoint) {
   method.value = target?.method || 'GET'
   step.value = 2
   keys.value = []
-  keyName.value = ''
   error.value = ''
   drawer.value = true
   void loadKeys(row.id)
@@ -358,8 +355,8 @@ async function toggle(row: PublishedEndpoint) {
 }
 async function issueKey() {
   error.value = ''
-  if (!draft.value.id || !draft.value.enabled || !keyName.value.trim()) {
-    error.value = 'Publicá la API e ingresá el nombre de la aplicación externa.'; return
+  if (!draft.value.id || !draft.value.enabled) {
+    error.value = 'Publicá la API para generar el acceso del tercero.'; return
   }
   const days = Number(expiresDays.value)
   const quota = Number(maxPerMinute.value)
@@ -370,12 +367,11 @@ async function issueKey() {
   try {
     const issued = await fetchClient<{ id: string; apiKey: string }>(
       root + '/endpoints/' + encodeURIComponent(draft.value.id) + '/keys', {
-        method: 'POST', body: { label: keyName.value.trim(), expiresInDays: days, maxRequestsPerMinute: quota },
+        method: 'POST', body: { label: 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name, expiresInDays: days, maxRequestsPerMinute: quota },
       })
     issuedSecret.value = issued.apiKey
-    issuedLabel.value = keyName.value
-    keyName.value = ''
-    secretModal.value = true
+    issuedLabel.value = 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name
+      secretModal.value = true
     await loadKeys(draft.value.id)
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible emitir la clave.' }
   finally { saving.value = false }
@@ -622,10 +618,25 @@ onMounted(() => { void load() })
               <div class="border-t border-[var(--dh-border)] pt-4">
                 <h3 class="flex items-center gap-2 font-bold"><KeyRound class="h-4 w-4" /> Acceso del tercero</h3>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cada aplicación recibe su propia clave. Se mostrará una sola vez.</p>
-                <div class="mt-3 grid gap-3 sm:grid-cols-3">
-                  <DhInput v-model="keyName" label="Aplicación" placeholder="Portal externo" />
-                  <DhInput v-model="expiresDays" label="Vigencia (días)" type="number" min="1" max="365" />
-                  <DhInput v-model="maxPerMinute" label="Solicitudes/min" type="number" min="1" max="300" />
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p class="mb-2 text-xs font-semibold text-[var(--dh-text-muted)]">Vigencia de la clave</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button v-for="days in ['30','90','180','365']" :key="days" type="button"
+                        class="rounded-xl border px-3 py-2 text-xs font-semibold"
+                        :class="expiresDays === days ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+                        @click="expiresDays = days">{{ days }} días</button>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="mb-2 text-xs font-semibold text-[var(--dh-text-muted)]">Límite de solicitudes por minuto</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button v-for="quota in ['10','30','60','120']" :key="quota" type="button"
+                        class="rounded-xl border px-3 py-2 text-xs font-semibold"
+                        :class="maxPerMinute === quota ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+                        @click="maxPerMinute = quota">{{ quota }}/min</button>
+                    </div>
+                  </div>
                 </div>
                 <DhButton class="mt-3" :icon="KeyRound" label="Generar API Key" :disabled="saving" :loading="saving" @click="issueKey" />
               </div>
