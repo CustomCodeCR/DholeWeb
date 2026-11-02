@@ -71,3 +71,11 @@ test('SRM category picker has exactly seven fixed options and safely maps legacy
   assert.match(view, /normalizeSupplierCategory/)
   assert.match(view, /legacySupplierTypes/)
 })
+
+test('supplier forms hide tax IDs and website without losing historical metadata', () => {
+  assert.doesNotMatch(view, /v-model="taxId"|v-model="website"/)
+  assert.doesNotMatch(view, /Identificación fiscal|Fiscal identification|Sitio web/)
+  assert.doesNotMatch(view, /taxId:\s*taxId\.value|website:\s*website\.value/)
+  assert.match(view, /const retained = editing\.value \? metadata\(editing\.value\) : \{\}/)
+  assert.match(view, /\.\.\.retained,/)
+})
