@@ -34,3 +34,17 @@ test('SRM supplier pages require dedicated scopes and Dhole drawers', () => {
   assert.match(client, /fetchClient/)
   assert.match(view, /<DhDrawer :open="formVisible"/)
 })
+
+test('SRM uses Dhole multi-selects and preserves legacy single-value fields', () => {
+  assert.match(view, /<DhMultiSelect v-model="supplierType"/)
+  assert.match(view, /<DhMultiSelect v-model="shipmentModes"/)
+  assert.match(view, /<DhMultiSelect v-model="countryIds"/)
+  assert.match(view, /supplierTypes: selectedTypes/)
+  assert.match(view, /countryIds: selectedCountries/)
+  assert.match(view, /supplierType: selectedTypes\[0\]/)
+  assert.match(view, /countryId: selectedCountries\[0\]/)
+  assert.match(view, /supplierCategories\(item\)/)
+  assert.match(view, /supplierCountries\(selected\)/)
+  assert.doesNotMatch(view, /<select v-model="countryId"/)
+  assert.doesNotMatch(view, /<input v-model="shipmentModes" type="checkbox"/)
+})
