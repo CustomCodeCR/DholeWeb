@@ -40,6 +40,7 @@ const providerFilter = ref('all')
 const bulkDiscount = ref('')
 const bulkReview = ref(false)
 const containerLabels = ref<Record<string, string>>({})
+const containerIdByCode = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
 const currencies = ref<CatalogItemSelectDto[]>([])
 const searchTerm = ref('')
@@ -52,9 +53,12 @@ async function loadCurrencies() {
     currencies.value = []
   }
   try {
-    const containers = await CatalogItemsService.select({catalogGroupSlug:'container-types'})
-    containerLabels.value = Object.fromEntries(containers.map(x => [x.id,x.label || x.value || x.code]))
-  } catch { containerLabels.value = {} }
+    const groups = await Promise.all(['container-types','land-equipment-types','land-equipment-sizes']
+      .map(slug => CatalogItemsService.select({catalogGroupSlug:slug}).catch(()=>[])))
+    const equipment = groups.flat()
+    containerLabels.value = Object.fromEntries(equipment.map(x => [x.id,x.label || x.value || x.code]))
+    containerIdByCode.value = Object.fromEntries(equipment.map(x => [x.code,x.id]))
+  } catch { containerLabels.value = {};containerIdByCode.value = {} }
 }
 onMounted(() => void loadCurrencies())
 const modalityOptions = [
@@ -111,6 +115,12 @@ const filteredCosts = computed(() => {
 })
 const costSections = computed(() => groupPreferentialCosts(filteredCosts.value))
 const isTiered = (cost: CostSelectDto) => costTiers(cost).length > 0
+function visibleTiers(cost: CostSelectDto) {
+  const rows = costTiers(cost).map((rule,index) => ({rule,index}))
+  const equipmentId = containerIdByCode.value[route.equipmentCodes[0] ?? '']
+  if (!equipmentId || rows[0]?.rule.dimension !== 'ContainerType') return rows
+  return rows.filter(x => x.rule.containerTypeId === equipmentId)
+}
 const invalidRules = (cost: CostSelectDto) => Boolean(cost.pricingRulesJson && !isTiered(cost))
 function tierSale(cost: CostSelectDto, index: number) {
   const saved = existingCost(cost)
@@ -130,7 +140,7 @@ function toggleTiers(id: string) {
 const modifiedCount = computed(() =>
   new Set([...Object.keys(editedSales.value),...Object.keys(editedTiers.value)]).size)
 const eligibleBulk = computed(() => filteredCosts.value.filter(c => !invalidRules(c) &&
-  (isTiered(c) ? costTiers(c).some(x => x.saleAmount>0) : c.saleAmount>0)))
+  (isTiered(c) ? visibleTiers(c).some(x => x.rule.saleAmount>0) : c.saleAmount>0)))
 function proposeDiscount() {
   const percent=Number(bulkDiscount.value)
   error.value=''
@@ -150,8 +160,8 @@ function applyDiscount() {
   for (const cost of eligibleBulk.value) {
     if (isTiered(cost)) {
       const edits={...editedTiers.value[cost.id]}
-      costTiers(cost).forEach((row,i) => {
-        if (row.saleAmount>0) edits[String(i)]=discounted(row.saleAmount,percent)
+      visibleTiers(cost).forEach(({rule,index}) => {
+        if (rule.saleAmount>0) edits[String(index)]=discounted(rule.saleAmount,percent)
       })
       editedTiers.value={...editedTiers.value,[cost.id]:edits}
     } else {
@@ -495,7 +505,7 @@ async function save() {
                         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preferentialCostBasis(cost.chargeBasis) }}</p>
                         <span v-if="isTiered(cost)"
                           class="mt-1 inline-block rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-600 dark:text-sky-300">
-                          {{ costTiers(cost).length }} tramos de Pricing
+                          {{ visibleTiers(cost).length }} tramos aplicables
                         </span>
                         <span v-if="existingCost(cost)"
                           class="ml-1 mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">
@@ -516,7 +526,7 @@ async function save() {
                       </div>
                       <button v-if="isTiered(cost)" type="button" class="route-action-secondary"
                         :aria-expanded="expandedTiers.includes(cost.id)" @click="toggleTiers(cost.id)">
-                        {{ expandedTiers.includes(cost.id) ? 'Ocultar tramos' : 'Personalizar '+costTiers(cost).length+' tramos' }}
+                        {{ expandedTiers.includes(cost.id) ? 'Ocultar tramos' : 'Personalizar '+visibleTiers(cost).length+' tramos' }}
                         <ChevronDown class="ml-1 inline h-4 w-4"
                           :class="expandedTiers.includes(cost.id) && 'rotate-180'" />
                       </button>
@@ -537,7 +547,11 @@ async function save() {
                     <div v-if="isTiered(cost) && expandedTiers.includes(cost.id)"
                       class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
                       <p class="text-xs font-bold">
-                        Tramos originales de Pricing · solo se modifica la venta por tramo
+                        Tramos originales de Pricing para el equipo seleccionado · solo se modifica la venta
+                      </p>
+                      <p v-if="!visibleTiers(cost).length"
+                        class="mt-2 text-xs font-bold text-amber-600">
+                        No hay un tramo aplicable al equipo elegido. Revisá el tipo de contenedor en Pricing.
                       </p>
                       <p v-if="existingCost(cost)?.rateType === 'TIERED_SALE' &&
                         !tierSalesMatch(cost, existingCost(cost)?.tierSalesJson)"
@@ -545,7 +559,7 @@ async function save() {
                         Los rangos de Pricing cambiaron desde este acuerdo. Revisá las ventas antes de guardar.
                       </p>
                       <div class="mt-3 space-y-2">
-                        <div v-for="(band,index) in costTiers(cost)" :key="index"
+                        <div v-for="{rule:band,index} in visibleTiers(cost)" :key="index"
                           class="grid gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:grid-cols-[minmax(130px,2fr)_1fr_1fr_1.2fr] sm:items-center">
                           <div>
                             <p class="text-xs font-extrabold">{{ tierText(band,containerLabels[band.containerTypeId ?? '']) }}</p>
