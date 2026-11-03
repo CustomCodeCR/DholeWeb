@@ -52,9 +52,12 @@ const isManagerCalendar = computed(() => !scopedRecord.value &&
 const sellerPalette = ['#047857', '#2563eb', '#7c3aed', '#c2410c', '#b45309',
   '#0891b2', '#be185d', '#4f46e5', '#65a30d', '#0f766e']
 function sellerColor(userId: string): string {
-  let hash = 0
-  for (const char of userId) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0
-  return sellerPalette[hash % sellerPalette.length] ?? sellerPalette[0]!
+  const owners = [...new Set(rows.value.map(item => item.ownerId).filter(Boolean))].sort()
+  const index = owners.indexOf(userId)
+  if (index < 0) return sellerPalette[0]!
+  return index < sellerPalette.length
+    ? sellerPalette[index]!
+    : 'hsl(' + ((index * 137.508) % 360).toFixed(1) + ' 70% 43%)'
 }
 function ownerName(event: CalendarEvent): string {
   return calendarLabels.value.owners[event.ownerId] ||
