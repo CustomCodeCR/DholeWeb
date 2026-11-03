@@ -1,23 +1,32 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-const picker = readFileSync('src/modules/crm/components/CrmMultiCatalogPicker.vue', 'utf8')
+
 const builder = readFileSync('src/modules/crm/components/CrmPreferentialRouteBuilder.vue', 'utf8')
-test('Preferential route uses Pricing-style selectors and single choice per field', () => {
-  assert.ok(builder.includes("import DhSelect from '@/shared/components/atoms/DhSelect.vue'"))
+const locations = readFileSync('src/modules/crm/components/CrmPricingLocationSelect.vue', 'utf8')
+const equipment = readFileSync('src/modules/crm/components/CrmPricingEquipmentSelect.vue', 'utf8')
+const pricing = readFileSync('src/modules/pricing/components/PricingLocationSearchSelect.vue', 'utf8')
+
+test('The CRM preferential route uses the EXACT Pricing location search component', () => {
+  assert.ok(locations.includes("import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'"))
+  assert.ok(locations.includes('<PricingLocationSearchSelect'))
+  assert.match(builder, /<CrmPricingLocationSelect v-model="route.polCodes"/)
+  assert.match(builder, /<CrmPricingLocationSelect v-model="route.poeCodes"/)
+  assert.match(builder, /<CrmPricingLocationSelect v-if="route.modality==='MARITIME'" v-model="route.podCodes"/)
+  assert.doesNotMatch(builder, /<CrmMultiCatalogPicker/)
+  assert.ok(pricing.includes('pricing-location-option'))
+  assert.ok(locations.includes('terminalType'))
+})
+test('Pricing location selector loads the Config catalog and stores a single route code', () => {
+  assert.ok(locations.includes('CatalogItemsService.select'))
+  assert.ok(locations.includes('isCompatibleBenefitLocation'))
+  assert.ok(locations.includes("emit('update:modelValue', code ? [code] : [])"))
+  assert.ok(locations.includes('@open="loadCatalog"'))
+})
+test('Equipment uses the real DhSelect control used by Pricing', () => {
+  assert.ok(equipment.includes("import DhSelect from '@/shared/components/atoms/DhSelect.vue'"))
+  assert.ok(equipment.includes('<DhSelect'))
+  assert.ok(builder.includes('<CrmPricingEquipmentSelect v-model="route.equipmentCodes"'))
   assert.ok(builder.includes('<DhSelect :model-value="route.modality"'))
   assert.ok(builder.includes('<DhSelect :model-value="route.shipment"'))
-  assert.match(builder, /<CrmMultiCatalogPicker v-model="route.equipmentCodes" single/)
-  assert.match(builder, /<CrmMultiCatalogPicker v-model="route.polCodes" single/)
-  assert.match(builder, /<CrmMultiCatalogPicker v-model="route.poeCodes" single/)
-  assert.ok(builder.includes('single label="POD requerido"'))
-})
-test('Catalog picker offers search, inline labels, controls, and backwards-compatible multi selection', () => {
-  assert.ok(picker.includes('single?: boolean'))
-  assert.ok(picker.includes('emit(\'update:modelValue\', [value])'))
-  assert.ok(picker.includes('savedLabels.value'))
-  assert.ok(picker.includes('Buscar por nombre o código'))
-  assert.ok(picker.includes('text-xs font-black uppercase tracking-'))
-  assert.ok(picker.includes('!single && selectedOptions.length'))
-  assert.ok(picker.includes('outsidePointer'))
 })
