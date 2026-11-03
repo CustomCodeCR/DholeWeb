@@ -4606,18 +4606,6 @@ async function saveRate() {
     )
     return
   }
-  // Never persist the old air weight basis as maritime LCL freight. A new
-  // maritime tariff source must be selected unless this is a known own-LCL
-  // consolidation, which is normalized to billable CBM above.
-  const staleAirFreight = form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
-    && includedLines.value.some((line) => line.costDetailType === 'Freight'
-      && ['PerKg', 'PerLb', 'Per100Kg', 'PerTon'].includes(effectiveChargeBasisForLine(line)))
-  if (staleAirFreight) {
-    step.value = 5
-    toastStore.warning('Seleccione un flete LCL marítimo',
-      'El flete conserva una base aérea por peso. Seleccione la fuente marítima para calcularlo por CBM cobrable antes de guardar.')
-    return
-  }
   // Seller changes to screens 1-4 must not erase the pre-existing LCL
   // international freight when a catalog/source refresh drops the row.
   const persistedFreight = editingRate.value?.shipmentMode === 'Lcl'
@@ -4642,6 +4630,18 @@ async function saveRate() {
       applyDestinationTax: Boolean(persistedFreight.applyDestinationTax),
       destinationTaxRate: Number(persistedFreight.destinationTaxRate || 0),
     }, ...rateLines.value.filter(line => line.detailId !== persistedFreight.id)]
+  }
+  // Never persist the old air weight basis as maritime LCL freight. A new
+  // maritime tariff source must be selected unless this is a known own-LCL
+  // consolidation, which is normalized to billable CBM above.
+  const staleAirFreight = form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
+    && includedLines.value.some((line) => line.costDetailType === 'Freight'
+      && ['PerKg', 'PerLb', 'Per100Kg', 'PerTon'].includes(effectiveChargeBasisForLine(line)))
+  if (staleAirFreight) {
+    step.value = 5
+    toastStore.warning('Seleccione un flete LCL marítimo',
+      'El flete conserva una base aérea por peso. Seleccione la fuente marítima para calcularlo por CBM cobrable antes de guardar.')
+    return
   }
   if (editingRate.value && number(form.cargoValue) > 0 && !rateLines.value.some((line) => line.costDetailType === 'Insurance')) {
     syncDeclaredCargoInsuranceOnEdit()
