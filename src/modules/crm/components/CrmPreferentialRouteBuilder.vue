@@ -37,9 +37,9 @@ const isComplete = computed(() => [route.equipmentCodes, route.polCodes, route.p
 const categoryLabel = computed(() => props.categoryType === 'LITTLE' ? 'Cargas Little'
   : props.categoryType === 'NVOCC' ? 'NVOCC ' + props.categoryCode : 'Cliente ' + props.categoryCode)
 const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : props.costs
-  .filter(cost => matchesPreferentialRoute(cost, {
-    shipment: route.shipment, polCode: route.polCodes[0],
-    poeCode: route.poeCodes[0], podCode: route.podCodes[0] ?? '',
+  .filter(cost => cost.costDetailType !== 'Insurance' && matchesPreferentialRoute(cost, {
+    shipment: route.shipment, polCode: route.polCodes[0] ?? '',
+    poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
   }))
   .sort((a, b) => a.costDetailType.localeCompare(b.costDetailType) || a.name.localeCompare(b.name, 'es')))
 const normalized = (codes: string[] | undefined) => (codes ?? []).map(x => x.toUpperCase()).sort().join('|')
@@ -85,7 +85,7 @@ function consult() {
 }
 function saleValue(cost: CostSelectDto) {
   return Object.prototype.hasOwnProperty.call(editedSales.value, cost.id)
-    ? editedSales.value[cost.id] : String(existingCost(cost)?.value ?? cost.saleAmount)
+    ? (editedSales.value[cost.id] ?? '') : String(existingCost(cost)?.value ?? cost.saleAmount)
 }
 function editSale(cost: CostSelectDto, value: string) {
   editedSales.value = { ...editedSales.value, [cost.id]: value }
