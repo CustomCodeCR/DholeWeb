@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-"test:crm": "node --test tests/crmFrontend.test.ts tests/crmAgenda.test.ts tests/crmPhone.test.ts tests/srmNavigation.test.ts tests/crmRouteCreditContractUi.test.ts",
+    "test:crm": "node --test tests/crmFrontend.test.ts tests/crmAgenda.test.ts tests/crmPhone.test.ts tests/srmNavigation.test.ts tests/crmRouteCreditContractUi.test.ts",
     "test:workspace-tabs": "node --test tests/workspaceTabsPolicy.test.ts",
     "test:agent": "node --test tests/agentModule.test.ts tests/agentRouteForm.test.ts tests/maerskOperations.test.ts tests/maerskPhase7Acceptance.test.ts tests/standbyWebFlow.test.ts",
     "test:market-pricing": "node --test tests/marketAutoPricing.test.ts",
@@ -21,6 +21,7 @@
     "audit:i18n": "node scripts/audit-ui-quality.mjs --strict-i18n"
   },
   "dependencies": {
+    "chart.js": "^4.5.1",
     "lucide-vue-next": "^1.0.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.38",
