@@ -14,6 +14,7 @@ import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
+import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
@@ -1576,6 +1577,7 @@ async function saveRoute() {
           <FileText class="h-4 w-4" />Vincular cotizaciones anteriores
         </button>
       </div>
+      <CrmAccountQuotesDashboard :account-id="rowId(account.id)" />
       <p v-if="legacySuccess" role="status" class="mb-3 rounded-lg border border-[var(--dh-border)] p-3 text-xs font-bold">{{ legacySuccess }}</p>
       <p v-if="legacyLoading" role="status" class="mb-3 text-xs text-[var(--dh-text-muted)]">Buscando cotizaciones antiguas para esta razón social…</p>
       <p v-if="legacyTotal" class="mb-3 rounded-xl border border-amber-500/30 p-3 text-xs">
