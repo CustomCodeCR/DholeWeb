@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
 import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
+import DhSelect from '@/shared/components/atoms/DhSelect.vue'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
 
@@ -26,6 +27,10 @@ const route = reactive({
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
+const modalityOptions = [
+  { value: 'MARITIME', label: 'Marítimo' },
+  { value: 'TERRESTRIAL', label: 'Terrestre' },
+]
 const options = computed(() => route.modality === 'MARITIME'
   ? [{ value: 'FCL', label: 'FCL' }, { value: 'LCL', label: 'LCL propio' }]
   : [{ value: 'FTL', label: 'FTL' }, { value: 'LTL', label: 'LTL propio' }])
@@ -174,28 +179,29 @@ async function save() {
       Seleccioná los datos como en una cotización estándar. Los costos y recargos originales de Pricing se mantienen intactos.
     </p>
     <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <label class="route-label">Modalidad
-        <select class="route-input" :value="route.modality"
-          @change="changeModality(($event.target as HTMLSelectElement).value as 'MARITIME' | 'TERRESTRIAL')">
-          <option value="MARITIME">Marítimo</option><option value="TERRESTRIAL">Terrestre</option>
-        </select>
-      </label>
-      <label class="route-label">Embarque
-        <select v-model="route.shipment" class="route-input">
-          <option v-for="item in options" :key="item.value" :value="item.value">{{ item.label }}</option>
-        </select>
-      </label>
+
+      <DhSelect :model-value="route.modality" label="Modalidad" :options="modalityOptions"
+        placeholder="" @update:model-value="changeModality(String($event) as 'MARITIME' | 'TERRESTRIAL')" />
+      <DhSelect :model-value="route.shipment" label="Embarque" :options="options"
+        placeholder="" @update:model-value="route.shipment = String($event) as PreferentialShipment" />
+
       <label class="route-label">Tipo de cliente
         <input class="route-input" :value="categoryLabel" readonly />
-        <span class="text-[11px] font-normal">Se utiliza la categoría comercial de esta cuenta.</span>
+        <span class="text-[11px] font-normal normal-case tracking-normal">
+          Se utiliza la categoría comercial de esta cuenta.
+        </span>
       </label>
-      <CrmMultiCatalogPicker v-model="route.equipmentCodes" label="Equipo (seleccionar uno)"
-        :catalog-group-slugs="equipmentGroups" />
-      <CrmMultiCatalogPicker v-model="route.polCodes" label="POL" :catalog-group-slugs="['pol']"
+
+      <CrmMultiCatalogPicker v-model="route.equipmentCodes" single label="Equipo"
+        placeholder="Buscar tamaño o tipo de equipo" :catalog-group-slugs="equipmentGroups" />
+      <CrmMultiCatalogPicker v-model="route.polCodes" single label="Origen (POL)"
+        placeholder="Buscar puerto de origen" :catalog-group-slugs="['pol']"
         :route-mode="route.shipment" route-role="pol" />
-      <CrmMultiCatalogPicker v-model="route.poeCodes" label="POE" :catalog-group-slugs="['poe']"
+      <CrmMultiCatalogPicker v-model="route.poeCodes" single label="Destino (POE)"
+        placeholder="Buscar puerto de entrada" :catalog-group-slugs="['poe']"
         :route-mode="route.shipment" route-role="poe" />
-      <CrmMultiCatalogPicker v-if="route.modality==='MARITIME'" v-model="route.podCodes" label="POD"
+      <CrmMultiCatalogPicker v-if="route.modality==='MARITIME'" v-model="route.podCodes"
+        single label="POD requerido" placeholder="Buscar destino final"
         :catalog-group-slugs="['pod']" :route-mode="route.shipment" route-role="pod" />
     </div>
     <button type="button" class="route-action mt-4" :disabled="saving || costsLoading" @click="consult">
@@ -265,8 +271,8 @@ async function save() {
 </template>
 
 <style scoped>
-.route-label{display:flex;min-width:0;flex-direction:column;gap:.4rem;font-size:.75rem;font-weight:700;color:var(--dh-text-muted)}
-.route-input{width:100%;min-width:0;border:1px solid var(--dh-border);border-radius:.7rem;padding:.65rem .75rem;background:var(--dh-input);color:var(--dh-text);font-size:.85rem;font-weight:500}
+.route-label{display:flex;min-width:0;flex-direction:column;gap:.375rem;font-size:.75rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em;color:var(--dh-text-muted)}
+.route-input{width:100%;min-width:0;min-height:44px;border:1px solid var(--dh-border);border-radius:18px;padding:.65rem .75rem;background:var(--dh-input);color:var(--dh-text);font-size:.875rem;font-weight:600;box-shadow:var(--dh-shadow-sm)}
 .route-action{min-height:38px;border:1px solid var(--dh-primary);border-radius:.7rem;background:var(--dh-primary);padding:.5rem 1rem;color:#fff;font-size:.8rem;font-weight:750}
 .route-action:disabled{opacity:.5}
 </style>
