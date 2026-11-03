@@ -25,7 +25,7 @@ async function loadCatalog() {
       CatalogItemsService.select({ catalogGroupSlug: slug })))
     if (request !== generation) return
     catalog.value = [...new Map(lists.flat().map(item => [item.code, item])).values()]
-      .sort((a, b) => (a.label || a.code).localeCompare(b.label || b.code, 'es')))
+      .sort((a, b) => (a.label || a.code).localeCompare(b.label || b.code, 'es'))
   } catch {
     if (request === generation) error.value = 'No se pudieron consultar los equipos de Config.'
   }
