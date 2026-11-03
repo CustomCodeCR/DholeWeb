@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Download, FileSpreadsheet, RefreshCcw } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { fetchBlobClient } from '@/core/api/fetchBlobClient'
@@ -29,6 +29,7 @@ interface Quote {
   totalUtilityAmount: number
   marginPercentage: number
   createdAtUtc: string
+  acceptedAtUtc?: string | null
   validFrom: string
   validTo: string
   status: CommercialStatus
@@ -41,6 +42,7 @@ const exporting = ref(false)
 const search = ref('')
 const status = ref<StatusFilter>('All')
 const month = ref('')
+const dateType = ref<'created' | 'approved'>('approved')
 const dateFrom = ref('')
 const dateTo = ref('')
 const seller = ref('')
@@ -52,7 +54,7 @@ const labels: Record<CommercialStatus, string> = {
 const statuses: CommercialStatus[] = ['Sent', 'AcceptedByClient', 'RejectedByClient']
 const monthOptions = computed(() =>
   [...new Set(rows.value
-    .map((row) => row.createdAtUtc?.slice(0, 7))
+    .map((row) => (dateType.value === 'approved' ? row.acceptedAtUtc : row.createdAtUtc)?.slice(0, 7))
     .filter((value): value is string => Boolean(value && /^\d{4}-\d{2}$/.test(value))))]
     .sort((a, b) => b.localeCompare(a))
     .map((value) => ({
@@ -74,10 +76,12 @@ const filteredWithoutStatus = computed(() => {
   if (invalidDateRange.value) return []
   const needle = search.value.trim().toLocaleLowerCase('es')
   const selectedSeller = seller.value.toLocaleLowerCase('es')
-  return rows.value.filter((row) =>
-    (!month.value || row.createdAtUtc?.slice(0, 7) === month.value) &&
-    (!dateFrom.value || Boolean(row.createdAtUtc && row.createdAtUtc.slice(0, 10) >= dateFrom.value)) &&
-    (!dateTo.value || Boolean(row.createdAtUtc && row.createdAtUtc.slice(0, 10) <= dateTo.value)) &&
+  return rows.value.filter((row) => {
+    const selectedDate = dateType.value === 'approved' ? row.acceptedAtUtc : row.createdAtUtc
+    return (
+    (!month.value || selectedDate?.slice(0, 7) === month.value) &&
+    (!dateFrom.value || Boolean(selectedDate && selectedDate.slice(0, 10) >= dateFrom.value)) &&
+    (!dateTo.value || Boolean(selectedDate && selectedDate.slice(0, 10) <= dateTo.value)) &&
     (!selectedSeller ||
       (selectedSeller === unassignedSeller
         ? !row.executiveName?.trim()
@@ -85,8 +89,9 @@ const filteredWithoutStatus = computed(() => {
     (!needle || [
       row.rateCode, row.quoNumber, row.idtraNumber, row.clientName, row.executiveName,
       row.polName, row.poeName, row.podName, row.containerTypeName,
-    ].filter(Boolean).join(' ').toLocaleLowerCase('es').includes(needle)),
-  )
+    ].filter(Boolean).join(' ').toLocaleLowerCase('es').includes(needle))
+    )
+  })
 })
 const filtered = computed(() => filteredWithoutStatus.value.filter((row) =>
   status.value === 'All' || status.value === row.status,
@@ -95,9 +100,10 @@ const count = (state: StatusFilter) => state === 'All'
   ? filteredWithoutStatus.value.length
   : filteredWithoutStatus.value.filter((row) => row.status === state).length
 const hasActiveFilters = computed(() =>
-  Boolean(month.value || dateFrom.value || dateTo.value || seller.value || search.value.trim() || status.value !== 'All'),
+  Boolean(dateType.value !== 'approved' || month.value || dateFrom.value || dateTo.value || seller.value || search.value.trim() || status.value !== 'All'),
 )
 function clearFilters() {
+  dateType.value = 'approved'
   month.value = ''
   dateFrom.value = ''
   dateTo.value = ''
@@ -105,6 +111,12 @@ function clearFilters() {
   status.value = 'All'
   search.value = ''
 }
+// Evitar que una fecha anterior continúe filtrando al cambiar su significado.
+watch(dateType, () => {
+  month.value = ''
+  dateFrom.value = ''
+  dateTo.value = ''
+})
 const filterOptions = computed(() => [
   { key: 'All' as StatusFilter, label: 'Todas', count: count('All') },
   ...statuses.map((key) => ({ key: key as StatusFilter, label: labels[key], count: count(key) })),
@@ -112,6 +124,7 @@ const filterOptions = computed(() => [
 const totals = computed(() => {
   const values = new Map<string, number>()
   for (const row of filtered.value) {
+    if (row.status !== 'AcceptedByClient') continue
     const currency = row.currencyValue?.trim().toUpperCase() || 'SIN MONEDA'
     values.set(currency, (values.get(currency) ?? 0) + Number(row.totalSaleAmount || 0))
   }
@@ -127,6 +140,7 @@ function date(value?: string | null) {
 function reportQuery() {
   const params = new URLSearchParams()
   if (status.value !== 'All') params.set('status', status.value)
+  params.set('dateType', dateType.value)
   if (month.value) params.set('month', month.value)
   if (dateFrom.value) params.set('fromDate', dateFrom.value)
   if (dateTo.value) params.set('toDate', dateTo.value)
@@ -181,7 +195,7 @@ onMounted(load)
   <section class="min-w-0 space-y-5">
     <DhPageHeader
       title="Reporte de cotizaciones"
-      subtitle="Todas las cotizaciones comerciales del sistema: enviadas, aceptadas y no aceptadas. Los importes se mantienen separados por moneda."
+      subtitle="Consulta por fecha de creación o aceptación del cliente. La venta aprobada se reconoce en el mes de aceptación y los importes se separan por moneda."
       :icon="FileSpreadsheet"
       :hide-excel-export="true"
     >
@@ -206,7 +220,17 @@ onMounted(load)
     </div>
 
     <section class="rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
+          Buscar por fecha de
+          <select
+            v-model="dateType"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+          >
+            <option value="approved">Aprobación del cliente</option>
+            <option value="created">Creación de cotización</option>
+          </select>
+        </label>
         <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
           Mes
           <select
@@ -276,21 +300,25 @@ onMounted(load)
         </div>
       </div>
 
+      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+        Para consultar la venta del mes, seleccione «Aprobación del cliente». Las cotizaciones sin aprobación no se contabilizan como venta.
+      </p>
       <div v-if="totals.length" class="mt-4 flex flex-wrap gap-3">
         <div v-for="[currency, total] in totals" :key="currency" class="rounded-xl bg-black/5 px-3 py-2 dark:bg-white/5">
-          <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta cotizada · {{ currency }}</span>
+          <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta aprobada · {{ currency }}</span>
           <span class="text-sm font-black text-[var(--dh-text)]">{{ amount(total, currency) }}</span>
         </div>
       </div>
 
       <div class="mt-4 overflow-x-auto">
-        <table class="w-full min-w-[1050px] text-left text-sm">
+        <table class="w-full min-w-[1170px] text-left text-sm">
           <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]">
             <tr>
               <th class="px-3 py-3">Cotización</th>
               <th class="px-3 py-3">Cliente / Vendedor</th>
               <th class="px-3 py-3">Ruta / Equipo</th>
-              <th class="px-3 py-3">Fecha</th>
+              <th class="px-3 py-3">Creación</th>
+              <th class="px-3 py-3">Aprobación</th>
               <th class="px-3 py-3">Venta</th>
               <th class="px-3 py-3">Utilidad</th>
               <th class="px-3 py-3">Estado</th>
@@ -311,15 +339,16 @@ onMounted(load)
                 <span class="text-xs text-[var(--dh-text-muted)]">{{ row.shipmentMode }} · {{ row.containerQuantity }} × {{ row.containerTypeName }}</span>
               </td>
               <td class="px-3 py-3">{{ date(row.createdAtUtc) }}</td>
+              <td class="px-3 py-3">{{ row.status === 'AcceptedByClient' ? date(row.acceptedAtUtc) : '—' }}</td>
               <td class="px-3 py-3 font-bold">{{ amount(row.totalSaleAmount, row.currencyValue) }}</td>
               <td class="px-3 py-3">{{ amount(row.totalUtilityAmount, row.currencyValue) }}</td>
               <td class="px-3 py-3 font-bold">{{ labels[row.status] }}</td>
             </tr>
             <tr v-if="!loading && !filtered.length">
-              <td colspan="7" class="px-3 py-12 text-center text-[var(--dh-text-muted)]">No hay cotizaciones para los filtros seleccionados.</td>
+              <td colspan="8" class="px-3 py-12 text-center text-[var(--dh-text-muted)]">No hay cotizaciones para los filtros seleccionados.</td>
             </tr>
             <tr v-if="loading">
-              <td colspan="7" class="px-3 py-12 text-center text-[var(--dh-text-muted)]">Cargando cotizaciones...</td>
+              <td colspan="8" class="px-3 py-12 text-center text-[var(--dh-text-muted)]">Cargando cotizaciones...</td>
             </tr>
           </tbody>
         </table>
