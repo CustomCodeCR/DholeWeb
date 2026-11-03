@@ -83,7 +83,9 @@ const visibleRows = computed(() => rows.value.filter(row =>
   (!isManagerCalendar.value || !clientFilter.value || clientKey(row) === clientFilter.value)))
 function sellerEventStyle(event: CalendarEvent) {
   const color = sellerColor(event.ownerId)
-  return { borderLeftColor: color, borderLeftWidth: '5px', backgroundColor: color + '15' }
+  return { borderLeftColor: color, borderLeftWidth: '5px',
+    backgroundColor: color.startsWith('#') ? color + '15' :
+      'color-mix(in srgb, ' + color + ' 9%, transparent)' }
 }
 const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
