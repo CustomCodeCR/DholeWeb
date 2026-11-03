@@ -93,6 +93,8 @@ const props = withDefaults(defineProps<{
   currencyName: string
   currencyCode: string
   modelValue?: string | null
+  viewOnly?: boolean
+  historicalOwnConsolidationId?: string | null
   requestedCbm?: number
   requestedWeightKg?: number
   requestedWeightUnit?: 'kg' | 'lb'
@@ -119,6 +121,8 @@ const props = withDefaults(defineProps<{
   destinationLabel: null,
   quoteDate: null,
   modelValue: null,
+  viewOnly: false,
+  historicalOwnConsolidationId: null,
   requestedCbm: 1,
   requestedWeightKg: 0,
   requestedWeightUnit: 'kg',
@@ -151,6 +155,17 @@ const coloaderRows = ref<Array<LclColoaderRateDto & TableRow>>([])
 const error = ref('')
 const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isAir = computed(() => props.modality === 'Air' || props.modality === 'AirConsol')
+// Only an accepted, read-only quote passes its persisted own-consolidation ID.
+// Never expose closed consolidations when selecting a source for a new quote.
+const historicalOwnId = computed(() =>
+  props.viewOnly ? String(props.historicalOwnConsolidationId ?? '').trim().toLowerCase() : '',
+)
+function isHistoricalOwn(row: OwnLclConsolidationDto) {
+  return Boolean(historicalOwnId.value && String(row.id).toLowerCase() === historicalOwnId.value)
+}
+function historicalOwnUnavailable(row: OwnLclConsolidationDto) {
+  return row.isActive === false || normalize(row.status) === 'closed' || ownDepartureExpired(row)
+}
 // Shanghai solo permite recolectas desde POL de China y Balboa como POE.
 // Miami mantiene su ruta propia independiente hacia Moín.
 const ownPoeEligible = computed(() =>
@@ -468,9 +483,13 @@ function ownConsolidationSupportsPoe(row: OwnLclConsolidationDto) {
 const filteredOwn = computed(() => {
   // Los consolidados propios actuales son marítimos (China/Miami). Nunca deben
   // aparecer dentro de una cotización aérea aunque la ciudad del APT coincida.
-  if (!ownPoeEligible.value) return []
+  if (!ownPoeEligible.value && !historicalOwnId.value) return []
   const q = normalize(search.value)
   return ownRows.value.filter((row) => {
+    // Preserve the actual selected source of an accepted quote regardless of
+    // closure, ETD, changed port catalogs or the list's search text.
+    if (isHistoricalOwn(row)) return true
+    if (!ownPoeEligible.value) return false
     if (row.isActive === false || normalize(row.status) === 'closed') return false
     if (ownDepartureExpired(row)) return false
     if (!ownConsolidationSupportsPoe(row)) return false
@@ -496,7 +515,7 @@ async function load() {
     loading.value = true
     error.value = ''
     const [own, coloaders] = await Promise.all([
-      !ownPoeEligible.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),
+      !ownPoeEligible.value && !historicalOwnId.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse(),
       LclRateSourceService.browseColoaders({
         modality: props.modality,
         polId: props.polId,
@@ -508,11 +527,26 @@ async function load() {
         quoteDate: props.quoteDate,
       }),
     ])
+    // Browse omits inactive consolidations. Recover only the exact saved ID
+    // for historical consultation, without recalculating or reopening it.
+    const historicalId = historicalOwnId.value
+    let historicalRow: OwnLclConsolidationDto | null = null
+    if (historicalId && !own.some((row) => String(row.id).toLowerCase() === historicalId)) {
+      try {
+        historicalRow = await OwnLclConsolidationService.get(historicalId)
+      } catch {
+        error.value = 'No se pudo recuperar el consolidado histórico asociado a esta tarifa.'
+      }
+    }
+    if (historicalId !== historicalOwnId.value) return
     // Revalidar al resolver: un cambio de POE durante la petición no debe reintroducir propios.
-    ownRows.value = ownPoeEligible.value ? own.map((row) => ({ ...row })) : []
+    ownRows.value = ownPoeEligible.value || historicalId
+      ? [...own, ...(historicalRow ? [historicalRow] : [])].map((row) => ({ ...row }))
+      : []
     coloaderRows.value = coloaders.map((row) => ({ ...row }))
-    if (!ownPoeEligible.value) tab.value = 'Coloader'
+    if (!ownPoeEligible.value && !historicalId) tab.value = 'Coloader'
     if (isAir.value || (!filteredOwn.value.length && filteredColoaders.value.length)) tab.value = 'Coloader'
+    else if (historicalOwnId.value && filteredOwn.value.some(isHistoricalOwn)) tab.value = 'Own'
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible consultar las fuentes LCL.'
   } finally {
@@ -576,6 +610,7 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto, unlistedOrigin = fa
 }
 
 async function chooseOwn(row: OwnLclConsolidationDto) {
+  if (props.viewOnly) return
   const unavailableReason = ownSelectionBlockReason(row)
   if (unavailableReason) {
     error.value = unavailableReason === 'Otro POL'
@@ -685,6 +720,7 @@ function mapColoaderLine(line: LclColoaderRateLineDto, rate: LclColoaderRateDto)
 }
 
 function chooseColoader(rate: LclColoaderRateDto) {
+  if (props.viewOnly) return
   const cbm = requested()
   const profit = n(rate.totalSaleAmount) - n(rate.totalCostAmount)
   const selection: LclRateSourceSelection = {
@@ -723,6 +759,7 @@ function chooseColoader(rate: LclColoaderRateDto) {
 }
 
 function chooseManualColoader() {
+  if (props.viewOnly) return
   const cbm = requested()
   const selection: LclRateSourceSelection = {
     kind: 'Coloader',
@@ -788,7 +825,7 @@ watch(
     if (!props.commercialPlan || !String(props.modelValue ?? '').startsWith('Own:')) return
     const selectedId = String(props.modelValue).slice(4)
     const row = ownRows.value.find((item) => String(item.id) === selectedId)
-    if (row) void chooseOwn(row)
+    if (row && !props.viewOnly) void chooseOwn(row)
   },
   { deep: true },
 )
@@ -802,6 +839,7 @@ watch(ownPoeEligible, (eligible, previous) => {
     void load()
   }
 }, { immediate: true })
+watch(historicalOwnId, () => void load())
 onMounted(load)
 </script>
 
@@ -814,7 +852,7 @@ onMounted(load)
     </div>
 
     <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
-      <button v-if="ownPoeEligible" type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Own' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Own'">
+      <button v-if="ownPoeEligible || historicalOwnId" type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Own' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Own'">
         <Ship class="h-4 w-4" /> Consolidados propios <span class="rounded-full bg-black/5 px-2 py-0.5 text-[10px] dark:bg-white/10">{{ filteredOwn.length }}</span>
       </button>
       <button type="button" class="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-[16px] px-4 text-sm font-black transition" :class="tab === 'Coloader' ? 'bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-[var(--dh-shadow-sm)]' : 'text-[var(--dh-text-muted)]'" @click="tab = 'Coloader'">
@@ -822,19 +860,19 @@ onMounted(load)
       </button>
     </div>
 
-    <div v-if="tab === 'Own' && ownPoeEligible" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
+    <div v-if="tab === 'Own' && (ownPoeEligible || historicalOwnId)" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
       <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE. La capacidad es informativa.' : unlistedShanghaiOrigin ? 'POL de China sin tarifa directa: Shanghai como referencia y recolecta editable en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
         {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
       </button>
     </div>
     <div v-if="error" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">{{ error }}</div>
-    <div v-if="tab === 'Own' && filteredOwn.some((row) => ownHasInsufficientCapacity(row) || ownSelectionBlockReason(row))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Puede cotizar un consolidado aunque su capacidad sea insuficiente. La cotización no reserva ni confirma espacio: verifique disponibilidad antes de gestionar el embarque. Las salidas de otro POL quedan solo para consulta.</div>
+    <div v-if="tab === 'Own' && filteredOwn.some((row) => !isHistoricalOwn(row) && (ownHasInsufficientCapacity(row) || ownSelectionBlockReason(row)))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Puede cotizar un consolidado aunque su capacidad sea insuficiente. La cotización no reserva ni confirma espacio: verifique disponibilidad antes de gestionar el embarque. Las salidas de otro POL quedan solo para consulta.</div>
 
     <div v-if="tab === 'Own'">
       <DhDataTable :columns="ownColumns" :rows="filteredOwn" :loading="loading" empty-text="No hay consolidados propios disponibles para este POL.">
         <template #cell-source="{ row }">
-          <div><p class="font-black">{{ row.name }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }} · {{ row.booking || 'Sin booking' }}</p></div>
+          <div><p class="font-black">{{ row.name }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }} · {{ row.booking || 'Sin booking' }}</p><DhBadge v-if="isHistoricalOwn(row)" class="mt-1" :label="historicalOwnUnavailable(row) ? 'Cerrado · seleccionado en esta tarifa' : 'Seleccionado en esta tarifa aceptada'" :variant="historicalOwnUnavailable(row) ? 'warning' : 'neutral'" /></div>
         </template>
         <template #cell-route="{ row }">
           <div><p class="font-bold">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'Panamá' }} / Centroamérica</p><p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p></div>
@@ -843,13 +881,13 @@ onMounted(load)
           <div class="space-y-0.5 text-right">
             <p class="whitespace-nowrap font-black">{{ remainingCbm(row).toFixed(2) }} CBM disponibles</p>
             <p class="whitespace-nowrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ approvedCbm(row).toFixed(2) }} aprobados / {{ n(row.maximumCbm).toFixed(2) }} totales</p>
-            <DhBadge v-if="ownHasInsufficientCapacity(row)" label="Capacidad insuficiente · Solo cotización" variant="warning" />
+            <DhBadge v-if="!isHistoricalOwn(row) && ownHasInsufficientCapacity(row)" label="Capacidad insuficiente · Solo cotización" variant="warning" />
           </div>
         </template>
         <template #cell-cost="{ row }"><span class="font-black">USD {{ money((n(row.oceanFreight) + n(row.carrierDestinationCostTotal)) / Math.max(n(row.maximumCbm), 1)) }}</span></template>
         <template #cell-action="{ row }">
           <div class="flex justify-end" @click.stop>
-            <DhButton class="min-w-[108px]" :label="ownSelectionBlockReason(row) || (modelValue === `Own:${row.id}` ? 'Seleccionado' : 'Seleccionar')" :icon="modelValue === `Own:${row.id}` ? Check : undefined" size="sm" :disabled="Boolean(ownSelectionBlockReason(row))" :loading="selecting === `Own:${row.id}`" @click="chooseOwn(row)" />
+            <DhButton class="min-w-[108px]" :label="isHistoricalOwn(row) ? 'Seleccionado' : ownSelectionBlockReason(row) || (modelValue === `Own:${row.id}` ? 'Seleccionado' : 'Seleccionar')" :icon="modelValue === `Own:${row.id}` ? Check : undefined" size="sm" :disabled="viewOnly || Boolean(ownSelectionBlockReason(row))" :loading="selecting === `Own:${row.id}`" @click="chooseOwn(row)" />
           </div>
         </template>
       </DhDataTable>
