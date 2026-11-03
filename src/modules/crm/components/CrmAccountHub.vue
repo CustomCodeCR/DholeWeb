@@ -19,10 +19,21 @@ import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
   Activity, CalendarClock, CheckCircle2, Clock3, FileText, MapPin, Phone,
-  Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
+  History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'agenda' | 'finance'
+type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'finance'
+type AccountChange = { field: string; before: string | null; after: string | null }
+type AccountAuditEntry = {
+  id: string
+  actionCode: string
+  areaCode: string
+  actorUserId: string | null
+  actorDisplayName: string | null
+  changesJson: string
+  createdAt: string
+}
+type AccountAuditPage = { items: AccountAuditEntry[]; total: number; page: number; pageSize: number }
 interface Overview {
   activities: CrmRow[]
   followups: CrmRow[]
@@ -60,6 +71,7 @@ const tabs = computed(() => [
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'history' as const, label: locale.value === 'en' ? 'Route history' : 'Historial de rutas', icon: Route },
+  { key: 'changes' as const, label: locale.value === 'en' ? 'Change history' : 'Historial de cambios', icon: History },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
   ...(has('crm.credit.read') || has('crm.contract.read')
     ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & contracts' : 'Crédito y contratos', icon: Wallet }]
@@ -70,6 +82,13 @@ const initial = (): Overview => ({
   analyses: [], opportunities: [], quotes: [], quotesAreLinkedOnly: true,
 })
 const overview = ref<Overview>(initial())
+const accountChanges = ref<AccountAuditEntry[]>([])
+const accountChangesTotal = ref(0)
+const accountChangesPage = ref(1)
+const accountChangesLoading = ref(false)
+const accountChangesError = ref('')
+let accountChangesGeneration = 0
+
 const contacts = ref<CrmRow[]>([])
 const addresses = ref<CrmRow[]>([])
 const credit = ref<CrmRow[]>([])
@@ -482,6 +501,88 @@ const visibleTimeline = computed(() => {
     .sort((a, b) => b.time.localeCompare(a.time))
 })
 async function get<T>(endpoint: string): Promise<T> { return crmRequest<T>(endpoint) }
+function accountAuditFields(entry: AccountAuditEntry): AccountChange[] {
+  try {
+    const data: unknown = JSON.parse(entry.changesJson)
+    if (!Array.isArray(data)) return []
+    return data.filter((item): item is AccountChange =>
+      item !== null && typeof item === 'object' &&
+      typeof item.field === 'string' &&
+      (item.before === null || typeof item.before === 'string') &&
+      (item.after === null || typeof item.after === 'string'))
+  } catch {
+    return []
+  }
+}
+const auditLabels: Record<string, string> = {
+  DisplayName: 'Nombre comercial', LegalName: 'Razón social',
+  CountryId: 'País', TaxIdTypeCode: 'Tipo de identificación',
+  TaxId: 'Identificación', CustomerTypeCode: 'Tipo de cliente',
+  SourceCode: 'Origen de la cuenta', RelationshipTypeCode: 'Tipo de relación',
+  CategoryType: 'Tipo de categoría', CategoryCode: 'Categoría',
+  ExecutiveUserId: 'Vendedor asignado', IsCastroFallasExecutive: 'Vendedor institucional',
+  LogoFileId: 'Logotipo', VerificationStatus: 'Estado de verificación',
+  HaciendaVerifiedAt: 'Verificación de Hacienda', Status: 'Estado',
+  ArchivedAt: 'Fecha de archivo', Phone: 'Teléfono', Email: 'Correo electrónico',
+  Website: 'Sitio web', Sector: 'Sector', BusinessActivity: 'Actividad comercial',
+  Products: 'Productos', CompanyHistory: 'Historia de la empresa',
+  BillingEmail: 'Correo de facturación', MarketingEmail: 'Correo de mercadeo',
+  CommercialObservations: 'Observaciones comerciales',
+  OperationalInstructions: 'Instrucciones operativas', ActiveServices: 'Servicios activos',
+  PresenceCountries: 'Países de presencia', CommercialStrategy: 'Estrategia comercial',
+  ProjectsOfInterest: 'Proyectos de interés', PricingObservations: 'Observaciones de pricing',
+  TariffMonitoringNotes: 'Seguimiento de tarifas', TariffSendingNotes: 'Envío de tarifas',
+  CustomsInstructions: 'Instrucciones aduaneras',
+  CargoCollectionInstructions: 'Instrucciones de recolección',
+  DocumentReviewInstructions: 'Revisión documental',
+  AssignedOperations: 'Operaciones asignadas',
+  CompetitorObservations: 'Observaciones de competencia',
+  TradeAgreementNotes: 'Acuerdos comerciales',
+  WebCustomerReference: 'Referencia del cliente web',
+}
+function accountAuditLabel(field: string) { return auditLabels[field] || field }
+function accountAuditAction(code: string) {
+  const labels: Record<string, string> = {
+    CREATED: 'Cuenta creada', UPDATED: 'Cuenta modificada',
+    ARCHIVED: 'Cuenta archivada', ASSIGNED: 'Vendedor reasignado',
+    LOGO_UPDATED: 'Logotipo modificado', PROFILE_CREATED: 'Ficha comercial creada',
+    PROFILE_UPDATED: 'Ficha comercial modificada',
+  }
+  return labels[code] || 'Cambio registrado'
+}
+function accountAuditValue(value: string | null, field: string) {
+  if (value === null || value === '') return 'Sin dato'
+  if (field === 'CustomerTypeCode') return value === 'credit' ? 'Crédito' : value === 'cash' ? 'Contado' : value
+  if (field === 'IsCastroFallasExecutive') return value === 'true' ? 'Sí' : 'No'
+  if (field === 'CountryId' && value === props.account.countryId && countryName.value) return countryName.value
+  if (field === 'ExecutiveUserId' && value === props.account.executiveUserId && assignedSellerName.value) return assignedSellerName.value
+  return value
+}
+async function loadAccountChanges() {
+  const generation = ++accountChangesGeneration
+  const accountId = rowId(props.account.id)
+  accountChangesLoading.value = true
+  accountChangesError.value = ''
+  try {
+    const result = await get<AccountAuditPage>(
+      crmPath('accounts', accountId, 'change-history') +
+      '?page=' + accountChangesPage.value + '&pageSize=15')
+    if (generation !== accountChangesGeneration) return
+    accountChanges.value = result.items || []
+    accountChangesTotal.value = result.total || 0
+  } catch (cause) {
+    if (generation !== accountChangesGeneration) return
+    accountChanges.value = []
+    accountChangesError.value = message(cause)
+  } finally {
+    if (generation === accountChangesGeneration) accountChangesLoading.value = false
+  }
+}
+function changeAccountChangesPage(delta: number) {
+  accountChangesPage.value += delta
+  void loadAccountChanges()
+}
+
 async function load() {
   const generation = ++requestGeneration
   loading.value = true
@@ -541,6 +642,11 @@ async function load() {
   finally { if (generation === requestGeneration) loading.value = false }
 }
 watch(() => props.account.id, () => {
+  ++accountChangesGeneration
+  accountChanges.value = []
+  accountChangesTotal.value = 0
+  accountChangesPage.value = 1
+  accountChangesError.value = ''
   overview.value = initial()
   contacts.value = []
   addresses.value = []
@@ -679,6 +785,7 @@ async function loadQuotedRoutes(generation = requestGeneration) {
   } finally { if (generation === requestGeneration) quoteRouteLoading.value = false }
 }
 watch(activeTab, tab => {
+  if (tab === 'changes') void loadAccountChanges()
   if (tab === 'history' && (has('crm.account.read') || has('crm.account.read-all'))) void loadQuotedRoutes()
 })
 function changeQuoteRoutePage(delta: number) {
@@ -1236,6 +1343,59 @@ async function saveRoute() {
         <button type="button" class="hub-text-link mt-3" @click="activeTab='agenda'">Abrir seguimientos</button>
       </aside>
     </div>
+
+    <section v-else-if="activeTab === 'changes'" id="crm-account-changes" role="tabpanel" class="hub-panel space-y-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 class="hub-panel-heading mb-0"><History class="h-4 w-4 text-[var(--dh-primary)]" />Historial de cambios</h2>
+          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+            Registro de creación y modificaciones de la cuenta, con fecha, responsable y valores anteriores y nuevos.
+          </p>
+        </div>
+        <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesLoading" @click="loadAccountChanges()">
+          <RefreshCw class="h-3.5 w-3.5" />Actualizar
+        </button>
+      </div>
+      <p v-if="accountChangesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando historial de cambios…</p>
+      <p v-if="accountChangesError" role="alert" class="rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ accountChangesError }}</p>
+      <p v-if="!accountChangesLoading && !accountChangesError && !accountChanges.length" class="hub-empty">Todavía no hay cambios registrados para esta cuenta.</p>
+      <ol v-if="accountChanges.length" class="divide-y divide-[var(--dh-border)]">
+        <li v-for="entry in accountChanges" :key="entry.id" class="py-4 first:pt-0 last:pb-0">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-extrabold">{{ accountAuditAction(entry.actionCode) }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                Responsable: {{ entry.actorDisplayName || (entry.actorUserId ? 'Usuario ' + entry.actorUserId : 'Sistema') }}
+              </p>
+            </div>
+            <time class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ date(entry.createdAt) }}</time>
+          </div>
+          <div v-if="accountAuditFields(entry).length" class="mt-3 space-y-2">
+            <div v-for="(change, index) in accountAuditFields(entry)" :key="entry.id + '-' + index" class="rounded-xl border border-[var(--dh-border)] p-3">
+              <p class="mb-2 text-xs font-bold">{{ accountAuditLabel(change.field) }}</p>
+              <div class="grid gap-2 text-xs sm:grid-cols-2">
+                <div class="min-w-0 rounded-lg bg-[var(--dh-shell)] p-2">
+                  <span class="font-semibold text-[var(--dh-text-muted)]">Valor anterior</span>
+                  <p class="mt-1 whitespace-pre-wrap break-words">{{ accountAuditValue(change.before, change.field) }}</p>
+                </div>
+                <div class="min-w-0 rounded-lg bg-[var(--dh-shell)] p-2">
+                  <span class="font-semibold text-[var(--dh-text-muted)]">Valor nuevo</span>
+                  <p class="mt-1 whitespace-pre-wrap break-words">{{ accountAuditValue(change.after, change.field) }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="mt-2 text-xs text-[var(--dh-text-muted)]">
+            Registro inicial recuperado de la fecha de creación. Los cambios anteriores a la activación del historial no están disponibles.
+          </p>
+        </li>
+      </ol>
+      <footer v-if="accountChangesTotal > 15" class="flex items-center justify-end gap-3 text-xs">
+        <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage <= 1 || accountChangesLoading" @click="changeAccountChangesPage(-1)">Anterior</button>
+        <span>Página {{ accountChangesPage }} · {{ accountChangesTotal }} eventos</span>
+        <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage * 15 >= accountChangesTotal || accountChangesLoading" @click="changeAccountChangesPage(1)">Siguiente</button>
+      </footer>
+    </section>
 
     <section v-else-if="activeTab === 'history'" id="crm-account-history" role="tabpanel" class="space-y-3">
       <div class="hub-panel">
