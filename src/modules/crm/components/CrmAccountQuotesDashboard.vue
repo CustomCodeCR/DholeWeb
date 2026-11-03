@@ -13,6 +13,7 @@ interface QuoteDashboard {
   pendingSync: number
   lastSyncAt: string | null
   linkedOnly: boolean
+  truncated?: boolean
 }
 const props = defineProps<{ accountId: string }>()
 const stats = ref<QuoteDashboard | null>(null)
@@ -183,14 +184,19 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
         </section>
       </div>
       <p v-else class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-center text-sm text-[var(--dh-text-muted)]">
-        Aún no hay cotizaciones vinculadas a las oportunidades visibles de esta cuenta.
+        Aún no hay cotizaciones verificadas para esta cuenta.
+      </p>
+      <p v-if="stats.truncated" class="text-xs text-amber-700 dark:text-amber-300">
+        El cliente tiene más de 5000 cotizaciones; los indicadores muestran solo las primeras 5000.
       </p>
       <p v-if="stats.pendingSync" class="text-xs text-amber-700 dark:text-amber-300">
         {{ stats.pendingSync }} cotización(es) con actualización de estado pendiente desde Pricing.
       </p>
       <p class="text-xs text-[var(--dh-text-muted)]">
-        Datos de cotizaciones vinculadas formalmente al CRM; no se atribuyen tarifas por coincidencia de nombre.
-        Se utiliza el último estado sincronizado por Pricing. “Enviadas” incluye enviadas,
+        {{ stats.linkedOnly
+          ? 'Datos de cotizaciones vinculadas a oportunidades del CRM y su último estado sincronizado.'
+          : 'Datos de cotizaciones asociadas por ID a esta cuenta, consultadas directamente a Pricing.' }}
+        No se atribuyen tarifas por coincidencia de nombre. “Enviadas” incluye pendientes de respuesta,
         solicitadas por el cliente y vencidas. “Aprobadas” significa aceptadas por el cliente.
       </p>
     </template>
