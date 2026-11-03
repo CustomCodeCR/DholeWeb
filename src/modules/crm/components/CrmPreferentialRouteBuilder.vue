@@ -9,6 +9,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { sellerRateCurrencyValue } from '@/modules/pricing/utils/sellerRateCurrency'
 import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis } from '../utils/crmPreferentialCostGroups'
+import { costTiers, currentTierSale, discounted, tierSalesMatch, tierSalesPayload, tierText } from '../utils/crmPreferentialTierSales'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
 
@@ -16,6 +17,7 @@ type SavedRate = {
   id: string; rowVersion: number; modality: string; laneCode: string | null
   sourceCostId?: string | null; chargeCode: string; rateType: string; value: number | null
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
+  tierSalesJson?: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]; isActive: boolean
 }
 const props = defineProps<{
@@ -32,6 +34,12 @@ const route = reactive({
 })
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
+const editedTiers = ref<Record<string, Record<string, string>>>({})
+const expandedTiers = ref<string[]>([])
+const providerFilter = ref('all')
+const bulkDiscount = ref('')
+const bulkReview = ref(false)
+const containerLabels = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
 const currencies = ref<CatalogItemSelectDto[]>([])
 const searchTerm = ref('')
@@ -43,6 +51,10 @@ async function loadCurrencies() {
   } catch {
     currencies.value = []
   }
+  try {
+    const containers = await CatalogItemsService.select({catalogGroupSlug:'container-types'})
+    containerLabels.value = Object.fromEntries(containers.map(x => [x.id,x.label || x.value || x.code]))
+  } catch { containerLabels.value = {} }
 }
 onMounted(() => void loadCurrencies())
 const modalityOptions = [
@@ -65,12 +77,32 @@ const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : 
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
   }))
   .sort((a, b) => a.costDetailType.localeCompare(b.costDetailType) || a.name.localeCompare(b.name, 'es')))
+const providerOptions = computed(() => {
+  const options = new Map<string,string>()
+  for (const cost of costsForRoute.value) {
+    const owners = preferentialCostOwners(cost)
+    owners.agentNames.forEach(name => options.set('agent:'+name, 'Agente · '+name))
+    owners.carrierNames.forEach(name => options.set('carrier:'+name, 'Naviera · '+name))
+  }
+  return [
+    {value:'all',label:'Todas las navieras y agentes'},
+    {value:'unassigned',label:'Sin agente o naviera'},
+    ...[...options].sort((a,b) => a[1].localeCompare(b[1],'es'))
+      .map(([value,label]) => ({value,label})),
+  ]
+})
 const filteredCosts = computed(() => {
   const needle = searchTerm.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .trim().toLocaleLowerCase()
-  if (!needle) return costsForRoute.value
   return costsForRoute.value.filter(cost => {
     const owners = preferentialCostOwners(cost)
+    if (providerFilter.value === 'unassigned' &&
+      (owners.agentNames.length || owners.carrierNames.length)) return false
+    if (providerFilter.value.startsWith('agent:') &&
+      !owners.agentNames.includes(providerFilter.value.slice(6))) return false
+    if (providerFilter.value.startsWith('carrier:') &&
+      !owners.carrierNames.includes(providerFilter.value.slice(8))) return false
+    if (!needle) return true
     const haystack = [cost.name, cost.costDetailType, preferentialCostBasis(cost.chargeBasis),
       ...owners.agentNames, ...owners.carrierNames, cost.portName].join(' ')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
@@ -78,6 +110,59 @@ const filteredCosts = computed(() => {
   })
 })
 const costSections = computed(() => groupPreferentialCosts(filteredCosts.value))
+const isTiered = (cost: CostSelectDto) => costTiers(cost).length > 0
+const invalidRules = (cost: CostSelectDto) => Boolean(cost.pricingRulesJson && !isTiered(cost))
+function tierSale(cost: CostSelectDto, index: number) {
+  const saved = existingCost(cost)
+  return currentTierSale(cost,index,editedTiers.value[cost.id],
+    saved?.rateType === 'TIERED_SALE' ? saved.tierSalesJson : null)
+}
+function editTier(cost: CostSelectDto, index: number, value: string) {
+  editedTiers.value = {
+    ...editedTiers.value,
+    [cost.id]: {...editedTiers.value[cost.id], [String(index)]:value},
+  }
+}
+function toggleTiers(id: string) {
+  expandedTiers.value = expandedTiers.value.includes(id)
+    ? expandedTiers.value.filter(x=>x!==id) : [...expandedTiers.value,id]
+}
+const modifiedCount = computed(() =>
+  new Set([...Object.keys(editedSales.value),...Object.keys(editedTiers.value)]).size)
+const eligibleBulk = computed(() => filteredCosts.value.filter(c => !invalidRules(c) &&
+  (isTiered(c) ? costTiers(c).some(x => x.saleAmount>0) : c.saleAmount>0)))
+function proposeDiscount() {
+  const percent=Number(bulkDiscount.value)
+  error.value=''
+  if (!bulkDiscount.value.trim() || !Number.isFinite(percent) || percent<0 || percent>100) {
+    error.value='Indicá un descuento porcentual entre 0 y 100.'
+    bulkReview.value=false;return
+  }
+  if (!eligibleBulk.value.length) {
+    error.value='No hay cargos con venta estándar positiva en esta selección.'
+    bulkReview.value=false;return
+  }
+  bulkReview.value=true
+}
+function applyDiscount() {
+  if (!bulkReview.value) return
+  const percent=Number(bulkDiscount.value)
+  for (const cost of eligibleBulk.value) {
+    if (isTiered(cost)) {
+      const edits={...editedTiers.value[cost.id]}
+      costTiers(cost).forEach((row,i) => {
+        if (row.saleAmount>0) edits[String(i)]=discounted(row.saleAmount,percent)
+      })
+      editedTiers.value={...editedTiers.value,[cost.id]:edits}
+    } else {
+      editedSales.value={...editedSales.value,[cost.id]:discounted(cost.saleAmount,percent)}
+    }
+  }
+  bulkReview.value=false
+  success.value='Descuento preparado para '+eligibleBulk.value.length+
+    ' cargos. Revisá cada importe y después guardá; todavía no se enviaron a CRM.'
+}
+
 const expanded = (key: string) => expandedZones.value.includes(key)
 const providerExpanded = (key: string) => !!searchTerm.value.trim() || expandedProviders.value.includes(key)
 function toggleZone(key: string) {
@@ -107,7 +192,8 @@ function existingInsurance() {
     x.chargeCode === 'Insurance' && scopeMatches(x))
 }
 function resetPreview() {
-  preview.value = false; editedSales.value = {}; error.value = ''; success.value = ''
+  preview.value = false; editedSales.value = {}; editedTiers.value = {}
+  error.value = ''; success.value = ''
   insuranceEnabled.value = false; insuranceCost.value = ''; insuranceSale.value = ''
 }
 function changeModality(value: 'MARITIME' | 'TERRESTRIAL') {
@@ -126,8 +212,9 @@ function consult() {
     error.value = 'No tenés el permiso pricing.cost.select para cargar los costos y recargos de Pricing.'
     return
   }
-  editedSales.value = {}; preview.value = true
-  searchTerm.value = ''
+  editedSales.value = {}; editedTiers.value = {}; preview.value = true
+  searchTerm.value = '';providerFilter.value='all';bulkDiscount.value='';bulkReview.value=false
+  expandedTiers.value=[]
   expandedZones.value = ['origin','destination','transit','other']
   expandedProviders.value = []
   const insured = existingInsurance()
@@ -163,13 +250,28 @@ function scope() {
 async function save() {
   if (!preview.value || saving.value || !isComplete.value) return
   error.value = ''; success.value = ''
-  const modified = costsForRoute.value.filter(x => Object.prototype.hasOwnProperty.call(editedSales.value, x.id))
+  const modified = costsForRoute.value.filter(x =>
+    Object.prototype.hasOwnProperty.call(editedSales.value,x.id) ||
+    Object.prototype.hasOwnProperty.call(editedTiers.value,x.id))
   if (!modified.length && !insuranceEnabled.value) {
     error.value = 'Modificá un precio de venta o configurá los porcentajes de seguro.'
     return
   }
   for (const cost of modified) {
-    if (!saleValue(cost).trim() || !Number.isFinite(Number(saleValue(cost))) || Number(saleValue(cost)) < 0) {
+    if (invalidRules(cost)) {
+      error.value='No se pueden leer las bandas originales de '+cost.name+'. Revisá Pricing.'
+      return
+    }
+    if (isTiered(cost)) {
+      for (let i=0;i<costTiers(cost).length;i++) {
+        const value=tierSale(cost,i)
+        if (!value.trim() || !Number.isFinite(Number(value)) || Number(value)<0) {
+          error.value='La venta del tramo '+(i+1)+' de '+cost.name+' no es válida.'
+          return
+        }
+      }
+    } else if (!saleValue(cost).trim() || !Number.isFinite(Number(saleValue(cost))) ||
+      Number(saleValue(cost)) < 0) {
       error.value = 'La venta de ' + cost.name + ' debe ser un número válido y no negativo.'
       return
     }
@@ -191,11 +293,15 @@ async function save() {
       const body = {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
         sourceCostId: cost.id, chargeCode: cost.costDetailType,
-        customChargeName: cost.name.slice(0, 120), rateType: 'FIXED_AMOUNT',
-        value: Number(saleValue(cost)), minimumCharge: null,
+        customChargeName: cost.name.slice(0,120),
+        rateType: isTiered(cost) ? 'TIERED_SALE' : 'FIXED_AMOUNT',
+        value: isTiered(cost) ? null : Number(saleValue(cost)),
+        tierSalesJson: isTiered(cost) ? tierSalesPayload(cost,editedTiers.value[cost.id],
+          existing?.rateType === 'TIERED_SALE' ? existing.tierSalesJson : null) : null,
+        minimumCharge: null,
         insuranceCostPercent: null, insuranceSalePercent: null,
         currencyCode: currencyFor(cost),
-        unitCode: saleUnitForBasis(cost.chargeBasis),
+        unitCode: isTiered(cost) ? null : saleUnitForBasis(cost.chargeBasis),
       }
       await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
         existing ? 'PUT' : 'POST', body)
@@ -205,7 +311,7 @@ async function save() {
       const existing = existingInsurance()
       const body = {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
-        sourceCostId: null, chargeCode: 'Insurance', customChargeName: null,
+        sourceCostId: null, tierSalesJson: null, chargeCode: 'Insurance', customChargeName: null,
         rateType: 'INSURANCE_PERCENT', value: Number(insuranceSale.value),
         insuranceCostPercent: Number(insuranceCost.value), insuranceSalePercent: Number(insuranceSale.value),
         minimumCharge: null, currencyCode: null, unitCode: null,
@@ -215,6 +321,7 @@ async function save() {
       count++
     }
     editedSales.value = {}
+    editedTiers.value = {}
     success.value = count + ' ítem(s) guardado(s). El costo original de Pricing no se alteró.'
   } catch (cause) {
     error.value = crmError(cause) + (count ? ' Se guardaron ' + count + ' ítems antes del error.' : '')
