@@ -23,7 +23,7 @@ test('audit display shows actor and before/after values', () => {
   assert.match(hub, /entry\.createdAt/)
   assert.match(hub, /accountAuditValue\(change\.before, change\.field\)/)
   assert.match(hub, /accountAuditValue\(change\.after, change\.field\)/)
-  assert.match(hub, /Los cambios anteriores a la activación del historial no están disponibles/)
+  assert.match(hub, /No se dispone del detalle de modificaciones anteriores a la activación de la auditoría/)
 })
 
 test('financial credit changes show their own event and human-readable fields', () => {
