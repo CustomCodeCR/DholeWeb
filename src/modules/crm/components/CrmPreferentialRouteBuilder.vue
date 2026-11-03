@@ -384,16 +384,56 @@ async function save() {
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <span class="route-pill">{{ costSections.length }} secciones</span>
-            <span class="route-pill">{{ Object.keys(editedSales).length }} modificaciones sin guardar</span>
+            <span class="route-pill">{{ modifiedCount }} cargos editados sin guardar</span>
           </div>
         </div>
 
+        <div class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-extrabold">1. Elegí una naviera o agente</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">No hace falta configurar todos los {{ costsForRoute.length }} cargos. Filtrá el proveedor y personalizá solo los necesarios.</p>
+            </div>
+            <span class="route-pill">{{ filteredCosts.length }} cargos visibles</span>
+          </div>
+          <div class="mt-3">
+            <DhSelect :model-value="providerFilter" label="Naviera o agente"
+              placeholder="" :options="providerOptions"
+              @update:model-value="providerFilter=String($event);bulkReview=false" />
+          </div>
+          <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
+            <p class="text-sm font-extrabold">2. Ajuste rápido de venta (opcional)</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              Podés aplicar un descuento sobre la venta estándar a todos los cargos visibles con venta positiva,
+              incluso a los que se calculan por tramos. Nunca modifica el costo original.
+            </p>
+            <div class="mt-3 flex flex-wrap items-end gap-2">
+              <label class="route-label min-w-32">Descuento sobre venta (%)
+                <input v-model="bulkDiscount" type="number" min="0" max="100" step="0.01"
+                  class="route-input w-36" placeholder="Ej. 10" @input="bulkReview=false" />
+              </label>
+              <button type="button" class="route-action-secondary" @click="proposeDiscount">
+                Revisar descuento
+              </button>
+            </div>
+            <div v-if="bulkReview" class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+              <p class="text-xs font-bold">
+                Se preparará {{ bulkDiscount }} % de descuento para {{ eligibleBulk.length }} cargos.
+                Primero podrás revisar los importes; no se guardará hasta pulsar Guardar ventas preferenciales.
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="route-action" @click="applyDiscount">Aplicar a la edición</button>
+                <button type="button" class="route-action-secondary" @click="bulkReview=false">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
           <label class="relative min-w-[240px] flex-1">
             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
             <input v-model="searchTerm" type="search"
               aria-label="Buscar conceptos, agentes o navieras"
-              placeholder="Buscar cargo, agente, naviera o base de cobro…"
+              placeholder="3. Buscar un concepto o cargo…"
               class="route-input w-full pl-10" />
           </label>
           <button type="button" class="route-action-secondary" @click="toggleAllProviders">
@@ -446,30 +486,89 @@ async function save() {
                     <span>Venta estándar</span><span>Venta preferencial</span>
                   </div>
                   <div v-for="cost in owner.costs" :key="cost.id"
-                    class="grid gap-3 border-b border-[var(--dh-border)] px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(190px,2fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(140px,1.2fr)] lg:items-center"
-                    :class="Object.prototype.hasOwnProperty.call(editedSales,cost.id) ? 'bg-[rgb(var(--dh-primary-rgb)/0.035)]' : ''">
-                    <div class="min-w-0">
-                      <p class="break-words text-sm font-extrabold">{{ cost.name }}</p>
-                      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preferentialCostBasis(cost.chargeBasis) }}</p>
-                      <span v-if="existingCost(cost)" class="mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">Venta negociada</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Costo original</span>
-                      <span class="text-xs font-bold tabular-nums">{{ money(cost.costAmount, cost) }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta estándar</span>
-                      <span class="text-xs font-bold tabular-nums">{{ money(cost.saleAmount, cost) }}</span>
-                    </div>
-                    <label class="min-w-0">
-                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta preferencial</span>
-                      <span class="flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
-                        <span class="text-xs font-extrabold text-[var(--dh-text-muted)]">{{ currencyFor(cost) ?? '—' }}</span>
-                        <input type="number" min="0" step="0.000001" :value="saleValue(cost)"
-                          :aria-label="'Venta preferencial de '+cost.name" class="min-w-0 w-full bg-transparent text-right text-sm font-extrabold tabular-nums outline-none"
-                          @input="editSale(cost,($event.target as HTMLInputElement).value)" />
+                    class="border-b border-[var(--dh-border)] last:border-b-0"
+                    :class="editedSales[cost.id] !== undefined || editedTiers[cost.id] !== undefined
+                      ? 'bg-[rgb(var(--dh-primary-rgb)/0.035)]' : ''">
+                    <div class="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,2fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(140px,1.2fr)] lg:items-center">
+                      <div class="min-w-0">
+                        <p class="break-words text-sm font-extrabold">{{ cost.name }}</p>
+                        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preferentialCostBasis(cost.chargeBasis) }}</p>
+                        <span v-if="isTiered(cost)"
+                          class="mt-1 inline-block rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-600 dark:text-sky-300">
+                          {{ costTiers(cost).length }} tramos de Pricing
+                        </span>
+                        <span v-if="existingCost(cost)"
+                          class="ml-1 mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">
+                          Acuerdo existente
+                        </span>
+                      </div>
+                      <div>
+                        <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Costo original</span>
+                        <span v-if="isTiered(cost)" class="text-xs font-bold">Según tramo</span>
+                        <span v-else class="text-xs font-bold tabular-nums">{{ money(cost.costAmount,cost) }}</span>
+                      </div>
+                      <div>
+                        <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta estándar</span>
+                        <span v-if="isTiered(cost)" class="text-xs font-bold">Según tramo</span>
+                        <span v-else class="text-xs font-bold tabular-nums">{{ money(cost.saleAmount,cost) }}</span>
+                      </div>
+                      <button v-if="isTiered(cost)" type="button" class="route-action-secondary"
+                        :aria-expanded="expandedTiers.includes(cost.id)" @click="toggleTiers(cost.id)">
+                        {{ expandedTiers.includes(cost.id) ? 'Ocultar tramos' : 'Personalizar '+costTiers(cost).length+' tramos' }}
+                        <ChevronDown class="ml-1 inline h-4 w-4"
+                          :class="expandedTiers.includes(cost.id) && 'rotate-180'" />
+                      </button>
+                      <span v-else-if="invalidRules(cost)" class="text-xs font-bold text-red-500">
+                        Reglas ilegibles; revisar Pricing
                       </span>
-                    </label>
+                      <label v-else class="min-w-0">
+                        <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta preferencial</span>
+                        <span class="flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
+                          <span class="text-xs font-extrabold text-[var(--dh-text-muted)]">{{ currencyFor(cost) ?? '—' }}</span>
+                          <input type="number" min="0" step="0.000001" :value="saleValue(cost)"
+                            :aria-label="'Venta preferencial de '+cost.name"
+                            class="min-w-0 w-full bg-transparent text-right text-sm font-extrabold tabular-nums outline-none"
+                            @input="editSale(cost,($event.target as HTMLInputElement).value)" />
+                        </span>
+                      </label>
+                    </div>
+                    <div v-if="isTiered(cost) && expandedTiers.includes(cost.id)"
+                      class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
+                      <p class="text-xs font-bold">
+                        Tramos originales de Pricing · solo se modifica la venta por tramo
+                      </p>
+                      <p v-if="existingCost(cost)?.rateType === 'TIERED_SALE' &&
+                        !tierSalesMatch(cost, existingCost(cost)?.tierSalesJson)"
+                        class="mt-2 rounded-lg border border-amber-500/40 p-2 text-xs text-amber-600">
+                        Los rangos de Pricing cambiaron desde este acuerdo. Revisá las ventas antes de guardar.
+                      </p>
+                      <div class="mt-3 space-y-2">
+                        <div v-for="(band,index) in costTiers(cost)" :key="index"
+                          class="grid gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:grid-cols-[minmax(130px,2fr)_1fr_1fr_1.2fr] sm:items-center">
+                          <div>
+                            <p class="text-xs font-extrabold">{{ tierText(band,containerLabels[band.containerTypeId ?? '']) }}</p>
+                            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Tramo {{ index+1 }}</p>
+                          </div>
+                          <div>
+                            <p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Costo original</p>
+                            <p class="text-xs font-bold tabular-nums">{{ money(band.costAmount,cost) }}</p>
+                          </div>
+                          <div>
+                            <p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta estándar</p>
+                            <p class="text-xs font-bold tabular-nums">{{ money(band.saleAmount,cost) }}</p>
+                          </div>
+                          <label class="min-w-0">
+                            <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">
+                              Venta preferencial · {{ currencyFor(cost) ?? '—' }}
+                            </span>
+                            <input :value="tierSale(cost,index)" type="number" min="0" step="0.000001"
+                              class="route-input min-w-0 w-full"
+                              :aria-label="'Venta preferencial tramo '+(index+1)+' de '+cost.name"
+                              @input="editTier(cost,index,($event.target as HTMLInputElement).value)" />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -497,7 +596,7 @@ async function save() {
         </div>
       </div>
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <span class="text-xs text-[var(--dh-text-muted)]">{{ Object.keys(editedSales).length }} ventas modificadas</span>
+        <span class="text-xs text-[var(--dh-text-muted)]">{{ modifiedCount }} cargos con ventas modificadas</span>
         <button type="button" class="route-action" :disabled="saving" @click="save">
           {{ saving ? 'Guardando…' : 'Guardar ventas preferenciales' }}
         </button>
@@ -511,4 +610,6 @@ async function save() {
 .route-input{width:100%;min-width:0;min-height:44px;border:1px solid var(--dh-border);border-radius:18px;padding:.65rem .75rem;background:var(--dh-input);color:var(--dh-text);font-size:.875rem;font-weight:600;box-shadow:var(--dh-shadow-sm)}
 .route-action{min-height:38px;border:1px solid var(--dh-primary);border-radius:.7rem;background:var(--dh-primary);padding:.5rem 1rem;color:#fff;font-size:.8rem;font-weight:750}
 .route-action:disabled{opacity:.5}
+.route-action-secondary{display:inline-flex;min-height:38px;align-items:center;justify-content:center;border:1px solid var(--dh-border);border-radius:.7rem;padding:.5rem .85rem;font-size:.78rem;font-weight:750;color:var(--dh-text);background:var(--dh-card)}
+.route-action-secondary:hover{border-color:var(--dh-primary)}
 </style>
