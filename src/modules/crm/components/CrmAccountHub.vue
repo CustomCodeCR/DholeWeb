@@ -14,6 +14,7 @@ import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
+import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
@@ -1270,6 +1271,7 @@ async function saveRoute() {
         <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo se muestran cotizaciones vinculadas a oportunidades de esta cuenta. Pricing conserva el cálculo y el estado oficial.</p>
       </div>
+      <CrmAccountQuotesDashboard :account-id="rowId(account.id)" />
       <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones vinculadas a esta cuenta todavía.</p>
       <div v-else class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm">
         <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Cotización</th><th class="px-3 py-3">Modalidad</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3">Vinculada</th><th class="px-3 py-3">Acción</th></tr></thead>
