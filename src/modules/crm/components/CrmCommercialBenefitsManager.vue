@@ -18,6 +18,7 @@ type Rate = {
   laneCode: string | null; sourceCostId?: string | null; chargeCode: string; customChargeName: string | null
   rateType: BenefitType; value: number | null; minimumCharge: number | null
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
+  tierSalesJson?: string | null
   currencyCode: string | null; unitCode: string | null
   equipmentCode: string | null; originCode: string | null; destinationCode: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]
@@ -130,7 +131,7 @@ const filteredCosts = computed(() => costs.value.filter(item =>
   (!item.shipmentMode || String(item.shipmentMode).toUpperCase() === draft.modality ||
     (draft.modality === 'AIR' && String(item.shipmentMode) === 'AirConsol')))
   .sort((a, b) => a.name.localeCompare(b.name, 'es')))
-const visible = computed(() => rates.value.filter(x => x.modality === tab.value)
+const visible = computed(() => rates.value.filter(x => x.modality === tab.value && !x.sourceCostId)
   .sort((a, b) => Number(b.isActive) - Number(a.isActive) ||
     String(b.validFrom ?? '').localeCompare(String(a.validFrom ?? ''))))
 const activeCount = computed(() => {
@@ -331,6 +332,7 @@ async function setActive(rate: Rate, active: boolean) {
     await crmRequest(endpoint() + '/rates/' + encodeURIComponent(rate.id), 'PUT', {
       expectedVersion: rate.rowVersion, modality: rate.modality, laneCode: rate.laneCode,
       sourceCostId: rate.sourceCostId ?? null,
+      tierSalesJson: rate.tierSalesJson ?? null,
       chargeCode: rate.chargeCode, customChargeName: rate.customChargeName, rateType: rate.rateType,
       value: rate.value, minimumCharge: rate.minimumCharge,
       insuranceCostPercent: rate.insuranceCostPercent,
@@ -434,7 +436,14 @@ function scopeText(rate: Rate): string {
         </form>
       </section>
 
-      <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+      <details class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+        <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-text)]">
+          Configuración avanzada · beneficios y acuerdos anteriores
+          <span class="ml-2 text-xs font-normal text-[var(--dh-text-muted)]">
+            Solo para acuerdos heredados; el configurador por ruta está arriba.
+          </span>
+        </summary>
+        <div class="mt-4">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-sm font-extrabold">Beneficios por modalidad</h3>
@@ -450,7 +459,7 @@ function scopeText(rate: Rate): string {
             :class="tab===mode.key?'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-primary)]':''"
             @click="tab=mode.key;editorOpen=false">
             {{ mode.label }} <span class="rounded-full bg-[var(--dh-shell)] px-2 py-0.5 text-xs">
-              {{ rates.filter(rate=>rate.modality===mode.key && rate.isActive).length }}
+              {{ rates.filter(rate=>rate.modality===mode.key && rate.isActive && !rate.sourceCostId).length }}
             </span>
           </button>
         </nav>
@@ -490,7 +499,8 @@ function scopeText(rate: Rate): string {
             <p v-if="rate.notes" class="mt-2 whitespace-pre-wrap text-xs leading-relaxed">{{ rate.notes }}</p>
           </article>
         </div>
-      </section>
+        </div>
+      </details>
 
       <section v-if="editorOpen && canEdit" class="rounded-xl border border-[var(--dh-primary)]/40 bg-[var(--dh-card)] p-4 sm:p-5"
         aria-label="Editor de beneficio preferencial">

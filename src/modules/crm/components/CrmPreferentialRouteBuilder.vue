@@ -9,6 +9,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { sellerRateCurrencyValue } from '@/modules/pricing/utils/sellerRateCurrency'
 import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis } from '../utils/crmPreferentialCostGroups'
+import { costTiers, currentTierSale, discounted, tierSalesMatch, tierSalesPayload, tierText } from '../utils/crmPreferentialTierSales'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
 
@@ -16,6 +17,7 @@ type SavedRate = {
   id: string; rowVersion: number; modality: string; laneCode: string | null
   sourceCostId?: string | null; chargeCode: string; rateType: string; value: number | null
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
+  tierSalesJson?: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]; isActive: boolean
 }
 const props = defineProps<{
@@ -32,6 +34,13 @@ const route = reactive({
 })
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
+const editedTiers = ref<Record<string, Record<string, string>>>({})
+const expandedTiers = ref<string[]>([])
+const providerFilter = ref('all')
+const bulkDiscount = ref('')
+const bulkReview = ref(false)
+const containerLabels = ref<Record<string, string>>({})
+const containerIdByCode = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
 const currencies = ref<CatalogItemSelectDto[]>([])
 const searchTerm = ref('')
@@ -43,6 +52,13 @@ async function loadCurrencies() {
   } catch {
     currencies.value = []
   }
+  try {
+    const groups = await Promise.all(['container-types','land-equipment-types','land-equipment-sizes']
+      .map(slug => CatalogItemsService.select({catalogGroupSlug:slug}).catch(()=>[])))
+    const equipment = groups.flat()
+    containerLabels.value = Object.fromEntries(equipment.map(x => [x.id,x.label || x.value || x.code]))
+    containerIdByCode.value = Object.fromEntries(equipment.map(x => [x.code,x.id]))
+  } catch { containerLabels.value = {};containerIdByCode.value = {} }
 }
 onMounted(() => void loadCurrencies())
 const modalityOptions = [
@@ -64,13 +80,39 @@ const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : 
     shipment: route.shipment, polCode: route.polCodes[0] ?? '',
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
   }))
+  .filter(cost => {
+    const rows = costTiers(cost)
+    if (rows[0]?.dimension !== 'ContainerType') return true
+    const id = containerIdByCode.value[route.equipmentCodes[0] ?? '']
+    return !id || rows.some(row => row.containerTypeId === id)
+  })
   .sort((a, b) => a.costDetailType.localeCompare(b.costDetailType) || a.name.localeCompare(b.name, 'es')))
+const providerOptions = computed(() => {
+  const options = new Map<string,string>()
+  for (const cost of costsForRoute.value) {
+    const owners = preferentialCostOwners(cost)
+    owners.agentNames.forEach(name => options.set('agent:'+name, 'Agente · '+name))
+    owners.carrierNames.forEach(name => options.set('carrier:'+name, 'Naviera · '+name))
+  }
+  return [
+    {value:'all',label:'Todas las navieras y agentes'},
+    {value:'unassigned',label:'Sin agente o naviera'},
+    ...[...options].sort((a,b) => a[1].localeCompare(b[1],'es'))
+      .map(([value,label]) => ({value,label})),
+  ]
+})
 const filteredCosts = computed(() => {
   const needle = searchTerm.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .trim().toLocaleLowerCase()
-  if (!needle) return costsForRoute.value
   return costsForRoute.value.filter(cost => {
     const owners = preferentialCostOwners(cost)
+    if (providerFilter.value === 'unassigned' &&
+      (owners.agentNames.length || owners.carrierNames.length)) return false
+    if (providerFilter.value.startsWith('agent:') &&
+      !owners.agentNames.includes(providerFilter.value.slice(6))) return false
+    if (providerFilter.value.startsWith('carrier:') &&
+      !owners.carrierNames.includes(providerFilter.value.slice(8))) return false
+    if (!needle) return true
     const haystack = [cost.name, cost.costDetailType, preferentialCostBasis(cost.chargeBasis),
       ...owners.agentNames, ...owners.carrierNames, cost.portName].join(' ')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
@@ -78,6 +120,65 @@ const filteredCosts = computed(() => {
   })
 })
 const costSections = computed(() => groupPreferentialCosts(filteredCosts.value))
+const isTiered = (cost: CostSelectDto) => costTiers(cost).length > 0
+function visibleTiers(cost: CostSelectDto) {
+  const rows = costTiers(cost).map((rule,index) => ({rule,index}))
+  const equipmentId = containerIdByCode.value[route.equipmentCodes[0] ?? '']
+  if (!equipmentId || rows[0]?.rule.dimension !== 'ContainerType') return rows
+  return rows.filter(x => x.rule.containerTypeId === equipmentId)
+}
+const invalidRules = (cost: CostSelectDto) => Boolean(cost.pricingRulesJson && !isTiered(cost))
+function tierSale(cost: CostSelectDto, index: number) {
+  const saved = existingCost(cost)
+  return currentTierSale(cost,index,editedTiers.value[cost.id],
+    saved?.rateType === 'TIERED_SALE' ? saved.tierSalesJson : null)
+}
+function editTier(cost: CostSelectDto, index: number, value: string) {
+  editedTiers.value = {
+    ...editedTiers.value,
+    [cost.id]: {...editedTiers.value[cost.id], [String(index)]:value},
+  }
+}
+function toggleTiers(id: string) {
+  expandedTiers.value = expandedTiers.value.includes(id)
+    ? expandedTiers.value.filter(x=>x!==id) : [...expandedTiers.value,id]
+}
+const modifiedCount = computed(() =>
+  new Set([...Object.keys(editedSales.value),...Object.keys(editedTiers.value)]).size)
+const eligibleBulk = computed(() => filteredCosts.value.filter(c => !invalidRules(c) &&
+  (isTiered(c) ? visibleTiers(c).some(x => x.rule.saleAmount>0) : c.saleAmount>0)))
+function proposeDiscount() {
+  const percent=Number(bulkDiscount.value)
+  error.value=''
+  if (!bulkDiscount.value.trim() || !Number.isFinite(percent) || percent<0 || percent>100) {
+    error.value='Indicá un descuento porcentual entre 0 y 100.'
+    bulkReview.value=false;return
+  }
+  if (!eligibleBulk.value.length) {
+    error.value='No hay cargos con venta estándar positiva en esta selección.'
+    bulkReview.value=false;return
+  }
+  bulkReview.value=true
+}
+function applyDiscount() {
+  if (!bulkReview.value) return
+  const percent=Number(bulkDiscount.value)
+  for (const cost of eligibleBulk.value) {
+    if (isTiered(cost)) {
+      const edits={...editedTiers.value[cost.id]}
+      visibleTiers(cost).forEach(({rule,index}) => {
+        if (rule.saleAmount>0) edits[String(index)]=discounted(rule.saleAmount,percent)
+      })
+      editedTiers.value={...editedTiers.value,[cost.id]:edits}
+    } else {
+      editedSales.value={...editedSales.value,[cost.id]:discounted(cost.saleAmount,percent)}
+    }
+  }
+  bulkReview.value=false
+  success.value='Descuento preparado para '+eligibleBulk.value.length+
+    ' cargos. Revisá cada importe y después guardá; todavía no se enviaron a CRM.'
+}
+
 const expanded = (key: string) => expandedZones.value.includes(key)
 const providerExpanded = (key: string) => !!searchTerm.value.trim() || expandedProviders.value.includes(key)
 function toggleZone(key: string) {
@@ -107,7 +208,8 @@ function existingInsurance() {
     x.chargeCode === 'Insurance' && scopeMatches(x))
 }
 function resetPreview() {
-  preview.value = false; editedSales.value = {}; error.value = ''; success.value = ''
+  preview.value = false; editedSales.value = {}; editedTiers.value = {}
+  error.value = ''; success.value = ''
   insuranceEnabled.value = false; insuranceCost.value = ''; insuranceSale.value = ''
 }
 function changeModality(value: 'MARITIME' | 'TERRESTRIAL') {
@@ -126,8 +228,9 @@ function consult() {
     error.value = 'No tenés el permiso pricing.cost.select para cargar los costos y recargos de Pricing.'
     return
   }
-  editedSales.value = {}; preview.value = true
-  searchTerm.value = ''
+  editedSales.value = {}; editedTiers.value = {}; preview.value = true
+  searchTerm.value = '';providerFilter.value='all';bulkDiscount.value='';bulkReview.value=false
+  expandedTiers.value=[]
   expandedZones.value = ['origin','destination','transit','other']
   expandedProviders.value = []
   const insured = existingInsurance()
@@ -163,13 +266,28 @@ function scope() {
 async function save() {
   if (!preview.value || saving.value || !isComplete.value) return
   error.value = ''; success.value = ''
-  const modified = costsForRoute.value.filter(x => Object.prototype.hasOwnProperty.call(editedSales.value, x.id))
+  const modified = costsForRoute.value.filter(x =>
+    Object.prototype.hasOwnProperty.call(editedSales.value,x.id) ||
+    Object.prototype.hasOwnProperty.call(editedTiers.value,x.id))
   if (!modified.length && !insuranceEnabled.value) {
     error.value = 'Modificá un precio de venta o configurá los porcentajes de seguro.'
     return
   }
   for (const cost of modified) {
-    if (!saleValue(cost).trim() || !Number.isFinite(Number(saleValue(cost))) || Number(saleValue(cost)) < 0) {
+    if (invalidRules(cost)) {
+      error.value='No se pueden leer las bandas originales de '+cost.name+'. Revisá Pricing.'
+      return
+    }
+    if (isTiered(cost)) {
+      for (let i=0;i<costTiers(cost).length;i++) {
+        const value=tierSale(cost,i)
+        if (!value.trim() || !Number.isFinite(Number(value)) || Number(value)<0) {
+          error.value='La venta del tramo '+(i+1)+' de '+cost.name+' no es válida.'
+          return
+        }
+      }
+    } else if (!saleValue(cost).trim() || !Number.isFinite(Number(saleValue(cost))) ||
+      Number(saleValue(cost)) < 0) {
       error.value = 'La venta de ' + cost.name + ' debe ser un número válido y no negativo.'
       return
     }
@@ -191,11 +309,15 @@ async function save() {
       const body = {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
         sourceCostId: cost.id, chargeCode: cost.costDetailType,
-        customChargeName: cost.name.slice(0, 120), rateType: 'FIXED_AMOUNT',
-        value: Number(saleValue(cost)), minimumCharge: null,
+        customChargeName: cost.name.slice(0,120),
+        rateType: isTiered(cost) ? 'TIERED_SALE' : 'FIXED_AMOUNT',
+        value: isTiered(cost) ? null : Number(saleValue(cost)),
+        tierSalesJson: isTiered(cost) ? tierSalesPayload(cost,editedTiers.value[cost.id],
+          existing?.rateType === 'TIERED_SALE' ? existing.tierSalesJson : null) : null,
+        minimumCharge: null,
         insuranceCostPercent: null, insuranceSalePercent: null,
         currencyCode: currencyFor(cost),
-        unitCode: saleUnitForBasis(cost.chargeBasis),
+        unitCode: isTiered(cost) ? null : saleUnitForBasis(cost.chargeBasis),
       }
       await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
         existing ? 'PUT' : 'POST', body)
@@ -205,7 +327,7 @@ async function save() {
       const existing = existingInsurance()
       const body = {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
-        sourceCostId: null, chargeCode: 'Insurance', customChargeName: null,
+        sourceCostId: null, tierSalesJson: null, chargeCode: 'Insurance', customChargeName: null,
         rateType: 'INSURANCE_PERCENT', value: Number(insuranceSale.value),
         insuranceCostPercent: Number(insuranceCost.value), insuranceSalePercent: Number(insuranceSale.value),
         minimumCharge: null, currencyCode: null, unitCode: null,
@@ -215,6 +337,7 @@ async function save() {
       count++
     }
     editedSales.value = {}
+    editedTiers.value = {}
     success.value = count + ' ítem(s) guardado(s). El costo original de Pricing no se alteró.'
   } catch (cause) {
     error.value = crmError(cause) + (count ? ' Se guardaron ' + count + ' ítems antes del error.' : '')
@@ -277,16 +400,56 @@ async function save() {
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <span class="route-pill">{{ costSections.length }} secciones</span>
-            <span class="route-pill">{{ Object.keys(editedSales).length }} modificaciones sin guardar</span>
+            <span class="route-pill">{{ modifiedCount }} cargos editados sin guardar</span>
           </div>
         </div>
 
+        <div class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-extrabold">1. Elegí una naviera o agente</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">No hace falta configurar todos los {{ costsForRoute.length }} cargos. Filtrá el proveedor y personalizá solo los necesarios.</p>
+            </div>
+            <span class="route-pill">{{ filteredCosts.length }} cargos visibles</span>
+          </div>
+          <div class="mt-3">
+            <DhSelect :model-value="providerFilter" label="Naviera o agente"
+              placeholder="" :options="providerOptions"
+              @update:model-value="providerFilter=String($event);bulkReview=false" />
+          </div>
+          <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
+            <p class="text-sm font-extrabold">2. Ajuste rápido de venta (opcional)</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              Podés aplicar un descuento sobre la venta estándar a todos los cargos visibles con venta positiva,
+              incluso a los que se calculan por tramos. Nunca modifica el costo original.
+            </p>
+            <div class="mt-3 flex flex-wrap items-end gap-2">
+              <label class="route-label min-w-32">Descuento sobre venta (%)
+                <input v-model="bulkDiscount" type="number" min="0" max="100" step="0.01"
+                  class="route-input w-36" placeholder="Ej. 10" @input="bulkReview=false" />
+              </label>
+              <button type="button" class="route-action-secondary" @click="proposeDiscount">
+                Revisar descuento
+              </button>
+            </div>
+            <div v-if="bulkReview" class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+              <p class="text-xs font-bold">
+                Se preparará {{ bulkDiscount }} % de descuento para {{ eligibleBulk.length }} cargos.
+                Primero podrás revisar los importes; no se guardará hasta pulsar Guardar ventas preferenciales.
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="route-action" @click="applyDiscount">Aplicar a la edición</button>
+                <button type="button" class="route-action-secondary" @click="bulkReview=false">Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
           <label class="relative min-w-[240px] flex-1">
             <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
             <input v-model="searchTerm" type="search"
               aria-label="Buscar conceptos, agentes o navieras"
-              placeholder="Buscar cargo, agente, naviera o base de cobro…"
+              placeholder="3. Buscar un concepto o cargo…"
               class="route-input w-full pl-10" />
           </label>
           <button type="button" class="route-action-secondary" @click="toggleAllProviders">
@@ -339,30 +502,95 @@ async function save() {
                     <span>Venta estándar</span><span>Venta preferencial</span>
                   </div>
                   <div v-for="cost in owner.costs" :key="cost.id"
-                    class="grid gap-3 border-b border-[var(--dh-border)] px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(190px,2fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(140px,1.2fr)] lg:items-center"
-                    :class="Object.prototype.hasOwnProperty.call(editedSales,cost.id) ? 'bg-[rgb(var(--dh-primary-rgb)/0.035)]' : ''">
-                    <div class="min-w-0">
-                      <p class="break-words text-sm font-extrabold">{{ cost.name }}</p>
-                      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preferentialCostBasis(cost.chargeBasis) }}</p>
-                      <span v-if="existingCost(cost)" class="mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">Venta negociada</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Costo original</span>
-                      <span class="text-xs font-bold tabular-nums">{{ money(cost.costAmount, cost) }}</span>
-                    </div>
-                    <div>
-                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta estándar</span>
-                      <span class="text-xs font-bold tabular-nums">{{ money(cost.saleAmount, cost) }}</span>
-                    </div>
-                    <label class="min-w-0">
-                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta preferencial</span>
-                      <span class="flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
-                        <span class="text-xs font-extrabold text-[var(--dh-text-muted)]">{{ currencyFor(cost) ?? '—' }}</span>
-                        <input type="number" min="0" step="0.000001" :value="saleValue(cost)"
-                          :aria-label="'Venta preferencial de '+cost.name" class="min-w-0 w-full bg-transparent text-right text-sm font-extrabold tabular-nums outline-none"
-                          @input="editSale(cost,($event.target as HTMLInputElement).value)" />
+                    class="border-b border-[var(--dh-border)] last:border-b-0"
+                    :class="editedSales[cost.id] !== undefined || editedTiers[cost.id] !== undefined
+                      ? 'bg-[rgb(var(--dh-primary-rgb)/0.035)]' : ''">
+                    <div class="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,2fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(140px,1.2fr)] lg:items-center">
+                      <div class="min-w-0">
+                        <p class="break-words text-sm font-extrabold">{{ cost.name }}</p>
+                        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preferentialCostBasis(cost.chargeBasis) }}</p>
+                        <span v-if="isTiered(cost)"
+                          class="mt-1 inline-block rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-600 dark:text-sky-300">
+                          {{ visibleTiers(cost).length }} tramos aplicables
+                        </span>
+                        <span v-if="existingCost(cost)"
+                          class="ml-1 mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">
+                          Acuerdo existente
+                        </span>
+                      </div>
+                      <div>
+                        <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Costo original</span>
+                        <span v-if="isTiered(cost)" class="text-xs font-bold">Según tramo</span>
+                        <span v-else-if="invalidRules(cost)" class="text-xs font-bold text-red-500">Revisar reglas</span>
+                        <span v-else class="text-xs font-bold tabular-nums">{{ money(cost.costAmount,cost) }}</span>
+                      </div>
+                      <div>
+                        <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta estándar</span>
+                        <span v-if="isTiered(cost)" class="text-xs font-bold">Según tramo</span>
+                        <span v-else-if="invalidRules(cost)" class="text-xs font-bold text-red-500">Revisar reglas</span>
+                        <span v-else class="text-xs font-bold tabular-nums">{{ money(cost.saleAmount,cost) }}</span>
+                      </div>
+                      <button v-if="isTiered(cost)" type="button" class="route-action-secondary"
+                        :aria-expanded="expandedTiers.includes(cost.id)" @click="toggleTiers(cost.id)">
+                        {{ expandedTiers.includes(cost.id) ? 'Ocultar tramos' : 'Personalizar '+visibleTiers(cost).length+' tramos' }}
+                        <ChevronDown class="ml-1 inline h-4 w-4"
+                          :class="expandedTiers.includes(cost.id) && 'rotate-180'" />
+                      </button>
+                      <span v-else-if="invalidRules(cost)" class="text-xs font-bold text-red-500">
+                        Reglas ilegibles; revisar Pricing
                       </span>
-                    </label>
+                      <label v-else class="min-w-0">
+                        <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta preferencial</span>
+                        <span class="flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
+                          <span class="text-xs font-extrabold text-[var(--dh-text-muted)]">{{ currencyFor(cost) ?? '—' }}</span>
+                          <input type="number" min="0" step="0.000001" :value="saleValue(cost)"
+                            :aria-label="'Venta preferencial de '+cost.name"
+                            class="min-w-0 w-full bg-transparent text-right text-sm font-extrabold tabular-nums outline-none"
+                            @input="editSale(cost,($event.target as HTMLInputElement).value)" />
+                        </span>
+                      </label>
+                    </div>
+                    <div v-if="isTiered(cost) && expandedTiers.includes(cost.id)"
+                      class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3">
+                      <p class="text-xs font-bold">
+                        Tramos originales de Pricing para el equipo seleccionado · solo se modifica la venta
+                      </p>
+                      <p v-if="!visibleTiers(cost).length"
+                        class="mt-2 text-xs font-bold text-amber-600">
+                        No hay un tramo aplicable al equipo elegido. Revisá el tipo de contenedor en Pricing.
+                      </p>
+                      <p v-if="existingCost(cost)?.rateType === 'TIERED_SALE' &&
+                        !tierSalesMatch(cost, existingCost(cost)?.tierSalesJson)"
+                        class="mt-2 rounded-lg border border-amber-500/40 p-2 text-xs text-amber-600">
+                        Los rangos de Pricing cambiaron desde este acuerdo. Revisá las ventas antes de guardar.
+                      </p>
+                      <div class="mt-3 space-y-2">
+                        <div v-for="{rule:band,index} in visibleTiers(cost)" :key="index"
+                          class="grid gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:grid-cols-[minmax(130px,2fr)_1fr_1fr_1.2fr] sm:items-center">
+                          <div>
+                            <p class="text-xs font-extrabold">{{ tierText(band,containerLabels[band.containerTypeId ?? '']) }}</p>
+                            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">Tramo {{ index+1 }}</p>
+                          </div>
+                          <div>
+                            <p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Costo original</p>
+                            <p class="text-xs font-bold tabular-nums">{{ money(band.costAmount,cost) }}</p>
+                          </div>
+                          <div>
+                            <p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta estándar</p>
+                            <p class="text-xs font-bold tabular-nums">{{ money(band.saleAmount,cost) }}</p>
+                          </div>
+                          <label class="min-w-0">
+                            <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">
+                              Venta preferencial · {{ currencyFor(cost) ?? '—' }}
+                            </span>
+                            <input :value="tierSale(cost,index)" type="number" min="0" step="0.000001"
+                              class="route-input min-w-0 w-full"
+                              :aria-label="'Venta preferencial tramo '+(index+1)+' de '+cost.name"
+                              @input="editTier(cost,index,($event.target as HTMLInputElement).value)" />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -390,7 +618,7 @@ async function save() {
         </div>
       </div>
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <span class="text-xs text-[var(--dh-text-muted)]">{{ Object.keys(editedSales).length }} ventas modificadas</span>
+        <span class="text-xs text-[var(--dh-text-muted)]">{{ modifiedCount }} cargos con ventas modificadas</span>
         <button type="button" class="route-action" :disabled="saving" @click="save">
           {{ saving ? 'Guardando…' : 'Guardar ventas preferenciales' }}
         </button>
@@ -404,4 +632,8 @@ async function save() {
 .route-input{width:100%;min-width:0;min-height:44px;border:1px solid var(--dh-border);border-radius:18px;padding:.65rem .75rem;background:var(--dh-input);color:var(--dh-text);font-size:.875rem;font-weight:600;box-shadow:var(--dh-shadow-sm)}
 .route-action{min-height:38px;border:1px solid var(--dh-primary);border-radius:.7rem;background:var(--dh-primary);padding:.5rem 1rem;color:#fff;font-size:.8rem;font-weight:750}
 .route-action:disabled{opacity:.5}
+.route-action-secondary{display:inline-flex;min-height:38px;align-items:center;justify-content:center;border:1px solid var(--dh-border);border-radius:.7rem;padding:.5rem .85rem;font-size:.78rem;font-weight:750;color:var(--dh-text);background:var(--dh-card)}
+.route-action-secondary:hover{border-color:var(--dh-primary)}
+
+.route-pill{display:inline-flex;align-items:center;border:1px solid var(--dh-border);border-radius:999px;padding:.25rem .65rem;font-size:.72rem;font-weight:750;color:var(--dh-text-muted);white-space:nowrap}
 </style>
