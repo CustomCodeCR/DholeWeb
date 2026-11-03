@@ -5,6 +5,9 @@ import { Building2, ChevronLeft, ChevronRight, Eye, FolderOpen, Pencil, Plus, Re
 import { useAuthStore } from '@/core/stores/authStore'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
+import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
+import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
+import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -58,25 +61,60 @@ type SupplierCreditTerms = {
   limit: number | null
   currency: string
   notes: string
+  monthlyFinancingPct: number
+  lateInterestMonthlyPct: number
+  includedServices: string[]
+  excludedServices: string[]
+  reviewAt: string
 }
-const paymentType = ref('unspecified')
-const creditDays = ref<number | null>(null)
-const creditLimit = ref<number | null>(null)
+const creditEnabled = ref(false)
+const creditDays = ref('30')
+const creditLimit = ref('')
 const creditCurrency = ref('USD')
+const monthlyFinancing = ref('0')
+const lateInterest = ref('0')
 const creditNotes = ref('')
-const paymentTypeOptions = computed(() => [
-  { value: 'unspecified', label: en.value ? 'Not specified' : 'Sin registrar' },
-  { value: 'cash', label: en.value ? 'Cash / immediate payment' : 'Contado' },
-  { value: 'advance', label: en.value ? 'Advance payment' : 'Pago anticipado' },
-  { value: 'credit', label: en.value ? 'Credit' : 'Crédito' },
-])
-const creditCurrencyOptions = [
-  { value: 'USD', label: 'USD' },
-  { value: 'CRC', label: 'CRC' },
-  { value: 'EUR', label: 'EUR' },
-]
+const creditIncluded = ref<string[]>([])
+const creditExcluded = ref<string[]>([])
+const creditReviewAt = ref('')
+// Exactly the same service coverage picker and catalog currency picker used by CRM.
+const includedCreditModel = computed({
+  get: () => creditIncluded.value,
+  set: (items: string[]) => {
+    creditIncluded.value = [...new Set(items)]
+    creditExcluded.value = creditExcluded.value.filter(code => !items.includes(code))
+  },
+})
+const excludedCreditModel = computed({
+  get: () => creditExcluded.value,
+  set: (items: string[]) => {
+    creditExcluded.value = [...new Set(items)]
+    creditIncluded.value = creditIncluded.value.filter(code => !items.includes(code))
+  },
+})
 function paymentTypeLabel(type: SupplierPaymentType): string {
-  return paymentTypeOptions.value.find(option => option.value === type)?.label || type
+  const labels = en.value
+    ? { unspecified: 'Not registered', cash: 'Cash', advance: 'Advance payment', credit: 'Credit' }
+    : { unspecified: 'Sin registrar', cash: 'Contado', advance: 'Pago anticipado', credit: 'Crédito' }
+  return labels[type]
+}
+function creditReviewDateInput(utcDate: string): string {
+  if (!utcDate) return ''
+  const parsed = new Date(utcDate)
+  if (!Number.isFinite(parsed.getTime())) return ''
+  return new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000)
+    .toISOString().slice(0, 16)
+}
+function creditReviewDateDisplay(utcDate: string): string {
+  if (!utcDate) return '—'
+  const parsed = new Date(utcDate)
+  return Number.isFinite(parsed.getTime())
+    ? parsed.toLocaleString(en.value ? 'en-US' : 'es-CR')
+    : '—'
+}
+function validCreditPrecision(value: number, places: number): boolean {
+  const scaled = value * 10 ** places
+  return Math.abs(Math.round(scaled) - scaled) < 1e-6
 }
 type SupplierContact = { name: string; email: string; phone: string; role: string }
 const contacts = ref<SupplierContact[]>([])
@@ -121,15 +159,29 @@ function supplierCreditTerms(row: CatalogItemDto): SupplierCreditTerms {
     ? value as Record<string, unknown> : {}
   const kind = info.paymentType
   const paymentType: SupplierPaymentType =
-    kind === 'credit' || kind === 'cash' || kind === 'advance' ? kind : 'unspecified'
-  const days = typeof info.days === 'number' && Number.isInteger(info.days) && info.days > 0
-    ? info.days : null
-  const limit = typeof info.limit === 'number' && Number.isFinite(info.limit) && info.limit >= 0
-    ? info.limit : null
+    kind === 'credit' || info.creditEnabled === true ? 'credit' :
+    kind === 'cash' || kind === 'advance' ? kind : 'unspecified'
+  const numeric = (value: unknown, allowZero: boolean): number | null =>
+    typeof value === 'number' && Number.isFinite(value) && (allowZero ? value >= 0 : value > 0)
+      ? value : null
+  const days = numeric(info.creditDays ?? info.days, false)
+  const limit = numeric(info.creditLimit ?? info.limit, true)
+  const currency = String(info.currencyCode || info.currency || 'USD').toUpperCase()
+  const codes = (value: unknown): string[] =>
+    Array.isArray(value) ? [...new Set(value.filter(
+      (code): code is string => typeof code === 'string' && !!code.trim()))] : []
   return {
-    paymentType, days, limit,
-    currency: info.currency === 'CRC' || info.currency === 'EUR' ? info.currency : 'USD',
-    notes: typeof info.notes === 'string' ? info.notes : '',
+    paymentType,
+    days: days !== null && Number.isInteger(days) ? days : null,
+    limit,
+    currency: /^[A-Z]{3}$/.test(currency) ? currency : 'USD',
+    notes: typeof info.paymentConditions === 'string' ? info.paymentConditions :
+      typeof info.notes === 'string' ? info.notes : '',
+    monthlyFinancingPct: numeric(info.monthlyFinancingPct, true) ?? 0,
+    lateInterestMonthlyPct: numeric(info.lateInterestMonthlyPct, true) ?? 0,
+    includedServices: codes(info.includedServices ?? info.creditIncluded),
+    excludedServices: codes(info.excludedServices ?? info.creditExcluded),
+    reviewAt: typeof info.reviewAt === 'string' ? info.reviewAt : '',
   }
 }
 function formatCreditLimit(terms: SupplierCreditTerms): string {
@@ -249,11 +301,16 @@ function resetForm() {
   supplierName.value = ''
   supplierType.value = []
   supplierDescription.value = ''
-  paymentType.value = 'unspecified'
-  creditDays.value = null
-  creditLimit.value = null
+  creditEnabled.value = false
+  creditDays.value = '30'
+  creditLimit.value = ''
   creditCurrency.value = 'USD'
+  monthlyFinancing.value = '0'
+  lateInterest.value = '0'
   creditNotes.value = ''
+  creditIncluded.value = []
+  creditExcluded.value = []
+  creditReviewAt.value = ''
   contacts.value = []
   countryIds.value = []
 }
@@ -267,11 +324,16 @@ function openEdit(item: Supplier) {
   supplierDescription.value = item.description || ''
   const info = metadata(item)
   const terms = supplierCreditTerms(item)
-  paymentType.value = terms.paymentType
-  creditDays.value = terms.days
-  creditLimit.value = terms.limit
+  creditEnabled.value = terms.paymentType === 'credit'
+  creditDays.value = terms.days === null ? '30' : String(terms.days)
+  creditLimit.value = terms.limit === null ? '' : String(terms.limit)
   creditCurrency.value = terms.currency
+  monthlyFinancing.value = String(terms.monthlyFinancingPct)
+  lateInterest.value = String(terms.lateInterestMonthlyPct)
   creditNotes.value = terms.notes
+  creditIncluded.value = [...terms.includedServices]
+  creditExcluded.value = [...terms.excludedServices]
+  creditReviewAt.value = creditReviewDateInput(terms.reviewAt)
   contacts.value = supplierContacts(item)
   countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
     ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
@@ -303,16 +365,38 @@ async function saveSupplier() {
       : 'Ingresá el nombre de cada contacto agregado o eliminá el contacto incompleto.'
     return
   }
-  if (paymentType.value === 'credit' &&
-      (!Number.isInteger(Number(creditDays.value)) || Number(creditDays.value) < 1 || Number(creditDays.value) > 365)) {
-    error.value = en.value ? 'Enter a credit term between 1 and 365 days.' : 'Ingresá un plazo de crédito entre 1 y 365 días.'
-    return
-  }
-  const hasCreditLimit = String(creditLimit.value ?? '').trim() !== ''
-  if (paymentType.value === 'credit' && hasCreditLimit &&
-      (!Number.isFinite(Number(creditLimit.value)) || Number(creditLimit.value) < 0)) {
-    error.value = en.value ? 'Enter a valid credit limit.' : 'Ingresá un límite de crédito válido.'
-    return
+  if (creditEnabled.value) {
+    const totalDays = Number(creditDays.value)
+    const limit = Number(creditLimit.value)
+    const monthly = Number(monthlyFinancing.value)
+    const overdue = Number(lateInterest.value)
+    if (!creditDays.value.trim() || !Number.isInteger(totalDays) ||
+        totalDays < 1 || totalDays > 3650 ||
+        !creditLimit.value.trim() || !Number.isFinite(limit) ||
+        limit <= 0 || !validCreditPrecision(limit, 2) ||
+        !monthlyFinancing.value.trim() || !Number.isFinite(monthly) ||
+        monthly < 0 || monthly > 100 || !validCreditPrecision(monthly, 4) ||
+        !lateInterest.value.trim() || !Number.isFinite(overdue) ||
+        overdue < 0 || overdue > 100 || !validCreditPrecision(overdue, 4)) {
+      error.value = en.value
+        ? 'Enter 1–3650 credit days, a positive limit (2 decimals), and monthly rates from 0–100% (4 decimals).'
+        : 'Ingresá entre 1 y 3650 días, un límite positivo (2 decimales) y tasas mensuales entre 0% y 100% (4 decimales).'
+      return
+    }
+    if (!/^[A-Z]{3}$/.test(creditCurrency.value.trim())) {
+      error.value = en.value ? 'Select a valid currency from Config.' : 'Seleccioná una moneda válida de Config.'
+      return
+    }
+    if (creditIncluded.value.some(code => creditExcluded.value.includes(code))) {
+      error.value = en.value
+        ? 'A service cannot be included and excluded simultaneously.'
+        : 'Un concepto no puede estar incluido y excluido del crédito simultáneamente.'
+      return
+    }
+    if (creditReviewAt.value && !Number.isFinite(new Date(creditReviewAt.value).getTime())) {
+      error.value = en.value ? 'Enter a valid review date.' : 'Ingresá una fecha válida de próxima revisión.'
+      return
+    }
   }
   saving.value = true
   error.value = ''
@@ -323,6 +407,24 @@ async function saveSupplier() {
       !categoryValues.has(type.trim().toLowerCase()))
     const selectedTypes = resolvedSupplierTypes.value
     const selectedCountries = [...new Set(countryIds.value)]
+    const previousCredit = retained.creditTerms &&
+      typeof retained.creditTerms === 'object' && !Array.isArray(retained.creditTerms)
+      ? retained.creditTerms as Record<string, unknown> : {}
+    // Retain old cash/advance records if the supplier has no credit enabled.
+    const oldPaymentType = editing.value ? supplierCreditTerms(editing.value).paymentType : 'unspecified'
+    const creditTerms = creditEnabled.value ? {
+      ...previousCredit,
+      paymentType: 'credit', creditEnabled: true,
+      creditDays: Number(creditDays.value), days: Number(creditDays.value),
+      creditLimit: Number(creditLimit.value), limit: Number(creditLimit.value),
+      currencyCode: creditCurrency.value, currency: creditCurrency.value,
+      monthlyFinancingPct: Number(monthlyFinancing.value),
+      lateInterestMonthlyPct: Number(lateInterest.value),
+      paymentConditions: creditNotes.value.trim(), notes: creditNotes.value.trim(),
+      includedServices: [...new Set(creditIncluded.value)],
+      excludedServices: [...new Set(creditExcluded.value)],
+      reviewAt: creditReviewAt.value ? new Date(creditReviewAt.value).toISOString() : null,
+    } : oldPaymentType === 'cash' || oldPaymentType === 'advance' ? previousCredit : null
     const metadataJson = JSON.stringify({
       ...retained,
       supplierType: selectedTypes[0] || null,
@@ -332,13 +434,7 @@ async function saveSupplier() {
         [...new Set([...(Array.isArray(retained.legacySupplierTypes)
           ? retained.legacySupplierTypes.filter((item): item is string => typeof item === 'string') : []),
           ...previousSpecificTypes])] } : {}),
-      creditTerms: paymentType.value === 'unspecified' ? null : {
-        paymentType: paymentType.value,
-        days: paymentType.value === 'credit' ? Number(creditDays.value) : null,
-        limit: paymentType.value === 'credit' && hasCreditLimit ? Number(creditLimit.value) : null,
-        currency: creditCurrency.value,
-        notes: creditNotes.value.trim(),
-      },
+      creditTerms,
       contacts: filledContacts,
       contactName: filledContacts[0]?.name || '',
       contactEmail: filledContacts[0]?.email || '',
@@ -600,27 +696,52 @@ onMounted(() => {
             <p v-else class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'No contacts registered.' : 'No hay contactos registrados.' }}</p>
           </section>
           <section class="border-t border-[var(--dh-border)] pt-4">
-            <h3 class="mb-3 text-sm font-bold">{{ en ? 'Supplier payment terms' : 'Condiciones de crédito del proveedor' }}</h3>
+            <h3 class="mb-3 text-sm font-bold">{{ en ? 'Supplier credit terms' : 'Condiciones de crédito del proveedor' }}</h3>
             <p v-if="supplierCreditTerms(selected).paymentType === 'unspecified'" class="text-xs text-[var(--dh-text-muted)]">
-              {{ en ? 'No payment terms registered.' : 'Sin condiciones registradas.' }}
+              {{ en ? 'No credit terms registered.' : 'Sin condiciones de crédito registradas.' }}
+            </p>
+            <p v-else-if="supplierCreditTerms(selected).paymentType !== 'credit'" class="text-sm font-semibold">
+              {{ paymentTypeLabel(supplierCreditTerms(selected).paymentType) }}
             </p>
             <dl v-else class="grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Payment method' : 'Forma de pago' }}</dt>
-                <dd class="mt-1 font-semibold">{{ paymentTypeLabel(supplierCreditTerms(selected).paymentType) }}</dd>
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit days' : 'Días de crédito' }}</dt>
+                <dd class="mt-1 font-semibold">{{ supplierCreditTerms(selected).days ?? '—' }}</dd>
               </div>
-              <template v-if="supplierCreditTerms(selected).paymentType === 'credit'">
-                <div>
-                  <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit term' : 'Plazo de crédito' }}</dt>
-                  <dd class="mt-1 font-semibold">{{ supplierCreditTerms(selected).days }} {{ en ? 'days' : 'días' }}</dd>
-                </div>
-                <div v-if="supplierCreditTerms(selected).limit !== null">
-                  <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit limit' : 'Límite de crédito' }}</dt>
-                  <dd class="mt-1 font-semibold">{{ formatCreditLimit(supplierCreditTerms(selected)) }}</dd>
-                </div>
-              </template>
+              <div>
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit limit' : 'Límite de crédito' }}</dt>
+                <dd class="mt-1 font-semibold">{{ formatCreditLimit(supplierCreditTerms(selected)) }}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Monthly financing' : 'Financiamiento mensual' }}</dt>
+                <dd class="mt-1 font-semibold">{{ supplierCreditTerms(selected).monthlyFinancingPct }}%</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Monthly late interest' : 'Interés moratorio mensual' }}</dt>
+                <dd class="mt-1 font-semibold">{{ supplierCreditTerms(selected).lateInterestMonthlyPct }}%</dd>
+              </div>
+              <div class="sm:col-span-2">
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit includes' : 'Crédito incluye' }}</dt>
+                <dd class="mt-1 flex flex-wrap gap-1">
+                  <span v-for="code in supplierCreditTerms(selected).includedServices" :key="code"
+                    class="rounded-lg bg-[var(--dh-shell)] px-2 py-1 text-xs font-semibold">{{ creditCoverageLabel(code) }}</span>
+                  <span v-if="!supplierCreditTerms(selected).includedServices.length" class="text-[var(--dh-text-muted)]">—</span>
+                </dd>
+              </div>
+              <div class="sm:col-span-2">
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit excludes' : 'Crédito NO incluye' }}</dt>
+                <dd class="mt-1 flex flex-wrap gap-1">
+                  <span v-for="code in supplierCreditTerms(selected).excludedServices" :key="code"
+                    class="rounded-lg bg-[var(--dh-shell)] px-2 py-1 text-xs font-semibold">{{ creditCoverageLabel(code) }}</span>
+                  <span v-if="!supplierCreditTerms(selected).excludedServices.length" class="text-[var(--dh-text-muted)]">—</span>
+                </dd>
+              </div>
+              <div v-if="supplierCreditTerms(selected).reviewAt" class="sm:col-span-2">
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Next review' : 'Próxima revisión' }}</dt>
+                <dd class="mt-1 font-semibold">{{ creditReviewDateDisplay(supplierCreditTerms(selected).reviewAt) }}</dd>
+              </div>
               <div v-if="supplierCreditTerms(selected).notes" class="sm:col-span-2">
-                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Payment notes' : 'Observaciones' }}</dt>
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Payment conditions' : 'Condiciones generales de pago' }}</dt>
                 <dd class="mt-1 whitespace-pre-wrap">{{ supplierCreditTerms(selected).notes }}</dd>
               </div>
             </dl>
@@ -690,32 +811,57 @@ onMounted(() => {
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
           </section>
-          <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
-            <h3 class="text-sm font-bold">{{ en ? 'Supplier payment terms' : 'Condiciones de crédito del proveedor' }}
-              <span class="font-medium text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span>
-            </h3>
-            <DhSelect v-model="paymentType" :options="paymentTypeOptions"
-              :label="en ? 'Payment method' : 'Forma de pago'" />
-            <div v-if="paymentType === 'credit'" class="grid gap-3 md:grid-cols-2">
-              <label class="text-xs font-semibold">{{ en ? 'Credit term (days) *' : 'Plazo de crédito (días) *' }}
-                <input v-model.number="creditDays" type="number" required min="1" max="365" step="1"
-                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-              </label>
-              <label class="text-xs font-semibold">{{ en ? 'Credit limit (optional)' : 'Límite de crédito (opcional)' }}
-                <input v-model.number="creditLimit" type="number" min="0" step="0.01"
-                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-              </label>
-              <div class="min-w-0">
-                <DhSelect v-model="creditCurrency" :options="creditCurrencyOptions"
-                  :label="en ? 'Credit currency' : 'Moneda del crédito'" />
-              </div>
+          <section class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4">
+            <div>
+              <h3 class="text-sm font-bold">{{ en ? 'Supplier credit terms' : 'Condiciones de crédito del proveedor' }}
+                <span class="font-medium text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span>
+              </h3>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                {{ en ? 'Same terms and service coverage as CRM.' : 'Plazos, montos y conceptos incluidos o excluidos, como en CRM.' }}
+              </p>
             </div>
-            <label v-if="paymentType !== 'unspecified'" class="block text-xs font-semibold">
-              {{ en ? 'Payment conditions / notes' : 'Condiciones de pago / observaciones' }}
-              <textarea v-model="creditNotes" rows="3" maxlength="1000"
-                class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"
-                :placeholder="en ? 'Additional agreed payment conditions' : 'Acuerdos adicionales con el proveedor'"></textarea>
+            <label class="flex cursor-pointer items-center gap-3 text-sm font-semibold">
+              <input v-model="creditEnabled" type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" />
+              {{ en ? 'Supplier offers credit' : 'Proveedor otorga crédito' }}
             </label>
+            <div v-if="creditEnabled" class="space-y-4" data-srm-credit-terms>
+              <div class="grid gap-4 md:grid-cols-2">
+                <label class="block space-y-1.5 text-sm font-semibold">{{ en ? 'Payment term (days) *' : 'Plazo de pago (días) *' }}
+                  <input v-model="creditDays" required type="number" min="1" max="3650" step="1"
+                    class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+                  <span class="block text-xs font-normal text-[var(--dh-text-muted)]">{{ en ? 'E.g. 30 days after invoicing.' : 'Ejemplo: 30 días después de la facturación.' }}</span>
+                </label>
+                <label class="block space-y-1.5 text-sm font-semibold">{{ en ? 'Credit limit *' : 'Límite de crédito *' }}
+                  <input v-model="creditLimit" required type="number" min="0.01" step="0.01" placeholder="Ej. 100000"
+                    class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+                </label>
+                <CrmCatalogPicker v-model="creditCurrency" :label="en ? 'Currency *' : 'Moneda *'"
+                  catalog-group-slug="currencies" value-kind="value" />
+                <label class="block space-y-1.5 text-sm font-semibold">{{ en ? 'Monthly financing (%)' : 'Financiamiento mensual (%)' }}
+                  <input v-model="monthlyFinancing" type="number" min="0" max="100" step="0.0001"
+                    class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+                </label>
+                <label class="block space-y-1.5 text-sm font-semibold">{{ en ? 'Monthly late interest (%)' : 'Interés moratorio mensual (%)' }}
+                  <input v-model="lateInterest" type="number" min="0" max="100" step="0.0001"
+                    class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+                </label>
+              </div>
+              <label class="block space-y-1.5 text-sm font-semibold">{{ en ? 'Additional conditions (optional)' : 'Condiciones generales de pago (opcional)' }}
+                <textarea v-model="creditNotes" rows="3" maxlength="4000"
+                  :placeholder="en ? 'e.g. Invoicing at month-end' : 'Ej. Se factura al cierre de cada mes.'"
+                  class="w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm"></textarea>
+              </label>
+              <div class="grid gap-4 md:grid-cols-2">
+                <CrmCreditCoveragePicker v-model="includedCreditModel"
+                  :label="en ? 'Credit includes · multiple selection' : 'Crédito incluye · selección múltiple'" />
+                <CrmCreditCoveragePicker v-model="excludedCreditModel"
+                  :label="en ? 'Credit does NOT include · multiple selection' : 'Crédito NO incluye · selección múltiple'" />
+              </div>
+              <label class="block space-y-1.5 text-sm font-semibold">{{ en ? 'Next review (optional)' : 'Próxima revisión (opcional)' }}
+                <input v-model="creditReviewAt" type="datetime-local"
+                  class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
+              </label>
+            </div>
           </section>
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
