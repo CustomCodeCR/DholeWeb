@@ -41,7 +41,10 @@ const exporting = ref(false)
 const search = ref('')
 const status = ref<StatusFilter>('All')
 const month = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
 const seller = ref('')
+const invalidDateRange = computed(() => Boolean(dateFrom.value && dateTo.value && dateFrom.value > dateTo.value))
 const unassignedSeller = '__unassigned__'
 const labels: Record<CommercialStatus, string> = {
   Sent: 'Enviadas', AcceptedByClient: 'Aceptadas', RejectedByClient: 'No aceptadas',
@@ -68,10 +71,13 @@ const sellerOptions = computed(() => {
 })
 const hasUnassignedSeller = computed(() => rows.value.some((row) => !row.executiveName?.trim()))
 const filteredWithoutStatus = computed(() => {
+  if (invalidDateRange.value) return []
   const needle = search.value.trim().toLocaleLowerCase('es')
   const selectedSeller = seller.value.toLocaleLowerCase('es')
   return rows.value.filter((row) =>
     (!month.value || row.createdAtUtc?.slice(0, 7) === month.value) &&
+    (!dateFrom.value || Boolean(row.createdAtUtc && row.createdAtUtc.slice(0, 10) >= dateFrom.value)) &&
+    (!dateTo.value || Boolean(row.createdAtUtc && row.createdAtUtc.slice(0, 10) <= dateTo.value)) &&
     (!selectedSeller ||
       (selectedSeller === unassignedSeller
         ? !row.executiveName?.trim()
@@ -89,10 +95,12 @@ const count = (state: StatusFilter) => state === 'All'
   ? filteredWithoutStatus.value.length
   : filteredWithoutStatus.value.filter((row) => row.status === state).length
 const hasActiveFilters = computed(() =>
-  Boolean(month.value || seller.value || search.value.trim() || status.value !== 'All'),
+  Boolean(month.value || dateFrom.value || dateTo.value || seller.value || search.value.trim() || status.value !== 'All'),
 )
 function clearFilters() {
   month.value = ''
+  dateFrom.value = ''
+  dateTo.value = ''
   seller.value = ''
   status.value = 'All'
   search.value = ''
@@ -120,6 +128,8 @@ function reportQuery() {
   const params = new URLSearchParams()
   if (status.value !== 'All') params.set('status', status.value)
   if (month.value) params.set('month', month.value)
+  if (dateFrom.value) params.set('fromDate', dateFrom.value)
+  if (dateTo.value) params.set('toDate', dateTo.value)
   if (seller.value) params.set('seller', seller.value)
   if (search.value.trim()) params.set('search', search.value.trim())
   const query = params.toString()
@@ -142,7 +152,7 @@ async function load() {
   }
 }
 async function exportExcel() {
-  if (exporting.value) return
+  if (exporting.value || invalidDateRange.value) return
   exporting.value = true
   try {
     const blob = await fetchBlobClient('/api/pricing/rates/commercial-report.xlsx' + reportQuery(), {
@@ -178,7 +188,7 @@ onMounted(load)
       <template #actions>
         <div class="flex flex-wrap gap-2">
           <DhButton label="Actualizar" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
-          <DhButton label="Exportar Excel" :icon="Download" :loading="exporting" :disabled="loading" @click="exportExcel" />
+          <DhButton label="Exportar Excel" :icon="Download" :loading="exporting" :disabled="loading || invalidDateRange" @click="exportExcel" />
         </div>
       </template>
     </DhPageHeader>
@@ -196,7 +206,7 @@ onMounted(load)
     </div>
 
     <section class="rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
           Mes
           <select
@@ -206,6 +216,20 @@ onMounted(load)
             <option value="">Todos los meses</option>
             <option v-for="item in monthOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
+        </label>
+        <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
+          Fecha inicial
+          <input
+            v-model="dateFrom" type="date" :max="dateTo || undefined"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+          />
+        </label>
+        <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
+          Fecha final
+          <input
+            v-model="dateTo" type="date" :min="dateFrom || undefined"
+            class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
+          />
         </label>
         <label class="flex min-w-0 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
           Vendedor
@@ -229,6 +253,9 @@ onMounted(load)
           </select>
         </label>
       </div>
+      <p v-if="invalidDateRange" role="alert" class="mt-3 text-sm font-semibold text-red-600 dark:text-red-400">
+        La fecha inicial no puede ser posterior a la fecha final.
+      </p>
       <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <label class="flex min-w-0 flex-1 flex-col gap-1 text-xs font-bold text-[var(--dh-text-muted)]">
           Buscar por cotización, cliente, vendedor o ruta
