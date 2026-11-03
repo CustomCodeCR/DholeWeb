@@ -422,6 +422,18 @@ const auditLabels: Record<string, string> = {
   CompetitorObservations: 'Observaciones de competencia',
   TradeAgreementNotes: 'Acuerdos comerciales',
   WebCustomerReference: 'Referencia del cliente web',
+  CreditEnabled: 'Crédito habilitado', CreditDays: 'Días de crédito',
+  CreditLimit: 'Límite de crédito', CurrencyCode: 'Moneda',
+  MonthlyFinancingPct: 'Financiamiento mensual (%)',
+  LateInterestMonthlyPct: 'Interés moratorio mensual (%)',
+  PaymentConditions: 'Condiciones de pago', EffectiveFrom: 'Vigencia desde',
+  ReviewAt: 'Próxima revisión', ApprovalReason: 'Motivo del movimiento',
+  ApprovedAt: 'Fecha de aprobación', ApprovedByUserId: 'Aprobado por',
+  ContractNumber: 'Número de contrato', StartDate: 'Inicio del contrato',
+  RenewalDate: 'Fecha de renovación', ExpiryDate: 'Vencimiento del contrato',
+  PaymentTerms: 'Condiciones del contrato', AutoRenew: 'Renovación automática',
+  SignedDocumentFileId: 'Documento firmado',
+  CreditProfileId: 'Perfil de crédito asociado',
 }
 function accountAuditLabel(field: string) { return auditLabels[field] || field }
 function accountAuditAction(code: string) {
@@ -430,13 +442,34 @@ function accountAuditAction(code: string) {
     ARCHIVED: 'Cuenta archivada', ASSIGNED: 'Vendedor reasignado',
     LOGO_UPDATED: 'Logotipo modificado', PROFILE_CREATED: 'Ficha comercial creada',
     PROFILE_UPDATED: 'Ficha comercial modificada',
+    CREDIT_REQUESTED: 'Crédito solicitado',
+    CREDIT_APPROVED: 'Crédito aprobado',
+    CREDIT_REJECTED: 'Crédito rechazado',
+    CREDIT_SUPERSEDED: 'Crédito reemplazado por una nueva aprobación',
+    CREDIT_REVISED: 'Modificación de crédito solicitada',
+    CREDIT_COVERAGE_CHANGED: 'Coberturas de crédito modificadas',
+    CREDIT_UPDATED: 'Condiciones de crédito modificadas',
+    CONTRACT_CREATED: 'Contrato de crédito creado',
+    CONTRACT_UPDATED: 'Contrato de crédito modificado',
   }
   return labels[code] || 'Cambio registrado'
 }
 function accountAuditValue(value: string | null, field: string) {
   if (value === null || value === '') return 'Sin dato'
   if (field === 'CustomerTypeCode') return value === 'credit' ? 'Crédito' : value === 'cash' ? 'Contado' : value
-  if (field === 'IsCastroFallasExecutive') return value === 'true' ? 'Sí' : 'No'
+  if (['CreditEnabled', 'AutoRenew', 'IsCastroFallasExecutive'].includes(field))
+    return value === 'true' ? 'Sí' : value === 'false' ? 'No' : value
+  if (field === 'Status') {
+    const states: Record<string, string> = {
+      PendingApproval: 'Pendiente de aprobación', Approved: 'Aprobado',
+      Rejected: 'Rechazado', Superseded: 'Reemplazado', Draft: 'Borrador',
+      Active: 'Activo', Archived: 'Archivado', Cancelled: 'Cancelado',
+      Expired: 'Vencido',
+    }
+    return states[value] || value
+  }
+  if (['EffectiveFrom', 'ReviewAt', 'ApprovedAt', 'StartDate', 'RenewalDate', 'ExpiryDate'].includes(field))
+    return date(value)
   if (field === 'CountryId' && value === props.account.countryId && countryName.value) return countryName.value
   if (field === 'ExecutiveUserId' && value === props.account.executiveUserId && assignedSellerName.value) return assignedSellerName.value
   return value
