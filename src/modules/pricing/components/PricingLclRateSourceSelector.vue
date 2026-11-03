@@ -499,7 +499,7 @@ const filteredOwn = computed(() => {
     if (!q) return true
     return [row.name, row.booking, row.carrierName, row.carrierCode, row.polName, row.polCode, row.containerName, row.containerCode, row.etd]
       .some((value) => normalize(value).includes(q))
-  })
+  }).sort((left, right) => Number(isHistoricalOwn(right)) - Number(isHistoricalOwn(left)))
 })
 
 const filteredColoaders = computed(() => {
