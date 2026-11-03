@@ -67,14 +67,18 @@ const editor = ref({
   start: '',
   end: '',
   location: '',
+  involved: '',
+  agreements: '',
+  nextCommitment: '',
+  commitmentDue: '',
   reminderMinutes: 60,
   channel: 'BOTH',
 })
 const eventTypes = [
   { value: 'VISIT', label: 'Visita' },
   { value: 'CALL', label: 'Llamada' },
-  { value: 'MEETING', label: 'Reunión' },
-  { value: 'EMAIL', label: 'Correo' },
+  { value: 'MEETING', label: 'Reunión / Teams' },
+  { value: 'EMAIL', label: 'Correo electrónico' },
   { value: 'FOLLOWUP', label: 'Seguimiento' },
   { value: 'OTHER', label: 'Tarea' },
 ] as const
@@ -199,14 +203,22 @@ const assignees = computed(() => {
 function labelFor(event: CalendarEvent) {
   return eventTypes.find(type => type.value === event.type)?.label ?? event.type
 }
+function effectiveStatus(event: CalendarEvent): string {
+  if ((event.status === 'Scheduled' || event.status === 'Pending') &&
+      (event.endsAt ?? event.at).getTime() < Date.now()) return 'Overdue'
+  return event.status
+}
+const overdueCount = computed(() => rows.value.filter(item => effectiveStatus(item) === 'Overdue').length)
+const completedCount = computed(() => rows.value.filter(item => item.status === 'Completed').length)
 function statusLabel(status: string) {
   return ({ Pending: 'Pendiente', Scheduled: 'Programado', Overdue: 'Vencido',
     Completed: 'Completado', Cancelled: 'Cancelado' } as Record<string, string>)[status] ?? status
 }
 function eventTone(event: CalendarEvent) {
-  return event.status === 'Completed' ? 'border-emerald-500/30 bg-emerald-500/10'
-    : event.status === 'Cancelled' ? 'border-[var(--dh-border)] opacity-60'
-      : event.status === 'Overdue' ? 'border-amber-500/50 bg-amber-500/10'
+  const status = effectiveStatus(event)
+  return status === 'Completed' ? 'border-emerald-500/30 bg-emerald-500/10'
+    : status === 'Cancelled' ? 'border-[var(--dh-border)] opacity-60'
+      : status === 'Overdue' ? 'border-amber-500/50 bg-amber-500/10'
         : event.type === 'VISIT' ? 'border-blue-500/30 bg-blue-500/10'
           : event.type === 'CALL' ? 'border-violet-500/30 bg-violet-500/10'
             : 'border-[var(--dh-border)] bg-[var(--dh-shell)]'
@@ -226,7 +238,8 @@ function openCreation(date?: Date) {
     type: 'VISIT', subject: '', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
-    location: '', reminderMinutes: 60, channel: 'BOTH',
+    location: '', involved: '', agreements: '', nextCommitment: '', commitmentDue: '',
+    reminderMinutes: 60, channel: 'BOTH',
   }
   error.value = ''
   creationOpen.value = true
@@ -369,6 +382,12 @@ async function create() {
   }
   const start = new Date(data.start)
   const end = new Date(data.end)
+  const commitmentDue = data.nextCommitment.trim() ? new Date(data.commitmentDue) : null
+  if (data.type !== 'FOLLOWUP' && data.nextCommitment.trim() &&
+      (!commitmentDue || !Number.isFinite(commitmentDue.getTime()) ||
+       commitmentDue.getTime() <= end.getTime())) {
+    error.value = 'Indicá una fecha límite posterior a la actividad para el compromiso.'; return
+  }
   if (!Number.isFinite(start.getTime()) || start.getTime() < Date.now() - 60000 ||
     (data.type !== 'FOLLOWUP' && (!Number.isFinite(end.getTime()) || end <= start))) {
     error.value = 'Ingresá fechas futuras válidas; la hora de finalización debe ser posterior al inicio.'; return
@@ -378,7 +397,7 @@ async function create() {
   try {
     const common = {
       accountId: data.accountId || null, leadId: data.leadId || null, opportunityId: null,
-      reminderLeadMinutes: data.reminderMinutes, reminderChannelStrategy: data.channel,
+      reminderLeadMinutes: data.reminderMinutes, reminderChannelStrategy: 'BOTH',
     }
     if (data.type === 'FOLLOWUP') {
       await crmRequest(crmPath('followups'), 'POST', {
@@ -390,11 +409,14 @@ async function create() {
         ...common, contactId: data.contactId || null, ownerUserId: data.ownerId || auth.userId,
         type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
         scheduledEndAt: end.toISOString(), occurredAt: null, locationText: data.location.trim() || null,
+        involved: data.involved.trim() || null, agreements: data.agreements.trim() || null,
+        nextCommitment: data.nextCommitment.trim() || null,
+        commitmentDueAt: commitmentDue?.toISOString() ?? null,
       })
     }
     creationOpen.value = false
     selected.value = start
-    notice.value = 'Actividad creada. El recordatorio se programará para el vendedor asignado.'
+    notice.value = 'Actividad registrada. Recordatorios por sistema y correo; si existe un compromiso, quedó en la agenda con fecha límite.'
     emit('changed')
     await load()
   } catch (cause) { error.value = crmError(cause) }
@@ -511,6 +533,20 @@ function openEvent(item: CalendarEvent) {
           type="button" class="calendar-btn calendar-primary" @click="openCreation()"><Plus class="h-4 w-4" /> Nueva actividad</button>
       </div>
     </div>
+    <div class="grid gap-3 sm:grid-cols-3">
+      <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+        <p class="text-xs text-[var(--dh-text-muted)]">Compromisos pendientes</p>
+        <strong class="mt-1 block text-xl">{{ pendingCount }}</strong>
+      </div>
+      <div class="rounded-xl border border-amber-500/30 bg-[var(--dh-card)] p-3">
+        <p class="text-xs text-[var(--dh-text-muted)]">Sin atender / vencidos</p>
+        <strong class="mt-1 block text-xl text-amber-600">{{ overdueCount }}</strong>
+      </div>
+      <div class="rounded-xl border border-emerald-500/30 bg-[var(--dh-card)] p-3">
+        <p class="text-xs text-[var(--dh-text-muted)]">Completados</p>
+        <strong class="mt-1 block text-xl text-emerald-600">{{ completedCount }}</strong>
+      </div>
+    </div>
     <div class="flex flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
       <button v-for="item in [{id:'month',label:'Mes'},{id:'week',label:'Semana'},{id:'day',label:'Día'},{id:'list',label:'Lista'}]"
         :key="item.id" type="button" class="calendar-btn" :aria-pressed="mode===item.id"
@@ -610,7 +646,7 @@ function openEvent(item: CalendarEvent) {
           class="mb-2 flex w-full items-center gap-3 rounded-lg border p-3 text-left last:mb-0" :class="eventTone(event)">
           <Clock3 class="h-4 w-4 shrink-0" />
           <span class="min-w-0 flex-1"><strong class="block truncate text-sm">{{ event.subject }}</strong>
-            <span class="text-xs text-[var(--dh-text-muted)]">{{ labelFor(event) }} · {{ statusLabel(event.status) }}</span>
+            <span class="text-xs text-[var(--dh-text-muted)]">{{ labelFor(event) }} · {{ statusLabel(effectiveStatus(event)) }}</span>
           </span>
           <span class="text-xs tabular-nums">{{ event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
         </button>
@@ -620,8 +656,8 @@ function openEvent(item: CalendarEvent) {
       <div v-if="active" class="space-y-3">
       <div class="flex justify-between gap-3">
         <div><h3 class="font-extrabold">{{ active.subject }}</h3>
-          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(active.status) }} · {{ active.at.toLocaleString('es-CR') }}</p>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Recordatorio: {{ active.reminderLeadMinutes ?? 60 }} minutos antes · {{ active.reminderChannelStrategy==='BOTH'?'Sistema y correo':active.reminderChannelStrategy==='EMAIL'?'Correo':'Sistema' }}</p>
+          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(effectiveStatus(active)) }} · {{ active.at.toLocaleString('es-CR') }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Recordatorios: 24 horas, 1 hora, al inicio y cada 24 horas si vence. Siempre sistema y correo.</p>
         </div>
         <button type="button" aria-label="Cerrar detalle" @click="active=null"><X class="h-4 w-4" /></button>
       </div>
@@ -641,7 +677,7 @@ function openEvent(item: CalendarEvent) {
     </DhModal>
     <DhModal :open="creationOpen" title="Programar visita, llamada o seguimiento" size="lg" @close="creationOpen=false">
       <div class="space-y-4">
-      <p class="text-xs text-[var(--dh-text-muted)]">El vendedor asignado recibirá recordatorios por los canales seleccionados.</p>
+      <p class="text-xs text-[var(--dh-text-muted)]">El vendedor recibirá avisos por sistema y correo. Si no atiende el compromiso, se informará a jmesen después del vencimiento.</p>
       <div v-if="activityTypesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando tipos de actividades en Config…</div>
       <div v-if="activityTypesError" role="alert" class="rounded-xl border border-amber-500/40 p-3 text-xs text-amber-600">
         {{ activityTypesError }}
@@ -718,13 +754,25 @@ function openEvent(item: CalendarEvent) {
             <option v-for="item in reminderOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <label class="calendar-label">Canal de recordatorio
-          <select v-model="editor.channel" class="calendar-input">
-            <option value="BOTH">Sistema y correo</option>
-            <option value="SYSTEM">Solo sistema</option>
-            <option value="EMAIL">Solo correo</option>
-          </select>
-        </label>
+        <div class="calendar-label">
+          Canal obligatorio
+          <p class="calendar-input flex items-center text-sm">Sistema y correo electrónico</p>
+        </div>
+        <template v-if="editor.type!=='FOLLOWUP'">
+          <label class="calendar-label sm:col-span-2">Involucrados
+            <input v-model.trim="editor.involved" class="calendar-input" maxlength="1500" placeholder="Personas del cliente, equipos internos y responsables" />
+          </label>
+          <label class="calendar-label sm:col-span-2">Acuerdos alcanzados
+            <textarea v-model.trim="editor.agreements" class="calendar-input min-h-24" maxlength="6000" placeholder="Resumen de acuerdos de la llamada, visita, correo o reunión" />
+          </label>
+          <label class="calendar-label sm:col-span-2">Próximo compromiso
+            <input v-model.trim="editor.nextCommitment" class="calendar-input" maxlength="250" placeholder="Ej. Enviar propuesta y confirmar recepción" />
+          </label>
+          <label v-if="editor.nextCommitment" class="calendar-label sm:col-span-2">Fecha límite del compromiso
+            <input v-model="editor.commitmentDue" type="datetime-local" class="calendar-input" required />
+          </label>
+          <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">El próximo compromiso se registrará como un seguimiento independiente en la agenda. Su incumplimiento activará las alertas al vendedor y a jmesen.</p>
+        </template>
         <div class="flex flex-wrap justify-end gap-2 sm:col-span-2">
           <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
           <button type="submit" class="calendar-btn calendar-primary" :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
