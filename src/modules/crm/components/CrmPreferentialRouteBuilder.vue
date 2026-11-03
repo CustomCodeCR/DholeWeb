@@ -80,6 +80,12 @@ const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : 
     shipment: route.shipment, polCode: route.polCodes[0] ?? '',
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
   }))
+  .filter(cost => {
+    const rows = costTiers(cost)
+    if (rows[0]?.dimension !== 'ContainerType') return true
+    const id = containerIdByCode.value[route.equipmentCodes[0] ?? '']
+    return !id || rows.some(row => row.containerTypeId === id)
+  })
   .sort((a, b) => a.costDetailType.localeCompare(b.costDetailType) || a.name.localeCompare(b.name, 'es')))
 const providerOptions = computed(() => {
   const options = new Map<string,string>()
