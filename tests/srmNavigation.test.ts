@@ -106,7 +106,7 @@ test('SRM has a clean directory layout without visible internal codes or dashboa
 })
 
 test('SRM supplier credit terms are optional, editable, and persisted in supplier metadata', () => {
-  assert.match(view, /const paymentType = ref<SupplierPaymentType>\('unspecified'\)/)
+  assert.match(view, /const paymentType = ref\('unspecified'\)/)
   assert.match(view, /function supplierCreditTerms\(row: CatalogItemDto\)/)
   assert.match(view, /creditTerms: paymentType\.value === 'unspecified' \? null :/)
   assert.match(view, /days: paymentType\.value === 'credit'/)
