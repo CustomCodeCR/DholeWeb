@@ -505,11 +505,13 @@ async function save() {
                       <div>
                         <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Costo original</span>
                         <span v-if="isTiered(cost)" class="text-xs font-bold">Según tramo</span>
+                        <span v-else-if="invalidRules(cost)" class="text-xs font-bold text-red-500">Revisar reglas</span>
                         <span v-else class="text-xs font-bold tabular-nums">{{ money(cost.costAmount,cost) }}</span>
                       </div>
                       <div>
                         <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta estándar</span>
                         <span v-if="isTiered(cost)" class="text-xs font-bold">Según tramo</span>
+                        <span v-else-if="invalidRules(cost)" class="text-xs font-bold text-red-500">Revisar reglas</span>
                         <span v-else class="text-xs font-bold tabular-nums">{{ money(cost.saleAmount,cost) }}</span>
                       </div>
                       <button v-if="isTiered(cost)" type="button" class="route-action-secondary"
@@ -612,4 +614,6 @@ async function save() {
 .route-action:disabled{opacity:.5}
 .route-action-secondary{display:inline-flex;min-height:38px;align-items:center;justify-content:center;border:1px solid var(--dh-border);border-radius:.7rem;padding:.5rem .85rem;font-size:.78rem;font-weight:750;color:var(--dh-text);background:var(--dh-card)}
 .route-action-secondary:hover{border-color:var(--dh-primary)}
+
+.route-pill{display:inline-flex;align-items:center;border:1px solid var(--dh-border);border-radius:999px;padding:.25rem .65rem;font-size:.72rem;font-weight:750;color:var(--dh-text-muted);white-space:nowrap}
 </style>
