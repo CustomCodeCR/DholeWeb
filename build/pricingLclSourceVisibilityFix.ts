@@ -23,6 +23,26 @@ export function patchIndependentLclSourceLoading(source: string): string {
     'independent LCL source loading',
   )
 
+  // The accepted-quotation selector has its own exact-ID fallback for closed
+  // consolidations. Keep that code intact while preserving independent requests.
+  if (code.includes('    // Browse omits inactive consolidations.')) {
+    const historicAnchor = '    // Browse omits inactive consolidations.'
+    const independentResults = `    const own = ownResult.status === 'fulfilled' ? ownResult.value : []
+    const coloaders = coloaderResult.status === 'fulfilled' ? coloaderResult.value : []
+    const sourceErrors = [
+      ownResult.status === 'rejected' ? ownResult.reason : null,
+      coloaderResult.status === 'rejected' ? coloaderResult.reason : null,
+    ].filter(Boolean)
+    if (sourceErrors.length) {
+      error.value = sourceErrors
+        .map((value) => value instanceof Error ? value.message : String(value))
+        .join(' · ')
+    }
+`
+    return replaceOne(code, historicAnchor, independentResults + historicAnchor,
+      'historical selected consolidated async loading')
+  }
+
   const balboaGuardedRows = '    ownRows.value = ownPoeEligible.value ? own.map((row) => ({ ...row })) : []'
   const legacyRows = '    ownRows.value = own.map((row) => ({ ...row }))'
   const guardedReplacement = `    ownRows.value = ownResult.status === 'fulfilled' && ownPoeEligible.value
