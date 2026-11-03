@@ -82,15 +82,6 @@ function sellerEventStyle(event: CalendarEvent) {
   const color = sellerColor(event.ownerId)
   return { borderLeftColor: color, borderLeftWidth: '5px', backgroundColor: color + '15' }
 }
-watch(() => editor.value.agreements, (text) => {
-  const reference = new Date(editor.value.start || Date.now())
-  const parsed = crmAgreementDrafts(text, Number.isFinite(reference.getTime()) ? reference : new Date())
-  agreementDrafts.value = parsed.map(row => {
-    const previous = agreementDrafts.value.find(d => d.source === row.source)
-    return previous ? { ...row, title: previous.title, dueLocal: previous.dueLocal,
-      hasExplicitTime: previous.hasExplicitTime } : row
-  })
-})
 const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
@@ -125,6 +116,16 @@ const editor = ref({
   reminderMinutes: 60,
   channel: 'BOTH',
 })
+watch(() => editor.value.agreements, (text) => {
+  const reference = new Date(editor.value.start || Date.now())
+  const parsed = crmAgreementDrafts(text, Number.isFinite(reference.getTime()) ? reference : new Date())
+  agreementDrafts.value = parsed.map(row => {
+    const previous = agreementDrafts.value.find(d => d.source === row.source)
+    return previous ? { ...row, title: previous.title, dueLocal: previous.dueLocal,
+      hasExplicitTime: previous.hasExplicitTime } : row
+  })
+})
+
 const eventTypes = [
   { value: 'VISIT', label: 'Visita' },
   { value: 'CALL', label: 'Llamada' },
@@ -297,7 +298,7 @@ function openCreation(date?: Date) {
   creationOpen.value = true
   void loadConfiguredActivityTypes()
   // Account-local calendars must preselect the real assigned commercial seller.
-  if (props.accountId && can('crm.account.read')) {
+  if (props.accountId && (can('crm.account.read') || can('crm.account.read-all'))) {
     void crmRequest<CrmRow>(crmPath('accounts', props.accountId)).then(account => {
       if (!creationOpen.value || editor.value.accountId !== account.id) return
       accounts.value = [account]
