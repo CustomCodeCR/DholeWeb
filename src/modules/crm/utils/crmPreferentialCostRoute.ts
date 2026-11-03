@@ -14,7 +14,7 @@ const normalize = (value: unknown) => String(value ?? '').trim().toUpperCase()
 
 function matchesLocation(
   code: string, relations: Array<{ code: string }> | null | undefined,
-  singleCode: string | null | undefined,
+  singleCode: unknown,
 ): boolean {
   const choices = [ ...(relations ?? []).map(x => normalize(x.code)), normalize(singleCode) ]
     .filter(Boolean)

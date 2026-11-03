@@ -6,6 +6,7 @@ import { PricingService } from '@/core/services/pricingService'
 import type { CostDetailType, CostSelectDto } from '@/core/interfaces/pricing'
 import { BadgePercent, Check, Pencil, Plus, RefreshCw, ShieldCheck, X } from 'lucide-vue-next'
 import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
+import CrmPreferentialRouteBuilder from './CrmPreferentialRouteBuilder.vue'
 import { benefitUsesPod } from '../utils/crmBenefitRouteCatalog'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc } from '../services/crmApi'
 
@@ -14,7 +15,7 @@ type BenefitType = 'FIXED_AMOUNT' | 'DISCOUNT_AMOUNT' | 'DISCOUNT_PERCENT' |
   'INSURANCE_PERCENT' | 'WAIVE' | 'NEGOTIATED'
 type Rate = {
   id: string; accountId: string; rowVersion: number; modality: Mode
-  laneCode: string | null; chargeCode: string; customChargeName: string | null
+  laneCode: string | null; sourceCostId?: string | null; chargeCode: string; customChargeName: string | null
   rateType: BenefitType; value: number | null; minimumCharge: number | null
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
   currencyCode: string | null; unitCode: string | null
@@ -329,6 +330,7 @@ async function setActive(rate: Rate, active: boolean) {
   try {
     await crmRequest(endpoint() + '/rates/' + encodeURIComponent(rate.id), 'PUT', {
       expectedVersion: rate.rowVersion, modality: rate.modality, laneCode: rate.laneCode,
+      sourceCostId: rate.sourceCostId ?? null,
       chargeCode: rate.chargeCode, customChargeName: rate.customChargeName, rateType: rate.rateType,
       value: rate.value, minimumCharge: rate.minimumCharge,
       insuranceCostPercent: rate.insuranceCostPercent,
@@ -404,6 +406,10 @@ function scopeText(rate: Rate): string {
     <p v-if="success" role="status" class="rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">Consultando beneficios de la cuenta…</p>
     <template v-if="loaded">
+      <CrmPreferentialRouteBuilder v-if="canEdit" :account-id="accountId"
+        :category-type="category.type" :category-code="category.code"
+        :costs="costs" :rates="rates" :can-read-pricing-concepts="canReadPricingConcepts"
+        :costs-loading="costsLoading" @saved="reload" />
       <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
         <div class="mb-4 flex flex-wrap items-center gap-2">
           <ShieldCheck class="h-4 w-4 text-[var(--dh-primary)]" />
