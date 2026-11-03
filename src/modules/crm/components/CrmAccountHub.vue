@@ -20,7 +20,7 @@ import { DhDrawer } from '@/shared/components/organisms'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
   Activity, CalendarClock, CheckCircle2, Clock3, FileText, MapPin, Phone,
-  History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet,
+  ArrowRight, ChevronDown, History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet, XCircle,
 } from 'lucide-vue-next'
 
 type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'finance'
@@ -453,6 +453,41 @@ function accountAuditAction(code: string) {
     CONTRACT_UPDATED: 'Contrato de crédito modificado',
   }
   return labels[code] || 'Cambio registrado'
+}
+function accountAuditChanges(entry: AccountAuditEntry): AccountChange[] {
+  return accountAuditFields(entry).filter(change => change.field !== 'ApprovalReason')
+}
+function accountAuditReason(entry: AccountAuditEntry): string {
+  return accountAuditFields(entry).find(change => change.field === 'ApprovalReason')?.after || ''
+}
+function accountAuditPreview(entry: AccountAuditEntry): string {
+  const fields = accountAuditChanges(entry)
+  const prominent = fields.find(change => change.field === 'Status') ||
+    fields.find(change => change.field === 'CreditLimit') || fields[0]
+  if (prominent) {
+    return accountAuditLabel(prominent.field) + ': ' +
+      accountAuditValue(prominent.before, prominent.field) + ' → ' +
+      accountAuditValue(prominent.after, prominent.field)
+  }
+  return accountAuditReason(entry) || 'Registro de creación de la cuenta'
+}
+function accountAuditArea(code: string): string {
+  if (code === 'CREDIT') return 'Crédito'
+  if (code === 'CREDIT_CONTRACT') return 'Contrato'
+  if (code === 'BUSINESS_PROFILE') return 'Ficha comercial'
+  return 'Cuenta'
+}
+function accountAuditTone(code: string): string {
+  if (code === 'CREDIT_APPROVED') return 'border-emerald-500/40 text-emerald-600'
+  if (code === 'CREDIT_REJECTED' || code === 'ARCHIVED')
+    return 'border-rose-500/40 text-rose-600'
+  return 'border-[var(--dh-border)] text-[var(--dh-primary)]'
+}
+function accountAuditIcon(code: string) {
+  if (code === 'CREDIT_APPROVED') return CheckCircle2
+  if (code === 'CREDIT_REJECTED' || code === 'ARCHIVED') return XCircle
+  if (code.startsWith('CREDIT_') || code.startsWith('CONTRACT_')) return Wallet
+  return History
 }
 function accountAuditValue(value: string | null, field: string) {
   if (value === null || value === '') return 'Sin dato'
@@ -1110,57 +1145,129 @@ async function saveRoute() {
       </aside>
     </div>
 
-    <section v-else-if="activeTab === 'changes'" id="crm-account-changes" role="tabpanel" class="hub-panel space-y-4">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 class="hub-panel-heading mb-0"><History class="h-4 w-4 text-[var(--dh-primary)]" />Historial de cambios</h2>
-          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-            Registro de creación y modificaciones de la cuenta, con fecha, responsable y valores anteriores y nuevos.
-          </p>
-        </div>
-        <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesLoading" @click="loadAccountChanges()">
-          <RefreshCw class="h-3.5 w-3.5" />Actualizar
-        </button>
-      </div>
-      <p v-if="accountChangesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando historial de cambios…</p>
-      <p v-if="accountChangesError" role="alert" class="rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ accountChangesError }}</p>
-      <p v-if="!accountChangesLoading && !accountChangesError && !accountChanges.length" class="hub-empty">Todavía no hay cambios registrados para esta cuenta.</p>
-      <ol v-if="accountChanges.length" class="divide-y divide-[var(--dh-border)]">
-        <li v-for="entry in accountChanges" :key="entry.id" class="py-4 first:pt-0 last:pb-0">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm font-extrabold">{{ accountAuditAction(entry.actionCode) }}</p>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-                Responsable: {{ entry.actorDisplayName || (entry.actorUserId ? 'Usuario ' + entry.actorUserId : 'Sistema') }}
+    <section v-else-if="activeTab === 'changes'" id="crm-account-changes" role="tabpanel" class="hub-panel">
+      <div class="mx-auto max-w-5xl space-y-5">
+        <header class="flex flex-wrap items-start justify-between gap-4">
+          <div class="flex min-w-0 items-start gap-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] text-[var(--dh-primary)]">
+              <History class="h-5 w-5" />
+            </div>
+            <div>
+              <h2 class="text-base font-extrabold tracking-tight">Historial de cambios</h2>
+              <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">
+                Actividad y cambios registrados de esta cuenta, ordenados del más reciente al más antiguo.
               </p>
             </div>
-            <time class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ date(entry.createdAt) }}</time>
           </div>
-          <div v-if="accountAuditFields(entry).length" class="mt-3 space-y-2">
-            <div v-for="(change, index) in accountAuditFields(entry)" :key="entry.id + '-' + index" class="rounded-xl border border-[var(--dh-border)] p-3">
-              <p class="mb-2 text-xs font-bold">{{ accountAuditLabel(change.field) }}</p>
-              <div class="grid gap-2 text-xs sm:grid-cols-2">
-                <div class="min-w-0 rounded-lg bg-[var(--dh-shell)] p-2">
-                  <span class="font-semibold text-[var(--dh-text-muted)]">Valor anterior</span>
-                  <p class="mt-1 whitespace-pre-wrap break-words">{{ accountAuditValue(change.before, change.field) }}</p>
+          <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesLoading" @click="loadAccountChanges()">
+            <RefreshCw class="h-3.5 w-3.5" :class="accountChangesLoading ? 'animate-spin' : ''" />
+            Actualizar
+          </button>
+        </header>
+
+        <div class="flex flex-wrap items-center gap-2 border-y border-[var(--dh-border)] py-3 text-xs">
+          <span class="inline-flex items-center gap-2 rounded-full bg-[var(--dh-shell)] px-3 py-1.5 font-bold">
+            <History class="h-3.5 w-3.5 text-[var(--dh-primary)]" />
+            {{ accountChangesTotal }} movimientos
+          </span>
+          <span v-if="accountChanges.length" class="text-[var(--dh-text-muted)]">
+            Última actividad: {{ date(accountChanges[0]?.createdAt) }}
+          </span>
+        </div>
+
+        <p v-if="accountChangesLoading" role="status" class="py-3 text-xs text-[var(--dh-text-muted)]">
+          Consultando historial de cambios…
+        </p>
+        <p v-if="accountChangesError" role="alert" class="rounded-xl border border-red-500/40 p-3 text-xs text-red-500">
+          {{ accountChangesError }}
+        </p>
+        <div v-if="!accountChangesLoading && !accountChangesError && !accountChanges.length"
+          class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
+          <History class="mx-auto h-6 w-6 text-[var(--dh-text-muted)]" />
+          <p class="mt-2 text-sm font-bold">No hay movimientos registrados</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Los cambios que se guarden en la cuenta aparecerán aquí.</p>
+        </div>
+
+        <ol v-if="accountChanges.length" class="relative ml-4 border-l border-[var(--dh-border)] pl-7">
+          <li v-for="(entry, index) in accountChanges" :key="entry.id" class="relative pb-3 last:pb-0">
+            <span class="absolute -left-[45px] top-4 flex h-8 w-8 items-center justify-center rounded-full border bg-[var(--dh-card)] shadow-sm"
+              :class="accountAuditTone(entry.actionCode)">
+              <component :is="accountAuditIcon(entry.actionCode)" class="h-4 w-4" />
+            </span>
+            <details class="group overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] transition-shadow open:shadow-sm"
+              :open="index === 0">
+              <summary class="flex cursor-pointer list-none flex-wrap items-center gap-3 px-4 py-3.5 hover:bg-[var(--dh-shell)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--dh-primary)] [&::-webkit-details-marker]:hidden">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <h3 class="text-sm font-extrabold">{{ accountAuditAction(entry.actionCode) }}</h3>
+                    <span class="rounded-md border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                      {{ accountAuditArea(entry.areaCode) }}
+                    </span>
+                  </div>
+                  <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[var(--dh-text-muted)]">
+                    <span class="inline-flex min-w-0 items-center gap-1">
+                      <UserRound class="h-3 w-3 shrink-0" />
+                      {{ entry.actorDisplayName || 'Usuario no disponible' }}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <time :datetime="entry.createdAt">{{ date(entry.createdAt) }}</time>
+                  </p>
+                  <p class="mt-2 truncate text-xs text-[var(--dh-text-muted)]">
+                    {{ accountAuditPreview(entry) }}
+                  </p>
                 </div>
-                <div class="min-w-0 rounded-lg bg-[var(--dh-shell)] p-2">
-                  <span class="font-semibold text-[var(--dh-text-muted)]">Valor nuevo</span>
-                  <p class="mt-1 whitespace-pre-wrap break-words">{{ accountAuditValue(change.after, change.field) }}</p>
+                <div class="flex shrink-0 items-center gap-2">
+                  <span v-if="accountAuditChanges(entry).length" class="hidden rounded-full bg-[var(--dh-shell)] px-2.5 py-1 text-[11px] font-semibold text-[var(--dh-text-muted)] sm:inline">
+                    {{ accountAuditChanges(entry).length }} {{ accountAuditChanges(entry).length === 1 ? 'campo' : 'campos' }}
+                  </span>
+                  <ChevronDown class="h-4 w-4 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" aria-hidden="true" />
                 </div>
+              </summary>
+
+              <div class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)]/40 px-4 py-3">
+                <div v-if="accountAuditChanges(entry).length" class="overflow-hidden rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)]">
+                  <div class="hidden grid-cols-[minmax(140px,.8fr)_minmax(0,1fr)_16px_minmax(0,1fr)] gap-3 border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-[var(--dh-text-muted)] sm:grid">
+                    <span>Campo modificado</span>
+                    <span>Antes</span>
+                    <span></span>
+                    <span>Después</span>
+                  </div>
+                  <div v-for="(change, changeIndex) in accountAuditChanges(entry)" :key="entry.id + '-' + changeIndex"
+                    class="grid gap-2 border-b border-[var(--dh-border)] px-3 py-3 text-xs last:border-0 sm:grid-cols-[minmax(140px,.8fr)_minmax(0,1fr)_16px_minmax(0,1fr)] sm:items-start sm:gap-3">
+                    <span class="font-bold">{{ accountAuditLabel(change.field) }}</span>
+                    <div class="min-w-0">
+                      <span class="mb-1 block text-[10px] font-semibold text-[var(--dh-text-muted)] sm:hidden">Antes</span>
+                      <span class="block whitespace-pre-wrap break-words text-[var(--dh-text-muted)]">{{ accountAuditValue(change.before, change.field) }}</span>
+                    </div>
+                    <ArrowRight class="hidden h-3.5 w-3.5 text-[var(--dh-text-muted)] sm:block" aria-hidden="true" />
+                    <div class="min-w-0">
+                      <span class="mb-1 block text-[10px] font-semibold text-[var(--dh-text-muted)] sm:hidden">Después</span>
+                      <span class="block whitespace-pre-wrap break-words font-semibold">{{ accountAuditValue(change.after, change.field) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="accountAuditReason(entry)" class="mt-3 flex flex-wrap items-start gap-x-2 gap-y-1 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5 text-xs">
+                  <span class="shrink-0 font-bold text-[var(--dh-text-muted)]">Motivo:</span>
+                  <span class="min-w-0 flex-1 whitespace-pre-wrap break-words">{{ accountAuditReason(entry) }}</span>
+                </div>
+                <p v-if="!accountAuditChanges(entry).length && !accountAuditReason(entry)" class="text-xs leading-relaxed text-[var(--dh-text-muted)]">
+                  Registro de creación recuperado. No se dispone del detalle de modificaciones anteriores a la activación de la auditoría.
+                </p>
               </div>
-            </div>
+            </details>
+          </li>
+        </ol>
+        <footer v-if="accountChangesTotal > 15" class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4 text-xs">
+          <span class="text-[var(--dh-text-muted)]">
+            Mostrando {{ (accountChangesPage - 1) * 15 + 1 }}–{{ Math.min(accountChangesPage * 15, accountChangesTotal) }} de {{ accountChangesTotal }}
+          </span>
+          <div class="flex items-center gap-2">
+            <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage <= 1 || accountChangesLoading" @click="changeAccountChangesPage(-1)">Anterior</button>
+            <span class="px-2 font-semibold">{{ accountChangesPage }}</span>
+            <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage * 15 >= accountChangesTotal || accountChangesLoading" @click="changeAccountChangesPage(1)">Siguiente</button>
           </div>
-          <p v-else class="mt-2 text-xs text-[var(--dh-text-muted)]">
-            Registro inicial recuperado de la fecha de creación. Los cambios anteriores a la activación del historial no están disponibles.
-          </p>
-        </li>
-      </ol>
-      <footer v-if="accountChangesTotal > 15" class="flex items-center justify-end gap-3 text-xs">
-        <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage <= 1 || accountChangesLoading" @click="changeAccountChangesPage(-1)">Anterior</button>
-        <span>Página {{ accountChangesPage }} · {{ accountChangesTotal }} eventos</span>
-        <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage * 15 >= accountChangesTotal || accountChangesLoading" @click="changeAccountChangesPage(1)">Siguiente</button>
-      </footer>
+        </footer>
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'history'" id="crm-account-history" role="tabpanel" class="space-y-3">
