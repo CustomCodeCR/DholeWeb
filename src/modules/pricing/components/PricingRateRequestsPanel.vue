@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Ban, CheckCircle2, Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
@@ -72,6 +72,7 @@ const recoveryRates = ref<RateDto[]>([])
 const recoveryRateId = ref('')
 const recoveryLoading = ref(false)
 const recoverySaving = ref(false)
+const recoveryMismatchAcknowledged = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
 let timer: number | undefined
@@ -295,6 +296,7 @@ function openRecovery(request: RateRequestDto) {
   recoverySearch.value = ''
   recoveryRates.value = []
   recoveryRateId.value = ''
+  recoveryMismatchAcknowledged.value = false
 }
 
 function closeRecovery() {
@@ -311,6 +313,7 @@ async function searchExistingRates() {
   }
   recoveryLoading.value = true
   recoveryRateId.value = ''
+  recoveryMismatchAcknowledged.value = false
   recoveryRates.value = []
   try {
     const result = await PricingService.browseRates({ search, pageNumber: 1, pageSize: 20 })
@@ -330,13 +333,46 @@ function normalizeClient(value?: string | null) {
     .replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
 }
 
+// A seller's request only stores a client name, not a stable CRM account ID.
+// A different spelling or a changed route must be disclosed, not silently linked
+// and not rejected without giving Pricing a way to validate the existing quote.
+const recoverySelectedRate = computed(() =>
+  recoveryRates.value.find(rate => rate.id === recoveryRateId.value) ?? null
+)
+const recoveryClientMismatch = computed(() => {
+  const requestName = recoveryTarget.value?.clientName
+  const rateName = recoverySelectedRate.value?.clientName
+  return Boolean(requestName?.trim() && rateName?.trim()
+    && normalizeClient(requestName) !== normalizeClient(rateName))
+})
+const recoveryRouteMismatch = computed(() => {
+  const request = recoveryTarget.value
+  const rate = recoverySelectedRate.value
+  if (!request || !rate) return false
+  const locations = [
+    [stringValue(request, 'originId'), rate.polId, request.originName, rate.polName],
+    [request.poeId || stringValue(request, 'destinationId'), rate.poeId,
+      request.poeName || request.destinationName, rate.poeName],
+    [request.podId || stringValue(request, 'podId'), rate.podId,
+      request.podName, rate.podName],
+  ] as const
+  return locations.some(([requestedId, quoteId, requestedName, quoteName]) => {
+    if (requestedId && quoteId) return requestedId.toLowerCase() !== quoteId.toLowerCase()
+    return Boolean(requestedName?.trim() && quoteName?.trim()
+      && normalizeClient(requestedName) !== normalizeClient(quoteName))
+  })
+})
+const recoveryNeedsConfirmation = computed(() =>
+  recoveryClientMismatch.value || recoveryRouteMismatch.value
+)
+watch(recoveryRateId, () => { recoveryMismatchAcknowledged.value = false })
+
 async function confirmRecovery() {
   const request = recoveryTarget.value
-  const rate = recoveryRates.value.find(candidate => candidate.id === recoveryRateId.value)
-  if (!request || !rate || recoverySaving.value) return
-  if (normalizeClient(request.clientName) && normalizeClient(rate.clientName)
-    && normalizeClient(request.clientName) !== normalizeClient(rate.clientName)) {
-    toast.error('Cliente diferente', 'La tarifa seleccionada pertenece a otro cliente. No se vinculó la solicitud.')
+  const rate = recoverySelectedRate.value
+  if (!request || !rate || recoverySaving.value || recoveryLoading.value) return
+  if (recoveryNeedsConfirmation.value && !recoveryMismatchAcknowledged.value) {
+    toast.warning('Verifique la tarifa', 'Revise las diferencias de cliente y ruta y confirme la vinculación expresamente.')
     return
   }
 
@@ -646,9 +682,20 @@ onBeforeUnmount(() => {
                 </span>
               </label>
             </div>
+            <div v-if="recoverySelectedRate" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3 text-sm" role="status">
+              <p class="font-bold">Verifique la solicitud y la QUO antes de vincular</p>
+              <p>Solicitud: <strong>{{ recoveryTarget.clientName || 'Cliente sin definir' }}</strong> · {{ recoveryTarget.originName || 'Origen no indicado' }} → {{ recoveryTarget.poeName || recoveryTarget.destinationName || 'Destino no indicado' }}</p>
+              <p>QUO: <strong>{{ recoverySelectedRate.clientName || 'Cliente sin definir' }}</strong> · {{ recoverySelectedRate.polName || 'Origen no indicado' }} → {{ recoverySelectedRate.poeName || 'Destino no indicado' }}</p>
+              <p v-if="recoveryClientMismatch" class="font-semibold text-red-600 dark:text-red-400">El nombre del cliente no coincide.</p>
+              <p v-if="recoveryRouteMismatch" class="font-semibold text-amber-600 dark:text-amber-400">La ruta de la tarifa no coincide con la solicitud.</p>
+              <label v-if="recoveryNeedsConfirmation" class="flex cursor-pointer items-start gap-2 rounded-lg bg-[var(--dh-card)] p-3">
+                <input v-model="recoveryMismatchAcknowledged" type="checkbox" class="mt-1" :disabled="recoverySaving" />
+                <span>He verificado que esta QUO corresponde a la solicitud, a pesar de las diferencias indicadas. Confirmo expresamente su vinculación y el envío al vendedor.</span>
+              </label>
+            </div>
             <div class="flex flex-wrap justify-end gap-2">
               <DhButton variant="secondary" :disabled="recoverySaving" @click="closeRecovery">Cancelar</DhButton>
-              <DhButton :disabled="!recoveryRateId || recoverySaving || recoveryLoading" @click="confirmRecovery">
+              <DhButton :disabled="!recoverySelectedRate || recoverySaving || recoveryLoading || (recoveryNeedsConfirmation && !recoveryMismatchAcknowledged)" @click="confirmRecovery">
                 {{ recoverySaving ? 'Vinculando…' : 'Confirmar vinculación' }}
               </DhButton>
             </div>
