@@ -51,6 +51,33 @@ const resolvedSupplierTypes = computed(() =>
 const validSupplierType = computed(() => resolvedSupplierTypes.value.length > 0)
 
 const supplierDescription = ref('')
+type SupplierPaymentType = 'unspecified' | 'cash' | 'advance' | 'credit'
+type SupplierCreditTerms = {
+  paymentType: SupplierPaymentType
+  days: number | null
+  limit: number | null
+  currency: string
+  notes: string
+}
+const paymentType = ref<SupplierPaymentType>('unspecified')
+const creditDays = ref<number | null>(null)
+const creditLimit = ref<number | null>(null)
+const creditCurrency = ref('USD')
+const creditNotes = ref('')
+const paymentTypeOptions = computed(() => [
+  { value: 'unspecified', label: en.value ? 'Not specified' : 'Sin registrar' },
+  { value: 'cash', label: en.value ? 'Cash / immediate payment' : 'Contado' },
+  { value: 'advance', label: en.value ? 'Advance payment' : 'Pago anticipado' },
+  { value: 'credit', label: en.value ? 'Credit' : 'Crédito' },
+])
+const creditCurrencyOptions = [
+  { value: 'USD', label: 'USD' },
+  { value: 'CRC', label: 'CRC' },
+  { value: 'EUR', label: 'EUR' },
+]
+function paymentTypeLabel(type: SupplierPaymentType): string {
+  return paymentTypeOptions.value.find(option => option.value === type)?.label || type
+}
 type SupplierContact = { name: string; email: string; phone: string; role: string }
 const contacts = ref<SupplierContact[]>([])
 function newContact(): SupplierContact { return { name: '', email: '', phone: '', role: '' } }
@@ -88,6 +115,30 @@ function metadata(row: CatalogItemDto): Record<string, unknown> {
     return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj as Record<string, unknown> : {}
   } catch { return {} }
 }
+function supplierCreditTerms(row: CatalogItemDto): SupplierCreditTerms {
+  const value = metadata(row).creditTerms
+  const info = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : {}
+  const kind = info.paymentType
+  const paymentType: SupplierPaymentType =
+    kind === 'credit' || kind === 'cash' || kind === 'advance' ? kind : 'unspecified'
+  const days = typeof info.days === 'number' && Number.isInteger(info.days) && info.days > 0
+    ? info.days : null
+  const limit = typeof info.limit === 'number' && Number.isFinite(info.limit) && info.limit >= 0
+    ? info.limit : null
+  return {
+    paymentType, days, limit,
+    currency: info.currency === 'CRC' || info.currency === 'EUR' ? info.currency : 'USD',
+    notes: typeof info.notes === 'string' ? info.notes : '',
+  }
+}
+function formatCreditLimit(terms: SupplierCreditTerms): string {
+  if (terms.limit === null) return '—'
+  return new Intl.NumberFormat(en.value ? 'en-US' : 'es-CR', {
+    style: 'currency', currency: terms.currency, minimumFractionDigits: 2,
+  }).format(terms.limit)
+}
+
 function normalizeSupplierCategory(value: string): string {
   const slug = value.trim().toLowerCase()
   // Preserve existing internal slugs for Pricing and map former specific types to "Otros".
@@ -198,6 +249,11 @@ function resetForm() {
   supplierName.value = ''
   supplierType.value = []
   supplierDescription.value = ''
+  paymentType.value = 'unspecified'
+  creditDays.value = null
+  creditLimit.value = null
+  creditCurrency.value = 'USD'
+  creditNotes.value = ''
   contacts.value = []
   countryIds.value = []
 }
@@ -210,6 +266,12 @@ function openEdit(item: Supplier) {
   supplierType.value = supplierCategories(item)
   supplierDescription.value = item.description || ''
   const info = metadata(item)
+  const terms = supplierCreditTerms(item)
+  paymentType.value = terms.paymentType
+  creditDays.value = terms.days
+  creditLimit.value = terms.limit
+  creditCurrency.value = terms.currency
+  creditNotes.value = terms.notes
   contacts.value = supplierContacts(item)
   countryIds.value = Array.isArray(info.countryIds) && info.countryIds.length
     ? info.countryIds.filter((id): id is string => typeof id === 'string' && !!id.trim())
@@ -241,6 +303,17 @@ async function saveSupplier() {
       : 'Ingresá el nombre de cada contacto agregado o eliminá el contacto incompleto.'
     return
   }
+  if (paymentType.value === 'credit' &&
+      (!Number.isInteger(Number(creditDays.value)) || Number(creditDays.value) < 1 || Number(creditDays.value) > 365)) {
+    error.value = en.value ? 'Enter a credit term between 1 and 365 days.' : 'Ingresá un plazo de crédito entre 1 y 365 días.'
+    return
+  }
+  const hasCreditLimit = String(creditLimit.value ?? '').trim() !== ''
+  if (paymentType.value === 'credit' && hasCreditLimit &&
+      (!Number.isFinite(Number(creditLimit.value)) || Number(creditLimit.value) < 0)) {
+    error.value = en.value ? 'Enter a valid credit limit.' : 'Ingresá un límite de crédito válido.'
+    return
+  }
   saving.value = true
   error.value = ''
   try {
@@ -259,6 +332,13 @@ async function saveSupplier() {
         [...new Set([...(Array.isArray(retained.legacySupplierTypes)
           ? retained.legacySupplierTypes.filter((item): item is string => typeof item === 'string') : []),
           ...previousSpecificTypes])] } : {}),
+      creditTerms: paymentType.value === 'unspecified' ? null : {
+        paymentType: paymentType.value,
+        days: paymentType.value === 'credit' ? Number(creditDays.value) : null,
+        limit: paymentType.value === 'credit' && hasCreditLimit ? Number(creditLimit.value) : null,
+        currency: creditCurrency.value,
+        notes: creditNotes.value.trim(),
+      },
       contacts: filledContacts,
       contactName: filledContacts[0]?.name || '',
       contactEmail: filledContacts[0]?.email || '',
@@ -519,6 +599,32 @@ onMounted(() => {
             </div>
             <p v-else class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'No contacts registered.' : 'No hay contactos registrados.' }}</p>
           </section>
+          <section class="border-t border-[var(--dh-border)] pt-4">
+            <h3 class="mb-3 text-sm font-bold">{{ en ? 'Supplier payment terms' : 'Condiciones de crédito del proveedor' }}</h3>
+            <p v-if="supplierCreditTerms(selected).paymentType === 'unspecified'" class="text-xs text-[var(--dh-text-muted)]">
+              {{ en ? 'No payment terms registered.' : 'Sin condiciones registradas.' }}
+            </p>
+            <dl v-else class="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Payment method' : 'Forma de pago' }}</dt>
+                <dd class="mt-1 font-semibold">{{ paymentTypeLabel(supplierCreditTerms(selected).paymentType) }}</dd>
+              </div>
+              <template v-if="supplierCreditTerms(selected).paymentType === 'credit'">
+                <div>
+                  <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit term' : 'Plazo de crédito' }}</dt>
+                  <dd class="mt-1 font-semibold">{{ supplierCreditTerms(selected).days }} {{ en ? 'days' : 'días' }}</dd>
+                </div>
+                <div v-if="supplierCreditTerms(selected).limit !== null">
+                  <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Credit limit' : 'Límite de crédito' }}</dt>
+                  <dd class="mt-1 font-semibold">{{ formatCreditLimit(supplierCreditTerms(selected)) }}</dd>
+                </div>
+              </template>
+              <div v-if="supplierCreditTerms(selected).notes" class="sm:col-span-2">
+                <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Payment notes' : 'Observaciones' }}</dt>
+                <dd class="mt-1 whitespace-pre-wrap">{{ supplierCreditTerms(selected).notes }}</dd>
+              </div>
+            </dl>
+          </section>
           <section v-if="selected.description" class="border-t border-[var(--dh-border)] pt-4">
             <h3 class="mb-2 text-sm font-bold">{{ en ? 'Description' : 'Descripción' }}</h3>
             <p class="whitespace-pre-wrap text-sm text-[var(--dh-text-muted)]">{{ selected.description }}</p>
@@ -583,6 +689,33 @@ onMounted(() => {
               </label>
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
+          </section>
+          <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+            <h3 class="text-sm font-bold">{{ en ? 'Supplier payment terms' : 'Condiciones de crédito del proveedor' }}
+              <span class="font-medium text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span>
+            </h3>
+            <DhSelect v-model="paymentType" :options="paymentTypeOptions"
+              :label="en ? 'Payment method' : 'Forma de pago'" />
+            <div v-if="paymentType === 'credit'" class="grid gap-3 md:grid-cols-2">
+              <label class="text-xs font-semibold">{{ en ? 'Credit term (days) *' : 'Plazo de crédito (días) *' }}
+                <input v-model.number="creditDays" type="number" required min="1" max="365" step="1"
+                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+              </label>
+              <label class="text-xs font-semibold">{{ en ? 'Credit limit (optional)' : 'Límite de crédito (opcional)' }}
+                <input v-model.number="creditLimit" type="number" min="0" step="0.01"
+                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+              </label>
+              <div class="min-w-0">
+                <DhSelect v-model="creditCurrency" :options="creditCurrencyOptions"
+                  :label="en ? 'Credit currency' : 'Moneda del crédito'" />
+              </div>
+            </div>
+            <label v-if="paymentType !== 'unspecified'" class="block text-xs font-semibold">
+              {{ en ? 'Payment conditions / notes' : 'Condiciones de pago / observaciones' }}
+              <textarea v-model="creditNotes" rows="3" maxlength="1000"
+                class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"
+                :placeholder="en ? 'Additional agreed payment conditions' : 'Acuerdos adicionales con el proveedor'"></textarea>
+            </label>
           </section>
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
