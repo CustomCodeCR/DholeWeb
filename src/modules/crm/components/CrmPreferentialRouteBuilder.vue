@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
-import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
+import CrmPricingLocationSelect from './CrmPricingLocationSelect.vue'
+import CrmPricingEquipmentSelect from './CrmPricingEquipmentSelect.vue'
 import DhSelect from '@/shared/components/atoms/DhSelect.vue'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
@@ -192,16 +193,16 @@ async function save() {
         </span>
       </label>
 
-      <CrmMultiCatalogPicker v-model="route.equipmentCodes" single label="Equipo"
-        placeholder="Buscar tamaño o tipo de equipo" :catalog-group-slugs="equipmentGroups" />
-      <CrmMultiCatalogPicker v-model="route.polCodes" single label="Origen (POL)"
+      <CrmPricingEquipmentSelect v-model="route.equipmentCodes"
+        label="Equipo" :catalog-group-slugs="equipmentGroups" />
+      <CrmPricingLocationSelect v-model="route.polCodes" label="Origen (POL)"
         placeholder="Buscar puerto de origen" :catalog-group-slugs="['pol']"
         :route-mode="route.shipment" route-role="pol" />
-      <CrmMultiCatalogPicker v-model="route.poeCodes" single label="Destino (POE)"
+      <CrmPricingLocationSelect v-model="route.poeCodes" label="Destino (POE)"
         placeholder="Buscar puerto de entrada" :catalog-group-slugs="['poe']"
         :route-mode="route.shipment" route-role="poe" />
-      <CrmMultiCatalogPicker v-if="route.modality==='MARITIME'" v-model="route.podCodes"
-        single label="POD requerido" placeholder="Buscar destino final"
+      <CrmPricingLocationSelect v-if="route.modality==='MARITIME'" v-model="route.podCodes"
+        label="POD requerido" placeholder="Buscar destino final"
         :catalog-group-slugs="['pod']" :route-mode="route.shipment" route-role="pod" />
     </div>
     <button type="button" class="route-action mt-4" :disabled="saving || costsLoading" @click="consult">
