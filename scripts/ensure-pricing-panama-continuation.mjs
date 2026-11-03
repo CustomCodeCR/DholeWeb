@@ -110,13 +110,15 @@ source = replaceOnce(
   'búsqueda de tramos vía Panamá',
 )
 
-source = replaceOnce(
-  source,
-  `function modalityForRate(rate: RateDto): Modality {\n  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'\n  if (rate.shipmentMode === 'Fcl' || rate.shipmentMode === 'Lcl') return 'Maritime'\n  return 'Multimodal'\n}`,
-  `function continuationModeFromRate(rate: RateDto): PanamaContinuationMode {\n  const details = rate.rateDetails ?? []\n  if (details.some((detail) =>\n    normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`).includes('segundo flete maritimo')\n    || String(detail.notes ?? '').includes('DHOLE_PANAMA_CONTINUATION:'),\n  )) return 'DoubleMaritime'\n  if (details.some((detail) =>\n    normalizeCatalogValue(detail.name).includes('flete terrestre internacional'),\n  )) return 'MaritimeLand'\n  return ''\n}\n\nfunction modalityForRate(rate: RateDto): Modality {\n  if (continuationModeFromRate(rate)) return 'Multimodal'\n  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'\n  if (rate.shipmentMode === 'Fcl' || rate.shipmentMode === 'Lcl') return 'Maritime'\n  return 'Multimodal'\n}`,
-  'detección de multimodal al editar',
-)
-
+// The wizard now has its own maritime-LCL inference. Inject only the Panamá
+// continuation detection instead of replacing modalityForRate wholesale.
+if (!source.includes('function continuationModeFromRate(rate: RateDto)')) {
+  const modalityAnchor = 'function modalityForRate(rate: RateDto): Modality {'
+  const continuationSnippet = `function continuationModeFromRate(rate: RateDto): PanamaContinuationMode {\n  const details = rate.rateDetails ?? []\n  if (details.some((detail) =>\n    normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`).includes('segundo flete maritimo')\n    || String(detail.notes ?? '').includes('DHOLE_PANAMA_CONTINUATION:'),\n  )) return 'DoubleMaritime'\n  if (details.some((detail) =>\n    normalizeCatalogValue(detail.name).includes('flete terrestre internacional'),\n  )) return 'MaritimeLand'\n  return ''\n}\n\nfunction modalityForRate(rate: RateDto): Modality {\n  if (continuationModeFromRate(rate)) return 'Multimodal'\n  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'\n  if (rate.shipmentMode === 'Fcl' || rate.shipmentMode === 'Lcl') return 'Maritime'\n  return 'Multimodal'\n}`
+  source = replaceOnce(source, modalityAnchor,
+    continuationSnippet + '\n\n' + modalityAnchor + "\n  if (continuationModeFromRate(rate)) return 'Multimodal'",
+    'detección de multimodal al editar')
+}
 source = replaceOnce(
   source,
   `    const modality = modalityForRate(rate)\n    const equipment =`,
