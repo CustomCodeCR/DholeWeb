@@ -4,6 +4,11 @@ import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
 import type { RateRevisionDto } from '@/core/interfaces/pricing'
+import {
+  historicalChargeBasisLabel,
+  historicalCostDetailTypeLabel,
+  historicalCostTypeLabel,
+} from '@/modules/pricing/utils/pricingHistoricalEnumLabels'
 
 type JsonRecord = Record<string, unknown>
 
@@ -56,6 +61,13 @@ function storedNumber(value: unknown, decimals = 2): string {
 
 function lineCurrency(detail: JsonRecord) {
   return normalizeCurrency(pick(detail, 'CurrencyName', 'currencyName', 'CurrencyCode', 'currencyCode'))
+}
+
+function lineDetailType(detail: JsonRecord) {
+  const detailType = pick(detail, 'CostDetailType', 'costDetailType')
+  if (detailType !== null && detailType !== '') return historicalCostDetailTypeLabel(detailType)
+  // Some legacy revisions stored only CostType.
+  return historicalCostTypeLabel(pick(detail, 'CostType', 'costType'))
 }
 function lineQuantity(detail: JsonRecord) {
   const quantity = numberValue(pick(detail, 'Quantity', 'quantity'))
@@ -468,7 +480,7 @@ const cargoAndOperation = computed(() => [
             <tr>
               <th class="px-3 py-2">Rubro</th>
               <th class="px-3 py-2">Base</th>
-              <th class="px-3 py-2">Tipo</th>
+              <th class="px-3 py-2">Tipo de cargo</th>
               <th class="px-3 py-2">Moneda</th>
               <th class="px-3 py-2">Facturar / cobrar a</th>
               <th class="px-3 py-2 text-right">Cant.</th>
@@ -483,8 +495,8 @@ const cargoAndOperation = computed(() => [
           <tbody>
             <tr v-for="(detail, index) in details" :key="String(pick(detail, 'Id', 'id') ?? index)" class="border-t border-[var(--dh-border)]">
               <td class="px-3 py-2 font-bold">{{ textValue(pick(detail, 'Name', 'name')) }}</td>
-              <td class="px-3 py-2">{{ textValue(pick(detail, 'ChargeBasis', 'chargeBasis')) }}</td>
-              <td class="px-3 py-2">{{ textValue(pick(detail, 'CostDetailType', 'costDetailType', 'CostType', 'costType')) }}</td>
+              <td class="px-3 py-2">{{ historicalChargeBasisLabel(pick(detail, 'ChargeBasis', 'chargeBasis')) }}</td>
+              <td class="px-3 py-2">{{ lineDetailType(detail) }}</td>
               <td class="px-3 py-2">{{ lineCurrency(detail) }}</td>
               <td class="px-3 py-2">{{ textValue(pick(detail, 'BillToClient', 'billToClient')) }}</td>
               <td class="px-3 py-2 text-right">{{ storedNumber(pick(detail, 'Quantity', 'quantity'), 3) }}</td>
