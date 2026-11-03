@@ -2275,6 +2275,16 @@ function isFlatPickupLine(line: RateLine) {
 }
 
 function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {
+  // An own maritime LCL consolidation bills its international freight by
+  // chargeable CBM. Old air-to-maritime edits can retain PerKg on that row.
+  // Do not rewrite CFS (physical CBM), Miami (CFT) or other services.
+  if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
+    && line.costDetailType === 'Freight'
+    && ['PerKg', 'PerLb', 'Per100Kg', 'PerTon'].includes(line.chargeBasis)
+    && (/LCL\s*PROPIO|ConsolidadoId:|Fuente LCL:\s*Propio/i.test(String(line.notes ?? ''))
+      || (editingRate.value !== null && isOwnMaritimeLclRate(editingRate.value)))) {
+    return 'PerChargeableCbm'
+  }
   return !line.manual && isFlatPickupLine(line) ? 'PerShipment' : line.chargeBasis
 }
 
@@ -2293,7 +2303,7 @@ function quantityForRateLine(line: RateLine) {
     && explicitQuantity > 0
 
   if (mixedFclFreightQuantity) return explicitQuantity
-  return quantityForChargeBasis(line.chargeBasis, operationalConditionsForLine(line))
+  return quantityForChargeBasis(effectiveChargeBasisForLine(line), operationalConditionsForLine(line))
 }
 
 function detailTypeLabel(type: CostDetailType) {
@@ -3625,13 +3635,21 @@ async function applySelectedWarehouse() {
   }
 }
 
+function isOwnMaritimeLclRate(rate: RateDto): boolean {
+  return String(rate.shipmentMode).toLowerCase() === 'lcl'
+    && (rate.rateDetails ?? []).some((detail) =>
+      /LCL\s*PROPIO|ConsolidadoId:|Fuente LCL:\s*Propio/i.test(String(detail.notes ?? '')))
+}
+
 function modalityForRate(rate: RateDto): Modality {
   if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Land'
   if (rate.shipmentMode === 'Lcl') {
-    // Backend historically saved maritime and air LCL under ShipmentMode.Lcl.
-    // Preserve air context when reopening a quotation, including legacy PDFs.
+    // The source of the maritime consolidation is stronger evidence than an
+    // inherited PerKg basis from a quotation previously edited as Air LCL.
+    if (isOwnMaritimeLclRate(rate)) return 'Maritime'
     const airFreight = (rate.rateDetails ?? []).some((detail) =>
-      detail.costDetailType === 'Freight' && (detail.chargeBasis === 'PerKg' || detail.chargeBasis === 'PerLb' || detail.chargeBasis === 'Per100Kg'))
+      detail.costDetailType === 'Freight'
+      && ['PerKg', 'PerLb', 'Per100Kg'].includes(detail.chargeBasis))
     const cargoText = (rate.cargoLines ?? []).map((line) => line.description ?? '').join(' ')
     const hasFlightContext = /a[eé]re[ao]|aviaci[oó]n|aeropuerto|airport|vuelos?/i.test(cargoText)
     const airportRoute = /\([A-Z]{3}\)/.test(rate.polName ?? '') && /\([A-Z]{3}\)/.test(rate.poeName ?? '')
@@ -4033,7 +4051,7 @@ async function downloadRateLinesExcel() {
         chargeType,
         name: line.name,
         notes: line.notes ?? '',
-        basis: chargeBasisLabel(effectiveChargeBasisForLine(line)),
+        basis: quoteShownBasis(line),
         quantity,
         currency: detailCurrencyValue(line),
         billTo: line.billToClient || '',
@@ -4586,6 +4604,18 @@ async function saveRate() {
       'Recolecta de origen pendiente',
       'Complete el costo y la venta de la recolecta del POL comercial al consolidado físico en Pantalla 7.',
     )
+    return
+  }
+  // Never persist the old air weight basis as maritime LCL freight. A new
+  // maritime tariff source must be selected unless this is a known own-LCL
+  // consolidation, which is normalized to billable CBM above.
+  const staleAirFreight = form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
+    && includedLines.value.some((line) => line.costDetailType === 'Freight'
+      && ['PerKg', 'PerLb', 'Per100Kg', 'PerTon'].includes(effectiveChargeBasisForLine(line)))
+  if (staleAirFreight) {
+    step.value = 5
+    toastStore.warning('Seleccione un flete LCL marítimo',
+      'El flete conserva una base aérea por peso. Seleccione la fuente marítima para calcularlo por CBM cobrable antes de guardar.')
     return
   }
   // Seller changes to screens 1-4 must not erase the pre-existing LCL
