@@ -59,7 +59,7 @@ type SupplierCreditTerms = {
   currency: string
   notes: string
 }
-const paymentType = ref<SupplierPaymentType>('unspecified')
+const paymentType = ref('unspecified')
 const creditDays = ref<number | null>(null)
 const creditLimit = ref<number | null>(null)
 const creditCurrency = ref('USD')
