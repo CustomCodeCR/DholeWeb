@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
 import CrmPricingLocationSelect from './CrmPricingLocationSelect.vue'
 import CrmPricingEquipmentSelect from './CrmPricingEquipmentSelect.vue'
 import DhSelect from '@/shared/components/atoms/DhSelect.vue'
+import { Search, ChevronDown, Layers3, Ship, MapPin, PackageCheck } from 'lucide-vue-next'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import { sellerRateCurrencyValue } from '@/modules/pricing/utils/sellerRateCurrency'
+import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis } from '../utils/crmPreferentialCostGroups'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
 
@@ -28,6 +33,18 @@ const route = reactive({
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
+const currencies = ref<CatalogItemSelectDto[]>([])
+const searchTerm = ref('')
+const expandedZones = ref<string[]>(['origin','destination','transit','other'])
+const expandedProviders = ref<string[]>([])
+async function loadCurrencies() {
+  try {
+    currencies.value = await CatalogItemsService.select({ catalogGroupSlug: 'currencies' })
+  } catch {
+    currencies.value = []
+  }
+}
+onMounted(() => void loadCurrencies())
 const modalityOptions = [
   { value: 'MARITIME', label: 'Marítimo' },
   { value: 'TERRESTRIAL', label: 'Terrestre' },
@@ -48,6 +65,32 @@ const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : 
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
   }))
   .sort((a, b) => a.costDetailType.localeCompare(b.costDetailType) || a.name.localeCompare(b.name, 'es')))
+const filteredCosts = computed(() => {
+  const needle = searchTerm.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .trim().toLocaleLowerCase()
+  if (!needle) return costsForRoute.value
+  return costsForRoute.value.filter(cost => {
+    const owners = preferentialCostOwners(cost)
+    const haystack = [cost.name, cost.costDetailType, preferentialCostBasis(cost.chargeBasis),
+      ...owners.agentNames, ...owners.carrierNames, cost.portName].join(' ')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase()
+    return haystack.includes(needle)
+  })
+})
+const costSections = computed(() => groupPreferentialCosts(filteredCosts.value))
+const expanded = (key: string) => expandedZones.value.includes(key)
+const providerExpanded = (key: string) => !!searchTerm.value.trim() || expandedProviders.value.includes(key)
+function toggleZone(key: string) {
+  expandedZones.value = expanded(key) ? expandedZones.value.filter(x => x !== key) : [...expandedZones.value,key]
+}
+function toggleProvider(key: string) {
+  expandedProviders.value = expandedProviders.value.includes(key)
+    ? expandedProviders.value.filter(x => x !== key) : [...expandedProviders.value,key]
+}
+function toggleAllProviders() {
+  const all = costSections.value.flatMap(s => s.providers.map(p => p.key))
+  expandedProviders.value = all.length && all.every(k => expandedProviders.value.includes(k)) ? [] : all
+}
 const normalized = (codes: string[] | undefined) => (codes ?? []).map(x => x.toUpperCase()).sort().join('|')
 function scopeMatches(rate: SavedRate) {
   return rate.modality === route.shipment && rate.laneCode === laneCode.value &&
@@ -84,6 +127,9 @@ function consult() {
     return
   }
   editedSales.value = {}; preview.value = true
+  searchTerm.value = ''
+  expandedZones.value = ['origin','destination','transit','other']
+  expandedProviders.value = []
   const insured = existingInsurance()
   insuranceEnabled.value = !!insured
   insuranceCost.value = insured?.insuranceCostPercent == null ? '' : String(insured.insuranceCostPercent)
@@ -96,8 +142,13 @@ function saleValue(cost: CostSelectDto) {
 function editSale(cost: CostSelectDto, value: string) {
   editedSales.value = { ...editedSales.value, [cost.id]: value }
 }
-const money = (value: number, code: string) =>
-  code + ' ' + Number(value ?? 0).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })
+const currencyFor = (cost: CostSelectDto): string | null =>
+  sellerRateCurrencyValue(cost, currencies.value)
+const money = (value: number, cost: CostSelectDto) =>
+  (currencyFor(cost) ?? 'Moneda no identificada') + ' ' +
+  Number(value ?? 0).toLocaleString('es-CR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 6,
+  })
 const validPercent = (value: string) =>
   value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100
 function scope() {
@@ -122,8 +173,9 @@ async function save() {
       error.value = 'La venta de ' + cost.name + ' debe ser un número válido y no negativo.'
       return
     }
-    if (!['USD', 'CRC'].includes(cost.currencyCode.toUpperCase())) {
-      error.value = 'El ítem ' + cost.name + ' utiliza una moneda que requiere conversión antes de guardarse.'
+    if (!['USD', 'CRC'].includes(currencyFor(cost) ?? '')) {
+      error.value = 'No se pudo resolver la moneda USD o CRC de ' + cost.name +
+        ' desde el Value del catálogo de monedas.'
       return
     }
   }
@@ -142,7 +194,7 @@ async function save() {
         customChargeName: cost.name.slice(0, 120), rateType: 'FIXED_AMOUNT',
         value: Number(saleValue(cost)), minimumCharge: null,
         insuranceCostPercent: null, insuranceSalePercent: null,
-        currencyCode: cost.currencyCode.toUpperCase(),
+        currencyCode: currencyFor(cost),
         unitCode: saleUnitForBasis(cost.chargeBasis),
       }
       await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
@@ -212,35 +264,111 @@ async function save() {
     <p v-if="error" role="alert" class="mt-3 rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="mt-3 rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
     <template v-if="preview">
-      <h4 class="mt-5 border-t border-[var(--dh-border)] pt-4 text-sm font-bold">
-        Ítems de costos y recargos ({{ costsForRoute.length }})
-      </h4>
-      <div class="mt-3 overflow-x-auto rounded-xl border border-[var(--dh-border)]">
-        <table class="w-full min-w-[660px] text-left text-xs">
-          <thead class="bg-[var(--dh-shell)]">
-            <tr><th class="p-3">Concepto</th><th class="p-3">Base</th><th class="p-3">Costo original</th>
-              <th class="p-3">Venta estándar</th><th class="p-3">Venta preferencial</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="cost in costsForRoute" :key="cost.id" class="border-t border-[var(--dh-border)]">
-              <td class="p-3 font-bold">{{ cost.name }}
-                <span class="block font-normal text-[var(--dh-text-muted)]">{{ cost.costDetailType }}</span>
-              </td>
-              <td class="p-3">{{ cost.chargeBasis }}</td>
-              <td class="p-3">{{ money(cost.costAmount,cost.currencyCode) }}</td>
-              <td class="p-3">{{ money(cost.saleAmount,cost.currencyCode) }}</td>
-              <td class="p-3">
-                <input type="number" min="0" step="0.000001" class="route-input max-w-44"
-                  :aria-label="'Venta preferencial de '+cost.name" :value="saleValue(cost)"
-                  @input="editSale(cost,($event.target as HTMLInputElement).value)" />
-                <small v-if="existingCost(cost)" class="block text-[var(--dh-primary)]">Acuerdo existente</small>
-              </td>
-            </tr>
-            <tr v-if="!costsForRoute.length"><td colspan="5" class="p-5 text-center text-[var(--dh-text-muted)]">
-              No hay costos configurados en Pricing compatibles con esta ruta.
-            </td></tr>
-          </tbody>
-        </table>
+      <div class="mt-6 border-t border-[var(--dh-border)] pt-5">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <Layers3 class="h-5 w-5 text-[var(--dh-primary)]" />
+              <h4 class="text-base font-black text-[var(--dh-text)]">Costos y recargos por proveedor y ubicación</h4>
+            </div>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              {{ costsForRoute.length }} conceptos de Pricing · Editá únicamente la venta preferencial.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="route-pill">{{ costSections.length }} secciones</span>
+            <span class="route-pill">{{ Object.keys(editedSales).length }} modificaciones sin guardar</span>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <label class="relative min-w-[240px] flex-1">
+            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
+            <input v-model="searchTerm" type="search"
+              aria-label="Buscar conceptos, agentes o navieras"
+              placeholder="Buscar cargo, agente, naviera o base de cobro…"
+              class="route-input w-full pl-10" />
+          </label>
+          <button type="button" class="route-action-secondary" @click="toggleAllProviders">
+            Expandir / contraer proveedores
+          </button>
+        </div>
+
+        <div v-if="!costsForRoute.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
+          No hay costos configurados en Pricing compatibles con esta ruta.
+        </div>
+        <p v-else-if="!filteredCosts.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
+          No se encontraron cargos con esa búsqueda.
+        </p>
+
+        <div v-else class="mt-4 space-y-3">
+          <section v-for="section in costSections" :key="section.key"
+            class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+            <button type="button" class="flex w-full items-center gap-3 p-4 text-left transition hover:bg-[var(--dh-card-hover)]"
+              :aria-expanded="expanded(section.key)" @click="toggleZone(section.key)">
+              <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]">
+                <MapPin v-if="section.key==='origin' || section.key==='destination'" class="h-5 w-5" />
+                <Ship v-else-if="section.key==='transit'" class="h-5 w-5" />
+                <PackageCheck v-else class="h-5 w-5" />
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-black">{{ section.label }}</span>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ section.description }}</span>
+              </span>
+              <span class="route-pill">{{ section.count }} cargos</span>
+              <ChevronDown class="h-4 w-4 shrink-0 transition" :class="expanded(section.key)?'rotate-180':''" />
+            </button>
+
+            <div v-if="expanded(section.key)" class="space-y-2 border-t border-[var(--dh-border)] p-3 sm:p-4">
+              <section v-for="owner in section.providers" :key="owner.key"
+                class="overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)]">
+                <button type="button" class="flex w-full items-center gap-3 p-3 text-left transition hover:bg-[var(--dh-card-hover)]"
+                  :aria-expanded="providerExpanded(owner.key)" @click="toggleProvider(owner.key)">
+                  <span class="min-w-0 flex-1">
+                    <span class="block break-words text-xs font-extrabold">{{ owner.label }}</span>
+                    <span class="mt-1 block text-[11px] text-[var(--dh-text-muted)]">
+                      {{ owner.costs.length }} conceptos
+                    </span>
+                  </span>
+                  <ChevronDown class="h-4 w-4 shrink-0 transition" :class="providerExpanded(owner.key)?'rotate-180':''" />
+                </button>
+
+                <div v-if="providerExpanded(owner.key)" class="border-t border-[var(--dh-border)] bg-[var(--dh-card)]">
+                  <div class="hidden grid-cols-[minmax(190px,2fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(140px,1.2fr)] gap-3 border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-2 text-[10px] font-black uppercase tracking-wide text-[var(--dh-text-muted)] lg:grid">
+                    <span>Concepto y base de cobro</span><span>Costo original</span>
+                    <span>Venta estándar</span><span>Venta preferencial</span>
+                  </div>
+                  <div v-for="cost in owner.costs" :key="cost.id"
+                    class="grid gap-3 border-b border-[var(--dh-border)] px-4 py-3 last:border-b-0 lg:grid-cols-[minmax(190px,2fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(140px,1.2fr)] lg:items-center"
+                    :class="Object.prototype.hasOwnProperty.call(editedSales,cost.id) ? 'bg-[rgb(var(--dh-primary-rgb)/0.035)]' : ''">
+                    <div class="min-w-0">
+                      <p class="break-words text-sm font-extrabold">{{ cost.name }}</p>
+                      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preferentialCostBasis(cost.chargeBasis) }}</p>
+                      <span v-if="existingCost(cost)" class="mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">Venta negociada</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Costo original</span>
+                      <span class="text-xs font-bold tabular-nums">{{ money(cost.costAmount, cost) }}</span>
+                    </div>
+                    <div>
+                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta estándar</span>
+                      <span class="text-xs font-bold tabular-nums">{{ money(cost.saleAmount, cost) }}</span>
+                    </div>
+                    <label class="min-w-0">
+                      <span class="block text-[10px] font-bold uppercase text-[var(--dh-text-muted)] lg:hidden">Venta preferencial</span>
+                      <span class="flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
+                        <span class="text-xs font-extrabold text-[var(--dh-text-muted)]">{{ currencyFor(cost) ?? '—' }}</span>
+                        <input type="number" min="0" step="0.000001" :value="saleValue(cost)"
+                          :aria-label="'Venta preferencial de '+cost.name" class="min-w-0 w-full bg-transparent text-right text-sm font-extrabold tabular-nums outline-none"
+                          @input="editSale(cost,($event.target as HTMLInputElement).value)" />
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
       </div>
       <div class="mt-4 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
         <label class="flex items-center gap-2 text-sm font-bold">
