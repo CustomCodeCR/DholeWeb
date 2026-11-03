@@ -52,14 +52,26 @@ const labels: Record<CommercialStatus, string> = {
   Sent: 'Enviadas', AcceptedByClient: 'Aceptadas', RejectedByClient: 'No aceptadas',
 }
 const statuses: CommercialStatus[] = ['Sent', 'AcceptedByClient', 'RejectedByClient']
+
+// Las ventas se atribuyen al día y mes comerciales de Costa Rica.
+function businessDateKey(value?: string | null): string {
+  if (!value) return ''
+  const instant = new Date(value)
+  if (Number.isNaN(instant.getTime())) return ''
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(instant)
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
 const monthOptions = computed(() =>
   [...new Set(rows.value
-    .map((row) => (dateType.value === 'approved' ? row.acceptedAtUtc : row.createdAtUtc)?.slice(0, 7))
+    .map((row) => businessDateKey(dateType.value === 'approved' ? row.acceptedAtUtc : row.createdAtUtc).slice(0, 7))
     .filter((value): value is string => Boolean(value && /^\d{4}-\d{2}$/.test(value))))]
     .sort((a, b) => b.localeCompare(a))
     .map((value) => ({
       value,
-      label: new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+      label: new Intl.DateTimeFormat('es-CR', { month: 'long', year: 'numeric', timeZone: 'America/Costa_Rica' })
         .format(new Date(`${value}-01T12:00:00Z`)),
     })),
 )
@@ -77,7 +89,7 @@ const filteredWithoutStatus = computed(() => {
   const needle = search.value.trim().toLocaleLowerCase('es')
   const selectedSeller = seller.value.toLocaleLowerCase('es')
   return rows.value.filter((row) => {
-    const selectedDate = dateType.value === 'approved' ? row.acceptedAtUtc : row.createdAtUtc
+    const selectedDate = businessDateKey(dateType.value === 'approved' ? row.acceptedAtUtc : row.createdAtUtc)
     return (
     (!month.value || selectedDate?.slice(0, 7) === month.value) &&
     (!dateFrom.value || Boolean(selectedDate && selectedDate.slice(0, 10) >= dateFrom.value)) &&
@@ -135,7 +147,7 @@ const amount = (value: number, currency: string) =>
 function date(value?: string | null) {
   if (!value) return '—'
   const timestamp = new Date(value)
-  return Number.isNaN(timestamp.getTime()) ? value : new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeZone: 'UTC' }).format(timestamp)
+  return Number.isNaN(timestamp.getTime()) ? value : new Intl.DateTimeFormat('es-CR', { dateStyle: 'medium', timeZone: 'America/Costa_Rica' }).format(timestamp)
 }
 function reportQuery() {
   const params = new URLSearchParams()
