@@ -393,7 +393,8 @@ async function load() {
   if (can('crm.activity.read') || can('crm.activity.read-all')) {
     tasks.push(fetchAll('activities', from, to)); sources.push('activity')
   }
-  if (can('crm.task.manage') || can('crm.followup.manage')) {
+  if (can('crm.task.manage') || can('crm.followup.manage') ||
+      can('crm.activity.read') || can('crm.activity.read-all')) {
     tasks.push(fetchAll('followups', from, to)); sources.push('followup')
   }
   const results = await Promise.allSettled(tasks)
