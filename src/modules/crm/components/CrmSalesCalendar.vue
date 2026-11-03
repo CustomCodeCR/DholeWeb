@@ -6,6 +6,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
@@ -40,6 +41,56 @@ const selected = ref(new Date())
 const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
 const rows = ref<CalendarEvent[]>([])
+const agreementDrafts = ref<CrmAgreementDraft[]>([])
+const calendarLabels = ref<{
+  accounts: Record<string, string>; leads: Record<string, string>; owners: Record<string, string>
+}>({ accounts: {}, leads: {}, owners: {} })
+const ownerFilter = ref('')
+const clientFilter = ref('')
+const isManagerCalendar = computed(() => !scopedRecord.value &&
+  (can('crm.activity.read-all') || can('crm.account.read-all') || can('crm.lead.read-all')))
+const sellerPalette = ['#047857', '#2563eb', '#7c3aed', '#c2410c', '#b45309',
+  '#0891b2', '#be185d', '#4f46e5', '#65a30d', '#0f766e']
+function sellerColor(userId: string): string {
+  let hash = 0
+  for (const char of userId) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0
+  return sellerPalette[hash % sellerPalette.length] ?? sellerPalette[0]!
+}
+function ownerName(event: CalendarEvent): string {
+  return calendarLabels.value.owners[event.ownerId] ||
+    (event.ownerId === auth.userId ? 'Mi agenda' : 'Vendedor asignado')
+}
+function clientName(event: CalendarEvent): string {
+  return calendarLabels.value.accounts[event.accountId] ||
+    calendarLabels.value.leads[event.leadId] || 'Cliente vinculado'
+}
+function clientKey(event: CalendarEvent): string {
+  return event.accountId ? 'a:' + event.accountId : 'l:' + event.leadId
+}
+const ownerChoices = computed(() => [...new Set(rows.value.map(x => x.ownerId).filter(Boolean))]
+  .sort((a,b) => (calendarLabels.value.owners[a] || a)
+    .localeCompare(calendarLabels.value.owners[b] || b)))
+const clientChoices = computed(() => {
+  const names = new Map<string, string>()
+  for (const item of rows.value) names.set(clientKey(item), clientName(item))
+  return [...names].sort((a,b) => a[1].localeCompare(b[1]))
+})
+const visibleRows = computed(() => rows.value.filter(row =>
+  (!isManagerCalendar.value || !ownerFilter.value || row.ownerId === ownerFilter.value) &&
+  (!isManagerCalendar.value || !clientFilter.value || clientKey(row) === clientFilter.value)))
+function sellerEventStyle(event: CalendarEvent) {
+  const color = sellerColor(event.ownerId)
+  return { borderLeftColor: color, borderLeftWidth: '5px', backgroundColor: color + '15' }
+}
+watch(() => editor.value.agreements, (text) => {
+  const reference = new Date(editor.value.start || Date.now())
+  const parsed = crmAgreementDrafts(text, Number.isFinite(reference.getTime()) ? reference : new Date())
+  agreementDrafts.value = parsed.map(row => {
+    const previous = agreementDrafts.value.find(d => d.source === row.source)
+    return previous ? { ...row, title: previous.title, dueLocal: previous.dueLocal,
+      hasExplicitTime: previous.hasExplicitTime } : row
+  })
+})
 const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
@@ -180,17 +231,17 @@ const heading = computed(() => {
 })
 const eventsByDay = computed(() => {
   const result: Record<string, CalendarEvent[]> = {}
-  for (const row of rows.value) (result[dateKey(row.at)] ??= []).push(row)
+  for (const row of visibleRows.value) (result[dateKey(row.at)] ??= []).push(row)
   for (const bucket of Object.values(result)) bucket.sort((a, b) => a.at.getTime() - b.at.getTime())
   return result
 })
-const outsideOfficeHours = computed(() => rows.value.filter(item =>
+const outsideOfficeHours = computed(() => visibleRows.value.filter(item =>
   (item.at.getHours() < 7 || item.at.getHours() >= 21) &&
   item.at >= rangeStart.value && item.at < rangeEnd.value))
 const listDays = computed(() => visibleDays.value
   .map(day => ({ day, events: eventsByDay.value[dateKey(day)] ?? [] }))
   .filter(item => item.events.length > 0))
-const pendingCount = computed(() => rows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
+const pendingCount = computed(() => visibleRows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
 const selectedAccount = computed(() => accounts.value.find(x => x.id === editor.value.accountId))
 const selectedLead = computed(() => leads.value.find(x => x.id === editor.value.leadId))
 const assignees = computed(() => {
@@ -208,8 +259,8 @@ function effectiveStatus(event: CalendarEvent): string {
       (event.endsAt ?? event.at).getTime() < Date.now()) return 'Overdue'
   return event.status
 }
-const overdueCount = computed(() => rows.value.filter(item => effectiveStatus(item) === 'Overdue').length)
-const completedCount = computed(() => rows.value.filter(item => item.status === 'Completed').length)
+const overdueCount = computed(() => visibleRows.value.filter(item => effectiveStatus(item) === 'Overdue').length)
+const completedCount = computed(() => visibleRows.value.filter(item => item.status === 'Completed').length)
 function statusLabel(status: string) {
   return ({ Pending: 'Pendiente', Scheduled: 'Programado', Overdue: 'Vencido',
     Completed: 'Completado', Cancelled: 'Cancelado' } as Record<string, string>)[status] ?? status
@@ -241,9 +292,19 @@ function openCreation(date?: Date) {
     location: '', involved: '', agreements: '', nextCommitment: '', commitmentDue: '',
     reminderMinutes: 60, channel: 'BOTH',
   }
+  agreementDrafts.value = []
   error.value = ''
   creationOpen.value = true
   void loadConfiguredActivityTypes()
+  // Account-local calendars must preselect the real assigned commercial seller.
+  if (props.accountId && can('crm.account.read')) {
+    void crmRequest<CrmRow>(crmPath('accounts', props.accountId)).then(account => {
+      if (!creationOpen.value || editor.value.accountId !== account.id) return
+      accounts.value = [account]
+      const assigned = String(account.executiveUserId ?? auth.userId ?? '')
+      if (can('crm.activity.read-all') && assigned) editor.value.ownerId = assigned
+    }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
+  }
   if (!scopedRecord.value) {
     if (can('crm.lead.read') || can('crm.lead.read-all')) void searchLeads()
     void searchAccounts()
@@ -367,7 +428,33 @@ async function load() {
   }
   rows.value = events.sort((a, b) => a.at.getTime() - b.at.getTime())
   pending.value = false
+  void loadCalendarLabels(events, generation)
 }
+async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
+  const accounts = [...new Set(events.map(e => e.accountId).filter(Boolean))]
+  const leads = [...new Set(events.map(e => e.leadId).filter(Boolean))]
+  const owners = [...new Set(events.map(e => e.ownerId).filter(Boolean))]
+  const merged = { accounts: {} as Record<string,string>,
+    leads: {} as Record<string,string>, owners: {} as Record<string,string> }
+  const batches = Math.max(1, Math.ceil(accounts.length / 100),
+    Math.ceil(leads.length / 100), Math.ceil(owners.length / 100))
+  for (let i = 0; i < batches; i++) {
+    if (generation !== loadGeneration) return
+    const params = new URLSearchParams({
+      accountIds: accounts.slice(i * 100, (i + 1) * 100).join(','),
+      leadIds: leads.slice(i * 100, (i + 1) * 100).join(','),
+      ownerIds: owners.slice(0, 100).join(','),
+    })
+    try {
+      const result = await crmRequest<typeof merged>(crmPath('calendar/labels') + '?' + params.toString())
+      Object.assign(merged.accounts, result.accounts ?? {})
+      Object.assign(merged.leads, result.leads ?? {})
+      Object.assign(merged.owners, result.owners ?? {})
+    } catch { /* Calendar still works if a label provider is unavailable. */ }
+  }
+  if (generation === loadGeneration) calendarLabels.value = merged
+}
+
 watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
 async function create() {
   const data = editor.value
@@ -383,6 +470,13 @@ async function create() {
   const start = new Date(data.start)
   const end = new Date(data.end)
   const commitmentDue = data.nextCommitment.trim() ? new Date(data.commitmentDue) : null
+  if (data.type !== 'FOLLOWUP' && agreementDrafts.value.some(item =>
+      !item.title.trim() || !item.dueLocal ||
+      !Number.isFinite(new Date(item.dueLocal).getTime()) ||
+      new Date(item.dueLocal).getTime() < Date.now())) {
+    error.value = 'Revisá cada acuerdo y asignale una fecha futura válida antes de guardar.'
+    return
+  }
   if (data.type !== 'FOLLOWUP' && data.nextCommitment.trim() &&
       (!commitmentDue || !Number.isFinite(commitmentDue.getTime()) ||
        commitmentDue.getTime() <= end.getTime())) {
@@ -412,11 +506,16 @@ async function create() {
         involved: data.involved.trim() || null, agreements: data.agreements.trim() || null,
         nextCommitment: data.nextCommitment.trim() || null,
         commitmentDueAt: commitmentDue?.toISOString() ?? null,
+        agreementCommitments: agreementDrafts.value.map(item => ({
+          subject: item.title.trim(), dueAt: new Date(item.dueLocal).toISOString(),
+        })),
       })
     }
     creationOpen.value = false
     selected.value = start
-    notice.value = 'Actividad registrada. Recordatorios por sistema y correo; si existe un compromiso, quedó en la agenda con fecha límite.'
+    notice.value = 'Actividad y acuerdos registrados. Se programaron ' +
+      (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
+      ' compromisos en el calendario del cliente y del vendedor.'
     emit('changed')
     await load()
   } catch (cause) { error.value = crmError(cause) }
@@ -533,6 +632,32 @@ function openEvent(item: CalendarEvent) {
           type="button" class="calendar-btn calendar-primary" @click="openCreation()"><Plus class="h-4 w-4" /> Nueva actividad</button>
       </div>
     </div>
+    <div v-if="isManagerCalendar" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+      <p class="mb-3 text-sm font-bold">Vista general de compromisos · Todos los clientes y vendedores autorizados</p>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="calendar-label">Filtrar por vendedor
+          <select v-model="ownerFilter" class="calendar-input">
+            <option value="">Todos los vendedores</option>
+            <option v-for="ownerId in ownerChoices" :key="ownerId" :value="ownerId">
+              {{ calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
+            </option>
+          </select>
+        </label>
+        <label class="calendar-label">Filtrar por cliente
+          <select v-model="clientFilter" class="calendar-input">
+            <option value="">Todos los clientes</option>
+            <option v-for="[key, name] in clientChoices" :key="key" :value="key">{{ name }}</option>
+          </select>
+        </label>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        <span v-for="ownerId in ownerChoices" :key="ownerId"
+          class="inline-flex items-center gap-2 text-xs text-[var(--dh-text-muted)]">
+          <span class="h-2.5 w-2.5 rounded-full" :style="{backgroundColor:sellerColor(ownerId)}"></span>
+          {{ calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
+        </span>
+      </div>
+    </div>
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
         <p class="text-xs text-[var(--dh-text-muted)]">Compromisos pendientes</p>
@@ -586,9 +711,12 @@ function openEvent(item: CalendarEvent) {
             @dragstart="onDragStart($event,event)" @dragend="onDragEnd"
             @click="openEvent(event)"
             class="mb-1 block w-full truncate rounded-md border px-1.5 py-1 text-left text-[11px] font-semibold"
-            :class="eventTone(event)">
+            :class="eventTone(event)" :style="sellerEventStyle(event)">
             <span class="tabular-nums">{{ event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
             {{ event.subject }}
+            <span v-if="isManagerCalendar" class="block truncate text-[10px] opacity-80">
+              {{ clientName(event) }} · {{ ownerName(event) }}
+            </span>
           </button>
           <button v-if="mode==='month' && (eventsByDay[dateKey(day)] ?? []).length>3"
             type="button" class="text-xs font-bold text-[var(--dh-primary)]"
@@ -624,8 +752,11 @@ function openEvent(item: CalendarEvent) {
               @dragstart="onDragStart($event,item)" @dragend="onDragEnd"
               @click="openEvent(item)"
               class="mb-1 block w-full truncate rounded-lg border p-2 text-left text-xs font-bold"
-              :class="eventTone(item)">
+              :class="eventTone(item)" :style="sellerEventStyle(item)">
               {{ item.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }} · {{ item.subject }}
+              <span v-if="isManagerCalendar" class="block truncate text-[10px] opacity-80">
+                {{ clientName(item) }} · {{ ownerName(item) }}
+              </span>
             </button>
           </div>
         </div>
@@ -643,10 +774,12 @@ function openEvent(item: CalendarEvent) {
       <section v-for="item in listDays" :key="dateKey(item.day)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
         <h3 class="mb-3 text-sm font-extrabold capitalize">{{ item.day.toLocaleDateString('es-CR',{weekday:'long',day:'numeric',month:'long'}) }}</h3>
         <button v-for="event in item.events" :key="event.key" type="button" @click="openEvent(event)"
-          class="mb-2 flex w-full items-center gap-3 rounded-lg border p-3 text-left last:mb-0" :class="eventTone(event)">
+          class="mb-2 flex w-full items-center gap-3 rounded-lg border p-3 text-left last:mb-0" :class="eventTone(event)" :style="sellerEventStyle(event)">
           <Clock3 class="h-4 w-4 shrink-0" />
           <span class="min-w-0 flex-1"><strong class="block truncate text-sm">{{ event.subject }}</strong>
-            <span class="text-xs text-[var(--dh-text-muted)]">{{ labelFor(event) }} · {{ statusLabel(effectiveStatus(event)) }}</span>
+            <span class="text-xs text-[var(--dh-text-muted)]">
+              {{ labelFor(event) }} · {{ statusLabel(effectiveStatus(event)) }} · {{ clientName(event) }} · {{ ownerName(event) }}
+            </span>
           </span>
           <span class="text-xs tabular-nums">{{ event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
         </button>
@@ -657,6 +790,7 @@ function openEvent(item: CalendarEvent) {
       <div class="flex justify-between gap-3">
         <div><h3 class="font-extrabold">{{ active.subject }}</h3>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(effectiveStatus(active)) }} · {{ active.at.toLocaleString('es-CR') }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cliente: {{ clientName(active) }} · Vendedor: {{ ownerName(active) }}</p>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Recordatorios: 24 horas, 1 hora, al inicio y cada 24 horas si vence. Siempre sistema y correo.</p>
         </div>
         <button type="button" aria-label="Cerrar detalle" @click="active=null"><X class="h-4 w-4" /></button>
@@ -765,13 +899,39 @@ function openEvent(item: CalendarEvent) {
           <label class="calendar-label sm:col-span-2">Acuerdos alcanzados
             <textarea v-model.trim="editor.agreements" class="calendar-input min-h-24" maxlength="6000" placeholder="Resumen de acuerdos de la llamada, visita, correo o reunión" />
           </label>
+          <div v-if="agreementDrafts.length" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] p-3">
+            <p class="text-sm font-bold">Compromisos detectados en los acuerdos ({{ agreementDrafts.length }})</p>
+            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">
+              Revisá cada compromiso antes de guardar. Cuando no se especificó hora, se propone 09:00, editable.
+              Sin una fecha válida, el acuerdo no puede programarse.
+            </p>
+            <div v-for="(item, index) in agreementDrafts" :key="index"
+              class="mb-3 grid gap-2 rounded-lg border border-[var(--dh-border)] p-2 last:mb-0 sm:grid-cols-[1fr_210px]">
+              <label class="calendar-label">Acuerdo {{ index + 1 }}
+                <input v-model.trim="item.title" class="calendar-input" maxlength="250" required />
+              </label>
+              <label class="calendar-label">Fecha límite
+                <input v-model="item.dueLocal" type="datetime-local" class="calendar-input" required />
+              </label>
+              <p v-if="!item.dueLocal" class="text-xs text-amber-600 sm:col-span-2">
+                No se detectó una fecha. Seleccioná cuándo debe cumplirse este acuerdo.
+              </p>
+              <p v-else-if="!item.hasExplicitTime" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
+                Hora sugerida, no confirmada por el cliente.
+              </p>
+            </div>
+          </div>
           <label class="calendar-label sm:col-span-2">Próximo compromiso
             <input v-model.trim="editor.nextCommitment" class="calendar-input" maxlength="250" placeholder="Ej. Enviar propuesta y confirmar recepción" />
           </label>
           <label v-if="editor.nextCommitment" class="calendar-label sm:col-span-2">Fecha límite del compromiso
             <input v-model="editor.commitmentDue" type="datetime-local" class="calendar-input" required />
           </label>
-          <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">El próximo compromiso se registrará como un seguimiento independiente en la agenda. Su incumplimiento activará las alertas al vendedor y a jmesen.</p>
+          <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
+            Cada acuerdo con fecha confirmada se registra por separado en el calendario del cliente y del vendedor.
+            El campo «Próximo compromiso» permite agregar una tarea adicional, independiente de los acuerdos.
+            Los pendientes vencidos activan recordatorios por sistema y correo y su escalamiento a jmesen.
+          </p>
         </template>
         <div class="flex flex-wrap justify-end gap-2 sm:col-span-2">
           <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
