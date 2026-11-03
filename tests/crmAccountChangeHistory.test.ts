@@ -33,3 +33,14 @@ test('financial credit changes show their own event and human-readable fields', 
   assert.match(hub, /CreditLimit: 'Límite de crédito'/)
   assert.match(hub, /ApprovalReason: 'Motivo del movimiento'/)
 })
+
+test('account history is a compact, expandable timeline without repetitive boxed values', () => {
+  assert.match(hub, /<details class="group/)
+  assert.match(hub, /:open="index === 0"/)
+  assert.match(hub, /accountAuditPreview\(entry\)/)
+  assert.match(hub, /accountAuditArea\(entry.areaCode\)/)
+  assert.match(hub, /accountAuditReason\(entry\)/)
+  assert.match(hub, /Mostrando \{\{ \(accountChangesPage - 1\) \* 15 \+ 1 \}\}/)
+  assert.doesNotMatch(hub, /Valor anterior<\/span>/)
+  assert.match(hub, /Cambio|Historial de cambios/)
+})
