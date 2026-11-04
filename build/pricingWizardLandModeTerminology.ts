@@ -346,7 +346,7 @@ function addGamPickupRequirement(source: string): string {
     '  ensureLandLtlPickupLine()',
     '  if (landLtlPickupRequired.value) {',
     '    const pickup = landLtlPickupLine.value',
-    '    if (!pickup || !pickup.included || Number(pickup.saleAmount) <= 0) {',
+    '    if (!pickup || !pickup.included || !(Number(pickup.saleAmount) > 0)) {',
     '      step.value = 7',
     "      toastStore.error('Recolecta obligatoria: indique un precio de venta mayor a cero en el cargo Recolecta de la pantalla 7.')",
     '      return',
