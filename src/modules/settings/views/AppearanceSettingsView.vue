@@ -12,7 +12,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-vue-next'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhColorPicker, DhRange } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
@@ -47,21 +47,22 @@ const localeOptions: { value: LocaleCode; label: string }[] = [
 ]
 
 const brandingForm = ref<ClientBrandingSettings>({ ...DEFAULT_CLIENT_BRANDING })
-const textColorInput = ref(themeStore.textColor ?? (themeStore.resolvedTheme === 'dark' ? '#ffffff' : '#030202'))
-
-function updateTextColor(value: string) {
-  textColorInput.value = value
-  if (/^#[0-9a-fA-F]{6}$/.test(value)) themeStore.setTextColor(value)
-}
-
-function restoreTextColor() {
-  themeStore.resetTextColor()
-  textColorInput.value = themeStore.resolvedTheme === 'dark' ? '#ffffff' : '#030202'
-}
-
-watch(() => themeStore.resolvedTheme, (theme) => {
-  if (!themeStore.textColor) textColorInput.value = theme === 'dark' ? '#ffffff' : '#030202'
+const textColorModes = ['light', 'dark'] as const
+type TextColorMode = (typeof textColorModes)[number]
+const textColorInputs = ref<Record<TextColorMode, string>>({
+  light: themeStore.textColors.light ?? '#030202',
+  dark: themeStore.textColors.dark ?? '#ffffff',
 })
+
+function updateTextColor(mode: TextColorMode, value: string) {
+  textColorInputs.value[mode] = value
+  if (/^#[0-9a-fA-F]{6}$/.test(value)) themeStore.setTextColor(mode, value)
+}
+
+function restoreTextColor(mode: TextColorMode) {
+  themeStore.resetTextColor(mode)
+  textColorInputs.value[mode] = mode === 'light' ? '#030202' : '#ffffff'
+}
 
 const overlayPercent = computed(() =>
   Math.round(Number(brandingForm.value.backgroundOverlayOpacity ?? 0) * 100),
@@ -339,20 +340,36 @@ onMounted(refreshAppearanceSettings)
             @update:model-value="previewBranding"
           />
 
-          <div class="space-y-2">
-            <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <DhColorPicker
-                :model-value="textColorInput"
-                :label="t('appearance.textColor')"
-                :presets="['#ffffff', '#030202', '#e2e8f0', '#007759']"
-                @update:model-value="updateTextColor"
-              />
-              <DhButton
-                :label="t('appearance.restoreTextColor')"
-                variant="secondary"
-                :icon="RotateCcw"
-                @click="restoreTextColor"
-              />
+          <div class="space-y-3">
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+              {{ t('appearance.textColor') }}
+            </p>
+            <div class="grid gap-3 md:grid-cols-2">
+              <div
+                v-for="mode in textColorModes"
+                :key="mode"
+                class="min-w-0 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"
+              >
+                <DhColorPicker
+                  :model-value="textColorInputs[mode]"
+                  :label="mode === 'light' ? t('appearance.lightTextColor') : t('appearance.darkTextColor')"
+                  :presets="mode === 'light'
+                    ? ['#030202', '#1f2937', '#334155', '#005b43']
+                    : ['#ffffff', '#e2e8f0', '#d1d5db', '#a7f3d0']"
+                  @update:model-value="(value) => updateTextColor(mode, value)"
+                />
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                    {{ themeStore.resolvedTheme === mode ? t('appearance.activeTextColor') : t('appearance.inactiveTextColor') }}
+                  </span>
+                  <DhButton
+                    :label="t('appearance.restoreTextColor')"
+                    variant="secondary"
+                    :icon="RotateCcw"
+                    @click="restoreTextColor(mode)"
+                  />
+                </div>
+              </div>
             </div>
             <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
               {{ t('appearance.textColorHelp') }}
