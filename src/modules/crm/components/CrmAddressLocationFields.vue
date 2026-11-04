@@ -21,11 +21,14 @@ let requestVersion = 0
 const countryOptions = computed(() => countries.value.map(item => ({ value: item.id, label: item.label })))
 const selectedIso = computed(() => props.modelValue.countryCode)
 const isCostaRica = computed(() => selectedIso.value === 'CR')
+const isPanama = computed(() => selectedIso.value === 'PA')
+const hasThirdLevel = computed(() => isCostaRica.value || isPanama.value)
 const firstLevelLabels: Record<string, string> = {
-  CR: 'Provincia', PA: 'Provincia', US: 'Estado', MX: 'Estado', CO: 'Departamento',
+  CR: 'Provincia', PA: 'Provincia / comarca', US: 'Estado', MX: 'Estado', CO: 'Departamento',
 }
 const firstLabel = computed(() => firstLevelLabels[selectedIso.value] ?? 'Estado / provincia / región')
-const secondLabel = computed(() => isCostaRica.value ? 'Cantón' : 'Ciudad / localidad')
+const secondLabel = computed(() => isCostaRica.value ? 'Cantón' : isPanama.value ? 'Distrito' : 'Ciudad / localidad')
+const thirdLabel = computed(() => isPanama.value ? 'Corregimiento' : 'Distrito')
 
 function patch(values: Partial<CrmAddressLocation>) {
   emit('update:modelValue', { ...props.modelValue, ...values })
@@ -80,7 +83,7 @@ function selectSecond(code: string) {
   thirdOptions.value = []
   patch({ admin2Code: code, admin2Name: optionName(secondOptions.value, code),
     admin3Code: '', admin3Name: '', postalCode: '' })
-  if (code && isCostaRica.value)
+  if (code && hasThirdLevel.value)
     void divisions(3, selectedIso.value, code, props.modelValue.admin1Code)
 }
 function selectThird(code: string) {
@@ -108,7 +111,7 @@ onMounted(async () => {
     const value = props.modelValue
     await divisions(1, value.countryCode)
     if (value.admin1Code) await divisions(2, value.countryCode, value.admin1Code)
-    if (value.countryCode === 'CR' && value.admin2Code)
+    if ((value.countryCode === 'CR' || value.countryCode === 'PA') && value.admin2Code)
       await divisions(3, value.countryCode, value.admin2Code, value.admin1Code)
   }
   // World countries only enhances spelling/ISO matching; never block address UI.
@@ -135,11 +138,15 @@ onMounted(async () => {
       :options="secondOptions.map(item => ({ value: item.code, label: item.name }))"
       :disabled="!modelValue.admin1Code || loading && secondOptions.length === 0"
       placeholder="Seleccionar localidad" @update:model-value="selectSecond(String($event))" />
-    <DhSelect v-if="isCostaRica" label="Distrito" :model-value="modelValue.admin3Code"
+    <DhSelect v-if="hasThirdLevel" :label="thirdLabel" :model-value="modelValue.admin3Code"
       :options="thirdOptions.map(item => ({ value: item.code, label: item.name }))"
       :disabled="!modelValue.admin2Code || loading && thirdOptions.length === 0"
-      placeholder="Seleccionar distrito" @update:model-value="selectThird(String($event))" />
-    <DhInput v-else :model-value="modelValue.admin3Name" label="Distrito / barrio / sector (opcional)"
+      :placeholder="isPanama ? 'Seleccionar corregimiento' : 'Seleccionar distrito'"
+      @update:model-value="selectThird(String($event))" />
+    <DhInput v-if="hasThirdLevel && modelValue.admin2Code && warning && !thirdOptions.length"
+      :model-value="modelValue.admin3Name" :label="isPanama ? 'Corregimiento (manual)' : 'Distrito (manual)'"
+      @update:model-value="patch({ admin3Code: '', admin3Name: String($event) })" />
+    <DhInput v-if="!hasThirdLevel" :model-value="modelValue.admin3Name" label="Distrito / barrio / sector (opcional)"
       @update:model-value="patch({ admin3Code: '', admin3Name: String($event) })" />
     <DhInput :model-value="modelValue.postalCode" label="Código postal"
       :disabled="isCostaRica && !!costaRicaPostalCode(modelValue)"
@@ -148,9 +155,9 @@ onMounted(async () => {
       Consultando divisiones administrativas…
     </p>
     <p v-if="warning" class="text-xs text-amber-600 sm:col-span-2" role="status">{{ warning }}</p>
-    <p v-if="!isCostaRica && selectedIso" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
+    <p v-if="!hasThirdLevel && selectedIso" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
       Algunos países tienen niveles adicionales que no están disponibles en el catálogo público.
-      Especificá condado, municipio, corregimiento y señas en la dirección exacta cuando corresponda.
+      Especificá los niveles adicionales y señas en la dirección exacta cuando corresponda.
     </p>
   </div>
 </template>
