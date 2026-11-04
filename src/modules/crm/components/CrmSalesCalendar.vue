@@ -90,6 +90,9 @@ function sellerEventStyle(event: CalendarEvent) {
 const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
+const subjectQuery = ref('')
+const subjectBusy = ref(false)
+const subjectError = ref('')
 const accountQuery = ref('')
 const leadQuery = ref('')
 const leadSearchLoading = ref(false)
@@ -131,6 +134,36 @@ watch(() => editor.value.agreements, (text) => {
   })
 })
 
+const selectedSubject = computed<string>({
+  get: () => editor.value.accountId ? 'account:' + editor.value.accountId
+    : editor.value.leadId ? 'lead:' + editor.value.leadId : '',
+  set: value => {
+    if (value.startsWith('account:')) {
+      editor.value.leadId = ''
+      editor.value.accountId = value.slice(8)
+    } else if (value.startsWith('lead:')) {
+      editor.value.accountId = ''
+      editor.value.leadId = value.slice(5)
+    } else {
+      editor.value.accountId = ''
+      editor.value.leadId = ''
+    }
+  },
+})
+async function searchSubjects() {
+  if (subjectBusy.value) return
+  subjectBusy.value = true
+  subjectError.value = ''
+  accountQuery.value = subjectQuery.value
+  leadQuery.value = subjectQuery.value
+  const results = await Promise.allSettled([
+    can('crm.account.read') || can('crm.account.read-all') ? searchAccounts() : Promise.resolve(),
+    can('crm.lead.read') || can('crm.lead.read-all') ? searchLeads() : Promise.resolve(),
+  ])
+  if (results.some(result => result.status === 'rejected'))
+    subjectError.value = 'No fue posible consultar clientes o prospectos.'
+  subjectBusy.value = false
+}
 const eventTypes = [
   { value: 'VISIT', label: 'Visita' },
   { value: 'CALL', label: 'Llamada' },
@@ -312,8 +345,7 @@ function openCreation(date?: Date) {
     }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
   }
   if (!scopedRecord.value) {
-    if (can('crm.lead.read') || can('crm.lead.read-all')) void searchLeads()
-    void searchAccounts()
+    void searchSubjects()
   } else if (scopedLead.value && (can('crm.lead.read') || can('crm.lead.read-all'))) {
     void crmRequest<CrmRow>(crmPath('leads', props.leadId)).then(item => {
       if (editor.value.leadId === item.id) leads.value = [item]
@@ -472,7 +504,7 @@ async function create() {
     return
   }
   if (!data.subject.trim() || (!data.accountId && !data.leadId)) {
-    error.value = 'Ingresá un título y seleccioná una cuenta o prospecto.'; return
+    error.value = 'Ingresá un título y elegí un cliente o prospecto en el selector unificado.'; return
   }
   const start = new Date(data.start)
   const end = new Date(data.end)
@@ -836,34 +868,31 @@ function openEvent(item: CalendarEvent) {
           <input v-model.trim="editor.subject" class="calendar-input" required maxlength="250" placeholder="Ej. Visita de seguimiento comercial" />
         </label>
         <div v-if="!scopedRecord" class="sm:col-span-2 space-y-2">
-          <label class="calendar-label">Buscar cuenta
+          <label class="calendar-label">Cliente o prospecto
             <div class="flex gap-2">
-              <input v-model="accountQuery" class="calendar-input min-w-0 flex-1" placeholder="Nombre del cliente" @keyup.enter.prevent="searchAccounts" />
-              <button class="calendar-btn" type="button" @click="searchAccounts"><Search class="h-4 w-4" /> Buscar</button>
-            </div>
-          </label>
-          <select v-model="editor.accountId" class="calendar-input" aria-label="Cuenta vinculada">
-            <option value="">Sin cuenta — seleccionar un prospecto</option>
-            <option v-for="item in accounts" :key="item.id" :value="item.id">{{ item.displayName || item.legalName }}</option>
-          </select>
-        </div>
-        <div v-if="!scopedRecord && (can('crm.lead.read')||can('crm.lead.read-all'))" class="sm:col-span-2 space-y-2">
-          <label class="calendar-label">Buscar prospecto por nombre o empresa
-            <div class="flex gap-2">
-              <input v-model.trim="leadQuery" type="search" class="calendar-input min-w-0 flex-1"
-                placeholder="Buscar prospecto asignado…" @keyup.enter.prevent="searchLeads" />
-              <button type="button" class="calendar-btn" :disabled="leadSearchLoading" @click="searchLeads">
-                <Search class="h-4 w-4" /> Buscar
+              <input v-model.trim="subjectQuery" type="search" class="calendar-input min-w-0 flex-1"
+                placeholder="Buscar cliente o prospecto por nombre..." @keyup.enter.prevent="searchSubjects" />
+              <button type="button" class="calendar-btn" :disabled="subjectBusy" @click="searchSubjects">
+                <Search class="h-4 w-4" /> {{ subjectBusy ? 'Buscando…' : 'Buscar' }}
               </button>
             </div>
           </label>
-          <label class="calendar-label">Prospecto (si no hay cuenta)
-            <select v-model="editor.leadId" class="calendar-input" @focus="!leads.length && searchLeads()">
-              <option value="">Seleccionar prospecto</option>
-              <option v-for="item in leads" :key="item.id" :value="item.id">{{ item.name || item.companyName }}</option>
-            </select>
-          </label>
-          <p v-if="leadSearchError" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ leadSearchError }}</p>
+          <select v-model="selectedSubject" class="calendar-input" required aria-label="Seleccionar cliente o prospecto">
+            <option value="" disabled>Seleccionar cliente o prospecto</option>
+            <optgroup v-if="accounts.length" label="Clientes">
+              <option v-for="item in accounts" :key="'account:'+item.id" :value="'account:'+item.id">
+                {{ item.displayName || item.legalName }}
+              </option>
+            </optgroup>
+            <optgroup v-if="leads.length" label="Prospectos">
+              <option v-for="item in leads" :key="'lead:'+item.id" :value="'lead:'+item.id">
+                {{ item.companyName || item.name }}
+              </option>
+            </optgroup>
+          </select>
+          <p v-if="subjectError || leadSearchError" role="alert" class="text-xs text-amber-600">
+            {{ subjectError || leadSearchError }}
+          </p>
         </div>
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
           Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
