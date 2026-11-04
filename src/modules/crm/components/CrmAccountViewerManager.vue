@@ -13,6 +13,9 @@ interface ViewerGrant {
 const open = ref(false)
 const grants = ref<ViewerGrant[]>([])
 const users = ref<UserDto[]>([])
+const directoryUsers = ref<UserDto[]>([])
+const directoryWarning = ref('')
+const hasSearched = ref(false)
 const search = ref('')
 const selectedUserId = ref('')
 const loading = ref(false)
@@ -20,17 +23,54 @@ const searching = ref(false)
 const saving = ref(false)
 const error = ref('')
 const notice = ref('')
-const displayUsers = computed(() => new Map(users.value.map(user =>
-  [user.id, user.displayName + (user.email ? ' · ' + user.email : '')])))
+const authorizedUserIds = computed(() => new Set(grants.value.map(grant => grant.userId.toLowerCase())))
+const eligibleUsers = computed(() => users.value.filter(user => !authorizedUserIds.value.has(user.id.toLowerCase())))
+const displayUsers = computed(() => new Map(
+  [...users.value, ...directoryUsers.value].map(user => [user.id.toLowerCase(), user]),
+))
 const accessPath = () => crmPath('institutional-viewers')
+
+// Resolve grants against the independent Auth directory, not the current search results.
+// Fetch all necessary pages so older/inactive grantees can also be identified and revoked.
+async function resolveAuthorizedUsers(activeGrants: ViewerGrant[]) {
+  const wanted = new Set(activeGrants.map(grant => grant.userId.toLowerCase()))
+  directoryUsers.value = []
+  directoryWarning.value = ''
+  if (!wanted.size) return
+
+  const matches: UserDto[] = []
+  const seen = new Set<string>()
+  const pageSize = 100
+  try {
+    for (let pageNumber = 1; wanted.size && pageNumber <= 100; pageNumber += 1) {
+      const page = await UsersService.browsePaged({ pageNumber, pageSize })
+      let newUsers = 0
+      for (const user of page.items) {
+        const id = user.id.toLowerCase()
+        if (seen.has(id)) continue
+        seen.add(id)
+        newUsers += 1
+        if (wanted.delete(id)) matches.push(user)
+      }
+      if (page.items.length < pageSize || newUsers === 0
+        || (page.totalPages !== undefined && pageNumber >= page.totalPages)
+        || (page.totalCount !== undefined && pageNumber * pageSize >= page.totalCount)) break
+    }
+  } catch (cause) {
+    directoryWarning.value = 'No se pudieron consultar todos los usuarios del directorio: ' + crmError(cause)
+  }
+  directoryUsers.value = matches
+}
 
 async function refresh() {
   loading.value = true
   error.value = ''
   try {
     grants.value = await crmRequest<ViewerGrant[]>(accessPath())
+    await resolveAuthorizedUsers(grants.value)
   } catch (cause) {
     grants.value = []
+    directoryUsers.value = []
     error.value = crmError(cause)
   } finally {
     loading.value = false
@@ -38,6 +78,7 @@ async function refresh() {
 }
 
 async function searchUsers() {
+  hasSearched.value = true
   searching.value = true
   error.value = ''
   try {
@@ -111,6 +152,7 @@ onMounted(() => void refresh())
       </p>
       <p v-if="error" role="alert" class="text-sm text-red-500">{{ error }}</p>
       <p v-if="notice" role="status" class="text-sm text-emerald-600">{{ notice }}</p>
+      <p v-if="directoryWarning" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ directoryWarning }}</p>
       <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]" @submit.prevent="searchUsers">
         <input v-model="search" type="search" placeholder="Buscar usuario por nombre o correo"
           class="min-w-0 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm"
@@ -124,7 +166,7 @@ onMounted(() => void refresh())
         <select v-model="selectedUserId" aria-label="Usuario para autorizar"
           class="min-w-0 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm">
           <option value="">Seleccione un usuario activo</option>
-          <option v-for="user in users" :key="user.id" :value="user.id">
+          <option v-for="user in eligibleUsers" :key="user.id" :value="user.id">
             {{ user.displayName }} · {{ user.email }}
           </option>
         </select>
@@ -133,6 +175,10 @@ onMounted(() => void refresh())
           Autorizar acceso
         </button>
       </form>
+      <p v-if="hasSearched && !searching && !eligibleUsers.length"
+        class="text-xs text-[var(--dh-text-muted)]">
+        {{ users.length ? 'Los usuarios encontrados ya tienen acceso.' : 'No se encontraron usuarios activos para autorizar.' }}
+      </p>
       <p v-if="loading" class="text-xs text-[var(--dh-text-muted)]">Cargando autorizaciones…</p>
       <p v-else-if="!grants.length" class="text-xs text-[var(--dh-text-muted)]">
         No hay usuarios autorizados globalmente.
@@ -140,9 +186,17 @@ onMounted(() => void refresh())
       <ul v-else class="divide-y divide-[var(--dh-border)]">
         <li v-for="grant in grants" :key="grant.userId"
           class="flex flex-wrap items-center justify-between gap-2 py-2">
-          <span class="min-w-0 break-all text-xs">
-            {{ displayUsers.get(grant.userId) || grant.userId }}
-          </span>
+          <div class="min-w-0 flex-1" :title="grant.userId">
+            <p class="break-words text-sm font-semibold">
+              {{ displayUsers.get(grant.userId.toLowerCase())?.displayName
+                || displayUsers.get(grant.userId.toLowerCase())?.userName
+                || 'Usuario no disponible' }}
+            </p>
+            <p class="break-words text-xs text-[var(--dh-text-muted)]">
+              {{ displayUsers.get(grant.userId.toLowerCase())?.email
+                || 'No se encontró este usuario en el directorio' }}
+            </p>
+          </div>
           <button type="button" :disabled="saving" @click="revoke(grant.userId)"
             class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold disabled:opacity-50">
             Revocar
