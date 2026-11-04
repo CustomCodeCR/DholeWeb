@@ -12,7 +12,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
     class="inline-flex touch-manipulation items-center justify-center rounded-[18px] transition-all duration-200 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 max-sm:min-h-11 max-sm:min-w-11"
     :class="[
       size === 'sm' && 'h-9 w-9', size === 'md' && 'h-11 w-11', size === 'lg' && 'h-13 w-13',
-      variant === 'primary' && 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)]',
+      variant === 'primary' && 'bg-[var(--dh-primary)] text-[var(--dh-on-primary)] shadow-[var(--dh-glow)]',
       variant === 'secondary' && 'border border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl hover:bg-[var(--dh-card-hover)]',
       variant === 'ghost' && 'text-[var(--dh-text-soft)] hover:bg-black/5 dark:hover:bg-white/10',
       variant === 'danger' && 'text-red-600 hover:bg-red-500/10',
