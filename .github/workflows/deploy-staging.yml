@@ -105,6 +105,8 @@ jobs:
             --build-arg VITE_API_URL="$VITE_API_URL" \
             --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
             --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+            --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
+            --build-arg VITE_RELEASE_CHANNEL="staging" \
             -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
 
       - name: Verify staging bundle
