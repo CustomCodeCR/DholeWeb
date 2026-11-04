@@ -59,7 +59,10 @@ async function scheduleSavedNote() {
   } finally {saving.value = false}
 }
 watch(note, (text) => {
-  const parsed=crmAgreementDrafts(text)
+  // Ordinary observations must remain saveable without a deadline.
+  // Only explicitly dated sentences or named agreements become calendar drafts.
+  const parsed=crmAgreementDrafts(text).filter(item =>
+    Boolean(item.dueLocal) || /^\s*(acuerdos?|compromisos?)\b/i.test(item.source))
   noteCommitments.value=parsed.map(item => {
     const old=noteCommitments.value.find(x=>x.source===item.source)
     return old ? {...item,title:old.title,dueLocal:old.dueLocal,
