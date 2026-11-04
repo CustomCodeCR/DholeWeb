@@ -232,8 +232,8 @@ function toggle(value: string) {
   background-color: var(--dh-bg-2);
   padding: 0.7rem;
   box-shadow: 0 26px 70px rgb(15 23 42 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.34);
-  backdrop-filter: blur(32px) saturate(155%);
-  -webkit-backdrop-filter: blur(32px) saturate(155%);
+  backdrop-filter: blur(var(--dh-blur-strong)) saturate(155%);
+  -webkit-backdrop-filter: blur(var(--dh-blur-strong)) saturate(155%);
 }
 
 .crystal-multi--dropup .crystal-multi__menu {
@@ -308,6 +308,6 @@ function toggle(value: string) {
   font-size: 0.72rem;
   font-weight: 800;
   color: var(--dh-text-soft);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(var(--dh-blur));
 }
 </style>
