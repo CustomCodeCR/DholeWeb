@@ -32,7 +32,9 @@ export function costaRicaPostalCode(location: CrmAddressLocation): string {
   if (location.countryCode !== 'CR') return ''
   const parts = [location.admin1Code, location.admin2Code, location.admin3Code]
   if (!parts.every(part => /^\d{1,2}$/.test(part))) return ''
-  const [province, canton, district] = parts.map(Number)
+  const province = Number(location.admin1Code)
+  const canton = Number(location.admin2Code)
+  const district = Number(location.admin3Code)
   if (province < 1 || province > 7 || canton < 1 || canton > 99 || district < 1 || district > 99) return ''
   return String(province) + String(canton).padStart(2, '0') + String(district).padStart(2, '0')
 }
