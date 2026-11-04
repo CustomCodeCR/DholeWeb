@@ -499,3 +499,13 @@ test('CRM account identification uses DhSelect with country-aware legal and natu
   assert.match(editor, /@resolved-label="rememberAccountCountry"/)
   assert.doesNotMatch(workspace, /<DhInput label="Tipo de identificación"/)
 })
+
+test('Global Castro Fallas viewer list resolves names independently of search and filters duplicate grants', () => {
+  const viewers = read('src/modules/crm/components/CrmAccountViewerManager.vue')
+  assert.ok(viewers.includes('await resolveAuthorizedUsers(grants.value)'))
+  assert.ok(viewers.includes('UsersService.browsePaged({ pageNumber, pageSize })'))
+  assert.ok(viewers.includes('[...users.value, ...directoryUsers.value]'))
+  assert.ok(viewers.includes('eligibleUsers'))
+  assert.ok(viewers.includes('Usuario no disponible'))
+  assert.ok(!viewers.includes('|| grant.userId'))
+})
