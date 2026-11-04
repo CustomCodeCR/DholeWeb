@@ -26,3 +26,15 @@ test('country selection resets descendants to prevent mixed-country addresses', 
   assert.match(picker, /admin2Code: '', admin2Name: '', admin3Code: '', admin3Name: '', postalCode: ''/)
   assert.match(picker, /requestVersion/)
 })
+
+test('Panama uses province or comarca, district, and corregimiento selectors', () => {
+  assert.match(picker, /PA: 'Provincia \/ comarca'/)
+  assert.match(picker, /isPanama = computed\(\(\) => selectedIso\.value === 'PA'\)/)
+  assert.match(picker, /isPanama\.value \? 'Distrito'/)
+  assert.match(picker, /isPanama\.value \? 'Corregimiento'/)
+  assert.match(picker, /if \(code && hasThirdLevel\.value\)/)
+  assert.match(picker, /value\.countryCode === 'PA'/)
+  assert.match(picker, /v-if="hasThirdLevel"/)
+  assert.match(picker, /Seleccionar corregimiento/)
+  assert.match(picker, /Corregimiento \(manual\)/)
+})
