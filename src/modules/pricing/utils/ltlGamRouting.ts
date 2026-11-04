@@ -1,7 +1,7 @@
 /**
  * Geographic LTL routing is distinct from sea ports. The San José consolidation
- * can serve GAM pickup origins, but a pickup from Alajuela, Heredia or Coyol
- * needs its own separately priced Recolecta line.
+ * can serve GAM pickup origins; Recolecta is optional and never blocks
+ * saving a quotation.
  */
 export const GAM_LTL_ORIGINS = [
   { key: 'san-jose', name: 'San José, Costa Rica', pickup: false },
