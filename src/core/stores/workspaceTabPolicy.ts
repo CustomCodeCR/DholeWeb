@@ -29,6 +29,22 @@ export function reusableWorkspaceTabIndex<T extends { path: string }>(tabs: T[],
   return group === null ? -1 : tabs.findIndex(tab => workspaceTabGroup(tab.path) === group)
 }
 
+// Consolidate restored tabs by route group, prioritizing the selected tab.
+// This also cleans older sessions with one tab per CRM record.
+export function deduplicateWorkspaceTabs<T extends { key: string; path: string }>(
+  tabs: T[], preferredKey = '',
+): T[] {
+  const grouped = new Map<string, T>()
+  for (const tab of tabs) {
+    const identity = workspaceTabGroup(tab.path) ?? tab.key
+    const previous = grouped.get(identity)
+    if (previous?.key === preferredKey && tab.key !== preferredKey) continue
+    grouped.delete(identity)
+    grouped.set(identity, tab)
+  }
+  return [...grouped.values()]
+}
+
 // Bounded history: keep Dashboard, the active page and the optional split pane.
 // The oldest inactive, closable tab is removed when the workspace is full.
 export function limitWorkspaceTabs<T extends { key: string; closable: boolean }>(
