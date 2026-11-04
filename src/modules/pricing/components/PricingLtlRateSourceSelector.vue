@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isLtlGamPickupLocation, matchesLandLtlEndpoint } from '@/modules/pricing/utils/ltlGamRouting'
+import { matchesLandLtlEndpoint } from '@/modules/pricing/utils/ltlGamRouting'
 import { computed, onMounted, ref, watch } from 'vue'
 import { Building2, Check, RefreshCcw, Truck } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput } from '@/shared/components/atoms'
@@ -112,10 +112,6 @@ function ownMatchesRoute(row: FtlTariffDto) {
     'destination',
   )
 }
-
-const pickupRequired = computed(() =>
-  isLtlGamPickupLocation([props.originName, props.originCode].filter(Boolean).join(' ')),
-)
 
 function searchableOwn(row: FtlTariffDto) {
   return [
@@ -264,10 +260,6 @@ watch(
       <DhInput :model-value="requestedCbm" type="number" label="Volumen LTL cobrable (CBM)" disabled />
       <DhButton label="Actualizar tarifas" :icon="RefreshCcw" variant="secondary" :loading="loading" @click="load" />
     </div>
-
-    <p v-if="pickupRequired" class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
-      Recolecta requerida para Alajuela, Heredia o Coyol. Puede usar un tarifario LTL consolidado de San José como base, pero debe añadir el importe de recolecta en Líneas antes de guardar.
-    </p>
 
     <div class="flex gap-2 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-1.5">
       <button
