@@ -7,7 +7,7 @@ import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmRelationshipPicker from './CrmRelationshipPicker.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmPhoneInput from './CrmPhoneInput.vue'
-import CrmGeoAddressFields from './CrmGeoAddressFields.vue'
+import CrmAddressLocationFields from './CrmAddressLocationFields.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { identificationOptionsForCountry, normalizeIdentificationType } from '../model/crmIdentification'
@@ -84,14 +84,14 @@ const editingAddressId = ref('')
 const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
 const addressDraft = reactive({
   addressType: 'WORK', addressText: '', location: '',
-  countryCode: '', admin1Code: '', admin1Name: '',
+  countryId: '', countryCode: '', admin1Code: '', admin1Name: '',
   admin2Code: '', admin2Name: '', admin3Code: '', admin3Name: '', postalCode: '',
 })
 const creatingAddress = ref(false)
 function beginNewAddress() {
   Object.assign(addressDraft, {
     addressType: 'WORK', addressText: '', location: '',
-    countryCode: '', admin1Code: '', admin1Name: '', admin2Code: '', admin2Name: '',
+    countryId: accountDraft.countryId || String(props.account.countryId ?? ''), countryCode: '', admin1Code: '', admin1Name: '', admin2Code: '', admin2Name: '',
     admin3Code: '', admin3Name: '', postalCode: '',
   })
   editingAddressId.value = ''
@@ -117,6 +117,7 @@ function beginAddressEdit(address: CrmRow) {
   Object.assign(addressDraft, {
     addressType: String(address.addressType ?? 'WORK'),
     addressText: String(address.addressText ?? ''), location: String(address.location ?? ''),
+    countryId: String(address.countryId || accountDraft.countryId || props.account.countryId || ''),
     countryCode: String(address.countryCode ?? ''),
     admin1Code: String(address.admin1Code ?? ''), admin1Name: String(address.admin1Name ?? ''),
     admin2Code: String(address.admin2Code ?? ''), admin2Name: String(address.admin2Name ?? ''),
@@ -160,7 +161,8 @@ async function saveAddress() {
           ...addressDraft, expectedVersion: previous.rowVersion,
         })
       : await crmRequest<CrmRow>(crmPath('accounts', String(props.account.id), 'addresses'),
-          'POST', { ...addressDraft, countryId: null, contactId: null })
+          'POST', { ...addressDraft, countryId: addressDraft.countryId || props.account.countryId || null,
+            contactId: null })
     relatedAddresses.value = previous
       ? relatedAddresses.value.map(a => a.id === updated.id ? updated : a)
       : [...relatedAddresses.value, updated]
@@ -410,7 +412,9 @@ async function save() {
           <p v-if="!relatedAddresses.length" class="text-sm text-[var(--dh-text-muted)]">Sin direcciones registradas.</p>
           <div v-if="creatingAddress" class="mb-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-3">
             <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
-            <CrmGeoAddressFields :model-value="addressDraft" @update:model-value="Object.assign(addressDraft, $event)" />
+            <CrmAddressLocationFields :model-value="addressDraft"
+                :default-country-id="accountDraft.countryId || String(account.countryId ?? '')"
+                @update:model-value="Object.assign(addressDraft, $event)" />
             <DhInput v-model="addressDraft.location" label="Referencia / ubicación adicional" />
             <DhTextarea v-model="addressDraft.addressText" label="Dirección exacta" :rows="3" />
             <div class="flex gap-2">
@@ -433,7 +437,9 @@ async function save() {
             <div v-if="editingAddressId===String(address.id)" class="mt-4 grid gap-3 md:grid-cols-2">
               <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
               <DhInput v-model="addressDraft.location" label="Referencia / ubicación adicional" />
-              <div class="md:col-span-2"><CrmGeoAddressFields :model-value="addressDraft" @update:model-value="Object.assign(addressDraft, $event)" /></div>
+              <div class="md:col-span-2"><CrmAddressLocationFields :model-value="addressDraft"
+                :default-country-id="accountDraft.countryId || String(account.countryId ?? '')"
+                @update:model-value="Object.assign(addressDraft, $event)" /></div>
               <div class="md:col-span-2"><DhTextarea v-model="addressDraft.addressText" label="Dirección completa" :rows="2" /></div>
               <div class="flex gap-2 md:col-span-2">
                 <button type="button" class="crm-editor-secondary" @click="editingAddressId=''">Cancelar</button>
