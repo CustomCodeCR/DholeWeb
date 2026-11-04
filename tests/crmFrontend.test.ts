@@ -503,3 +503,21 @@ test('Global Castro Fallas viewer list resolves names independently of search an
   assert.ok(viewers.includes('Usuario no disponible'))
   assert.ok(!viewers.includes('|| grant.userId'))
 })
+
+test('Accounts filter by seller and any exact commercial relationship on the server', () => {
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  const picker = read('src/modules/crm/components/CrmRelationshipPicker.vue')
+  assert.ok(workspace.includes("crmPath('accounts', 'filter-options')"))
+  assert.ok(workspace.includes('{ seller: accountSellerFilter.value }'))
+  assert.ok(workspace.includes('{ relationship: accountRelationFilter.value }'))
+  assert.ok(workspace.includes('v-model="accountSellerFilter"'))
+  assert.ok(workspace.includes('v-model="accountRelationFilter"'))
+  assert.ok(workspace.includes('watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRelationFilter]'))
+  assert.ok(workspace.includes('page.value = 1; void load()'))
+  assert.ok(workspace.includes('clearAccountFilters'))
+  assert.ok(workspace.includes('hasAccountFilters'))
+  for (const value of ['Consignee', 'Shipper', 'Notify', 'Cliente', 'Proveedor', 'Transportista']) {
+    assert.ok(picker.includes(value))
+    assert.ok(workspace.includes("'" + value + "'"))
+  }
+})
