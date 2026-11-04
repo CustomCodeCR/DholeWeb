@@ -409,6 +409,10 @@
     "databaseMaintenanceDescription": "Vaciar tablas o bases de datos de forma controlada en el ambiente actual.",
     "environmentRecovery": "Regenerar datos del ambiente",
     "environmentRecoveryDescription": "Volver a crear datos iniciales desde el .env actual de producción o staging.",
+    "systemVersion": "Versión del sistema",
+    "systemVersionDescription": "Versión de Dhole Web instalada y datos de la compilación. El formato sigue MAJOR.MINOR.PATCH.",
+    "versionChannel": "Entorno",
+    "versionCommit": "Compilación",
     "backToSettings": "Volver a Configuración"
   },
   "appearance": {
