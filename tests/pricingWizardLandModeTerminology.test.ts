@@ -184,7 +184,7 @@ test('GAM LTL auto-creates an editable origin pickup without inventing a price',
   assert.match(output, /costAmount: 0/)
   assert.match(output, /saleAmount: 0/)
   assert.match(output, /v-model.number="landLtlPickupLine.saleAmount"/)
-  assert.match(output, /Number\(pickup.saleAmount\) <= 0/)
+  assert.match(output, /!\(Number\(pickup.saleAmount\) > 0\)/)
   assert.match(output, /step.value = 7/)
 })
 
