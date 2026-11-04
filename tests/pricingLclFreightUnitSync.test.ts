@@ -46,8 +46,8 @@ test('multiple freight rows cannot overwrite one another and invalid amounts are
 })
 
 test('the wizard binds provider fields to freight details and verifies saved air prices', () => {
-  assert.match(wizard, /v-model\.number="freightCostInput"/)
-  assert.match(wizard, /v-model\.number="freightSaleInput"/)
+  assert.match(wizard, /v-model\.number="form\.freightCost"/)
+  assert.match(wizard, /v-model\.number="form\.freightSale"/)
   assert.match(wizard, /applyFreightUnitAmount\(/)
   assert.match(wizard, /form\.freightCost = number\(amounts\[0\]\)/)
   assert.match(wizard, /form\.freightSale = number\(amounts\[1\]\)/)
