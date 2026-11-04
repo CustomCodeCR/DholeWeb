@@ -408,6 +408,10 @@
     "databaseMaintenanceDescription": "Safely clear tables or databases in the current environment.",
     "environmentRecovery": "Regenerate environment data",
     "environmentRecoveryDescription": "Recreate initial data from the current production or staging .env.",
+    "systemVersion": "System version",
+    "systemVersionDescription": "Installed Dhole Web release and build information. Uses MAJOR.MINOR.PATCH.",
+    "versionChannel": "Environment",
+    "versionCommit": "Build",
     "backToSettings": "Back to Settings"
   },
   "appearance": {
