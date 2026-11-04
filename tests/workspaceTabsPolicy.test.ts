@@ -6,6 +6,7 @@ import {
   visibleWorkspaceTabKeys,
   workspaceTabKey,
   workspaceTabGroup,
+  reusableWorkspaceTabIndex,
 } from '../src/core/stores/workspaceTabPolicy.ts'
 
 test('filters, hashes and wizard query parameters reuse the same tab', () => {
@@ -52,4 +53,30 @@ test('related pricing/editor routes reuse a workspace slot, unrelated modules do
   assert.equal(workspaceTabGroup('/pricing/request-rate'), workspaceTabGroup('/pricing/seller-rates/id-3'))
   assert.notEqual(workspaceTabGroup('/pricing'), workspaceTabGroup('/pricing/imports'))
   assert.equal(workspaceTabGroup('/dynamics'), null)
+})
+
+
+test('CRM accounts and contacts each share a single workspace across list and details', () => {
+  for (const module of ['accounts', 'contacts']) {
+    const list = '/crm/' + module
+    const first = list + '/11111111-1111-4111-8111-111111111111'
+    const second = list + '/22222222-2222-4222-8222-222222222222'
+    assert.equal(workspaceTabGroup(list), workspaceTabGroup(first))
+    assert.equal(workspaceTabGroup(first), workspaceTabGroup(second + '?edit=1'))
+  }
+  assert.notEqual(workspaceTabGroup('/crm/accounts/a'), workspaceTabGroup('/crm/contacts/a'))
+  assert.equal(workspaceTabGroup('/crm/accounts/a/change-history'), null)
+  assert.equal(workspaceTabGroup('/crm/contacts/a/history'), null)
+})
+
+test('existing CRM tab is reusable even when a different module is currently active', () => {
+  const tabs = [
+    { path: '/home' }, { path: '/crm/accounts' },
+    { path: '/pricing/rates' }, { path: '/crm/contacts/a' },
+  ]
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/accounts/b'), 1)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/contacts'), 3)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/contacts/c?edit=1'), 3)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/leads'), -1)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/pricing/rates'), -1)
 })
