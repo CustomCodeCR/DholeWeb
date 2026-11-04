@@ -12,7 +12,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-vue-next'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhColorPicker, DhRange } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
@@ -47,6 +47,21 @@ const localeOptions: { value: LocaleCode; label: string }[] = [
 ]
 
 const brandingForm = ref<ClientBrandingSettings>({ ...DEFAULT_CLIENT_BRANDING })
+const textColorInput = ref(themeStore.textColor ?? (themeStore.resolvedTheme === 'dark' ? '#ffffff' : '#030202'))
+
+function updateTextColor(value: string) {
+  textColorInput.value = value
+  if (/^#[0-9a-fA-F]{6}$/.test(value)) themeStore.setTextColor(value)
+}
+
+function restoreTextColor() {
+  themeStore.resetTextColor()
+  textColorInput.value = themeStore.resolvedTheme === 'dark' ? '#ffffff' : '#030202'
+}
+
+watch(() => themeStore.resolvedTheme, (theme) => {
+  if (!themeStore.textColor) textColorInput.value = theme === 'dark' ? '#ffffff' : '#030202'
+})
 
 const overlayPercent = computed(() =>
   Math.round(Number(brandingForm.value.backgroundOverlayOpacity ?? 0) * 100),
@@ -324,6 +339,26 @@ onMounted(refreshAppearanceSettings)
             @update:model-value="previewBranding"
           />
 
+          <div class="space-y-2">
+            <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <DhColorPicker
+                :model-value="textColorInput"
+                :label="t('appearance.textColor')"
+                :presets="['#ffffff', '#030202', '#e2e8f0', '#007759']"
+                @update:model-value="updateTextColor"
+              />
+              <DhButton
+                :label="t('appearance.restoreTextColor')"
+                variant="secondary"
+                :icon="RotateCcw"
+                @click="restoreTextColor"
+              />
+            </div>
+            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ t('appearance.textColorHelp') }}
+            </p>
+          </div>
+
           <DhCard
             :title="t('appearance.localBackground')"
             :subtitle="t('appearance.localBackgroundHelp')"
@@ -384,7 +419,7 @@ onMounted(refreshAppearanceSettings)
           class="min-h-64 rounded-[32px] border border-[var(--dh-border)] p-4 shadow-[var(--dh-shadow-sm)]"
           :style="brandingPreviewStyle"
         >
-          <div class="rounded-[26px] border border-white/20 bg-black/30 p-5 text-white backdrop-blur-xl">
+          <div class="rounded-[26px] border border-white/20 bg-black/30 p-5 text-[var(--dh-on-primary)] backdrop-blur-xl">
             <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-[22px] bg-white/20 text-lg font-black">
               D
             </div>
