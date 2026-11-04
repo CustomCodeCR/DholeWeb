@@ -26,7 +26,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
       size === 'sm' && 'min-h-9 px-3 py-2 text-xs max-sm:min-h-11',
       size === 'md' && 'min-h-11 px-4 py-2.5 text-sm',
       size === 'lg' && 'min-h-13 px-6 py-3 text-base',
-      variant === 'primary' && 'bg-[var(--dh-primary)] text-white shadow-[var(--dh-glow)] hover:brightness-110',
+      variant === 'primary' && 'bg-[var(--dh-primary)] text-[var(--dh-on-primary)] shadow-[var(--dh-glow)] hover:brightness-110',
       variant === 'secondary' && 'border border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl hover:bg-[var(--dh-card-hover)]',
       variant === 'ghost' && 'text-[var(--dh-text-soft)] hover:bg-black/5 dark:hover:bg-white/10',
       variant === 'danger' && 'bg-red-600 text-white shadow-lg shadow-red-600/20 hover:bg-red-700',
