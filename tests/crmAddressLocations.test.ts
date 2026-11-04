@@ -14,7 +14,7 @@ test('CRM addresses have cascaded administrative divisions and independent free-
   assert.match(picker, /Código postal/)
   assert.match(view, /<CrmAddressLocationFields/)
   assert.match(view, /addressText: drafts\.addressText/)
-  assert.match(view, /countryId: addressLocation\.value\.countryId/)
+  assert.match(view, /countryId: geo\.countryId/)
 })
 test('Costa Rica postal codes preserve five digits and are linked to district', () => {
   assert.match(model, /String\(canton\)\.padStart\(2, '0'\)/)
