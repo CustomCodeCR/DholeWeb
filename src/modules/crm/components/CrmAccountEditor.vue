@@ -24,6 +24,9 @@ const can = (scope: string) => auth.hasScope(scope)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
+function upperAccountName(value: unknown): string {
+  return String(value ?? '').toLocaleUpperCase('es-CR')
+}
 const accountDraft = reactive({
   displayName: '', legalName: '', countryId: '', taxIdTypeCode: '', taxId: '',
   customerTypeCode: 'cash', categoryType: 'CUSTOMER', categoryCode: 'A',
@@ -200,12 +203,14 @@ watch(() => [props.open, props.account.id], ([open]) => {
 }, { immediate: true })
 function resolved(data: HaciendaResult) {
   if (data.identification.replace(/[\s-]/g, '') !== accountDraft.taxId.replace(/[\s-]/g, '')) return
-  accountDraft.displayName = data.name
-  accountDraft.legalName = data.name
+  accountDraft.displayName = upperAccountName(data.name)
+  accountDraft.legalName = upperAccountName(data.name)
   if (data.identificationType) accountDraft.taxIdTypeCode = normalizeIdentificationType(data.identificationType)
 }
 async function save() {
   if (!can('crm.account.update') || !loadedProfile.value || !canSave.value) return
+  accountDraft.displayName = upperAccountName(accountDraft.displayName).trim()
+  accountDraft.legalName = upperAccountName(accountDraft.legalName).trim()
   if (!accountDraft.displayName.trim() || !accountDraft.legalName.trim()) {
     error.value = 'Nombre comercial y razón social son obligatorios.'
     return
@@ -283,8 +288,10 @@ async function save() {
         <section v-show="activeEditorSection==='identity'" id="crm-edit-identity" class="crm-editor-section">
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div><h3>Identidad del cliente</h3><p>Información comercial y tributaria</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
-            <DhInput v-model="accountDraft.displayName" label="Nombre comercial *" />
-            <DhInput v-model="accountDraft.legalName" label="Razón social *" />
+            <DhInput :model-value="accountDraft.displayName" label="Nombre comercial *"
+               @update:model-value="accountDraft.displayName=upperAccountName($event)" />
+            <DhInput :model-value="accountDraft.legalName" label="Razón social *"
+               @update:model-value="accountDraft.legalName=upperAccountName($event)" />
             <CrmCatalogPicker :key="props.account.id" label="País" catalog-group-slug="countries" value-kind="id"
               :model-value="accountDraft.countryId" @resolved-label="rememberAccountCountry"
               @update:model-value="updateAccountCountry" />
