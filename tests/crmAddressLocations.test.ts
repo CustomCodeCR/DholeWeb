@@ -39,19 +39,20 @@ test('Panama uses province or comarca, district, and corregimiento selectors', (
   assert.match(picker, /Corregimiento \(manual\)/)
 })
 
+
 test('postal code is editable for every country and offers verified locality candidates', () => {
-  assert.match(picker, /label="Código postal"/)
-  assert.match(picker, /placeholder="Ingresar código postal"/)
-  assert.match(picker, /geo\\/postal-codes/)
-  assert.match(picker, /postalSuggestions\\.length > 1/)
-  assert.match(picker, /postalSuggestions\\.value\\.length === 1/)
-  assert.match(picker, /!props\\.modelValue\\.postalCode\\.trim\\(\\)/)
-  assert.match(picker, /No hay un código postal único/)
-  assert.match(picker, /podés ingresarlo manualmente/i)
+  assert.ok(picker.includes('label="Código postal"'))
+  assert.ok(picker.includes('placeholder="Ingresar código postal"'))
+  assert.ok(picker.includes('geo/postal-codes'))
+  assert.ok(picker.includes('postalSuggestions.length > 1'))
+  assert.ok(picker.includes('postalSuggestions.value.length === 1'))
+  assert.ok(picker.includes('!props.modelValue.postalCode.trim()'))
+  assert.ok(picker.includes('No hay un código postal único'))
+  assert.ok(picker.includes('Podés ingresarlo manualmente'))
 })
 
 test('Panama postal codes require a precise location, never inferred from corregimiento', () => {
-  assert.match(picker, /iso === 'PA'/)
-  assert.match(picker, /codigospostalespanama\\.gob\\.pa/)
-  assert.match(picker, /no solo por el corregimiento/)
+  assert.ok(picker.includes("iso === 'PA'"))
+  assert.ok(picker.includes('codigospostalespanama.gob.pa'))
+  assert.ok(picker.includes('no solo por el corregimiento'))
 })
