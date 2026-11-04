@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFile } from 'node:fs/promises'
 import { patchPricingCostSelectedPartyContext } from '../build/pricingCostSelectedPartyContext.ts'
 import { resolveCostPricing, readCostPricingRules, validateCostPricingRules } from '../src/modules/pricing/utils/pricingCostRules.ts'
+import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '../src/modules/pricing/utils/pricingPickupChargeBasis.ts'
 
 const makeCost = (pricingRulesJson: string | null) =>
   ({ costAmount: 10, saleAmount: 20, pricingRulesJson })
@@ -176,4 +177,30 @@ test('SRM payee selection does not depend on shipment modes', async () => {
   assert.match(payeeOptions, /suppliers\.value\.filter\(row => row\.isActive\)/)
   assert.doesNotMatch(payeeOptions, /row\.shipmentModes|concreteShipmentModes/)
   assert.match(payeeOptions, /\.map\(row => \(\{ value: row\.id, label: row\.name \}\)\)/)
+})
+
+test('FCL recolecta charges once per container regardless of catalog or manual source', () => {
+  for (const manual of [false, true]) {
+    assert.equal(resolvePickupChargeBasis('Fcl', true, manual, false, 'PerShipment'), 'PerContainer')
+    assert.equal(pickupUsesFlatQuantity('Fcl', true, manual), false)
+    assert.equal(575 * 6, 3450)
+  }
+})
+
+test('FCL pickup correction respects persisted view snapshots and other shipment modes', () => {
+  assert.equal(resolvePickupChargeBasis('Fcl', true, true, true, 'PerShipment'), 'PerShipment')
+  assert.equal(resolvePickupChargeBasis('Fcl', true, false, true, 'PerContainer'), 'PerContainer')
+  assert.equal(resolvePickupChargeBasis('Fcl', false, false, false, 'PerShipment'), 'PerShipment')
+  assert.equal(resolvePickupChargeBasis('Lcl', true, false, false, 'PerCbm'), 'PerShipment')
+  assert.equal(resolvePickupChargeBasis('Lcl', true, true, false, 'PerPickup'), 'PerPickup')
+  assert.equal(pickupUsesFlatQuantity('Lcl', true, false), true)
+})
+
+test('Active Pricing wizard persists corrected FCL pickup basis and recalculated quantity', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /resolvePickupChargeBasis\(/)
+  assert.match(source, /pickupUsesFlatQuantity\(/)
+  assert.match(source, /line\.chargeBasis = 'PerContainer'/)
+  assert.match(source, /chargeBasis: effectiveChargeBasisForLine\(line\)/)
+  assert.match(source, /quantity: quantityForRateLine\(line\)/)
 })
