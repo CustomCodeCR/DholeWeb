@@ -43,7 +43,7 @@ export function crmAgreementDueLocal(text: string, reference: Date): { dueLocal:
   const written = text.match(/\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|setiembre|septiembre|octubre|noviembre|diciembre)(?:\s+(?:de|del)\s+(20\d{2}))?\b/i)
   const numeric = text.match(/\b(\d{1,2})[/.](\d{1,2})(?:[/.](20\d{2}))?\b/)
   if (iso) { year = Number(iso[1]); month = Number(iso[2]); day = Number(iso[3]) }
-  else if (written) { day = Number(written[1]); month = months[normalizeMonth(written[2])]; year = written[3] ? Number(written[3]) : null }
+  else if (written) { day = Number(written[1]); month = months[normalizeMonth(written[2] ?? '')] ?? null; year = written[3] ? Number(written[3]) : null }
   else if (numeric) { day = Number(numeric[1]); month = Number(numeric[2]); year = numeric[3] ? Number(numeric[3]) : null }
   if (day === null || month === null) return { dueLocal: '', hasExplicitTime: false }
 
