@@ -38,3 +38,20 @@ test('Panama uses province or comarca, district, and corregimiento selectors', (
   assert.match(picker, /Seleccionar corregimiento/)
   assert.match(picker, /Corregimiento \(manual\)/)
 })
+
+test('postal code is editable for every country and offers verified locality candidates', () => {
+  assert.match(picker, /label="Código postal"/)
+  assert.match(picker, /placeholder="Ingresar código postal"/)
+  assert.match(picker, /geo\\/postal-codes/)
+  assert.match(picker, /postalSuggestions\\.length > 1/)
+  assert.match(picker, /postalSuggestions\\.value\\.length === 1/)
+  assert.match(picker, /!props\\.modelValue\\.postalCode\\.trim\\(\\)/)
+  assert.match(picker, /No hay un código postal único/)
+  assert.match(picker, /podés ingresarlo manualmente/i)
+})
+
+test('Panama postal codes require a precise location, never inferred from corregimiento', () => {
+  assert.match(picker, /iso === 'PA'/)
+  assert.match(picker, /codigospostalespanama\\.gob\\.pa/)
+  assert.match(picker, /no solo por el corregimiento/)
+})
