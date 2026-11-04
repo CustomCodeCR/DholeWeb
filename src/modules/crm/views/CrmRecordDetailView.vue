@@ -13,6 +13,8 @@ import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
+import CrmAddressLocationFields from '../components/CrmAddressLocationFields.vue'
+import { emptyAddressLocation } from '../model/crmAddressLocation'
 import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
 import CrmContractFileDropzone from '../components/CrmContractFileDropzone.vue'
 import { creditCoverageLabel } from '../model/crmCreditCoverage'
@@ -119,6 +121,7 @@ const drafts = reactive({
   addressText: '', addressType: 'WORK', transportModeCode: 'SEA', modalityCode: 'FCL',
   summary: '',
 })
+const addressLocation = ref(emptyAddressLocation())
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 const agendaEditable = computed(() => section.value === 'activities'
@@ -636,11 +639,21 @@ function addService() {
     expectedMovementsPerMonth: null, notes: drafts.note || null,
   }, 'crm.analysis.manage')
 }
-function addAddress() {
-  return createRelation('addresses', {
-    contactId: null, countryId: null, addressType: drafts.addressType,
-    addressText: drafts.addressText, location: null,
+async function addAddress() {
+  const geo = addressLocation.value
+  await createRelation('addresses', {
+    contactId: null, countryId: geo.countryId || record.value?.countryId || null,
+    countryCode: geo.countryCode || null,
+    admin1Code: geo.admin1Code || null, admin1Name: geo.admin1Name || null,
+    admin2Code: geo.admin2Code || null, admin2Name: geo.admin2Name || null,
+    admin3Code: geo.admin3Code || null, admin3Name: geo.admin3Name || null,
+    postalCode: geo.postalCode.trim() || null,
+    addressType: drafts.addressType, addressText: drafts.addressText, location: null,
   }, 'crm.account.update')
+  if (!showRelationForm.value) {
+    addressLocation.value = emptyAddressLocation()
+    drafts.addressText = ''
+  }
 }
 function addNote() {
   return createRelation('notes', { noteText: drafts.note }, 'crm.activity.update')
@@ -982,6 +995,10 @@ onMounted(() => { if (crmEnabled()) void load() })
             <div class="flex items-start gap-3">
               <MapPin class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
               <div class="min-w-0"><p class="text-sm font-bold">{{ item.addressText ?? 'Dirección sin especificar' }}</p>
+                <p v-if="item.admin1Name || item.admin2Name || item.admin3Name || item.postalCode"
+                  class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  {{ [item.admin3Name, item.admin2Name, item.admin1Name, item.postalCode].filter(Boolean).join(' · ') }}
+                </p>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ item.addressType === 'WORK' ? 'Oficina / trabajo' : item.addressType === 'BILLING' ? 'Facturación' : item.addressType ?? 'Dirección de la cuenta' }}</p>
               </div>
             </div>
@@ -1062,8 +1079,10 @@ onMounted(() => { if (crmEnabled()) void load() })
               <option value="WAREHOUSE">Bodega</option><option value="OTHER">Otra</option>
             </select>
           </label>
-          <label class="crm-drawer-field sm:col-span-2">Dirección completa
-            <textarea v-model.trim="drafts.addressText" class="crm-input" rows="3" required maxlength="2000" placeholder="Provincia, cantón, distrito, señas de ubicación" />
+          <CrmAddressLocationFields v-model="addressLocation"
+            :default-country-id="String(record?.countryId ?? '')" />
+          <label class="crm-drawer-field sm:col-span-2">Dirección exacta y señas
+            <textarea v-model.trim="drafts.addressText" class="crm-input" rows="3" required maxlength="2000" placeholder="Calle, número, edificio, puntos de referencia y señas" />
           </label>
           <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-4 sm:col-span-2">
             <button type="button" class="crm-action" @click="showRelationForm=false">Cancelar</button>
