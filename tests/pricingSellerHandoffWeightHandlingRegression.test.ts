@@ -1,4 +1,5 @@
 import test from 'node:test'
+import { resolvePersistedCargoWeightKg } from '../src/modules/pricing/utils/pricingPersistedCargoWeight.ts'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
@@ -67,4 +68,21 @@ test('Anticipado / Redestino are persisted and applied to pricing condition', ()
   assert.match(sellerPatch, /form\.portHandlingMode = requestedPortHandlingMode\.value/)
   assert.match(conditionsPatch, /form\.portHandlingMode !== \(anticipado \? 'Anticipado' : 'Redestino'\)/)
   assert.match(conditionsPatch, /operationalConditionsSatisfied\(line\)/)
+})
+
+test('saved FCL cumulative weight stays visible even when descriptive cargo line is zero', () => {
+  const individual = [7917, 7917, 7917, 7917, 7917, 7916]
+  const total = individual.reduce((sum, kg) => sum + kg, 0)
+  assert.equal(total, 47501)
+  assert.equal(resolvePersistedCargoWeightKg('Fcl', total, [{ weightKg: 0 }]), 47501)
+  assert.equal(resolvePersistedCargoWeightKg('Ftl', total, [{ weightKg: 0 }]), 47501)
+  assert.equal(resolvePersistedCargoWeightKg('Lcl', 800, [{ weightKg: 300 }, { weightKg: 500 }]), 800)
+  assert.equal(resolvePersistedCargoWeightKg('Lcl', 800, [{ weightKg: 0 }]), 800)
+})
+
+test('Pricing edit hydration uses aggregate weight and saves it in cargo payload', () => {
+  const source = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /form\.cargoWeightKg = resolvePersistedCargoWeightKg\(rate\.shipmentMode, rate\.totalWeightKg, rate\.cargoLines\)/)
+  assert.match(source, /totalWeightKg: Math\.max\(0, number\(form\.cargoWeightKg\)\)/)
+  assert.match(source, /weightKg: Math\.max\(0, number\(form\.cargoWeightKg\)\)/)
 })
