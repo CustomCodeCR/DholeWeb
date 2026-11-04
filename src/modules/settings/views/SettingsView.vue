@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ContactRound, DatabaseZap, Keyboard, Palette, RefreshCcw, Settings } from 'lucide-vue-next'
+import { ArrowLeft, ContactRound, DatabaseZap, Info, Keyboard, Palette, RefreshCcw, Settings } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
+import { APP_CHANNEL, APP_COMMIT, APP_VERSION } from '@/core/version'
 import { DhButton } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -113,5 +114,23 @@ const cards = computed(() => {
         @click="router.push(card.path)"
       />
     </div>
+
+    <DhCard
+      :title="t('settings.systemVersion')"
+      :subtitle="t('settings.systemVersionDescription')"
+      :icon="Info"
+    >
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+        <span class="font-black text-[var(--dh-text)]">v{{ APP_VERSION }}</span>
+        <span class="text-[var(--dh-text-muted)]">
+          {{ t('settings.versionChannel') }}:
+          <strong class="text-[var(--dh-text)]">{{ APP_CHANNEL }}</strong>
+        </span>
+        <span v-if="APP_COMMIT" class="text-[var(--dh-text-muted)]">
+          {{ t('settings.versionCommit') }}:
+          <code class="font-semibold text-[var(--dh-text)]">{{ APP_COMMIT }}</code>
+        </span>
+      </div>
+    </DhCard>
   </section>
 </template>
