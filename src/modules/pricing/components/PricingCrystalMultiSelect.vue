@@ -197,8 +197,8 @@ function toggle(value: string) {
   font-size: 0.875rem;
   font-weight: 700;
   box-shadow: 0 10px 30px rgb(15 23 42 / 0.06), inset 0 1px 0 rgb(255 255 255 / 0.28);
-  backdrop-filter: blur(22px) saturate(145%);
-  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  backdrop-filter: blur(var(--dh-blur)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--dh-blur)) saturate(145%);
 }
 
 .crystal-multi__trigger::-webkit-details-marker {
