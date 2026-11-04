@@ -124,8 +124,8 @@ function patchWizard(source: string) {
   )
 
   const providerAnchor = [
-    'const providerCost = computed(() => number(form.freightCost) + providerAgentCost.value)',
-    'const providerSale = computed(() => number(form.freightSale) + providerAgentSale.value)',
+    'const providerCost = computed(() => number(freightCostInput.value) + providerAgentCost.value)',
+    'const providerSale = computed(() => number(freightSaleInput.value) + providerAgentSale.value)',
   ].join('\n')
   const providerReplacement = [
     'const providerFreightCost = computed(() =>',
