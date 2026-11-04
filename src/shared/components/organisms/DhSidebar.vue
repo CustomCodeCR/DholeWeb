@@ -2,6 +2,7 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { APP_VERSION, APP_VERSION_DETAIL, APP_CHANNEL, APP_COMMIT } from '@/core/version'
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
@@ -179,6 +180,7 @@ watch(
         >
           <div
             class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--dh-primary)] text-sm font-black text-[var(--dh-on-primary)]"
+            :title="APP_VERSION_DETAIL"
           >
             GCF
           </div>
@@ -189,6 +191,9 @@ watch(
             </p>
             <p class="truncate text-[11px] font-medium text-[var(--dh-text-muted)]">
               {{ t('app.subtitle') }}
+            </p>
+            <p class="mt-0.5 truncate text-[10px] font-bold text-[var(--dh-text-muted)]" :title="APP_COMMIT || APP_VERSION_DETAIL">
+              v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
             </p>
           </div>
 
