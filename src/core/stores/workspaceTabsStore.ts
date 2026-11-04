@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { limitWorkspaceTabs, workspaceTabGroup, workspaceTabKey } from './workspaceTabPolicy'
+import { limitWorkspaceTabs, reusableWorkspaceTabIndex, workspaceTabGroup, workspaceTabKey } from './workspaceTabPolicy'
 
 export interface WorkspaceTab {
   key: string
@@ -45,13 +45,16 @@ function normalizeTab(tab: WorkspaceTab): WorkspaceTab | null {
   }
 }
 
-function ensureDashboard(tabs: WorkspaceTab[]): WorkspaceTab[] {
+function ensureDashboard(tabs: WorkspaceTab[], preferredKey = ''): WorkspaceTab[] {
   const byKey = new Map<string, WorkspaceTab>()
   for (const candidate of tabs) {
     const tab = normalizeTab(candidate)
     if (!tab || tab.key === DASHBOARD_TAB.key) continue
-    // Old sessions may contain multiple query-string copies of one view.
+    // Consolidate older sessions' repeated CRM list/detail tabs and query copies.
+    // Keep the tab the user last selected, not an unrelated newer insertion.
     const identity = workspaceTabGroup(tab.path) ?? tab.key
+    const previous = byKey.get(identity)
+    if (previous?.key === preferredKey && tab.key !== preferredKey) continue
     byKey.delete(identity)
     byKey.set(identity, tab)
   }
@@ -64,8 +67,8 @@ function loadTabs(): WorkspaceTab[] {
 
   try {
     const parsed = JSON.parse(raw) as WorkspaceTab[]
-    const normalized = ensureDashboard(Array.isArray(parsed) ? parsed : [])
     const active = workspaceTabKey(localStorage.getItem(ACTIVE_KEY) || '/home')
+    const normalized = ensureDashboard(Array.isArray(parsed) ? parsed : [], active)
     return limitWorkspaceTabs(normalized, active)
   } catch {
     return ensureDashboard([])
@@ -126,7 +129,7 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
   actions: {
     persist() {
       this.tabs = limitWorkspaceTabs(
-        ensureDashboard(this.tabs),
+        ensureDashboard(this.tabs, this.activeKey),
         this.activeKey,
         this.splitPane?.key ?? null,
       )
@@ -157,38 +160,32 @@ export const useWorkspaceTabsStore = defineStore('workspaceTabs', {
       const normalized = normalizeTab(tab)
       if (!normalized) return
 
-      const existingIndex = this.tabs.findIndex((x) => x.key === normalized.key)
+      const exactIndex = this.tabs.findIndex(x => x.key === normalized.key)
+      // Reuse the matching module tab even if the user is currently viewing
+      // another module. CRM accounts and contacts have one slot each.
+      const existingIndex = exactIndex === -1
+        ? reusableWorkspaceTabIndex(this.tabs, normalized.path)
+        : exactIndex
 
       if (existingIndex === -1) {
-        const activeIndex = this.tabs.findIndex((x) => x.key === this.activeKey)
-        const active = this.tabs[activeIndex]
-        const group = workspaceTabGroup(normalized.path)
-        // Internal workflow navigation replaces the current related view.
-        // Other modules, and existing explicit tabs, keep their own slots.
-        if (
-          activeIndex > 0
-          && active?.closable
-          && group !== null
-          && workspaceTabGroup(active.path) === group
-          && this.splitPane?.key !== active.key
-        ) {
-          this.tabs.splice(activeIndex, 1, normalized)
-        } else {
-          this.tabs.push(normalized)
-        }
+        this.tabs.push(normalized)
       } else {
         const existing = this.tabs[existingIndex]
         if (!existing) return
-
         this.tabs[existingIndex] = {
           ...existing,
           ...normalized,
           closable: existing.closable === false ? false : normalized.closable,
         }
+        // Preserve split-pane references if a detail replaces its list route.
+        if (this.splitPane?.key === existing.key) {
+          this.splitPane = splitPaneFromTab(this.tabs[existingIndex]!)
+        }
+        if (this.activeKey === existing.key) this.activeKey = normalized.key
       }
 
       if (this.splitPane?.key === normalized.key) {
-        const currentMain = this.tabs.find((tab) => tab.key === this.activeKey)
+        const currentMain = this.tabs.find(item => item.key === this.activeKey)
         this.activeKey = normalized.key
         this.splitPane =
           currentMain && currentMain.key !== DASHBOARD_TAB.key && currentMain.key !== normalized.key
