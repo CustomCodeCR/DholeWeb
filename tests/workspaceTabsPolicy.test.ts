@@ -7,6 +7,7 @@ import {
   workspaceTabKey,
   workspaceTabGroup,
   reusableWorkspaceTabIndex,
+  deduplicateWorkspaceTabs,
 } from '../src/core/stores/workspaceTabPolicy.ts'
 
 test('filters, hashes and wizard query parameters reuse the same tab', () => {
@@ -79,4 +80,22 @@ test('existing CRM tab is reusable even when a different module is currently act
   assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/contacts/c?edit=1'), 3)
   assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/leads'), -1)
   assert.equal(reusableWorkspaceTabIndex(tabs, '/pricing/rates'), -1)
+})
+
+test('restoring old CRM tabs consolidates duplicates and keeps the previously active record', () => {
+  const saved = [
+    { key: '/crm/accounts', path: '/crm/accounts' },
+    { key: '/crm/accounts/a', path: '/crm/accounts/a' },
+    { key: '/crm/contacts/a', path: '/crm/contacts/a' },
+    { key: '/crm/accounts/b', path: '/crm/accounts/b' },
+    { key: '/crm/contacts/b', path: '/crm/contacts/b' },
+    { key: '/pricing/rates', path: '/pricing/rates' },
+  ]
+  const restored = deduplicateWorkspaceTabs(saved, '/crm/accounts/a')
+  assert.equal(restored.filter(tab => workspaceTabGroup(tab.path) === 'crm-accounts').length, 1)
+  assert.equal(restored.filter(tab => workspaceTabGroup(tab.path) === 'crm-contacts').length, 1)
+  assert.ok(restored.some(tab => tab.key === '/crm/accounts/a'))
+  assert.ok(restored.some(tab => tab.key === '/pricing/rates'))
+  assert.equal(restored.some(tab => tab.key === '/crm/accounts/b'), false)
+  assert.equal(restored.length, 3)
 })
