@@ -7,6 +7,7 @@ import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmRelationshipPicker from './CrmRelationshipPicker.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmPhoneInput from './CrmPhoneInput.vue'
+import CrmGeoAddressFields from './CrmGeoAddressFields.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { identificationOptionsForCountry, normalizeIdentificationType } from '../model/crmIdentification'
@@ -81,7 +82,22 @@ const relatedAddresses = ref<CrmRow[]>([])
 const editingContactId = ref('')
 const editingAddressId = ref('')
 const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
-const addressDraft = reactive({ addressType: '', addressText: '', location: '' })
+const addressDraft = reactive({
+  addressType: 'WORK', addressText: '', location: '',
+  countryCode: '', admin1Code: '', admin1Name: '',
+  admin2Code: '', admin2Name: '', admin3Code: '', admin3Name: '', postalCode: '',
+})
+const creatingAddress = ref(false)
+function beginNewAddress() {
+  Object.assign(addressDraft, {
+    addressType: 'WORK', addressText: '', location: '',
+    countryCode: '', admin1Code: '', admin1Name: '', admin2Code: '', admin2Name: '',
+    admin3Code: '', admin3Name: '', postalCode: '',
+  })
+  editingAddressId.value = ''
+  creatingAddress.value = true
+  relatedError.value = ''
+}
 const relationSaving = ref(false)
 const relatedError = ref('')
 const relatedSuccess = ref('')
@@ -98,8 +114,16 @@ function beginContactEdit(contact: CrmRow) {
 }
 function beginAddressEdit(address: CrmRow) {
   editingAddressId.value = String(address.id)
-  Object.assign(addressDraft, { addressType: String(address.addressType ?? 'WORK'),
-    addressText: String(address.addressText ?? ''), location: String(address.location ?? '') })
+  Object.assign(addressDraft, {
+    addressType: String(address.addressType ?? 'WORK'),
+    addressText: String(address.addressText ?? ''), location: String(address.location ?? ''),
+    countryCode: String(address.countryCode ?? ''),
+    admin1Code: String(address.admin1Code ?? ''), admin1Name: String(address.admin1Name ?? ''),
+    admin2Code: String(address.admin2Code ?? ''), admin2Name: String(address.admin2Name ?? ''),
+    admin3Code: String(address.admin3Code ?? ''), admin3Name: String(address.admin3Name ?? ''),
+    postalCode: String(address.postalCode ?? ''),
+  })
+  creatingAddress.value = false
   editingContactId.value = ''
   relatedError.value = ''
 }
@@ -126,17 +150,23 @@ async function saveContact() {
 }
 async function saveAddress() {
   const previous = relatedAddresses.value.find(a => String(a.id) === editingAddressId.value)
-  if (!previous || !can('crm.account.update') || relationSaving.value) return
+  if ((!previous && !creatingAddress.value) || !can('crm.account.update') || relationSaving.value) return
   if (!addressDraft.addressText.trim()) { relatedError.value = 'La dirección es obligatoria.'; return }
   relationSaving.value = true
   relatedError.value = ''
   try {
-    const updated = await crmPatch<CrmRow>('addresses', String(previous.id), {
-      ...addressDraft, expectedVersion: previous.rowVersion,
-    })
-    relatedAddresses.value = relatedAddresses.value.map(a => a.id === updated.id ? updated : a)
+    const updated = previous
+      ? await crmPatch<CrmRow>('addresses', String(previous.id), {
+          ...addressDraft, expectedVersion: previous.rowVersion,
+        })
+      : await crmRequest<CrmRow>(crmPath('accounts', String(props.account.id), 'addresses'),
+          'POST', { ...addressDraft, countryId: null, contactId: null })
+    relatedAddresses.value = previous
+      ? relatedAddresses.value.map(a => a.id === updated.id ? updated : a)
+      : [...relatedAddresses.value, updated]
     editingAddressId.value = ''
-    relatedSuccess.value = 'Dirección actualizada.'
+    creatingAddress.value = false
+    relatedSuccess.value = previous ? 'Dirección actualizada.' : 'Dirección registrada.'
     emit('saved')
   } catch (cause) { relatedError.value = crmError(cause) }
   finally { relationSaving.value = false }
@@ -176,6 +206,7 @@ async function load() {
     relatedAddresses.value = []
     editingContactId.value = ''
     editingAddressId.value = ''
+    creatingAddress.value = false
     relatedError.value = ''
     relatedSuccess.value = ''
     const requests: Promise<void>[] = []
@@ -374,7 +405,19 @@ async function save() {
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div>
             <h3>Direcciones</h3><p>Direcciones registradas de la empresa</p>
           </div></div>
+          <button v-if="can('crm.account.update')" type="button" class="crm-editor-secondary mb-3"
+            @click="beginNewAddress">Agregar dirección</button>
           <p v-if="!relatedAddresses.length" class="text-sm text-[var(--dh-text-muted)]">Sin direcciones registradas.</p>
+          <div v-if="creatingAddress" class="mb-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
+            <CrmGeoAddressFields v-model="addressDraft" />
+            <DhInput v-model="addressDraft.location" label="Referencia / ubicación adicional" />
+            <DhTextarea v-model="addressDraft.addressText" label="Dirección exacta" :rows="3" />
+            <div class="flex gap-2">
+              <button type="button" class="crm-editor-secondary" @click="creatingAddress=false">Cancelar</button>
+              <button type="button" class="crm-editor-primary" :disabled="relationSaving" @click="saveAddress">Crear dirección</button>
+            </div>
+          </div>
           <div v-for="address in relatedAddresses" :key="String(address.id)"
             class="mb-3 rounded-xl border border-[var(--dh-border)] p-3">
             <div class="flex items-center justify-between gap-3">
@@ -385,7 +428,8 @@ async function save() {
             </div>
             <div v-if="editingAddressId===String(address.id)" class="mt-4 grid gap-3 md:grid-cols-2">
               <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
-              <DhInput v-model="addressDraft.location" label="Ubicación" />
+              <DhInput v-model="addressDraft.location" label="Referencia / ubicación adicional" />
+              <div class="md:col-span-2"><CrmGeoAddressFields v-model="addressDraft" /></div>
               <div class="md:col-span-2"><DhTextarea v-model="addressDraft.addressText" label="Dirección completa" :rows="2" /></div>
               <div class="flex gap-2 md:col-span-2">
                 <button type="button" class="crm-editor-secondary" @click="editingAddressId=''">Cancelar</button>
