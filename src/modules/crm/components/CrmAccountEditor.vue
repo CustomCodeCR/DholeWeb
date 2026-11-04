@@ -422,7 +422,11 @@ async function save() {
             class="mb-3 rounded-xl border border-[var(--dh-border)] p-3">
             <div class="flex items-center justify-between gap-3">
               <div><p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ address.addressType }}</p>
-                <p class="text-sm">{{ address.addressText }}</p></div>
+                <p class="text-sm">{{ address.addressText }}</p>
+                <p v-if="address.countryCode" class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  {{ [address.admin3Name, address.admin2Name, address.admin1Name, address.countryCode].filter(Boolean).join(', ') }}
+                  <span v-if="address.postalCode"> · CP {{ address.postalCode }}</span>
+                </p></div>
               <button v-if="can('crm.account.update')" type="button" class="crm-editor-link"
                 @click="beginAddressEdit(address)">Editar</button>
             </div>
