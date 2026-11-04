@@ -53,6 +53,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
+import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
 import { requiresMaritimeCarrier } from '@/modules/pricing/utils/pricingCarrierRequirement'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
@@ -1673,8 +1674,34 @@ const providerAgentCost = computed(() =>
 const providerAgentSale = computed(() =>
   providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.saleAmount), 0),
 )
-const providerCost = computed(() => number(form.freightCost) + providerAgentCost.value)
-const providerSale = computed(() => number(form.freightSale) + providerAgentSale.value)
+// Screen 6 and Pantalla 7 must edit the SAME freight row. Previously these
+// form prices could change without changing the rateLines sent to Pricing.
+function singleEditableLclFreightLine() {
+  return shipmentModeForApi.value === 'Lcl' ? singleIncludedFreightLine(rateLines.value) : null
+}
+
+function setProviderFreightUnitAmount(field: 'costAmount' | 'saleAmount', rawAmount: number) {
+  const amount = applyFreightUnitAmount(
+    shipmentModeForApi.value === 'Lcl' ? rateLines.value : [],
+    field,
+    rawAmount,
+  )
+  if (amount === null) return
+  if (field === 'costAmount') form.freightCost = amount
+  else form.freightSale = amount
+}
+
+const freightCostInput = computed<number>({
+  get: () => number(singleEditableLclFreightLine()?.costAmount ?? form.freightCost),
+  set: (value) => setProviderFreightUnitAmount('costAmount', value),
+})
+const freightSaleInput = computed<number>({
+  get: () => number(singleEditableLclFreightLine()?.saleAmount ?? form.freightSale),
+  set: (value) => setProviderFreightUnitAmount('saleAmount', value),
+})
+
+const providerCost = computed(() => number(freightCostInput.value) + providerAgentCost.value)
+const providerSale = computed(() => number(freightSaleInput.value) + providerAgentSale.value)
 const providerUtility = computed(() => providerSale.value - providerCost.value)
 const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
@@ -5026,6 +5053,28 @@ async function saveRate() {
       // from the persisted quotation, otherwise don't show a false success toast.
       const persistedRate = await PricingService.getRate(editingRate.value.id)
       const savedDetailsById = new Map(persistedRate.rateDetails.map((detail) => [detail.id, detail] as const))
+      // In an air LCL quotation, the price entered per KG must persist as the
+      // actual freight detail unit cost/sale. Never report success just because
+      // Pricing accepted the PUT while retaining the old provider freight.
+      if (shipmentModeForApi.value === 'Lcl' && form.modality === 'Air') {
+        const requestedAirFreight = updatePayload.extraDetails.find((detail) =>
+          detail.costDetailType === 'Freight' && detail.chargeBasis === 'PerKg')
+        if (requestedAirFreight) {
+          const savedAirFreight = persistedRate.rateDetails.find((detail) =>
+            detail.costDetailType === 'Freight'
+            && (!requestedAirFreight.id || detail.id === requestedAirFreight.id))
+          if (!savedAirFreight
+            || Math.abs(number(savedAirFreight.costAmount) - number(requestedAirFreight.costAmount)) > 0.009
+            || Math.abs(number(savedAirFreight.saleAmount) - number(requestedAirFreight.saleAmount)) > 0.009
+            || savedAirFreight.chargeBasis !== 'PerKg') {
+            throw new Error(
+              'Pricing recibió la modificación, pero el flete por KG no quedó guardado'
+              + ' con el costo y la venta indicados. Recargue la tarifa y verifique'
+              + ' el detalle antes de reenviarla.',
+            )
+          }
+        }
+      }
       // A successful PUT previously only verified changed persisted IDs. New
       // LCL matrix charges have id=null (Manejos) and could be silently removed
       // by Pricing's post-update fixed-cost synchronization. Verify their actual
@@ -5449,6 +5498,21 @@ watch(() => form.currencyId, () => {
   if (hydratingExistingRate.value || editingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
+
+// Editing freight directly in Pantalla 7 must also update the provider
+// screen. Keep IDs, charge basis and quantity intact while synchronizing.
+watch(
+  () => {
+    const line = singleEditableLclFreightLine()
+    return line ? [line.costAmount, line.saleAmount] as const : null
+  },
+  (amounts) => {
+    if (!amounts || props.viewOnly || hydratingExistingRate.value) return
+    form.freightCost = number(amounts[0])
+    form.freightSale = number(amounts[1])
+  },
+  { flush: 'sync' },
+)
 
 watch(
   () => [form.cargoValue, form.freightCost] as const,
@@ -6104,11 +6168,11 @@ onMounted(async () => {
             </div>
             <DhSelect v-model="form.currencyId" data-required-field="currencyId" :error="fieldError('currencyId')" label="Moneda" :options="currencyOptions" />
             <div data-required-field="freightCost" :class="isInvalid('freightCost') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
-            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
+            <DhInput v-model.number="freightCostInput" type="number" min="0" step="0.01" label="Flete internacional · costo" />
               <p v-if="fieldError('freightCost')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightCost') }}</p>
             </div>
             <div data-required-field="freightSale" :class="isInvalid('freightSale') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
-            <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+            <DhInput v-model.number="freightSaleInput" type="number" min="0" step="0.01" label="Flete internacional · venta" />
               <p v-if="fieldError('freightSale')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightSale') }}</p>
             </div>
             <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
