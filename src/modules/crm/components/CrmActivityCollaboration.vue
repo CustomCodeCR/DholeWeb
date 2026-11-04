@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { MessageSquareText, Plus, UsersRound, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
+import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 
 const props = defineProps<{
   activityId: string
@@ -19,6 +20,19 @@ const saving = ref(false)
 const error = ref('')
 const message = ref('')
 const note = ref('')
+const noteCommitments = ref<CrmAgreementDraft[]>([])
+watch(note, (text) => {
+  const parsed=crmAgreementDrafts(text)
+  noteCommitments.value=parsed.map(item => {
+    const old=noteCommitments.value.find(x=>x.source===item.source)
+    return old ? {...item,title:old.title,dueLocal:old.dueLocal,
+      hasExplicitTime:old.hasExplicitTime} : item
+  })
+})
+const noteHasDueErrors = computed(() => noteCommitments.value.some(item =>
+  !item.title.trim() || !item.dueLocal ||
+  !Number.isFinite(new Date(item.dueLocal).getTime()) ||
+  new Date(item.dueLocal).getTime() <= Date.now()))
 const showParticipantForm = ref(false)
 const participantType = ref<ParticipantType>('name')
 const participantName = ref('')
@@ -100,16 +114,27 @@ async function addParticipant() {
 }
 async function addNote() {
   if (saving.value || !props.canManage || !note.value.trim()) return
+  if (noteHasDueErrors.value) {
+    error.value = 'Confirmá una fecha futura para cada acuerdo antes de guardar.'
+    return
+  }
   saving.value = true
   error.value = ''
   message.value = ''
   try {
-    const saved = await crmRequest<CrmRow>(crmPath('activities',props.activityId,'notes'),'POST',{
-      noteText: note.value.trim()
-    }, crmUuid())
-    if (saved?.id) notes.value = [...notes.value, saved]
-    note.value = ''
-    message.value = 'Observación agregada.'
+    const items=noteCommitments.value.map(item=>({
+      subject:item.title.trim(),dueAt:new Date(item.dueLocal).toISOString(),
+    }))
+    const saved=await crmRequest<CrmRow & {createdCommitments?: CrmRow[]}>(
+      crmPath('activities',props.activityId,'notes'),'POST',{
+        noteText: note.value.trim(),agreementCommitments:items,
+      },crmUuid())
+    if (saved?.id) notes.value=[...notes.value,saved]
+    note.value=''
+    noteCommitments.value=[]
+    message.value=items.length
+      ? 'Observación guardada y '+items.length+' compromiso(s) agregado(s) al calendario del cliente y vendedor.'
+      : 'Observación agregada.'
     await load()
   } catch(cause) {
     error.value = crmError(cause)
@@ -177,8 +202,30 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
           <span class="rounded-full bg-[var(--dh-shell)] px-2 py-0.5 text-xs">{{ notes.length }}</span>
         </div>
         <form v-if="canManage" class="mt-4 space-y-3" @submit.prevent="addNote">
-          <DhTextarea v-model="note" label="Nueva observación" placeholder="Acuerdos, detalles o próximos pasos…" />
-          <div class="flex justify-end"><DhButton label="Guardar observación" type="submit" size="sm" :loading="saving" :disabled="!note.trim()" /></div>
+          <DhTextarea v-model="note" label="Nueva observación o acuerdos" placeholder="Ej. Acuerdos: entregar contenedor el 10 de noviembre" />
+          <div v-if="noteCommitments.length" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <p class="text-sm font-bold">Registrar acuerdos como compromisos</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">
+              Cada acuerdo se agregará al calendario del cliente y del vendedor. Revisá la fecha y hora:
+              09:00 es una sugerencia cuando el cliente no indicó una hora.
+            </p>
+            <div v-for="(item,index) in noteCommitments" :key="index" class="space-y-2 rounded-lg border border-[var(--dh-border)] p-2">
+              <label class="block text-xs font-semibold">Acuerdo {{ index+1 }}
+                <input v-model.trim="item.title" maxlength="250" required
+                  class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2 text-sm text-[var(--dh-text)]" />
+              </label>
+              <label class="block text-xs font-semibold">Fecha límite
+                <input v-model="item.dueLocal" type="datetime-local" required
+                  class="mt-1 w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2 text-sm text-[var(--dh-text)]" />
+              </label>
+              <p v-if="!item.dueLocal" class="text-xs text-amber-600">No se detectó fecha. Elegí la fecha del compromiso.</p>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <DhButton :label="noteCommitments.length ? 'Guardar acuerdos en calendario' : 'Guardar observación'"
+              type="submit" size="sm" :loading="saving"
+              :disabled="!note.trim() || noteHasDueErrors" />
+          </div>
         </form>
         <p v-if="!notes.length && !loading" class="mt-4 rounded-xl border border-dashed border-[var(--dh-border)] px-4 py-7 text-center text-sm text-[var(--dh-text-muted)]">No hay observaciones registradas.</p>
         <ol v-else class="mt-4 space-y-3">
