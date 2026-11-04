@@ -46,11 +46,15 @@ const catalogFields: Record<string, { slug: string; kind: 'id' | 'code' | 'value
   countryId: { slug: 'countries', kind: 'id' },
   currencyCode: { slug: 'currencies', kind: 'value' },
 }
+function upperAccountName(value: unknown): string {
+  return String(value ?? '').toLocaleUpperCase('es-CR')
+}
+
 function applyHacienda(result: HaciendaResult) {
   // Every explicit tax lookup replaces the stale account name.
   if (String(form.taxId ?? '').replace(/[\s-]/g, '') !== result.identification.replace(/[\s-]/g, '')) return
-  form.legalName = result.name
-  form.displayName = result.name
+  form.legalName = upperAccountName(result.name)
+  form.displayName = upperAccountName(result.name)
   if (result.identificationType) form.taxIdTypeCode = normalizeIdentificationType(result.identificationType)
 }
 
@@ -437,6 +441,9 @@ async function load() {
 async function save() {
   if (!model.value || saving.value) return
   if (section.value === 'accounts') {
+    // Normalize the actual values before validation and the API payload, not just the CSS display.
+    form.displayName = upperAccountName(form.displayName).trim()
+    form.legalName = upperAccountName(form.legalName).trim()
     if (requiredFields.value.length) {
       const identityFields = ['displayName', 'legalName', 'countryId', 'taxId', 'taxIdTypeCode']
       focusAccountSection(requiredFields.value.some(f => identityFields.includes(f.key)) ? 'identity' : 'commercial')
@@ -821,9 +828,9 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información general de la empresa. La consulta fiscal de Hacienda está disponible para cuentas de Costa Rica.</p>
                 <div class="grid gap-4 md:grid-cols-2">
                   <DhInput label="Nombre de cuenta / comercial *" data-required-field="displayName" :error="fieldError('displayName')"
-                    :model-value="String(form.displayName ?? '')" @update:model-value="form.displayName=$event" />
+                    :model-value="String(form.displayName ?? '')" @update:model-value="form.displayName=upperAccountName($event)" />
                   <DhInput label="Razón social *" data-required-field="legalName" :error="fieldError('legalName')"
-                    :model-value="String(form.legalName ?? '')" @update:model-value="form.legalName=$event" />
+                    :model-value="String(form.legalName ?? '')" @update:model-value="form.legalName=upperAccountName($event)" />
                   <CrmCatalogPicker v-if="!edited" label="País · catálogo Config" catalog-group-slug="countries" value-kind="id"
                     :model-value="String(form.countryId ?? '')" @resolved-label="rememberAccountCountry" @update:model-value="updateAccountCountry" />
                   <DhInput v-else label="País registrado (solo lectura)" :disabled="true"
