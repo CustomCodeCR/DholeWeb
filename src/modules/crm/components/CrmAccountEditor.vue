@@ -410,7 +410,7 @@ async function save() {
           <p v-if="!relatedAddresses.length" class="text-sm text-[var(--dh-text-muted)]">Sin direcciones registradas.</p>
           <div v-if="creatingAddress" class="mb-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-3">
             <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
-            <CrmGeoAddressFields v-model="addressDraft" />
+            <CrmGeoAddressFields :model-value="addressDraft" @update:model-value="Object.assign(addressDraft, $event)" />
             <DhInput v-model="addressDraft.location" label="Referencia / ubicación adicional" />
             <DhTextarea v-model="addressDraft.addressText" label="Dirección exacta" :rows="3" />
             <div class="flex gap-2">
@@ -429,7 +429,7 @@ async function save() {
             <div v-if="editingAddressId===String(address.id)" class="mt-4 grid gap-3 md:grid-cols-2">
               <DhInput v-model="addressDraft.addressType" label="Tipo de dirección" />
               <DhInput v-model="addressDraft.location" label="Referencia / ubicación adicional" />
-              <div class="md:col-span-2"><CrmGeoAddressFields v-model="addressDraft" /></div>
+              <div class="md:col-span-2"><CrmGeoAddressFields :model-value="addressDraft" @update:model-value="Object.assign(addressDraft, $event)" /></div>
               <div class="md:col-span-2"><DhTextarea v-model="addressDraft.addressText" label="Dirección completa" :rows="2" /></div>
               <div class="flex gap-2 md:col-span-2">
                 <button type="button" class="crm-editor-secondary" @click="editingAddressId=''">Cancelar</button>
