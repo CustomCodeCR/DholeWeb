@@ -7,6 +7,9 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 const STORAGE_KEY = 'dhole.theme'
 const LIQUID_BLUR_STORAGE_KEY = 'dhole.liquidBlur'
 const TEXT_COLOR_STORAGE_KEY = 'dhole.textColor'
+const TEXT_COLOR_LIGHT_STORAGE_KEY = 'dhole.textColor.light'
+const TEXT_COLOR_DARK_STORAGE_KEY = 'dhole.textColor.dark'
+let systemThemeListenerInitialized = false
 const DEFAULT_LIQUID_BLUR = 26
 const MIN_LIQUID_BLUR = 0
 const MAX_LIQUID_BLUR = 48
@@ -51,6 +54,33 @@ function applyTextColor(value: string | null) {
   root.style.setProperty('--dh-on-primary', color)
 }
 
+type TextColorMode = 'light' | 'dark'
+
+function readTextColors(): Record<TextColorMode, string | null> {
+  const colors = {
+    light: normalizeTextColor(localStorage.getItem(TEXT_COLOR_LIGHT_STORAGE_KEY)),
+    dark: normalizeTextColor(localStorage.getItem(TEXT_COLOR_DARK_STORAGE_KEY)),
+  }
+
+  // Preserve the previous single-color preference for the currently selected theme.
+  const legacyColor = normalizeTextColor(localStorage.getItem(TEXT_COLOR_STORAGE_KEY))
+  if (legacyColor) {
+    const savedMode = localStorage.getItem(STORAGE_KEY)
+    const currentTheme: TextColorMode = savedMode === 'light' || savedMode === 'dark'
+      ? savedMode
+      : getSystemTheme()
+    if (!colors[currentTheme]) {
+      colors[currentTheme] = legacyColor
+      localStorage.setItem(
+        currentTheme === 'light' ? TEXT_COLOR_LIGHT_STORAGE_KEY : TEXT_COLOR_DARK_STORAGE_KEY,
+        legacyColor,
+      )
+    }
+  }
+  localStorage.removeItem(TEXT_COLOR_STORAGE_KEY)
+  return colors
+}
+
 function getSystemTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -59,21 +89,32 @@ export const useThemeStore = defineStore('theme', {
   state: () => ({
     mode: (localStorage.getItem(STORAGE_KEY) as ThemeMode) || 'system',
     liquidBlur: readLiquidBlur(),
-    textColor: normalizeTextColor(localStorage.getItem(TEXT_COLOR_STORAGE_KEY)),
+    textColors: readTextColors(),
+    systemTheme: getSystemTheme(),
   }),
 
   getters: {
     resolvedTheme(state): 'light' | 'dark' {
-      return state.mode === 'system' ? getSystemTheme() : state.mode
+      return state.mode === 'system' ? state.systemTheme : state.mode
     },
   },
 
   actions: {
     applyTheme() {
+      if (!systemThemeListenerInitialized) {
+        const query = window.matchMedia('(prefers-color-scheme: dark)')
+        query.addEventListener('change', (event) => {
+          this.systemTheme = event.matches ? 'dark' : 'light'
+          if (this.mode === 'system') this.applyTheme()
+        })
+        systemThemeListenerInitialized = true
+      }
+
+      this.systemTheme = getSystemTheme()
       const theme = this.resolvedTheme
       document.documentElement.classList.toggle('dark', theme === 'dark')
       applyLiquidBlur(this.liquidBlur)
-      applyTextColor(this.textColor)
+      applyTextColor(this.textColors[theme])
     },
 
     setTheme(mode: ThemeMode) {
@@ -96,18 +137,23 @@ export const useThemeStore = defineStore('theme', {
       this.setLiquidBlur(DEFAULT_LIQUID_BLUR)
     },
 
-    setTextColor(value: string) {
+    setTextColor(mode: TextColorMode, value: string) {
       const color = normalizeTextColor(value)
       if (!color) return
-      this.textColor = color
-      localStorage.setItem(TEXT_COLOR_STORAGE_KEY, color)
-      applyTextColor(color)
+      this.textColors = { ...this.textColors, [mode]: color }
+      localStorage.setItem(
+        mode === 'light' ? TEXT_COLOR_LIGHT_STORAGE_KEY : TEXT_COLOR_DARK_STORAGE_KEY,
+        color,
+      )
+      if (this.resolvedTheme === mode) applyTextColor(color)
     },
 
-    resetTextColor() {
-      this.textColor = null
-      localStorage.removeItem(TEXT_COLOR_STORAGE_KEY)
-      applyTextColor(null)
+    resetTextColor(mode: TextColorMode) {
+      this.textColors = { ...this.textColors, [mode]: null }
+      localStorage.removeItem(
+        mode === 'light' ? TEXT_COLOR_LIGHT_STORAGE_KEY : TEXT_COLOR_DARK_STORAGE_KEY,
+      )
+      if (this.resolvedTheme === mode) applyTextColor(null)
     },
   },
 })
