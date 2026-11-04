@@ -272,117 +272,11 @@ function addSellerHandoffPreview(source: string): string {
 }
 
 
-function addGamPickupRequirement(source: string): string {
-  const vueImport = '<script setup lang="ts">'
-  const saveAnchor = 'async function saveRate() {'
-  const screenSeven = '<div v-else-if="step === 7"'
-  if (!source.includes(vueImport) || !source.includes(saveAnchor) || !source.includes(screenSeven)) {
-    throw new Error('[pricingWizardLandModeTerminology] Missing pickup validation anchors')
-  }
-  let code = source.replace(
-    vueImport,
-    vueImport + "\nimport { isLtlGamPickupLocation } from '@/modules/pricing/utils/ltlGamRouting'",
-  )
-  const scriptEnd = code.lastIndexOf('</script>')
-  if (scriptEnd < 0) throw new Error('[pricingWizardLandModeTerminology] Missing script end')
-  const pickupComputed = [
-    'const landLtlPickupRequired = computed(() =>',
-    "  shipmentModeForApi.value === 'Ltl'",
-    '  && isLtlGamPickupLocation([',
-    "    selectedOrigin.value ? displayValue(selectedOrigin.value) : '',",
-    "    selectedOrigin.value?.code ?? '',",
-    "  ].join(' ')),",
-    ')',
-    "const landLtlPickupLine = computed(() => rateLines.value.find((line) =>",
-    "  /recolecta|recoleccion|pickup|pick up/i.test(String(line.name ?? '') + ' ' + String(line.key ?? '')),",
-    ') ?? null)',
-    '',
-    'function ensureLandLtlPickupLine() {',
-    '  if (props.viewOnly) return',
-    '  if (!landLtlPickupRequired.value) {',
-    "    rateLines.value = rateLines.value.filter((line) => line.key !== 'manual:gam-ltl-pickup')",
-    '    return',
-    '  }',
-    '  if (landLtlPickupLine.value) {',
-    '    // Recolecta obligatoria: mostrar también las líneas opcionales ya configuradas.',
-    '    landLtlPickupLine.value.included = true',
-    '    return',
-    '  }',
-    '  const currency = selectedCurrency.value',
-    '  if (!currency) return',
-    '  rateLines.value.push({',
-    "    key: 'manual:gam-ltl-pickup',",
-    "    section: 'pickup_origin',",
-    "    name: 'Recolecta',",
-    "    costDetailType: 'InlandTransport',",
-    "    costType: 'Variable',",
-    "    chargeBasis: 'PerPickup',",
-    '    currencyId: currency.id,',
-    '    currencyName: displayValue(currency),',
-    '    currencyCode: currency.code,',
-    '    amountCurrencyCode: currency.code,',
-    '    costAmount: 0,',
-    '    saleAmount: 0,',
-    '    included: true,',
-    '    optional: false,',
-    '    manual: true,',
-    '  })',
-    '}',
-    '',
-    '// La pantalla 7 siempre muestra una recolecta editable, incluso sin costo catalogado.',
-    'watch([',
-    '  landLtlPickupRequired,',
-    '  () => step.value,',
-    '  () => selectedCurrency.value?.id,',
-    "  () => rateLines.value.map((line) => line.key).join('|'),",
-    '], () => {',
-    '  if (step.value === 7 || step.value === 8) ensureLandLtlPickupLine()',
-    '}, { immediate: true })',
-    '',
-  ].join('\n')
-  code = code.slice(0, scriptEnd) + pickupComputed + code.slice(scriptEnd)
-  const validation = [
-    saveAnchor,
-    '  ensureLandLtlPickupLine()',
-    '  if (landLtlPickupRequired.value) {',
-    '    const pickup = landLtlPickupLine.value',
-    '    if (!pickup || !pickup.included || !(Number(pickup.saleAmount) > 0)) {',
-    '      step.value = 7',
-    "      toastStore.error('Recolecta obligatoria: indique un precio de venta mayor a cero en el cargo Recolecta de la pantalla 7.')",
-    '      return',
-    '    }',
-    '  }',
-  ].join('\n')
-  code = code.replace(saveAnchor, validation)
-  // No se puede eliminar accidentalmente una línea obligatoria de la GAM.
-  code = code.replace(
-    '<button v-if="line.manual" type="button" class="h-10',
-    '<button v-if="line.manual && line.key !== &#39;manual:gam-ltl-pickup&#39;" type="button" class="h-10',
-  ).replace(
-    'line.key !== &#39;manual:gam-ltl-pickup&#39;',
-    "line.key !== 'manual:gam-ltl-pickup'",
-  )
-  const stepSevenStart = code.indexOf(screenSeven)
-  const stepSevenOpenEnd = code.indexOf('>', stepSevenStart)
-  if (stepSevenStart < 0 || stepSevenOpenEnd < 0) throw new Error('[pricingWizardLandModeTerminology] Missing step 7 opening tag')
-  return code.slice(0, stepSevenOpenEnd + 1) + [
-    '',
-    '          <div v-if="landLtlPickupRequired" class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-300">',
-    '            <p class="font-black">Recolecta de origen obligatoria · LTL GAM</p>',
-    '            <p class="mt-1">Para Alajuela, Heredia o Coyol, la recolecta se factura separadamente del flete LTL. Complete sus importes reales; no se asignan precios supuestos.</p>',
-    '            <div v-if="landLtlPickupLine" class="mt-3 grid gap-3 sm:grid-cols-2">',
-    '              <DhInput v-model.number="landLtlPickupLine.costAmount" type="number" min="0" step="0.01" label="Costo de recolecta" />',
-    '              <DhInput v-model.number="landLtlPickupLine.saleAmount" type="number" min="0" step="0.01" label="Venta de recolecta (obligatoria)" />',
-    '            </div>',
-    '            <p v-else class="mt-2">Seleccione la moneda de la tarifa para habilitar el cargo de recolecta.</p>',
-    '          </div>',
-  ].join('\n') + code.slice(stepSevenOpenEnd + 1)
-}
 
 export function patchPricingWizardLandModeTerminology(source: string): string {
   const commonWizard = removeRequestSpecificScreenFiveCard(source)
   const shared = addSharedCommercialValidity(patchStepFiveHelp(patchStepThreeForLand(commonWizard)))
-  return addGamPickupRequirement(addSellerHandoffPreview(shared))
+  return addSellerHandoffPreview(shared)
 }
 
 export function pricingWizardLandModeTerminology(): Plugin {
