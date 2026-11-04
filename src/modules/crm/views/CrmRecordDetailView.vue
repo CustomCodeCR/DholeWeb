@@ -154,6 +154,7 @@ const drafts = reactive({
   summary: '',
 })
 const addressLocation = ref(emptyAddressLocation())
+const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 const agendaEditable = computed(() => section.value === 'activities'
@@ -334,6 +335,7 @@ function openRelationCreation() {
       ...emptyAddressLocation(),
       countryId: String(record.value?.countryId ?? ''),
     }
+    addressFormVersion.value++
     drafts.addressText = ''
     drafts.addressType = 'WORK'
   }
@@ -1158,7 +1160,7 @@ onMounted(() => { if (crmEnabled()) void load() })
               <option value="WAREHOUSE">Bodega</option><option value="OTHER">Otra</option>
             </select>
           </label>
-          <CrmAddressLocationFields v-model="addressLocation"
+          <CrmAddressLocationFields :key="addressFormVersion" v-model="addressLocation"
             :default-country-id="String(record?.countryId ?? '')" />
           <label class="crm-drawer-field sm:col-span-2">Dirección exacta y señas
             <textarea v-model.trim="drafts.addressText" class="crm-input" rows="3" required maxlength="2000" placeholder="Calle, número, edificio, puntos de referencia y señas" />
