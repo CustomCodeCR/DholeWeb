@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { limitWorkspaceTabs, reusableWorkspaceTabIndex, workspaceTabGroup, workspaceTabKey } from './workspaceTabPolicy'
+import { deduplicateWorkspaceTabs, limitWorkspaceTabs, reusableWorkspaceTabIndex, workspaceTabKey } from './workspaceTabPolicy'
 
 export interface WorkspaceTab {
   key: string
@@ -46,19 +46,10 @@ function normalizeTab(tab: WorkspaceTab): WorkspaceTab | null {
 }
 
 function ensureDashboard(tabs: WorkspaceTab[], preferredKey = ''): WorkspaceTab[] {
-  const byKey = new Map<string, WorkspaceTab>()
-  for (const candidate of tabs) {
-    const tab = normalizeTab(candidate)
-    if (!tab || tab.key === DASHBOARD_TAB.key) continue
-    // Consolidate older sessions' repeated CRM list/detail tabs and query copies.
-    // Keep the tab the user last selected, not an unrelated newer insertion.
-    const identity = workspaceTabGroup(tab.path) ?? tab.key
-    const previous = byKey.get(identity)
-    if (previous?.key === preferredKey && tab.key !== preferredKey) continue
-    byKey.delete(identity)
-    byKey.set(identity, tab)
-  }
-  return [{ ...DASHBOARD_TAB }, ...byKey.values()]
+  const normalized = tabs
+    .map(normalizeTab)
+    .filter((tab): tab is WorkspaceTab => Boolean(tab && tab.key !== DASHBOARD_TAB.key))
+  return [{ ...DASHBOARD_TAB }, ...deduplicateWorkspaceTabs(normalized, preferredKey)]
 }
 
 function loadTabs(): WorkspaceTab[] {
