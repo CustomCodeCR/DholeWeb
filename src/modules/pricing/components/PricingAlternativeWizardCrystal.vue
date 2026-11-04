@@ -1674,34 +1674,14 @@ const providerAgentCost = computed(() =>
 const providerAgentSale = computed(() =>
   providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.saleAmount), 0),
 )
-// Screen 6 and Pantalla 7 must edit the SAME freight row. Previously these
-// form prices could change without changing the rateLines sent to Pricing.
+// Keep both screens synchronized without changing the input signatures
+// that the existing LCL/FCL/LTL/customs Vite plugins patch at build time.
 function singleEditableLclFreightLine() {
   return shipmentModeForApi.value === 'Lcl' ? singleIncludedFreightLine(rateLines.value) : null
 }
 
-function setProviderFreightUnitAmount(field: 'costAmount' | 'saleAmount', rawAmount: number) {
-  const amount = applyFreightUnitAmount(
-    shipmentModeForApi.value === 'Lcl' ? rateLines.value : [],
-    field,
-    rawAmount,
-  )
-  if (amount === null) return
-  if (field === 'costAmount') form.freightCost = amount
-  else form.freightSale = amount
-}
-
-const freightCostInput = computed<number>({
-  get: () => number(singleEditableLclFreightLine()?.costAmount ?? form.freightCost),
-  set: (value) => setProviderFreightUnitAmount('costAmount', value),
-})
-const freightSaleInput = computed<number>({
-  get: () => number(singleEditableLclFreightLine()?.saleAmount ?? form.freightSale),
-  set: (value) => setProviderFreightUnitAmount('saleAmount', value),
-})
-
-const providerCost = computed(() => number(freightCostInput.value) + providerAgentCost.value)
-const providerSale = computed(() => number(freightSaleInput.value) + providerAgentSale.value)
+const providerCost = computed(() => number(form.freightCost) + providerAgentCost.value)
+const providerSale = computed(() => number(form.freightSale) + providerAgentSale.value)
 const providerUtility = computed(() => providerSale.value - providerCost.value)
 const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
@@ -5499,6 +5479,18 @@ watch(() => form.currencyId, () => {
   if (step.value === 7) rebuildRateLines()
 })
 
+// Changes made on Screen 6 must update the persisted LCL freight detail,
+// not only the auxiliary form. Flush synchronously so Next/Save cannot race it.
+watch(
+  () => [form.freightCost, form.freightSale] as const,
+  (amounts, previous) => {
+    if (!previous || props.viewOnly || hydratingExistingRate.value || shipmentModeForApi.value !== 'Lcl') return
+    if (amounts[0] !== previous[0]) applyFreightUnitAmount(rateLines.value, 'costAmount', amounts[0])
+    if (amounts[1] !== previous[1]) applyFreightUnitAmount(rateLines.value, 'saleAmount', amounts[1])
+  },
+  { flush: 'sync' },
+)
+
 // Editing freight directly in Pantalla 7 must also update the provider
 // screen. Keep IDs, charge basis and quantity intact while synchronizing.
 watch(
@@ -6168,11 +6160,11 @@ onMounted(async () => {
             </div>
             <DhSelect v-model="form.currencyId" data-required-field="currencyId" :error="fieldError('currencyId')" label="Moneda" :options="currencyOptions" />
             <div data-required-field="freightCost" :class="isInvalid('freightCost') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
-            <DhInput v-model.number="freightCostInput" type="number" min="0" step="0.01" label="Flete internacional · costo" />
+            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />
               <p v-if="fieldError('freightCost')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightCost') }}</p>
             </div>
             <div data-required-field="freightSale" :class="isInvalid('freightSale') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
-            <DhInput v-model.number="freightSaleInput" type="number" min="0" step="0.01" label="Flete internacional · venta" />
+            <DhInput v-model.number="form.freightSale" type="number" min="0" step="0.01" label="Flete internacional · venta" />
               <p v-if="fieldError('freightSale')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('freightSale') }}</p>
             </div>
             <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
