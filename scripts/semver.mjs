@@ -1,5 +1,5 @@
 // Strict MAJOR.MINOR.PATCH for formal Dhole Web releases (SemVer 2.0.0 core).
-export const SEMVER_PATTERN = /^(0|[1-9]\d*)\\.(0|[1-9]\d*)\\.(0|[1-9]\d*)$/
+export const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 export function parseVersion(version) {
   if (typeof version !== 'string') throw new Error('Version must be a string.')
