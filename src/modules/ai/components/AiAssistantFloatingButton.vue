@@ -264,7 +264,7 @@ onBeforeUnmount(() => {
         >
           <div class="flex min-w-0 items-center gap-3">
             <span
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-white shadow-lg"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--dh-primary)] text-[var(--dh-on-primary)] shadow-lg"
             >
               <Bot class="h-5 w-5" />
             </span>
@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
           >
             <span
               v-if="message.role === 'assistant'"
-              class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-white"
+              class="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-[var(--dh-on-primary)]"
             >
               <Bot class="h-4 w-4" />
             </span>
@@ -335,7 +335,7 @@ onBeforeUnmount(() => {
               class="max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm"
               :class="
                 message.role === 'user'
-                  ? 'rounded-br-md bg-[var(--dh-primary)] text-white'
+                  ? 'rounded-br-md bg-[var(--dh-primary)] text-[var(--dh-on-primary)]'
                   : 'rounded-bl-md border border-[var(--dh-border)] bg-[var(--dh-shell)] text-[var(--dh-text)]'
               "
             >
@@ -392,7 +392,7 @@ onBeforeUnmount(() => {
 
           <div v-if="sending" class="flex items-center gap-3">
             <span
-              class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-white"
+              class="flex h-8 w-8 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-[var(--dh-on-primary)]"
             >
               <Bot class="h-4 w-4" />
             </span>
@@ -461,7 +461,7 @@ onBeforeUnmount(() => {
 
             <button
               type="button"
-              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-primary)] text-[var(--dh-on-primary)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
               :title="t('ai.assistant.send')"
               :disabled="!canSend"
               @click="sendMessage"
@@ -487,7 +487,7 @@ onBeforeUnmount(() => {
       <button
         v-if="isVisible"
         type="button"
-        class="group fixed bottom-5 left-5 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-[var(--dh-primary)] text-white shadow-[0_18px_45px_rgba(0,0,0,0.34)] transition hover:-translate-y-1 hover:scale-105 hover:shadow-[0_22px_60px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--dh-primary)_30%,transparent)] sm:bottom-7 sm:left-7"
+        class="group fixed bottom-5 left-5 z-[101] flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-[var(--dh-primary)] text-[var(--dh-on-primary)] shadow-[0_18px_45px_rgba(0,0,0,0.34)] transition hover:-translate-y-1 hover:scale-105 hover:shadow-[0_22px_60px_rgba(0,0,0,0.42)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[color-mix(in_srgb,var(--dh-primary)_30%,transparent)] sm:bottom-7 sm:left-7"
         :aria-expanded="panelOpen"
         :aria-label="t('ai.assistant.open')"
         :title="t('ai.assistant.title')"
