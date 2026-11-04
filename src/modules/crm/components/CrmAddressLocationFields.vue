@@ -16,7 +16,11 @@ const secondOptions = ref<CrmGeoOption[]>([])
 const thirdOptions = ref<CrmGeoOption[]>([])
 const loading = ref(false)
 const warning = ref('')
+const postalSuggestions = ref<CrmGeoOption[]>([])
+const postalLoading = ref(false)
+const postalNotice = ref('')
 let requestVersion = 0
+let postalRequestVersion = 0
 
 const countryOptions = computed(() => countries.value.map(item => ({ value: item.id, label: item.label })))
 const selectedIso = computed(() => props.modelValue.countryCode)
@@ -92,6 +96,45 @@ function selectThird(code: string) {
   patch({ admin3Code: updated.admin3Code, admin3Name: updated.admin3Name,
     postalCode: costaRicaPostalCode(updated) })
 }
+// Query public locality names only, never a client's exact street address.
+watch(() => [
+  props.modelValue.countryCode,
+  props.modelValue.admin1Name,
+  props.modelValue.admin2Name,
+] as const, async ([iso, region, locality]) => {
+  const generation = ++postalRequestVersion
+  postalSuggestions.value = []
+  postalNotice.value = ''
+  postalLoading.value = false
+  // CR has a locally computed five-digit code. Panama needs an exact geolocated
+  // address for its official 2026 postal system, not merely a corregimiento.
+  if (!iso || iso === 'CR' || iso === 'PA' || !locality.trim()) return
+  postalLoading.value = true
+  try {
+    const query = new URLSearchParams({
+      countryCode: iso, locality: locality.trim(), region: region.trim(),
+    })
+    const response = await crmRequest<{ options: CrmGeoOption[]; source: string }>(
+      crmPath('geo/postal-codes') + '?' + query.toString(),
+    )
+    if (generation !== postalRequestVersion) return
+    postalSuggestions.value = Array.isArray(response.options) ? response.options : []
+    if (postalSuggestions.value.length === 1 && !props.modelValue.postalCode.trim()) {
+      patch({ postalCode: postalSuggestions.value[0]!.code })
+      postalNotice.value = 'Código sugerido según la localidad. Confirmalo antes de guardar.'
+    } else if (postalSuggestions.value.length > 1) {
+      postalNotice.value = 'Esta localidad tiene varios códigos postales. Seleccioná el correcto según la dirección exacta.'
+    } else {
+      postalNotice.value = 'No hay un código postal único disponible para esta localidad. Podés ingresarlo manualmente.'
+    }
+  } catch {
+    if (generation === postalRequestVersion)
+      postalNotice.value = 'No se pudo consultar el código postal. Podés ingresarlo manualmente.'
+  } finally {
+    if (generation === postalRequestVersion) postalLoading.value = false
+  }
+}, { immediate: true })
+
 watch(() => props.defaultCountryId, id => {
   if (id && id !== props.modelValue.countryId && countries.value.length) selectCountry(id)
 })
@@ -149,8 +192,26 @@ onMounted(async () => {
     <DhInput v-if="!hasThirdLevel" :model-value="modelValue.admin3Name" label="Distrito / barrio / sector (opcional)"
       @update:model-value="patch({ admin3Code: '', admin3Name: String($event) })" />
     <DhInput :model-value="modelValue.postalCode" label="Código postal"
+      placeholder="Ingresar código postal"
       :disabled="isCostaRica && !!costaRicaPostalCode(modelValue)"
       @update:model-value="patch({ postalCode: String($event) })" />
+    <DhSelect v-if="postalSuggestions.length > 1" label="Códigos postales sugeridos"
+      :model-value="postalSuggestions.some(x => x.code === modelValue.postalCode) ? modelValue.postalCode : ''"
+      :options="postalSuggestions.map(x => ({ value: x.code, label: x.name }))"
+      placeholder="Seleccionar según dirección exacta"
+      @update:model-value="patch({ postalCode: String($event) })" />
+    <p v-if="postalLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2" role="status">
+      Consultando códigos postales disponibles…
+    </p>
+    <p v-if="postalNotice" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2" role="status">
+      {{ postalNotice }} Datos de GeoNames / Open-Meteo.
+    </p>
+    <p v-if="isPanama" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
+      En Panamá el código postal se determina por la ubicación exacta, no solo por el corregimiento.
+      <a href="https://www.codigospostalespanama.gob.pa/" target="_blank" rel="noopener noreferrer"
+        class="font-semibold underline">Consultar código postal oficial de Panamá</a>.
+      Podés copiarlo al campo de arriba.
+    </p>
     <p v-if="loading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2" role="status">
       Consultando divisiones administrativas…
     </p>
