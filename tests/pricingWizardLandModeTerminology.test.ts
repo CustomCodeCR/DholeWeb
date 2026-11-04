@@ -174,18 +174,14 @@ test('LCL quantity basis multiplies physical CBM and chargeable CBM separately',
   assert.match(consolidated, /cargoLineQuantity\(line\)/)
 })
 
-test('GAM LTL auto-creates an editable origin pickup without inventing a price', () => {
+test('GAM LTL origin never forces a pickup or blocks saving for lack of Recolecta', () => {
   const output = patchPricingWizardLandModeTerminology(wizard)
-  assert.match(output, /landLtlPickupRequired/)
-  assert.match(output, /ensureLandLtlPickupLine\(\)/)
-  assert.match(output, /manual:gam-ltl-pickup/)
-  assert.match(output, /costDetailType: 'InlandTransport'/)
-  assert.match(output, /chargeBasis: 'PerPickup'/)
-  assert.match(output, /costAmount: 0/)
-  assert.match(output, /saleAmount: 0/)
-  assert.match(output, /v-model.number="landLtlPickupLine.saleAmount"/)
-  assert.match(output, /!\(Number\(pickup.saleAmount\) > 0\)/)
-  assert.match(output, /step.value = 7/)
+  assert.match(output, /async function saveRate\(\)/)
+  assert.doesNotMatch(output, /landLtlPickupRequired|landLtlPickupLine|ensureLandLtlPickupLine|manual:gam-ltl-pickup/)
+  assert.doesNotMatch(output, /Recolecta obligatoria/)
+  const providerParity = readFileSync(new URL('../build/pricingWizardLtlProviderParity.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(providerParity, /landLtlPickupRequired/)
+  assert.match(providerParity, /included: isFlat/)
 })
 
 test('pricing dashboard shows LCL/LTL as consolidated without container or trailer quantities', () => {
