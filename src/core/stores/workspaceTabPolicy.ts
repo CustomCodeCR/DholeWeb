@@ -11,6 +11,9 @@ export function workspaceTabKey(path: string): string {
 // or between editor documents, updates that tab instead of leaving a stale one.
 export function workspaceTabGroup(path: string): string | null {
   const pathname = workspaceTabKey(path)
+  // CRM list and detail routes share one slot per module.
+  if (/^\/crm\/accounts(?:\/[^/]+)?$/.test(pathname)) return 'crm-accounts'
+  if (/^\/crm\/contacts(?:\/[^/]+)?$/.test(pathname)) return 'crm-contacts'
   // Creation stays available as a fresh tab while the newly created QUO opens\n  // in its own editor/detail tab. Other quote details still reuse one slot.\n  if (pathname === '/pricing') return 'pricing-create'\n  if (/^\/pricing\/rates\/[^/]+\/wizard$/.test(pathname)) return 'pricing-editor'
   if (pathname === '/pricing/imports' || /^\/pricing\/imports\/review\/[^/]+$/.test(pathname)) return 'pricing-import-review'
   if (pathname === '/pricing/email-imports' || /^\/pricing\/email-source\/[^/]+$/.test(pathname)) return 'pricing-email-review'
@@ -18,6 +21,12 @@ export function workspaceTabGroup(path: string): string | null {
   if (/^\/agents\/executions(?:\/[^/]+)?$/.test(pathname)) return 'agent-executions'
   if (/^\/agents\/profiles(?:\/[^/]+)?$/.test(pathname)) return 'agent-profiles'
   return null
+}
+
+// Find a related tab even when a different module is currently active.
+export function reusableWorkspaceTabIndex<T extends { path: string }>(tabs: T[], path: string): number {
+  const group = workspaceTabGroup(path)
+  return group === null ? -1 : tabs.findIndex(tab => workspaceTabGroup(tab.path) === group)
 }
 
 // Bounded history: keep Dashboard, the active page and the optional split pane.
