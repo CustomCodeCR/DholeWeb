@@ -1,0 +1,25 @@
+name: Verify Dhole Web Versioning
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semver:
+    name: Validate semantic version and changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify version files and release notes
+        run: node scripts/versioning.mjs check
+      - name: Test SemVer increment rules
+        run: node --test tests/versioning.test.mjs
