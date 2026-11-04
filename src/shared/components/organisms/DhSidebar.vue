@@ -178,7 +178,7 @@ watch(
           :class="compact ? 'justify-center' : ''"
         >
           <div
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--dh-primary)] text-sm font-black text-white"
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--dh-primary)] text-sm font-black text-[var(--dh-on-primary)]"
           >
             GCF
           </div>
