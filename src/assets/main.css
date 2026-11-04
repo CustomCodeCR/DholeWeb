@@ -38,8 +38,8 @@ html body .pricing-rate-wizard--new .pricing-rate-card {
   border-radius: 24px !important;
   background: color-mix(in srgb, var(--dh-card) 86%, transparent) !important;
   box-shadow: 0 16px 42px rgb(0 0 0 / 12%) !important;
-  backdrop-filter: blur(24px) saturate(145%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(145%) !important;
+  backdrop-filter: blur(var(--dh-blur)) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(var(--dh-blur)) saturate(145%) !important;
 }
 
 html body .pricing-rate-wizard--new .pricing-rate-card__header {
@@ -80,8 +80,8 @@ html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form 
   background: color-mix(in srgb, var(--dh-card) 86%, transparent) !important;
   padding: 0.75rem 0.9rem !important;
   box-shadow: 0 18px 50px rgb(0 0 0 / 24%) !important;
-  backdrop-filter: blur(30px) saturate(165%) !important;
-  -webkit-backdrop-filter: blur(30px) saturate(165%) !important;
+  backdrop-filter: blur(var(--dh-blur-strong)) saturate(165%) !important;
+  -webkit-backdrop-filter: blur(var(--dh-blur-strong)) saturate(165%) !important;
 }
 
 html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) > div:first-child {
@@ -145,8 +145,8 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
     min-width: 132px;
     border-radius: 14px !important;
     box-shadow: 0 10px 24px rgb(0 0 0 / 16%);
-    backdrop-filter: blur(18px) !important;
-    -webkit-backdrop-filter: blur(18px) !important;
+    backdrop-filter: blur(var(--dh-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--dh-blur)) !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-navigation__button:disabled {
@@ -159,8 +159,8 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
     border-radius: 999px;
     background: color-mix(in srgb, var(--dh-card) 76%, transparent);
     padding: 0.45rem 0.75rem;
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(var(--dh-blur));
+    -webkit-backdrop-filter: blur(var(--dh-blur));
   }
 }
 
@@ -226,8 +226,8 @@ html body .pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-typ
     background: color-mix(in srgb, var(--dh-card) 84%, transparent);
     padding: 0.42rem 0.15rem 0.35rem !important;
     box-shadow: 0 7px 18px rgb(0 0 0 / 8%);
-    backdrop-filter: blur(20px) saturate(145%);
-    -webkit-backdrop-filter: blur(20px) saturate(145%);
+    backdrop-filter: blur(var(--dh-blur)) saturate(145%);
+    -webkit-backdrop-filter: blur(var(--dh-blur)) saturate(145%);
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-step {
