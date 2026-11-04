@@ -201,6 +201,40 @@ const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities
 const configWarning = ref('')
 const accountTypeFilter = ref('')
 const accountCategoryFilter = ref('')
+const accountSellerFilter = ref('')
+const accountRelationFilter = ref('')
+const accountSellerOptions = ref<{ value: string; label: string }[]>([])
+const accountFilterOptionsError = ref('')
+// Match the values in CrmRelationshipPicker. A multi-relationship account
+// must match any exact selected relationship, not just its first value.
+const accountRelationOptions = [
+  'Cliente', 'Consignee', 'Shipper', 'Notify', 'Proveedor', 'Competidor',
+  'Colaborador', 'Agente', 'Transportista', 'Otro',
+]
+const hasAccountFilters = computed(() => Boolean(
+  search.value.trim() || accountTypeFilter.value || accountCategoryFilter.value ||
+  accountSellerFilter.value || accountRelationFilter.value,
+))
+async function loadAccountFilterOptions() {
+  accountFilterOptionsError.value = ''
+  try {
+    const result = await crmRequest<{ sellers: { value: string; label: string }[] }>(
+      crmPath('accounts', 'filter-options'))
+    accountSellerOptions.value = result.sellers ?? []
+  } catch (cause) {
+    accountFilterOptionsError.value = 'No se pudo cargar la lista de vendedores: ' + crmError(cause)
+  }
+}
+function clearAccountFilters() {
+  accountTypeFilter.value = ''
+  accountCategoryFilter.value = ''
+  accountSellerFilter.value = ''
+  accountRelationFilter.value = ''
+}
+function refreshWorkspace() {
+  void load()
+  if (section.value === 'accounts') void loadAccountFilterOptions()
+}
 const accountFormTab = ref<'identity' | 'commercial'>('identity')
 const sellerNames = ref<Record<string, string>>({})
 let sellerRequestGeneration = 0
@@ -428,6 +462,8 @@ async function load() {
         page: page.value, pageSize: 25, q: search.value.trim(),
         ...(section.value === 'accounts' && accountTypeFilter.value ? { customerTypeCode: accountTypeFilter.value } : {}),
         ...(section.value === 'accounts' && accountCategoryFilter.value ? { categoryCode: accountCategoryFilter.value } : {}),
+        ...(section.value === 'accounts' && accountSellerFilter.value ? { seller: accountSellerFilter.value } : {}),
+        ...(section.value === 'accounts' && accountRelationFilter.value ? { relationship: accountRelationFilter.value } : {}),
         ...(section.value === 'opportunities' && pipelineId.value ? { pipelineId: pipelineId.value } : {}),
       })
       rows.value = response.items
@@ -515,15 +551,24 @@ const financeAllowed = computed(() =>
   financeTab.value === 'credit' ? can('crm.credit.read') : can('crm.contract.read'))
 watch([section, financeTab, pipelineId], () => { page.value = 1; showForm.value = false; void load() })
 watch(selectedAccount, () => { if (section.value === 'finance') void load() })
-onMounted(() => { if (allowed.value) void load(); void loadCountryLabels() })
-watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 'accounts') { page.value = 1; void load() } })
+onMounted(() => {
+  if (allowed.value) {
+    void load()
+    if (section.value === 'accounts') void loadAccountFilterOptions()
+  }
+  void loadCountryLabels()
+})
+watch(section, value => { if (value === 'accounts' && allowed.value) void loadAccountFilterOptions() })
+watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRelationFilter], () => {
+  if (section.value === 'accounts') { page.value = 1; void load() }
+})
 </script>
 
 <template>
   <main class="mx-auto w-full max-w-[1600px] space-y-5 p-3 text-[var(--dh-text)] sm:p-6" data-crm-page>
     <DhPageHeader :title="pageTitle" :subtitle="section === 'accounts' ? 'CRM · Clientes / Cuentas' : t('crm.title')" :icon="BriefcaseBusiness" hide-excel-export>
       <template #actions>
-        <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :disabled="loading" @click="load" />
+        <DhButton :icon="RefreshCw" :label="t('common.refresh')" variant="secondary" :disabled="loading" @click="refreshWorkspace" />
         <DhButton v-if="model && canCreate() && section !== 'followups'"
           :icon="Plus" :label="t('common.create')" @click="beginCreate" />
 
@@ -619,10 +664,22 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
               <option value="">Toda categoría</option>
               <option v-for="value in ['A','B','C','D']" :key="value" :value="value">Categoría {{ value }}</option>
             </select>
-            <button v-if="accountTypeFilter || accountCategoryFilter" type="button"
+            <select v-model="accountSellerFilter" aria-label="Filtrar por vendedor asignado"
+              class="max-w-[195px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
+              <option value="">Todos los vendedores</option>
+              <option v-for="seller in accountSellerOptions" :key="seller.value" :value="seller.value">{{ seller.label }}</option>
+            </select>
+            <select v-model="accountRelationFilter" aria-label="Filtrar por tipo de relación"
+              class="max-w-[180px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
+              <option value="">Toda relación</option>
+              <option v-for="relation in accountRelationOptions" :key="relation" :value="relation">{{ relation }}</option>
+            </select>
+            <button v-if="accountTypeFilter || accountCategoryFilter || accountSellerFilter || accountRelationFilter" type="button"
               class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
-              @click="accountTypeFilter='';accountCategoryFilter=''">Limpiar</button>
+              @click="clearAccountFilters">Limpiar</button>
           </div>
+          <p v-if="section === 'accounts' && accountFilterOptionsError"
+            role="status" class="w-full text-xs text-[var(--dh-text-muted)]">{{ accountFilterOptionsError }}</p>
           <DhButton v-if="section === 'opportunities'"
             :label="viewMode === 'kanban' ? t('crm.table') : t('crm.kanban')"
             :variant="viewMode === 'kanban' ? 'primary' : 'secondary'"
@@ -791,9 +848,9 @@ watch([accountTypeFilter, accountCategoryFilter], () => { if (section.value === 
         </DhDataTable>
         <div v-if="section === 'accounts' && !loading && total === 0" class="rounded-xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-7 text-center">
           <ContactRound class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
-          <h3 class="mt-2 text-sm font-extrabold">{{ search || accountTypeFilter || accountCategoryFilter ? 'No hay resultados para los filtros' : 'Todavía no hay cuentas comerciales registradas' }}</h3>
+          <h3 class="mt-2 text-sm font-extrabold">{{ hasAccountFilters ? 'No hay resultados para los filtros' : 'Todavía no hay cuentas comerciales registradas' }}</h3>
           <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">El listado usa las cuentas reales autorizadas por el servidor. Los contactos, rutas y condiciones se gestionan dentro de cada ficha.</p>
-          <DhButton v-if="canCreate() && !search && !accountTypeFilter && !accountCategoryFilter" class="mt-4" :icon="Plus" label="Crear primera cuenta" @click="beginCreate" />
+          <DhButton v-if="canCreate() && !hasAccountFilters" class="mt-4" :icon="Plus" label="Crear primera cuenta" @click="beginCreate" />
         </div>
         <footer v-if="section !== 'settings' && section !== 'finance'" class="flex flex-wrap items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
           <span>{{ rows.length }} / {{ total }}</span>
