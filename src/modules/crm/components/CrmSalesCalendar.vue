@@ -109,7 +109,7 @@ const moveAt = ref('')
 let loadGeneration = 0
 const editor = ref({
   type: 'VISIT',
-  subject: '',
+  subject: 'Visita comercial',
   accountId: '',
   leadId: '',
   contactId: '',
@@ -134,6 +134,18 @@ watch(() => editor.value.agreements, (text) => {
   })
 })
 
+const userEditedStart = ref(false)
+const defaultSubjects: Record<string,string> = {
+  VISIT: 'Visita comercial', CALL: 'Llamada comercial',
+  MEETING: 'Reunión comercial', EMAIL: 'Correo comercial',
+  FOLLOWUP: 'Seguimiento comercial', OTHER: 'Tarea comercial'
+}
+watch(() => editor.value.type, (next,previous) => {
+  if (!editor.value.subject.trim() ||
+      editor.value.subject === defaultSubjects[previous]) {
+    editor.value.subject = defaultSubjects[next] ?? 'Actividad comercial'
+  }
+})
 const selectedSubject = computed<string>({
   get: () => editor.value.accountId ? 'account:' + editor.value.accountId
     : editor.value.leadId ? 'lead:' + editor.value.leadId : '',
@@ -325,13 +337,14 @@ function openCreation(date?: Date) {
     : now
   when.setSeconds(0, 0)
   editor.value = {
-    type: 'VISIT', subject: '', accountId: props.accountId, leadId: props.leadId, contactId: '',
+    type: 'VISIT', subject: 'Visita comercial', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
     location: '', involved: '', agreements: '', nextCommitment: '', commitmentDue: '',
     reminderMinutes: 60, channel: 'BOTH',
   }
   agreementDrafts.value = []
+  userEditedStart.value = false
   error.value = ''
   creationOpen.value = true
   void loadConfiguredActivityTypes()
@@ -506,8 +519,21 @@ async function create() {
   if (!data.subject.trim() || (!data.accountId && !data.leadId)) {
     error.value = 'Ingresá un título y elegí un cliente o prospecto en el selector unificado.'; return
   }
-  const start = new Date(data.start)
-  const end = new Date(data.end)
+  let start = new Date(data.start)
+  let end = new Date(data.end)
+  let adjustedStart = false
+  // The initially suggested "now" must not expire while filling a long form.
+  // Never silently override a date chosen manually by the seller.
+  if (!userEditedStart.value && Number.isFinite(start.getTime()) &&
+      start.getTime() < Date.now()) {
+    const duration=Number.isFinite(end.getTime()) && end > start
+      ? end.getTime() - start.getTime() : 60 * 60000
+    start = new Date(Math.ceil(Date.now() / 60000) * 60000 + 60000)
+    end = new Date(start.getTime() + duration)
+    data.start = localInput(start)
+    data.end = localInput(end)
+    adjustedStart = true
+  }
   const commitmentDue = data.nextCommitment.trim() ? new Date(data.commitmentDue) : null
   if (data.type !== 'FOLLOWUP' && agreementDrafts.value.some(item =>
       !item.title.trim() || !item.dueLocal ||
@@ -552,7 +578,8 @@ async function create() {
     }
     creationOpen.value = false
     selected.value = start
-    notice.value = 'Actividad y acuerdos registrados. Se programaron ' +
+    notice.value = (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
+      'Actividad y acuerdos registrados. Se programaron ' +
       (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
       ' compromisos en el calendario del cliente y del vendedor.'
     emit('changed')
@@ -890,7 +917,8 @@ function openEvent(item: CalendarEvent) {
               </option>
             </optgroup>
           </select>
-          <p v-if="subjectError || leadSearchError" role="alert" class="text-xs text-amber-600">
+          <p v-if="subjectError || (leadSearchError && !accounts.length && !leads.length)"
+            role="alert" class="text-xs text-amber-600">
             {{ subjectError || leadSearchError }}
           </p>
         </div>
@@ -911,7 +939,8 @@ function openEvent(item: CalendarEvent) {
           </select>
         </label>
         <label class="calendar-label">Inicio
-          <input v-model="editor.start" type="datetime-local" class="calendar-input" required />
+          <input v-model="editor.start" type="datetime-local" class="calendar-input" required
+            @input="userEditedStart=true" />
         </label>
         <label v-if="editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
           <input v-model="editor.end" type="datetime-local" class="calendar-input" required />
