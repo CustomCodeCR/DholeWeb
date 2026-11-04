@@ -39,6 +39,15 @@
 
   --dh-blur: 26px;
   --dh-blur-strong: 32px;
+  --dh-on-primary: #ffffff;
+
+  /* Tailwind backdrop-blur utilities inherit the live Liquid Crystal setting. */
+  --blur-sm: calc(var(--dh-blur) * 0.2);
+  --blur-md: calc(var(--dh-blur) * 0.4);
+  --blur-lg: calc(var(--dh-blur) * 0.7);
+  --blur-xl: var(--dh-blur);
+  --blur-2xl: var(--dh-blur-strong);
+  --blur-3xl: var(--dh-blur-strong);
 
   --dh-scrollbar-size: 10px;
   --dh-scrollbar-radius: 999px;
