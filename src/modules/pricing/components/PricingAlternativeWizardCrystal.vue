@@ -50,6 +50,7 @@ import { PricingService } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -3812,7 +3813,7 @@ async function hydrateExistingRate() {
     form.cargoValue = Math.max(0, number(rate.cargoValue))
     form.cargoDescription = rate.cargoLines?.[0]?.description ?? ''
     hydratePersistedCargoDescription(rate.cargoLines?.[0]?.description)
-    form.cargoWeightKg = Number(rate.cargoLines?.[0]?.weightKg ?? rate.totalWeightKg ?? 0)
+    form.cargoWeightKg = resolvePersistedCargoWeightKg(rate.shipmentMode, rate.totalWeightKg, rate.cargoLines)
     form.cargoPallets = Math.max(1, Number(rate.cargoLines?.[0]?.pallets ?? rate.totalPallets ?? 1))
     form.cargoPackages = Math.max(0, Number(rate.cargoLines?.[0]?.packages ?? rate.totalPackages ?? 0))
     form.storageDays = Math.max(0, Number(rate.storageDays ?? 0))
