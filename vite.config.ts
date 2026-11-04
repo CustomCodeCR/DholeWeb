@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
 import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
@@ -111,8 +112,31 @@ import { pricingWizardScreen7CostChoice } from './build/pricingWizardScreen7Cost
 import { pricingRequiredFieldFinalFeedback } from './build/pricingRequiredFieldFinalFeedback'
 import { pricingStep7FixedCostsAndCustoms } from './build/pricingStep7FixedCostsAndCustoms'
 
+const appVersion: string = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version
+
+// Expose the exact deployed version/build without requiring an authenticated API.
+const versionManifestPlugin = {
+  name: 'dhole-version-manifest',
+  apply: 'build' as const,
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({
+        version: appVersion,
+        channel: process.env.VITE_RELEASE_CHANNEL || 'local',
+        commit: (process.env.VITE_BUILD_SHA || '').slice(0, 12),
+        builtAt: new Date().toISOString(),
+      }, null, 2) + '\n',
+    })
+  },
+}
+
 export default defineConfig({
   plugins: [
+    versionManifestPlugin,
     pricingWizardLclOptionalWeight(),
     pricingWizardSep02Requirements(),
     pricingWizardLclCorrections(),
