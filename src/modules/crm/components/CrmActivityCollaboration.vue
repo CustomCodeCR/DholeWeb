@@ -21,6 +21,43 @@ const error = ref('')
 const message = ref('')
 const note = ref('')
 const noteCommitments = ref<CrmAgreementDraft[]>([])
+const noteToConvert = ref<string | null>(null)
+const savedNoteDrafts = ref<CrmAgreementDraft[]>([])
+function openSavedNote(entry: CrmRow) {
+  const id = String(entry.id)
+  if (noteToConvert.value === id) {
+    noteToConvert.value = null
+    return
+  }
+  savedNoteDrafts.value = crmAgreementDrafts(String(entry.noteText ?? ''),
+    entry.createdAt ? new Date(String(entry.createdAt)) : new Date())
+  noteToConvert.value = id
+}
+async function scheduleSavedNote() {
+  if (saving.value || !noteToConvert.value || !savedNoteDrafts.value.length) return
+  if (savedNoteDrafts.value.some(x => !x.title.trim() || !x.dueLocal ||
+      !Number.isFinite(new Date(x.dueLocal).getTime()) ||
+      new Date(x.dueLocal).getTime() <= Date.now())) {
+    error.value = 'Para convertir el acuerdo, confirmá una fecha futura válida.'
+    return
+  }
+  saving.value = true
+  error.value = ''
+  message.value = ''
+  try {
+    const commitments = savedNoteDrafts.value.map(x => ({
+      subject: x.title.trim(), dueAt: new Date(x.dueLocal).toISOString()
+    }))
+    await crmRequest(
+      crmPath('activities', props.activityId, 'notes/' + noteToConvert.value + '/commitments'),
+      'POST', {commitments}, crmUuid())
+    message.value = 'Compromiso(s) agregados al calendario del cliente y vendedor.'
+    noteToConvert.value = null
+    await load()
+  } catch (cause) {
+    error.value = crmError(cause)
+  } finally {saving.value = false}
+}
 watch(note, (text) => {
   const parsed=crmAgreementDrafts(text)
   noteCommitments.value=parsed.map(item => {
@@ -232,6 +269,23 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
           <li v-for="entry in notes" :key="entry.id" class="border-l-2 border-[var(--dh-primary)]/40 py-1 pl-3">
             <p class="whitespace-pre-wrap break-words text-sm">{{ entry.noteText ?? entry.text ?? 'Observación' }}</p>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ formattedDate(entry.createdAt) }}</p>
+            <button v-if="canManage && crmAgreementDrafts(String(entry.noteText ?? '')).some(x => x.dueLocal)"
+              type="button" class="mt-2 text-xs font-semibold text-[var(--dh-primary)] underline"
+              @click="openSavedNote(entry)">
+              {{ noteToConvert===entry.id ? 'Cerrar conversión' : 'Registrar acuerdos anteriores en calendario' }}
+            </button>
+            <form v-if="noteToConvert===entry.id"
+              class="mt-3 space-y-2 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"
+              @submit.prevent="scheduleSavedNote">
+              <p class="text-xs text-[var(--dh-text-muted)]">Confirmá las fechas de los acuerdos anteriores para crear sus compromisos.</p>
+              <div v-for="(item,index) in savedNoteDrafts" :key="index" class="space-y-2">
+                <input v-model.trim="item.title" maxlength="250" required aria-label="Acuerdo anterior"
+                  class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2 text-sm text-[var(--dh-text)]" />
+                <input v-model="item.dueLocal" type="datetime-local" required aria-label="Fecha límite del acuerdo anterior"
+                  class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] p-2 text-sm text-[var(--dh-text)]" />
+              </div>
+              <DhButton type="submit" label="Agregar al calendario" size="sm" :loading="saving" />
+            </form>
           </li>
         </ol>
       </article>
