@@ -1,6 +1,6 @@
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync } from 'node:fs'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { pricingCustomsOnlyWizard } from './build/pricingCustomsOnlyWizard'
 import { pricingSellerMultimodalStep3Fix } from './build/pricingSellerMultimodalStep3Fix'
 import { pricingWizardLandModeTerminology } from './build/pricingWizardLandModeTerminology'
@@ -117,9 +117,9 @@ const appVersion: string = JSON.parse(
 ).version
 
 // Expose the exact deployed version/build without requiring an authenticated API.
-const versionManifestPlugin = {
+const versionManifestPlugin: Plugin = {
   name: 'dhole-version-manifest',
-  apply: 'build' as const,
+  apply: 'build',
   generateBundle() {
     this.emitFile({
       type: 'asset',
