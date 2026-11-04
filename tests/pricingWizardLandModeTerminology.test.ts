@@ -174,11 +174,17 @@ test('LCL quantity basis multiplies physical CBM and chargeable CBM separately',
   assert.match(consolidated, /cargoLineQuantity\(line\)/)
 })
 
-test('GAM pickup is required in LTL lines before a rate can be saved', () => {
+test('GAM LTL auto-creates an editable origin pickup without inventing a price', () => {
   const output = patchPricingWizardLandModeTerminology(wizard)
   assert.match(output, /landLtlPickupRequired/)
-  assert.match(output, /Recolecta obligatoria/)
-  assert.match(output, /Number\(line.saleAmount\) > 0/)
+  assert.match(output, /ensureLandLtlPickupLine\(\)/)
+  assert.match(output, /manual:gam-ltl-pickup/)
+  assert.match(output, /costDetailType: 'InlandTransport'/)
+  assert.match(output, /chargeBasis: 'PerPickup'/)
+  assert.match(output, /costAmount: 0/)
+  assert.match(output, /saleAmount: 0/)
+  assert.match(output, /v-model.number="landLtlPickupLine.saleAmount"/)
+  assert.match(output, /Number\(pickup.saleAmount\) <= 0/)
   assert.match(output, /step.value = 7/)
 })
 
