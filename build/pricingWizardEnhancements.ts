@@ -223,8 +223,8 @@ export function pricingWizardEnhancements(): Plugin {
       const lclCarrierSelectReplacement = '            <DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
       code = replaceOne(code, lclCarrierSelectAnchor, lclCarrierSelectReplacement, 'hide carrier selector for LCL')
 
-      const freightCostAnchor = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />'
-      const freightCostReplacement = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Coloader\'" />'
+      const freightCostAnchor = '            <DhInput v-model.number="freightCostInput" type="number" min="0" step="0.01" label="Flete internacional · costo" />'
+      const freightCostReplacement = '            <DhInput v-model.number="freightCostInput" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Coloader\'" />'
       code = replaceOne(code, freightCostAnchor, freightCostReplacement, 'LCL source cost locking')
 
       const step8CloseAnchor = `          </div>\n        </div>\n\n        <div v-else-if="step === 9 && viewOnly && editingRate" class="space-y-6">`
