@@ -21,9 +21,10 @@ let requestVersion = 0
 const countryOptions = computed(() => countries.value.map(item => ({ value: item.id, label: item.label })))
 const selectedIso = computed(() => props.modelValue.countryCode)
 const isCostaRica = computed(() => selectedIso.value === 'CR')
-const firstLabel = computed(() => ({
+const firstLevelLabels: Record<string, string> = {
   CR: 'Provincia', PA: 'Provincia', US: 'Estado', MX: 'Estado', CO: 'Departamento',
-})[selectedIso.value] ?? 'Estado / provincia / región')
+}
+const firstLabel = computed(() => firstLevelLabels[selectedIso.value] ?? 'Estado / provincia / región')
 const secondLabel = computed(() => isCostaRica.value ? 'Cantón' : 'Ciudad / localidad')
 
 function patch(values: Partial<CrmAddressLocation>) {
