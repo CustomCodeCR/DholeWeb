@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GAM_LTL_ORIGINS, gamLtlOrigin, isLtlCfzLocation, isLtlGamPickupLocation, normalizeLandLocation } from '@/modules/pricing/utils/ltlGamRouting'
+import { GAM_LTL_ORIGINS, gamLtlOrigin, isLtlCfzLocation, normalizeLandLocation } from '@/modules/pricing/utils/ltlGamRouting'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ChevronLeft, Edit3, Eye, Plus, RefreshCcw, Truck, X } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -769,7 +769,7 @@ onMounted(load)
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">1. Origen</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El LTL sale de CFZ, Panamá o de la GAM (San José, Alajuela, Heredia y Coyol). Alajuela, Heredia y Coyol requieren recolecta; San José no.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El LTL sale de CFZ, Panamá o de la GAM (San José, Alajuela, Heredia y Coyol). La recolecta es un cargo opcional cuando aplica.</p>
             </div>
             <DhButton
               v-if="selectedOriginCountry"
@@ -967,12 +967,6 @@ onMounted(load)
               <DhInput v-model="form.validTo" type="date" label="Vigencia hasta" :disabled="readOnly" />
             </div>
 
-            <p v-if="formOrigin && isLtlGamPickupLocation(formOrigin.name)" class="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                Origen en la GAM fuera de San José: cobrar Recolecta como cargo adicional. El importe debe configurarse en la tarifa o completarse en Líneas, no se suma un precio supuesto al flete por CBM.
-              </p>
-              <p v-else-if="formOrigin && gamLtlOrigin(formOrigin.name)?.key === 'san-jose'" class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Origen San José: no requiere recolecta GAM adicional.
-              </p>
               <div class="mt-4">
               <DhTextarea v-model="form.notes" label="Notas" :rows="3" :disabled="readOnly" />
             </div>
