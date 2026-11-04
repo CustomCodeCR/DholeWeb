@@ -20,8 +20,8 @@
     padding: 0.45rem 0.55rem !important;
     box-shadow: 0 14px 34px rgb(0 0 0 / 18%) !important;
     pointer-events: auto !important;
-    backdrop-filter: blur(22px) saturate(150%) !important;
-    -webkit-backdrop-filter: blur(22px) saturate(150%) !important;
+    backdrop-filter: blur(var(--dh-blur)) saturate(150%) !important;
+    -webkit-backdrop-filter: blur(var(--dh-blur)) saturate(150%) !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-navigation__button,
@@ -57,8 +57,8 @@
     border-radius: 999px !important;
     background: color-mix(in srgb, var(--dh-bg) 54%, transparent) !important;
     padding: 0.48rem 0.85rem !important;
-    backdrop-filter: blur(18px) !important;
-    -webkit-backdrop-filter: blur(18px) !important;
+    backdrop-filter: blur(var(--dh-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--dh-blur)) !important;
   }
 
   html body .pricing-rate-wizard--new .pricing-rate-navigation__progress span {
@@ -79,7 +79,7 @@
     font-size: 0.68rem !important;
     line-height: 1.2 !important;
     text-align: center !important;
-    backdrop-filter: blur(18px) !important;
-    -webkit-backdrop-filter: blur(18px) !important;
+    backdrop-filter: blur(var(--dh-blur)) !important;
+    -webkit-backdrop-filter: blur(var(--dh-blur)) !important;
   }
 }
