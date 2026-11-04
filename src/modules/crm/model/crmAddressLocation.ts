@@ -60,5 +60,19 @@ export function countryIso(item: CatalogItemSelectDto, available: CrmGeoCountry[
       .filter((name): name is string => Boolean(name)).map(normalized)
     if (names.some(name => name && translations.includes(name))) return country.code
   }
+
+  // A country name from Config must still resolve when the worldwide provider
+  // is down. Intl.DisplayNames uses the browser's bundled ISO region registry.
+  const isoNames = [label, normalized(item.code || ''), normalized(item.value || '')]
+    .filter(Boolean)
+  for (let a = 65; a <= 90; a++) {
+    for (let b = 65; b <= 90; b++) {
+      const iso = String.fromCharCode(a, b)
+      const regionNames = [spanish.of(iso), english.of(iso)]
+        .filter((name): name is string => Boolean(name) && name !== iso)
+        .map(normalized)
+      if (isoNames.some(name => regionNames.includes(name))) return iso
+    }
+  }
   return ''
 }
