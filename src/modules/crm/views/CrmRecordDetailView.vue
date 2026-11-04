@@ -326,6 +326,21 @@ function toggleAccountEditing() {
     void router.replace({ path: route.path, query: { ...route.query, edit: '1' }, hash: route.hash })
   }
 }
+function openRelationCreation() {
+  if (section.value === 'accounts' && relation.value === 'addresses') {
+    // Use the account's country for every new address, as with phone prefixes.
+    // Reset previous address selections when opening a new drawer.
+    addressLocation.value = {
+      ...emptyAddressLocation(),
+      countryId: String(record.value?.countryId ?? ''),
+    }
+    drafts.addressText = ''
+    drafts.addressType = 'WORK'
+  }
+  error.value = ''
+  showRelationForm.value = true
+}
+
 function openContractCreation() {
   if (!can('crm.contract.manage')) return
   showAdvancedAccountManagement.value = true
@@ -1009,7 +1024,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             :label="section === 'accounts' && relation === 'contacts' ? 'Nuevo contacto' :
               relation === 'credit-profiles' ? 'Añadir crédito' :
               relation === 'credit-contracts' ? 'Nuevo contrato' : t('common.create')"
-            @click="showRelationForm = true; error = ''" />
+            @click="openRelationCreation" />
         </div>
         <p v-if="documentStatus && relation==='credit-contracts'" role="status" class="text-sm text-emerald-500">{{ documentStatus }}</p>
         <div v-if="!relationRows.length"
