@@ -57,8 +57,11 @@ async function divisions(level: 1 | 2 | 3, iso: string, parent = '', grandparent
   }
 }
 function selectCountry(id: string) {
+  // Account identity country is authoritative for its registered addresses.
+  if (props.defaultCountryId && id !== props.defaultCountryId) return
   const item = countries.value.find(value => value.id === id)
   const iso = item ? countryIso(item, geoCountries.value) : ''
+  if (props.modelValue.countryId === id && props.modelValue.countryCode === iso) return
   ++requestVersion
   firstOptions.value = []; secondOptions.value = []; thirdOptions.value = []
   patch({ ...emptyAddressLocation(), countryId: id, countryCode: iso })
@@ -87,7 +90,7 @@ function selectThird(code: string) {
     postalCode: costaRicaPostalCode(updated) })
 }
 watch(() => props.defaultCountryId, id => {
-  if (id && !props.modelValue.countryId && countries.value.length) selectCountry(id)
+  if (id && id !== props.modelValue.countryId && countries.value.length) selectCountry(id)
 })
 onMounted(async () => {
   try {
@@ -96,13 +99,23 @@ onMounted(async () => {
     warning.value = 'No se cargó el catálogo de países de Config.'
     return
   }
+  const id = props.defaultCountryId || props.modelValue.countryId || ''
+  if (id && (props.modelValue.countryId !== id || !props.modelValue.countryCode)) {
+    // Do this BEFORE calling the optional worldwide API: the country of the
+    // account and the Costa Rica registry must work even without that service.
+    selectCountry(id)
+  } else if (props.modelValue.countryCode) {
+    const value = props.modelValue
+    await divisions(1, value.countryCode)
+    if (value.admin1Code) await divisions(2, value.countryCode, value.admin1Code)
+    if (value.countryCode === 'CR' && value.admin2Code)
+      await divisions(3, value.countryCode, value.admin2Code, value.admin1Code)
+  }
+  // World countries only enhances spelling/ISO matching; never block address UI.
   try {
     geoCountries.value = await crmRequest<CrmGeoCountry[]>(crmPath('geo/countries'))
-  } catch {
-    warning.value = 'El catálogo geográfico mundial no está disponible; se puede escribir la dirección.'
-  }
-  const id = props.modelValue.countryId || props.defaultCountryId || ''
-  if (id) selectCountry(id)
+    if (id && !props.modelValue.countryCode) selectCountry(id)
+  } catch { /* Built-in Intl ISO labels remain available. */ }
 })
 </script>
 
@@ -111,6 +124,7 @@ onMounted(async () => {
     <div class="sm:col-span-2">
       <DhSelect label="País de la dirección" :model-value="modelValue.countryId"
         :options="countryOptions" placeholder="Seleccionar país"
+        :disabled="Boolean(defaultCountryId)"
         @update:model-value="selectCountry(String($event))" />
     </div>
     <DhSelect :label="firstLabel" :model-value="modelValue.admin1Code"
