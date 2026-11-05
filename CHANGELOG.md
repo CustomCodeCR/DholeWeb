@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.3] - 2026-11-05
+
+- Asegurar que el botón Asignar IDTRA aparezca en Pantalla 9 para tarifas aceptadas sin identificador válido, incluyendo marcadores heredados como Pendiente.
+- Separar visibilidad de permisos: si faltan permisos, mostrar botón deshabilitado con explicación.
+- Validar en CI que el botón esté presente en el JavaScript final generado por Vite.
+
 ## [1.2.2] - 2026-11-05
 
 - Corregir el error `if is already defined` que impedia iniciar el workflow de produccion.

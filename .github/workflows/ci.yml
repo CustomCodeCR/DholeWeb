@@ -29,6 +29,8 @@ jobs:
       # Build before older unrelated Pricing regressions so CI always verifies this UI.
       - name: Type-check and build
         run: pnpm run build
+      - name: Verify IDTRA action survived production bundle compilation
+        run: node --test tests/pricingIdtraBundle.test.mjs
       - name: Pricing rate update regression tests
         run: pnpm run test:pricing-rate-update
       - name: CRM and SRM navigation/integration tests
