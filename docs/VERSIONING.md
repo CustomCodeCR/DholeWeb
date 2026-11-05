@@ -35,4 +35,11 @@ La versión y su registro de cambios **no se modifican de forma silenciosa en el
 - Menú lateral y Configuración: versión instalada y metadatos de la compilación.
 - `master`: despliegue production; `develop`: despliegue staging.
 
-Este mecanismo versiona **DholeWeb**; las APIs/microservicios conservan sus ciclos de versión y requieren una política adicional si se desea una versión única de toda la plataforma.
+## Política universal de Dhole (obligatoria)
+
+Además del mecanismo local, todo release debe actualizar `version.json`, `CHANGELOG.md` y el manifiesto global de `CustomCodeCR/DholeSystem` junto con los metadatos de **los 13 servicios y DholeApiGateway**. `pnpm run version:*` sólo actualiza archivos locales de DholeWeb; **no es suficiente por sí solo para autorizar un release global**.
+
+El workflow `dhole-version-policy.yml` rechaza versiones inconsistentes o que no incrementan frente a la rama destino. Debe configurarse el check `Dhole semantic version gate` como requerido tanto en `develop` como en `master`.
+
+Primero rama intermedia y batch a `develop`; tras las pruebas de staging, promover el mismo batch a `master` únicamente con autorización expresa de producción.
+
