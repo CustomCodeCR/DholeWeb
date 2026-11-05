@@ -10,7 +10,7 @@ const selector = readFileSync(
 )
 
 test('independent loading retains the Balboa POE guard and the original coloader query', () => {
-  const originalBrowse = '!ownPoeEligible.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse()'
+  const originalBrowse = '!ownPoeEligible.value && !historicalOwnId.value ? Promise.resolve([] as OwnLclConsolidationDto[]) : OwnLclConsolidationService.browse()'
   const originalColoaderQuery = 'poe: isAir.value ? props.destinationLabel || undefined : undefined'
   assert.ok(selector.includes(originalBrowse))
   assert.ok(selector.includes(originalColoaderQuery))
@@ -19,13 +19,13 @@ test('independent loading retains the Balboa POE guard and the original coloader
   assert.match(transformed, /const \[ownResult, coloaderResult\] = await Promise\.allSettled/)
   assert.ok(transformed.includes(originalBrowse))
   assert.ok(transformed.includes(originalColoaderQuery))
-  assert.match(transformed, /ownResult\.status === 'fulfilled' && ownPoeEligible\.value/)
+  assert.match(transformed, /ownResult\.status === 'fulfilled'/)
   assert.match(transformed, /coloaderResult\.status === 'fulfilled'/)
   assert.match(transformed, /ownResult\.status === 'rejected' \? ownResult\.reason : null/)
   assert.match(transformed, /coloaderResult\.status === 'rejected' \? coloaderResult\.reason : null/)
   assert.doesNotMatch(transformed, /const \[own, coloaders\] = await Promise\.all\(/)
   assert.doesNotMatch(transformed, /ownRows\.value = ownPoeEligible\.value \? own\.map/)
-  assert.match(transformed, /if \(!ownPoeEligible\.value\) tab\.value = 'Coloader'/)
+  assert.match(transformed, /if \(!ownPoeEligible\.value && !historicalId\) tab\.value = 'Coloader'/)
 })
 
 test('legacy own-LCL loading is still patched without depending on a specific query', () => {
@@ -81,7 +81,7 @@ test('Guangzhou can quote Yantian and Shanghai matrix, without treating Yantian 
   assert.ok(selector.includes("'shekou', 'guangzhou',"))
   assert.ok(selector.includes("requestedOrigins).some((origin) => chinaOwnLclOrigins.has(origin))"))
   assert.ok(selector.includes("if (!consolidationOrigins.has('shanghai')) return false"))
-  assert.ok(!selector.includes("'shekou', 'yantian',"))
+  assert.ok(selector.includes("'shekou', 'guangzhou', 'yantian',"))
 })
 
 test('all Shanghai and Yantian own sources remain visible, without allowing invalid quotations', () => {
@@ -103,9 +103,9 @@ test('all Shanghai and Yantian own sources remain visible, without allowing inva
   assert.ok(selector.includes("return row.capacityReached === true || remainingCbm(row) + 0.000001 < requested()"))
   assert.doesNotMatch(selector.split("function ownSelectionBlockReason(")[1].split("function ownHasInsufficientCapacity(")[0], /capacityReached|remainingCbm/)
   assert.ok(selector.includes('label="Capacidad insuficiente · Solo cotización"'))
-  assert.ok(selector.includes(':disabled="Boolean(ownSelectionBlockReason(row))"'))
+  assert.ok(selector.includes(':disabled="viewOnly || Boolean(ownSelectionBlockReason(row))"'))
   assert.ok(selector.includes("showAllOwnConsolidations = !showAllOwnConsolidations"))
-  assert.ok(mobilePatch.includes(':disabled="Boolean(ownSelectionBlockReason(row))"'))
+  assert.ok(mobilePatch.includes(':disabled="viewOnly || Boolean(ownSelectionBlockReason(row))"'))
   assert.ok(mobilePatch.includes('label="Capacidad insuficiente · Solo cotización"'))
   assert.ok(mobilePatch.includes("await loadOwnPreviews(ownRows.value.filter((row) => !ownDepartureExpired(row) && ownConsolidationSupportsPol(row) && ownConsolidationSupportsPoe(row)))"))
   assert.ok(mobilePatch.includes("{{ ownConsolidationSupportsPol(row) ? selectedPolDisplay(ownPreview(row)) : (row.polName || row.polCode || 'Otro origen') }}"))
