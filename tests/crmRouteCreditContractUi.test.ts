@@ -19,7 +19,7 @@ test('Frequent routes select maritime, land or air and save POL/POE/POD without 
   assert.ok(hub.includes('podCode: r.pod') && hub.includes('routeNeedsPod.value ? podCodes.value : [null]'))
   assert.ok(!hub.includes('Volumen habitual'))
   assert.ok(!hub.includes('v-model="expectedVolume"'))
-  assert.ok(hub.includes("crmPath('accounts', rowId(props.account.id), 'trade-profiles')"))
+  assert.ok(hub.includes("crmPath('accounts',rowId(props.account.id),'trade-profiles/bulk')"))
 })
 
 test('Credit creation is accessible on account and gives inline actionable errors', () => {
