@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,7 +23,8 @@
     "version:major": "node scripts/versioning.mjs bump major",
     "version:minor": "node scripts/versioning.mjs bump minor",
     "version:patch": "node scripts/versioning.mjs bump patch",
-    "test:versioning": "node --test tests/versioning.test.mjs"
+    "test:versioning": "node --test tests/versioning.test.mjs",
+    "test:content-translation": "node --test tests/contentTranslation.test.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
