@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.0] - 2026-11-05
+
+- Add universal version governance, GitHub Actions release gate and permanent Codex policy.
+- Synchronize DholeWeb version with the ecosystem release batch.
+
 ## [1.1.0] - 2026-11-05
 
 - Mejoras responsive en formularios, tablas, diálogos y barra superior.
