@@ -30,10 +30,10 @@ test('wizard entrega el POE y selector oculta y bloquea propio fuera de Balboa',
   const selector = readFileSync(new URL('../src/modules/pricing/components/PricingLclRateSourceSelector.vue', import.meta.url), 'utf8')
   assert.ok(wizard.includes(':poe-code="selectedDestination?.code ?? null"'))
   assert.ok(wizard.includes(':poe-name="displayValue(selectedDestination)"'))
-  assert.ok(selector.includes('if (!ownPoeEligible.value) return []'))
-  assert.ok(selector.includes('!ownPoeEligible.value ? Promise.resolve([] as OwnLclConsolidationDto[])'))
+  assert.ok(selector.includes('if (!ownPoeEligible.value && !historicalOwnId.value) return []'))
+  assert.ok(selector.includes('!ownPoeEligible.value && !historicalOwnId.value ? Promise.resolve([] as OwnLclConsolidationDto[])'))
   assert.ok(selector.includes('if (!ownPoeEligible.value || !ownConsolidationSupportsPoe(row)'))
-  assert.ok(selector.includes('<button v-if="ownPoeEligible"'))
+  assert.ok(selector.includes('<button v-if="ownPoeEligible || historicalOwnId"'))
 })
 
 test('Miami se identifica aunque el catálogo devuelva un nombre con país o código interno', () => {
