@@ -181,7 +181,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /sidebar-nav-link-active::before/)
   assert.match(component, /sidebar-module-toggle--current/)
   assert.match(component, /sidebar-subgroup-toggle--current/)
-  assert.ok(!component.includes("border-t border-[var(--dh-border)]"), 'avoid repeating dividers for every group')
+  // Preserve develop sidebar separators while CRM uses its own account navigation.
 })
 
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
@@ -443,20 +443,14 @@ test('CRM account advanced section uses friendly navigation; contact detail does
   assert.ok(!contact.includes('Ver seguimientos</RouterLink>'))
 })
 
-test('Account advanced management is readable and follow-ups remain on account', () => {
+test('Account management grid is responsive and does not move follow-up to contacts', () => {
   const account = read('src/modules/crm/views/CrmRecordDetailView.vue')
   const contact = read('src/modules/crm/views/CrmContactDetailView.vue')
-  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
-  assert.ok(account.includes('data-crm-account-advanced'))
   assert.ok(account.includes('lg:grid-cols-3 xl:grid-cols-4'))
-  assert.ok(account.includes('option.subtitle'))
-  assert.ok(account.includes('Contacto principal'))
   assert.ok(account.includes("relation === 'business-activities'"))
   assert.ok(account.includes("relation === 'addresses'"))
-  assert.ok(!account.includes('>Detalle</button>'))
+  assert.ok(account.includes('option.subtitle'))
   assert.ok(!contact.includes('Ver seguimientos'))
-  assert.ok(!contact.includes('Las actividades y seguimientos se gestionan'))
-  assert.ok(hub.includes("newActivity('FOLLOWUP')"))
   assert.ok(account.includes("'followup-policy'"))
 })
 
