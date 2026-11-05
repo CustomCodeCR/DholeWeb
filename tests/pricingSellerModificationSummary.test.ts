@@ -76,7 +76,9 @@ test('a failed complete-rate never marks a persisted amendment as an unsaved quo
   assert.match(wizard.slice(completePos, completePos + 1600), /Revisión guardada; entrega pendiente/)
   assert.match(wizard.slice(completePos, completePos + 1600), /Revisión guardada; revisar envío/)
   assert.match(service, /Promise<\{ status\?: string; code\?: string \} \| null>/)
-  assert.match(service, /return response && typeof response === 'object'/)
+  assert.match(service, /const completion = response && typeof response === 'object'/)
+  assert.match(service, /persisted.status !== 'Completed'/)
+  assert.match(service, /return completion/)
   // The navigation transform must return before attempting another prepare.
   const index = plugin.indexOf('const stayInRevision =')
   const navigation = plugin.slice(index, index + 1900)
