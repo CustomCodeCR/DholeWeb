@@ -11,9 +11,11 @@ const service = readFileSync(new URL('../src/core/services/pricingService.ts', i
 for (const [name, code] of [['alternative wizard', alternative], ['stable wizard', stable]]) {
   test(name + ': step 9 exposes Assign IDTRA next to pending IDTRA', () => {
     assert.match(code, /<div v-else-if="step === 9 && viewOnly && editingRate"/)
-    assert.match(code, /<p class="min-w-0 break-words text-sm font-bold">IDTRA: {{ editingRate\.idtraNumber \|\| 'Pendiente' }}<\/p>\s*<DhButton v-if="canAssignIdtra" size="sm" @click="openAssignIdtra">Asignar IDTRA<\/DhButton>/)
-    assert.match(code, /const canAssignIdtra = computed\(\(\) => editingRate\.value\?\.status === 'AcceptedByClient'/)
-    assert.match(code, /!String\(editingRate\.value\.idtraNumber \?\? ''\)\.trim\(\)/)
+    assert.match(code, /data-testid="pricing-screen9-idtra-action"/)
+    assert.match(code, /<DhButton v-if="showAssignIdtra" size="sm" :disabled="!canAssignIdtra" @click="openAssignIdtra">Asignar IDTRA<\/DhButton>/)
+    assert.match(code, /const showAssignIdtra = computed\(\(\) => editingRate\.value\?\.status === 'AcceptedByClient'/)
+    assert.match(code, /isIdtraPending\(editingRate\.value\.idtraNumber\)/)
+    assert.match(code, /pendiente\(\?: de asignar\)\?/)
     assert.match(code, /canUpdateRateStatus\.value \|\| canApproveLowMargin\.value/)
     assert.match(code, /component: PricingAssignIdtraModal/)
     assert.match(code, /onSaved: async \(\) => \{ await hydrateExistingRate\(\) \}/)
@@ -24,4 +26,12 @@ test('assignment persists via dedicated API; it does not edit the quote or creat
   assert.match(modal, /PricingService\.assignRateIdtra\(props\.rate\.id, normalizedIdtraCsv\.value, otherReferences\.value\.trim\(\)\)/)
   assert.match(modal, /props\.rate\.status !== 'AcceptedByClient' \|\| props\.rate\.idtraNumber\?\.trim\(\)/)
   assert.match(service, /async assignRateIdtra\(/)
+})
+
+test('screen 9 visibly separates pending IDTRA display from authorized submit', () => {
+  for (const code of [alternative, stable]) {
+    assert.match(code, /<DhButton v-if="showAssignIdtra"/)
+    assert.match(code, /:disabled="!canAssignIdtra"/)
+    assert.match(code, /showAssignIdtra && !canAssignIdtra/)
+  }
 })

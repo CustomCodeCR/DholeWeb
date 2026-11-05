@@ -425,8 +425,15 @@ const commercialRateTypeLabel = computed(() =>
 )
 const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
-const canAssignIdtra = computed(() => editingRate.value?.status === 'AcceptedByClient'
-  && !String(editingRate.value.idtraNumber ?? '').trim()
+// Legacy imports sometimes store a display placeholder instead of a real IDTRA.
+// Treat those values as pending, while keeping backend authorization authoritative.
+function isIdtraPending(value: string | null | undefined): boolean {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return !normalized || /^(pendiente(?: de asignar)?|sin idtra|sin asignar|no asignado|n\/a)$/.test(normalized)
+}
+const showAssignIdtra = computed(() => editingRate.value?.status === 'AcceptedByClient'
+  && isIdtraPending(editingRate.value.idtraNumber))
+const canAssignIdtra = computed(() => showAssignIdtra.value
   && (canUpdateRateStatus.value || canApproveLowMargin.value))
 const canApproveCurrentRate = computed(() =>
   canApproveLowMargin.value
@@ -5417,10 +5424,13 @@ onMounted(async () => {
                   Derivada de tarifario · REV {{ editingRate.sourceTariffRevisionNumber || 1 }}
                 </span>
               </div>
-              <div class="mt-2 flex flex-wrap items-center gap-3">
-                <p class="min-w-0 break-words text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
-                <DhButton v-if="canAssignIdtra" size="sm" @click="openAssignIdtra">Asignar IDTRA</DhButton>
+              <div data-testid="pricing-screen9-idtra-action" class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5">
+                <p class="min-w-0 break-words text-sm font-bold">IDTRA: {{ isIdtraPending(editingRate.idtraNumber) ? 'Pendiente' : editingRate.idtraNumber }}</p>
+                <DhButton v-if="showAssignIdtra" size="sm" :disabled="!canAssignIdtra" @click="openAssignIdtra">Asignar IDTRA</DhButton>
               </div>
+              <p v-if="showAssignIdtra && !canAssignIdtra" class="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-300">
+                Para asignar el IDTRA se necesita el permiso de actualizar tarifas.
+              </p>
               <div v-if="editingRate.otherReferences?.trim()" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
                 <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">{{ editingRate.otherReferences }}</p>
