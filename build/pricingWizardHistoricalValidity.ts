@@ -59,8 +59,8 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
   // Do not silently assign 30 days to an open request after the user has
   // explicitly entered a historical expiry.
   code = code.replace(
-    'validTo: addDaysIso(form.loadDate, 30),',
-    'validTo: form.validTo || addDaysIso(form.loadDate, 30),',
+    /validTo: addDaysIso\(form\.loadDate, 30\)(?=[,}\n])/,
+    'validTo: form.validTo || addDaysIso(form.loadDate, 30)',
   )
 
   // Validate dates only when saving a QUO; Sales requests need no expiry date.
