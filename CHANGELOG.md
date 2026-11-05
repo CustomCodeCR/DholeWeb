@@ -2,6 +2,8 @@
 
 ## [1.2.1] - 2026-11-05
 
+- Habilitar la asignación del IDTRA en la tarjeta Identificación de Pantalla 9, reutilizando el modal y endpoint existente para cotizaciones aceptadas sin IDTRA y refrescando los datos al guardar.
+
 - Mostrar el cliente junto al número QUO con mayor jerarquía visual en escritorio y móvil.
 - Ampliar la columna Tarifa sin perder etiquetas REV, SPOT/TARIFA, ruta ni IDTRA.
 
