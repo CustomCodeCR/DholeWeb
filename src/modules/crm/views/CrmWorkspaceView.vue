@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
-import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Filter, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
+import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
+import { DhButton, DhInput, DhMultiSelect, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmReferencePicker from '../components/CrmReferencePicker.vue'
@@ -199,10 +199,16 @@ const financeAccountsLoading = ref(false)
 const financeTab = ref<'credit' | 'contracts'>(can('crm.credit.read') ? 'credit' : 'contracts')
 const dashboard = reactive({ accounts: 0, leads: 0, opportunities: 0, activities: 0, weighted: 0, loaded: false })
 const configWarning = ref('')
-const accountTypeFilter = ref('')
-const accountCategoryFilter = ref('')
-const accountSellerFilter = ref('')
-const accountRelationFilter = ref('')
+const accountTypeFilter = ref<string[]>([])
+const accountCategoryFilter = ref<string[]>([])
+const accountSellerFilter = ref<string[]>([])
+const accountRelationFilter = ref<string[]>([])
+const accountTypeOptions = [
+  { value: 'cash', label: 'Contado' },
+  { value: 'credit', label: 'Crédito' },
+]
+const accountCategoryOptions = ['A', 'B', 'C', 'D']
+  .map(value => ({ value, label: `Categoría ${value}` }))
 const accountSellerOptions = ref<{ value: string; label: string }[]>([])
 const accountFilterOptionsError = ref('')
 // Match the values in CrmRelationshipPicker. A multi-relationship account
@@ -210,10 +216,10 @@ const accountFilterOptionsError = ref('')
 const accountRelationOptions = [
   'Cliente', 'Consignee', 'Shipper', 'Notify', 'Proveedor', 'Competidor',
   'Colaborador', 'Agente', 'Transportista', 'Otro',
-]
+].map(value => ({ value, label: value }))
 const hasAccountFilters = computed(() => Boolean(
-  search.value.trim() || accountTypeFilter.value || accountCategoryFilter.value ||
-  accountSellerFilter.value || accountRelationFilter.value,
+  search.value.trim() || accountTypeFilter.value.length || accountCategoryFilter.value.length ||
+  accountSellerFilter.value.length || accountRelationFilter.value.length,
 ))
 async function loadAccountFilterOptions() {
   accountFilterOptionsError.value = ''
@@ -226,10 +232,10 @@ async function loadAccountFilterOptions() {
   }
 }
 function clearAccountFilters() {
-  accountTypeFilter.value = ''
-  accountCategoryFilter.value = ''
-  accountSellerFilter.value = ''
-  accountRelationFilter.value = ''
+  accountTypeFilter.value = []
+  accountCategoryFilter.value = []
+  accountSellerFilter.value = []
+  accountRelationFilter.value = []
 }
 function refreshWorkspace() {
   void load()
@@ -460,10 +466,10 @@ async function load() {
     } else {
       const response = await crmList(model.value!.resource, {
         page: page.value, pageSize: 25, q: search.value.trim(),
-        ...(section.value === 'accounts' && accountTypeFilter.value ? { customerTypeCode: accountTypeFilter.value } : {}),
-        ...(section.value === 'accounts' && accountCategoryFilter.value ? { categoryCode: accountCategoryFilter.value } : {}),
-        ...(section.value === 'accounts' && accountSellerFilter.value ? { seller: accountSellerFilter.value } : {}),
-        ...(section.value === 'accounts' && accountRelationFilter.value ? { relationship: accountRelationFilter.value } : {}),
+        ...(section.value === 'accounts' && accountTypeFilter.value.length ? { customerTypeCode: accountTypeFilter.value.join(',') } : {}),
+        ...(section.value === 'accounts' && accountCategoryFilter.value.length ? { categoryCode: accountCategoryFilter.value.join(',') } : {}),
+        ...(section.value === 'accounts' && accountSellerFilter.value.length ? { seller: accountSellerFilter.value.join(',') } : {}),
+        ...(section.value === 'accounts' && accountRelationFilter.value.length ? { relationship: accountRelationFilter.value.join(',') } : {}),
         ...(section.value === 'opportunities' && pipelineId.value ? { pipelineId: pipelineId.value } : {}),
       })
       rows.value = response.items
@@ -653,30 +659,27 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
           </div>
           <DhButton v-if="section !== 'settings'" :label="t('common.search')" variant="secondary"
             @click="page=1;load()" />
-          <div v-if="section === 'accounts'" class="flex min-w-0 flex-wrap items-center gap-2 border-[var(--dh-border)] lg:border-l lg:pl-3">
-            <Filter class="h-4 w-4 text-[var(--dh-text-muted)]" />
-            <select v-model="accountTypeFilter" aria-label="Filtrar por tipo de cliente"
-              class="max-w-[170px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
-              <option value="">Todos los clientes</option><option value="cash">Contado</option><option value="credit">Crédito</option>
-            </select>
-            <select v-model="accountCategoryFilter" aria-label="Filtrar por categoría"
-              class="max-w-[150px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
-              <option value="">Toda categoría</option>
-              <option v-for="value in ['A','B','C','D']" :key="value" :value="value">Categoría {{ value }}</option>
-            </select>
-            <select v-model="accountSellerFilter" aria-label="Filtrar por vendedor asignado"
-              class="max-w-[195px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
-              <option value="">Todos los vendedores</option>
-              <option v-for="seller in accountSellerOptions" :key="seller.value" :value="seller.value">{{ seller.label }}</option>
-            </select>
-            <select v-model="accountRelationFilter" aria-label="Filtrar por tipo de relación"
-              class="max-w-[180px] rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-semibold">
-              <option value="">Toda relación</option>
-              <option v-for="relation in accountRelationOptions" :key="relation" :value="relation">{{ relation }}</option>
-            </select>
-            <button v-if="accountTypeFilter || accountCategoryFilter || accountSellerFilter || accountRelationFilter" type="button"
-              class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
-              @click="clearAccountFilters">Limpiar</button>
+          <div v-if="section === 'accounts'" class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3" data-crm-account-multi-filters>
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Filtros de cuentas · Selección múltiple</p>
+              <button v-if="accountTypeFilter.length || accountCategoryFilter.length || accountSellerFilter.length || accountRelationFilter.length"
+                type="button" class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
+                @click="clearAccountFilters">Limpiar filtros</button>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <DhMultiSelect v-model="accountTypeFilter" label="Tipo de cliente"
+                placeholder="Todos los clientes" :options="accountTypeOptions"
+                search-placeholder="Buscar tipo de cliente..." />
+              <DhMultiSelect v-model="accountCategoryFilter" label="Categoría"
+                placeholder="Todas las categorías" :options="accountCategoryOptions"
+                search-placeholder="Buscar categoría..." />
+              <DhMultiSelect v-model="accountSellerFilter" label="Vendedor asignado"
+                placeholder="Todos los vendedores" :options="accountSellerOptions"
+                search-placeholder="Buscar vendedor..." />
+              <DhMultiSelect v-model="accountRelationFilter" label="Tipo de relación"
+                placeholder="Todas las relaciones" :options="accountRelationOptions"
+                search-placeholder="Buscar relación..." />
+            </div>
           </div>
           <p v-if="section === 'accounts' && accountFilterOptionsError"
             role="status" class="w-full text-xs text-[var(--dh-text-muted)]">{{ accountFilterOptionsError }}</p>

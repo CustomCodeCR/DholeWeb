@@ -110,12 +110,25 @@ test('CRM account creation uses only identity and commercial profile before open
   assert.ok(!workspace.includes('id="crm-account-section-related"'))
   assert.ok(workspace.includes("CrmHaciendaLookup"))
   assert.ok(workspace.includes("countryLabels"))
-  assert.ok(workspace.includes("customerTypeCode: accountTypeFilter.value"))
-  assert.ok(workspace.includes("categoryCode: accountCategoryFilter.value"))
+  assert.ok(workspace.includes("customerTypeCode: accountTypeFilter.value.join(',')"))
+  assert.ok(workspace.includes("categoryCode: accountCategoryFilter.value.join(',')"))
   assert.ok(workspace.includes("path: '/crm/accounts/' + accountId"))
   assert.ok(workspace.includes("Crear cuenta y abrir ficha"))
   assert.ok(workspace.includes("'xl' : 'lg'"))
   assert.ok(workspace.includes("La consulta fiscal de Hacienda"))
+})
+
+test('CRM account filters reuse the searchable multi-select from Pricing and keep pagination server-side', () => {
+  const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
+  assert.ok(workspace.includes('data-crm-account-multi-filters'))
+  for (const name of ['accountTypeFilter', 'accountCategoryFilter', 'accountSellerFilter', 'accountRelationFilter']) {
+    assert.ok(workspace.includes(`<DhMultiSelect v-model="${name}"`), `missing multi-select: ${name}`)
+    assert.ok(workspace.includes(`${name}.value.join(',')`), `missing server filter: ${name}`)
+    assert.ok(workspace.includes(`${name}.value = []`), `missing clear filter: ${name}`)
+  }
+  assert.ok(workspace.includes('page.value = 1; void load()'))
+  assert.ok(!workspace.includes('<select v-model="accountSellerFilter"'))
+  assert.ok(workspace.includes('accountSellerOptions'))
 })
 
 test('CRM Config selectors are searchable in a single control', () => {
@@ -508,8 +521,8 @@ test('Accounts filter by seller and any exact commercial relationship on the ser
   const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
   const picker = read('src/modules/crm/components/CrmRelationshipPicker.vue')
   assert.ok(workspace.includes("crmPath('accounts', 'filter-options')"))
-  assert.ok(workspace.includes('{ seller: accountSellerFilter.value }'))
-  assert.ok(workspace.includes('{ relationship: accountRelationFilter.value }'))
+  assert.ok(workspace.includes("{ seller: accountSellerFilter.value.join(',') }"))
+  assert.ok(workspace.includes("{ relationship: accountRelationFilter.value.join(',') }"))
   assert.ok(workspace.includes('v-model="accountSellerFilter"'))
   assert.ok(workspace.includes('v-model="accountRelationFilter"'))
   assert.ok(workspace.includes('watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRelationFilter]'))
