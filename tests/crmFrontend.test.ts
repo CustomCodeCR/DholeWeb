@@ -192,9 +192,9 @@ test('CRM route history is sourced from completed meetings or linked quotes', ()
   assert.ok(hub.includes("routeSourceId.value"))
   assert.ok(hub.includes("routeHistoryTotal"))
   assert.ok(hub.includes("popularRoutes"))
-  assert.ok(hub.includes("catalog-group-slug=\"pol\""))
-  assert.ok(hub.includes("catalog-group-slug=\"poe\""))
-  assert.ok(hub.includes("catalog-group-slug=\"pod\""))
+  assert.ok(hub.includes(":catalog-group-slugs=\"['pol']\""))
+  assert.ok(hub.includes(":catalog-group-slugs=\"['poe']\""))
+  assert.ok(hub.includes(":catalog-group-slugs=\"['pod']\""))
   assert.ok(hub.includes("Registrar una visita") || hub.includes("Programar una visita"))
   assert.ok(sidebar.includes("isCrmSection(item) || !group.label"))
   assert.ok(sidebar.includes("group.label && isCrmSection(item)"))
@@ -266,8 +266,8 @@ test('CRM account is one form and Hacienda applies the current identification on
   assert.ok(!work.includes("id=\"crm-account-section-company\""))
   assert.ok(!work.includes("id=\"crm-account-section-related\""))
   assert.ok(!work.includes('label="Siguiente"'))
-  assert.ok(work.includes('form.displayName = result.name'))
-  assert.ok(work.includes('form.legalName = result.name'))
+  assert.ok(work.includes('form.displayName = upperAccountName(result.name)'))
+  assert.ok(work.includes('form.legalName = upperAccountName(result.name)'))
   assert.ok(work.includes("result.identification.replace"))
   assert.ok(lookup.includes('lookupVersion'))
   assert.ok(lookup.includes('version !== lookupVersion'))
@@ -342,11 +342,12 @@ test('Account edit stays inside its detail page, without any drawer or duplicate
 
 test('CRM credit coverage uses real approved/pending profiles, never changes approved terms directly', () => {
   const coverage = read('src/modules/crm/components/CrmCreditCoverageManager.vue')
+  const coverageOptions = read('src/modules/crm/model/crmCreditCoverage.ts')
   const editor = read('src/modules/crm/components/CrmAccountEditor.vue')
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   for (const value of ['Impuestos Aduanas','Pagos a terceros','Almacenaje Fiscal',
     'Servicio Correduría Aduanera','Transporte Local','Transporte Internacional de Carga']) {
-    assert.ok(coverage.includes(value))
+    assert.ok(coverageOptions.includes(value))
   }
   assert.ok(coverage.includes('Crédito incluye'))
   assert.ok(coverage.includes('Crédito NO incluye'))
