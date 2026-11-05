@@ -59,7 +59,7 @@ export function patchPricingWizardHistoricalValidity(source: string): string {
   // Do not silently assign 30 days to an open request after the user has
   // explicitly entered a historical expiry.
   code = code.replace(
-    /validTo: addDaysIso\(form\.loadDate, 30\)(?=[,}\n])/,
+    /validTo: addDaysIso\(form\.loadDate, 30\)(?=\s*[,}])/,
     'validTo: form.validTo || addDaysIso(form.loadDate, 30)',
   )
 
