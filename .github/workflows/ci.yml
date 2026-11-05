@@ -38,3 +38,5 @@ jobs:
         run: pnpm run test:crm
       - name: Type-check and build
         run: pnpm run build
+      - name: Verify IDTRA action survived production bundle compilation
+        run: node --test tests/pricingIdtraBundle.test.mjs
