@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.2.2] - 2026-11-05
+
+- Corregir el error `if is already defined` que impedia iniciar el workflow de produccion.
+- Restaurar la ejecucion del despliegue al integrar cambios en master, conservando la opcion de lanzamiento manual.
+- Agregar una prueba de regresion para validar los disparadores y evitar condiciones duplicadas en el job.
+
 ## [1.2.1] - 2026-11-05
 
 - Habilitar la asignación del IDTRA en la tarjeta Identificación de Pantalla 9, reutilizando el modal y endpoint existente para cotizaciones aceptadas sin IDTRA y refrescando los datos al guardar.
