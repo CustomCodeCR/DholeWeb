@@ -271,7 +271,7 @@ test('CRM account is one form and Hacienda applies the current identification on
   assert.ok(work.includes("result.identification.replace"))
   assert.ok(lookup.includes('lookupVersion'))
   assert.ok(lookup.includes('version !== lookupVersion'))
-  assert.ok(!menu.includes('crmChildren'))
+  assert.ok(menu.includes('crmChildren'))
   assert.ok(work.includes('CrmRelationshipPicker'))
   assert.ok(work.includes("Dos secciones para crear la cuenta"))
 })
