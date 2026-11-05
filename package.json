@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,8 @@
     "version:minor": "node scripts/versioning.mjs bump minor",
     "version:patch": "node scripts/versioning.mjs bump patch",
     "test:versioning": "node --test tests/versioning.test.mjs",
-    "test:content-translation": "node --test tests/contentTranslation.test.ts"
+    "test:content-translation": "node --test tests/contentTranslation.test.ts",
+    "test:pricing-quo-client": "node --test tests/pricingRatesClientQuoLayout.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

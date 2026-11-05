@@ -980,10 +980,15 @@ onMounted(async () => {
               </div>
 
               <div class="min-w-0 flex-1">
-                <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <span class="max-w-full break-all rounded-full dh-bg-primary-soft px-2.5 py-1 text-[10px] font-black text-[var(--dh-primary)]">
+                <div data-rate-quo-client class="flex min-w-0 flex-wrap items-start gap-3">
+                  <span data-rate-quo class="inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-lg dh-bg-primary-soft px-3 py-1.5 text-sm font-black tracking-tight text-[var(--dh-primary)]">
                     {{ row.quoNumber || row.rateCode }}
                   </span>
+                  <span data-rate-client class="min-w-0 flex-1 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
+                    {{ row.clientName || 'Sin cliente' }}
+                  </span>
+                </div>
+                <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                   <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                   <DhBadge
                     :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
@@ -997,8 +1002,7 @@ onMounted(async () => {
                 <p class="mt-2 break-words text-sm font-black leading-5 text-[var(--dh-text)]">
                   {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
                 </p>
-                <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
-                  {{ row.clientName || 'Sin cliente' }}
+                <p v-if="row.idtraNumber" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
                   <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                 </p>
 
@@ -1119,10 +1123,10 @@ onMounted(async () => {
         <div
           class="hidden overflow-x-auto rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)] lg:block"
         >
-          <table class="w-full min-w-[1600px] table-fixed border-collapse text-left text-sm">
+          <table class="w-full min-w-[1900px] table-fixed border-collapse text-left text-sm">
             <colgroup>
               <col class="w-12" />
-              <col class="w-[225px]" />
+              <col class="w-[450px]" />
               <col class="w-[145px]" />
               <col class="w-[125px]" />
               <col class="w-[150px]" />
@@ -1172,10 +1176,15 @@ onMounted(async () => {
 
                 <td class="px-3 py-4 align-top">
                   <div class="min-w-0">
-                    <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span class="max-w-full break-all rounded-full dh-bg-primary-soft px-2 py-1 text-[10px] font-black text-[var(--dh-primary)]">
+                    <div data-rate-quo-client class="flex min-w-0 flex-wrap items-start gap-3">
+                      <span data-rate-quo class="inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-lg dh-bg-primary-soft px-3 py-1.5 text-sm font-black tracking-tight text-[var(--dh-primary)]">
                         {{ row.quoNumber || row.rateCode }}
                       </span>
+                      <span data-rate-client class="min-w-0 flex-1 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
+                        {{ row.clientName || 'Sin cliente' }}
+                      </span>
+                    </div>
+                    <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                       <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                       <DhBadge
                         :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
@@ -1185,8 +1194,7 @@ onMounted(async () => {
                     <p class="mt-2 break-words font-black leading-5 text-[var(--dh-text)]">
                       {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
                     </p>
-                    <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
-                      {{ row.clientName || 'Sin cliente' }}
+                    <p v-if="row.idtraNumber || acceptedRateMissingIdtra(row)" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
                       <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
                       <span v-if="acceptedRateMissingIdtra(row)" class="font-black text-amber-600"> · Pendiente de IDTRA</span>
                     </p>
