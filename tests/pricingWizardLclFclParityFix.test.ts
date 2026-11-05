@@ -49,7 +49,7 @@ test('selector preserves Balboa-only props and adds distinct coloader labels', (
   assert.match(transformed, /poeLabel: null/)
   assert.match(transformed, /podLabel: null/)
   assert.match(transformed, /const ownPoeEligible = computed/)
-  assert.match(transformed, /if \(!ownPoeEligible\.value\) return \[\]/)
+  assert.match(transformed, /if \(!ownPoeEligible\.value && !historicalOwnId\.value\) return \[\]/)
   assert.equal(transformed.match(/poeLabel\?: string \| null/g)?.length, 1)
 })
 
