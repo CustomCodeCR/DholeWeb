@@ -74,6 +74,7 @@ import PricingLinkedSellerRequest from '@/modules/pricing/components/PricingLink
 import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
+import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
@@ -476,6 +477,9 @@ const commercialRateTypeLabel = computed(() =>
 )
 const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
+const canAssignIdtra = computed(() => editingRate.value?.status === 'AcceptedByClient'
+  && !String(editingRate.value.idtraNumber ?? '').trim()
+  && (canUpdateRateStatus.value || canApproveLowMargin.value))
 const canApproveCurrentRate = computed(() =>
   canApproveLowMargin.value
   && editingRate.value?.status === 'PendingApproval'
@@ -3990,6 +3994,19 @@ function startCommercialDecision(action: 'accept' | 'reject') {
   if (action === 'reject') commercialRejectionReason.value = ''
 }
 
+function openAssignIdtra() {
+  if (!editingRate.value || !canAssignIdtra.value) return
+  modalStore.open({
+    title: 'Asignar IDTRA',
+    component: PricingAssignIdtraModal,
+    size: 'md',
+    props: {
+      rate: editingRate.value,
+      onSaved: async () => { await hydrateExistingRate() },
+    },
+  })
+}
+
 function startAcceptedRateCancellation() {
   if (!editingRate.value || !canCancelAccepted.value || commercialStatusSaving.value) return
   modalStore.open({
@@ -6900,7 +6917,10 @@ onMounted(async () => {
                   Derivada de tarifario · REV {{ editingRate.sourceTariffRevisionNumber || 1 }}
                 </span>
               </div>
-              <p class="mt-2 break-words text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
+              <div class="mt-2 flex flex-wrap items-center gap-3">
+                <p class="min-w-0 break-words text-sm font-bold">IDTRA: {{ editingRate.idtraNumber || 'Pendiente' }}</p>
+                <DhButton v-if="canAssignIdtra" size="sm" @click="openAssignIdtra">Asignar IDTRA</DhButton>
+              </div>
               <div v-if="editingRate.otherReferences?.trim()" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
                 <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">{{ editingRate.otherReferences }}</p>
