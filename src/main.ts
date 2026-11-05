@@ -1,6 +1,7 @@
 import './assets/main.css'
 import './assets/responsive.css'
 import './assets/responsive-polish.css'
+import './assets/responsive-i18n.css'
 import './assets/browser-compat.css'
 import './assets/pricing-rate-navigation.css'
 import './assets/pricing-metric-colors.css'
@@ -187,6 +188,23 @@ brandingStore.applyCachedOrDefault()
 
 i18n.global.locale.value = localeStore.getLocale()
 const uiTextBridge = createUiTextBridge(() => localeStore.getLocale())
+
+window.addEventListener('dhole:translate-content', () => {
+  void uiTextBridge.translateContent().then(
+    (result) => window.dispatchEvent(new CustomEvent('dhole:content-translation-result', {
+      detail: { status: 'translated', ...result },
+    })),
+    () => window.dispatchEvent(new CustomEvent('dhole:content-translation-result', {
+      detail: { status: 'error' },
+    })),
+  )
+})
+window.addEventListener('dhole:restore-content', () => {
+  uiTextBridge.restoreContent()
+  window.dispatchEvent(new CustomEvent('dhole:content-translation-result', {
+    detail: { status: 'restored' },
+  }))
+})
 
 watch(() => localeStore.getLocale(), async (newLocale) => {
   i18n.global.locale.value = newLocale

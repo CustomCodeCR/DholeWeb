@@ -1,0 +1,50 @@
+/* Responsive adjustments for translated labels and content. */
+#app :where(.grid, .flex, form, fieldset, article, section, main) { min-inline-size: 0; }
+#app :where(p, dd, legend, h1, h2, h3, label, [role='heading']) { overflow-wrap: break-word; }
+#app :where([role='dialog'], [role='alertdialog']) {
+  max-inline-size: min(100%, calc(100dvw - 1rem));
+  max-block-size: calc(100dvh - 1rem);
+}
+#app :where(.overflow-x-auto, .dh-scrollbar):has(> table) {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+#app :where(.dh-app-topbar) > button { flex-shrink: 0; }
+
+@media (max-width: 767px) {
+  #app .dh-app-topbar {
+    gap: .25rem;
+    padding-inline: .375rem;
+    max-inline-size: calc(100dvw - 1rem);
+  }
+  #app .dh-app-topbar > button.flex-1 {
+    min-inline-size: 2.5rem;
+    padding-inline: .625rem;
+  }
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-4'],
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-5'],
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-6'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  #app :where(.overflow-x-auto, .dh-scrollbar) > table {
+    width: max-content;
+    min-width: 100%;
+  }
+  #app :where([role='dialog'], [role='alertdialog']) {
+    max-block-size: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem);
+    overflow-y: auto;
+  }
+}
+@media (max-width: 479px) {
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-3'],
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-4'],
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-5'],
+  #app :where(form, [role='dialog']) .grid[class*='grid-cols-6'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #app :where(form) :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+    min-inline-size: 0;
+    width: 100%;
+  }
+}
