@@ -14,16 +14,16 @@ test('Frequent routes select maritime, land or air and save POL/POE/POD without 
   assert.ok(hub.includes("mode.code"))
   assert.ok(hub.includes("routeTerminalType"))
   assert.ok(hub.includes("routeNeedsPod"))
-  assert.ok(hub.includes('polCode: originCode.value'))
-  assert.ok(hub.includes('poeCode: poeCode.value'))
-  assert.ok(hub.includes('podCode: routeNeedsPod.value ? podCode.value : null'))
+  assert.ok(hub.includes('polCode: r.pol'))
+  assert.ok(hub.includes('poeCode: r.poe'))
+  assert.ok(hub.includes('podCode: r.pod') && hub.includes('routeNeedsPod.value ? podCodes.value : [null]'))
   assert.ok(!hub.includes('Volumen habitual'))
   assert.ok(!hub.includes('v-model="expectedVolume"'))
   assert.ok(hub.includes("crmPath('accounts', rowId(props.account.id), 'trade-profiles')"))
 })
 
 test('Credit creation is accessible on account and gives inline actionable errors', () => {
-  assert.ok(hub.includes(':editable="has(\'crm.credit.manage\')"'))
+  assert.ok(hub.includes(':editable="has(\'crm.credit.manage\') || has(\'crm.account.update\')"'))
   assert.ok(credit.includes('data-crm-credit-proposal'))
   assert.ok(credit.includes("proposalOperationKey.value"))
   assert.ok(credit.includes('proposalError'))
@@ -38,16 +38,16 @@ test('Signed contracts upload through Storage without user-visible UUID fields',
   assert.ok(detail.includes("entityType: 'CreditContract'"))
   assert.ok(detail.includes('newlyCreatedContractId.value'))
   assert.ok(detail.includes('contractRenewalDrafts'))
-  assert.ok(detail.includes('Adjuntar contrato firmado'))
+  assert.ok(detail.includes('<CrmContractFileDropzone v-model="signedContractFile"'))
   assert.ok(!detail.includes('v-model.trim="drafts.fileId"'))
   assert.ok(!detail.includes("t('crm.signedFileId')"))
   assert.ok(detail.includes('Guardar contrato'))
 })
 
 test('Credit submit does not rely on native form submission or hide errors', () => {
-  assert.ok(credit.includes('data-crm-credit-submit @click.stop="proposeNew"'))
+  assert.ok(credit.includes('data-crm-credit-submit') && credit.includes('@submit.prevent="proposeNew"'))
   assert.ok(credit.includes('novalidate data-crm-credit-proposal'))
-  assert.ok(credit.includes('Tu usuario no tiene permiso para solicitar crédito'))
+  assert.ok(credit.includes('Tu usuario requiere permisos de gestión de crédito o actualización de la cuenta para solicitarlo.'))
 })
 
 test('Contract accepts drop and browse while hiding technical file identifiers', () => {
