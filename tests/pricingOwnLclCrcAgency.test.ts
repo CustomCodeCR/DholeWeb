@@ -85,8 +85,7 @@ function fixture() {
     ensureCrcCustomsLine: () => { throw Error('configured Cost should not use fallback') },
     number: (v: unknown) => Number(v) || 0,
   }
-  const methods = vm.runInNewContext(compiled + '\n({ sync: syncOwnLclCrcAgencyLine })', env)
-    as { sync: (force?: boolean) => void }
+  const methods = vm.runInNewContext(compiled + '\n({ sync: syncOwnLclCrcAgencyLine })', env) as { sync: (force?: boolean) => void }
   return { env, ...methods }
 }
 

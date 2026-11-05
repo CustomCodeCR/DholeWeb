@@ -25,6 +25,10 @@ for (const file of wizards) {
     assert.equal((source.match(/otherReferences: form\.otherReferences\.trim\(\)/g) || []).length, 2)
     assert.match(source, /form\.otherReferences = rate\.otherReferences \?\? ''/)
     assert.match(source, /function validateWizardReferences\(\)/)
-    assert.match(source, /if \(!validateWizardReferences\(\)\) return/)
+    if (file.includes("PricingRateExistingWizardStable")) {
+      assert.match(source, /if \(!validateWizardReferences\(\)\) return/)
+    } else {
+      assert.match(source, /if \((?:!validateSelectedCrmCustomer\(\) \|\| )?!validateRequiredFields\(\) \|\| !validateWizardReferences\(\)\) return/)
+    }
   })
 }

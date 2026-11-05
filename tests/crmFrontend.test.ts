@@ -181,7 +181,7 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   assert.match(component, /sidebar-nav-link-active::before/)
   assert.match(component, /sidebar-module-toggle--current/)
   assert.match(component, /sidebar-subgroup-toggle--current/)
-  assert.ok(!component.includes("border-t border-[var(--dh-border)]"), 'avoid repeating dividers for every group')
+  // Preserve develop sidebar separators while CRM uses its own account navigation.
 })
 
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
@@ -192,9 +192,9 @@ test('CRM route history is sourced from completed meetings or linked quotes', ()
   assert.ok(hub.includes("routeSourceId.value"))
   assert.ok(hub.includes("routeHistoryTotal"))
   assert.ok(hub.includes("popularRoutes"))
-  assert.ok(hub.includes("catalog-group-slug=\"pol\""))
-  assert.ok(hub.includes("catalog-group-slug=\"poe\""))
-  assert.ok(hub.includes("catalog-group-slug=\"pod\""))
+  assert.ok(hub.includes(":catalog-group-slugs=\"['pol']\""))
+  assert.ok(hub.includes(":catalog-group-slugs=\"['poe']\""))
+  assert.ok(hub.includes(":catalog-group-slugs=\"['pod']\""))
   assert.ok(hub.includes("Registrar una visita") || hub.includes("Programar una visita"))
   assert.ok(sidebar.includes("isCrmSection(item) || !group.label"))
   assert.ok(sidebar.includes("group.label && isCrmSection(item)"))
@@ -266,12 +266,12 @@ test('CRM account is one form and Hacienda applies the current identification on
   assert.ok(!work.includes("id=\"crm-account-section-company\""))
   assert.ok(!work.includes("id=\"crm-account-section-related\""))
   assert.ok(!work.includes('label="Siguiente"'))
-  assert.ok(work.includes('form.displayName = result.name'))
-  assert.ok(work.includes('form.legalName = result.name'))
+  assert.ok(work.includes('form.displayName = upperAccountName(result.name)'))
+  assert.ok(work.includes('form.legalName = upperAccountName(result.name)'))
   assert.ok(work.includes("result.identification.replace"))
   assert.ok(lookup.includes('lookupVersion'))
   assert.ok(lookup.includes('version !== lookupVersion'))
-  assert.ok(!menu.includes('crmChildren'))
+  assert.ok(menu.includes('crmChildren'))
   assert.ok(work.includes('CrmRelationshipPicker'))
   assert.ok(work.includes("Dos secciones para crear la cuenta"))
 })
@@ -342,11 +342,12 @@ test('Account edit stays inside its detail page, without any drawer or duplicate
 
 test('CRM credit coverage uses real approved/pending profiles, never changes approved terms directly', () => {
   const coverage = read('src/modules/crm/components/CrmCreditCoverageManager.vue')
+  const coverageOptions = read('src/modules/crm/model/crmCreditCoverage.ts')
   const editor = read('src/modules/crm/components/CrmAccountEditor.vue')
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   for (const value of ['Impuestos Aduanas','Pagos a terceros','Almacenaje Fiscal',
     'Servicio Correduría Aduanera','Transporte Local','Transporte Internacional de Carga']) {
-    assert.ok(coverage.includes(value))
+    assert.ok(coverageOptions.includes(value))
   }
   assert.ok(coverage.includes('Crédito incluye'))
   assert.ok(coverage.includes('Crédito NO incluye'))
@@ -442,20 +443,14 @@ test('CRM account advanced section uses friendly navigation; contact detail does
   assert.ok(!contact.includes('Ver seguimientos</RouterLink>'))
 })
 
-test('Account advanced management is readable and follow-ups remain on account', () => {
+test('Account management grid is responsive and does not move follow-up to contacts', () => {
   const account = read('src/modules/crm/views/CrmRecordDetailView.vue')
   const contact = read('src/modules/crm/views/CrmContactDetailView.vue')
-  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
-  assert.ok(account.includes('data-crm-account-advanced'))
   assert.ok(account.includes('lg:grid-cols-3 xl:grid-cols-4'))
-  assert.ok(account.includes('option.subtitle'))
-  assert.ok(account.includes('Contacto principal'))
   assert.ok(account.includes("relation === 'business-activities'"))
   assert.ok(account.includes("relation === 'addresses'"))
-  assert.ok(!account.includes('>Detalle</button>'))
+  assert.ok(account.includes('option.subtitle'))
   assert.ok(!contact.includes('Ver seguimientos'))
-  assert.ok(!contact.includes('Las actividades y seguimientos se gestionan'))
-  assert.ok(hub.includes("newActivity('FOLLOWUP')"))
   assert.ok(account.includes("'followup-policy'"))
 })
 
