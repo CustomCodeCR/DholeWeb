@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.6] - 2026-11-06
+
+- Coloca el nombre del cliente debajo de la QUO, en una línea propia con todo el ancho disponible, tanto en escritorio como en móvil.
+- Evita que los nombres se compriman letra por letra en la lista de tarifas; añade una prueba de regresión del diseño.
+- Incrementa DholeWeb a 1.3.6 (PATCH) y registra el release global Dhole 1.3.13 (DH-20261106-PRICING-QUO-CLIENT-015).
+
 ## [1.3.5] - 2026-11-06
 
 - Muestra «Completada · requiere revisión» cuando Ollama terminó y falló una etapa posterior, sin llamar «Fallida» a la ejecución del modelo.
