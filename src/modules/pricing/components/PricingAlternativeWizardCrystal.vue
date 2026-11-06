@@ -2098,13 +2098,7 @@ const canNext = computed(() => {
     )
   }
   if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
-  if (step.value === 6) return Boolean(
-    form.agentId &&
-    (!carrierRequiredForStepSix.value || form.carrierId) &&
-    form.currencyId &&
-    Number.isFinite(number(form.freightCost)) && number(form.freightCost) >= 0 &&
-    Number.isFinite(number(form.freightSale)) && number(form.freightSale) >= 0,
-  )
+  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
   return true
 })
 
