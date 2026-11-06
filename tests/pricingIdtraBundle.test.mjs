@@ -11,5 +11,6 @@ test('production bundle contains the screen 9 IDTRA action after all Vite transf
   assert.ok(compiled.includes('Asignar IDTRA'), 'Compiled wizard must expose the IDTRA button')
   assert.ok(compiled.includes('pricing-screen9-idtra-action'), 'Compiled wizard must retain the screen 9 IDTRA action')
   const metadata = JSON.parse(readFileSync(new URL('../dist/version.json', import.meta.url), 'utf8'))
-  assert.equal(metadata.version, '1.2.3')
+  const packageMetadata = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(metadata.version, packageMetadata.version)
 })
