@@ -147,7 +147,7 @@ async function stopImpersonation() {
 function formatNotificationDate(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(localeStore.locale === 'en' ? 'en-US' : 'es-CR', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -229,7 +229,7 @@ onBeforeUnmount(() => {
 
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" class="dh-topbar-optional-mobile" @click="themeStore.toggleTheme()" />
-      <DhIconButton :icon="Settings" :label="t('topbar.settings')" variant="secondary" class="dh-topbar-optional-mobile" @click="openSettings" />
+      <DhIconButton :icon="Settings" :label="t('topbar.settings')" variant="secondary" class="dh-topbar-settings-mobile" @click="openSettings" />
 
       <div ref="inboxRoot" class="relative">
         <div class="relative">

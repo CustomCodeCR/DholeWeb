@@ -3,7 +3,7 @@ import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { APP_VERSION, APP_VERSION_DETAIL, APP_CHANNEL, APP_COMMIT } from '@/core/version'
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, X } from 'lucide-vue-next'
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
   label: string
@@ -232,6 +232,17 @@ watch(
       </div>
 
       <nav class="dh-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2.5 py-3" :aria-label="t('sidebar.dashboard')">
+        <!-- Keep configuration reachable on phones; the desktop entry stays in the topbar. -->
+        <RouterLink
+          v-if="mobileOpen"
+          to="/settings"
+          class="sidebar-nav-link mb-2 lg:hidden"
+          active-class="sidebar-nav-link-active"
+          @click="emit('close')"
+        >
+          <Settings class="h-4 w-4 shrink-0" />
+          <span class="min-w-0 flex-1">{{ t('sidebar.settings') }}</span>
+        </RouterLink>
         <template v-for="(item, itemIndex) in visibleItems" :key="item.path ?? item.label">
           <div v-if="item.children" class="sidebar-module">
             <button

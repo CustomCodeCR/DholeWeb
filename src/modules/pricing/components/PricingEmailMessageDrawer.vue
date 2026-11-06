@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   AlertTriangle,
   Download,
@@ -35,6 +36,7 @@ const props = defineProps<{
 }>()
 
 const toastStore = useToastStore()
+const { t, locale } = useI18n()
 const modalStore = useModalStore()
 const authStore = useAuthStore()
 const current = ref<EmailMessageDetailDto | null>(null)
@@ -79,39 +81,28 @@ const bodyPreview = computed(() => {
   return new DOMParser().parseFromString(current.value.bodyHtml, 'text/html').body.textContent?.trim() ?? ''
 })
 
+
+const emailStatusKeys: Record<string, string> = {
+  Received: 'statusReceived', Queued: 'statusQueued', Processing: 'statusProcessing',
+  Extracted: 'statusExtracted', NeedsReview: 'statusNeedsReview', Ignored: 'statusIgnored',
+  Duplicated: 'statusDuplicated', Failed: 'statusFailed', Invalid: 'statusInvalid',
+}
+const extractionStatusKeys: Record<string, string> = {
+  Pending: 'jobPending', Processing: 'jobProcessing', Extracting: 'jobExtracting',
+  AwaitingAi: 'jobAwaitingAi', AiProcessing: 'jobAiProcessing',
+  ValidatingAiResult: 'jobValidatingAiResult', AwaitingPricing: 'jobAwaitingPricing',
+  SentToPricing: 'jobSentToPricing', NeedsReview: 'jobNeedsReview',
+  Failed: 'jobFailed', Ignored: 'jobIgnored',
+}
 function messageStatusLabel(status: EmailMessageStatus | string) {
-  return (
-    {
-      Received: 'Recibido',
-      Queued: 'En cola',
-      Processing: 'Procesando',
-      Extracted: 'Extraído',
-      NeedsReview: 'Necesita revisión',
-      Ignored: 'Ignorado',
-      Duplicated: 'Duplicado',
-      Failed: 'Fallido',
-      Invalid: 'No válida',
-    } as Record<string, string>
-  )[status] ?? status
+  const key = emailStatusKeys[status]
+  return key ? t('pricingEmail.' + key) : status
+}
+function jobStatusLabel(status: EmailExtractionJobStatus | string) {
+  const key = extractionStatusKeys[status]
+  return key ? t('pricingEmail.' + key) : status
 }
 
-function jobStatusLabel(status: EmailExtractionJobStatus | string) {
-  return (
-    {
-      Pending: 'Pendiente',
-      Processing: 'Procesando',
-      Extracting: 'Extrayendo',
-      AwaitingAi: 'Esperando AI',
-      AiProcessing: 'Procesando con AI',
-      ValidatingAiResult: 'Validando resultado AI',
-      AwaitingPricing: 'Creando revisión en Pricing',
-      SentToPricing: 'Enviado a Pricing',
-      NeedsReview: 'Necesita revisión',
-      Failed: 'Fallido',
-      Ignored: 'Ignorado',
-    } as Record<string, string>
-  )[status] ?? status
-}
 
 function statusVariant(status: string) {
   if (status === 'Extracted' || status === 'SentToPricing') return 'success' as const
@@ -125,7 +116,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('es-CR', {
+  return new Intl.DateTimeFormat(locale.value === 'en' ? 'en-US' : 'es-CR', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
@@ -141,7 +132,7 @@ function exportMessageExcel() {
   const message = current.value
   if (!message) return
 
-  const classificationResult = message.errorMessage || message.classificationReason || 'Sin observaciones'
+  const classificationResult = message.errorMessage || message.classificationReason || t('pricingEmail.drawerNoNotes')
 
   downloadExcelWorkbook({
     fileName: `correo-${message.subject || message.id}.xlsx`,
@@ -214,7 +205,7 @@ function exportMessageExcel() {
         ],
         rows: message.jobs.map((job) => ({
           status: jobStatusLabel(job.status),
-          source: job.sourceType === 'Body' ? 'Cuerpo del correo' : 'Adjunto',
+          source: job.sourceType === 'Body' ? t('pricingEmail.drawerEmailBody') : t('pricingEmail.drawerAttachment'),
           confidence: job.confidenceScore ?? '',
           error: job.errorMessage || '',
           startedAt: formatDateTime(job.startedAt),
@@ -252,8 +243,8 @@ async function openAttachment(attachment: EmailMessageDetailDto['attachments'][n
   const fileId = parseStorageReference(attachment.storagePath)
   if (!fileId) {
     toastStore.warning(
-      'Archivo anterior a Storage',
-      'Este adjunto todavía usa una ruta local antigua y no tiene referencia storage://.',
+      t('pricingEmail.drawerOldFile'),
+      t('pricingEmail.drawerOldFileHint'),
     )
     return
   }
@@ -270,7 +261,7 @@ async function openAttachment(attachment: EmailMessageDetailDto['attachments'][n
     try {
       await StorageService.downloadFile(descriptor)
     } catch (error) {
-      toastStore.backendError(error, 'No se pudo descargar el adjunto.')
+      toastStore.backendError(error, t('pricingEmail.drawerDownloadError'))
     }
     return
   }
@@ -290,12 +281,17 @@ function attachmentActionLabel(attachment: EmailMessageDetailDto['attachments'][
     contentType: attachment.contentType,
     extension: attachment.fileExtension,
   }) === 'download'
-    ? 'Descargar'
-    : 'Ver'
+    ? t('pricingEmail.drawerDownload')
+    : t('pricingEmail.drawerView')
 }
 
 function attachmentActionIcon(attachment: EmailMessageDetailDto['attachments'][number]) {
-  return attachmentActionLabel(attachment) === 'Descargar' ? Download : Eye
+  return storagePreviewKind({
+    id: attachment.id,
+    fileName: attachment.fileName,
+    contentType: attachment.contentType,
+    extension: attachment.fileExtension,
+  }) === 'download' ? Download : Eye
 }
 
 function sleep(milliseconds: number) {
@@ -328,8 +324,8 @@ async function sendToPricingForReview() {
     }
 
     toastStore.info(
-      'Creando revisión en Pricing',
-      'La extracción se enviará como importación pendiente. No se volverá a extraer el correo.',
+      t('pricingEmail.creatingReview'),
+      t('pricingEmail.creatingReviewHint'),
     )
 
     const batchId = await waitForPricingBatch(job.id)
@@ -337,19 +333,19 @@ async function sendToPricingForReview() {
 
     if (batchId) {
       toastStore.success(
-        'Revisión creada',
-        'Los registros ya están disponibles para corregir y aprobar en Pricing.',
+        t('pricingEmail.drawerReviewCreated'),
+        t('pricingEmail.drawerReviewCreatedHint'),
       )
       await props.onOpenPricing?.(batchId)
       return
     }
 
     toastStore.info(
-      'Revisión en proceso',
-      'El lote continúa creándose. Cuando termine aparecerá el botón “Ver en Pricing”.',
+      t('pricingEmail.drawerReviewPending'),
+      t('pricingEmail.drawerReviewPendingHint'),
     )
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo crear la revisión en Pricing.')
+    toastStore.backendError(error, t('pricingEmail.reviewError'))
   } finally {
     sendingToPricing.value = false
   }
@@ -367,13 +363,13 @@ async function reprocess() {
     reprocessing.value = true
     await EmailExtractionService.reprocessMessage(props.message.id)
     toastStore.success(
-      'Correo enviado a reproceso',
-      'Se crearon nuevos trabajos de extracción. La bandeja se actualizará automáticamente.',
+      t('pricingEmail.reprocessSuccess'),
+      t('pricingEmail.drawerReprocessHint'),
     )
     await load()
     await props.onReprocessed?.()
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo reprocesar el correo.')
+    toastStore.backendError(error, t('pricingEmail.reprocessError'))
   } finally {
     reprocessing.value = false
   }
@@ -383,7 +379,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div data-no-auto-translate class="min-w-0 space-y-6">
     <section
       class="dh-liquid rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5"
     >
@@ -402,7 +398,7 @@ onMounted(load)
               />
               <DhBadge
                 v-if="current?.classificationConfidence != null"
-                :label="`${current.classificationConfidence.toFixed(1)}% confianza`"
+                :label="t('pricingEmail.drawerConfidence', { value: current.classificationConfidence.toFixed(1) })"
                 variant="neutral"
               />
             </div>
@@ -410,15 +406,15 @@ onMounted(load)
               {{ current?.subject ?? message.subject }}
             </h2>
             <p class="mt-1 break-all text-sm font-semibold text-[var(--dh-text-muted)]">
-              {{ current?.fromName || message.fromName || 'Remitente sin nombre' }} ·
+              {{ current?.fromName || message.fromName || t('pricingEmail.drawerNoSenderName') }} ·
               {{ current?.fromAddress ?? message.fromAddress }}
             </p>
           </div>
         </div>
-        <div class="flex shrink-0 flex-wrap justify-end gap-2">
+        <div class="flex min-w-0 flex-wrap gap-2 sm:shrink-0 sm:justify-end">
           <DhButton
             v-if="current"
-            label="Exportar Excel"
+            :label="t('pricingEmail.drawerExport')"
             :icon="FileSpreadsheet"
             variant="secondary"
             size="sm"
@@ -426,14 +422,14 @@ onMounted(load)
           />
           <DhButton
             v-if="pricingBatchJob?.pricingImportBatchId"
-            label="Ver revisión"
+            :label="t('pricingEmail.drawerViewReview')"
             :icon="ExternalLink"
             size="sm"
             @click="openPricingReview"
           />
           <DhButton
             v-else-if="canSendToPricing || awaitingPricingJob"
-            :label="awaitingPricingJob ? 'Creando revisión...' : 'Revisar en Pricing'"
+            :label="awaitingPricingJob ? t('pricingEmail.drawerCreatingReview') : t('pricingEmail.drawerReviewInPricing')"
             :icon="Send"
             size="sm"
             :loading="sendingToPricing || Boolean(awaitingPricingJob)"
@@ -442,7 +438,7 @@ onMounted(load)
           />
           <DhButton
             v-if="canReprocess"
-            label="Volver a extraer"
+            :label="t('pricingEmail.drawerExtractAgain')"
             :icon="RefreshCw"
             variant="secondary"
             size="sm"
@@ -454,20 +450,20 @@ onMounted(load)
     </section>
 
     <div v-if="loading && !current" class="py-12 text-center font-semibold text-[var(--dh-text-muted)]">
-      Cargando detalle del correo...
+      {{ t('pricingEmail.drawerLoading') }}
     </div>
 
     <template v-else-if="current">
       <section class="grid gap-3 sm:grid-cols-2">
         <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Recibido
+            {{ t('pricingEmail.received') }}
           </p>
           <p class="mt-2 font-black text-[var(--dh-text)]">{{ formatDateTime(current.receivedAt) }}</p>
         </div>
         <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
           <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Destinatarios
+            {{ t('pricingEmail.drawerRecipients') }}
           </p>
           <p class="mt-2 break-all font-semibold text-[var(--dh-text)]">
             {{ current.toAddresses || '—' }}
@@ -490,7 +486,7 @@ onMounted(load)
             :class="current.errorMessage ? 'text-red-500' : 'text-amber-600'"
           />
           <div>
-            <h3 class="font-black text-[var(--dh-text)]">Resultado de clasificación</h3>
+            <h3 class="font-black text-[var(--dh-text)]">{{ t('pricingEmail.drawerClassification') }}</h3>
             <p class="mt-1 text-sm font-semibold text-[var(--dh-text-soft)]">
               {{ current.errorMessage || current.classificationReason }}
             </p>
@@ -501,14 +497,14 @@ onMounted(load)
       <section>
         <div class="mb-3 flex items-center gap-2">
           <Paperclip class="h-4 w-4 text-[var(--dh-primary)]" />
-          <h3 class="font-black text-[var(--dh-text)]">Adjuntos</h3>
+          <h3 class="font-black text-[var(--dh-text)]">{{ t('pricingEmail.drawerAttachments') }}</h3>
           <DhBadge :label="String(current.attachments.length)" variant="neutral" />
         </div>
         <div v-if="current.attachments.length" class="space-y-2">
           <div
             v-for="attachment in current.attachments"
             :key="attachment.id"
-            class="flex items-center justify-between gap-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+            class="flex min-w-0 flex-col gap-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
           >
             <div class="flex min-w-0 items-center gap-3">
               <FileText class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
@@ -519,8 +515,8 @@ onMounted(load)
                 </p>
               </div>
             </div>
-            <div class="flex shrink-0 items-center gap-2">
-              <DhBadge :label="attachment.status" :variant="statusVariant(attachment.status)" />
+            <div class="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
+              <DhBadge :label="messageStatusLabel(attachment.status)" :variant="statusVariant(attachment.status)" />
               <DhButton
                 v-if="authStore.hasScope(STORAGE_SCOPES.files.download)"
                 :label="attachmentActionLabel(attachment)"
@@ -533,12 +529,12 @@ onMounted(load)
           </div>
         </div>
         <p v-else class="rounded-[22px] bg-black/[0.025] p-4 text-sm font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.04]">
-          El correo se procesó desde su cuerpo; no contiene adjuntos registrados.
+          {{ t('pricingEmail.drawerNoAttachments') }}
         </p>
       </section>
 
       <section>
-        <h3 class="mb-3 font-black text-[var(--dh-text)]">Seguimiento de extracción y Pricing</h3>
+        <h3 class="mb-3 font-black text-[var(--dh-text)]">{{ t('pricingEmail.drawerTracking') }}</h3>
         <div v-if="current.jobs.length" class="space-y-3">
           <article
             v-for="job in current.jobs"
@@ -560,23 +556,23 @@ onMounted(load)
                   {{ job.errorMessage }}
                 </p>
                 <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-                  Inicio: {{ formatDateTime(job.startedAt) }} · Fin: {{ formatDateTime(job.finishedAt) }}
+                  {{ t('pricingEmail.drawerStart') }}: {{ formatDateTime(job.startedAt) }} · {{ t('pricingEmail.drawerEnd') }}: {{ formatDateTime(job.finishedAt) }}
                 </p>
                 <p v-if="job.pricingImportBatchId" class="mt-2 break-all text-xs font-bold text-[var(--dh-text-soft)]">
-                  Lote Pricing: {{ job.pricingImportBatchId }}
+                  {{ t('pricingEmail.drawerBatch') }}: {{ job.pricingImportBatchId }}
                 </p>
               </div>
               <div class="flex shrink-0 flex-wrap gap-2">
                 <DhButton
                   v-if="job.pricingImportBatchId"
-                  label="Ver en Pricing"
+                  :label="t('pricingEmail.drawerViewPricing')"
                   :icon="ExternalLink"
                   size="sm"
                   @click="onOpenPricing?.(job.pricingImportBatchId)"
                 />
                 <DhButton
                   v-else-if="job.id === reviewJob?.id"
-                  label="Enviar a revisión"
+                  :label="t('pricingEmail.drawerSendReview')"
                   :icon="Send"
                   size="sm"
                   :loading="sendingToPricing"
@@ -587,7 +583,7 @@ onMounted(load)
           </article>
         </div>
         <p v-else class="rounded-[22px] bg-black/[0.025] p-4 text-sm font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.04]">
-          Aún no hay trabajos de extracción asociados.
+          {{ t('pricingEmail.drawerNoJobs') }}
         </p>
       </section>
 
@@ -595,14 +591,14 @@ onMounted(load)
         v-if="originalEmailHtml || bodyPreview"
         class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-5"
       >
-        <h3 class="mb-3 font-black text-[var(--dh-text)]">Vista previa del correo original</h3>
+        <h3 class="mb-3 font-black text-[var(--dh-text)]">{{ t('pricingEmail.drawerOriginalPreview') }}</h3>
         <!-- Isolate untrusted sender HTML from Dhole: no scripts, same-origin,
              forms, or parent navigation. HTML layout, tables, and inline styles
              remain visible as in the received message. -->
         <iframe
           v-if="originalEmailHtml"
           :srcdoc="originalEmailHtml"
-          title="Contenido HTML original del correo"
+          :title="t('pricingEmail.drawerOriginalHtml')"
           class="h-[620px] w-full rounded-xl border border-[var(--dh-border)] bg-white"
           sandbox=""
           referrerpolicy="no-referrer"

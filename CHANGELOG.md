@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.2] - 2026-11-06
+
+- Corrige que Configuración desaparezca en celular: botón visible en la barra superior y acceso secundario en el menú lateral.
+- Traduce de forma reactiva la bandeja de correos de Pricing, sus filtros, tablas, estados y panel de detalle, sin utilizar IA para traducir.
+- Respeta EN/ES en fechas, estados de extracción y acciones; corrige la traducción invertida de «Operations Platform».
+- Asegura tarjetas móviles para tablas operativas bajo 640 px y evita desbordamientos en el detalle del correo.
+- Añade pruebas de regresión i18n/responsive y verificación obligatoria de CI.
+
 ## [1.3.1] - 2026-11-06
 
 - Elimina la traducción por IA, su botón, eventos y dependencias de contenido.
