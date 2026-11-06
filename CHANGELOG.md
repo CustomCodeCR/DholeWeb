@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-11-05
+
+- Alinea el versionamiento SemVer de Dhole Web y su bundle con el release global.
+- Mantiene deploy automático a staging y producción en todo push sin cancelar los pendientes.
+
 ## [1.2.3] - 2026-11-05
 
 - Asegurar que el botón Asignar IDTRA aparezca en Pantalla 9 para tarifas aceptadas sin identificador válido, incluyendo marcadores heredados como Pendiente.
