@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.3.4",
-  "ecosystemVersion": "1.3.7",
-  "releaseId": "DH-20261106-PRICING-SAVE-BINDING-009"
+  "version": "1.3.5",
+  "ecosystemVersion": "1.3.11",
+  "releaseId": "DH-20261106-AI-COMPLETED-REVIEW-013"
 }
