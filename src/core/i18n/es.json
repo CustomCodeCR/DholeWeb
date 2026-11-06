@@ -82,14 +82,6 @@
     "partialSearchResults": "Algunos módulos no respondieron; los resultados pueden estar incompletos.",
     "theme": "Tema",
     "language": "Idioma",
-    "translateContent": "Traducir contenido con IA",
-    "showOriginalContent": "Mostrar contenido original",
-    "contentTranslationPartial": "Traducción parcial",
-    "contentTranslationPartialHint": "Solo se tradujo una parte del contenido; los demás textos permanecen originales.",
-    "contentTranslationEmpty": "Sin contenido para traducir",
-    "contentTranslationEmptyHint": "No se encontraron textos nuevos compatibles con la traducción.",
-    "contentTranslationFailed": "Traducción no disponible",
-    "contentTranslationFailedHint": "Compruebe el acceso al servicio de IA y el perfil de traducción.",
     "notifications": "Notificaciones",
     "impersonating": "Impersonando a {name}",
     "stopImpersonation": "Salir de impersonación",
@@ -104,7 +96,9 @@
     "noNotificationsHint": "Las alertas importantes del sistema aparecerán aquí.",
     "newNotification": "Nueva notificación",
     "loadingPrevious": "Cargando...",
-    "viewPrevious": "Ver anteriores"
+    "viewPrevious": "Ver anteriores",
+    "unknownUser": "Usuario",
+    "activeSession": "Sesión activa"
   },
   "sidebar": {
     "dynamics": "Dynamics 365",
@@ -223,7 +217,11 @@
     },
     "openPricing": "Gestionar pricing",
     "openAi": "Abrir asistente conversacional",
-    "openStorage": "Consultar archivos, correos y adjuntos"
+    "openStorage": "Consultar archivos, correos y adjuntos",
+    "roleDashboard": "Dashboard por rol",
+    "seller": "Vendedor",
+    "salesDashboard": "Dashboard de Ventas",
+    "mySales": "Mi gestión comercial"
   },
   "users": {
     "title": "Usuarios",
@@ -503,14 +501,19 @@
     "moreTabs": "Otras pestañas",
     "resizeSplit": "Redimensionar paneles",
     "splitHint": "Arrastre una pestaña al panel derecho o use el botón de split.",
-    "closePane": "Cerrar panel"
+    "closePane": "Cerrar panel",
+    "closeAll": "Cerrar todas las pestañas"
   },
   "monitoring": {
     "title": "Monitoreo de servicios",
     "subtitle": "Estado técnico de los servicios principales. Solo visible para SuperUsuario.",
     "service": "Servicio",
     "version": "Versión",
-    "versionSources": { "runtime": "Versión del proceso", "registered": "Versión registrada", "unavailable": "No reportada" },
+    "versionSources": {
+      "runtime": "Versión del proceso",
+      "registered": "Versión registrada",
+      "unavailable": "No reportada"
+    },
     "latency": "Latencia",
     "statusCode": "Código HTTP",
     "checkedAt": "Revisado",
@@ -1866,7 +1869,16 @@
     "resumeExplanation": "Solo reanude una ejecución tras completar y registrar la verificación legítima en el navegador original. La API valida el circuito, la sesión y los permisos, conserva el mismo ID y audita la acción.",
     "resumeFailed": "No fue posible reanudar la búsqueda; revise el estado del circuito, la sesión y los otros trabajos en cola.",
     "resumeSuccess": "Búsqueda original reencolada de forma controlada",
-    "actions": {"CircuitNotEnabled":"Protección desactivada; no reanudar","VerifyProviderManually":"Verificar legítimamente con Maersk en el navegador original","AuthenticateOriginalProfile":"Autenticar el perfil original","ReviewTechnicalRepair":"Revisar reparación técnica autorizada","WaitForCircuit":"Esperar el circuito; no repetir consultas","ReviewWaitingExecution":"Revisar búsqueda pendiente y reanudar con autorización","SessionRecordedAsAuthenticated":"Sesión registrada como autenticada; verificar en el proveedor","ReviewSession":"Revisar estado de la sesión"},
+    "actions": {
+      "CircuitNotEnabled": "Protección desactivada; no reanudar",
+      "VerifyProviderManually": "Verificar legítimamente con Maersk en el navegador original",
+      "AuthenticateOriginalProfile": "Autenticar el perfil original",
+      "ReviewTechnicalRepair": "Revisar reparación técnica autorizada",
+      "WaitForCircuit": "Esperar el circuito; no repetir consultas",
+      "ReviewWaitingExecution": "Revisar búsqueda pendiente y reanudar con autorización",
+      "SessionRecordedAsAuthenticated": "Sesión registrada como autenticada; verificar en el proveedor",
+      "ReviewSession": "Revisar estado de la sesión"
+    },
     "title": "Operación Maersk",
     "subtitle": "Sesiones, estado del circuito, cola e incidentes de Hermes",
     "refresh": "Actualizar",

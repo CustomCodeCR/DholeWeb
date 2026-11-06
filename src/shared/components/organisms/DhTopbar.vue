@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Bell, BookOpenText, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun, UserRoundX } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun, UserRoundX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
@@ -9,7 +9,6 @@ import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
-import { useToastStore } from '@/core/stores/toastStore'
 import { NotificationsService } from '@/core/services/notificationsService'
 import type { NotificationInboxItemDto } from '@/core/interfaces/notifications'
 import { resolveNotificationDestination } from '@/core/utils/notificationNavigation'
@@ -20,11 +19,10 @@ const themeStore = useThemeStore()
 const localeStore = useLocale()
 const authStore = useAuthStore()
 const shortcutStore = useShortcutStore()
-const toastStore = useToastStore()
 const emit = defineEmits<{ search: []; logout: []; navigation: [] }>()
 
-const displayName = computed(() => authStore.userDisplayName || 'Usuario')
-const displayEmail = computed(() => authStore.email || 'Sesión activa')
+const displayName = computed(() => authStore.userDisplayName || t('topbar.unknownUser'))
+const displayEmail = computed(() => authStore.email || t('topbar.activeSession'))
 const searchShortcut = computed(() => shortcutStore.byAction('global.search')?.keys ?? 'ctrl+k')
 
 const inboxRoot = ref<HTMLElement | null>(null)
@@ -39,48 +37,6 @@ const inboxTotal = ref(0)
 const unreadCount = ref(0)
 const expandedRecipientId = ref<string | null>(null)
 const stoppingImpersonation = ref(false)
-const contentTranslationBusy = ref(false)
-const contentTranslationActive = ref(false)
-
-function toggleContentTranslation() {
-  if (contentTranslationBusy.value) return
-  if (contentTranslationActive.value) {
-    window.dispatchEvent(new Event('dhole:restore-content'))
-    return
-  }
-  contentTranslationBusy.value = true
-  window.dispatchEvent(new Event('dhole:translate-content'))
-}
-
-function onContentTranslationResult(event: Event) {
-  const detail = (event as CustomEvent<{
-    status: 'translated' | 'restored' | 'error'
-    changed?: number
-    truncated?: boolean
-  }>).detail
-  contentTranslationBusy.value = false
-  if (detail.status === 'restored') {
-    contentTranslationActive.value = false
-  } else if (detail.status === 'translated') {
-    contentTranslationActive.value = Boolean(detail.changed)
-    if (detail.truncated) {
-      toastStore.warning(t('topbar.contentTranslationPartial'), t('topbar.contentTranslationPartialHint'))
-    } else if (!detail.changed) {
-      toastStore.warning(t('topbar.contentTranslationEmpty'), t('topbar.contentTranslationEmptyHint'))
-    }
-  } else {
-    toastStore.warning(t('topbar.contentTranslationFailed'), t('topbar.contentTranslationFailedHint'))
-  }
-}
-
-onMounted(() => window.addEventListener('dhole:content-translation-result', onContentTranslationResult))
-onBeforeUnmount(() => window.removeEventListener('dhole:content-translation-result', onContentTranslationResult))
-watch(() => localeStore.locale, () => { contentTranslationActive.value = false })
-watch(() => router.currentRoute.value.fullPath, () => {
-  if (contentTranslationActive.value) window.dispatchEvent(new Event('dhole:restore-content'))
-  contentTranslationActive.value = false
-})
-
 const hasMoreNotifications = computed(() => inboxItems.value.length < inboxTotal.value)
 const unreadBadge = computed(() => unreadCount.value > 99 ? '99+' : String(unreadCount.value))
 
@@ -226,7 +182,7 @@ onBeforeUnmount(() => {
 
 <template>
   <header
-    class="dh-app-topbar sticky top-2 z-30 mx-2 flex min-h-16 items-center gap-2 rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-2 shadow-[var(--dh-shadow-md)] backdrop-blur-2xl sm:top-4 sm:mx-4 sm:min-h-[76px] sm:rounded-[34px] sm:px-4"
+    class="dh-app-topbar sticky top-2 z-30 mx-2 flex min-h-16 min-w-0 items-center gap-1.5 rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-2 shadow-[var(--dh-shadow-md)] backdrop-blur-2xl sm:top-4 sm:mx-4 sm:min-h-[76px] sm:rounded-[34px] sm:px-4"
   >
     <DhIconButton
       :icon="Menu"
@@ -239,6 +195,7 @@ onBeforeUnmount(() => {
     <button
       type="button"
       class="group flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-left text-sm font-semibold text-[var(--dh-text-muted)] shadow-[var(--dh-shadow-sm)] transition hover:border-[var(--dh-primary)] hover:bg-[var(--dh-card-hover)] sm:h-12 sm:gap-3 sm:rounded-[22px] sm:px-4 lg:max-w-[460px]"
+      :aria-label="t('topbar.searchPlaceholder')"
       @click="emit('search')"
     >
       <Search class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
@@ -271,13 +228,6 @@ onBeforeUnmount(() => {
       </div>
 
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
-      <DhIconButton
-        :icon="contentTranslationBusy ? LoaderCircle : BookOpenText"
-        :label="contentTranslationActive ? t('topbar.showOriginalContent') : t('topbar.translateContent')"
-        :variant="contentTranslationActive ? 'primary' : 'secondary'"
-        :disabled="contentTranslationBusy"
-        @click="toggleContentTranslation"
-      />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" class="dh-topbar-optional-mobile" @click="themeStore.toggleTheme()" />
       <DhIconButton :icon="Settings" :label="t('topbar.settings')" variant="secondary" class="dh-topbar-optional-mobile" @click="openSettings" />
 

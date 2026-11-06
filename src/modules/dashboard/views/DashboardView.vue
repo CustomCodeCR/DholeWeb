@@ -94,7 +94,7 @@ const activeDashboardRole = computed<DashboardRole>(() => {
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <p class="text-sm font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
-            Bienvenido
+            {{ t('dashboard.welcome') }}
           </p>
           <h1 class="mt-3 break-words text-3xl font-black tracking-tight text-[var(--dh-text)] md:text-5xl">
             {{ authStore.userDisplayName || t('dashboard.operator') }}
@@ -102,7 +102,7 @@ const activeDashboardRole = computed<DashboardRole>(() => {
         </div>
         <div v-if="canSelectDashboard" class="w-full shrink-0 sm:w-56">
           <label for="role-dashboard-selector" class="mb-1.5 block text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Dashboard por rol
+            {{ t('dashboard.roleDashboard') }}
           </label>
           <div class="relative">
             <select
@@ -111,7 +111,7 @@ const activeDashboardRole = computed<DashboardRole>(() => {
               class="w-full appearance-none rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] py-2.5 pl-3.5 pr-10 text-sm font-bold text-[var(--dh-text)] outline-none transition hover:border-[var(--dh-primary)] focus:border-[var(--dh-primary)] focus:ring-2 focus:ring-[rgb(var(--dh-primary-rgb)/0.2)]"
             >
               <option value="pricing">Pricing</option>
-              <option value="seller">Vendedor</option>
+              <option value="seller">{{ t('dashboard.seller') }}</option>
             </select>
             <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
           </div>

@@ -1,0 +1,82 @@
+/* Dhole mobile interaction contract.
+ * Overlays are teleported to <body>, so selectors MUST NOT depend on #app.
+ * Preserve wide operational tables inside their own scroll containers.
+ */
+@media (max-width: 767px) {
+  html, body, #app { width: 100%; max-width: 100%; }
+  #app :where(main, article, section, form, fieldset, .grid, .flex) { min-inline-size: 0; }
+  #app :where(main, article, section, form) > :where(.grid, .flex) { max-inline-size: 100%; }
+  #app :where(h1, h2, h3, p, label, legend) { overflow-wrap: break-word; }
+  #app :where(.dh-page-header-actions, .dh-responsive-actions) { min-inline-size: 0; width: 100%; flex-wrap: wrap; }
+  #app :where(.dh-page-header-actions, .dh-responsive-actions) > :where(button, a) { min-inline-size: 0; }
+  #app .dh-app-topbar { min-inline-size: 0; width: calc(100% - 1rem); gap: .25rem; padding-inline: .375rem; }
+  #app .dh-app-topbar > button.group { min-inline-size: 0; flex: 1 1 auto; padding-inline: .5rem; overflow: hidden; }
+  #app .dh-app-topbar > .ml-auto { min-inline-size: 0; flex-shrink: 0; gap: .25rem; }
+  #app .dh-app-topbar > .ml-auto > * { flex-shrink: 0; }
+  #app .dh-responsive-tabs { min-inline-size: 0; scroll-padding-inline: .75rem; }
+  #app :where(.overflow-x-auto, .dh-data-table-desktop) { max-inline-size: 100%; overscroll-behavior-x: contain; }
+  #app :where(.overflow-x-auto, .dh-data-table-desktop) > table { width: max-content; min-inline-size: 100%; }
+  #app .dh-data-table-mobile { min-inline-size: 0; }
+  #app .dh-data-table-mobile :where(dl, dt, dd) { min-inline-size: 0; overflow-wrap: anywhere; }
+  #app :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { min-inline-size: 0; max-inline-size: 100%; font-size: 16px; }
+  #app :where(form, .dh-responsive-form) > .grid[class*="grid-cols-"] { grid-template-columns: minmax(0, 1fr); }
+  #app :where(.dh-glass, .dh-liquid, .dh-glass-strong) { max-inline-size: 100%; }
+  /* Do not clip operational drawers or modals; they live outside #app. */
+  [data-dh-overlay="modal"], [data-dh-overlay="drawer"] {
+    padding-inline: max(.5rem, env(safe-area-inset-left), env(safe-area-inset-right));
+    padding-bottom: max(.5rem, env(safe-area-inset-bottom));
+  }
+  [data-dh-overlay="modal"] [role="dialog"] {
+    display: flex;
+    flex-direction: column;
+    min-inline-size: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    max-block-size: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 1rem);
+    margin: 0;
+  }
+  [data-dh-overlay="modal"] [role="dialog"] > main,
+  [data-dh-overlay="drawer"] [role="dialog"] > main {
+    min-block-size: 0;
+    min-inline-size: 0;
+    flex: 1 1 auto;
+    max-block-size: none;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+  [data-dh-overlay="drawer"] [role="dialog"] {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    max-block-size: 100dvh;
+  }
+}
+@media (max-width: 479px) {
+  #app .dh-app-topbar > button.group > span { display: none; }
+  #app .dh-app-topbar > button.group > kbd { display: none; }
+  #app .dh-app-topbar .ml-auto > .relative { min-inline-size: 0; }
+  #app .dh-page-header-actions > :where(button, a),
+  #app .dh-responsive-actions > :where(button, a) {
+    flex: 1 1 100%;
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  #app :where(.dh-glass, .dh-liquid, .dh-glass-strong)[class*="p-6"] { padding: .85rem; }
+}
+@media (max-width: 359px) {
+  #app .dh-app-topbar { gap: .125rem; }
+  #app .dh-app-topbar > button.group { flex-basis: 2.75rem; }
+}
+/* Pricing screen 9 and multistep forms must not have their last actions
+ * hidden behind the fixed totals panel on a narrow device. */
+@media (max-width: 760px) {
+  html body .pricing-rate-wizard.pricing-rate-wizard--new .pricing-rate-form form > section:nth-of-type(5) {
+    position: static !important;
+    inset: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 1rem 0 0 !important;
+  }
+  html body .pricing-rate-wizard.pricing-rate-wizard--new { padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important; }
+}

@@ -82,14 +82,6 @@
     "partialSearchResults": "Some modules did not respond; results may be incomplete.",
     "theme": "Theme",
     "language": "Language",
-    "translateContent": "Translate page content with AI",
-    "showOriginalContent": "Show original content",
-    "contentTranslationPartial": "Partial translation",
-    "contentTranslationPartialHint": "Only part of this page was translated; other text remains unchanged.",
-    "contentTranslationEmpty": "Nothing to translate",
-    "contentTranslationEmptyHint": "No new eligible text was found on this page.",
-    "contentTranslationFailed": "Translation unavailable",
-    "contentTranslationFailedHint": "Check access to the AI service and translation profile.",
     "notifications": "Notifications",
     "impersonating": "Impersonating {name}",
     "stopImpersonation": "Stop impersonating",
@@ -104,7 +96,9 @@
     "noNotificationsHint": "Important system alerts will appear here.",
     "newNotification": "New notification",
     "loadingPrevious": "Loading...",
-    "viewPrevious": "View earlier"
+    "viewPrevious": "View earlier",
+    "unknownUser": "User",
+    "activeSession": "Active session"
   },
   "sidebar": {
     "dynamics": "Dynamics 365",
@@ -223,7 +217,11 @@
     },
     "openPricing": "Manage pricing",
     "openAi": "Open conversational assistant",
-    "openStorage": "Browse files, emails and attachments"
+    "openStorage": "Browse files, emails and attachments",
+    "roleDashboard": "Role dashboard",
+    "seller": "Sales representative",
+    "salesDashboard": "Sales dashboard",
+    "mySales": "My sales activity"
   },
   "users": {
     "title": "Users",
@@ -503,14 +501,19 @@
     "moreTabs": "Other tabs",
     "resizeSplit": "Resize panes",
     "splitHint": "Drag a tab to the right pane or use the split button.",
-    "closePane": "Close pane"
+    "closePane": "Close pane",
+    "closeAll": "Close all tabs"
   },
   "monitoring": {
     "title": "Service monitoring",
     "subtitle": "Technical status of the main services. Only visible to SuperUsuario.",
     "service": "Service",
     "version": "Version",
-    "versionSources": { "runtime": "Running version", "registered": "Release registry", "unavailable": "Not available" },
+    "versionSources": {
+      "runtime": "Running version",
+      "registered": "Release registry",
+      "unavailable": "Not available"
+    },
     "latency": "Latency",
     "statusCode": "HTTP status",
     "checkedAt": "Checked at",
@@ -1866,7 +1869,16 @@
     "resumeExplanation": "Resume only after completing and recording legitimate provider verification in the original browser. The API validates circuit, session and permissions, preserves the same ID and audits the action.",
     "resumeFailed": "Could not resume search; check circuit, session and other queued jobs.",
     "resumeSuccess": "Original search queued for controlled execution",
-    "actions": {"CircuitNotEnabled":"Protection disabled; do not resume","VerifyProviderManually":"Legitimately verify Maersk access in original browser","AuthenticateOriginalProfile":"Authenticate the original profile","ReviewTechnicalRepair":"Review authorized technical repair","WaitForCircuit":"Wait for circuit; do not repeat requests","ReviewWaitingExecution":"Review waiting search and resume with authorization","SessionRecordedAsAuthenticated":"Session recorded as authenticated; verify with provider","ReviewSession":"Review session status"},
+    "actions": {
+      "CircuitNotEnabled": "Protection disabled; do not resume",
+      "VerifyProviderManually": "Legitimately verify Maersk access in original browser",
+      "AuthenticateOriginalProfile": "Authenticate the original profile",
+      "ReviewTechnicalRepair": "Review authorized technical repair",
+      "WaitForCircuit": "Wait for circuit; do not repeat requests",
+      "ReviewWaitingExecution": "Review waiting search and resume with authorization",
+      "SessionRecordedAsAuthenticated": "Session recorded as authenticated; verify with provider",
+      "ReviewSession": "Review session status"
+    },
     "title": "Maersk operations",
     "subtitle": "Hermes sessions, circuit status, queue and incidents",
     "refresh": "Refresh",

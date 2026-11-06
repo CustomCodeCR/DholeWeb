@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '@/core/stores/locale'
 import { Ban, CheckCircle2, Clock3, FileDown, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -60,6 +61,7 @@ interface RateRequestDto {
 }
 
 const router = useRouter()
+const localeStore = useLocale()
 const authStore = useAuthStore()
 const toast = useToastStore()
 const pricingCatalogs = usePricingCatalogs()
@@ -130,7 +132,7 @@ function elapsed(request: RateRequestDto) {
 }
 
 function remaining(request: RateRequestDto) {
-  if (request.status !== 'Open') return request.completedAtUtc ? `Completada ${new Date(request.completedAtUtc).toLocaleString('es-CR')}` : statusLabel(request.status)
+  if (request.status !== 'Open') return request.completedAtUtc ? `Completada ${new Date(request.completedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR'))}` : statusLabel(request.status)
   const difference = new Date(request.dueAtUtc).getTime() - now.value
   return difference >= 0
     ? `Restan ${formatDuration(difference)}`
@@ -617,10 +619,10 @@ onBeforeUnmount(() => {
               <span v-else class="font-semibold text-emerald-600 dark:text-emerald-400">Disponible</span>
             </td>
             <td class="px-4 py-3 font-bold">{{ incotermLabel(request) }}</td>
-            <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong><p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recibida: {{ new Date(request.requestedAtUtc).toLocaleString('es-CR') }}</p></td>
+            <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong><p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recibida: {{ new Date(request.requestedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</p></td>
             <td class="px-4 py-3">
               <strong :class="isOverdue(request) ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text)]'">{{ remaining(request) }}</strong>
-              <p v-if="request.status === 'Open'" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString('es-CR') }}</p>
+              <p v-if="request.status === 'Open'" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</p>
             </td>
             <td class="px-4 py-3 text-right">
               <div v-if="request.status === 'Open'" class="flex items-center justify-end gap-2">
