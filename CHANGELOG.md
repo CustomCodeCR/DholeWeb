@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-11-05
+
+- Actualiza DholeWeb SemVer 1.2.4 y manifiesto al release global Dhole 1.3.1.
+- Verifica versión real del bundle sin número fijo y mantiene despliegue automático master/develop.
+
 ## [1.2.3] - 2026-11-05
 
 - Asegurar que el botón Asignar IDTRA aparezca en Pantalla 9 para tarifas aceptadas sin identificador válido, incluyendo marcadores heredados como Pendiente.
