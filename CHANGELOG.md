@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5] - 2026-11-06
+
+- Muestra «Completada · requiere revisión» cuando Ollama terminó y falló una etapa posterior, sin llamar «Fallida» a la ejecución del modelo.
+- Añade contador independiente de trabajos pendientes de revisión y mantiene los fallos reales en su categoría.
+- Traduce los nuevos estados y explicaciones en español e inglés, incluyendo móvil y escritorio.
+- Incluye regresiones para estado operativo y traducciones, con release global Dhole 1.3.11 (DH-20261106-AI-COMPLETED-REVIEW-013).
+
 ## [1.3.4] - 2026-11-06
 
 - Separa Guardar tarifa de Enviar revisión al vendedor sin crear revisiones duplicadas.
