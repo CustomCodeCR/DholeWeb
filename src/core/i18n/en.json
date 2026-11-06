@@ -1390,6 +1390,8 @@
       "processing": "Processing",
       "retries": "Retries",
       "failed": "Failed",
+      "reviewRequired": "Completed · review",
+      "reviewExplanation": "The model finished; subsequent validation or delivery needs review.",
       "redisPending": "Redis pending",
       "statuses": {
         "Pending": "Queued",
@@ -1397,6 +1399,7 @@
         "RetryScheduled": "Retry scheduled",
         "Failed": "Failed",
         "Completed": "Completed",
+        "CompletedWithReview": "Completed · review required",
         "Running": "Running",
         "Cancelled": "Cancelled"
       },
