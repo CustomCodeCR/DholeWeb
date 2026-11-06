@@ -76,10 +76,17 @@ function patchWizard(source: string) {
   // commercial-term helpers, leaving Pantalla 6 without the selected LCL payload.
   // Stop at the first injected helper so the seller-request patch only replaces
   // saveOpenRequest and preserves the working LCL pipeline from d0fc105/253b47e.
+  // A saved-modification retry helper is declared after saveOpenRequest but
+  // before the older uniqueCommercialTerms helper. Keep the first helper
+  // intact: otherwise this replacement silently deletes its function body
+  // while handleSaveRateClick still references it at runtime.
+  const savedModificationBoundary = code.includes('\n\nasync function retrySavedModificationDelivery() {')
+    ? '\n\nasync function retrySavedModificationDelivery() {'
+    : '\n\nfunction uniqueCommercialTerms'
   code = replaceBetween(
     code,
     `async function saveOpenRequest() {`,
-    `\n\nfunction uniqueCommercialTerms`,
+    savedModificationBoundary,
     `async function saveOpenRequest() {\n  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const equipment = selectedEquipment.value\n  const incoterm = selectedIncoterm.value\n\n  if (!origin || !destination || !equipment || !incoterm) {\n    toastStore.error('Complete las pantallas 0 a 4 antes de enviar la solicitud a Pricing.')\n    return\n  }\n\n  try {\n    saving.value = true\n    const response = await callEndpoint<unknown, Record<string, unknown>>(\n      { method: 'POST', path: '/api/pricing/rate-requests', headers: { Accept: 'application/json' } },\n      {\n        body: {\n          priority: rateRequestPriority.value,\n          clientName: form.clientName.trim() || null,\n          executiveName: form.executiveName.trim() || null,\n          shipmentMode: shipmentModeForApi.value,\n          originName: displayValue(origin),\n          destinationName: displayValue(destination),\n          payload: {\n            form: JSON.parse(JSON.stringify(form)),\n            pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],\n            supportEntityId: supportEntityId.value,\n            supportDocuments: supportDocuments.value,\n          },\n        },\n      },\n    )\n    const requestId = unwrapApiResponse<string>(response as never)\n    const description = rateRequestPriority.value === 'Green' ? 'Regular' : rateRequestPriority.value === 'Yellow' ? 'Prioritaria' : 'Urgente'\n    toastStore.success('Solicitud enviada a Pricing', 'Solicitud ' + requestId + ' · prioridad ' + description + '.')\n    resetWizard()\n    rateRequestPriority.value = 'Green'\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo enviar la solicitud abierta a Pricing.')\n  } finally {\n    saving.value = false\n  }\n}`,
     'save open request',
   )
