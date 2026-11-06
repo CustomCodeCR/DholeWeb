@@ -205,8 +205,8 @@ function onTabDrop(event: DragEvent, targetKey: string) {
         v-if="tabsStore.tabs.length > 1"
         type="button"
         class="inline-flex min-h-9 min-w-9 items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)]"
-        title="Cerrar todas las pestañas (Ctrl+Alt+W)"
-        aria-label="Cerrar todas las pestañas"
+        :title="`${t('tabs.closeAll')} (Ctrl+Alt+W)`"
+        :aria-label="t('tabs.closeAll')"
         @click="closeAll"
       >
         <Trash2 class="h-4 w-4" />

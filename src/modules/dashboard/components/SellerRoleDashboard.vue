@@ -2,6 +2,7 @@
 import SellerGuideButton from '@/modules/pricing/components/SellerGuideButton.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '@/core/stores/locale'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -51,6 +52,7 @@ interface SellerRateRequestDto {
 }
 
 const router = useRouter()
+const localeStore = useLocale()
 const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toast = useToastStore()
@@ -285,7 +287,7 @@ const salesByCurrency = computed(() => {
 
 function money(amount: number, currency: string) {
   return currency === 'SIN MONEDA'
-    ? Number(amount).toLocaleString('es-CR', { maximumFractionDigits: 2 })
+    ? Number(amount).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR'), { maximumFractionDigits: 2 })
     : formatMoney(amount, currency)
 }
 
@@ -610,8 +612,8 @@ onBeforeUnmount(() => {
   <section data-seller-guide="overview" class="space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">Dashboard por rol</p>
-        <h2 class="mt-1 text-2xl font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Dashboard de Ventas' : 'Mi gestión comercial' }}</h2>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">{{ localeStore.locale === 'en' ? 'Role dashboard' : 'Dashboard por rol' }}</p>
+        <h2 class="mt-1 text-2xl font-black text-[var(--dh-text)]">{{ localeStore.locale === 'en' ? (props.adminPreview ? 'Sales dashboard' : 'My sales activity') : (props.adminPreview ? 'Dashboard de Ventas' : 'Mi gestión comercial') }}</h2>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
           {{ props.adminPreview
             ? 'Vista administrativa del equipo comercial. Seleccione un vendedor para revisar sus indicadores.'
@@ -936,14 +938,14 @@ onBeforeUnmount(() => {
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ request.originName || 'Origen' }} → {{ request.destinationName || 'Destino' }}</td>
                 <td class="px-4 py-3 text-[var(--dh-text)]">{{ requestEquipmentLabel(request) }}</td>
                 <td class="px-4 py-3"><DhBadge :label="priorityLabel(request.priority)" :variant="priorityVariant(request.priority)" /></td>
-                <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString('es-CR') }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</td>
                 <td class="px-4 py-3">
                   <DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" />
                   <p v-if="request.status === 'Open' && isRequestClaimed(request)" class="mt-1 text-[10px] font-bold text-amber-500">
                     En proceso por {{ request.lockedByName || 'Pricing' }} · edición bloqueada
                   </p>
                   <p v-if="request.workStatusUpdatedAtUtc && request.status === 'Open'" class="mt-1 text-[10px] font-semibold text-[var(--dh-text-muted)]">
-                    Actualizado {{ new Date(request.workStatusUpdatedAtUtc).toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' }) }}
+                    Actualizado {{ new Date(request.workStatusUpdatedAtUtc).toLocaleTimeString((localeStore.locale === 'en' ? 'en-US' : 'es-CR'), { hour: '2-digit', minute: '2-digit' }) }}
                   </p>
                 </td>
                 <td v-if="!props.adminPreview || props.enableSellerActions" class="px-4 py-3">

@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,10 +24,10 @@
     "version:minor": "node scripts/versioning.mjs bump minor",
     "version:patch": "node scripts/versioning.mjs bump patch",
     "test:versioning": "node --test tests/versioning.test.mjs",
-    "test:content-translation": "node --test tests/contentTranslation.test.ts",
     "test:pricing-quo-client": "node --test tests/pricingRatesClientQuoLayout.test.mjs",
     "test:pricing-idtra-screen9": "node --test tests/pricingWizardAssignIdtraScreen9.test.mjs",
-    "test:pricing-idtra-bundle": "node --test tests/pricingIdtraBundle.test.mjs"
+    "test:pricing-idtra-bundle": "node --test tests/pricingIdtraBundle.test.mjs",
+    "test:mobile-i18n": "node --test tests/mobileI18nGuards.test.mjs tests/operationalLabels.test.ts"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

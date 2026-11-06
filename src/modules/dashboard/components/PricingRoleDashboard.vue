@@ -15,6 +15,7 @@ import {
 } from 'lucide-vue-next'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '@/core/stores/locale'
 import { PricingService } from '@/core/services/pricingService'
 import { UsersService } from '@/core/services/usersService'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -27,6 +28,7 @@ import { DhBadge, DhButton, DhInput, DhSpinner } from '@/shared/components/atoms
 import { formatDate, formatMoney, statusTone } from '@/modules/pricing/utils/pricingFormat'
 
 const router = useRouter()
+const localeStore = useLocale()
 const toastStore = useToastStore()
 const loading = ref(false)
 const dashboard = ref<PricingRateDashboardDto | null>(null)
@@ -168,7 +170,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return formatDate(value)
-  return new Intl.DateTimeFormat('es-CR', {
+  return new Intl.DateTimeFormat((localeStore.locale === 'en' ? 'en-US' : 'es-CR'), {
     year: 'numeric',
     month: 'short',
     day: '2-digit',
@@ -251,7 +253,7 @@ onMounted(loadDashboard)
   <section class="space-y-4">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div class="min-w-0">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">Dashboard por rol</p>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">{{ localeStore.locale === 'en' ? 'Role dashboard' : 'Dashboard por rol' }}</p>
         <h2 class="mt-1 text-2xl font-black text-[var(--dh-text)]">Pricing</h2>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
           Estado comercial, vigencia y utilidad de las tarifas oficiales.

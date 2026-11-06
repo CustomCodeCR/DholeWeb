@@ -33,7 +33,7 @@ const { t } = useI18n()
           role="dialog"
           aria-modal="true"
           :aria-label="title || t('common.dialog')"
-          class="dh-glass-strong dh-liquid max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[26px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
+          class="dh-glass-strong dh-liquid flex min-h-0 min-w-0 flex-col max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[26px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
           :class="[
             size === 'sm' && 'w-full max-w-sm',
             size === 'md' && 'w-full max-w-lg',
@@ -58,7 +58,7 @@ const { t } = useI18n()
             </button>
           </header>
 
-          <main class="max-h-[calc(100dvh-62px)] overflow-y-auto p-3 sm:max-h-[calc(90vh-65px)] sm:p-5 dh-scrollbar">
+          <main class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:max-h-[calc(90vh-65px)] sm:p-5 dh-scrollbar">
             <slot />
           </main>
         </section>
