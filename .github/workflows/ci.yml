@@ -27,6 +27,8 @@ jobs:
       - name: Agent module tests
         run: pnpm run test:agent
       # Build before older unrelated Pricing regressions so CI always verifies this UI.
+      - name: Workspace tabs and service-version regression tests
+        run: pnpm run test:workspace-tabs
       - name: Type-check and build
         run: pnpm run build
       - name: Verify IDTRA action survived production bundle compilation

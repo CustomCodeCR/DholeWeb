@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-11-05
+
+- Convierte «Otras pestañas» en un panel integrado que no cubre el contenido, con navegación y cierre accesibles.
+- Integra versiones verificadas del servicio y versiones declaradas en el manifiesto del release, señalando su origen.
+- Agrega validaciones y pruebas de regresión para ambos cambios.
+
 ## [1.2.4] - 2026-11-05
 
 - Actualiza DholeWeb SemVer 1.2.4 y manifiesto al release global Dhole 1.3.1.

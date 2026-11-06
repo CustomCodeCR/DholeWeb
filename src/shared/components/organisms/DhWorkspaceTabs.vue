@@ -12,6 +12,7 @@ const tabsStore = useWorkspaceTabsStore()
 const { t, locale } = useI18n()
 const tabListRef = ref<HTMLElement | null>(null)
 const menuRootRef = ref<HTMLElement | null>(null)
+const overflowPanelRef = ref<HTMLElement | null>(null)
 const overflowOpen = ref(false)
 const visibleTabs = computed(() => {
   const visibleKeys = visibleWorkspaceTabKeys(tabsStore.tabs, tabsStore.activeKey)
@@ -27,7 +28,8 @@ watch(() => hiddenTabs.value.length, (count) => {
 })
 
 function handleOutsidePointerDown(event: PointerEvent) {
-  if (menuRootRef.value && !menuRootRef.value.contains(event.target as Node)) {
+  if (menuRootRef.value && !menuRootRef.value.contains(event.target as Node)
+    && !overflowPanelRef.value?.contains(event.target as Node)) {
     overflowOpen.value = false
   }
 }
@@ -118,7 +120,7 @@ function onTabDrop(event: DragEvent, targetKey: string) {
 <template>
   <div
     v-if="tabsStore.tabs.length"
-    class="mx-2 mt-2 flex max-w-[calc(100vw-1rem)] min-w-0 items-center gap-1.5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1.5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl sm:mx-4 sm:mt-4 sm:max-w-[calc(100vw-2rem)] sm:gap-2 sm:rounded-[26px] sm:p-2"
+    class="mx-2 mt-2 flex max-w-[calc(100vw-1rem)] min-w-0 flex-wrap items-center gap-1.5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1.5 shadow-[var(--dh-shadow-sm)] backdrop-blur-2xl sm:mx-4 sm:mt-4 sm:max-w-[calc(100vw-2rem)] sm:gap-2 sm:rounded-[26px] sm:p-2"
   >
     <div
       ref="tabListRef"
@@ -188,40 +190,16 @@ function onTabDrop(event: DragEvent, targetKey: string) {
         type="button"
         class="inline-flex min-h-9 items-center gap-1 rounded-xl border border-[var(--dh-border)] px-2 text-xs font-bold text-[var(--dh-text)] transition hover:bg-[var(--dh-card-hover)]"
         :aria-expanded="overflowOpen"
-        aria-haspopup="true"
-        :title="`Ver ${hiddenTabs.length} pestañas adicionales`"
+        aria-controls="workspace-overflow-panel"
+        :title="t('tabs.moreTabs')"
         @click="overflowOpen = !overflowOpen"
         @keydown.esc.stop="overflowOpen = false"
       >
         <Layers3 class="h-4 w-4" />
-        <span class="hidden sm:inline">Más</span>
+        <span class="hidden sm:inline">{{ t('tabs.more') }}</span>
         <span>{{ hiddenTabs.length }}</span>
       </button>
 
-      <div
-        v-if="overflowOpen && hiddenTabs.length"
-        class="absolute right-0 top-full z-50 mt-2 max-h-80 w-[min(80vw,20rem)] overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-2 shadow-xl backdrop-blur-2xl"
-        @keydown.esc.stop="overflowOpen = false"
-      >
-        <p class="px-2 py-1 text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Otras pestañas</p>
-        <div v-for="tab in hiddenTabs" :key="tab.key" class="flex items-center gap-1 rounded-xl hover:bg-[var(--dh-card-hover)]">
-          <button
-            type="button"
-            class="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm font-semibold text-[var(--dh-text)]"
-            :title="displayTitle(tab)"
-            @click="activate(tab.path, tab.key)"
-          >
-            {{ displayTitle(tab) }}
-          </button>
-          <button
-            v-if="tab.closable"
-            type="button"
-            class="shrink-0 rounded-lg p-2 text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]"
-            :aria-label="`Cerrar ${displayTitle(tab)}`"
-            @click="close(tab.key)"
-          ><X class="h-4 w-4" /></button>
-        </div>
-      </div>
 
       <button
         v-if="tabsStore.tabs.length > 1"
@@ -234,5 +212,41 @@ function onTabDrop(event: DragEvent, targetKey: string) {
         <Trash2 class="h-4 w-4" />
       </button>
     </div>
+
+    <section
+      v-if="overflowOpen && hiddenTabs.length"
+      id="workspace-overflow-panel"
+      ref="overflowPanelRef"
+      role="region"
+      :aria-label="t('tabs.moreTabs')"
+      class="order-last w-full min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"
+      @keydown.esc.stop="overflowOpen = false"
+    >
+      <div class="mb-2 flex items-center justify-between gap-2 px-1">
+        <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">{{ t('tabs.moreTabs') }}</p>
+        <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ hiddenTabs.length }}</span>
+      </div>
+      <div class="dh-scrollbar grid max-h-56 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2 xl:grid-cols-3">
+        <div
+          v-for="tab in hiddenTabs"
+          :key="tab.key"
+          class="flex min-w-0 items-center gap-1 rounded-xl border border-transparent hover:border-[var(--dh-border)] hover:bg-[var(--dh-card-hover)]"
+        >
+          <button
+            type="button"
+            class="min-w-0 min-h-10 flex-1 truncate rounded-lg px-3 py-2 text-left text-sm font-semibold text-[var(--dh-text)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+            :title="displayTitle(tab)"
+            @click="activate(tab.path, tab.key)"
+          >{{ displayTitle(tab) }}</button>
+          <button
+            v-if="tab.closable"
+            type="button"
+            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]"
+            :aria-label="`${t('tabs.close')}: ${displayTitle(tab)}`"
+            @click="close(tab.key)"
+          ><X class="h-4 w-4" /></button>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
