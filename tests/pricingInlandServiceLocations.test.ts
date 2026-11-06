@@ -66,3 +66,18 @@ test('EXW pickup action appears before a separate optional map toolbar', () => {
   assert.match(exwSection.slice(mapSection, map), /No es necesario usar el mapa para agregar la recolecta/)
   assert.match(exwSection.slice(mapSection, map), /@click="useCurrentLocation"/)
 })
+
+
+test('LCL supplier navigation only requires a carrier when the maritime field is visible', () => {
+  assert.match(wizard, /\(!carrierRequiredForStepSix\.value \|\| form\.carrierId\)/)
+  assert.doesNotMatch(wizard, /if \(step\.value === 6\) return Boolean\(form\.agentId && form\.carrierId/)
+  assert.match(wizard, /'Agente \/ coloader'/)
+})
+
+test('inland delivery is explicitly registered and persisted through rate payload and hydration', () => {
+  assert.match(picker, /Guardar punto de entrega/)
+  assert.match(picker, /function saveLocation\(\)/)
+  assert.match(wizard, /inlandDeliveryLocation: inlandDeliveryServiceSelected\.value/g)
+  assert.match(wizard, /form\.inlandDeliveryLocation = rate\.inlandDeliveryLocation/)
+  assert.match(wizard, /form\.inlandPickupLocation = rate\.inlandPickupLocation/)
+})
