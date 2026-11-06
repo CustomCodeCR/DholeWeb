@@ -66,3 +66,19 @@ test('EXW pickup action appears before a separate optional map toolbar', () => {
   assert.match(exwSection.slice(mapSection, map), /No es necesario usar el mapa para agregar la recolecta/)
   assert.match(exwSection.slice(mapSection, map), /@click="useCurrentLocation"/)
 })
+
+
+test('LCL supplier navigation is patched after the Vite wizard enhancements transform', () => {
+  const finalPatch = readFileSync(new URL('../build/pricingRequiredFieldFinalFeedback.ts', import.meta.url), 'utf8')
+  assert.match(finalPatch, /LCL provider without maritime carrier/)
+  assert.match(finalPatch, /return Boolean\(form\.agentId && form\.currencyId && form\.freightCost >= 0 && form\.freightSale >= 0\)/)
+  assert.match(wizard, /'Agente \/ coloader'/)
+})
+
+test('inland delivery is explicitly registered and persisted through rate payload and hydration', () => {
+  assert.match(picker, /Guardar punto de entrega/)
+  assert.match(picker, /function saveLocation\(\)/)
+  assert.match(wizard, /inlandDeliveryLocation: inlandDeliveryServiceSelected\.value/g)
+  assert.match(wizard, /form\.inlandDeliveryLocation = rate\.inlandDeliveryLocation/)
+  assert.match(wizard, /form\.inlandPickupLocation = rate\.inlandPickupLocation/)
+})

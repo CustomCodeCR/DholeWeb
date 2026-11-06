@@ -2163,7 +2163,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   if (step.value === 6) {
     // LCL chooses its own source; land LTL/FTL and air have no naviera.
     // Only show this error when the maritime carrier selector is visible.
-    add(shipmentModeForApi.value !== 'Lcl' && !form.agentId, 'agentId', 'Agente')
+    add(!form.agentId, 'agentId', shipmentModeForApi.value === 'Lcl' ? 'Agente / coloader' : 'Agente')
     add(carrierRequiredForStepSix.value && !form.carrierId, 'carrierId', 'Naviera / proveedor')
     add(!form.currencyId, 'currencyId', 'Moneda')
     add(!(form.freightCost >= 0), 'freightCost', 'Flete: costo')
@@ -3869,6 +3869,13 @@ async function hydrateExistingRate() {
       form.pickupLatitude = rate.pickupLatitude ?? null
       form.pickupLongitude = rate.pickupLongitude ?? null
     }
+    // Inland transport services are independent of Incoterm, including EXW.
+      form.inlandPickupLocation = rate.inlandPickupLocation
+        ? { address: rate.inlandPickupLocation.address ?? '', latitude: rate.inlandPickupLocation.latitude ?? null, longitude: rate.inlandPickupLocation.longitude ?? null }
+        : { address: '', latitude: null, longitude: null }
+      form.inlandDeliveryLocation = rate.inlandDeliveryLocation
+        ? { address: rate.inlandDeliveryLocation.address ?? '', latitude: rate.inlandDeliveryLocation.latitude ?? null, longitude: rate.inlandDeliveryLocation.longitude ?? null }
+        : { address: '', latitude: null, longitude: null }
     // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
     // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
@@ -4566,6 +4573,10 @@ async function saveOpenRequest() {
         ? primaryExwPickup.value?.longitude ?? null
         : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,
       pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],
+      inlandPickupLocation: inlandPickupServiceSelected.value && form.inlandPickupLocation.address.trim()
+        ? { ...form.inlandPickupLocation, address: form.inlandPickupLocation.address.trim() } : null,
+      inlandDeliveryLocation: inlandDeliveryServiceSelected.value && form.inlandDeliveryLocation.address.trim()
+        ? { ...form.inlandDeliveryLocation, address: form.inlandDeliveryLocation.address.trim() } : null,
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -5020,6 +5031,10 @@ async function saveRate() {
         ? primaryExwPickup.value?.longitude ?? null
         : selectedIncotermCode.value === 'FCA' ? form.pickupLongitude : null,
       pickupLocations: selectedIncotermCode.value === 'EXW' ? pickupLocationsPayload() : [],
+      inlandPickupLocation: inlandPickupServiceSelected.value && form.inlandPickupLocation.address.trim()
+        ? { ...form.inlandPickupLocation, address: form.inlandPickupLocation.address.trim() } : null,
+      inlandDeliveryLocation: inlandDeliveryServiceSelected.value && form.inlandDeliveryLocation.address.trim()
+        ? { ...form.inlandDeliveryLocation, address: form.inlandDeliveryLocation.address.trim() } : null,
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
