@@ -13,7 +13,7 @@ test('AI operations uses the backend display status for job badges', () => {
 
 test('completed inference that needs review has a distinct counter', () => {
   assert.match(view, /state\.queue\.reviewRequired \?\? 0/)
-  assert.match(view, /status === 'CompletedWithReview'/)
+  assert.match(view, /displayStatus === 'CompletedWithReview'/)
 })
 
 test('review status is translated in both languages, while real failures remain available', () => {
