@@ -3874,13 +3874,14 @@ async function hydrateExistingRate() {
       form.pickupAddress = rate.pickupAddress ?? ''
       form.pickupLatitude = rate.pickupLatitude ?? null
       form.pickupLongitude = rate.pickupLongitude ?? null
+    }
+    // Inland transport services are independent of Incoterm, including EXW.
       form.inlandPickupLocation = rate.inlandPickupLocation
         ? { address: rate.inlandPickupLocation.address ?? '', latitude: rate.inlandPickupLocation.latitude ?? null, longitude: rate.inlandPickupLocation.longitude ?? null }
         : { address: '', latitude: null, longitude: null }
       form.inlandDeliveryLocation = rate.inlandDeliveryLocation
         ? { address: rate.inlandDeliveryLocation.address ?? '', latitude: rate.inlandDeliveryLocation.latitude ?? null, longitude: rate.inlandDeliveryLocation.longitude ?? null }
         : { address: '', latitude: null, longitude: null }
-    }
     // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
     // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
