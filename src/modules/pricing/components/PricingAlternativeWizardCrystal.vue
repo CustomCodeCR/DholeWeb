@@ -4666,11 +4666,11 @@ async function retrySavedModificationDelivery() {
     })
     const request = unwrapApiResponse<{ status: string; rateId?: string | null }>(response as never)
     if (request.rateId?.toLowerCase() !== rateId.toLowerCase()
-      || !['Open', 'Completed'].includes(request.status)) {
+      || request.status !== 'Open') {
       throw new Error('La solicitud ya no está abierta o no pertenece a esta QUO.')
     }
 
-    if (request.status === 'Open') {
+    {
       // Do not attempt to complete a different revision edited by someone else.
       const persistedRate = await PricingService.getRate(rateId)
       if (persistedRate.revisionNumber !== revision) {
@@ -5222,68 +5222,53 @@ async function saveRate() {
       }
       rateId = editingRate.value.id
       if (props.modificationRequestId) {
-        // Pricing now closes the linked seller request in the same database
-        // transaction that advances the persisted quote revision.
-        // Re-reading the request avoids calling prepare-modification on a
-        // Completed row and avoids creating another quote revision.
+        // Saving the quotation is not equivalent to finishing the seller request.
+        // A prepared revision stays Open until the operator explicitly selects Send.
+        savedModificationRevision.value = persistedRate.revisionNumber
+        pendingModificationDelivery.value = true
         const updatedRequest = await callEndpoint<unknown>({
           method: 'GET',
           path: `/api/pricing/rate-requests/${encodeURIComponent(props.modificationRequestId)}`,
           headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
         })
         const savedRequest = unwrapApiResponse<{ status: string; rateId?: string | null }>(updatedRequest as never)
-        if (savedRequest.status === 'Completed'
-          && savedRequest.rateId?.toLowerCase() === rateId.toLowerCase()) {
-          pendingModificationDelivery.value = false
-          savedModificationRevision.value = null
-          toastStore.success(
-            'Solicitud de modificación completada',
-            'La nueva revisión quedó guardada y salió de las solicitudes pendientes. El PDF se entregará según su aprobación y cola de notificaciones.',
-          )
-          await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
-          return
-        }
-        // Compatibility fallback for older API instances that have not yet
-        // applied the automatic database completion migration.
-        // Save may succeed while preparation or completion fails. Persist the
-        // revision identity before either call; subsequent clicks must retry
-        // delivery, NEVER run PricingService.updateRate a second time.
-        savedModificationRevision.value = persistedRate.revisionNumber
-        pendingModificationDelivery.value = true
-        try {
-          await RateRequestLeaseService.prepareModification(
-            props.modificationRequestId, rateId, persistedRate.revisionNumber,
-          )
-          const completion = await RateRequestLeaseService.completeRate(
-            props.modificationRequestId, rateId, { confirmSellerModification: true },
-          )
-          pendingModificationDelivery.value = false
-          savedModificationRevision.value = null
-          if (completion?.status === 'CompletedDeliveryRetryPending') {
-            toastStore.warning(
-              'Revisión guardada; entrega pendiente',
-              'La solicitud ya quedó completada. Pricing reintentará generar y enviar el PDF sin crear otra revisión.',
-            )
-            await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
-            return
-          }
-        } catch (deliveryError) {
-          console.error('La revisión quedó guardada, pero falló el cierre de su solicitud.', deliveryError)
+        if (savedRequest.status !== 'Open' || savedRequest.rateId?.toLowerCase() !== rateId.toLowerCase()) {
           toastStore.warning(
-            'Revisión guardada; revisar envío',
-            'La QUO ya se guardó, pero su solicitud sigue pendiente. Use Reintentar envío sin duplicar revisión; NO vuelva a guardar la tarifa.',
+            'Revisión guardada; solicitud cerrada externamente',
+            'La QUO se guardó, pero esta solicitud ya no figura abierta. Revise el historial y no cree otra revisión.',
           )
           await hydrateExistingRate()
           step.value = 8
           return
         }
+        try {
+          await RateRequestLeaseService.prepareModification(
+            props.modificationRequestId, rateId, persistedRate.revisionNumber,
+          )
+          window.dispatchEvent(new CustomEvent('dhole:pricing:modification-prepared', {
+            detail: { requestId: props.modificationRequestId, preparedRevisionNumber: persistedRate.revisionNumber },
+          }))
+          toastStore.success(
+            'Revisión guardada, solicitud abierta',
+            'La solicitud sigue pendiente. Seleccione Enviar revisión al vendedor cuando haya terminado.',
+          )
+        } catch (preparationError) {
+          console.error('La revisión está guardada, pero falta preparar su envío.', preparationError)
+          toastStore.warning(
+            'Revisión guardada; preparación pendiente',
+            'No vuelva a guardar la QUO. Use Enviar revisión al vendedor para preparar y finalizar el envío.',
+          )
+        }
+        await hydrateExistingRate()
+        step.value = 8
+        return
       }
       const nextRevision = editingRate.value.status === 'AcceptedByClient'
         ? (editingRate.value.revisionNumber || 1) + 1
         : (editingRate.value.revisionNumber || 1)
       toastStore.success(
         props.modificationRequestId
-          ? 'Solicitud de modificación completada.'
+          ? 'Revisión de modificación guardada.'
           : editingRate.value.status === 'AcceptedByClient'
             ? `Revisión ${nextRevision} creada y versión aceptada anterior conservada.`
             : 'Tarifa actualizada correctamente.',
@@ -5344,7 +5329,7 @@ async function handleSaveRateClick() {
   const initialStep = step.value
   try {
     if (pendingModificationDelivery.value) {
-      saveButtonFeedback.value = 'Reintentando la entrega de la revisión guardada…'
+      saveButtonFeedback.value = 'Enviando la revisión guardada al vendedor…'
       await retrySavedModificationDelivery()
       return
     }
@@ -7116,7 +7101,7 @@ onMounted(async () => {
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
         <p v-if="saveButtonFeedback" class="max-w-lg text-xs font-semibold text-[var(--dh-text)]" role="status" aria-live="polite" data-testid="pricing-save-feedback">{{ saveButtonFeedback }}</p>
         <DhButton :disabled="saving || uploadingFinalBackups || saveButtonWorking" @click="handleSaveRateClick">
-          <Check class="h-4 w-4" /> {{ saving ? 'Procesando…' : pendingModificationDelivery ? 'Reintentar envío sin duplicar revisión' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
+          <Check class="h-4 w-4" /> {{ saving ? 'Procesando…' : pendingModificationDelivery ? 'Enviar revisión al vendedor' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
       </div>
       <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Seleccione una alternativa para continuar</span>
