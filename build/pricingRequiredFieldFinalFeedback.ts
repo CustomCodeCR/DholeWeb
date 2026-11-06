@@ -22,6 +22,19 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         code = code.replace(needle, replacement)
       }
 
+      // Last transform overrides all legacy LCL carrier validation while preserving
+      // the exact-string anchors expected by earlier Pricing plugins.
+      replaceOnce(
+        'const canNext = computed(() => {',
+        [
+          'const canNext = computed(() => {',
+          "  if (step.value === 6 && shipmentModeForApi.value === 'Lcl') {",
+          '    return Boolean(form.agentId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)',
+          '  }',
+        ].join('\n'),
+        'LCL provider without maritime carrier',
+      )
+
       replaceOnce(
         'async function next() {',
         [
