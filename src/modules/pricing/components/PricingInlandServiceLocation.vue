@@ -18,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: InlandServiceLocation] }>()
 const locating = ref(false)
 const error = ref('')
+const confirmedAddress = ref('')
 
 const isPickup = computed(() => props.kind === 'pickup')
 const title = computed(() => isPickup.value ? 'Ubicación de recolección' : 'Ubicación de entrega')
@@ -25,6 +26,7 @@ const address = computed({
   get: () => props.modelValue?.address ?? '',
   set: (value: string) => {
     error.value = ''
+    confirmedAddress.value = ''
     emit('update:modelValue', { address: value, latitude: null, longitude: null })
   },
 })
@@ -35,6 +37,22 @@ const point = computed(() => props.modelValue?.latitude != null && props.modelVa
 
 function updateLocation(value: InlandServiceLocation) {
   emit('update:modelValue', value)
+}
+
+function saveLocation() {
+  const writtenAddress = address.value.trim()
+  if (!writtenAddress) {
+    error.value = 'Escriba una dirección antes de guardar el punto.'
+    return
+  }
+  // The address is valid even without OSM coordinates; retain any selected point.
+  updateLocation({
+    address: writtenAddress,
+    latitude: props.modelValue?.latitude ?? null,
+    longitude: props.modelValue?.longitude ?? null,
+  })
+  confirmedAddress.value = writtenAddress
+  error.value = ''
 }
 
 type GeocodeResult = { lat?: string; lon?: string; display_name?: string }
@@ -119,6 +137,14 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
     </div>
     <DhInput v-model="address" :error="props.error" :label="isPickup ? 'Dirección de recolección *' : 'Dirección de entrega *'"
       placeholder="Calle, ciudad, provincia/estado y país" />
+    <div class="flex flex-wrap items-center gap-3">
+      <DhButton variant="secondary" :disabled="!address.trim()" @click="saveLocation">
+        {{ isPickup ? 'Guardar punto de recolección' : 'Guardar punto de entrega' }}
+      </DhButton>
+      <p v-if="confirmedAddress && confirmedAddress === address.trim()" role="status" class="text-xs font-semibold text-[var(--dh-primary)]">
+        Dirección registrada en el formulario. Se conservará al guardar la tarifa.
+      </p>
+    </div>
     <div class="flex flex-wrap items-center gap-3">
       <DhButton variant="secondary" :disabled="locating || !address.trim()" @click="locateAddress">
         <Waypoints class="h-4 w-4" /> {{ locating ? 'Ubicando…' : 'Ubicar en mapa (opcional)' }}
