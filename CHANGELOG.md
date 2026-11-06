@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3] - 2026-11-06
+
+- La revisión guardada no completa automáticamente una solicitud de modificación; el envío es una acción explícita y separada.
+- Evita duplicar revisiones y requiere seleccionar un motivo con confirmación para cancelar modificaciones.
+- Incluye cobertura de regresión para persistencia, cierre, cancelación y actualización del dashboard.
+
+
 ## [1.3.2] - 2026-11-06
 
 - Corrige que Configuración desaparezca en celular: botón visible en la barra superior y acceso secundario en el menú lateral.

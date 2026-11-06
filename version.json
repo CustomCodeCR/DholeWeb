@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.3.2",
-  "ecosystemVersion": "1.3.5",
-  "releaseId": "DH-20261106-WEB-EMAIL-SETTINGS-007"
+  "version": "1.3.3",
+  "ecosystemVersion": "1.3.6",
+  "releaseId": "DH-20261106-MODIFICATION-CLOSURE-008"
 }
