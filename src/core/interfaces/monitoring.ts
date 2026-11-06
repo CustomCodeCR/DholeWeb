@@ -9,6 +9,7 @@ export interface ServiceMonitorDefinition extends Record<string, unknown> {
 }
 
 export interface ServiceMonitorResult extends ServiceMonitorDefinition {
+  version?: string | null
   status: 'online' | 'offline' | 'unknown'
   statusCode?: number | null
   latencyMs?: number | null
