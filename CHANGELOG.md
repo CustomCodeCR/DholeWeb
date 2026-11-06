@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.7] - 2026-11-06
+
+- Corrige la validación LCL que exigía una naviera oculta pese a seleccionar agente y moneda.
+- Permite registrar explícitamente el punto de entrega o recolección sin exigir coordenadas del mapa.
+- Guarda y recupera ambas direcciones en la QUO mediante DholePricingService 1.2.8.
+- Muestra los campos realmente pendientes al continuar y añade pruebas de regresión.
+- Registra el release global Dhole 1.3.14 (DH-20261106-PRICING-INLAND-LCL-016).
+
 ## [1.3.6] - 2026-11-06
 
 - Coloca el nombre del cliente debajo de la QUO, en una línea propia con todo el ancho disponible, tanto en escritorio como en móvil.
