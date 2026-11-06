@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -32,6 +33,7 @@ import PricingEmailMessageDrawer from '@/modules/pricing/components/PricingEmail
 const AUTO_REFRESH_MS = 30_000
 
 const router = useRouter()
+const { t, locale } = useI18n()
 const drawerStore = useDrawerStore()
 const toastStore = useToastStore()
 const rows = ref<EmailMessageDto[]>([])
@@ -51,31 +53,30 @@ const filters = reactive({
   accountId: '',
 })
 
-const columns: DhTableColumn<EmailMessageDto>[] = [
-  { key: 'sender', label: 'Remitente' },
-  { key: 'subject', label: 'Correo' },
-  { key: 'receivedAt', label: 'Recibido' },
-  { key: 'confidence', label: 'Confianza', align: 'center' },
-  { key: 'status', label: 'Extracción', align: 'center' },
-  { key: 'pricing', label: 'Pricing', align: 'center' },
-  { key: 'actions', label: 'Siguiente acción', align: 'right', width: '250px' },
-]
 
-const statusOptions = [
-  { label: 'Todos los estados', value: '' },
-  { label: 'Recibidos', value: 'Received' },
-  { label: 'En cola', value: 'Queued' },
-  { label: 'Procesando', value: 'Processing' },
-  { label: 'Extraídos', value: 'Extracted' },
-  { label: 'Necesitan revisión', value: 'NeedsReview' },
-  { label: 'Fallidos', value: 'Failed' },
-  { label: 'No válidas', value: 'Invalid' },
-  { label: 'Ignorados', value: 'Ignored' },
-  { label: 'Duplicados', value: 'Duplicated' },
-]
+const columns = computed<DhTableColumn<EmailMessageDto>[]>(() => [
+  { key: 'sender', label: t('pricingEmail.sender') },
+  { key: 'subject', label: t('pricingEmail.subject') },
+  { key: 'receivedAt', label: t('pricingEmail.received') },
+  { key: 'confidence', label: t('pricingEmail.confidence'), align: 'center' },
+  { key: 'status', label: t('pricingEmail.extraction'), align: 'center' },
+  { key: 'pricing', label: t('pricingEmail.pricing'), align: 'center' },
+  { key: 'actions', label: t('pricingEmail.nextAction'), align: 'right', width: '250px' },
+])
+
+const statusOptions = computed(() => [
+  { label: t('pricingEmail.allStatuses'), value: '' },
+  ...([
+    ['Received', 'statusReceived'], ['Queued', 'statusQueued'], ['Processing', 'statusProcessing'],
+    ['Extracted', 'statusExtracted'], ['NeedsReview', 'statusNeedsReview'],
+    ['Failed', 'statusFailed'], ['Invalid', 'statusInvalid'], ['Ignored', 'statusIgnored'],
+    ['Duplicated', 'statusDuplicated'],
+  ] as const).map(([value, key]) => ({ value, label: t('pricingEmail.' + key) })),
+])
+
 
 const accountOptions = computed(() => [
-  { label: 'Todas las cuentas', value: '' },
+  { label: t('pricingEmail.allAccounts'), value: '' },
   ...accounts.value.map((account) => ({
     label: `${account.name} · ${account.emailAddress}`,
     value: account.id,
@@ -111,30 +112,28 @@ const summary = computed(() => {
 
 const accountWithError = computed(() => accounts.value.find((account) => account.lastSyncError))
 
+
 const nextAction = computed(() => {
-  if (summary.value.review > 0) {
-    return {
-      title: `${summary.value.review} correo${summary.value.review === 1 ? '' : 's'} requiere${summary.value.review === 1 ? '' : 'n'} revisión`,
-      description: 'Abra el correo únicamente cuando exista un problema real que impida crear automáticamente la revisión en Pricing.',
-      action: 'Mostrar pendientes',
-      status: 'NeedsReview' as EmailMessageStatus,
-    }
+  if (summary.value.review > 0) return {
+    title: t(summary.value.review === 1 ? 'pricingEmail.needsReviewOne' : 'pricingEmail.needsReviewMany', { count: summary.value.review }),
+    description: t('pricingEmail.needsReviewHint'),
+    action: t('pricingEmail.showPending'),
+    status: 'NeedsReview' as EmailMessageStatus,
   }
-  if (summary.value.failed > 0) {
-    return {
-      title: `${summary.value.failed} correo${summary.value.failed === 1 ? '' : 's'} falló${summary.value.failed === 1 ? '' : 'n'}`,
-      description: 'Revise el detalle del error antes de volver a ejecutar la extracción.',
-      action: 'Mostrar fallidos',
-      status: 'Failed' as EmailMessageStatus,
-    }
+  if (summary.value.failed > 0) return {
+    title: t(summary.value.failed === 1 ? 'pricingEmail.failedOne' : 'pricingEmail.failedMany', { count: summary.value.failed }),
+    description: t('pricingEmail.failedHint'),
+    action: t('pricingEmail.showFailed'),
+    status: 'Failed' as EmailMessageStatus,
   }
   return {
-    title: 'La bandeja no tiene acciones pendientes',
-    description: 'Los nuevos correos aparecerán aquí y avanzarán automáticamente cuando la extracción sea completa.',
-    action: 'Ver todos',
+    title: t('pricingEmail.noAction'),
+    description: t('pricingEmail.noActionHint'),
+    action: t('pricingEmail.viewAll'),
     status: '' as EmailMessageStatus | '',
   }
 })
+
 
 function focusStatus(status: EmailMessageStatus | '') {
   filters.status = status
@@ -142,43 +141,32 @@ function focusStatus(status: EmailMessageStatus | '') {
   load()
 }
 
+
 function accountName(id: string) {
-  return accounts.value.find((account) => account.id === id)?.name ?? 'Cuenta de correo'
+  return accounts.value.find((account) => account.id === id)?.name ?? t('pricingEmail.emailAccount')
 }
 
+const emailStatusKeys: Record<string, string> = {
+  Received: 'statusReceived', Queued: 'statusQueued', Processing: 'statusProcessing',
+  Extracted: 'statusExtracted', NeedsReview: 'statusNeedsReview', Ignored: 'statusIgnored',
+  Duplicated: 'statusDuplicated', Failed: 'statusFailed', Invalid: 'statusInvalid',
+}
+const extractionStatusKeys: Record<string, string> = {
+  Pending: 'jobPending', Processing: 'jobProcessing', Extracting: 'jobExtracting',
+  AwaitingAi: 'jobAwaitingAi', AiProcessing: 'jobAiProcessing',
+  ValidatingAiResult: 'jobValidatingAiResult', AwaitingPricing: 'jobAwaitingPricing',
+  SentToPricing: 'jobSentToPricing', NeedsReview: 'jobNeedsReview',
+  Failed: 'jobFailed', Ignored: 'jobIgnored',
+}
 function messageStatusLabel(status: EmailMessageStatus | string) {
-  return (
-    {
-      Received: 'Recibido',
-      Queued: 'En cola',
-      Processing: 'Procesando',
-      Extracted: 'Extraído',
-      NeedsReview: 'Necesita revisión',
-      Ignored: 'Ignorado',
-      Duplicated: 'Duplicado',
-      Failed: 'Fallido',
-      Invalid: 'No válida',
-    } as Record<string, string>
-  )[status] ?? status
+  const key = emailStatusKeys[status]
+  return key ? t('pricingEmail.' + key) : status
+}
+function jobStatusLabel(status: EmailExtractionJobStatus | string) {
+  const key = extractionStatusKeys[status]
+  return key ? t('pricingEmail.' + key) : status
 }
 
-function jobStatusLabel(status: EmailExtractionJobStatus | string) {
-  return (
-    {
-      Pending: 'Pendiente',
-      Processing: 'Procesando',
-      Extracting: 'Extrayendo',
-      AwaitingAi: 'Esperando AI',
-      AiProcessing: 'Procesando con AI',
-      ValidatingAiResult: 'Validando AI',
-      AwaitingPricing: 'Creando revisión',
-      SentToPricing: 'Enviado',
-      NeedsReview: 'Por revisar',
-      Failed: 'Falló',
-      Ignored: 'Ignorado',
-    } as Record<string, string>
-  )[status] ?? status
-}
 
 function statusVariant(status: string) {
   if (status === 'Extracted' || status === 'SentToPricing') return 'success' as const
@@ -192,7 +180,7 @@ function formatDateTime(value?: string | null) {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('es-CR', {
+  return new Intl.DateTimeFormat(locale.value === 'en' ? 'en-US' : 'es-CR', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
@@ -234,7 +222,7 @@ async function load(silent = false) {
     total.value = messageResult.totalCount ?? messageResult.items.length
     lastUpdatedAt.value = new Date()
   } catch (error) {
-    if (!silent) toastStore.backendError(error, 'No se pudo cargar la bandeja de correos.')
+    if (!silent) toastStore.backendError(error, t('pricingEmail.loadError'))
   } finally {
     loading.value = false
     refreshing.value = false
@@ -259,7 +247,7 @@ function openDetail(message: EmailMessageDto) {
   }
 
   drawerStore.open({
-    title: 'Detalle del correo de tarifas',
+    title: t('pricingEmail.detailTitle'),
     component: PricingEmailMessageDrawer,
     size: 'xl',
     props: {
@@ -285,8 +273,8 @@ async function sendToPricingReview(message: EmailMessageDto) {
     }
 
     toastStore.info(
-      'Creando revisión en Pricing',
-      'La extracción utilizable se enviará como importación pendiente sin volver a procesar el correo.',
+      t('pricingEmail.creatingReview'),
+      t('pricingEmail.creatingReviewHint'),
     )
 
     for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -306,7 +294,7 @@ async function sendToPricingReview(message: EmailMessageDto) {
     await load(true)
     openDetail(message)
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo crear la revisión en Pricing.')
+    toastStore.backendError(error, t('pricingEmail.reviewError'))
   }
 }
 
@@ -316,12 +304,12 @@ async function reprocess(message: EmailMessageDto) {
   try {
     await EmailExtractionService.reprocessMessage(message.id)
     toastStore.success(
-      'Correo enviado a reproceso',
-      'La extracción se ejecutará nuevamente y, si produce filas válidas, creará automáticamente la revisión en Pricing.',
+      t('pricingEmail.reprocessSuccess'),
+      t('pricingEmail.reprocessHint'),
     )
     await load(true)
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo reprocesar el correo.')
+    toastStore.backendError(error, t('pricingEmail.reprocessError'))
   }
 }
 
@@ -350,15 +338,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section data-no-auto-translate class="space-y-6">
     <DhPageHeader
-      title="Correos de tarifas"
-      subtitle="Siga cada correo desde la recepción hasta la creación del lote en Pricing."
+      :title="t('pricingEmail.title')"
+      :subtitle="t('pricingEmail.subtitle')"
       :icon="Mail"
     >
       <template #actions>
         <DhButton
-          label="Actualizar"
+          :label="t('common.refresh')"
           :icon="RefreshCw"
           variant="secondary"
           :loading="refreshing"
@@ -376,7 +364,7 @@ onBeforeUnmount(() => {
             <ArrowRight class="h-5 w-5" />
           </div>
           <div>
-            <p class="text-xs font-black uppercase tracking-[0.13em] text-[var(--dh-primary)]">Qué hacer ahora</p>
+            <p class="text-xs font-black uppercase tracking-[0.13em] text-[var(--dh-primary)]">{{ t('pricingEmail.whatNow') }}</p>
             <h2 class="mt-1 font-black text-[var(--dh-text)]">{{ nextAction.title }}</h2>
             <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ nextAction.description }}</p>
           </div>
@@ -393,13 +381,13 @@ onBeforeUnmount(() => {
         <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
         <div>
           <h2 class="font-black text-[var(--dh-text)]">
-            Error sincronizando {{ accountWithError.name }}
+            {{ t('pricingEmail.syncError', { name: accountWithError.name }) }}
           </h2>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-soft)]">
             {{ accountWithError.lastSyncError }}
           </p>
           <p class="mt-2 text-xs font-bold text-[var(--dh-text-muted)]">
-            Último intento: {{ formatDateTime(accountWithError.lastSyncAt) }}
+            {{ t('pricingEmail.lastAttempt') }}: {{ formatDateTime(accountWithError.lastSyncAt) }}
           </p>
         </div>
       </div>
@@ -409,51 +397,51 @@ onBeforeUnmount(() => {
       <article class="dh-glass dh-liquid rounded-[26px] p-5">
         <div class="flex items-center justify-between">
           <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Enviados a Pricing
+            {{ t('pricingEmail.sentToPricing') }}
           </p>
           <CheckCircle2 class="h-5 w-5 text-emerald-500" />
         </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.sent }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Últimos 100 trabajos</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricingEmail.latest100Jobs') }}</p>
       </article>
       <article class="dh-glass dh-liquid rounded-[26px] p-5">
         <div class="flex items-center justify-between">
           <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            En proceso
+            {{ t('pricingEmail.inProgress') }}
           </p>
           <Clock3 class="h-5 w-5 text-[var(--dh-primary)]" />
         </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.inProgress }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Página actual</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricingEmail.currentPage') }}</p>
       </article>
       <article class="dh-glass dh-liquid rounded-[26px] p-5">
         <div class="flex items-center justify-between">
           <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Por revisar
+            {{ t('pricingEmail.needsReview') }}
           </p>
           <AlertTriangle class="h-5 w-5 text-amber-500" />
         </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.review }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Página actual</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricingEmail.currentPage') }}</p>
       </article>
       <article class="dh-glass dh-liquid rounded-[26px] p-5">
         <div class="flex items-center justify-between">
           <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Fallidos
+            {{ t('pricingEmail.failed') }}
           </p>
           <Inbox class="h-5 w-5 text-red-500" />
         </div>
         <p class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ summary.failed }}</p>
-        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Página actual</p>
+        <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('pricingEmail.currentPage') }}</p>
       </article>
     </section>
 
     <section class="dh-glass dh-liquid rounded-[32px] p-5">
       <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h2 class="text-lg font-black text-[var(--dh-text)]">Bandeja de extracción</h2>
+          <h2 class="text-lg font-black text-[var(--dh-text)]">{{ t('pricingEmail.extractInbox') }}</h2>
           <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-            {{ total }} correos · Actualización automática cada 30 segundos
+            {{ t('pricingEmail.inboxRefresh', { count: total }) }}
             <span v-if="lastUpdatedAt">· {{ formatDateTime(lastUpdatedAt.toISOString()) }}</span>
           </p>
         </div>
@@ -461,27 +449,27 @@ onBeforeUnmount(() => {
           <DhInput
             v-model="filters.search"
             type="search"
-            label="Buscar"
-            placeholder="Asunto o remitente"
+            :label="t('pricingEmail.search')"
+            :placeholder="t('pricingEmail.subjectOrSender')"
             @keyup.enter="applyFilters"
           />
           <DhSelect
             v-model="filters.accountId"
-            label="Cuenta"
+            :label="t('pricingEmail.account')"
             :options="accountOptions"
             placeholder=""
           />
           <DhSelect
             v-model="filters.status"
-            label="Estado"
+            :label="t('pricingEmail.status')"
             :options="statusOptions"
             placeholder=""
           />
         </div>
       </div>
       <div class="mt-3 flex justify-end gap-2">
-        <DhButton label="Limpiar" variant="ghost" size="sm" @click="clearFilters" />
-        <DhButton label="Aplicar filtros" size="sm" @click="applyFilters" />
+        <DhButton :label="t('pricingEmail.clear')" variant="ghost" size="sm" @click="clearFilters" />
+        <DhButton :label="t('pricingEmail.applyFilters')" size="sm" @click="applyFilters" />
       </div>
 
       <div class="mt-5">
@@ -489,7 +477,7 @@ onBeforeUnmount(() => {
           :columns="columns"
           :rows="rows"
           :loading="loading"
-          empty-text="No hay correos de tarifas que coincidan con los filtros."
+          :empty-text="t('pricingEmail.empty')"
           @row-click="openDetail"
         >
           <template #cell-sender="{ row }">
@@ -516,7 +504,7 @@ onBeforeUnmount(() => {
           </template>
           <template #cell-confidence="{ row }">
             <DhBadge
-              :label="row.classificationConfidence == null ? 'Sin clasificar' : `${row.classificationConfidence.toFixed(1)}%`"
+              :label="row.classificationConfidence == null ? t('pricingEmail.unclassified') : `${row.classificationConfidence.toFixed(1)}%`"
               :variant="confidenceVariant(row.classificationConfidence)"
             />
           </template>
@@ -526,7 +514,7 @@ onBeforeUnmount(() => {
           <template #cell-pricing="{ row }">
             <DhBadge
               v-if="row.status === 'Extracted' || latestJob(row.id)?.status === 'SentToPricing'"
-              label="Enviado"
+              :label="t('pricingEmail.sent')"
               variant="success"
             />
             <DhBadge
@@ -540,21 +528,21 @@ onBeforeUnmount(() => {
             <div class="flex flex-wrap justify-end gap-2" @click.stop>
               <DhButton
                 v-if="latestJob(row.id)?.pricingImportBatchId"
-                label="Abrir revisión"
+                :label="t('pricingEmail.openReview')"
                 :icon="ExternalLink"
                 size="sm"
                 @click="openPricingBatch(latestJob(row.id)!.pricingImportBatchId!)"
               />
               <DhButton
                 v-else-if="latestJob(row.id)?.status === 'NeedsReview' && latestJob(row.id)?.extractionExecutionId"
-                label="Crear revisión"
+                :label="t('pricingEmail.createReview')"
                 :icon="Send"
                 size="sm"
                 @click="sendToPricingReview(row)"
               />
               <DhButton
                 v-if="row.status === 'NeedsReview' || row.status === 'Failed'"
-                label="Reprocesar"
+                :label="t('pricingEmail.reprocess')"
                 :icon="RefreshCw"
                 size="sm"
                 variant="ghost"
@@ -562,7 +550,7 @@ onBeforeUnmount(() => {
               />
               <DhButton
                 v-if="!latestJob(row.id)?.pricingImportBatchId && latestJob(row.id)?.status !== 'NeedsReview' && row.status !== 'Failed'"
-                label="Ver detalle"
+                :label="t('pricingEmail.viewDetail')"
                 size="sm"
                 variant="ghost"
                 @click="openDetail(row)"

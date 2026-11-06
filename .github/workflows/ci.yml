@@ -40,6 +40,8 @@ jobs:
         run: pnpm run test:workspace-tabs
       - name: Mobile layout and locale compliance
         run: pnpm run test:mobile-i18n
+      - name: Email inbox translation and mobile settings regression
+        run: pnpm run test:email-mobile-i18n
       - name: Type-check and build
         run: pnpm run build
       - name: Verify IDTRA action survived production bundle compilation

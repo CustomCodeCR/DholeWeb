@@ -6,7 +6,7 @@ type MessageTree = Record<string, unknown>
 type TextState = { source: string; applied: string }
 
 const legacyPairs: Array<[string, string]> = [
-  ['Operations Platform', 'Plataforma de operaciones'],
+  ['Plataforma de operaciones', 'Operations Platform'],
   ['Centro de trabajo', 'Workspace'],
   [
     'Empiece por la siguiente tarea del flujo operativo y deje la administración para cuando la necesite.',
