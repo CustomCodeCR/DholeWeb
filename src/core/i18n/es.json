@@ -1390,6 +1390,8 @@
       "processing": "Procesando",
       "retries": "Reintentos",
       "failed": "Fallidos",
+      "reviewRequired": "Completadas · revisión",
+      "reviewExplanation": "El modelo terminó; la validación o entrega posterior necesita revisión.",
       "redisPending": "Redis pending",
       "statuses": {
         "Pending": "En cola",
@@ -1397,6 +1399,7 @@
         "RetryScheduled": "Reintento programado",
         "Failed": "Fallida",
         "Completed": "Completada",
+        "CompletedWithReview": "Completada · requiere revisión",
         "Running": "Ejecutando",
         "Cancelled": "Cancelada"
       },
