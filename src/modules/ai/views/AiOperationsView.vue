@@ -70,6 +70,7 @@ type QueueItem = {
   correlationId: string
   requestHash: string
   status: JobStatus
+  displayStatus?: string
   attemptCount: number
   maxAttemptCount: number
   nextAttemptAtUtc?: string | null
@@ -136,6 +137,7 @@ type OperationsState = {
     processing: number
     retryScheduled: number
     failed: number
+    reviewRequired?: number
     completed: number
     items: QueueItem[]
   }
@@ -174,8 +176,8 @@ const expandedJobId = ref('')
 let timer: number | undefined
 
 const canOperate = computed(() => authStore.hasScope(AI_SCOPES.executions.cancel))
-const activeItems = computed(() => state.value?.queue.items.filter((item) => item.status !== 'Failed') ?? [])
-const failedItems = computed(() => state.value?.queue.items.filter((item) => item.status === 'Failed') ?? [])
+const visibleItems = computed(() => state.value?.queue.items ?? [])
+const failedItems = computed(() => visibleItems.value.filter((item) => (item.displayStatus ?? item.status) === 'Failed'))
 
 function endpointModelId(externalModelId?: string | null) {
   if (!externalModelId || !state.value) return null
@@ -189,6 +191,7 @@ function endpointModelId(externalModelId?: string | null) {
 
 function badgeVariant(status: string) {
   if (status === 'Completed') return 'success'
+  if (status === 'CompletedWithReview') return 'warning'
   if (status === 'Processing' || status === 'Running') return 'primary'
   if (status === 'Pending' || status === 'RetryScheduled') return 'warning'
   if (status === 'Failed') return 'danger'
@@ -427,7 +430,7 @@ onBeforeUnmount(() => {
     </div>
 
     <template v-else-if="state">
-      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <DhCard padding="sm">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.queued') }}</span><LoaderCircle class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.pending }}</div>
@@ -439,6 +442,10 @@ onBeforeUnmount(() => {
         <DhCard padding="sm">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.retries') }}</span><RotateCcw class="h-4 w-4" /></div>
           <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.retryScheduled }}</div>
+        </DhCard>
+        <DhCard padding="sm" class="border-amber-500/20">
+          <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.reviewRequired') }}</span><AlertTriangle class="h-4 w-4 text-amber-500" /></div>
+          <div class="mt-3 text-3xl font-black text-[var(--dh-text)]">{{ state.queue.reviewRequired ?? 0 }}</div>
         </DhCard>
         <DhCard padding="sm" class="border-red-500/20">
           <div class="flex items-center justify-between text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]"><span>{{ t('ai.operations.failed') }}</span><AlertTriangle class="h-4 w-4" /></div>
@@ -499,7 +506,7 @@ onBeforeUnmount(() => {
       </section>
 
       <section class="dh-glass dh-liquid overflow-hidden rounded-[28px]">
-        <div class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"><div><h2 class="font-black text-[var(--dh-text)]">{{ t('ai.operations.queueTitle') }}</h2><p class="text-xs text-[var(--dh-text-muted)]">{{ t('ai.operations.queueVisible', { count: activeItems.length }) }}</p></div><HardDrive class="h-5 w-5 text-[var(--dh-text-muted)]" /></div>
+        <div class="flex items-center justify-between border-b border-[var(--dh-border)] px-5 py-4"><div><h2 class="font-black text-[var(--dh-text)]">{{ t('ai.operations.queueTitle') }}</h2><p class="text-xs text-[var(--dh-text-muted)]">{{ t('ai.operations.queueVisible', { count: visibleItems.length }) }}</p></div><HardDrive class="h-5 w-5 text-[var(--dh-text-muted)]" /></div>
         <div data-ai-queue-mobile class="grid gap-3 p-3 md:hidden">
           <article
             v-for="item in state.queue.items"
@@ -512,8 +519,10 @@ onBeforeUnmount(() => {
                 <p class="mt-1 break-all text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('ai.operations.requestShort') }} {{ item.requestId.slice(0, 10) }}…</p>
                 <p class="break-all text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('ai.operations.jobShort') }} {{ item.jobId.slice(0, 10) }}…</p>
               </div>
-              <DhBadge :variant="badgeVariant(item.status)">{{ statusLabel(item.status) }}</DhBadge>
+              <DhBadge :variant="badgeVariant(item.displayStatus ?? item.status)">{{ statusLabel(item.displayStatus ?? item.status) }}</DhBadge>
             </div>
+
+            <p v-if="item.displayStatus === 'CompletedWithReview'" class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('ai.operations.reviewExplanation') }}</p>
 
             <dl class="mt-4 grid grid-cols-2 gap-2 text-xs">
               <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
@@ -558,7 +567,7 @@ onBeforeUnmount(() => {
             <tbody class="divide-y divide-[var(--dh-border)]">
               <template v-for="item in state.queue.items" :key="item.jobId">
                 <tr class="hover:bg-black/[0.025] dark:hover:bg-white/[0.025]">
-                  <td class="px-5 py-4"><DhBadge :variant="badgeVariant(item.status)">{{ statusLabel(item.status) }}</DhBadge></td>
+                  <td class="px-5 py-4"><DhBadge :variant="badgeVariant(item.displayStatus ?? item.status)">{{ statusLabel(item.displayStatus ?? item.status) }}</DhBadge><p v-if="item.displayStatus === 'CompletedWithReview'" class="mt-2 max-w-[240px] text-xs text-[var(--dh-text-muted)]">{{ t('ai.operations.reviewExplanation') }}</p></td>
                   <td class="px-4 py-4"><button class="text-left" @click="toggleExpanded(item.jobId)"><div class="font-medium">{{ item.emailMessageId.slice(0, 8) }}…</div><div class="mt-1 text-xs text-[var(--dh-text-muted)]">Req {{ item.requestId.slice(0, 8) }}…</div><div class="text-xs text-[var(--dh-text-muted)]">Job {{ item.jobId.slice(0, 8) }}…</div></button></td>
                   <td class="px-4 py-4"><div v-if="item.executions?.[0]" class="space-y-1"><div class="font-mono text-xs">{{ item.executions[0].executionId.slice(0, 8) }}…</div><DhBadge :variant="badgeVariant(item.executions[0].status)">{{ statusLabel(item.executions[0].status) }}</DhBadge></div><span v-else class="text-[var(--dh-text-muted)]">{{ t('ai.operations.notCreated') }}</span></td>
                   <td class="px-4 py-4"><template v-if="item.executions?.[0]?.attempt"><div class="font-medium">{{ item.executions[0].attempt?.modelName ?? item.executions[0].attempt?.externalModelId }}</div><div class="text-xs text-[var(--dh-text-muted)]">{{ item.executions[0].attempt?.providerType }} · {{ item.executions[0].attempt?.connectionName }}</div></template><span v-else class="text-[var(--dh-text-muted)]">{{ t('ai.operations.noSelection') }}</span></td>
@@ -566,7 +575,7 @@ onBeforeUnmount(() => {
                   <td class="px-4 py-4"><div>{{ formatDuration(item.executions?.[0]?.durationMilliseconds) }}</div><div class="text-xs text-[var(--dh-text-muted)]">{{ formatDate(item.startedAtUtc ?? item.nextAttemptAtUtc) }}</div></td>
                   <td class="px-4 py-4"><div v-if="canOperate" class="flex gap-2"><DhTooltip v-if="item.status === 'Pending' || item.status === 'RetryScheduled'" text="Cancela este trabajo durable y evita que llegue al modelo." position="left"><DhButton size="sm" variant="secondary" :loading="actionKey === `cancel:${item.jobId}`" @click="cancelJob(item)"><Trash2 class="h-4 w-4" />{{ t('ai.operations.remove') }}</DhButton></DhTooltip><DhTooltip v-if="item.status === 'Failed'" text="Vuelve a poner este trabajo fallido en la cola para otro intento." position="left"><DhButton size="sm" variant="secondary" :loading="actionKey === `retry:${item.jobId}`" @click="retryJob(item)"><RotateCcw class="h-4 w-4" />{{ t('ai.operations.retry') }}</DhButton></DhTooltip></div></td>
                 </tr>
-                <tr v-if="expandedJobId === item.jobId" class="bg-black/5 dark:bg-black/20"><td colspan="7" class="px-5 py-5"><div class="grid gap-4 lg:grid-cols-3"><div><div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]"><Link2 class="h-4 w-4" />Trazabilidad origen</div><dl class="space-y-2 text-xs"><div><dt class="text-[var(--dh-text-muted)]">EmailMessageId</dt><dd class="break-all font-mono">{{ item.emailMessageId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">EmailAttachmentId</dt><dd class="break-all font-mono">{{ item.emailAttachmentId ?? '—' }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">EmailExtractionJobId</dt><dd class="break-all font-mono">{{ item.emailExtractionJobId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">RequestId</dt><dd class="break-all font-mono">{{ item.requestId }}</dd></div></dl></div><div><div class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]">Correlación</div><dl class="space-y-2 text-xs"><div><dt class="text-[var(--dh-text-muted)]">CorrelationId</dt><dd class="break-all font-mono">{{ item.correlationId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">RequestHash</dt><dd class="break-all font-mono">{{ item.requestHash }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">Lease</dt><dd class="break-all font-mono">{{ item.leaseOwner ?? '—' }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">Heartbeat</dt><dd>{{ formatDate(item.lastHeartbeatAtUtc) }}</dd></div></dl></div><div><div class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]">Ejecuciones IA</div><div v-if="!item.executions?.length" class="text-xs text-[var(--dh-text-muted)]">Todavía no hay una AiExecution asociada.</div><div v-for="execution in item.executions" :key="execution.executionId" class="mb-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs"><div class="flex justify-between gap-2"><span class="break-all font-mono">{{ execution.executionId }}</span><DhBadge :variant="badgeVariant(execution.status)">{{ statusLabel(execution.status) }}</DhBadge></div><div v-if="execution.attempt" class="mt-2 text-[var(--dh-text-muted)]">Attempt {{ execution.attempt.attemptNumber }} · {{ execution.attempt.externalModelId }} · {{ execution.attempt.providerType }}</div><div v-if="execution.errorCode" class="mt-2 text-red-400">{{ execution.errorCode }} · {{ execution.errorMessage }}</div></div></div></div></td></tr>
+                <tr v-if="expandedJobId === item.jobId" class="bg-black/5 dark:bg-black/20"><td colspan="7" class="px-5 py-5"><div class="grid gap-4 lg:grid-cols-3"><div><div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]"><Link2 class="h-4 w-4" />Trazabilidad origen</div><dl class="space-y-2 text-xs"><div><dt class="text-[var(--dh-text-muted)]">EmailMessageId</dt><dd class="break-all font-mono">{{ item.emailMessageId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">EmailAttachmentId</dt><dd class="break-all font-mono">{{ item.emailAttachmentId ?? '—' }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">EmailExtractionJobId</dt><dd class="break-all font-mono">{{ item.emailExtractionJobId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">RequestId</dt><dd class="break-all font-mono">{{ item.requestId }}</dd></div></dl></div><div><div class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]">Correlación</div><dl class="space-y-2 text-xs"><div><dt class="text-[var(--dh-text-muted)]">CorrelationId</dt><dd class="break-all font-mono">{{ item.correlationId }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">RequestHash</dt><dd class="break-all font-mono">{{ item.requestHash }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">Lease</dt><dd class="break-all font-mono">{{ item.leaseOwner ?? '—' }}</dd></div><div><dt class="text-[var(--dh-text-muted)]">Heartbeat</dt><dd>{{ formatDate(item.lastHeartbeatAtUtc) }}</dd></div></dl></div><div><div class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dh-text-muted)]">Ejecuciones IA</div><p v-if="item.displayStatus === 'CompletedWithReview'" class="mb-2 text-amber-500">{{ t('ai.operations.reviewExplanation') }} <span v-if="item.errorCode">{{ item.errorCode }} · {{ item.errorMessage }}</span></p><div v-if="!item.executions?.length" class="text-xs text-[var(--dh-text-muted)]">Todavía no hay una AiExecution asociada.</div><div v-for="execution in item.executions" :key="execution.executionId" class="mb-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs"><div class="flex justify-between gap-2"><span class="break-all font-mono">{{ execution.executionId }}</span><DhBadge :variant="badgeVariant(execution.status)">{{ statusLabel(execution.status) }}</DhBadge></div><div v-if="execution.attempt" class="mt-2 text-[var(--dh-text-muted)]">Attempt {{ execution.attempt.attemptNumber }} · {{ execution.attempt.externalModelId }} · {{ execution.attempt.providerType }}</div><div v-if="execution.errorCode" class="mt-2 text-red-400">{{ execution.errorCode }} · {{ execution.errorMessage }}</div></div></div></div></td></tr>
               </template>
             </tbody>
           </table>
