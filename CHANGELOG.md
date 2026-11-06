@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.4] - 2026-11-05
+
+- Visualizar versiones reales desplegadas por cada servicio en Monitoreo.
+- Mostrar No disponible cuando el servicio no reporte versión y agregar traducciones ES/EN.
+
 ## [1.2.3] - 2026-11-05
 
 - Asegurar que el botón Asignar IDTRA aparezca en Pantalla 9 para tarifas aceptadas sin identificador válido, incluyendo marcadores heredados como Pendiente.

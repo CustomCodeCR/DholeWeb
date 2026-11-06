@@ -550,7 +550,9 @@
         "name": "Hermes Agent",
         "description": "Motor de automatización web utilizado por Dhole Agent."
       }
-    }
+    },
+    "version": "Versión",
+    "versionUnavailable": "No disponible"
   },
   "pricing": {
     "title": "Pricing",
@@ -1812,7 +1814,16 @@
     "resumeExplanation": "Solo reanude una ejecución tras completar y registrar la verificación legítima en el navegador original. La API valida el circuito, la sesión y los permisos, conserva el mismo ID y audita la acción.",
     "resumeFailed": "No fue posible reanudar la búsqueda; revise el estado del circuito, la sesión y los otros trabajos en cola.",
     "resumeSuccess": "Búsqueda original reencolada de forma controlada",
-    "actions": {"CircuitNotEnabled":"Protección desactivada; no reanudar","VerifyProviderManually":"Verificar legítimamente con Maersk en el navegador original","AuthenticateOriginalProfile":"Autenticar el perfil original","ReviewTechnicalRepair":"Revisar reparación técnica autorizada","WaitForCircuit":"Esperar el circuito; no repetir consultas","ReviewWaitingExecution":"Revisar búsqueda pendiente y reanudar con autorización","SessionRecordedAsAuthenticated":"Sesión registrada como autenticada; verificar en el proveedor","ReviewSession":"Revisar estado de la sesión"},
+    "actions": {
+      "CircuitNotEnabled": "Protección desactivada; no reanudar",
+      "VerifyProviderManually": "Verificar legítimamente con Maersk en el navegador original",
+      "AuthenticateOriginalProfile": "Autenticar el perfil original",
+      "ReviewTechnicalRepair": "Revisar reparación técnica autorizada",
+      "WaitForCircuit": "Esperar el circuito; no repetir consultas",
+      "ReviewWaitingExecution": "Revisar búsqueda pendiente y reanudar con autorización",
+      "SessionRecordedAsAuthenticated": "Sesión registrada como autenticada; verificar en el proveedor",
+      "ReviewSession": "Revisar estado de la sesión"
+    },
     "title": "Operación Maersk",
     "subtitle": "Sesiones, estado del circuito, cola e incidentes de Hermes",
     "refresh": "Actualizar",

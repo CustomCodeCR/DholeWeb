@@ -143,8 +143,19 @@ export const MonitoringService = {
         cache: 'no-store',
       })
 
+      // Show only reported running service versions, never versions from GitHub.
+      let reportedVersion = response.headers.get('X-Dhole-Version')
+      if (!reportedVersion && response.headers.get('Content-Type')?.includes('json')) {
+        const payload = await response.clone().json().catch(() => null) as { version?: unknown } | null
+        if (typeof payload?.version === 'string') reportedVersion = payload.version
+      }
+      const version = reportedVersion && /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(reportedVersion.trim())
+        ? reportedVersion.trim()
+        : null
+
       return {
         ...service,
+        version,
         status: response.ok ? 'online' : 'offline',
         statusCode: response.status,
         latencyMs: Math.round(performance.now() - startedAt),
@@ -154,6 +165,7 @@ export const MonitoringService = {
     } catch (error) {
       return {
         ...service,
+        version: null,
         status: 'offline',
         statusCode: null,
         latencyMs: Math.round(performance.now() - startedAt),
