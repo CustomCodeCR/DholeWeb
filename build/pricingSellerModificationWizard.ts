@@ -518,9 +518,8 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   const stayInRevision = `
     if (props.rateId && (props.modificationRequestId || new URLSearchParams(window.location.search).has('modificationRequestId'))) {
       if (props.modificationRequestId) {
-        // saveRate already prepared AND completed this amendment. A second
-        // prepare-modification now returns 409 because the request is closed.
-        // Never turn a successful save into an error after successful delivery.
+        // The staged save already prepared this revision; explicit delivery remains
+        // a separate user action. Do not create another revision.
         await hydrateExistingRate()
         step.value = 8
         return

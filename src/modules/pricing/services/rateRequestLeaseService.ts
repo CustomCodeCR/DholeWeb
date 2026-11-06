@@ -120,7 +120,7 @@ export const RateRequestLeaseService = {
     }))
     return completion
   },
-  async cancel(id: string, payload: { reason: 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'; details?: string }): Promise<void> {
+  async cancel(id: string, payload: { reason: 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'; details?: string; confirmation?: 'CancelSellerModification' }): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para cancelar la solicitud.')
     await callEndpoint<unknown, typeof payload>({

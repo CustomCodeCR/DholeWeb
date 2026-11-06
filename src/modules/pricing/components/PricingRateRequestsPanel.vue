@@ -64,7 +64,7 @@ const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const completingRequestId = ref<string | null>(null)
 const cancellationTarget = ref<RateRequestDto | null>(null)
-const cancellationReason = ref<CancellationReason>('Duplicate')
+const cancellationReason = ref<CancellationReason | ''>('')
 const cancellationDetails = ref('')
 const cancellingRequestId = ref<string | null>(null)
 const claimingRequestId = ref<string | null>(null)
@@ -411,7 +411,7 @@ function openCancellation(request: RateRequestDto) {
   if (request.status !== 'Open' || isLocked(request)
     || claimingRequestId.value || completingRequestId.value || cancellingRequestId.value) return
   cancellationTarget.value = request
-  cancellationReason.value = 'Duplicate'
+  cancellationReason.value = ''
   cancellationDetails.value = ''
 }
 
@@ -424,6 +424,10 @@ async function confirmCancellation() {
   const request = cancellationTarget.value
   if (!request || request.status !== 'Open' || cancellingRequestId.value || isLocked(request)) return
   const details = cancellationDetails.value.trim()
+  if (!cancellationReason.value) {
+    toast.warning('Motivo requerido', 'Seleccione un motivo para cancelar la solicitud.')
+    return
+  }
   if (cancellationReason.value === 'Other' && !details) {
     toast.error('Detalle requerido', 'Describa por qué se está cancelando la solicitud.')
     return
@@ -434,7 +438,7 @@ async function confirmCancellation() {
     // The same exclusive lease used to continue a request prevents cancellation
     // while another pricing operator is preparing the quote.
     await RateRequestLeaseService.claim(request.id)
-    await RateRequestLeaseService.cancel(request.id, { reason: cancellationReason.value, details })
+    await RateRequestLeaseService.cancel(request.id, { reason: cancellationReason.value as CancellationReason, details, confirmation: isModification(request) ? 'CancelSellerModification' : undefined })
     cancellationTarget.value = null
     toast.success('Solicitud cancelada', 'Se conservó en el historial con su motivo de cancelación.')
     await load()
@@ -624,6 +628,7 @@ onBeforeUnmount(() => {
             <select id="rate-request-cancel-reason" v-model="cancellationReason"
               :disabled="Boolean(cancellingRequestId)"
               class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm font-semibold text-[var(--dh-text)]">
+              <option value="" disabled>Seleccione un motivo</option>
               <option v-for="reason in cancellationReasons" :key="reason.value" :value="reason.value">{{ reason.label }}</option>
             </select>
             <label for="rate-request-cancel-details" class="mt-4 block text-sm font-bold">
@@ -638,7 +643,7 @@ onBeforeUnmount(() => {
               <DhButton variant="secondary" :disabled="Boolean(cancellingRequestId)" @click="closeCancellation">Volver</DhButton>
               <DhButton
                 class="!bg-red-600 !text-white hover:!bg-red-700"
-                :disabled="Boolean(cancellingRequestId) || (cancellationReason === 'Other' && !cancellationDetails.trim())"
+                :disabled="Boolean(cancellingRequestId) || !cancellationReason || (cancellationReason === 'Other' && !cancellationDetails.trim())"
                 @click="confirmCancellation"
               >
                 <Ban class="h-4 w-4" /> {{ cancellingRequestId ? 'Cancelando…' : 'Confirmar cancelación' }}
