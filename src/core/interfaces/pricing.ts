@@ -835,6 +835,8 @@ export interface RateDto extends Record<string, unknown> {
   pickupLatitude?: number | null
   pickupLongitude?: number | null
   pickupLocations?: RatePickupLocationDto[]
+  inlandPickupLocation?: RateInlandServiceLocation | null
+  inlandDeliveryLocation?: RateInlandServiceLocation | null
   containerQuantity: number
   currencyId: string
   currencyName: string
@@ -970,6 +972,12 @@ export interface CreateRateContainerRequest extends Record<string, unknown> {
   overweightUnitCount?: number
 }
 
+export interface RateInlandServiceLocation {
+  address: string
+  latitude?: number | null
+  longitude?: number | null
+}
+
 export interface CreateRateRequest extends Record<string, unknown> {
   lclGroupAgentId?: string | null
   sourceImportFclRateId?: string | null
@@ -999,6 +1007,8 @@ export interface CreateRateRequest extends Record<string, unknown> {
   pickupLatitude?: number | null
   pickupLongitude?: number | null
   pickupLocations?: RatePickupLocationDto[]
+  inlandPickupLocation?: RateInlandServiceLocation | null
+  inlandDeliveryLocation?: RateInlandServiceLocation | null
   exchangeRatePurchase?: number | null
   exchangeRateSale?: number | null
   exchangeRateApplied?: number | null
