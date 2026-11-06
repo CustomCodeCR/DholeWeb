@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.0] - 2026-11-05
+
+- Convierte «Otras pestañas» en un panel integrado que no cubre el contenido y mejora accesibilidad, idiomas y cierre de pestañas.
+- Muestra versiones verificadas por health o identificadas como registradas en el manifiesto, sin confundirlas con versiones desplegadas.
+- Añade pruebas de regresión del overflow y de lectura segura de versiones.
+
 ## [1.2.4] - 2026-11-05
 
 - Alinea el versionamiento SemVer de Dhole Web y su bundle con el release global.

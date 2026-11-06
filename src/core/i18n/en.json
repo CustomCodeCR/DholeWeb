@@ -499,6 +499,8 @@
     "moveToRight": "Move to right pane",
     "splitWorkspace": "Split workspace",
     "workspaceTabs": "Workspace tabs",
+    "more": "More",
+    "moreTabs": "Other tabs",
     "resizeSplit": "Resize panes",
     "splitHint": "Drag a tab to the right pane or use the split button.",
     "closePane": "Close pane"
@@ -507,6 +509,8 @@
     "title": "Service monitoring",
     "subtitle": "Technical status of the main services. Only visible to SuperUsuario.",
     "service": "Service",
+    "version": "Version",
+    "versionSources": { "runtime": "Running version", "registered": "Release registry", "unavailable": "Not available" },
     "latency": "Latency",
     "statusCode": "HTTP status",
     "checkedAt": "Checked at",
