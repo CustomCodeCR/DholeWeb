@@ -68,9 +68,10 @@ test('EXW pickup action appears before a separate optional map toolbar', () => {
 })
 
 
-test('LCL supplier navigation only requires a carrier when the maritime field is visible', () => {
-  assert.match(wizard, /\(!carrierRequiredForStepSix\.value \|\| form\.carrierId\)/)
-  assert.doesNotMatch(wizard, /if \(step\.value === 6\) return Boolean\(form\.agentId && form\.carrierId/)
+test('LCL supplier navigation is patched after the Vite wizard enhancements transform', () => {
+  const enhancements = readFileSync(new URL('../build/pricingWizardEnhancements.ts', import.meta.url), 'utf8')
+  assert.match(enhancements, /if \(shipmentModeForApi\.value === 'Lcl'\).*?return Boolean\(form\.agentId && form\.currencyId/s)
+  assert.match(enhancements, /!carrierRequiredForStepSix\.value \|\| form\.carrierId/)
   assert.match(wizard, /'Agente \/ coloader'/)
 })
 
