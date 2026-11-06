@@ -258,9 +258,7 @@ body {
     font-size: 16px;
   }
 
-  #app form :where(.grid) {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
+  /* Component-level mobile layouts replace global grid flattening. */
 
   #app form :where(.flex):has(> button) {
     flex-wrap: wrap;

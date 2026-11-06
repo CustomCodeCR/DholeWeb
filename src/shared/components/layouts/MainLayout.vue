@@ -790,7 +790,7 @@ onBeforeUnmount(() => {
       <DhTopbar @navigation="toggleMobileSidebar" @search="commandOpen = true" @logout="logout" />
       <DhWorkspaceTabs />
 
-      <main class="min-w-0 overflow-x-clip p-2 sm:p-4">
+      <main class="min-w-0 p-2 sm:p-4">
         <div
           v-if="splitLayoutActive"
           ref="splitContainerRef"

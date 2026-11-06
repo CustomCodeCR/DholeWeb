@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useLocale } from '@/core/stores/locale'
 import { AlertTriangle, BarChart3, Clock3, Download, RefreshCw, UsersRound } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
@@ -52,6 +53,7 @@ interface ReportDto {
 
 const props = defineProps<{ role: 'pricing' | 'seller' }>()
 const router = useRouter()
+const localeStore = useLocale()
 const toast = useToastStore()
 const today = localDay(new Date())
 const from = ref(localDay(new Date(Date.now() - 89 * 86_400_000)))
@@ -80,19 +82,19 @@ function hoursBetween(start: string, end: string | null | undefined): number | n
 }
 
 function formatHours(value: number | null) {
-  return value == null ? '—' : `${value.toLocaleString('es-CR', { maximumFractionDigits: 1 })} h`
+  return value == null ? '—' : `${value.toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR'), { maximumFractionDigits: 1 })} h`
 }
 
 function dateTime(value: string | null | undefined) {
   const stamp = time(value)
-  return stamp == null ? '—' : new Intl.DateTimeFormat('es-CR', {
+  return stamp == null ? '—' : new Intl.DateTimeFormat((localeStore.locale === 'en' ? 'en-US' : 'es-CR'), {
     dateStyle: 'short', timeStyle: 'short',
   }).format(stamp)
 }
 
 function dateOnly(value: string | null | undefined) {
   const stamp = time(value)
-  return stamp == null ? '—' : new Intl.DateTimeFormat('es-CR', {
+  return stamp == null ? '—' : new Intl.DateTimeFormat((localeStore.locale === 'en' ? 'en-US' : 'es-CR'), {
     dateStyle: 'short', timeZone: 'UTC',
   }).format(stamp)
 }
