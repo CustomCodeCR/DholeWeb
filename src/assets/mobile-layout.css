@@ -80,3 +80,34 @@
   }
   html body .pricing-rate-wizard.pricing-rate-wizard--new { padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important; }
 }
+
+/* Make the actual mobile Settings control discoverable and keep dense phone
+   toolbars within the viewport; theme remains accessible from Settings. */
+@media (max-width: 479px) {
+  #app .dh-app-topbar > button.group {
+    flex: 0 0 42px;
+    min-width: 42px;
+    max-width: 42px;
+    width: 42px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  #app .dh-app-topbar > .ml-auto {
+    min-width: 0;
+    flex-shrink: 0;
+    margin-left: auto;
+    gap: .125rem;
+  }
+  #app .dh-app-topbar .dh-topbar-settings-mobile {
+    display: inline-flex !important;
+    flex-shrink: 0;
+  }
+  #app .dh-app-topbar .dh-topbar-optional-mobile { display: none !important; }
+  #app .dh-data-table-mobile { display: grid !important; }
+  #app .dh-data-table-desktop { display: none !important; }
+}
+@media (min-width: 480px) and (max-width: 639px) {
+  #app .dh-data-table-mobile { display: grid !important; }
+  #app .dh-data-table-desktop { display: none !important; }
+}
+
