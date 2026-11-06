@@ -10,6 +10,7 @@ import { pricingFtlEditPreservationFinal } from './build/pricingFtlEditPreservat
 import { pricingPersistedEditAttachments20261030 } from './build/pricingPersistedEditAttachments20261030'
 import { pricingWizardStep5ValidityComments } from './build/pricingWizardStep5ValidityComments'
 import { pricingWizardGeneratedTemplateIntegrity } from './build/pricingWizardGeneratedTemplateIntegrity'
+import { pricingModificationSaveBindingGuard } from './build/pricingModificationSaveBindingGuard'
 import { pricingMiamiOwnLclBreakdown } from './build/pricingMiamiOwnLclBreakdown'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
@@ -246,6 +247,7 @@ export default defineConfig({
     pricingWizardFtlEditFreightRestore(),
     pricingFtlEditPreservationFinal(),
     pricingPersistedEditAttachments20261030(),
+    pricingModificationSaveBindingGuard(),
     vue(),
     tailwindcss(),
   ],
