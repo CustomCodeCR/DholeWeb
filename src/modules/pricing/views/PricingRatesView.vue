@@ -980,11 +980,11 @@ onMounted(async () => {
               </div>
 
               <div class="min-w-0 flex-1">
-                <div data-rate-quo-client class="flex min-w-0 flex-wrap items-start gap-3">
+                <div data-rate-quo-client class="flex min-w-0 flex-col items-start gap-2">
                   <span data-rate-quo class="inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-lg dh-bg-primary-soft px-3 py-1.5 text-sm font-black tracking-tight text-[var(--dh-primary)]">
                     {{ row.quoNumber || row.rateCode }}
                   </span>
-                  <span data-rate-client class="min-w-0 flex-1 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
+                  <span data-rate-client class="block w-full min-w-0 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
                     {{ row.clientName || 'Sin cliente' }}
                   </span>
                 </div>
@@ -1176,11 +1176,11 @@ onMounted(async () => {
 
                 <td class="px-3 py-4 align-top">
                   <div class="min-w-0">
-                    <div data-rate-quo-client class="flex min-w-0 flex-wrap items-start gap-3">
+                    <div data-rate-quo-client class="flex min-w-0 flex-col items-start gap-2">
                       <span data-rate-quo class="inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-lg dh-bg-primary-soft px-3 py-1.5 text-sm font-black tracking-tight text-[var(--dh-primary)]">
                         {{ row.quoNumber || row.rateCode }}
                       </span>
-                      <span data-rate-client class="min-w-0 flex-1 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
+                      <span data-rate-client class="block w-full min-w-0 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
                         {{ row.clientName || 'Sin cliente' }}
                       </span>
                     </div>
