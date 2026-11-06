@@ -36,6 +36,8 @@ jobs:
         run: pnpm run test:pricing-rate-update
       - name: CRM and SRM navigation/integration tests
         run: pnpm run test:crm
+      - name: Workspace tabs and service-version regression tests
+        run: pnpm run test:workspace-tabs
       - name: Type-check and build
         run: pnpm run build
       - name: Verify IDTRA action survived production bundle compilation

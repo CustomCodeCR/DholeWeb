@@ -12,6 +12,8 @@ export interface ServiceMonitorResult extends ServiceMonitorDefinition {
   status: 'online' | 'offline' | 'unknown'
   statusCode?: number | null
   latencyMs?: number | null
+  version: string | null
+  versionSource: 'runtime' | 'registered' | 'unavailable'
   checkedAt: string
   errorMessage?: string | null
 }

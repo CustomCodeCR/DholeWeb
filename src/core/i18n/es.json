@@ -499,6 +499,8 @@
     "moveToRight": "Mover al panel derecho",
     "splitWorkspace": "Espacio de trabajo dividido",
     "workspaceTabs": "Pestañas del espacio de trabajo",
+    "more": "Más",
+    "moreTabs": "Otras pestañas",
     "resizeSplit": "Redimensionar paneles",
     "splitHint": "Arrastre una pestaña al panel derecho o use el botón de split.",
     "closePane": "Cerrar panel"
@@ -507,6 +509,8 @@
     "title": "Monitoreo de servicios",
     "subtitle": "Estado técnico de los servicios principales. Solo visible para SuperUsuario.",
     "service": "Servicio",
+    "version": "Versión",
+    "versionSources": { "runtime": "Versión del proceso", "registered": "Versión registrada", "unavailable": "No reportada" },
     "latency": "Latencia",
     "statusCode": "Código HTTP",
     "checkedAt": "Revisado",

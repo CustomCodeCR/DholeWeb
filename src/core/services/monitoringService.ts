@@ -1,4 +1,5 @@
 import type { ServiceMonitorDefinition, ServiceMonitorResult } from '@/core/interfaces/monitoring'
+import { readHealthVersion, readReleaseVersions } from './monitoringVersions'
 
 const gatewayUrl = normalizeBaseUrl((import.meta.env.VITE_API_URL as string | undefined) ?? '')
 
@@ -133,8 +134,19 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
   },
 ]
 
+const registryUrl = gatewayUrl ? `${gatewayUrl}/api/system/versions` : '/api/system/versions'
+
+async function registeredVersions(): Promise<Record<string, string>> {
+  try {
+    const response = await fetch(registryUrl, { method: 'GET', cache: 'no-store' })
+    return response.ok ? readReleaseVersions(await response.json()) : {}
+  } catch {
+    return {}
+  }
+}
+
 export const MonitoringService = {
-  async checkService(service: ServiceMonitorDefinition): Promise<ServiceMonitorResult> {
+  async checkService(service: ServiceMonitorDefinition, registeredVersion: string | null = null): Promise<ServiceMonitorResult> {
     const startedAt = performance.now()
 
     try {
@@ -143,8 +155,19 @@ export const MonitoringService = {
         cache: 'no-store',
       })
 
+      let reportedVersion: string | null = null
+      if (response.ok) {
+        try {
+          reportedVersion = readHealthVersion(await response.clone().json(), response.headers)
+        } catch {
+          reportedVersion = readHealthVersion(null, response.headers)
+        }
+      }
+
       return {
         ...service,
+        version: reportedVersion ?? registeredVersion,
+        versionSource: reportedVersion ? 'runtime' : registeredVersion ? 'registered' : 'unavailable',
         status: response.ok ? 'online' : 'offline',
         statusCode: response.status,
         latencyMs: Math.round(performance.now() - startedAt),
@@ -154,6 +177,8 @@ export const MonitoringService = {
     } catch (error) {
       return {
         ...service,
+        version: registeredVersion,
+        versionSource: registeredVersion ? 'registered' : 'unavailable',
         status: 'offline',
         statusCode: null,
         latencyMs: Math.round(performance.now() - startedAt),
@@ -164,6 +189,7 @@ export const MonitoringService = {
   },
 
   async checkAll(): Promise<ServiceMonitorResult[]> {
-    return Promise.all(serviceMonitors.map((service) => this.checkService(service)))
+    const versions = await registeredVersions()
+    return Promise.all(serviceMonitors.map((service) => this.checkService(service, versions[service.key] ?? null)))
   },
 }
