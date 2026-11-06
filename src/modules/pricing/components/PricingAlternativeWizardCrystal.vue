@@ -4702,7 +4702,8 @@ async function retrySavedModificationDelivery() {
 
 async function saveRate() {
   if (pendingModificationDelivery.value) {
-    await retrySavedModificationDelivery()
+    // Guardar nunca envía una revisión persistida; el envío es una acción separada.
+    toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
     return
   }
 
