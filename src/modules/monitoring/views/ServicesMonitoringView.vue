@@ -16,6 +16,7 @@ const services = ref<ServiceMonitorResult[]>([])
 
 const columns = computed<DhTableColumn<ServiceMonitorResult>[]>(() => [
   { key: 'name', label: t('monitoring.service') },
+  { key: 'version', label: t('monitoring.version'), align: 'center' },
   { key: 'status', label: t('common.status'), align: 'center' },
   { key: 'latencyMs', label: t('monitoring.latency'), align: 'center' },
   { key: 'statusCode', label: t('monitoring.statusCode'), align: 'center' },
@@ -105,6 +106,10 @@ onMounted(load)
             <p class="font-black text-[var(--dh-text)]">{{ row.nameKey ? t(row.nameKey) : row.name }}</p>
             <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.descriptionKey ? t(row.descriptionKey) : row.description }}</p>
           </div>
+        </template>
+
+        <template #cell-version="{ value }">
+          <span class="whitespace-nowrap font-semibold tabular-nums text-[var(--dh-text)]">{{ value || t('monitoring.versionUnavailable') }}</span>
         </template>
 
         <template #cell-status="{ value }">
