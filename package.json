@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.2.4",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "test:crm": "node --test tests/crmFrontend.test.ts tests/crmAgenda.test.ts tests/crmPhone.test.ts tests/srmNavigation.test.ts tests/crmRouteCreditContractUi.test.ts tests/crmAddressLocations.test.ts",
-    "test:workspace-tabs": "node --test tests/workspaceTabsPolicy.test.ts",
+    "test:workspace-tabs": "node --test tests/workspaceTabsPolicy.test.ts tests/workspaceTabsOverflow.test.mjs tests/monitoringVersions.test.ts",
     "test:agent": "node --test tests/agentModule.test.ts tests/agentRouteForm.test.ts tests/maerskOperations.test.ts tests/maerskPhase7Acceptance.test.ts tests/standbyWebFlow.test.ts",
     "test:market-pricing": "node --test tests/marketAutoPricing.test.ts",
     "test:pricing-rate-update": "node --test tests/pricingRateUpdateDetails.test.ts tests/pricingLclFreightUnitSync.test.ts tests/pricingTransportTermScope.test.ts tests/pricingCustomsWizardInit.test.ts tests/pricingCostConditions.test.ts tests/pricingLclColoaderAgentCosts.test.ts tests/pricingSellerModificationSummary.test.ts tests/pricingSellerPricingStepGuard.test.ts tests/pricingStep7FixedCostsAndCustoms.test.ts tests/pricingLineInclusion.test.ts tests/ownLclPoeEligibility.test.ts tests/pricingWizardLclFclParityFix.test.ts tests/pricingLclSourceVisibilityFix.test.ts tests/pricingWizardLandModeTerminology.test.ts tests/pricingWizardHistoricalValidity.test.ts tests/pricingWizardReferences.test.ts tests/pricingPendingPortHandlingTerms.test.ts tests/ltlGamRouting.test.ts tests/pricingPodVat.test.ts tests/pricingInlandServiceLocations.test.ts tests/pricingOwnLclCrcAgency.test.ts tests/pricingWizardStep5ValidityComments.test.ts tests/ownLclUnknownChinaPolFlow.test.ts tests/pricingMiamiOwnLclMinimum.test.ts tests/pricingAcceptedOwnLclHistoricalSelection.test.ts tests/pricingRatesClientQuoLayout.test.mjs tests/pricingWizardAssignIdtraScreen9.test.mjs",
