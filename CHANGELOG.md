@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.4] - 2026-11-06
+
+- Separa Guardar tarifa de Enviar revisión al vendedor sin crear revisiones duplicadas.
+- Valida la existencia de la función de envío después de las transformaciones del wizard y antes de compilar Vue; incorpora regresiones en CI.
+- Renueva los recursos del frontend con versión PATCH para evitar un paquete JavaScript obsoleto.
+
 ## [1.3.3] - 2026-11-06
 
 - La revisión guardada no completa automáticamente una solicitud de modificación; el envío es una acción explícita y separada.
