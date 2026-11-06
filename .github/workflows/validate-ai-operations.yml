@@ -1,0 +1,36 @@
+name: Validate AI operations UI
+on:
+  pull_request:
+    branches: [develop, master]
+    paths:
+      - 'src/modules/ai/views/AiOperationsView.vue'
+      - 'src/core/i18n/es.json'
+      - 'src/core/i18n/en.json'
+      - 'tests/aiQueueCompletedReview.test.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'version.json'
+      - 'CHANGELOG.md'
+      - '.github/workflows/validate-ai-operations.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression-and-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - name: Verify semantic release
+        run: npm run version:check
+      - name: Test AI status classification presentation
+        run: npm run test:ai-operations
+      - name: Type check UI
+        run: npm run type-check
