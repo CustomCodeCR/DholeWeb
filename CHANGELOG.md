@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.3] - 2026-11-06
+
+- Separates saving a Pricing seller-modification revision from explicitly sending it; the request remains open after save.
+- Prevents the wizard from treating a backend auto-closed request as a successful send, and avoids duplicate quote revisions.
+- Requires the operator to choose a cancellation reason and transmits explicit seller-modification cancellation intent.
+- Adds regression checks for explicit completion, cancellation, and request dashboard refresh.
+
+
 ## [1.3.2] - 2026-11-06
 
 - Corrige que Configuración desaparezca en celular: botón visible en la barra superior y acceso secundario en el menú lateral.
