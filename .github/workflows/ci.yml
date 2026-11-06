@@ -29,6 +29,8 @@ jobs:
       # Build before older unrelated Pricing regressions so CI always verifies this UI.
       - name: Workspace tabs and service-version regression tests
         run: pnpm run test:workspace-tabs
+      - name: Mobile layout and locale compliance
+        run: pnpm run test:mobile-i18n
       - name: Type-check and build
         run: pnpm run build
       - name: Verify IDTRA action survived production bundle compilation

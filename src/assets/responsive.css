@@ -274,9 +274,7 @@ body {
     font-size: 16px;
   }
 
-  #app form :where(.grid) {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
+  /* Forms opt into mobile stacking where needed; do not flatten every nested grid. */
 
   #app form :where(.flex):has(> button) {
     flex-wrap: wrap;

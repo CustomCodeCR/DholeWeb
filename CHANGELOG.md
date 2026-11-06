@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1] - 2026-11-06
+
+- Elimina la traducción por IA, su botón, eventos y dependencias de contenido.
+- Completa traducciones ES/EN en navegación, dashboards, reportes y solicitudes de Pricing; formatos de fechas según idioma activo.
+- Corrige responsive en celulares: barra de navegación, pestañas, formularios, tablas, modales y drawers; evita que el resumen fijo tape las acciones.
+- Incorpora pruebas de regresión de idioma y diseño móvil en CI.
+
 ## [1.3.0] - 2026-11-05
 
 - Convierte «Otras pestañas» en un panel integrado que no cubre el contenido, con navegación y cierre accesibles.

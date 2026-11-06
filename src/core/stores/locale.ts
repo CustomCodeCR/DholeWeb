@@ -4,9 +4,14 @@ export type LocaleCode = 'es' | 'en'
 
 const STORAGE_KEY = 'dhole.locale'
 
+function savedLocale(): LocaleCode {
+  const stored = localStorage.getItem(STORAGE_KEY)
+  return stored === 'en' ? 'en' : 'es'
+}
+
 export const useLocale = defineStore('locale', {
   state: () => ({
-    locale: (localStorage.getItem(STORAGE_KEY) as LocaleCode) || 'es',
+    locale: savedLocale(),
   }),
 
   actions: {
