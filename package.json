@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -28,7 +28,8 @@
     "test:pricing-idtra-screen9": "node --test tests/pricingWizardAssignIdtraScreen9.test.mjs",
     "test:pricing-idtra-bundle": "node --test tests/pricingIdtraBundle.test.mjs",
     "test:mobile-i18n": "node --test tests/mobileI18nGuards.test.mjs tests/operationalLabels.test.ts",
-    "test:email-mobile-i18n": "node --test tests/emailInboxMobileI18n.test.mjs"
+    "test:email-mobile-i18n": "node --test tests/emailInboxMobileI18n.test.mjs",
+    "test:ai-operations": "node --test tests/aiQueueCompletedReview.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
