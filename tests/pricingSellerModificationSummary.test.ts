@@ -62,26 +62,28 @@ test('amendments retain original quote details and required header values', () =
   assert.match(wizard, /normalizeCatalogValue\(line\.currencyName\) === 'crc'/)
 })
 
-test('a failed complete-rate never marks a persisted amendment as an unsaved quote', () => {
+test('saving a revision keeps seller amendment open until explicit send', () => {
   const wizard = read('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
   const service = read('src/modules/pricing/services/rateRequestLeaseService.ts')
   const plugin = read('build/pricingSellerModificationWizard.ts')
 
-  const saveStart = wizard.indexOf('async function saveRate() {')
-  const updatePos = wizard.indexOf('await PricingService.updateRate(', saveStart)
-  const preparePos = wizard.indexOf('await RateRequestLeaseService.prepareModification(', updatePos)
-  const completePos = wizard.indexOf('RateRequestLeaseService.completeRate(', preparePos)
-  assert.ok(saveStart >= 0 && updatePos > saveStart && preparePos > updatePos && completePos > preparePos)
-  assert.match(wizard.slice(completePos, completePos + 1500), /CompletedDeliveryRetryPending/)
-  assert.match(wizard.slice(completePos, completePos + 1600), /Revisión guardada; entrega pendiente/)
-  assert.match(wizard.slice(completePos, completePos + 1600), /Revisión guardada; revisar envío/)
-  assert.match(service, /Promise<\{ status\?: string; code\?: string \} \| null>/)
-  assert.match(service, /const completion = response && typeof response === 'object'/)
-  assert.match(service, /persisted.status !== 'Completed'/)
+  const updatePos = wizard.indexOf('await PricingService.updateRate(')
+  const staged = wizard.slice(updatePos, wizard.indexOf('const nextRevision =', updatePos))
+  assert.match(staged, /pendingModificationDelivery\.value = true/)
+  assert.match(staged, /await RateRequestLeaseService\.prepareModification\(/)
+  assert.doesNotMatch(staged, /RateRequestLeaseService\.completeRate\(/)
+  assert.match(staged, /savedRequest\.status !== 'Open'/)
+
+  const retry = wizard.slice(
+    wizard.indexOf('async function retrySavedModificationDelivery()'),
+    wizard.indexOf('async function saveRate()'),
+  )
+  assert.match(retry, /confirmSellerModification: true/)
+  assert.match(retry, /CompletedDeliveryRetryPending/)
+  assert.match(service, /persisted\.status !== 'Completed'/)
   assert.match(service, /return completion/)
-  // The navigation transform must return before attempting another prepare.
-  const index = plugin.indexOf('const stayInRevision =')
-  const navigation = plugin.slice(index, index + 1900)
+
+  const navigation = plugin.slice(plugin.indexOf('const stayInRevision ='), plugin.indexOf('const comparisonPanel ='))
   assert.match(navigation, /if \(props\.modificationRequestId\) \{/)
   assert.match(navigation, /await hydrateExistingRate\(\)[\s\S]*?return[\s\S]*?Legacy query-only/)
 })
