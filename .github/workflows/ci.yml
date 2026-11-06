@@ -20,6 +20,8 @@ jobs:
         run: corepack enable
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Service version monitoring tests
+        run: node --test tests/serviceMonitoringVersion.test.ts
       - name: SEO tests
         run: pnpm run test:seo
       - name: Redirect tests
