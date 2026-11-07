@@ -67,7 +67,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
-import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
+import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete, nextPoeInSelection, nextCarrierRoute } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -652,7 +652,7 @@ async function advanceScreenFive() {
     return
   }
   if (loadingRates.value || switchingPoeRoute.value) return
-  const nextPoeId = selectedPoeIds.value[currentPoeIndex.value + 1]
+  const nextPoeId = nextPoeInSelection(selectedPoeIds.value, form.destinationId)
   if (nextPoeId) {
     await activatePoeRoute(nextPoeId)
     return
@@ -677,7 +677,7 @@ async function advanceSequentialWizard() {
   if (step.value !== 6 && step.value !== 7) return next()
   if (!validateRequiredFields() || !canNext.value) return
   rememberCurrentCarrierDraft()
-  const nextRoute = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + 1]
+  const nextRoute = nextCarrierRoute(selectedCarrierRoutes.value, form.destinationId, form.carrierId)
   if (nextRoute) {
     await activateCarrierRoute(nextRoute.poeId, nextRoute.carrierId)
     await loadCostsForSelectedAlternative()
@@ -6730,7 +6730,7 @@ onMounted(async () => {
                   No hay navieras configuradas. Agréguelas en Configuración → Catálogos → Navieras.
                 </p>
                 <p class="mt-3 text-[11px] font-semibold leading-relaxed text-[var(--dh-text-muted)]">
-                  Puede añadir una opción manual aunque no exista tarifa vigente, o seleccionar una tarifa preaprobada o preautorizada más abajo.
+                  Puede añadir una opción manual aunque no exista tarifa vigente, o seleccionar una tarifa preaprobada o preautorizada arriba.
                 </p>
               </div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-3">
