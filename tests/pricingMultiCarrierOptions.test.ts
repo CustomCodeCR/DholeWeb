@@ -6,6 +6,7 @@ import {
   nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey,
 } from '../src/modules/pricing/utils/pricingMultiCarrierOptions.ts'
 
+import { pricingCurrencyValue } from '../src/modules/pricing/utils/pricingCurrencyValue.ts'
 const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
 const plugin = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
 
@@ -169,4 +170,19 @@ test('approved FCL tariff cards expose pressed status and a visible selected bad
   assert.match(bundles, /:aria-pressed="multiCarrierSelectionMode/)
   assert.match(bundles, /Naviera seleccionada/)
   assert.match(wizard, /currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+})
+
+test('MultiQUO always displays CatalogItem.value and never an internal CUR-2026 code', () => {
+  assert.equal(pricingCurrencyValue('USD', 'CUR-2026-001'), 'USD')
+  assert.equal(pricingCurrencyValue('CRC', 'USD'), 'CRC')
+  assert.equal(pricingCurrencyValue('', 'USD'), 'USD')
+  assert.equal(pricingCurrencyValue(null, 'CUR-2026-001'), '—')
+  assert.match(wizard, /savedRateCurrencyValue\(subRate\)/)
+  assert.match(wizard, /detailCurrencyValue\(line\)/)
+  assert.doesNotMatch(wizard, /subRate\.currencyCode \|\| 'USD'/)
+})
+
+test('screen 8 commercial summary occupies full width with responsive columns', () => {
+  assert.match(wizard, /class="crystal-soft p-5 lg:col-span-2"[^>]*>\s*<p[^>]*>Resumen comercial<\/p>/)
+  assert.match(wizard, /grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4/)
 })
