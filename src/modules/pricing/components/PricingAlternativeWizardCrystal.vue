@@ -334,6 +334,7 @@ const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
+const savedGroupRates = ref<RateDto[]>([])
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
@@ -4323,7 +4324,10 @@ async function hydrateExistingRate() {
     ])
     editingRate.value = rate
     rateRevisions.value = revisions
-    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id).catch(() => null)
+    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id)
+    savedGroupRates.value = savedQuoteGroup.value
+      ? await Promise.all(savedQuoteGroup.value.alternatives.map((option) => PricingService.getRate(option.rateId)))
+      : []
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = true
     const modality = modalityForRate(rate)
@@ -4337,7 +4341,22 @@ async function hydrateExistingRate() {
     form.destinationId = rate.poeId
     form.podId = rate.podId ?? ''
     form.equipmentId = rate.containerTypeId
-    selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
+    selectedPoeIds.value = savedQuoteGroup.value
+      ? [...new Set(savedQuoteGroup.value.alternatives.map((option) => option.poeId))]
+      : form.destinationId ? [form.destinationId] : []
+    if (savedQuoteGroup.value) {
+      selectedCarriersByPoe.value = Object.fromEntries(selectedPoeIds.value.map((poeId) => [
+        poeId,
+        savedQuoteGroup.value!.alternatives.filter((option) => option.poeId === poeId)
+          .map((option) => option.carrierId),
+      ]))
+      const current = savedQuoteGroup.value.alternatives.find((option) => option.rateId === rate.id)
+      if (current) {
+        activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [current.poeId]: current.carrierId }
+        form.merchantHaulage = current.haulageMode === 'Merchant'
+        form.carrierHaulage = current.haulageMode === 'Carrier'
+      }
+    }
     form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
     form.equipmentSize = String(equipmentMeta?.size ?? '')
     form.equipmentType = equipmentHasSizes.value ? String(equipmentMeta?.kind ?? '') : rate.containerTypeId
@@ -7713,7 +7732,7 @@ onMounted(async () => {
           </div>
 
           <div class="grid gap-4 lg:grid-cols-2">
-            <div class="crystal-soft p-5">
+            <div class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
