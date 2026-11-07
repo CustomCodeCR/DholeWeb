@@ -2074,18 +2074,6 @@ function haulageAssociation(line: { name: string }) {
   return null
 }
 
-// A chosen Inland from Costos y recargos is shown with its actual catalog price.
-// When a route has no priced cost, explain that instead of displaying a fictitious
-// zero-priced Inland as though it had been retrieved automatically.
-const selectedHaulageMissingPrice = computed(() => {
-  if (!multiCarrierSelectionMode.value || step.value !== 7) return false
-  const mode = form.merchantHaulage ? 'merchant' : form.carrierHaulage ? 'carrier' : null
-  if (!mode) return false
-  return !rateLines.value.some(line =>
-    haulageAssociation(line) === mode && line.included
-    && (number(line.costAmount) > 0 || number(line.saleAmount) > 0))
-})
-
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
     if (line.costDetailType === 'Insurance' && shipmentModeForApi.value !== 'Ltl') return false
@@ -2104,6 +2092,18 @@ const optionalChargeOptions = computed(() =>
       label: `${line.name} · ${sectionLabel(line.section)}`,
     })),
 )
+// A chosen Inland from Costos y recargos is shown with its actual catalog price.
+// When a route has no priced cost, explain that instead of displaying a fictitious
+// zero-priced Inland as though it had been retrieved automatically.
+const selectedHaulageMissingPrice = computed(() => {
+  if (!multiCarrierSelectionMode.value || step.value !== 7) return false
+  const mode = form.merchantHaulage ? 'merchant' : form.carrierHaulage ? 'carrier' : null
+  if (!mode) return false
+  return !rateLines.value.some(line =>
+    haulageAssociation(line) === mode && line.included
+    && (number(line.costAmount) > 0 || number(line.saleAmount) > 0))
+})
+
 const selectedOptionalChargeKeys = computed<string[]>({
   get: () =>
     selectableOptionalLines.value
