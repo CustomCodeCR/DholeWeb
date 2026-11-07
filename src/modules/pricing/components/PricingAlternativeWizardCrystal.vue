@@ -5906,7 +5906,7 @@ async function saveRate() {
               carrierComments: draft.fields.carrierComments.trim(),
               validTo: draft.fields.validTo || createPayload.validTo,
               details: routeDetails,
-              includes: routeIncludes.join('\\n') || null,
+              includes: routeIncludes.join('\n') || null,
             },
           })
         }
