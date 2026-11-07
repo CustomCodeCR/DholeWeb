@@ -85,6 +85,7 @@ import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignI
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { pricingCurrencyValue } from '@/modules/pricing/utils/pricingCurrencyValue'
+import { haulageAssociation as identifyHaulage } from '@/modules/pricing/utils/pricingHaulageCosts'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { resolveDestinationVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
@@ -2067,11 +2068,20 @@ function isOwnLclMatrixContext() {
 }
 
 function haulageAssociation(line: { name: string }) {
-  const value = normalizeCatalogValue(line.name)
-  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
-  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
-  return null
+  return identifyHaulage(line.name)
 }
+
+// A chosen Inland from Costos y recargos is shown with its actual catalog price.
+// When a route has no priced cost, explain that instead of displaying a fictitious
+// zero-priced Inland as though it had been retrieved automatically.
+const selectedHaulageMissingPrice = computed(() => {
+  if (!multiCarrierSelectionMode.value || step.value !== 7) return false
+  const mode = form.merchantHaulage ? 'merchant' : form.carrierHaulage ? 'carrier' : null
+  if (!mode) return false
+  return !rateLines.value.some(line =>
+    haulageAssociation(line) === mode && line.included
+    && (number(line.costAmount) > 0 || number(line.saleAmount) > 0))
+})
 
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
@@ -3378,7 +3388,11 @@ addVariableSectionFallback(
 
   const addHaulageOption = (key: string, name: string) => {
     if (!visible.has('destination_charges')) return
-    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(name))) return
+    const mode = identifyHaulage(name)
+    // A genuine route-specific configured cost (e.g. Inland Caldera a GAM
+    // Naviera) must win over the old generic, zero-priced placeholder.
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(name)
+      || (mode && line.costId && haulageAssociation(line) === mode))) return
     lines.push({
       key,
       section: 'destination_charges',
@@ -3623,9 +3637,13 @@ function syncHaulageOptionalLines() {
     const association = haulageAssociation(line)
     if (!association) return
 
-    line.included =
+    const selected =
       (association === 'merchant' && form.merchantHaulage) ||
       (association === 'carrier' && form.carrierHaulage)
+    // Auto-select real, priced charges. An unpriced fallback remains visible
+    // for manual entry but must not enter totals as a valid zero Inland.
+    line.included = selected && (Boolean(line.costId)
+      || number(line.costAmount) > 0 || number(line.saleAmount) > 0)
 
     if (!line.included) {
       line.applyDestinationTax = false
@@ -7354,6 +7372,9 @@ onMounted(async () => {
             </div>
             <button type="button" :aria-pressed="form.merchantHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.merchantHaulage }" @click="toggleMerchantHaulage"><Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant Haulage</button>
             <button type="button" :aria-pressed="form.carrierHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.carrierHaulage }" @click="toggleCarrierHaulage"><Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier Haulage</button>
+            <p v-if="selectedHaulageMissingPrice" class="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-300">
+              El Inland seleccionado todavía no tiene costo y venta aplicables a este POE y naviera. Revise los cargos configurados o complete un Inland manual antes de guardar.
+            </p>
           </div>
           <div v-if="storageServiceSelected" class="crystal-soft p-4">
             <div class="grid gap-3 md:grid-cols-2 md:items-center">
