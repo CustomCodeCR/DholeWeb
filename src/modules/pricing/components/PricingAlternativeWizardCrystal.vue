@@ -7943,25 +7943,31 @@ onMounted(async () => {
       </template>
     </section>
 
-    <div class="crystal-footer flex items-center justify-between gap-3 p-3" :class="{ 'crystal-footer--pinned': multiCarrierSelectionMode && step >= 5 }" role="navigation" aria-label="Navegación de cotización">
-      <DhButton variant="secondary" :disabled="step === 1 || saving || switchingPoeRoute" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()">
+    <nav v-if="multiCarrierSelectionMode && step >= 5 && step <= 8" class="crystal-fcl-fixed-nav flex items-center justify-between gap-3 rounded-2xl p-3" aria-label="Anterior y siguiente POE y naviera FCL">
+      <DhButton variant="secondary" :disabled="saving || switchingPoeRoute" @click="previousSequentialWizard">
         <ChevronLeft class="h-4 w-4" />
-        {{ multiCarrierSelectionMode && step === 5 ? (currentPoeIndex > 0 ? 'POE anterior' : 'Volver a ruta') :
-           multiCarrierSelectionMode && (step === 6 || step === 7) ? (selectedCarrierRouteIndex > 0 ? 'Naviera anterior' : 'Etapa anterior') :
-           multiCarrierSelectionMode && step === 8 ? 'Última subtarifa' : 'Atrás' }}
+        {{ step === 5 ? (currentPoeIndex > 0 ? 'POE anterior' : 'Volver a ruta') :
+          step === 6 || step === 7 ? (selectedCarrierRouteIndex > 0 ? 'Naviera anterior' : 'Etapa anterior') :
+          'Última subtarifa' }}
       </DhButton>
       <div class="min-w-0 text-center text-xs font-black text-[var(--dh-text-muted)]">
-        <span class="block tracking-[0.14em]">{{ step }} / {{ maxStep }}</span>
-        <span v-if="multiCarrierSelectionMode && step >= 5 && step <= 7" class="mt-0.5 block max-w-[250px] truncate font-semibold normal-case tracking-normal">
-          {{ step === 5 ? 'POE ' + (currentPoeIndex + 1) + ' de ' + selectedPoeIds.length :
-            'Ruta ' + activeCarrierRoutePosition + ' de ' + carrierRouteCount }}
-          · {{ displayValue(selectedDestination) }}
-        </span>
-        <button v-if="multiCarrierSelectionMode && step >= 5" type="button" class="mt-1 text-[11px] font-bold text-[var(--dh-primary)] underline underline-offset-2" @click="goToStep(3)">Editar POE / POD</button>
+        <span class="block tracking-[0.1em]">Pantalla {{ step }} / {{ maxStep }}</span>
+        <span v-if="step <= 7" class="mt-0.5 block truncate text-[10px] font-semibold normal-case tracking-normal">{{ step === 5
+          ? 'POE ' + (currentPoeIndex + 1) + '/' + selectedPoeIds.length
+          : 'Naviera ' + activeCarrierRoutePosition + '/' + carrierRouteCount }} · {{ displayValue(selectedDestination) }}</span>
+        <button type="button" class="mt-1 text-[11px] font-bold text-[var(--dh-primary)] underline underline-offset-2" @click="goToStep(3)">Editar POE / POD</button>
       </div>
+      <DhButton v-if="step === 5" :disabled="!currentPoeCarrierIds.length || saving || loadingRates || switchingPoeRoute" @click="advanceSequentialWizard">{{ isLastPoeSelection ? 'Configurar navieras' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="step === 6 || step === 7" :disabled="saving || loadingRates || switchingPoeRoute" @click="advanceSequentialWizard">{{ selectedCarrierRouteIndex < carrierRouteCount - 1 ? 'Siguiente naviera' : step === 6 ? 'Ir a costos' : 'Ver subtarifas' }} <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="step === 8" :disabled="saving || uploadingFinalBackups || saveButtonWorking" @click="handleSaveRateClick"><Check class="h-4 w-4" /> {{ saving ? 'Procesando…' : 'Crear tarifa' }}</DhButton>
+    </nav>
+
+    <div class="crystal-footer flex items-center justify-between gap-3 p-3">
+      <DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
+      <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
       <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && step === 5" :disabled="!currentPoeCarrierIds.length || loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ isLastPoeSelection ? 'Configurar alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ selectedCarrierRouteIndex < carrierRouteCount - 1 ? 'Siguiente naviera' : (step === 6 ? 'Continuar a costos' : 'Revisar subtarifas') }} <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">Continuar {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
@@ -7983,12 +7989,13 @@ onMounted(async () => {
   padding-bottom: 0.5rem;
 }
 
-.pricing-crystal-shell--pinned {
+ .pricing-crystal-shell--pinned {
   padding-bottom: 7.5rem;
 }
+.pricing-crystal-shell--pinned .crystal-footer { display: none; }
 
 /* The bar follows the user while selecting POE and configuring every FCL carrier. */
-.crystal-footer--pinned {
+.crystal-fcl-fixed-nav {
   position: fixed;
   bottom: max(0.75rem, env(safe-area-inset-bottom));
   left: clamp(280px, 20vw, 360px);
@@ -7999,11 +8006,11 @@ onMounted(async () => {
   box-shadow: 0 12px 40px rgb(0 0 0 / 0.2);
 }
 @media (max-width: 1024px) {
-  .crystal-footer--pinned { left: 15rem; right: 1rem; }
+  .crystal-fcl-fixed-nav { left: 15rem; right: 1rem; }
 }
 @media (max-width: 767px) {
-  .crystal-footer--pinned { left: 0.65rem; right: 0.65rem; bottom: max(0.65rem, env(safe-area-inset-bottom)); }
-  .crystal-footer--pinned :deep(button) { font-size: 0.72rem; }
+  .crystal-fcl-fixed-nav { left: 0.65rem; right: 0.65rem; bottom: max(0.65rem, env(safe-area-inset-bottom)); }
+  .crystal-fcl-fixed-nav :deep(button) { font-size: 0.72rem; }
 }
 
 .crystal-orb {
@@ -8530,7 +8537,7 @@ onMounted(async () => {
     background: color-mix(in srgb, var(--dh-card) 96%, transparent);
     backdrop-filter: blur(20px);
   }
-  .crystal-footer--pinned {
+  .crystal-fcl-fixed-nav {
     position: fixed;
     bottom: max(0.65rem, env(safe-area-inset-bottom));
     left: 0.65rem;
