@@ -130,3 +130,41 @@ test('Screen 8 summarizes each independent subtariff, not the active one as a wh
   const parity = readFileSync(new URL('../build/pricingWizardUiParity.ts', import.meta.url), 'utf8')
   assert.match(parity, /v-if="!multiCarrierSelectionMode \|\| carrierRouteCount === 1"/)
 })
+
+test('FCL-only multi-POE controls keep single POE for LCL and other modalities', () => {
+  assert.match(wizard, /form\.modality === 'Maritime' && shipmentModeForApi === 'Fcl'/)
+  assert.match(wizard, /const multiCarrierSelectionMode = computed/)
+  assert.match(wizard, /shipmentModeForApi\.value === 'Fcl'/)
+})
+
+test('all wizard navigation remains sticky and names previous/next POE or carrier', () => {
+  assert.match(wizard, /crystal-footer--sticky/)
+  assert.match(wizard, /position: sticky/)
+  assert.match(wizard, /previousWizardAction/)
+  assert.match(wizard, /nextWizardAction/)
+  assert.match(wizard, /Siguiente alternativa/)
+  assert.match(wizard, /Alternativa anterior/)
+})
+
+test('FCL route review follows standard full-width collapsible layout per subtariff', () => {
+  assert.match(wizard, /v-for="preview in alternativePreviewCards"/)
+  assert.match(wizard, /<details v-for="preview in alternativePreviewCards"/)
+  assert.match(wizard, /Desglose comercial/)
+  assert.match(wizard, /<table class="w-full min-w-\[650px\]/)
+  assert.match(wizard, /Las tarifas son opciones independientes/)
+})
+
+test('haulage switches are present for each alternative on screen seven', () => {
+  assert.match(wizard, /Cargos Merchant \/ Carrier/)
+  assert.match(wizard, /toggleMerchantHaulage/)
+  assert.match(wizard, /toggleCarrierHaulage/)
+  assert.match(wizard, /syncHaulageOptionalLines\(\)/)
+  assert.match(wizard, /reloadCurrentAlternativeCosts\(\)/)
+})
+
+test('approved FCL tariff cards expose pressed status and a visible selected badge', () => {
+  const bundles = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
+  assert.match(bundles, /:aria-pressed="multiCarrierSelectionMode/)
+  assert.match(bundles, /Naviera seleccionada/)
+  assert.match(wizard, /currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+})
