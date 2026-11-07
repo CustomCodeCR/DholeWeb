@@ -5874,6 +5874,10 @@ onMounted(async () => {
             <p class="crystal-kicker">Pantalla 3</p>
             <h2 class="crystal-title">{{ form.modality === 'Land' ? 'Ruta, furgón, Incoterm y servicios' : 'Ruta, equipo, Incoterm y servicios' }}</h2>
             <p class="crystal-description">Seleccione el tipo comercial y luego complete la ruta. Un SPOT se vuelve a cotizar al duplicarse; un TARIFARIO conserva su snapshot cuando un cliente lo acepta.</p>
+            <p v-if="selectedPoeIds.length > 1 && !isEditing" class="text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">
+              {{ selectedPoeIds.length }} POE seleccionados. En las pantallas de tarifa podrá consultar cada puerto desde su pestaña independiente.
+              La creación agrupada de sub-QUO requiere la API transaccional; el sistema no guardará solo una ruta por error.
+            </p>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
@@ -5983,10 +5987,6 @@ onMounted(async () => {
             </div>
 
             <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
-            <p v-if="selectedPoeIds.length > 1 && !isEditing" class="text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">
-              {{ selectedPoeIds.length }} POE seleccionados. En las pantallas de tarifa podrá consultar cada puerto desde su pestaña independiente.
-              La creación agrupada de sub-QUO requiere la API transaccional; el sistema no guardará solo una ruta por error.
-            </p>
             <div class="grid gap-4 md:grid-cols-3">
               <DhSelect
                 v-if="equipmentHasSizes"
