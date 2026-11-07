@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.0] - 2026-11-07 (en validación)
+
+- Borradores preservan selección completa de POE/POD, navieras, líneas y Merchant/Carrier para cada alternativa.
+- FCL evita doble flete internacional; carga los costos opcionales correspondientes a la opción elegida.
+- Cliente/ejecutivo en todo el ancho y navegación por opciones de subQUO guardadas.
+- MultiQUO transaccional DholePricingService 1.5.0, con selección exclusiva y aceptación protegida.
+- Release DH-20261107-PRICING-MULTIQUO-025. CI/staging pendiente; producción no autorizada.
+
+
 ## [1.10.1] - 2026-11-07
 
 - Restringe selección múltiple de POE, alternativas por naviera y sub-QUO a marítimo FCL. Cambiar a LCL, terrestre o aéreo limpia la cola de alternativas FCL.
