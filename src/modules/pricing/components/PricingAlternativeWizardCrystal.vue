@@ -474,6 +474,7 @@ interface PoeRouteDraft {
   fields: Pick<typeof form, PerPoeField>
   rates: ImportRateSelectDto[]
   lines: RateLine[]
+  costs?: CostSelectDto[]
 }
 const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
 
@@ -503,6 +504,43 @@ const multiCarrierSelectionMode = computed(() =>
   && selectedPoeIds.value.length > 0,
 )
 const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
+const manualCarrierSearch = ref('')
+const filteredManualCarrierOptions = computed(() => {
+  const search = manualCarrierSearch.value.trim().toLocaleLowerCase()
+  return search
+    ? carrierOptions.value.filter((option) => option.label.toLocaleLowerCase().includes(search))
+    : carrierOptions.value
+})
+const selectedCarrierRouteIndex = computed(() =>
+  selectedCarrierRoutes.value.findIndex(
+    (route) => route.poeId === form.destinationId
+      && route.carrierId === activeCarrierByPoe.value[form.destinationId],
+  ),
+)
+const activeCarrierRoutePosition = computed(() => Math.max(0, selectedCarrierRouteIndex.value) + 1)
+const currentRouteLabel = computed(() =>
+  [displayValue(findById(catalogs.poe, form.destinationId)), displayValue(findById(catalogs.carriers, form.carrierId))]
+    .filter(Boolean).join(' · '),
+)
+const configuredCarrierCount = computed(() => selectedCarrierRoutes.value.filter(({ poeId, carrierId }) => {
+  const values = poeId === form.destinationId && carrierId === form.carrierId
+    ? form
+    : optionDrafts.value[carrierRouteKey(poeId, carrierId)]?.fields
+  return Boolean(values?.agentId && values?.currencyId && values?.carrierId)
+}).length)
+function toggleManualCarrier(carrierId: string) {
+  if (!multiCarrierSelectionMode.value) return
+  const next = currentPoeCarrierIds.value.includes(carrierId)
+    ? currentPoeCarrierIds.value.filter((id) => id !== carrierId)
+    : [...currentPoeCarrierIds.value, carrierId]
+  setCurrentPoeCarrierIds(next)
+}
+async function moveToManualCarrier(delta: number) {
+  const target = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + delta]
+  if (!target) return
+  await activateCarrierRoute(target.poeId, target.carrierId)
+}
+
 const carrierRouteCount = computed(() =>
   selectedPoeIds.value.reduce((total, id) => total + (selectedCarriersByPoe.value[id]?.length ?? 0), 0),
 )
@@ -536,41 +574,54 @@ function rememberCurrentCarrierDraft() {
     fields: { ...fields, carrierId },
     rates: [...availableRates.value],
     lines: copyPoeLines(rateLines.value),
+    costs: [...costs.value],
   }
 }
 
 async function activateCarrierRoute(poeId: string, carrierId: string) {
-  if (!multiCarrierSelectionMode.value || loadingRates.value) return
+  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value) return
   if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
-  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId) return
+  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId && form.carrierId === carrierId) return
   rememberCurrentCarrierDraft()
   if (poeId !== form.destinationId) await activatePoeRoute(poeId)
   switchingPoeRoute.value = true
-  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
-  const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
-  if (draft) {
-    Object.assign(form, draft.fields)
-    rateLines.value = copyPoeLines(draft.lines)
-  } else {
-    Object.assign(form, {
-      carrierId, selectedImportRateId: '', manualRate: true,
-      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
-      carrierRoute: '', carrierComments: '',
-      merchantHaulage: false, carrierHaulage: false,
-    })
-    rateLines.value = []
+  try {
+    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
+    const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
+    if (draft) {
+      Object.assign(form, draft.fields)
+      rateLines.value = copyPoeLines(draft.lines)
+      costs.value = [...(draft.costs ?? [])]
+    } else {
+      Object.assign(form, {
+        carrierId, agentId: '', selectedImportRateId: '', manualRate: true,
+        freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
+        carrierRoute: '', carrierComments: '',
+        merchantHaulage: false, carrierHaulage: false,
+      })
+      rateLines.value = []
+      costs.value = []
+    }
+    // Every option is manually quoted, regardless of old pre-approved cards.
+    form.selectedImportRateId = ''
+    form.manualRate = true
+    form.carrierId = carrierId
+    restoreFclBundleForOption?.(poeId, carrierId)
+    await nextTickForPoe()
+    if (step.value === 7 && !draft?.costs) {
+      await loadApplicableCosts()
+      rebuildRateLines()
+    }
+  } finally {
+    switchingPoeRoute.value = false
   }
-  form.carrierId = carrierId
-  restoreFclBundleForOption?.(poeId, carrierId)
-  await nextTickForPoe()
-  switchingPoeRoute.value = false
 }
 
 function setCurrentPoeCarrierIds(ids: string[]) {
   if (!multiCarrierSelectionMode.value || !form.destinationId) return
+  const poeId = form.destinationId
   rememberCurrentCarrierDraft()
   const next = normalizePoeCarrierIds(ids, catalogs.carriers.map((item) => item.id))
-  const poeId = form.destinationId
   const previous = selectedCarriersByPoe.value[poeId] ?? []
   selectedCarriersByPoe.value = { ...selectedCarriersByPoe.value, [poeId]: next }
   for (const carrierId of previous.filter((id) => !next.includes(id))) {
@@ -578,11 +629,13 @@ function setCurrentPoeCarrierIds(ids: string[]) {
     delete optionDrafts.value[key]
     delete selectedBundleByOption.value[key]
   }
-  if (!next.includes(activeCarrierByPoe.value[poeId] ?? '')) {
+  const active = activeCarrierByPoe.value[poeId] ?? ''
+  if (active && !next.includes(active)) {
     activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: '' }
     form.carrierId = ''
-    if (next[0]) void activateCarrierRoute(poeId, next[0])
   }
+  // Selecting navieras never navigates automatically or steals focus.
+  // All selected carriers remain available when continuing to Screen 6.
 }
 
 function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
@@ -615,7 +668,14 @@ async function continueWithSelectedCarriers() {
   rememberCurrentCarrierDraft()
   const first = selectedCarrierRoutes.value[0]
   if (!first) return
+  // Clear an old pre-approved selection before creating independent manual options.
+  form.selectedImportRateId = ''
+  form.manualRate = true
   await activateCarrierRoute(first.poeId, first.carrierId)
+  if (form.destinationId !== first.poeId || form.carrierId !== first.carrierId) {
+    toastStore.warning('Ruta no activa', 'Seleccione nuevamente la primera opción POE–naviera.')
+    return
+  }
   step.value = 6
 }
 
@@ -628,13 +688,14 @@ function rememberActivePoe() {
     fields,
     rates: [...availableRates.value],
     lines: copyPoeLines(rateLines.value),
+    costs: [...costs.value],
   }
 }
 
 async function activatePoeRoute(destinationId: string) {
   // A pending preapproved-rate lookup must finish before changing tabs: the
   // legacy Panama quotation resolver also shares availableRates state.
-  if (loadingRates.value) return
+  if (loadingRates.value && !multiCarrierSelectionMode.value) return
   if (form.destinationId === destinationId
       || (destinationId && !selectedPoeIds.value.includes(destinationId))) return
   rememberActivePoe()
@@ -644,6 +705,7 @@ async function activatePoeRoute(destinationId: string) {
   form.destinationId = destinationId
   availableRates.value = cached ? [...cached.rates] : []
   rateLines.value = cached ? copyPoeLines(cached.lines) : []
+  costs.value = cached ? [...(cached.costs ?? [])] : []
   if (cached) {
     Object.assign(form, cached.fields)
   } else {
@@ -667,8 +729,8 @@ async function activatePoeRoute(destinationId: string) {
   }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
   switchingPoeRoute.value = false
-  if (!cached && destinationId && step.value > 5) step.value = 5
-  if (!cached && destinationId && step.value === 5) await searchApprovedRates()
+  if (!cached && destinationId && step.value > 5 && !multiCarrierSelectionMode.value) step.value = 5
+  if (!cached && destinationId && step.value === 5 && !multiCarrierSelectionMode.value) await searchApprovedRates()
 }
 
 function setSelectedPoeIds(values: string[]) {
@@ -4473,7 +4535,11 @@ async function next() {
 
   if (!props.viewOnly && !validateRequiredFields()) return
   if (!canNext.value) return
-  if (step.value === 4) await searchApprovedRates()
+  if (step.value === 4 && !multiCarrierSelectionMode.value) await searchApprovedRates()
+  if (step.value === 5 && multiCarrierSelectionMode.value) {
+    await continueWithSelectedCarriers()
+    return
+  }
   if (step.value === 6) {
     await loadApplicableCosts()
     rebuildRateLines()
