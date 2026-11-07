@@ -2327,6 +2327,8 @@ const alternativePreviewCards = computed(() => selectedCarrierRoutes.value.map((
     agentId: active ? form.agentId : (draft?.fields.agentId ?? ''),
     imported: Boolean(active ? form.selectedImportRateId : draft?.fields.selectedImportRateId),
     lines, costUsd, saleUsd, utilityUsd: saleUsd - costUsd,
+    saleCrc: convertUsdCrc(saleUsd, 'USD', 'CRC'),
+    utilityCrc: convertUsdCrc(saleUsd - costUsd, 'USD', 'CRC'),
     margin: saleUsd > 0 ? ((saleUsd - costUsd) / saleUsd) * 100 : 0,
     ready: lines.length > 0 && Boolean(active ? form.agentId : draft?.fields.agentId),
   }
@@ -7474,71 +7476,70 @@ onMounted(async () => {
             <p class="crystal-description">{{ multiCarrierSelectionMode && carrierRouteCount > 1 ? 'Revise cada POE y naviera con sus cifras independientes. Puede editar cualquier alternativa desde su tarjeta.' : 'Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.' }}</p>
           </div>
 
-          <section v-if="multiCarrierSelectionMode && carrierRouteCount > 1" class="space-y-4" aria-label="Tarifa principal y subtarifas">
-            <div class="rounded-2xl border border-[var(--dh-primary)]/30 bg-[rgb(var(--dh-primary-rgb)/0.06)] p-4 md:p-5">
-              <div class="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p class="text-xs font-black uppercase tracking-wider text-[var(--dh-primary)]">Cotización principal · borrador del grupo</p>
-                  <h3 class="mt-2 text-xl font-black text-[var(--dh-text)]">{{ carrierRouteCount }} subtarifas independientes</h3>
-                  <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Cada POE y naviera conserva sus propias líneas, proveedor, flete, costos y venta. Los importes de abajo corresponden a cada alternativa, no a una única tarifa.</p>
-                </div>
-                <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-center">
-                  <span class="block text-xs text-[var(--dh-text-muted)]">Destinos seleccionados</span>
-                  <strong class="text-xl">{{ selectedPoeIds.length }}</strong>
-                </div>
+          <section v-if="multiCarrierSelectionMode && carrierRouteCount > 1" class="space-y-3" aria-label="Tarifa principal y subtarifas FCL">
+            <div class="crystal-soft flex flex-wrap items-center justify-between gap-3 p-4 md:p-5">
+              <div>
+                <p class="text-xs font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Tarifa principal · FCL</p>
+                <h3 class="mt-1 text-lg font-black">Desglose comercial por POE y naviera</h3>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Expanda cada alternativa para ver las mismas líneas que en una tarifa individual, con sus costos y ventas independientes.</p>
               </div>
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span v-for="poeId in selectedPoeIds" :key="'summary-poe:' + poeId" class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1.5 text-xs font-bold">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
-                <span class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1.5 text-xs font-bold">POD: {{ displayValue(selectedPod) || 'Pendiente' }}</span>
+              <div class="flex flex-wrap gap-2">
+                <DhBadge variant="primary">{{ selectedPoeIds.length }} POE</DhBadge>
+                <DhBadge variant="neutral">{{ carrierRouteCount }} subtarifas FCL</DhBadge>
               </div>
             </div>
-
-            <div class="grid gap-4 lg:grid-cols-2">
-              <article v-for="preview in alternativePreviewCards" :key="preview.key" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:p-5">
-                <div class="flex items-start justify-between gap-3">
+            <details v-for="preview in alternativePreviewCards" :key="preview.key" :open="preview.index === 0" class="crystal-soft group overflow-hidden rounded-[20px]">
+              <summary class="flex cursor-pointer flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-5" :aria-label="'Desplegar subtarifa ' + (preview.index + 1)">
+                <div class="flex min-w-0 flex-1 items-center gap-3">
+                  <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-base font-black text-[var(--dh-primary)]">{{ preview.index + 1 }}</span>
                   <div class="min-w-0">
-                    <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Subtarifa {{ preview.index + 1 }} de {{ carrierRouteCount }}</p>
-                    <h4 class="mt-1 text-lg font-black text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, preview.poeId)) }}</h4>
-                    <p class="mt-1 text-sm font-bold text-[var(--dh-primary)]">{{ displayValue(findById(catalogs.carriers, preview.carrierId)) }}</p>
-                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, preview.agentId)) || 'Sin asignar' }}</p>
-                  </div>
-                  <DhBadge :variant="preview.imported ? 'success' : 'neutral'">{{ preview.imported ? 'Tarifa cargada' : 'Manual' }}</DhBadge>
-                </div>
-                <div class="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-[var(--dh-input)] p-3">
-                  <div>
-                    <span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Costo USD</span>
-                    <strong class="text-sm">{{ formatMoney(preview.costUsd, 'USD') }}</strong>
-                  </div>
-                  <div>
-                    <span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Venta USD</span>
-                    <strong class="text-sm">{{ formatMoney(preview.saleUsd, 'USD') }}</strong>
-                  </div>
-                  <div>
-                    <span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Utilidad USD</span>
-                    <strong class="text-sm" :class="preview.utilityUsd < 0 ? 'text-red-500' : 'text-[var(--dh-primary)]'">{{ formatMoney(preview.utilityUsd, 'USD') }}</strong>
+                    <span class="block text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Subtarifa {{ preview.index + 1 }} de {{ carrierRouteCount }} · {{ preview.imported ? 'Tarifa cargada' : 'Manual' }}</span>
+                    <strong class="mt-1 block break-words text-base">{{ displayValue(findById(catalogs.poe, preview.poeId)) || preview.poeId }} · {{ displayValue(findById(catalogs.carriers, preview.carrierId)) || preview.carrierId }}</strong>
+                    <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, preview.agentId)) || 'Pendiente' }} · {{ preview.lines.length }} rubros · Margen {{ preview.margin.toFixed(2) }}%</span>
                   </div>
                 </div>
-                <div class="mt-3 flex items-center justify-between text-xs">
-                  <span class="font-semibold text-[var(--dh-text-muted)]">{{ preview.lines.length }} rubros · Margen {{ preview.margin.toFixed(2) }}%</span>
-                  <span :class="preview.ready ? 'text-[var(--dh-primary)]' : 'text-amber-500'" class="font-bold">{{ preview.ready ? 'Configurada' : 'Revisar datos' }}</span>
+                <div class="flex flex-wrap items-center gap-4 sm:gap-6">
+                  <div class="text-right"><span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Costo USD</span><strong>{{ formatMoney(preview.costUsd, 'USD') }}</strong></div>
+                  <div class="text-right"><span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Venta USD</span><strong class="text-[var(--dh-primary)]">{{ formatMoney(preview.saleUsd, 'USD') }}</strong></div>
+                  <div class="text-right"><span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Utilidad USD</span><strong>{{ formatMoney(preview.utilityUsd, 'USD') }}</strong></div>
+                  <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" />
                 </div>
-                <details class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-                  <summary class="cursor-pointer text-xs font-black">Ver {{ preview.lines.length }} líneas de esta subtarifa</summary>
-                  <div class="mt-3 max-h-60 space-y-2 overflow-auto">
-                    <div v-for="line in preview.lines" :key="preview.key + ':' + line.key" class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] pb-2 text-xs last:border-b-0">
-                      <span class="min-w-0 flex-1">{{ line.name }}</span>
-                      <strong class="shrink-0">{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), line.currencyCode || line.currencyName || 'USD') }}</strong>
-                    </div>
-                    <p v-if="!preview.lines.length" class="text-xs text-amber-500">No se han configurado los rubros de esta alternativa.</p>
+              </summary>
+              <div class="border-t border-[var(--dh-border)]">
+                <div class="grid gap-2 border-b border-[var(--dh-border)] bg-[rgb(var(--dh-primary-rgb)/0.035)] px-4 py-3 text-xs sm:grid-cols-3">
+                  <div><span class="block text-[10px] uppercase text-[var(--dh-text-muted)]">Presentación comercial</span><strong>Desglose por rubros</strong></div>
+                  <div><span class="block text-[10px] uppercase text-[var(--dh-text-muted)]">Venta CRC equivalente</span><strong>{{ formatMoney(preview.saleCrc, 'CRC') }}</strong></div>
+                  <div><span class="block text-[10px] uppercase text-[var(--dh-text-muted)]">Utilidad CRC equivalente</span><strong>{{ formatMoney(preview.utilityCrc, 'CRC') }}</strong></div>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full min-w-[770px] text-left text-xs">
+                    <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">
+                      <tr><th class="px-4 py-3">Rubro</th><th class="px-3 py-3">Base</th><th class="px-3 py-3 text-right">Cant.</th><th class="px-3 py-3">Divisa</th><th class="px-3 py-3 text-right">Costo unit.</th><th class="px-3 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="line in preview.lines" :key="preview.key + ':' + line.key" class="border-t border-[var(--dh-border)]">
+                        <td class="px-4 py-3"><strong>{{ line.name }}</strong><p v-if="line.notes" class="mt-1 max-w-xs whitespace-pre-wrap text-[10px] text-[var(--dh-text-muted)]">{{ line.notes }}</p></td>
+                        <td class="px-3 py-3">{{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}</td>
+                        <td class="px-3 py-3 text-right">{{ quantityForRateLine(line) }}</td>
+                        <td class="px-3 py-3">{{ line.currencyCode || line.currencyName }}</td>
+                        <td class="px-3 py-3 text-right">{{ formatMoney(number(line.costAmount), line.currencyCode || 'USD') }}</td>
+                        <td class="px-3 py-3 text-right">{{ formatMoney(number(line.saleAmount), line.currencyCode || 'USD') }}</td>
+                        <td class="px-4 py-3 text-right font-black">{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), line.currencyCode || 'USD') }}</td>
+                      </tr>
+                      <tr v-if="!preview.lines.length"><td colspan="7" class="px-4 py-6 text-center text-amber-600">Sin cargos configurados.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] px-4 py-3">
+                  <span class="text-xs font-bold" :class="preview.ready ? 'text-[var(--dh-primary)]' : 'text-amber-600'">{{ preview.ready ? 'Configurada' : 'Revisar proveedor y costos' }}</span>
+                  <div class="flex gap-2">
+                    <DhButton variant="secondary" size="sm" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 6)">Editar proveedor</DhButton>
+                    <DhButton variant="secondary" size="sm" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 7)">Editar costos</DhButton>
                   </div>
-                </details>
-                <div class="mt-4 flex flex-wrap gap-2">
-                  <DhButton variant="secondary" size="sm" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 6)">Editar proveedor</DhButton>
-                  <DhButton variant="secondary" size="sm" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 7)">Editar costos</DhButton>
                 </div>
-              </article>
-            </div>
-            <p class="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Las alternativas se conservan separadas en el asistente. La creación definitiva de la QUO principal y todas sus sub-QUO requiere una operación transaccional del backend de Pricing, que continúa pendiente.</p>
+              </div>
+            </details>
+            <p class="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Este es el borrador de las alternativas FCL. La creación de la QUO principal y las sub-QUO sigue protegida hasta que Pricing disponga del guardado transaccional, para evitar registros parciales.</p>
           </section>
 
           <div v-if="!multiCarrierSelectionMode || carrierRouteCount === 1" class="crystal-soft p-5">
@@ -7599,7 +7600,7 @@ onMounted(async () => {
           </div>
 
           <div class="grid gap-4 lg:grid-cols-2">
-            <div class="crystal-soft p-5">
+            <div class="crystal-soft p-5" :class="{ 'lg:col-span-2': multiCarrierSelectionMode && carrierRouteCount > 1 }">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
