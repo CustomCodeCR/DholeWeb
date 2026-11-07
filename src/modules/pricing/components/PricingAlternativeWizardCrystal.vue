@@ -6652,7 +6652,7 @@ onMounted(async () => {
         <div v-else-if="step === 5" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 5</p>
-            <h2 class="crystal-title">{{ multiCarrierSelectionMode ? 'Elegir navieras y opciones de tarifa' : 'Tarifas pre-aprobadas disponibles' }}</h2>
+            <h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
             <p v-if="multiCarrierSelectionMode" class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">Puede combinar tarifas preaprobadas, preautorizadas y opciones manuales para cada POE.</p>
           </div>
@@ -6806,17 +6806,19 @@ onMounted(async () => {
                 </span>
               </button>
             </div>
-            <div class="flex justify-end">
-              <DhButton v-if="!multiCarrierSelectionMode" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+            <div v-if="!multiCarrierSelectionMode">
+              <div class="flex justify-end">
+                <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+              </div>
             </div>
           </template>
 
           <div v-else class="crystal-empty p-9 text-center">
             <p class="text-lg font-black">{{ multiCarrierSelectionMode ? 'No hay tarifas preaprobadas para este POE' : 'No existen tarifas vigentes para esa ruta y equipo' }}</p>
             <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ multiCarrierSelectionMode ? 'Puede añadir manualmente las navieras arriba y continuar con sus costos.' : 'Puede guardar la solicitud como Abierta para que Pricing la procese después, o continuar de manera manual.' }}</p>
-            <div class="mt-5 flex flex-wrap justify-center gap-2">
-              <DhButton v-if="!multiCarrierSelectionMode" :disabled="saving" @click="saveOpenRequest">{{ saving ? 'Guardando…' : 'Guardar solicitud abierta' }}</DhButton>
-              <DhButton v-if="!multiCarrierSelectionMode" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+            <div v-if="!multiCarrierSelectionMode" class="mt-5 flex flex-wrap justify-center gap-2">
+              <DhButton :disabled="saving" @click="saveOpenRequest">{{ saving ? 'Guardando…' : 'Guardar solicitud abierta' }}</DhButton>
+              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
             </div>
           </div>
 
