@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.0] - 2026-11-06
+
+- Añade ruta y comentarios de la naviera en pantalla 6, conserva ambos datos al editar y los envía al PDF de la cotización.
+- Release coordinado DH-20261106-CARRIER-ROUTE-COMMENTS-017 con Pricing y Reports; mantiene separadas las rutas comercial y de la naviera.
+
 ## [1.3.7] - 2026-11-06
 
 - Corrige la validación LCL que exigía una naviera oculta pese a seleccionar agente y moneda.
