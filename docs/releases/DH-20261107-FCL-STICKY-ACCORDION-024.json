@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261107-FCL-STICKY-ACCORDION-024",
+  "ecosystemVersion": "1.11.0",
+  "releaseType": "MINOR",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.10.0",
+      "to": "1.11.0"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.10.0",
+      "to": "1.11.0"
+    }
+  ],
+  "changes": [
+    "FCL-only multi-POE and explicit selected preapproved cards",
+    "Pinned POE/carrier previous/next controls",
+    "Preserve selected Merchant/Carrier Haulage for new FCL options",
+    "Full-width sub-QUO financial accordion on Screen 8"
+  ],
+  "limitations": [
+    "Atomic grouped sub-QUO save remains pending in DholePricingService issue #113"
+  ],
+  "validation": "pending CI and staging",
+  "productionDeploymentAuthorized": false
+}
