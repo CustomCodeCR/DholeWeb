@@ -71,9 +71,11 @@ test('imported rates do not become manual when selected; drafts keep isolated co
   assert.match(wizard, /\{\{ form\.selectedImportRateId \? 'Tarifa preaprobada o preautorizada' : 'Captura manual' \}\}/)
 })
 
-test('multi-rate save stays fail-closed until Pricing supports grouped transaction', () => {
-  assert.match(wizard, /selectedPoeIds\.value\.length > 1 \|\| carrierRouteCount\.value > 1/)
-  assert.match(wizard, /No se creó ninguna tarifa: es necesario implementar la API/)
+test('multi-rate save submits all alternatives to the atomic Pricing API', () => {
+  assert.match(wizard, /const alternatives: GroupQuoteAlternativeRequest\[\]/)
+  assert.match(wizard, /PricingService\.createRateGroup/)
+  assert.match(wizard, /rateId = group\.parentRateId/)
+  assert.match(wizard, /saveRequestIdempotencyKey\.value/)
 })
 
 test('cost refresh merges catalog lines without destroying edited charges or manual rubros', () => {
