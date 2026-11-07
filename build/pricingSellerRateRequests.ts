@@ -121,12 +121,22 @@ function patchWizard(source: string) {
     'request previous step floor',
   )
 
+  const sequentialBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>'
+  if (code.includes(sequentialBackButton)) {
+    code = replaceOne(
+      code,
+      sequentialBackButton,
+      sequentialBackButton.replace(':disabled="step === 1 || saving"', ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving"'),
+      'request back button floor for sequential POE',
+    )
+  } else {
   code = replaceOne(
     code,
     `<DhButton variant=\"secondary\" :disabled=\"step === 1 || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
     `<DhButton variant=\"secondary\" :disabled=\"(rateRequestId ? step <= 5 : step === 1) || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
     'request back button floor',
   )
+  }
 
   code = replaceOne(
     code,
