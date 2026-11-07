@@ -72,6 +72,12 @@ function pricingDraftPayload() {
     savedAt: new Date().toISOString(),
     step: step.value,
     form: JSON.parse(JSON.stringify(form)),
+    selectedPoeIds: [...selectedPoeIds.value],
+    selectedCarriersByPoe: JSON.parse(JSON.stringify(selectedCarriersByPoe.value)),
+    activeCarrierByPoe: JSON.parse(JSON.stringify(activeCarrierByPoe.value)),
+    optionDrafts: JSON.parse(JSON.stringify(optionDrafts.value)),
+    poeRouteDrafts: JSON.parse(JSON.stringify(poeRouteDrafts.value)),
+    selectedBundleByOption: JSON.parse(JSON.stringify(selectedBundleByOption.value)),
     consolidatedCargoLines: JSON.parse(JSON.stringify(consolidatedCargoLines.value)),
     supportEntityId: supportEntityId.value,
     supportDocuments: JSON.parse(JSON.stringify(supportDocuments.value)),
@@ -177,6 +183,42 @@ async function restorePricingDraft() {
     pricingDraftRestoring.value = true
     if (draft.form && typeof draft.form === 'object') Object.assign(form, draft.form)
     await nextTick()
+    // POE/POD remain the exact IDs the user chose. Restore every POE/carrier
+    // snapshot together; restoring only form and rateLines loses the other routes.
+    if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl') {
+      const allowedPoes = new Set(catalogs.poe.map((item) => item.id))
+      const allowedCarriers = new Set(catalogs.carriers.map((item) => item.id))
+      selectedPoeIds.value = Array.isArray(draft.selectedPoeIds)
+        ? [...new Set((draft.selectedPoeIds as string[]).filter((id) => allowedPoes.has(id)))]
+        : form.destinationId ? [form.destinationId] : []
+      if (draft.selectedCarriersByPoe && typeof draft.selectedCarriersByPoe === 'object') {
+        selectedCarriersByPoe.value = Object.fromEntries(
+          selectedPoeIds.value.map((poeId) => [
+            poeId,
+            Array.isArray(draft.selectedCarriersByPoe[poeId])
+              ? [...new Set((draft.selectedCarriersByPoe[poeId] as string[]).filter((id) => allowedCarriers.has(id)))]
+              : [],
+          ]),
+        )
+      }
+      if (draft.activeCarrierByPoe && typeof draft.activeCarrierByPoe === 'object') {
+        activeCarrierByPoe.value = Object.fromEntries(selectedPoeIds.value.map((poeId) => [
+          poeId,
+          selectedCarriersByPoe.value[poeId]?.includes(draft.activeCarrierByPoe[poeId])
+            ? draft.activeCarrierByPoe[poeId] : (selectedCarriersByPoe.value[poeId]?.[0] ?? ''),
+        ]))
+      }
+      const allowedOptionKeys = new Set(selectedPoeIds.value.flatMap((poeId) =>
+        (selectedCarriersByPoe.value[poeId] ?? []).map((carrierId) => carrierRouteKey(poeId, carrierId))))
+      const record = (source: unknown) => source && typeof source === 'object' && !Array.isArray(source)
+        ? source as Record<string, PoeRouteDraft> : {}
+      optionDrafts.value = Object.fromEntries(
+        Object.entries(record(draft.optionDrafts)).filter(([key]) => allowedOptionKeys.has(key)))
+      poeRouteDrafts.value = Object.fromEntries(
+        Object.entries(record(draft.poeRouteDrafts)).filter(([key]) => selectedPoeIds.value.includes(key)))
+      selectedBundleByOption.value = Object.fromEntries(
+        Object.entries(record(draft.selectedBundleByOption)).filter(([key]) => allowedOptionKeys.has(key)))
+    }
     if (Array.isArray(draft.consolidatedCargoLines) && draft.consolidatedCargoLines.length) {
       consolidatedCargoLines.value = draft.consolidatedCargoLines.map((line: ConsolidatedCargoLineUi) => ({
         ...createConsolidatedCargoLine(), ...line, key: crypto.randomUUID(),
@@ -293,6 +335,12 @@ watch(
   [
     () => step.value,
     form,
+    selectedPoeIds,
+    selectedCarriersByPoe,
+    activeCarrierByPoe,
+    optionDrafts,
+    poeRouteDrafts,
+    selectedBundleByOption,
     supportDocuments,
     consolidatedCargoLines,
     rateLines,
