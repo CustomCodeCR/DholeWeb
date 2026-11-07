@@ -2062,8 +2062,8 @@ function isOwnLclMatrixContext() {
 
 function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
-  if (/\bmerchant\b/.test(value) || value === 'gate') return 'merchant'
-  if (/\bcarrier\b/.test(value) || value.includes('inland gam naviera')) return 'carrier'
+  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
+  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
   return null
 }
 
