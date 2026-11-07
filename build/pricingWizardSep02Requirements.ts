@@ -180,7 +180,7 @@ const fclAgentContacts = computed(() => {
     code,
     `              <p class="mt-3 text-sm font-bold">Proveedor: {{ displayValue(selectedCarrier) || 'Sin proveedor' }}</p>
               <p class="mt-1 text-sm font-bold">Agente: {{ displayValue(selectedAgent) || 'Sin agente' }}</p>
-              <div class="mt-4 grid grid-cols-2 gap-2 text-sm">`,
+              <div class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">`,
     `              <p class="mt-3 text-sm font-bold">Proveedor: {{ displayValue(selectedCarrier) || 'Sin proveedor' }}</p>
               <p class="mt-1 text-sm font-bold">Agente: {{ displayValue(selectedAgent) || 'Sin agente' }}</p>
               <div v-if="shipmentMode === 'FCL' && selectedAgent" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-xs">
@@ -199,7 +199,7 @@ const fclAgentContacts = computed(() => {
                   <p v-if="metadata(selectedAgent)?.phone" class="mt-1 font-semibold">Teléfono: {{ metadata(selectedAgent)?.phone }}</p>
                 </template>
               </div>
-              <div class="mt-4 grid grid-cols-2 gap-2 text-sm">`,
+              <div class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">`,
     'FCL agent contact summary',
   )
 

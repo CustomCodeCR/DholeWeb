@@ -1,3 +1,5 @@
+import { keepFreshInlandPrice } from './pricingHaulageCosts.ts'
+
 /** Stable, collision-free identity for each POE–carrier option. */
 export function carrierRouteKey(poeId: string, carrierId: string): string {
   return JSON.stringify([poeId, carrierId])
@@ -38,7 +40,7 @@ export function nextCarrierRoute(
 
 /** Keep customer edits and manually added lines when refreshed catalog costs arrive. */
 export function mergeOptionCostLines<
-  T extends { key: string; costId?: string | null; manual?: boolean; costAmount: number; saleAmount: number; included: boolean }
+  T extends { key: string; name?: string; costId?: string | null; manual?: boolean; costAmount: number; saleAmount: number; included: boolean }
 >(previous: readonly T[], incoming: readonly T[]): T[] {
   const existing = new Map(previous.map(line => [line.key, line]))
   const seen = new Set(incoming.map(line => line.key))
@@ -46,10 +48,16 @@ export function mergeOptionCostLines<
     ...incoming.map(line => {
       const edited = existing.get(line.key)
       if (!edited) return line
+      const staleZeroInland = keepFreshInlandPrice(
+        line.name ?? '', Number(edited.costAmount), Number(edited.saleAmount),
+        Number(line.costAmount), Number(line.saleAmount),
+      )
       return {
         ...line,
-        costAmount: edited.costAmount,
-        saleAmount: edited.saleAmount,
+        // The catalog's newly resolved Inland amount beats a zero-priced draft.
+        // Other edited prices and explicit optional selections stay untouched.
+        costAmount: staleZeroInland ? line.costAmount : edited.costAmount,
+        saleAmount: staleZeroInland ? line.saleAmount : edited.saleAmount,
         included: edited.included,
       }
     }),
