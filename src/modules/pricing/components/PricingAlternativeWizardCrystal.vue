@@ -68,7 +68,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
-import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete, nextPoeInSelection, nextCarrierRoute } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
+import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete, nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -507,7 +507,7 @@ const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.des
 const manualCarrierSearch = ref('')
 const currentPoeIndex = computed(() => selectedPoeIds.value.indexOf(form.destinationId))
 const isLastPoeSelection = computed(() => currentPoeIndex.value >= selectedPoeIds.value.length - 1)
-const alternativeCostsLoaded = ref<Record<string, boolean>>({})
+const alternativeCostsLoaded = ref<Record<string, string>>({})
 const filteredManualCarrierOptions = computed(() => {
   const search = manualCarrierSearch.value.trim().toLocaleLowerCase()
   return search
@@ -542,6 +542,7 @@ async function moveToManualCarrier(delta: number) {
   const target = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + delta]
   if (!target) return
   await activateCarrierRoute(target.poeId, target.carrierId)
+  await loadCostsForSelectedAlternative()
 }
 
 const carrierRouteCount = computed(() =>
@@ -610,13 +611,11 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
     form.carrierId = carrierId
     restoreFclBundleForOption?.(poeId, carrierId)
     await nextTickForPoe()
-    if (step.value === 7 && !draft?.costs) {
-      await loadApplicableCosts()
-      rebuildRateLines()
-    }
   } finally {
     switchingPoeRoute.value = false
   }
+  // Switching tabs must hydrate the destination's catalog context, not reuse another POE's costs.
+  await loadCostsForSelectedAlternative()
 }
 
 function setCurrentPoeCarrierIds(ids: string[]) {
@@ -677,14 +676,29 @@ async function advanceScreenFive() {
   await continueWithSelectedCarriers()
 }
 
-async function loadCostsForSelectedAlternative() {
-  if (step.value !== 7 || !multiCarrierSelectionMode.value) return
+function activeCostContextKey(): string {
+  return pricingCostContextKey({
+    poeId: form.destinationId, podId: form.podId, carrierId: form.carrierId,
+    agentId: form.agentId, polId: form.originId, incotermId: form.incotermId,
+    shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
+  })
+}
+
+async function loadCostsForSelectedAlternative(force = false) {
+  if (step.value !== 7 || !multiCarrierSelectionMode.value || switchingPoeRoute.value) return
   const key = carrierRouteKey(form.destinationId, form.carrierId)
-  if (alternativeCostsLoaded.value[key]) return
-  await loadApplicableCosts()
+  const context = activeCostContextKey()
+  if (!force && alternativeCostsLoaded.value[key] === context) return
+  const loaded = await loadApplicableCosts()
+  // Do not cache failed requests or attach the response to another alternative.
+  if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
   rebuildRateLines()
-  alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: true }
+  alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
   rememberCurrentCarrierDraft()
+}
+
+async function reloadCurrentAlternativeCosts() {
+  await loadCostsForSelectedAlternative(true)
 }
 
 /** "Continue" means next carrier within the current screen, not skipping work. */
@@ -712,7 +726,7 @@ async function previousSequentialWizard() {
   if (step.value === 5) {
     const previousPoe = selectedPoeIds.value[currentPoeIndex.value - 1]
     if (previousPoe) await activatePoeRoute(previousPoe)
-    else previous()
+    else goToStep(3)
     return
   }
   if (step.value === 6 || step.value === 7) {
@@ -802,6 +816,7 @@ async function activatePoeRoute(destinationId: string) {
     if (selectedDraft) {
       Object.assign(form, selectedDraft.fields)
       rateLines.value = copyPoeLines(selectedDraft.lines)
+      costs.value = [...(selectedDraft.costs ?? [])]
     } else if (selectedCarrier) form.carrierId = selectedCarrier
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
   }
@@ -815,7 +830,7 @@ function setSelectedPoeIds(values: string[]) {
   const selection = normalizePoeSelection(
     values,
     form.destinationId,
-    destinationOptions.value.map((item) => item.value),
+    [...destinationOptions.value.map((item) => item.value), ...selectedPoeIds.value],
   )
   selectedPoeIds.value = selection.ids
   for (const id of Object.keys(selectedCarriersByPoe.value)) {
@@ -3130,9 +3145,10 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
   return changedCount
 }
 
-async function loadApplicableCosts() {
+async function loadApplicableCosts(): Promise<boolean> {
+  const requestContext = activeCostContextKey()
   try {
-    costs.value = await PricingService.selectCosts({
+    const received = await PricingService.selectCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
       polId: form.originId || undefined,
@@ -3144,16 +3160,23 @@ async function loadApplicableCosts() {
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
     })
+    if (requestContext !== activeCostContextKey()) return false
+    costs.value = received
+    return true
   } catch (error) {
-    costs.value = []
+    if (requestContext !== activeCostContextKey()) return false
+    // Keep previously edited and cached costs instead of erasing the draft on a transient failure.
     toastStore.backendError(
       error,
       'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
     )
+    return false
   }
 }
 
 function rebuildRateLines() {
+  const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
+    ? copyPoeLines(rateLines.value) : []
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!currency) return
 
@@ -3368,7 +3391,9 @@ if (insuranceRequested && visible.has('destination_charges')) {
     line.amountCurrencyCode = canonicalCurrencyCode(line)
     enforceLineCurrency(line)
   })
-  rateLines.value = lines
+  rateLines.value = previousOptionLines.length
+    ? mergeOptionCostLines(previousOptionLines, lines)
+    : lines
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -5975,8 +6000,17 @@ watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
     if (hydratingExistingRate.value || switchingPoeRoute.value || step.value < 6 || !agentId) return
-    await loadApplicableCosts()
-    if (step.value >= 7) rebuildRateLines()
+    const loaded = await loadApplicableCosts()
+    if (loaded && step.value >= 7) {
+      rebuildRateLines()
+      if (multiCarrierSelectionMode.value) {
+        alternativeCostsLoaded.value = {
+          ...alternativeCostsLoaded.value,
+          [carrierRouteKey(form.destinationId, form.carrierId)]: activeCostContextKey(),
+        }
+        rememberCurrentCarrierDraft()
+      }
+    }
   },
 )
 
