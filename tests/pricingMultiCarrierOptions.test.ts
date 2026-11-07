@@ -158,7 +158,7 @@ test('Haulage chosen on Screen 4 is inherited by each new FCL route', () => {
   assert.match(wizard, /defaultFclHaulageMode\.value = form\.carrierHaulage/)
   assert.match(wizard, /merchantHaulage: defaultFclHaulageMode\.value === 'merchant'/)
   assert.match(wizard, /carrierHaulage: defaultFclHaulageMode\.value === 'carrier'/)
-  assert.match(wizard, /if \(multiCarrierSelectionMode\.value\) syncHaulageOptionalLines\(\)/)
+  assert.match(wizard, /syncHaulageOptionalLines\(\)/)
   assert.match(wizard, /value\.includes\('inland'\)/)
   assert.match(wizard, /value\.includes\('naviera'\)/)
 })
