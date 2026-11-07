@@ -148,7 +148,7 @@ function dholeEnsureSelectedHaulageLines() {
       continue
     }
     rateLines.value.push({
-      key: `cost:${cost.id}`,
+      key: 'cost:' + cost.id,
       section: sectionForCost(cost),
       name: cost.name,
       costDetailType: cost.costDetailType,
