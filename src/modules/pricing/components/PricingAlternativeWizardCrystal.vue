@@ -2220,6 +2220,34 @@ function rateLineTotalUsd(line: RateLine, field: 'costAmount' | 'saleAmount') {
   return convertUsdCrc(number(line[field]) * quantity, currency, 'USD')
 }
 
+/** Screens 6/7 have separate draft lines. Screen 8 must never present only the active route as the group. */
+const alternativePreviewCards = computed(() => selectedCarrierRoutes.value.map((route, index) => {
+  const key = carrierRouteKey(route.poeId, route.carrierId)
+  const active = route.poeId === form.destinationId && route.carrierId === form.carrierId
+  const draft = optionDrafts.value[key]
+  const allLines = active ? rateLines.value : (draft?.lines ?? [])
+  const lines = allLines.filter((line) =>
+    shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+  )
+  const costUsd = lines.reduce((sum, line) => sum + rateLineTotalUsd(line, 'costAmount'), 0)
+  const saleUsd = lines.reduce((sum, line) => sum + rateLineTotalUsd(line, 'saleAmount'), 0)
+  return {
+    key, index, poeId: route.poeId, carrierId: route.carrierId,
+    agentId: active ? form.agentId : (draft?.fields.agentId ?? ''),
+    imported: Boolean(active ? form.selectedImportRateId : draft?.fields.selectedImportRateId),
+    lines, costUsd, saleUsd, utilityUsd: saleUsd - costUsd,
+    margin: saleUsd > 0 ? ((saleUsd - costUsd) / saleUsd) * 100 : 0,
+    ready: lines.length > 0 && Boolean(active ? form.agentId : draft?.fields.agentId),
+  }
+}))
+
+async function editAlternativeFromPreview(poeId: string, carrierId: string, targetStep: 6 | 7 = 7) {
+  rememberCurrentCarrierDraft()
+  await activateCarrierRoute(poeId, carrierId)
+  step.value = targetStep
+  if (targetStep === 7) await loadCostsForSelectedAlternative()
+}
+
 function applyDraftMarketSaleSuggestion(targetSaleUsd: number) {
   if (props.viewOnly || !Number.isFinite(targetSaleUsd) || targetSaleUsd <= 0) return
 
