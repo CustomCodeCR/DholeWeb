@@ -66,8 +66,14 @@ function patchWizard(source: string) {
     )
   }
 
+  const multiCarrierHiddenForLcl = `<DhSelect v-else-if="shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`
   const lclHiddenCarrier = `<DhSelect v-if="shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`
-  if (code.includes(lclHiddenCarrier)) {
+  if (code.includes(multiCarrierHiddenForLcl)) {
+    code = code.replace(
+      multiCarrierHiddenForLcl,
+      `<DhSelect v-else-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
+    )
+  } else if (code.includes(lclHiddenCarrier)) {
     code = code.replace(
       lclHiddenCarrier,
       `<DhSelect v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />`,
