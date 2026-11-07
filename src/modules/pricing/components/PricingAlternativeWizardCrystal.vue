@@ -8011,7 +8011,7 @@ onMounted(async () => {
           'Última subtarifa' }}
       </DhButton>
       <div class="min-w-0 text-center text-xs font-black text-[var(--dh-text-muted)]">
-        <span class="block tracking-[0.1em]">Pantalla {{ step }} / {{ maxStep }}</span>
+        <span class="block tracking-[0.1em]">Pantalla {{ step }} de {{ maxStep }}</span>
         <span v-if="step <= 7" class="mt-0.5 block truncate text-[10px] font-semibold normal-case tracking-normal">{{ step === 5
           ? 'POE ' + (currentPoeIndex + 1) + '/' + selectedPoeIds.length
           : 'Naviera ' + activeCarrierRoutePosition + '/' + carrierRouteCount }} · {{ displayValue(selectedDestination) }}</span>
