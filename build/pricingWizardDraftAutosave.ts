@@ -211,7 +211,7 @@ async function restorePricingDraft() {
       const allowedOptionKeys = new Set(selectedPoeIds.value.flatMap((poeId) =>
         (selectedCarriersByPoe.value[poeId] ?? []).map((carrierId) => carrierRouteKey(poeId, carrierId))))
       const record = (source: unknown) => source && typeof source === 'object' && !Array.isArray(source)
-        ? source as Record<string, PoeRouteDraft> : {}
+        ? source as Record<string, any> : {}
       optionDrafts.value = Object.fromEntries(
         Object.entries(record(draft.optionDrafts)).filter(([key]) => allowedOptionKeys.has(key)))
       poeRouteDrafts.value = Object.fromEntries(
