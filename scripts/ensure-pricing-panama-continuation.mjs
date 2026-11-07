@@ -241,8 +241,8 @@ source = replaceOnce(
 
 source = replaceOnce(
   source,
-  `terminal-type="SD"\n                :optional="!maritimePodRequired"\n                :options="podOptions"`,
-  `:terminal-type="isPanamaMultimodal && form.panamaContinuationMode === 'DoubleMaritime' ? 'CY' : 'SD'"\n                :optional="!maritimePodRequired"\n                :options="podOptions"`,
+  `terminal-type="SD"\n                :optional="true"\n                :options="podOptions"`,
+  `:terminal-type="isPanamaMultimodal && form.panamaContinuationMode === 'DoubleMaritime' ? 'CY' : 'SD'"\n                :optional="true"\n                :options="podOptions"`,
   'tipo de terminal POD dinámico Panamá',
 )
 
