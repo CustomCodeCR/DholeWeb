@@ -48,7 +48,8 @@ import type {
   ShipmentMode,
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { PricingService, type GroupQuoteAlternativeRequest, type GroupQuoteSnapshot } from '@/core/services/pricingService'
+import { PricingService } from '@/core/services/pricingService'
+import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
