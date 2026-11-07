@@ -165,8 +165,9 @@ test('Haulage chosen on Screen 4 is inherited by each new FCL route', () => {
 })
 
 test('FCL route navigation is pinned on all devices with POE/naviera progress', () => {
-  assert.match(wizard, /crystal-footer--pinned/)
-  assert.match(wizard, /\.crystal-footer--pinned \{\s*position: fixed;/)
+  assert.match(wizard, /crystal-fcl-fixed-nav/)
+  assert.match(wizard, /\.crystal-fcl-fixed-nav \{\s*position: fixed;/)
+  assert.match(wizard, /pricing-crystal-shell--pinned/)
   assert.match(wizard, /Naviera anterior/)
   assert.match(wizard, /Siguiente naviera/)
   assert.match(wizard, /POE anterior/)
