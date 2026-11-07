@@ -48,7 +48,7 @@ import type {
   ShipmentMode,
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { PricingService } from '@/core/services/pricingService'
+import { PricingService, type GroupQuoteAlternativeRequest } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
@@ -5155,10 +5155,6 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
-  if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
-    toastStore.warning('Guardado agrupado pendiente', 'No se creó ninguna tarifa: es necesario implementar la API que guarde todas las rutas y sub-QUO juntas.')
-    return
-  }
   if (pendingModificationDelivery.value) {
     // Guardar nunca envía una revisión persistida; el envío es una acción separada.
     toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
@@ -5779,6 +5775,7 @@ async function saveRate() {
 const saveButtonWorking = ref(false)
 const saveButtonFeedback = ref('')
 const saveRequestSentToBackend = ref(false)
+const saveRequestIdempotencyKey = ref(crypto.randomUUID())
 
 // The button must always give an observable result, even if validation
 // exits before fetch or an earlier wizard transform throws synchronously.
@@ -5789,11 +5786,6 @@ async function handleSaveRateClick() {
   saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
   const initialStep = step.value
   try {
-    if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
-      saveButtonFeedback.value = 'No se enviaron las rutas: la API todavía no admite sub-QUO agrupadas.'
-      toastStore.warning('Sincronización multi-QUO pendiente', saveButtonFeedback.value)
-      return
-    }
     if (pendingModificationDelivery.value) {
       saveButtonFeedback.value = 'Enviando la revisión guardada al vendedor…'
       await retrySavedModificationDelivery()
@@ -7488,7 +7480,7 @@ onMounted(async () => {
                 </div>
               </details>
             </div>
-            <p class="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">La creación transaccional de la QUO principal y todas las sub-QUO sigue pendiente en Pricing. No se enviarán registros parciales.</p>
+            <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Pricing registra todas las alternativas en una sola transacción. Si una falla, no se guarda ninguna QUO.</p>
           </section>
 
           <div v-if="!multiCarrierSelectionMode || carrierRouteCount === 1" class="crystal-soft p-5">
