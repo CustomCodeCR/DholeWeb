@@ -240,7 +240,13 @@ function patchWizard(source: string) {
   // keep that guard so changing header currency does not reset saved sales.
   const legacyCurrencyWatcher = `watch(() => form.currencyId, () => {\n  if (hydratingExistingRate.value) return\n  if (step.value === 7) rebuildRateLines()\n})`
   const preservedCurrencyWatcher = `watch(() => form.currencyId, () => {\n  // A saved quotation already has individually priced currencies and sales.\n  // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.\n  if (hydratingExistingRate.value || editingRate.value) return\n  if (step.value === 7) rebuildRateLines()\n})`
-  const currencyWatcher = code.includes(preservedCurrencyWatcher) ? preservedCurrencyWatcher : legacyCurrencyWatcher
+  const multiPoeCurrencyWatcher = preservedCurrencyWatcher.replace(
+    'if (hydratingExistingRate.value || editingRate.value) return',
+    'if (hydratingExistingRate.value || switchingPoeRoute.value || editingRate.value) return',
+  )
+  const currencyWatcher = code.includes(multiPoeCurrencyWatcher)
+    ? multiPoeCurrencyWatcher
+    : code.includes(preservedCurrencyWatcher) ? preservedCurrencyWatcher : legacyCurrencyWatcher
   code = replaceOne(
     code,
     currencyWatcher,
