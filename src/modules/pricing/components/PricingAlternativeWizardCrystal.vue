@@ -5739,7 +5739,86 @@ async function saveRate() {
       )
     } else {
       saveRequestSentToBackend.value = true
-      rateId = await PricingService.createRate(createPayload)
+      if (multiCarrierSelectionMode.value && carrierRouteCount.value > 1) {
+        // Freeze the visible option, then submit one complete rate per POE/carrier.
+        // Nothing is persisted if the backend rejects one alternative.
+        rememberCurrentCarrierDraft()
+        const alternatives: GroupQuoteAlternativeRequest[] = []
+        for (const route of selectedCarrierRoutes.value) {
+          const draft = optionDrafts.value[carrierRouteKey(route.poeId, route.carrierId)]
+          const targetPoe = findById(catalogs.poe, route.poeId)
+          const targetCarrier = findById(catalogs.carriers, route.carrierId)
+          const targetAgent = findById(catalogs.agents, draft?.fields.agentId ?? '')
+          const targetCurrency = findById(catalogs.currencies, draft?.fields.currencyId ?? '')
+          const routeLines = removeDuplicateFclFreight(draft?.lines ?? [], 'Fcl')
+            .filter((line) => shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)))
+          if (!draft || !targetPoe || !targetCarrier || !targetAgent || !targetCurrency || !routeLines.length) {
+            step.value = 7
+            throw new Error('La alternativa ' + (displayValue(targetPoe) || route.poeId)
+              + ' / ' + (displayValue(targetCarrier) || route.carrierId)
+              + ' requiere agente, moneda y cargos completos. Revísela antes de guardar.')
+          }
+          const routeDetails: CreateRateDetailRequest[] = routeLines.map((line) => ({
+            costId: line.costId ?? null,
+            name: line.name,
+            costDetailType: line.costDetailType,
+            costType: line.costType,
+            chargeBasis: effectiveChargeBasisForLine(line),
+            currencyId: line.currencyId || targetCurrency.id,
+            currencyName: line.currencyName || displayValue(targetCurrency),
+            currencyCode: line.currencyCode || targetCurrency.code,
+            costAmount: number(line.costAmount),
+            saleAmount: number(line.saleAmount),
+            billToClient: normalizeBillToClient(line.billToClient),
+            quantity: quantityForRateLine(line),
+            applyDestinationTax: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line),
+            destinationTaxRate: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)
+              ? lineDestinationTaxRate(line) : 0,
+            notes: stripGeneratedPodVatNotes(line.notes) || null,
+          }))
+          const routeIncludes = [...new Set([
+            ...commercialTerms.includes.map((term) => term.text),
+            ...routeLines.map((line) => line.name),
+          ].map((term) => term.trim()).filter(Boolean))]
+          alternatives.push({
+            haulageMode: draft.fields.merchantHaulage ? 'Merchant' : 'Carrier',
+            routeKey: draft.fields.carrierRoute || null,
+            rate: {
+              ...createPayload,
+              sourceImportFclRateId: draft.fields.selectedImportRateId || null,
+              agentId: targetAgent.id,
+              agentName: displayValue(targetAgent),
+              agentCode: targetAgent.code,
+              carrierId: targetCarrier.id,
+              carrierName: displayValue(targetCarrier),
+              carrierCode: targetCarrier.code,
+              poeId: targetPoe.id,
+              poeName: displayValue(targetPoe),
+              poeCode: targetPoe.code,
+              podId: pod?.id ?? null,
+              podName: pod ? displayValue(pod) : null,
+              podCode: pod?.code ?? null,
+              currencyId: targetCurrency.id,
+              currencyName: displayValue(targetCurrency),
+              currencyCode: targetCurrency.code,
+              freeDays: number(draft.fields.freeDays),
+              transitDays: Math.max(0, Math.trunc(number(draft.fields.transitDays))),
+              transitTime: number(draft.fields.transitDays) > 0
+                ? `${Math.trunc(number(draft.fields.transitDays))} días` : null,
+              carrierRoute: draft.fields.carrierRoute.trim(),
+              carrierComments: draft.fields.carrierComments.trim(),
+              validTo: draft.fields.validTo || createPayload.validTo,
+              details: routeDetails,
+              includes: routeIncludes.join('\\n') || null,
+            },
+          })
+        }
+        saveRequestSentToBackend.value = true
+        const group = await PricingService.createRateGroup({ alternatives }, saveRequestIdempotencyKey.value)
+        rateId = group.parentRateId
+      } else {
+        rateId = await PricingService.createRate(createPayload)
+      }
     }
     createdRateId.value = rateId
     if (props.rateRequestId) {
