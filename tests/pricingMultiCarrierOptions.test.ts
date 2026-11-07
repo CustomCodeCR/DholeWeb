@@ -111,7 +111,7 @@ test('POE chips and top controls expose back, next and POD edits without removin
   assert.match(wizard, /Editar POE \/ POD/)
   assert.match(wizard, /POE anterior/)
   assert.match(wizard, /Siguiente POE/)
-  assert.match(wizard, /:optional="!maritimePodRequired"/)
+  assert.match(wizard, /@click="goToStep\(3\)"/)
   assert.match(wizard, /else goToStep\(3\)/)
   assert.match(wizard, /@click="previousSequentialWizard"/)
   assert.match(wizard, /@click="reloadCurrentAlternativeCosts"/)
