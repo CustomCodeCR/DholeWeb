@@ -205,8 +205,8 @@ const fclAgentContacts = computed(() => {
 
   code = replaceOne(
     code,
-    `    <div class="crystal-footer flex items-center justify-between gap-3 p-3">`,
-    `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
+    `    <div class="crystal-footer flex items-center justify-between gap-3 p-3" :class="{ 'crystal-footer--pinned': multiCarrierSelectionMode && step >= 5 }">`,
+    `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3" :class="{ 'crystal-footer--pinned': multiCarrierSelectionMode && step >= 5 }">`,
     'screen 0 footer visibility',
   )
 
