@@ -232,8 +232,12 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, providerAgentAnchor, providerAgentReplacement, 'LCL provider field')
 
       const lclCarrierSelectAnchor = '            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
-      const lclCarrierSelectReplacement = '            <DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
-      code = replaceOne(code, lclCarrierSelectAnchor, lclCarrierSelectReplacement, 'hide carrier selector for LCL')
+      const multiCarrierSelectAnchor = '              <DhSelect v-else v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+      const selectedCarrierAnchor = code.includes(multiCarrierSelectAnchor) ? multiCarrierSelectAnchor : lclCarrierSelectAnchor
+      const selectedCarrierReplacement = code.includes(multiCarrierSelectAnchor)
+        ? '              <DhSelect v-else-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+        : '            <DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+      code = replaceOne(code, selectedCarrierAnchor, selectedCarrierReplacement, 'hide carrier selector for LCL')
 
       const freightCostAnchor = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />'
       const freightCostReplacement = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Coloader\'" />'
