@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -66,6 +66,7 @@ import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCryst
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -455,6 +456,81 @@ const supportCategories = [
   { key: 'msds-tech-sheet', label: 'MSDS / Ficha técnica' },
 ] as const
 const supportAccept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.xlsb'
+
+// The legacy Pricing REST contract persists one POE per RateHeader. Keep the
+// visible POE separate from the multi-selection to prevent lost alternatives.
+const selectedPoeIds = ref<string[]>([])
+const switchingPoeRoute = ref(false)
+let approvedRatesSearchSequence = 0
+const perPoeFieldNames = [
+  'selectedImportRateId', 'manualRate', 'agentId', 'carrierId', 'currencyId',
+  'freightCost', 'freightSale', 'freeDays', 'transitDays', 'carrierRoute',
+  'carrierComments', 'validTo', 'merchantHaulage', 'carrierHaulage',
+] as const
+type PerPoeField = (typeof perPoeFieldNames)[number]
+interface PoeRouteDraft {
+  fields: Pick<typeof form, PerPoeField>
+  rates: ImportRateSelectDto[]
+  lines: RateLine[]
+}
+const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
+
+function copyPoeLines(lines: RateLine[]): RateLine[] {
+  return lines.map((line) => ({
+    ...line,
+    serviceIds: line.serviceIds ? [...line.serviceIds] : undefined,
+  }))
+}
+
+function rememberActivePoe() {
+  const id = form.destinationId
+  if (!id || !selectedPoeIds.value.includes(id)) return
+  const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
+  poeRouteDrafts.value[id] = {
+    fields,
+    rates: [...availableRates.value],
+    lines: copyPoeLines(rateLines.value),
+  }
+}
+
+async function activatePoeRoute(destinationId: string) {
+  if (form.destinationId === destinationId
+      || (destinationId && !selectedPoeIds.value.includes(destinationId))) return
+  rememberActivePoe()
+  ++approvedRatesSearchSequence
+  const cached = poeRouteDrafts.value[destinationId]
+  switchingPoeRoute.value = true
+  form.destinationId = destinationId
+  availableRates.value = cached ? [...cached.rates] : []
+  rateLines.value = cached ? copyPoeLines(cached.lines) : []
+  if (cached) {
+    Object.assign(form, cached.fields)
+  } else {
+    Object.assign(form, {
+      selectedImportRateId: '', manualRate: false, carrierId: '',
+      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
+      carrierRoute: '', carrierComments: '',
+      merchantHaulage: false, carrierHaulage: false,
+    })
+  }
+  await nextTick() // watchers must not recalculate another POE's edited lines
+  switchingPoeRoute.value = false
+  if (!cached && destinationId && step.value > 5) step.value = 5
+  if (!cached && destinationId && step.value === 5) await searchApprovedRates()
+}
+
+function setSelectedPoeIds(values: string[]) {
+  const selection = normalizePoeSelection(
+    values,
+    form.destinationId,
+    destinationOptions.value.map((item) => item.value),
+  )
+  selectedPoeIds.value = selection.ids
+  for (const id of Object.keys(poeRouteDrafts.value)) {
+    if (!selection.ids.includes(id)) delete poeRouteDrafts.value[id]
+  }
+  if (form.destinationId !== selection.activeId) void activatePoeRoute(selection.activeId)
+}
 
 const pickupLocations = ref<RatePickupLocationDto[]>([])
 const pickupCargoCondition = ref<PickupCargoCondition | ''>('')
@@ -3271,6 +3347,8 @@ function resolvePodForDestination() {
 }
 
 async function searchApprovedRates() {
+  const requestSequence = ++approvedRatesSearchSequence
+  const searchedPoe = form.destinationId
   availableRates.value = []
   form.selectedImportRateId = ''
   form.manualRate = false
@@ -3289,15 +3367,19 @@ async function searchApprovedRates() {
       containerType: catalogSearchText(selectedEquipment.value),
       quoteDate: form.loadDate,
     }
-    availableRates.value = await PricingService.selectImportRates(query)
-    await loadImportSources(availableRates.value)
+    const rates = await PricingService.selectImportRates(query)
+    if (requestSequence !== approvedRatesSearchSequence || searchedPoe !== form.destinationId) return
+    availableRates.value = rates
+    await loadImportSources(rates)
   } catch (error) {
-    toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
+    if (requestSequence === approvedRatesSearchSequence) {
+      toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
+    }
   } finally {
-    loadingRates.value = false
+    if (requestSequence === approvedRatesSearchSequence) loadingRates.value = false
   }
 
-  if (!availableRates.value.length) form.manualRate = true
+  if (requestSequence === approvedRatesSearchSequence && !availableRates.value.length) form.manualRate = true
 }
 
 function chooseRate(rate: ImportRateSelectDto) {
@@ -5700,6 +5782,32 @@ onMounted(async () => {
       </div>
 
       <template v-else>
+        <div
+          v-if="!isEditing && !sellerRequestMode && selectedPoeIds.length > 1 && step >= 5 && step <= 8"
+          class="mb-6 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+        >
+          <p class="mb-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            Opciones por POE · {{ selectedPoeIds.length }} rutas seleccionadas
+          </p>
+          <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
+            <button
+              v-for="poeId in selectedPoeIds"
+              :key="poeId"
+              type="button"
+              role="tab"
+              :aria-selected="form.destinationId === poeId"
+              :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
+              class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
+              @click="activatePoeRoute(poeId)"
+            >
+              {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
+            </button>
+          </div>
+          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+            Los fletes y rubros mostrados corresponden al POE activo. El guardado comercial agrupado sigue pendiente de integración en Pricing.
+          </p>
+        </div>
+
         <div v-if="step === 1" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 1</p>
@@ -5826,6 +5934,20 @@ onMounted(async () => {
                 :options="originOptions"
               />
               <PricingLocationSearchSelect
+                v-if="!isEditing && !sellerRequestMode"
+                :model-value="form.destinationId"
+                :model-values="selectedPoeIds"
+                multiple
+                data-required-field="destinationId" :error="fieldError('destinationId')"
+                label="Destinos (POE) · selección múltiple"
+                placeholder="Buscar y seleccionar varios POE"
+                search-placeholder="Buscar puerto, ciudad o país…"
+                terminal-type="CY"
+                :options="destinationOptions"
+                @update:model-values="setSelectedPoeIds"
+              />
+              <PricingLocationSearchSelect
+                v-else
                 v-model="form.destinationId"
                 data-required-field="destinationId" :error="fieldError('destinationId')"
                 label="Destino (POE)"
@@ -5844,6 +5966,11 @@ onMounted(async () => {
                 :options="podOptions"
               />
             </div>
+
+            <p v-if="selectedPoeIds.length > 1 && !isEditing" class="text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">
+              {{ selectedPoeIds.length }} POE seleccionados. En las pantallas de tarifa podrá consultar cada puerto desde su pestaña independiente.
+              La creación agrupada de sub-QUO requiere la API transaccional; el sistema no guardará solo una ruta por error.
+            </p>
 
             <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
             <div class="grid gap-4 md:grid-cols-3">
