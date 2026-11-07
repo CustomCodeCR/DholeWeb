@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261107-MANUAL-CARRIER-WIZARD-021",
+  "ecosystemVersion": "1.8.0",
+  "releaseType": "MINOR",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.7.0",
+      "to": "1.8.0"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.7.0",
+      "to": "1.8.0"
+    }
+  ],
+  "changes": [
+    "Manual multi-carrier POE wizard, separate per-carrier editable snapshots and guided provider/cost screens"
+  ],
+  "limitations": [
+    "Grouped sub-QUO persistence, exclusive acceptance, PDF consolidation remain pending Pricing backend",
+    "Data is retained in the active wizard session only"
+  ],
+  "validation": "pending CI/staging",
+  "productionDeploymentAuthorized": false
+}
