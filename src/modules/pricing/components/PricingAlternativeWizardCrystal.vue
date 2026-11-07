@@ -504,6 +504,22 @@ const selectedCarrierRouteIndex = computed(() =>
   ),
 )
 const activeCarrierRoutePosition = computed(() => Math.max(0, selectedCarrierRouteIndex.value) + 1)
+const previousWizardAction = computed(() => {
+  if (!multiCarrierSelectionMode.value || step.value < 5) return 'Atrás'
+  if (step.value === 5) return currentPoeIndex.value > 0 ? 'POE anterior' : 'Volver a ruta'
+  if (step.value === 8) return 'Volver a líneas'
+  if (selectedCarrierRouteIndex.value > 0) return 'Alternativa anterior'
+  return step.value === 7 ? 'Volver a proveedor' : 'Volver a POE'
+})
+const nextWizardAction = computed(() => {
+  if (step.value === 5) return isLastPoeSelection.value ? 'Configurar navieras' : 'Siguiente POE'
+  if (step.value === 6 || step.value === 7) {
+    return selectedCarrierRouteIndex.value >= carrierRouteCount.value - 1
+      ? (step.value === 6 ? 'Ir a líneas' : 'Ver borrador')
+      : 'Siguiente alternativa'
+  }
+  return 'Continuar'
+})
 const currentRouteLabel = computed(() =>
   [displayValue(findById(catalogs.poe, form.destinationId)), displayValue(findById(catalogs.carriers, form.carrierId))]
     .filter(Boolean).join(' · '),
@@ -641,7 +657,12 @@ function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
 
 function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
-  return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+  if (!configuredId) return false
+  const route = carrierRouteKey(form.destinationId, configuredId)
+  // A clicked pre-approved option must remain visually checked even if its
+  // bundle key changes when the rate catalogue is refreshed.
+  return selectedBundleByOption.value[route] === bundleKey
+    || (!selectedBundleByOption.value[route] && currentPoeCarrierIds.value.includes(configuredId))
 }
 
 /** Select every available or manual carrier in one POE before moving on. */
@@ -676,6 +697,7 @@ async function loadCostsForSelectedAlternative(force = false) {
   // Do not cache failed requests or attach the response to another alternative.
   if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
   rebuildRateLines()
+  syncHaulageOptionalLines()
   alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
   rememberCurrentCarrierDraft()
 }
@@ -3540,12 +3562,18 @@ function toggleMerchantHaulage() {
   form.merchantHaulage = !form.merchantHaulage
   if (form.merchantHaulage) form.carrierHaulage = false
   syncHaulageOptionalLines()
+  if (step.value === 7 && multiCarrierSelectionMode.value) {
+    void reloadCurrentAlternativeCosts()
+  }
 }
 
 function toggleCarrierHaulage() {
   form.carrierHaulage = !form.carrierHaulage
   if (form.carrierHaulage) form.merchantHaulage = false
   syncHaulageOptionalLines()
+  if (step.value === 7 && multiCarrierSelectionMode.value) {
+    void reloadCurrentAlternativeCosts()
+  }
 }
 
 async function loadCatalogs() {
@@ -6351,7 +6379,7 @@ onMounted(async () => {
                 :options="originOptions"
               />
               <PricingLocationSearchSelect
-                v-if="!isEditing && !sellerRequestMode"
+                v-if="!isEditing && !sellerRequestMode && form.modality === 'Maritime' && shipmentModeForApi === 'Fcl'"
                 :model-value="form.destinationId"
                 :model-values="selectedPoeIds"
                 multiple
@@ -6384,7 +6412,7 @@ onMounted(async () => {
                 :options="podOptions"
               />
 
-              <div v-if="!isEditing && !sellerRequestMode" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
+              <div v-if="!isEditing && !sellerRequestMode && form.modality === 'Maritime' && shipmentModeForApi === 'Fcl'" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-3">
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-5 w-5" /></span>
@@ -7104,6 +7132,14 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <div v-if="multiCarrierSelectionMode" class="crystal-soft flex flex-wrap items-center gap-3 p-4">
+            <div class="mr-auto min-w-0">
+              <p class="text-sm font-black">Cargos Merchant / Carrier</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">Seleccione el tipo de transporte de esta naviera para mostrar sus cargos asociados. Se guarda por alternativa.</p>
+            </div>
+            <button type="button" :aria-pressed="form.merchantHaulage" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage"><Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant Haulage</button>
+            <button type="button" :aria-pressed="form.carrierHaulage" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage"><Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier Haulage</button>
+          </div>
           <div v-if="storageServiceSelected" class="crystal-soft p-4">
             <div class="grid gap-3 md:grid-cols-2 md:items-center">
               <div>
@@ -7888,12 +7924,15 @@ onMounted(async () => {
       </template>
     </section>
 
-    <div class="crystal-footer flex items-center justify-between gap-3 p-3">
-      <DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
-      <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
+    <div class="crystal-footer crystal-footer--sticky flex items-center justify-between gap-2 p-3" role="navigation" aria-label="Navegación del asistente">
+      <DhButton variant="secondary" :disabled="step === 1 || saving || switchingPoeRoute" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> {{ previousWizardAction }}</DhButton>
+      <div class="min-w-0 text-center">
+        <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
+        <div v-if="multiCarrierSelectionMode && step >= 5 && step <= 7" class="max-w-[230px] truncate text-[10px] font-semibold text-[var(--dh-text)]">{{ step === 5 ? displayValue(selectedDestination) : currentRouteLabel }}</div>
+      </div>
       <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && step === 5" :disabled="!currentPoeCarrierIds.length || loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ isLastPoeSelection ? 'Configurar alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" /></DhButton>
-      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">Continuar {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && step === 5" :disabled="!currentPoeCarrierIds.length || loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ nextWizardAction }} <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ nextWizardAction }} {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
@@ -7913,6 +7952,18 @@ onMounted(async () => {
   position: relative;
   isolation: isolate;
   padding-bottom: 0.5rem;
+}
+.crystal-footer--sticky {
+  position: sticky;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  z-index: 60;
+  border-radius: 18px;
+  background: var(--dh-card);
+  box-shadow: 0 8px 36px rgb(0 0 0 / 0.28);
+  backdrop-filter: blur(18px);
+}
+@media (max-width: 640px) {
+  .crystal-footer--sticky { bottom: max(4px, env(safe-area-inset-bottom)); }
 }
 
 .crystal-orb {
