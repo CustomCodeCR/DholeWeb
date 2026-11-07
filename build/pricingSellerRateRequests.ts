@@ -121,7 +121,7 @@ function patchWizard(source: string) {
     'request previous step floor',
   )
 
-  const sequentialBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>'
+  const sequentialBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving || switchingPoeRoute" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> {{ previousWizardAction }}</DhButton>'
   if (code.includes(sequentialBackButton)) {
     code = replaceOne(
       code,
@@ -152,7 +152,7 @@ function patchWizard(source: string) {
     'seller priority selector',
   )
 
-  const selectedCarrierNextButton = '      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">Continuar {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>'
+  const selectedCarrierNextButton = '      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ nextWizardAction }} {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>'
   if (code.includes(selectedCarrierNextButton)) {
     // Keep the multi-POE flow while injecting the original seller shortcut.
     code = replaceOne(

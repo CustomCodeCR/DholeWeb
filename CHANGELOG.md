@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.10.1] - 2026-11-07
+
+- Restringe selección múltiple de POE, alternativas por naviera y sub-QUO a marítimo FCL. Cambiar a LCL, terrestre o aéreo limpia la cola de alternativas FCL.
+- Muestra estado seleccionado visible y accesible (aria-pressed, borde y distintivo) en tarifas cargadas de pantalla 5.
+- Convierte la navegación inferior en una barra sticky con Atrás/Siguiente y la ruta activa, manteniendo recorrido secuencial por POE y naviera.
+- En pantalla 7 permite seleccionar Merchant Haulage o Carrier Haulage por alternativa, refrescar sus costos y preservar los cargos editados.
+- Reemplaza la presentación de tarjetas de pantalla 8 por acordeones de ancho completo con desglose comercial, costo, venta, utilidad y margen de cada subtarifa.
+- La API transaccional para creación agrupada sigue pendiente; se mantiene el bloqueo de guardados parciales.
+
 ## [1.10.0] - 2026-11-07
 
 - Mantiene visibles y seleccionados los POE en pantalla 3, conserva su orden y ofrece regresar directamente a modificar POE o POD desde pantallas 5 a 8.
