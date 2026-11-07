@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
   modelValue: string
   modelValues?: string[]
   multiple?: boolean
+  showChips?: boolean
   label: string
   placeholder?: string
   searchPlaceholder?: string
@@ -27,6 +28,7 @@ const props = withDefaults(defineProps<{
   optional: false,
   disabled: false,
   multiple: false,
+  showChips: true,
   modelValues: () => [],
 })
 
@@ -234,7 +236,7 @@ onBeforeUnmount(() => {
         <Search class="h-4 w-4" /> No hay coincidencias para “{{ query }}”.
       </div>
     </div>
-    <div v-if="multiple && multiSelected.length" class="mt-2 flex flex-wrap gap-1.5" aria-label="POE seleccionados">
+    <div v-if="multiple && showChips && multiSelected.length" class="mt-2 flex flex-wrap gap-1.5" aria-label="POE seleccionados">
       <button
         v-for="option in multiSelected"
         :key="option.value"
