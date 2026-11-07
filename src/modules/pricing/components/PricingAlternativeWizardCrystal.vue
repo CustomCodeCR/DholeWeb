@@ -481,11 +481,15 @@ const optionDrafts = ref<Record<string, PoeRouteDraft>>({})
 const selectedBundleByOption = ref<Record<string, string>>({})
 let restoreFclBundleForOption: ((poeId: string, carrierId: string) => void) | null = null
 
+// Grouped POE–carrier sub-QUO are exclusively maritime FCL.
+const fclMultiPoeEnabled = computed(() =>
+  form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl',
+)
 const multiCarrierSelectionMode = computed(() =>
   !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
-  && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
-  && selectedPoeIds.value.length > 0,
+  && fclMultiPoeEnabled.value && selectedPoeIds.value.length > 0,
 )
+const defaultFclHaulageMode = ref<'merchant' | 'carrier' | ''>('')
 const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
 const manualCarrierSearch = ref('')
 const currentPoeIndex = computed(() => selectedPoeIds.value.indexOf(form.destinationId))
@@ -584,7 +588,8 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
         carrierId, agentId: '', selectedImportRateId: '', manualRate: true,
         freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
         carrierRoute: '', carrierComments: '',
-        merchantHaulage: false, carrierHaulage: false,
+        merchantHaulage: defaultFclHaulageMode.value === 'merchant',
+        carrierHaulage: defaultFclHaulageMode.value === 'carrier',
       })
       rateLines.value = []
       costs.value = []
@@ -788,7 +793,8 @@ async function activatePoeRoute(destinationId: string) {
       selectedImportRateId: '', manualRate: false, carrierId: '',
       freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
       carrierRoute: '', carrierComments: '',
-      merchantHaulage: false, carrierHaulage: false,
+      merchantHaulage: defaultFclHaulageMode.value === 'merchant',
+        carrierHaulage: defaultFclHaulageMode.value === 'carrier',
     })
   }
   // POE tabs restore their last active carrier without overwriting other navieras.
@@ -810,6 +816,7 @@ async function activatePoeRoute(destinationId: string) {
 }
 
 function setSelectedPoeIds(values: string[]) {
+  if (!fclMultiPoeEnabled.value) return
   const selection = normalizePoeSelection(
     values,
     form.destinationId,
@@ -1970,10 +1977,15 @@ function isOwnLclMatrixContext() {
   ))
 }
 
-function haulageAssociation(line: { name: string }) {
+function haulageAssociation(line: { name: string; notes?: string | null }) {
   const value = normalizeCatalogValue(line.name)
-  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
-  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+  // Catálogo: "Inland Caldera a GAM (Naviera)" and "Inland ... (Merchant)".
+  if (value.includes('carrier haulage')
+    || ((value.includes('inland') || value.includes('transport'))
+      && (value.includes('naviera') || value.includes('carrier')))) return 'carrier'
+  if (value.includes('merchant haulage') || value === 'gate'
+    || ((value.includes('inland') || value.includes('transport'))
+      && value.includes('merchant'))) return 'merchant'
   return null
 }
 
@@ -3360,6 +3372,8 @@ if (insuranceRequested && visible.has('destination_charges')) {
     lines.splice(0, lines.length, ...preserved)
   }
   rateLines.value = lines
+  // Refreshing catalog costs must retain the haulage selected on Screen 4.
+  if (multiCarrierSelectionMode.value) syncHaulageOptionalLines()
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -3539,12 +3553,18 @@ function syncHaulageOptionalLines() {
 function toggleMerchantHaulage() {
   form.merchantHaulage = !form.merchantHaulage
   if (form.merchantHaulage) form.carrierHaulage = false
+  if (step.value <= 4 && fclMultiPoeEnabled.value) {
+    defaultFclHaulageMode.value = form.merchantHaulage ? 'merchant' : ''
+  }
   syncHaulageOptionalLines()
 }
 
 function toggleCarrierHaulage() {
   form.carrierHaulage = !form.carrierHaulage
   if (form.carrierHaulage) form.merchantHaulage = false
+  if (step.value <= 4 && fclMultiPoeEnabled.value) {
+    defaultFclHaulageMode.value = form.carrierHaulage ? 'carrier' : ''
+  }
   syncHaulageOptionalLines()
 }
 
@@ -5791,6 +5811,7 @@ function resetWizard() {
   step.value = 1
   createdRateId.value = ''
   selectedPoeIds.value = []
+  defaultFclHaulageMode.value = ''
   selectedCarriersByPoe.value = {}
   alternativeCostsLoaded.value = {}
   activeCarrierByPoe.value = {}
@@ -5868,6 +5889,28 @@ function resetWizard() {
     manualChargeBasis: '',
   })
 }
+
+watch(
+  () => fclMultiPoeEnabled.value,
+  (enabled) => {
+    if (props.rateId || props.sellerRequestMode || props.modificationRequestId) return
+    if (enabled) {
+      if (form.destinationId && !selectedPoeIds.value.includes(form.destinationId)) {
+        selectedPoeIds.value = [form.destinationId]
+      }
+      return
+    }
+    // Never carry grouped FCL routes into LCL, FTL, LTL, Air or multimodal flows.
+    selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
+    selectedCarriersByPoe.value = {}
+    activeCarrierByPoe.value = {}
+    optionDrafts.value = {}
+    selectedBundleByOption.value = {}
+    poeRouteDrafts.value = {}
+    alternativeCostsLoaded.value = {}
+    defaultFclHaulageMode.value = ''
+  },
+)
 
 watch(
   () => form.cargoDescription,
@@ -6351,7 +6394,7 @@ onMounted(async () => {
                 :options="originOptions"
               />
               <PricingLocationSearchSelect
-                v-if="!isEditing && !sellerRequestMode"
+                v-if="!isEditing && !sellerRequestMode && fclMultiPoeEnabled"
                 :model-value="form.destinationId"
                 :model-values="selectedPoeIds"
                 multiple
@@ -6384,7 +6427,7 @@ onMounted(async () => {
                 :options="podOptions"
               />
 
-              <div v-if="!isEditing && !sellerRequestMode" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
+              <div v-if="!isEditing && !sellerRequestMode && fclMultiPoeEnabled" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-3">
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-5 w-5" /></span>
