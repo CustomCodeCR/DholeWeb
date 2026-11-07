@@ -235,7 +235,7 @@ ${optionalSelectorAnchor}`,
 
   code = replaceRegexOne(
     code,
-    /async function loadApplicableCosts\(\) \{[\s\S]*?\n\}\n\nfunction rebuildRateLines/,
+    /async function loadApplicableCosts\(\)(?:: Promise<boolean>)? \{[\s\S]*?\n\}\n\nfunction rebuildRateLines/,
     `function maritimeFclRelationMatches(
   relations: Array<{ id: string }> | null | undefined,
   legacyId: string | null | undefined,
@@ -288,7 +288,8 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
   return true
 }
 
-async function loadApplicableCosts() {
+async function loadApplicableCosts(): Promise<boolean> {
+  const activeContext = activeCostContextKey()
   try {
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
@@ -342,16 +343,20 @@ async function loadApplicableCosts() {
       contextualCosts.forEach((cost) => mergedCosts.set(cost.id, cost))
     }
 
+    if (activeContext !== activeCostContextKey()) return false
     costs.value = [...mergedCosts.values()].map((cost) => ({
       ...cost,
       __dholePricingContextKey: contextKey,
     }))
+    return true
   } catch (error) {
-    costs.value = []
+    if (activeContext !== activeCostContextKey()) return false
+    // A failed refresh must never erase rates or user-edited amounts.
     toastStore.backendError(
       error,
       'No se pudieron cargar los costos que coinciden con modalidad, ruta, proveedor e Incoterm.',
     )
+    return false
   }
 }
 
