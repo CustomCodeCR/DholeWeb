@@ -76,8 +76,20 @@ export function pricingWizardEnhancements(): Plugin {
 
       const canNextAnchor = `  if (step.value === 4) {\n    if (!consolidatedCargoMode.value) return true\n    return Boolean(\n      form.cargoPallets > 0 &&\n      form.cargoLengthCm > 0 &&\n      form.cargoWidthCm > 0 &&\n      form.cargoHeightCm > 0,\n    )\n  }\n  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`
       const canNextReplacement = `  if (step.value === 4) {\n    if (!consolidatedCargoMode.value) return true\n    return Boolean(\n      form.cargoPallets > 0 &&\n      form.cargoLengthCm > 0 &&\n      form.cargoWidthCm > 0 &&\n      form.cargoHeightCm > 0 &&\n      lclChargeableCbm.value > 0\n    )\n  }\n  if (step.value === 5) {\n    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)\n    return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  }\n  if (step.value === 6) {\n    if (shipmentModeForApi.value === 'Lcl') {\n      return Boolean(lclSelectedSource.value && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n    }\n    return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)\n  }`
+      // Retain the multi-POE/naviera Screen 5 gate while applying LCL's CBM
+      // requirement and source-selection rules to the same wizard.
+      const multiCarrierCanNextAnchor = canNextAnchor.replace(
+        "  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)",
+        "  if (step.value === 5) return multiCarrierSelectionMode.value\n    ? allPoeCarriersSelected.value\n    : Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)",
+      )
+      const multiCarrierCanNextReplacement = canNextReplacement.replace(
+        "    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)",
+        "    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)\n    if (multiCarrierSelectionMode.value) return allPoeCarriersSelected.value",
+      )
       const legacyCanNextAnchor = `  if (step.value === 4) return true\n  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`
-      if (
+      if (code.includes(multiCarrierCanNextAnchor)) {
+        code = replaceOne(code, multiCarrierCanNextAnchor, multiCarrierCanNextReplacement, 'wizard LCL + multi-carrier next validation')
+      } else if (
         !code.includes(canNextAnchor)
         && code.includes('dhole-existing-rate-ui-b19404f-current-compat')
         && code.includes(legacyCanNextAnchor)
@@ -220,8 +232,12 @@ export function pricingWizardEnhancements(): Plugin {
       code = replaceOne(code, providerAgentAnchor, providerAgentReplacement, 'LCL provider field')
 
       const lclCarrierSelectAnchor = '            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
-      const lclCarrierSelectReplacement = '            <DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
-      code = replaceOne(code, lclCarrierSelectAnchor, lclCarrierSelectReplacement, 'hide carrier selector for LCL')
+      const multiCarrierSelectAnchor = '              <DhSelect v-else v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+      const selectedCarrierAnchor = code.includes(multiCarrierSelectAnchor) ? multiCarrierSelectAnchor : lclCarrierSelectAnchor
+      const selectedCarrierReplacement = code.includes(multiCarrierSelectAnchor)
+        ? '              <DhSelect v-else-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+        : '            <DhSelect v-if="shipmentModeForApi !== \'Lcl\'" v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />'
+      code = replaceOne(code, selectedCarrierAnchor, selectedCarrierReplacement, 'hide carrier selector for LCL')
 
       const freightCostAnchor = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" />'
       const freightCostReplacement = '            <DhInput v-model.number="form.freightCost" type="number" min="0" step="0.01" label="Flete internacional · costo" :disabled="shipmentModeForApi === \'Lcl\' && lclSelectedSource?.kind === \'Coloader\'" />'
