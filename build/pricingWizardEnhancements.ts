@@ -86,8 +86,18 @@ export function pricingWizardEnhancements(): Plugin {
         "    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)",
         "    if (shipmentModeForApi.value === 'Lcl') return Boolean(lclSelectedSource.value)\n    if (multiCarrierSelectionMode.value) return allPoeCarriersSelected.value",
       )
+      const sequentialPoeCanNextAnchor = multiCarrierCanNextAnchor.replace(
+        "allPoeCarriersSelected.value",
+        "currentPoeCarrierIds.value.length > 0",
+      )
+      const sequentialPoeCanNextReplacement = multiCarrierCanNextReplacement.replace(
+        "allPoeCarriersSelected.value",
+        "currentPoeCarrierIds.value.length > 0",
+      )
       const legacyCanNextAnchor = `  if (step.value === 4) return true\n  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)\n  if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)`
-      if (code.includes(multiCarrierCanNextAnchor)) {
+      if (code.includes(sequentialPoeCanNextAnchor)) {
+        code = replaceOne(code, sequentialPoeCanNextAnchor, sequentialPoeCanNextReplacement, 'wizard LCL + sequential POE validation')
+      } else if (code.includes(multiCarrierCanNextAnchor)) {
         code = replaceOne(code, multiCarrierCanNextAnchor, multiCarrierCanNextReplacement, 'wizard LCL + multi-carrier next validation')
       } else if (
         !code.includes(canNextAnchor)
