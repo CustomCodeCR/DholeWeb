@@ -84,20 +84,20 @@ function patchWizard(source: string) {
     'edit reason stepbar gate',
   )
 
-  const rawFooterAnchor = `    <div class="crystal-footer flex items-center justify-between gap-3 p-3">`
-  const screenZeroFooterAnchor = `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3">`
+  const rawFooterAnchor = `    <div class="crystal-footer flex items-center justify-between gap-3 p-3"`
+  const screenZeroFooterAnchor = `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3"`
   if (code.includes(screenZeroFooterAnchor)) {
     code = replaceOne(
       code,
       screenZeroFooterAnchor,
-      `    <div v-if="(isEditing || entryLogisticsService || step !== 1) && (!isEditing || viewOnly || editReasonConfirmed)" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
+      `    <div v-if="(isEditing || entryLogisticsService || step !== 1) && (!isEditing || viewOnly || editReasonConfirmed)" class="crystal-footer flex items-center justify-between gap-3 p-3"`,
       'edit reason transformed footer gate',
     )
   } else {
     code = replaceOne(
       code,
       rawFooterAnchor,
-      `    <div v-if="!isEditing || viewOnly || editReasonConfirmed" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
+      `    <div v-if="!isEditing || viewOnly || editReasonConfirmed" class="crystal-footer flex items-center justify-between gap-3 p-3"`,
       'edit reason footer gate',
     )
   }
