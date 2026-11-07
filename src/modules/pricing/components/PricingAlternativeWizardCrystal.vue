@@ -5954,6 +5954,23 @@ watch(
 )
 
 watch(
+  () => [form.modality, shipmentModeForApi.value] as const,
+  ([modality, shipmentMode]) => {
+    if (modality === 'Maritime' && shipmentMode === 'Fcl') return
+    // Multiple POEs and sub-QUO exist exclusively for FCL. Never carry a
+    // previously selected FCL route queue into LCL, land or air workflows.
+    if (selectedPoeIds.value.length > 1) {
+      selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
+    }
+    selectedCarriersByPoe.value = {}
+    activeCarrierByPoe.value = {}
+    optionDrafts.value = {}
+    selectedBundleByOption.value = {}
+    alternativeCostsLoaded.value = {}
+  },
+)
+
+watch(
   () => form.originId,
   () => assignAgentForOrigin(),
 )
