@@ -5774,6 +5774,32 @@ onMounted(async () => {
       </details>
     </div>
 
+    <div
+      v-if="!isEditing && !sellerRequestMode && selectedPoeIds.length > 1 && step >= 5 && step <= 8"
+      class="mb-6 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+    >
+      <p class="mb-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+        Opciones por POE · {{ selectedPoeIds.length }} rutas seleccionadas
+      </p>
+      <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
+        <button
+          v-for="poeId in selectedPoeIds"
+          :key="poeId"
+          type="button"
+          role="tab"
+          :aria-selected="form.destinationId === poeId"
+          :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
+          class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
+          @click="activatePoeRoute(poeId)"
+        >
+          {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
+        </button>
+      </div>
+      <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+        Los fletes y rubros mostrados corresponden al POE activo. El guardado comercial agrupado sigue pendiente de integración en Pricing.
+      </p>
+    </div>
+
     <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
       <button
         v-for="(title, index) in visibleStepTitles"
@@ -5797,32 +5823,6 @@ onMounted(async () => {
       </div>
 
       <template v-else>
-        <div
-          v-if="!isEditing && !sellerRequestMode && selectedPoeIds.length > 1 && step >= 5 && step <= 8"
-          class="mb-6 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
-        >
-          <p class="mb-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-            Opciones por POE · {{ selectedPoeIds.length }} rutas seleccionadas
-          </p>
-          <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
-            <button
-              v-for="poeId in selectedPoeIds"
-              :key="poeId"
-              type="button"
-              role="tab"
-              :aria-selected="form.destinationId === poeId"
-              :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
-              class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
-              @click="activatePoeRoute(poeId)"
-            >
-              {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
-            </button>
-          </div>
-          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-            Los fletes y rubros mostrados corresponden al POE activo. El guardado comercial agrupado sigue pendiente de integración en Pricing.
-          </p>
-        </div>
-
         <div v-if="step === 1" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 1</p>
