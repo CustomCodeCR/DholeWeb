@@ -133,42 +133,50 @@ function patchWizard(source: string) {
       'conservar importes del opcional al sincronizar el mismo tarifario',
     )
 
-    code = replaceRequired(
-      code,
-      [
-        '  rateLines.value = lines',
-        "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
-        '    syncResolvedLandLtlTariffLines()',
-        '  }',
-        '  // syncResolvedLandLtlTariffLines() after every rebuild',
-      ].join('\n'),
-      [
-        '  const previousLtlOptionals = shipmentModeForApi.value === \'Ltl\'',
-        '    ? rateLines.value.filter((line) => line.optional',
-        "        && String(line.key ?? '').startsWith('ltl-tariff:')",
-        "        && (line as RateLine & { ltlSourceTariffId?: string }).ltlSourceTariffId === String(resolvedFtlTariff.value?.id ?? ''))",
-        '      .map((line) => ({ ...line }))',
-        '    : []',
-        '  rateLines.value = lines',
-        "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
-        '    syncResolvedLandLtlTariffLines()',
-        '    for (const previous of previousLtlOptionals) {',
-        '      const current = rateLines.value.find((line) => line.key === previous.key && line.optional)',
-        '      if (!current) continue',
-        '      current.costAmount = previous.costAmount',
-        '      current.saleAmount = previous.saleAmount',
-        '      current.included = previous.included',
-        '      current.currencyId = previous.currencyId',
-        '      current.currencyName = previous.currencyName',
-        '      current.currencyCode = previous.currencyCode',
-        '      current.amountCurrencyCode = previous.amountCurrencyCode',
-        '      current.billToClient = previous.billToClient',
-        '    }',
-        '  }',
-        '  // syncResolvedLandLtlTariffLines() after every rebuild',
-      ].join('\n'),
-      'preservar cambios al reconstruir Pantalla 7',
-    )
+
+    const assignment = code.includes('  rateLines.value = previousOptionLines.length')
+      ? [
+          '  rateLines.value = previousOptionLines.length',
+          '    ? mergeOptionCostLines(previousOptionLines, lines)',
+          '    : lines',
+        ].join('\n')
+      : '  rateLines.value = lines'
+    const afterAssignment = [
+      "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
+      '    syncResolvedLandLtlTariffLines()',
+      '  }',
+      '  // syncResolvedLandLtlTariffLines() after every rebuild',
+    ].join('\n')
+    const before = assignment + '\n' + afterAssignment
+    const keepOptionals = [
+      "  const previousLtlOptionals = shipmentModeForApi.value === 'Ltl'",
+      '    ? rateLines.value.filter((line) => line.optional',
+      "        && String(line.key ?? '').startsWith('ltl-tariff:')",
+      "        && (line as RateLine & { ltlSourceTariffId?: string }).ltlSourceTariffId === String(resolvedFtlTariff.value?.id ?? ''))",
+      '      .map((line) => ({ ...line }))',
+      '    : []',
+    ].join('\n')
+    const restoreOptionals = [
+      "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
+      '    syncResolvedLandLtlTariffLines()',
+      '    for (const previous of previousLtlOptionals) {',
+      '      const current = rateLines.value.find((line) => line.key === previous.key && line.optional)',
+      '      if (!current) continue',
+      '      current.costAmount = previous.costAmount',
+      '      current.saleAmount = previous.saleAmount',
+      '      current.included = previous.included',
+      '      current.currencyId = previous.currencyId',
+      '      current.currencyName = previous.currencyName',
+      '      current.currencyCode = previous.currencyCode',
+      '      current.amountCurrencyCode = previous.amountCurrencyCode',
+      '      current.billToClient = previous.billToClient',
+      '    }',
+      '  }',
+      '  // syncResolvedLandLtlTariffLines() after every rebuild',
+    ].join('\n')
+    const after = keepOptionals + '\n' + assignment + '\n' + restoreOptionals
+    code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+
   }
 
   const scriptEnd = code.lastIndexOf('</script>')
