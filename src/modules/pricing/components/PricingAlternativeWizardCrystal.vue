@@ -17,6 +17,7 @@ import {
   Sparkles,
   Truck,
   Waypoints,
+  X,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
@@ -67,6 +68,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
+import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -482,7 +484,143 @@ function copyPoeLines(lines: RateLine[]): RateLine[] {
   }))
 }
 
+
+/**
+ * Selection is per destination, not a global "Navieras" filter.
+ * Drafts remain independent for each [POE, naviera] until the Pricing group
+ * transaction is available. The existing single-rate REST create is not used
+ * for multiple options.
+ */
+const selectedCarriersByPoe = ref<Record<string, string[]>>({})
+const activeCarrierByPoe = ref<Record<string, string>>({})
+const optionDrafts = ref<Record<string, PoeRouteDraft>>({})
+const selectedBundleByOption = ref<Record<string, string>>({})
+let restoreFclBundleForOption: ((poeId: string, carrierId: string) => void) | null = null
+
+const multiCarrierSelectionMode = computed(() =>
+  !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
+  && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
+  && selectedPoeIds.value.length > 0,
+)
+const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
+const carrierRouteCount = computed(() =>
+  selectedPoeIds.value.reduce((total, id) => total + (selectedCarriersByPoe.value[id]?.length ?? 0), 0),
+)
+const allPoeCarriersSelected = computed(() =>
+  poeCarrierSelectionComplete(selectedPoeIds.value, selectedCarriersByPoe.value),
+)
+const selectedCarrierRoutes = computed(() =>
+  selectedPoeIds.value.flatMap((poeId) =>
+    (selectedCarriersByPoe.value[poeId] ?? []).map((carrierId) => ({ poeId, carrierId })),
+  ),
+)
+const activeCarrierForCurrentPoe = computed(() =>
+  activeCarrierByPoe.value[form.destinationId] ?? '',
+)
+
+function resolveConfiguredCarrierId(id: string, name: string): string {
+  if (id && catalogs.carriers.some((carrier) => carrier.id === id)) return id
+  const normalized = normalizeCatalogValue(name)
+  return catalogs.carriers.find((carrier) =>
+    normalizeCatalogValue(displayValue(carrier)) === normalized,
+  )?.id ?? ''
+}
+
+function rememberCurrentCarrierDraft() {
+  if (!multiCarrierSelectionMode.value) return
+  const poeId = form.destinationId
+  const carrierId = activeCarrierByPoe.value[poeId]
+  if (!poeId || !carrierId || !(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
+  const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
+  optionDrafts.value[carrierRouteKey(poeId, carrierId)] = {
+    fields: { ...fields, carrierId },
+    rates: [...availableRates.value],
+    lines: copyPoeLines(rateLines.value),
+  }
+}
+
+async function activateCarrierRoute(poeId: string, carrierId: string) {
+  if (!multiCarrierSelectionMode.value || loadingRates.value) return
+  if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
+  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId) return
+  rememberCurrentCarrierDraft()
+  if (poeId !== form.destinationId) await activatePoeRoute(poeId)
+  switchingPoeRoute.value = true
+  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
+  const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
+  if (draft) {
+    Object.assign(form, draft.fields)
+    rateLines.value = copyPoeLines(draft.lines)
+  } else {
+    Object.assign(form, {
+      carrierId, selectedImportRateId: '', manualRate: true,
+      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
+      carrierRoute: '', carrierComments: '',
+      merchantHaulage: false, carrierHaulage: false,
+    })
+    rateLines.value = []
+  }
+  form.carrierId = carrierId
+  restoreFclBundleForOption?.(poeId, carrierId)
+  await nextTickForPoe()
+  switchingPoeRoute.value = false
+}
+
+function setCurrentPoeCarrierIds(ids: string[]) {
+  if (!multiCarrierSelectionMode.value || !form.destinationId) return
+  rememberCurrentCarrierDraft()
+  const next = normalizePoeCarrierIds(ids, catalogs.carriers.map((item) => item.id))
+  const poeId = form.destinationId
+  const previous = selectedCarriersByPoe.value[poeId] ?? []
+  selectedCarriersByPoe.value = { ...selectedCarriersByPoe.value, [poeId]: next }
+  for (const carrierId of previous.filter((id) => !next.includes(id))) {
+    const key = carrierRouteKey(poeId, carrierId)
+    delete optionDrafts.value[key]
+    delete selectedBundleByOption.value[key]
+  }
+  if (!next.includes(activeCarrierByPoe.value[poeId] ?? '')) {
+    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: '' }
+    form.carrierId = ''
+    if (next[0]) void activateCarrierRoute(poeId, next[0])
+  }
+}
+
+function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
+  if (!multiCarrierSelectionMode.value || !carrierId || !form.destinationId) return
+  const poeId = form.destinationId
+  const previous = selectedCarriersByPoe.value[poeId] ?? []
+  selectedCarriersByPoe.value = {
+    ...selectedCarriersByPoe.value,
+    [poeId]: previous.includes(carrierId) ? previous : [...previous, carrierId],
+  }
+  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
+  selectedBundleByOption.value = {
+    ...selectedBundleByOption.value,
+    [carrierRouteKey(poeId, carrierId)]: bundleKey,
+  }
+  form.carrierId = carrierId
+  rememberCurrentCarrierDraft()
+}
+
+function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
+  const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
+  return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+}
+
+async function continueWithSelectedCarriers() {
+  if (!multiCarrierSelectionMode.value || !allPoeCarriersSelected.value) {
+    toastStore.warning('Faltan navieras', 'Seleccione al menos una naviera en cada POE antes de ir a Proveedor.')
+    return
+  }
+  rememberCurrentCarrierDraft()
+  const first = selectedCarrierRoutes.value[0]
+  if (!first) return
+  await activateCarrierRoute(first.poeId, first.carrierId)
+  step.value = 6
+}
+
 function rememberActivePoe() {
+  rememberCurrentCarrierDraft()
   const id = form.destinationId
   if (!id || !selectedPoeIds.value.includes(id)) return
   const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
@@ -516,6 +654,17 @@ async function activatePoeRoute(destinationId: string) {
       merchantHaulage: false, carrierHaulage: false,
     })
   }
+  // POE tabs restore their last active carrier without overwriting other navieras.
+  if (multiCarrierSelectionMode.value && destinationId) {
+    const selectedCarrier = activeCarrierByPoe.value[destinationId]
+      || (selectedCarriersByPoe.value[destinationId] ?? [])[0] || ''
+    const selectedDraft = optionDrafts.value[carrierRouteKey(destinationId, selectedCarrier)]
+    if (selectedDraft) {
+      Object.assign(form, selectedDraft.fields)
+      rateLines.value = copyPoeLines(selectedDraft.lines)
+    } else if (selectedCarrier) form.carrierId = selectedCarrier
+    restoreFclBundleForOption?.(destinationId, selectedCarrier)
+  }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
   switchingPoeRoute.value = false
   if (!cached && destinationId && step.value > 5) step.value = 5
@@ -529,6 +678,15 @@ function setSelectedPoeIds(values: string[]) {
     destinationOptions.value.map((item) => item.value),
   )
   selectedPoeIds.value = selection.ids
+  for (const id of Object.keys(selectedCarriersByPoe.value)) {
+    if (selection.ids.includes(id)) continue
+    for (const carrierId of selectedCarriersByPoe.value[id] ?? []) {
+      delete optionDrafts.value[carrierRouteKey(id, carrierId)]
+      delete selectedBundleByOption.value[carrierRouteKey(id, carrierId)]
+    }
+    delete selectedCarriersByPoe.value[id]
+    delete activeCarrierByPoe.value[id]
+  }
   for (const id of Object.keys(poeRouteDrafts.value)) {
     if (!selection.ids.includes(id)) delete poeRouteDrafts.value[id]
   }
@@ -2178,7 +2336,9 @@ const canNext = computed(() => {
       form.cargoHeightCm > 0,
     )
   }
-  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
+  if (step.value === 5) return multiCarrierSelectionMode.value
+    ? allPoeCarriersSelected.value
+    : Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
   if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
   return true
 })
@@ -2239,7 +2399,11 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     }
   }
   if (step.value === 5 && !props.rateId) {
-    add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
+    if (multiCarrierSelectionMode.value) {
+      add(!allPoeCarriersSelected.value, 'carrierIdsByPoe', 'Seleccione navieras para cada POE')
+    } else {
+      add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
+    }
   }
   if (step.value === 6) {
     // LCL chooses its own source; land LTL/FTL and air have no naviera.
@@ -4607,7 +4771,7 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
-  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+  if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
     toastStore.warning('Guardado agrupado pendiente', 'Pricing todavía no puede crear todas las sub-QUO en una transacción. Los POE continúan seleccionados.')
     return
   }
@@ -4800,7 +4964,7 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
-  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+  if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
     toastStore.warning('Guardado agrupado pendiente', 'No se creó ninguna tarifa: es necesario implementar la API que guarde todas las rutas y sub-QUO juntas.')
     return
   }
@@ -5438,7 +5602,7 @@ async function handleSaveRateClick() {
   saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
   const initialStep = step.value
   try {
-    if (!editingRate.value && selectedPoeIds.value.length > 1) {
+    if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
       saveButtonFeedback.value = 'No se enviaron las rutas: la API todavía no admite sub-QUO agrupadas.'
       toastStore.warning('Sincronización multi-QUO pendiente', saveButtonFeedback.value)
       return
@@ -5475,6 +5639,10 @@ function resetWizard() {
   step.value = 1
   createdRateId.value = ''
   selectedPoeIds.value = []
+  selectedCarriersByPoe.value = {}
+  activeCarrierByPoe.value = {}
+  optionDrafts.value = {}
+  selectedBundleByOption.value = {}
   poeRouteDrafts.value = {}
   ++approvedRatesSearchSequence
   availableRates.value = []
@@ -5774,30 +5942,57 @@ onMounted(async () => {
       </details>
     </div>
 
+
     <div
-      v-if="!isEditing && !sellerRequestMode && selectedPoeIds.length > 1 && step >= 5 && step <= 8"
-      class="mb-6 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+      v-if="!isEditing && !sellerRequestMode && multiCarrierSelectionMode && (selectedPoeIds.length > 1 || carrierRouteCount > 1) && step >= 5 && step <= 8"
+      class="mb-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4"
     >
-      <p class="mb-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-        Opciones por POE · {{ selectedPoeIds.length }} rutas seleccionadas
-      </p>
-      <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <span class="grid h-9 w-9 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-4 w-4" /></span>
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ step === 5 ? 'Puertos de destino' : 'Alternativas de la cotización' }}</p>
+            <p class="text-xs font-semibold text-[var(--dh-text)]">{{ selectedPoeIds.length }} POE · {{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'naviera seleccionada' : 'combinaciones POE–naviera' }}</p>
+          </div>
+        </div>
+        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-[11px] font-bold text-[var(--dh-text-muted)]">
+          {{ step === 5 ? 'Seleccione navieras por puerto' : 'Cada combinación conserva sus costos' }}
+        </span>
+      </div>
+      <div v-if="step === 5" class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
         <button
           v-for="poeId in selectedPoeIds"
           :key="poeId"
           type="button"
           role="tab"
+          :disabled="loadingRates"
           :aria-selected="form.destinationId === poeId"
           :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
-          class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
+          class="flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-50"
           @click="activatePoeRoute(poeId)"
         >
           {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
+          <span class="rounded-full bg-[var(--dh-input)] px-1.5 py-0.5 text-[10px]">{{ (selectedCarriersByPoe[poeId] || []).length }}</span>
         </button>
       </div>
-      <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-        Los fletes y rubros mostrados corresponden al POE activo. El guardado comercial agrupado sigue pendiente de integración en Pricing.
-      </p>
+      <div v-else class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Alternativas por POE y naviera">
+        <button
+          v-for="route in selectedCarrierRoutes"
+          :key="carrierRouteKey(route.poeId, route.carrierId)"
+          type="button"
+          role="tab"
+          :aria-selected="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId"
+          :class="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
+          class="flex max-w-[290px] shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold"
+          @click="activateCarrierRoute(route.poeId, route.carrierId)"
+        >
+          <span class="min-w-0">
+            <span class="block truncate">{{ displayValue(findById(catalogs.poe, route.poeId)) || route.poeId }}</span>
+            <span class="mt-0.5 block truncate text-[11px] text-[var(--dh-text-muted)]">{{ displayValue(findById(catalogs.carriers, route.carrierId)) || route.carrierId }}</span>
+          </span>
+          <Check v-if="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId" class="h-4 w-4 shrink-0" />
+        </button>
+      </div>
     </div>
 
     <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
@@ -5953,6 +6148,7 @@ onMounted(async () => {
                 :model-value="form.destinationId"
                 :model-values="selectedPoeIds"
                 multiple
+                :show-chips="false"
                 data-required-field="destinationId" :error="fieldError('destinationId')"
                 label="Destinos (POE) · selección múltiple"
                 placeholder="Buscar y seleccionar varios POE"
@@ -5980,6 +6176,49 @@ onMounted(async () => {
                 :optional="true"
                 :options="podOptions"
               />
+
+              <div v-if="!isEditing && !sellerRequestMode" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-5 w-5" /></span>
+                    <div>
+                      <h3 class="text-sm font-black text-[var(--dh-text)]">Destinos de la cotización</h3>
+                      <p class="mt-0.5 text-xs font-medium text-[var(--dh-text-muted)]">Agregue todos los POE. Cada uno tendrá sus navieras, fletes y costos separados.</p>
+                    </div>
+                  </div>
+                  <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-black text-[var(--dh-text)]">
+                    {{ selectedPoeIds.length }} {{ selectedPoeIds.length === 1 ? 'destino' : 'destinos' }}
+                  </span>
+                </div>
+                <div v-if="selectedPoeIds.length" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="Lista de POE seleccionados">
+                  <div
+                    v-for="(poeId, index) in selectedPoeIds"
+                    :key="poeId"
+                    class="flex min-w-0 items-center gap-1 rounded-2xl border p-1.5 transition-colors"
+                    :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                  >
+                    <button
+                      type="button"
+                      class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                      :aria-pressed="form.destinationId === poeId"
+                      @click="activatePoeRoute(poeId)"
+                    >
+                      <span class="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-[var(--dh-border)] text-[10px] font-black text-[var(--dh-text-muted)]">{{ String(index + 1).padStart(2, '0') }}</span>
+                      <span class="min-w-0 truncate text-xs font-bold text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
+                      <Check v-if="form.destinationId === poeId" class="ml-auto h-3.5 w-3.5 shrink-0 text-[var(--dh-primary)]" />
+                    </button>
+                    <button
+                      type="button"
+                      class="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[var(--dh-text-muted)] hover:bg-red-500/10 hover:text-red-500"
+                      :aria-label="`Eliminar ${displayValue(findById(catalogs.poe, poeId)) || poeId} de la cotización`"
+                      @click="setSelectedPoeIds(selectedPoeIds.filter((id) => id !== poeId))"
+                    ><X class="h-4 w-4" /></button>
+                  </div>
+                </div>
+                <p v-else class="rounded-xl border border-dashed border-[var(--dh-border-strong)] px-4 py-4 text-center text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Busque y agregue un POE arriba para empezar a crear sus alternativas.
+                </p>
+              </div>
             </div>
 
             <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
@@ -6303,6 +6542,61 @@ onMounted(async () => {
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
           </div>
 
+
+          <div v-if="multiCarrierSelectionMode" class="rounded-[24px] border border-[var(--dh-primary)]/25 bg-[var(--dh-card)] p-4 md:p-5">
+            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div class="flex min-w-0 items-start gap-3">
+                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Ship class="h-5 w-5" /></span>
+                <div>
+                  <h3 class="text-base font-black">Navieras para {{ displayValue(selectedDestination) || 'este POE' }}</h3>
+                  <p class="mt-1 max-w-xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
+                    Seleccione una o varias navieras para este puerto. Repita la selección en los demás POE antes de continuar.
+                  </p>
+                </div>
+              </div>
+              <span class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.10)] px-3 py-1.5 text-xs font-black text-[var(--dh-primary)]">{{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'alternativa' : 'alternativas' }}</span>
+            </div>
+            <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(250px,1fr)]">
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+                <PricingCrystalMultiSelect
+                  :model-value="currentPoeCarrierIds"
+                  :options="carrierOptions"
+                  label="Seleccionar navieras de este POE"
+                  placeholder="Buscar y seleccionar navieras"
+                  search-placeholder="Buscar naviera por nombre..."
+                  @update:model-value="setCurrentPoeCarrierIds"
+                />
+                <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">Las tarifas preaprobadas de abajo pueden asignar automáticamente su naviera. También puede elegir navieras para cotizar manualmente.</p>
+              </div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-3">
+                <p class="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cobertura de puertos</p>
+                <div class="space-y-1.5">
+                  <button
+                    v-for="poeId in selectedPoeIds"
+                    :key="poeId"
+                    type="button"
+                    :disabled="loadingRates"
+                    class="flex w-full items-center justify-between gap-3 rounded-xl px-2.5 py-2 text-left text-xs font-bold hover:bg-[var(--dh-card-hover)] disabled:opacity-50"
+                    @click="activatePoeRoute(poeId)"
+                  >
+                    <span class="min-w-0 truncate text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
+                    <span class="shrink-0 rounded-full px-2 py-1 text-[10px] font-black" :class="(selectedCarriersByPoe[poeId] || []).length ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
+                      {{ (selectedCarriersByPoe[poeId] || []).length ? (selectedCarriersByPoe[poeId] || []).length + ' naviera(s)' : 'Pendiente' }}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4">
+              <p class="text-xs font-semibold" :class="allPoeCarriersSelected ? 'text-emerald-500' : 'text-[var(--dh-text-muted)]'">
+                {{ allPoeCarriersSelected ? 'Todos los POE tienen navieras asignadas.' : 'Falta seleccionar al menos una naviera en cada POE.' }}
+              </p>
+              <DhButton :disabled="!allPoeCarriersSelected || loadingRates" @click="continueWithSelectedCarriers">
+                Continuar a proveedor <ChevronRight class="h-4 w-4" />
+              </DhButton>
+            </div>
+          </div>
+
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
 
           <template v-else-if="availableRates.length">
@@ -6384,7 +6678,11 @@ onMounted(async () => {
               No hay agentes disponibles para este POL. Revise la metadata en Config &gt; Catálogos &gt; Agentes.
             </p>
             <div v-if="carrierRequiredForStepSix" data-required-field="carrierId" :class="isInvalid('carrierId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
-            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
+            <div v-if="multiCarrierSelectionMode" class="flex items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm font-black text-[var(--dh-text)]">
+                <Ship class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+                {{ displayValue(findById(catalogs.carriers, form.carrierId)) || 'Seleccione naviera en pantalla 5' }}
+              </div>
+              <DhSelect v-else v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
               <p v-if="fieldError('carrierId')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('carrierId') }}</p>
             </div>
             <DhSelect v-model="form.currencyId" data-required-field="currencyId" :error="fieldError('currencyId')" label="Moneda" :options="currencyOptions" />
