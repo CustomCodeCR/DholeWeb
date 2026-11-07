@@ -6551,6 +6551,61 @@ onMounted(async () => {
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
           </div>
 
+
+          <div v-if="multiCarrierSelectionMode" class="rounded-[24px] border border-[var(--dh-primary)]/25 bg-[var(--dh-card)] p-4 md:p-5">
+            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div class="flex min-w-0 items-start gap-3">
+                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Ship class="h-5 w-5" /></span>
+                <div>
+                  <h3 class="text-base font-black">Navieras para {{ displayValue(selectedDestination) || 'este POE' }}</h3>
+                  <p class="mt-1 max-w-xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
+                    Seleccione una o varias navieras para este puerto. Repita la selección en los demás POE antes de continuar.
+                  </p>
+                </div>
+              </div>
+              <span class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.10)] px-3 py-1.5 text-xs font-black text-[var(--dh-primary)]">{{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'alternativa' : 'alternativas' }}</span>
+            </div>
+            <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(250px,1fr)]">
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+                <PricingCrystalMultiSelect
+                  :model-value="currentPoeCarrierIds"
+                  :options="carrierOptions"
+                  label="Seleccionar navieras de este POE"
+                  placeholder="Buscar y seleccionar navieras"
+                  search-placeholder="Buscar naviera por nombre..."
+                  @update:model-value="setCurrentPoeCarrierIds"
+                />
+                <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">Las tarifas preaprobadas de abajo pueden asignar automáticamente su naviera. También puede elegir navieras para cotizar manualmente.</p>
+              </div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-3">
+                <p class="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cobertura de puertos</p>
+                <div class="space-y-1.5">
+                  <button
+                    v-for="poeId in selectedPoeIds"
+                    :key="poeId"
+                    type="button"
+                    :disabled="loadingRates"
+                    class="flex w-full items-center justify-between gap-3 rounded-xl px-2.5 py-2 text-left text-xs font-bold hover:bg-[var(--dh-card-hover)] disabled:opacity-50"
+                    @click="activatePoeRoute(poeId)"
+                  >
+                    <span class="min-w-0 truncate text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
+                    <span class="shrink-0 rounded-full px-2 py-1 text-[10px] font-black" :class="(selectedCarriersByPoe[poeId] || []).length ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'">
+                      {{ (selectedCarriersByPoe[poeId] || []).length ? (selectedCarriersByPoe[poeId] || []).length + ' naviera(s)' : 'Pendiente' }}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4">
+              <p class="text-xs font-semibold" :class="allPoeCarriersSelected ? 'text-emerald-500' : 'text-[var(--dh-text-muted)]'">
+                {{ allPoeCarriersSelected ? 'Todos los POE tienen navieras asignadas.' : 'Falta seleccionar al menos una naviera en cada POE.' }}
+              </p>
+              <DhButton :disabled="!allPoeCarriersSelected || loadingRates" @click="continueWithSelectedCarriers">
+                Continuar a proveedor <ChevronRight class="h-4 w-4" />
+              </DhButton>
+            </div>
+          </div>
+
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
 
           <template v-else-if="availableRates.length">
@@ -6632,7 +6687,11 @@ onMounted(async () => {
               No hay agentes disponibles para este POL. Revise la metadata en Config &gt; Catálogos &gt; Agentes.
             </p>
             <div v-if="carrierRequiredForStepSix" data-required-field="carrierId" :class="isInvalid('carrierId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
-            <DhSelect v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
+            <div v-if="multiCarrierSelectionMode" class="flex items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm font-black text-[var(--dh-text)]">
+                <Ship class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+                {{ displayValue(findById(catalogs.carriers, form.carrierId)) || 'Seleccione naviera en pantalla 5' }}
+              </div>
+              <DhSelect v-else v-model="form.carrierId" label="Naviera / proveedor" :options="carrierOptions" />
               <p v-if="fieldError('carrierId')" class="mt-1 text-xs font-bold text-red-500">{{ fieldError('carrierId') }}</p>
             </div>
             <DhSelect v-model="form.currencyId" data-required-field="currencyId" :error="fieldError('currencyId')" label="Moneda" :options="currencyOptions" />
