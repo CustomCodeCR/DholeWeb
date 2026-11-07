@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.0] - 2026-11-07
+
+- Corrige la selección visual de tarifas preaprobadas y preautorizadas por POE: tarjetas resaltadas, indicador de tarifa cargada o naviera elegida manualmente; conserva fecha de embarque y POD compartido al elegir la fuente.
+- Ancla permanentemente Atrás/Siguiente en una barra inferior FCL, muestra progreso de POE y naviera, permite regresar o avanzar entre rutas y editar POE/POD sin perder datos.
+- Conserva la elección Merchant/Carrier Haulage hecha en Pantalla 4 al crear nuevas alternativas FCL y marca los costos correspondientes al recuperar el catálogo, incluidos los cargos Inland con etiqueta Naviera/Merchant.
+- Reemplaza la cuadrícula de subtarifas de Pantalla 8 por acordeones de ancho completo, con desgloses estándar de base, cantidad, divisa, costo, venta, subtotales, margen y equivalentes CRC.
+- Restringe la selección múltiple de POE y las sub-QUO a marítimo FCL. Los demás modos conservan selección única.
+- Agrega regresiones del flujo FCL, estado visual, navegación, costos por haulage y acordeones. El guardado agrupado continúa bloqueado hasta contar con la API transaccional de Pricing.
+
 ## [1.10.0] - 2026-11-07
 
 - Mantiene visibles y seleccionados los POE en pantalla 3, conserva su orden y ofrece regresar directamente a modificar POE o POD desde pantallas 5 a 8.
