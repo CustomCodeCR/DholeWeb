@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261107-POE-COST-UX-023",
+  "ecosystemVersion": "1.10.0",
+  "releaseType": "MINOR",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.9.0",
+      "to": "1.10.0"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.9.0",
+      "to": "1.10.0"
+    }
+  ],
+  "changes": [
+    "Preserve selected POEs and offer top/back navigation and POD edit",
+    "Per-route cost context requests preserving manual edits and staleness checks",
+    "Per-alternative financial preview on screen 8"
+  ],
+  "limitations": [
+    "Atomic grouped sub-QUO persistence remains pending in DholePricingService issue #113"
+  ],
+  "validation": "pending CI/staging",
+  "productionDeploymentAuthorized": false
+}

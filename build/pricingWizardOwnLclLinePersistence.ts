@@ -198,22 +198,42 @@ function patchWizard(source: string) {
     'own LCL line refresh helper',
   )
 
-  // Never query the global Costs catalog for an own consolidation.
-  code = replaceOne(
-    code,
-    `async function loadApplicableCosts() {\n  try {`,
-    `async function loadApplicableCosts() {\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return\n  }\n\n  try {`,
-    'own LCL applicable costs guard',
-  )
+  // Avoid querying the global Costs catalog for LCL own consolidations.
+  const modernCostAnchor = "async function loadApplicableCosts(): Promise<boolean> {\n  const requestContext = activeCostContextKey()\n  try {"
+  const legacyCostAnchor = "async function loadApplicableCosts() {\n  try {"
+  if (code.includes(modernCostAnchor)) {
+    code = replaceOne(
+      code,
+      modernCostAnchor,
+      modernCostAnchor.replace(
+        "\n  try {",
+        "\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return true\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return true\n  }\n\n  try {",
+      ),
+      'own LCL applicable costs guard (context-aware)',
+    )
+  } else {
+    code = replaceOne(
+      code,
+      legacyCostAnchor,
+      "async function loadApplicableCosts() {\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return\n  }\n\n  try {",
+      'own LCL applicable costs guard',
+    )
+  }
 
-  // Any watcher that tries to rebuild lines while Own is selected must restore
-  // the consolidation calculation instead of rebuilding from Costs y recargos.
-  code = replaceOne(
-    code,
-    `function rebuildRateLines() {\n  const currency = selectedCurrency.value ?? catalogs.currencies[0]`,
-    `function rebuildRateLines() {\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') return\n  if (isOwnLclMatrixContext()) {\n    restoreOwnLclMatrixLines()\n    return\n  }\n\n  const currency = selectedCurrency.value ?? catalogs.currencies[0]`,
-    'own LCL rebuild guard',
-  )
+  const modernRebuildAnchor = "function rebuildRateLines() {\n  const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7"
+  const legacyRebuildAnchor = "function rebuildRateLines() {\n  const currency = selectedCurrency.value ?? catalogs.currencies[0]"
+  const rebuildLclGuard = "  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') return\n  if (isOwnLclMatrixContext()) {\n    restoreOwnLclMatrixLines()\n    return\n  }\n\n"
+  if (code.includes(modernRebuildAnchor)) {
+    code = replaceOne(code, modernRebuildAnchor,
+      modernRebuildAnchor.replace("\n  const previousOptionLines", "\n" + rebuildLclGuard + "  const previousOptionLines"),
+      'own LCL rebuild guard (context-aware)',
+    )
+  } else {
+    code = replaceOne(code, legacyRebuildAnchor,
+      legacyRebuildAnchor.replace("\n  const currency", "\n" + rebuildLclGuard + "  const currency"),
+      'own LCL rebuild guard',
+    )
+  }
 
   code = replaceOne(
     code,
@@ -229,12 +249,22 @@ function patchWizard(source: string) {
     'provider-to-lines own LCL guard',
   )
 
-  code = replaceOne(
-    code,
-    `    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()`,
-    `    await loadApplicableCosts()\n    if (step.value >= 7) refreshRateLinesForCurrentSource()`,
-    'agent/carrier line refresh',
-  )
+  const modernAgentRefresh = "    if (loaded && step.value >= 7) {\n      rebuildRateLines()"
+  if (code.includes(modernAgentRefresh)) {
+    code = replaceOne(
+      code,
+      modernAgentRefresh,
+      modernAgentRefresh.replace("rebuildRateLines()", "refreshRateLinesForCurrentSource()"),
+      'agent/carrier line refresh with context-aware costs',
+    )
+  } else {
+    code = replaceOne(
+      code,
+      `    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()`,
+      `    await loadApplicableCosts()\n    if (step.value >= 7) refreshRateLinesForCurrentSource()`,
+      'agent/carrier line refresh',
+    )
+  }
 
   // Earlier versions of the wizard have no edit guard. Newer versions must
   // keep that guard so changing header currency does not reset saved sales.

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete,
-  nextPoeInSelection, nextCarrierRoute,
+  nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey,
 } from '../src/modules/pricing/utils/pricingMultiCarrierOptions.ts'
 
 const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
@@ -51,7 +51,7 @@ test('Screen 5 displays loaded approved and preauthorized bundles first; manual 
   assert.match(wizard, /<details v-if="multiCarrierSelectionMode"/)
   assert.match(wizard, /Añadir naviera manual sin tarifa cargada/)
   assert.match(wizard, /class="order-1 space-y-4"/)
-  assert.match(wizard, /class="order-3 flex flex-col/)
+  assert.match(wizard, /@click="advanceSequentialWizard"/)
   assert.match(wizard, /@click="toggleManualCarrier\(carrier\.value\)"/)
   assert.match(wizard, /@click="advanceSequentialWizard"/)
   assert.doesNotMatch(wizard, /¿Desea añadir más navieras\?/)
@@ -74,4 +74,59 @@ test('imported rates do not become manual when selected; drafts keep isolated co
 test('multi-rate save stays fail-closed until Pricing supports grouped transaction', () => {
   assert.match(wizard, /selectedPoeIds\.value\.length > 1 \|\| carrierRouteCount\.value > 1/)
   assert.match(wizard, /No se creó ninguna tarifa: es necesario implementar la API/)
+})
+
+test('cost refresh merges catalog lines without destroying edited charges or manual rubros', () => {
+  const oldLines = [
+    { key: 'cost:123', costId: '123', costAmount: 75, saleAmount: 110, included: false },
+    { key: 'manual:new', costAmount: 55, saleAmount: 70, included: true, manual: true },
+  ]
+  const refreshed = [
+    { key: 'cost:123', costId: '123', costAmount: 20, saleAmount: 35, included: true },
+    { key: 'cost:456', costId: '456', costAmount: 12, saleAmount: 25, included: true },
+  ]
+  assert.deepEqual(mergeOptionCostLines(oldLines, refreshed), [
+    oldLines[0], refreshed[1], oldLines[1],
+  ])
+})
+
+test('cost request identity isolates POE, POD, agent, naviera and service changes', () => {
+  const common = {
+    poeId: 'caldera', podId: 'san-jose', carrierId: 'msc', agentId: 'wvl',
+    polId: 'shanghai', incotermId: 'fob', shipmentMode: 'Fcl', serviceIds: ['freight', 'inland'],
+  }
+  const initial = pricingCostContextKey(common)
+  assert.equal(initial, pricingCostContextKey({ ...common, serviceIds: ['inland', 'freight'] }))
+  for (const change of [
+    { poeId: 'balboa' }, { podId: 'heredia' }, { carrierId: 'one' },
+    { agentId: 'other' }, { incotermId: 'exw' }, { serviceIds: ['freight'] },
+  ]) {
+    assert.notEqual(initial, pricingCostContextKey({ ...common, ...change }))
+  }
+})
+
+test('POE chips and top controls expose back, next and POD edits without removing selections', () => {
+  assert.match(wizard, /:show-chips="true"/)
+  assert.match(wizard, /\.\.\.selectedPoeIds\.value/)
+  assert.match(wizard, /Editar POE \/ POD/)
+  assert.match(wizard, /POE anterior/)
+  assert.match(wizard, /Siguiente POE/)
+  assert.match(wizard, /@click="goToStep\(3\)"/)
+  assert.match(wizard, /else goToStep\(3\)/)
+  assert.match(wizard, /@click="previousSequentialWizard"/)
+  assert.match(wizard, /@click="reloadCurrentAlternativeCosts"/)
+})
+
+test('Screen 8 summarizes each independent subtariff, not the active one as a whole', () => {
+  assert.match(wizard, /const alternativePreviewCards = computed/)
+  assert.match(wizard, /v-for="preview in alternativePreviewCards"/)
+  assert.match(wizard, /preview\.costUsd/)
+  assert.match(wizard, /preview\.saleUsd/)
+  assert.match(wizard, /preview\.utilityUsd/)
+  assert.match(wizard, /preview\.lines\.length/)
+  assert.match(wizard, /Tarifa principal y sus subtarifas/)
+  assert.match(wizard, /Editar costos/)
+  assert.match(wizard, /carrierRouteKey\(route\.poeId, route\.carrierId\)/)
+  const parity = readFileSync(new URL('../build/pricingWizardUiParity.ts', import.meta.url), 'utf8')
+  assert.match(parity, /v-if="!multiCarrierSelectionMode \|\| carrierRouteCount === 1"/)
 })
