@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.11.1] - 2026-11-07 (pendiente de CI/staging)
+
+- Recupera todos los POE, navieras, Merchant/Carrier y las líneas persistidas al visualizar una multiQUO FCL; pantalla 8 ocupa todo el ancho y pantalla 9 presenta acordeones individuales de cada subQUO. Corrige saltos de línea comerciales.
+- Release DH-20261107-MULTIQUO-PERSISTED-PDF-026; sin autorización de despliegue a producción.
+
 ## [1.11.0] - 2026-11-07 (en validación)
 
 - Recupera POE/POD, navieras, importaciones y precios independientes de cada alternativa desde borradores.
