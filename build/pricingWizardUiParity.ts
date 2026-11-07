@@ -39,12 +39,16 @@ export function pricingWizardUiParity(): Plugin {
       // reserved for calculations and Intl currency formatting.
       const detailCurrencyAnchor = `function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {\n  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)\n  const configuredValue = displayValue(configuredCurrency)\n  if (configuredValue) return configuredValue\n\n  // Historical rates can predate the current catalog item. In that case prefer\n  // the persisted display value/name and use the internal CODE only as last fallback.\n  const persistedValue = String(detail.currencyName ?? '').trim()\n  if (persistedValue) return persistedValue\n  return String(detail.currencyCode ?? '').trim()\n}`
       const detailCurrencyReplacement = `function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {\n  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)\n  const configuredValue = String(displayValue(configuredCurrency) ?? '').trim()\n  if (configuredValue) return configuredValue\n\n  // VALUE is the business/display field. For historical rows without a Config item,\n  // keep the persisted display name, but never expose technical CODE/Slug as UI text.\n  const persistedValue = String(detail.currencyName ?? '').trim()\n  if (persistedValue) return persistedValue\n  return ''\n}`
-      code = replaceOne(
-        code,
-        detailCurrencyAnchor,
-        detailCurrencyReplacement,
-        'persisted detail currency precedence',
-      )
+      // Newer wizard versions resolve the catalog Value directly; do not
+      // rewrite that implementation back to the historic parser.
+      if (!code.includes('return pricingCurrencyValue(')) {
+        code = replaceOne(
+          code,
+          detailCurrencyAnchor,
+          detailCurrencyReplacement,
+          'persisted detail currency precedence',
+        )
+      }
 
       // Normalized USD/CRC totals remain useful while building/editing a rate. In
       // Pantalla 9, however, commercial totals must stay in their original currency
