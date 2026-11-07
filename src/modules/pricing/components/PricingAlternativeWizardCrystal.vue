@@ -5,6 +5,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CircleCheck,
   ExternalLink,
   Edit3,
@@ -662,7 +663,7 @@ function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: 
   // A clicked pre-approved option must remain visually checked even if its
   // bundle key changes when the rate catalogue is refreshed.
   return selectedBundleByOption.value[route] === bundleKey
-    || (!selectedBundleByOption.value[route] && currentPoeCarrierIds.value.includes(configuredId))
+    || currentPoeCarrierIds.value.includes(configuredId)
 }
 
 /** Select every available or manual carrier in one POE before moving on. */
