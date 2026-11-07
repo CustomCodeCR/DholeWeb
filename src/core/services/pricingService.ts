@@ -710,6 +710,14 @@ export const PricingService = {
     return unwrapApiResponse<GroupQuoteResponse>(response as never)
   },
 
+  async selectRateGroup(rateId: string, idempotencyKey = crypto.randomUUID()): Promise<{ parentRateId: string; selectedRateId: string }> {
+    const response = await callEndpoint<unknown>({
+      method: 'POST',
+      path: `/api/pricing/rates/groups/${encodeURIComponent(rateId)}/select`,
+    }, { idempotencyKey })
+    return unwrapApiResponse<{ parentRateId: string; selectedRateId: string }>(response as never)
+  },
+
   async getRateGroup(rateId: string): Promise<GroupQuoteSnapshot | null> {
     try {
       const response = await callEndpoint<unknown>({
