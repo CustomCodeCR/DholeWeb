@@ -6807,9 +6807,9 @@ onMounted(async () => {
               </button>
             </div>
             <div v-if="!multiCarrierSelectionMode">
-              <div class="flex justify-end">
-                <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
-              </div>
+            <div class="flex justify-end">
+              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+            </div>
             </div>
           </template>
 
