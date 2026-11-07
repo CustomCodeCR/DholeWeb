@@ -3579,6 +3579,12 @@ async function searchApprovedRates() {
   availableRates.value = []
   form.selectedImportRateId = ''
   form.manualRate = false
+  // Manual multi-option quotations never depend on the import-rate catalog.
+  // Keep the historical search function intact for single-POE and LCL flows.
+  if (multiCarrierSelectionMode.value) {
+    form.manualRate = true
+    return
+  }
 
   if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {
     form.manualRate = true
@@ -4535,11 +4541,7 @@ async function next() {
 
   if (!props.viewOnly && !validateRequiredFields()) return
   if (!canNext.value) return
-  if (step.value === 4 && !multiCarrierSelectionMode.value) await searchApprovedRates()
-  if (step.value === 5 && multiCarrierSelectionMode.value) {
-    await continueWithSelectedCarriers()
-    return
-  }
+  if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
     await loadApplicableCosts()
     rebuildRateLines()
@@ -4550,6 +4552,15 @@ async function next() {
 function previous() {
   if (step.value > 1) step.value -= 1
 }
+
+// Preserve the original next() function for legacy LCL/Panamá wizard transforms.
+// When the generic bottom Next advances Screen 5, activate the first manual
+// POE–naviera option rather than leaving the previous carrier selected.
+watch(step, (newStep, previousStep) => {
+  if (previousStep === 5 && newStep === 6 && multiCarrierSelectionMode.value) {
+    void continueWithSelectedCarriers()
+  }
+})
 
 async function searchCabys() {
   const query = form.cabysSearch.trim()
