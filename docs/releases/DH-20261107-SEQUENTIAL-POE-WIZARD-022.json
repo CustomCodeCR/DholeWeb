@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261107-SEQUENTIAL-POE-WIZARD-022",
+  "ecosystemVersion": "1.9.0",
+  "releaseType": "MINOR",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.8.0",
+      "to": "1.9.0"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.8.0",
+      "to": "1.9.0"
+    }
+  ],
+  "changes": [
+    "Sequential POE option picking with approved/preauthorized rates and optional manual carriers",
+    "Sequential per-route provider and costs flow across screens 6 and 7",
+    "Back/forward preserves independent carrier route drafts"
+  ],
+  "limitations": [
+    "Grouped sub-QUO persistence/acceptance requires a transactional Pricing API",
+    "Review must pass CI, staging and authorized deployment"
+  ],
+  "validation": "pending CI/staging",
+  "productionDeploymentAuthorized": false
+}
