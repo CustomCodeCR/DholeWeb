@@ -17,3 +17,21 @@ export function poeCarrierSelectionComplete(
   return poeIds.length > 0
     && poeIds.every((id) => new Set(byPoe[id] ?? []).size > 0)
 }
+
+/** The selected POEs are an ordered queue: do not jump directly to Screen 6. */
+export function nextPoeInSelection(poeIds: readonly string[], currentPoeId: string): string | null {
+  const index = poeIds.indexOf(currentPoeId)
+  return index < 0 ? null : (poeIds[index + 1] ?? null)
+}
+
+export interface SelectedCarrierRoute { poeId: string; carrierId: string }
+
+/** Move to exactly one more alternative, preserving POE and carrier order. */
+export function nextCarrierRoute(
+  routes: readonly SelectedCarrierRoute[],
+  poeId: string,
+  carrierId: string,
+): SelectedCarrierRoute | null {
+  const index = routes.findIndex((route) => route.poeId === poeId && route.carrierId === carrierId)
+  return index < 0 ? null : (routes[index + 1] ?? null)
+}
