@@ -121,12 +121,22 @@ function patchWizard(source: string) {
     'request previous step floor',
   )
 
+  const sequentialBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>'
+  if (code.includes(sequentialBackButton)) {
+    code = replaceOne(
+      code,
+      sequentialBackButton,
+      sequentialBackButton.replace(':disabled="step === 1 || saving"', ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving"'),
+      'request back button floor for sequential POE',
+    )
+  } else {
   code = replaceOne(
     code,
     `<DhButton variant=\"secondary\" :disabled=\"step === 1 || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
     `<DhButton variant=\"secondary\" :disabled=\"(rateRequestId ? step <= 5 : step === 1) || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
     'request back button floor',
   )
+  }
 
   code = replaceOne(
     code,
@@ -142,12 +152,23 @@ function patchWizard(source: string) {
     'seller priority selector',
   )
 
+  const selectedCarrierNextButton = '      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">Continuar {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>'
+  if (code.includes(selectedCarrierNextButton)) {
+    // Keep the multi-POE flow while injecting the original seller shortcut.
+    code = replaceOne(
+      code,
+      '      <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>',
+      '      <DhButton v-if="sellerRequestMode && step === 4" :disabled="saving" @click="saveOpenRequest"><Check class="h-4 w-4" /> {{ saving ? \'Enviando…\' : \'Enviar solicitud a Pricing\' }}</DhButton>\\n      <DhButton v-else-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>'.replace('\\n', '\n'),
+      'seller final action for sequential POE',
+    )
+  } else {
   code = replaceOne(
     code,
     `      <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>\n      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>`,
     `      <DhButton v-if="sellerRequestMode && step === 4" :disabled="saving" @click="saveOpenRequest"><Check class="h-4 w-4" /> {{ saving ? 'Enviando…' : 'Enviar solicitud a Pricing' }}</DhButton>\n      <DhButton v-else-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>\n      <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>`,
     'seller final action',
   )
+  }
 
   return code
 }
