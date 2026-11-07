@@ -712,6 +712,7 @@ async function loadCostsForSelectedAlternative(force = false) {
   // Do not cache failed requests or attach the response to another alternative.
   if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
   rebuildRateLines()
+  syncHaulageOptionalLines()
   alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
   rememberCurrentCarrierDraft()
 }
@@ -3453,8 +3454,6 @@ if (insuranceRequested && visible.has('destination_charges')) {
     lines.splice(0, lines.length, ...preserved)
   }
   rateLines.value = lines
-  // Refreshing catalog costs must retain the haulage selected on Screen 4.
-  if (multiCarrierSelectionMode.value) syncHaulageOptionalLines()
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -6095,6 +6094,7 @@ watch(
     if (loaded && step.value >= 7) {
       rebuildRateLines()
       if (multiCarrierSelectionMode.value) {
+        syncHaulageOptionalLines()
         alternativeCostsLoaded.value = {
           ...alternativeCostsLoaded.value,
           [carrierRouteKey(form.destinationId, form.carrierId)]: activeCostContextKey(),
