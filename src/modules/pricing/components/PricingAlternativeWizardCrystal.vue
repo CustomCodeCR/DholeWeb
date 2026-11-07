@@ -602,9 +602,8 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
       rateLines.value = []
       costs.value = []
     }
-    // Every option is manually quoted, regardless of old pre-approved cards.
-    form.selectedImportRateId = ''
-    form.manualRate = true
+    // Restore the selected preapproved/preauthorized rate when available.
+    // Only combinations without imported tariffs default to manual.
     form.carrierId = carrierId
     restoreFclBundleForOption?.(poeId, carrierId)
     await nextTickForPoe()
@@ -668,9 +667,6 @@ async function continueWithSelectedCarriers() {
   rememberCurrentCarrierDraft()
   const first = selectedCarrierRoutes.value[0]
   if (!first) return
-  // Clear an old pre-approved selection before creating independent manual options.
-  form.selectedImportRateId = ''
-  form.manualRate = true
   await activateCarrierRoute(first.poeId, first.carrierId)
   if (form.destinationId !== first.poeId || form.carrierId !== first.carrierId) {
     toastStore.warning('Ruta no activa', 'Seleccione nuevamente la primera opción POE–naviera.')
@@ -3579,12 +3575,6 @@ async function searchApprovedRates() {
   availableRates.value = []
   form.selectedImportRateId = ''
   form.manualRate = false
-  // Manual multi-option quotations never depend on the import-rate catalog.
-  // Keep the historical search function intact for single-POE and LCL flows.
-  if (multiCarrierSelectionMode.value) {
-    form.manualRate = true
-    return
-  }
 
   if (shipmentModeForApi.value !== 'Fcl' || !selectedOrigin.value || !selectedDestination.value || !selectedEquipment.value) {
     form.manualRate = true
@@ -6033,7 +6023,7 @@ onMounted(async () => {
           </div>
         </div>
         <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-[11px] font-bold text-[var(--dh-text-muted)]">
-          {{ step === 5 ? 'Todas las navieras se cotizan manualmente' : configuredCarrierCount + ' de ' + carrierRouteCount + ' alternativas con proveedor asignado' }}
+          {{ step === 5 ? 'Tarifas vigentes y opciones manuales' : configuredCarrierCount + ' de ' + carrierRouteCount + ' alternativas con proveedor asignado' }}
         </span>
       </div>
       <div v-if="step === 5" class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
@@ -6636,10 +6626,9 @@ onMounted(async () => {
         <div v-else-if="step === 5" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 5</p>
-            <h2 class="crystal-title">{{ multiCarrierSelectionMode ? 'Configurar alternativas manuales' : 'Tarifas pre-aprobadas disponibles' }}</h2>
-            <p class="crystal-description">{{ multiCarrierSelectionMode
-              ? 'Seleccione todas las navieras que desee cotizar manualmente en cada POE. No necesita escoger una tarifa preaprobada.'
-              : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>
+            <h2 class="crystal-title">{{ multiCarrierSelectionMode ? 'Elegir navieras y opciones de tarifa' : 'Tarifas pre-aprobadas disponibles' }}</h2>
+            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
+            <p v-if="multiCarrierSelectionMode" class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">Puede combinar tarifas preaprobadas, preautorizadas y opciones manuales para cada POE.</p>
           </div>
 
 
@@ -6648,9 +6637,9 @@ onMounted(async () => {
               <div class="flex min-w-0 items-start gap-3">
                 <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Ship class="h-5 w-5" /></span>
                 <div>
-                  <h3 class="text-base font-black">Navieras manuales · {{ displayValue(selectedDestination) || 'este POE' }}</h3>
+                  <h3 class="text-base font-black">Navieras para {{ displayValue(selectedDestination) || 'este POE' }}</h3>
                   <p class="mt-1 max-w-xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-                    Marque todas las opciones que necesite; no se sustituye una naviera por otra. Después podrá indicar costo, venta y cargos para cada combinación.
+                    Añada navieras manualmente o elija tarifas preaprobadas y preautorizadas más abajo. Puede combinar ambos tipos en una misma cotización.
                   </p>
                 </div>
               </div>
@@ -6702,7 +6691,7 @@ onMounted(async () => {
                   No hay navieras configuradas. Agréguelas en Configuración → Catálogos → Navieras.
                 </p>
                 <p class="mt-3 text-[11px] font-semibold leading-relaxed text-[var(--dh-text-muted)]">
-                  Puede marcar varias navieras. Todas las opciones se cotizan manualmente con flete y costos independientes en las pantallas 6 y 7.
+                  Puede añadir una opción manual aunque no exista tarifa vigente, o seleccionar una tarifa preaprobada o preautorizada más abajo.
                 </p>
               </div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-3">
@@ -6734,7 +6723,7 @@ onMounted(async () => {
             </div>
           </div>
 
-          <div v-if="!multiCarrierSelectionMode" class="space-y-4">
+          <div class="space-y-4">
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
 
           <template v-else-if="availableRates.length">
@@ -6782,20 +6771,20 @@ onMounted(async () => {
               </button>
             </div>
             <div class="flex justify-end">
-              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+              <DhButton v-if="!multiCarrierSelectionMode" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
             </div>
           </template>
 
           <div v-else class="crystal-empty p-9 text-center">
-            <p class="text-lg font-black">No existen tarifas vigentes para esa ruta y equipo</p>
-            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">Puede guardar la solicitud como Abierta para que Pricing la procese después, o continuar de manera manual.</p>
+            <p class="text-lg font-black">{{ multiCarrierSelectionMode ? 'No hay tarifas preaprobadas para este POE' : 'No existen tarifas vigentes para esa ruta y equipo' }}</p>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ multiCarrierSelectionMode ? 'Puede añadir manualmente las navieras arriba y continuar con sus costos.' : 'Puede guardar la solicitud como Abierta para que Pricing la procese después, o continuar de manera manual.' }}</p>
             <div class="mt-5 flex flex-wrap justify-center gap-2">
-              <DhButton :disabled="saving" @click="saveOpenRequest">{{ saving ? 'Guardando…' : 'Guardar solicitud abierta' }}</DhButton>
-              <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+              <DhButton v-if="!multiCarrierSelectionMode" :disabled="saving" @click="saveOpenRequest">{{ saving ? 'Guardando…' : 'Guardar solicitud abierta' }}</DhButton>
+              <DhButton v-if="!multiCarrierSelectionMode" variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
             </div>
           </div>
 
-          <div v-if="form.manualRate && availableRates.length" class="crystal-soft px-4 py-3 text-sm font-bold">
+          <div v-if="form.manualRate && availableRates.length && !multiCarrierSelectionMode" class="crystal-soft px-4 py-3 text-sm font-bold">
             Se usará captura manual en la siguiente pantalla.
           </div>
           </div>
