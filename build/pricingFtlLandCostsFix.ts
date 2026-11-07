@@ -288,7 +288,7 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
   return true
 }
 
-async function loadApplicableCosts(): Promise<boolean> {
+async function loadApplicableCosts() {
   const activeContext = activeCostContextKey()
   try {
     const contextKey = currentCostContextKey()
