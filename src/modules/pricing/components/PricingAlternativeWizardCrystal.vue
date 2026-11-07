@@ -5982,12 +5982,11 @@ onMounted(async () => {
               />
             </div>
 
+            <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
             <p v-if="selectedPoeIds.length > 1 && !isEditing" class="text-xs font-semibold leading-relaxed text-[var(--dh-text-muted)]">
               {{ selectedPoeIds.length }} POE seleccionados. En las pantallas de tarifa podrá consultar cada puerto desde su pestaña independiente.
               La creación agrupada de sub-QUO requiere la API transaccional; el sistema no guardará solo una ruta por error.
             </p>
-
-            <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
             <div class="grid gap-4 md:grid-cols-3">
               <DhSelect
                 v-if="equipmentHasSizes"
