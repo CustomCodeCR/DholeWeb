@@ -474,6 +474,7 @@ interface PoeRouteDraft {
   fields: Pick<typeof form, PerPoeField>
   rates: ImportRateSelectDto[]
   lines: RateLine[]
+  costs?: CostSelectDto[]
 }
 const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
 
@@ -503,6 +504,49 @@ const multiCarrierSelectionMode = computed(() =>
   && selectedPoeIds.value.length > 0,
 )
 const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
+const manualCarrierSearch = ref('')
+const askAddMoreCarriers = ref(false)
+const carrierAdditionFeedback = ref('')
+const filteredManualCarrierOptions = computed(() => {
+  const search = manualCarrierSearch.value.trim().toLocaleLowerCase()
+  return search
+    ? carrierOptions.value.filter((option) => option.label.toLocaleLowerCase().includes(search))
+    : carrierOptions.value
+})
+const selectedCarrierRouteIndex = computed(() =>
+  selectedCarrierRoutes.value.findIndex(
+    (route) => route.poeId === form.destinationId
+      && route.carrierId === activeCarrierByPoe.value[form.destinationId],
+  ),
+)
+const activeCarrierRoutePosition = computed(() => Math.max(0, selectedCarrierRouteIndex.value) + 1)
+const currentRouteLabel = computed(() =>
+  [displayValue(findById(catalogs.poe, form.destinationId)), displayValue(findById(catalogs.carriers, form.carrierId))]
+    .filter(Boolean).join(' · '),
+)
+const configuredCarrierCount = computed(() => selectedCarrierRoutes.value.filter(({ poeId, carrierId }) => {
+  const values = poeId === form.destinationId && carrierId === form.carrierId
+    ? form
+    : optionDrafts.value[carrierRouteKey(poeId, carrierId)]?.fields
+  return Boolean(values?.agentId && values?.currencyId && values?.carrierId)
+}).length)
+function toggleManualCarrier(carrierId: string) {
+  if (!multiCarrierSelectionMode.value) return
+  const next = currentPoeCarrierIds.value.includes(carrierId)
+    ? currentPoeCarrierIds.value.filter((id) => id !== carrierId)
+    : [...currentPoeCarrierIds.value, carrierId]
+  setCurrentPoeCarrierIds(next)
+  if (next.includes(carrierId)) {
+    askAddMoreCarriers.value = true
+    carrierAdditionFeedback.value = ''
+  }
+}
+async function moveToManualCarrier(delta: number) {
+  const target = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + delta]
+  if (!target) return
+  await activateCarrierRoute(target.poeId, target.carrierId)
+}
+
 const carrierRouteCount = computed(() =>
   selectedPoeIds.value.reduce((total, id) => total + (selectedCarriersByPoe.value[id]?.length ?? 0), 0),
 )
@@ -536,41 +580,53 @@ function rememberCurrentCarrierDraft() {
     fields: { ...fields, carrierId },
     rates: [...availableRates.value],
     lines: copyPoeLines(rateLines.value),
+    costs: [...costs.value],
   }
 }
 
 async function activateCarrierRoute(poeId: string, carrierId: string) {
-  if (!multiCarrierSelectionMode.value || loadingRates.value) return
+  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value) return
   if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
-  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId) return
+  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId && form.carrierId === carrierId) return
   rememberCurrentCarrierDraft()
   if (poeId !== form.destinationId) await activatePoeRoute(poeId)
   switchingPoeRoute.value = true
-  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
-  const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
-  if (draft) {
-    Object.assign(form, draft.fields)
-    rateLines.value = copyPoeLines(draft.lines)
-  } else {
-    Object.assign(form, {
-      carrierId, selectedImportRateId: '', manualRate: true,
-      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
-      carrierRoute: '', carrierComments: '',
-      merchantHaulage: false, carrierHaulage: false,
-    })
-    rateLines.value = []
+  try {
+    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
+    const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
+    if (draft) {
+      Object.assign(form, draft.fields)
+      rateLines.value = copyPoeLines(draft.lines)
+      costs.value = [...(draft.costs ?? [])]
+    } else {
+      Object.assign(form, {
+        carrierId, agentId: '', selectedImportRateId: '', manualRate: true,
+        freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
+        carrierRoute: '', carrierComments: '',
+        merchantHaulage: false, carrierHaulage: false,
+      })
+      rateLines.value = []
+      costs.value = []
+    }
+    // Restore the selected preapproved/preauthorized rate when available.
+    // Only combinations without imported tariffs default to manual.
+    form.carrierId = carrierId
+    restoreFclBundleForOption?.(poeId, carrierId)
+    await nextTickForPoe()
+    if (step.value === 7 && !draft?.costs) {
+      await loadApplicableCosts()
+      rebuildRateLines()
+    }
+  } finally {
+    switchingPoeRoute.value = false
   }
-  form.carrierId = carrierId
-  restoreFclBundleForOption?.(poeId, carrierId)
-  await nextTickForPoe()
-  switchingPoeRoute.value = false
 }
 
 function setCurrentPoeCarrierIds(ids: string[]) {
   if (!multiCarrierSelectionMode.value || !form.destinationId) return
+  const poeId = form.destinationId
   rememberCurrentCarrierDraft()
   const next = normalizePoeCarrierIds(ids, catalogs.carriers.map((item) => item.id))
-  const poeId = form.destinationId
   const previous = selectedCarriersByPoe.value[poeId] ?? []
   selectedCarriersByPoe.value = { ...selectedCarriersByPoe.value, [poeId]: next }
   for (const carrierId of previous.filter((id) => !next.includes(id))) {
@@ -578,11 +634,13 @@ function setCurrentPoeCarrierIds(ids: string[]) {
     delete optionDrafts.value[key]
     delete selectedBundleByOption.value[key]
   }
-  if (!next.includes(activeCarrierByPoe.value[poeId] ?? '')) {
+  const active = activeCarrierByPoe.value[poeId] ?? ''
+  if (active && !next.includes(active)) {
     activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: '' }
     form.carrierId = ''
-    if (next[0]) void activateCarrierRoute(poeId, next[0])
   }
+  // Selecting navieras never navigates automatically or steals focus.
+  // All selected carriers remain available when continuing to Screen 6.
 }
 
 function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
@@ -600,11 +658,31 @@ function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
   }
   form.carrierId = carrierId
   rememberCurrentCarrierDraft()
+  askAddMoreCarriers.value = true
+  carrierAdditionFeedback.value = ''
 }
 
 function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
   return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+}
+
+function addAnotherCarrierChoice() {
+  askAddMoreCarriers.value = false
+  manualCarrierSearch.value = ''
+  carrierAdditionFeedback.value = 'Marque otra naviera o elija otra tarifa preaprobada o preautorizada. Las opciones anteriores se conservan.'
+}
+
+async function finishCarrierChoice() {
+  const pendingPoe = selectedPoeIds.value.find((id) => !(selectedCarriersByPoe.value[id]?.length))
+  if (pendingPoe) {
+    askAddMoreCarriers.value = false
+    carrierAdditionFeedback.value = 'Seleccione navieras para este POE y luego continúe.'
+    await activatePoeRoute(pendingPoe)
+    return
+  }
+  carrierAdditionFeedback.value = ''
+  await continueWithSelectedCarriers()
 }
 
 async function continueWithSelectedCarriers() {
@@ -616,6 +694,10 @@ async function continueWithSelectedCarriers() {
   const first = selectedCarrierRoutes.value[0]
   if (!first) return
   await activateCarrierRoute(first.poeId, first.carrierId)
+  if (form.destinationId !== first.poeId || form.carrierId !== first.carrierId) {
+    toastStore.warning('Ruta no activa', 'Seleccione nuevamente la primera opción POE–naviera.')
+    return
+  }
   step.value = 6
 }
 
@@ -628,13 +710,14 @@ function rememberActivePoe() {
     fields,
     rates: [...availableRates.value],
     lines: copyPoeLines(rateLines.value),
+    costs: [...costs.value],
   }
 }
 
 async function activatePoeRoute(destinationId: string) {
   // A pending preapproved-rate lookup must finish before changing tabs: the
   // legacy Panama quotation resolver also shares availableRates state.
-  if (loadingRates.value) return
+  if (loadingRates.value && !multiCarrierSelectionMode.value) return
   if (form.destinationId === destinationId
       || (destinationId && !selectedPoeIds.value.includes(destinationId))) return
   rememberActivePoe()
@@ -644,6 +727,7 @@ async function activatePoeRoute(destinationId: string) {
   form.destinationId = destinationId
   availableRates.value = cached ? [...cached.rates] : []
   rateLines.value = cached ? copyPoeLines(cached.lines) : []
+  costs.value = cached ? [...(cached.costs ?? [])] : []
   if (cached) {
     Object.assign(form, cached.fields)
   } else {
@@ -667,8 +751,8 @@ async function activatePoeRoute(destinationId: string) {
   }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
   switchingPoeRoute.value = false
-  if (!cached && destinationId && step.value > 5) step.value = 5
-  if (!cached && destinationId && step.value === 5) await searchApprovedRates()
+  if (!cached && destinationId && step.value > 5 && !multiCarrierSelectionMode.value) step.value = 5
+  if (!cached && destinationId && step.value === 5 && !multiCarrierSelectionMode.value) await searchApprovedRates()
 }
 
 function setSelectedPoeIds(values: string[]) {
@@ -4485,6 +4569,15 @@ function previous() {
   if (step.value > 1) step.value -= 1
 }
 
+// Preserve the original next() function for legacy LCL/Panamá wizard transforms.
+// When the generic bottom Next advances Screen 5, activate the first manual
+// POE–naviera option rather than leaving the previous carrier selected.
+watch(step, (newStep, previousStep) => {
+  if (previousStep === 5 && newStep === 6 && multiCarrierSelectionMode.value) {
+    void continueWithSelectedCarriers()
+  }
+})
+
 async function searchCabys() {
   const query = form.cabysSearch.trim()
   if (query.length < 3) {
@@ -5956,7 +6049,7 @@ onMounted(async () => {
           </div>
         </div>
         <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-[11px] font-bold text-[var(--dh-text-muted)]">
-          {{ step === 5 ? 'Seleccione navieras por puerto' : 'Cada combinación conserva sus costos' }}
+          {{ step === 5 ? 'Tarifas vigentes y opciones manuales' : configuredCarrierCount + ' de ' + carrierRouteCount + ' alternativas con proveedor asignado' }}
         </span>
       </div>
       <div v-if="step === 5" class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
@@ -5992,6 +6085,27 @@ onMounted(async () => {
           </span>
           <Check v-if="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId" class="h-4 w-4 shrink-0" />
         </button>
+      </div>
+      <div v-if="step === 6 || step === 7" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3.5 py-3">
+        <div class="min-w-0">
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Opción {{ activeCarrierRoutePosition }} de {{ carrierRouteCount }} · captura manual</p>
+          <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ currentRouteLabel || 'Seleccione una ruta' }}</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            {{ step === 6 ? 'Ingrese el flete de esta naviera. Cambie de opción sin perder los datos ingresados.' : 'Revise y ajuste los cargos de esta opción. Cada naviera tiene sus propios rubros.' }}
+          </p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <button type="button" class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-xs font-bold disabled:opacity-40"
+            :disabled="selectedCarrierRouteIndex <= 0 || switchingPoeRoute"
+            @click="moveToManualCarrier(-1)">
+            <ChevronLeft class="h-4 w-4" /> Anterior
+          </button>
+          <button type="button" class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] px-3 py-2 text-xs font-bold text-[var(--dh-primary)] disabled:opacity-40"
+            :disabled="selectedCarrierRouteIndex < 0 || selectedCarrierRouteIndex >= carrierRouteCount - 1 || switchingPoeRoute"
+            @click="moveToManualCarrier(1)">
+            Siguiente naviera <ChevronRight class="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -6540,6 +6654,7 @@ onMounted(async () => {
             <p class="crystal-kicker">Pantalla 5</p>
             <h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
+            <p v-if="multiCarrierSelectionMode" class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">Puede combinar tarifas preaprobadas, preautorizadas y opciones manuales para cada POE.</p>
           </div>
 
 
@@ -6550,23 +6665,60 @@ onMounted(async () => {
                 <div>
                   <h3 class="text-base font-black">Navieras para {{ displayValue(selectedDestination) || 'este POE' }}</h3>
                   <p class="mt-1 max-w-xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-                    Seleccione una o varias navieras para este puerto. Repita la selección en los demás POE antes de continuar.
+                    Añada navieras manualmente o elija tarifas preaprobadas y preautorizadas más abajo. Puede combinar ambos tipos en una misma cotización.
                   </p>
                 </div>
               </div>
               <span class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.10)] px-3 py-1.5 text-xs font-black text-[var(--dh-primary)]">{{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'alternativa' : 'alternativas' }}</span>
             </div>
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(250px,1fr)]">
-              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <PricingCrystalMultiSelect
-                  :model-value="currentPoeCarrierIds"
-                  :options="carrierOptions"
-                  label="Seleccionar navieras de este POE"
-                  placeholder="Buscar y seleccionar navieras"
-                  search-placeholder="Buscar naviera por nombre..."
-                  @update:model-value="setCurrentPoeCarrierIds"
-                />
-                <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">Las tarifas preaprobadas de abajo pueden asignar automáticamente su naviera. También puede elegir navieras para cotizar manualmente.</p>
+              <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3.5">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Navieras disponibles</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text)]">{{ currentPoeCarrierIds.length }} seleccionadas para este puerto</p>
+                  </div>
+                  <button
+                    v-if="currentPoeCarrierIds.length"
+                    type="button"
+                    class="rounded-xl border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]"
+                    @click="setCurrentPoeCarrierIds([])"
+                  >Quitar todas</button>
+                </div>
+                <label class="mb-3 flex items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5">
+                  <Search class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
+                  <input
+                    v-model="manualCarrierSearch"
+                    type="search"
+                    class="min-w-0 w-full bg-transparent text-sm font-semibold text-[var(--dh-text)] outline-none"
+                    placeholder="Buscar MSC, ONE, MAERSK u otra naviera"
+                    aria-label="Buscar navieras para cotización manual"
+                  />
+                </label>
+                <div v-if="carrierOptions.length" class="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2" role="group" aria-label="Navieras manuales disponibles">
+                  <button
+                    v-for="carrier in filteredManualCarrierOptions"
+                    :key="carrier.value"
+                    type="button"
+                    class="flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors"
+                    :class="currentPoeCarrierIds.includes(carrier.value) ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]/50'"
+                    :aria-pressed="currentPoeCarrierIds.includes(carrier.value)"
+                    @click="toggleManualCarrier(carrier.value)"
+                  >
+                    <span class="grid h-5 w-5 shrink-0 place-items-center rounded-md border"
+                      :class="currentPoeCarrierIds.includes(carrier.value) ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)]'">
+                      <Check v-if="currentPoeCarrierIds.includes(carrier.value)" class="h-3.5 w-3.5" />
+                    </span>
+                    <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ carrier.label }}</span>
+                  </button>
+                  <p v-if="!filteredManualCarrierOptions.length" class="col-span-full py-4 text-center text-xs font-semibold text-[var(--dh-text-muted)]">No se encontraron navieras para esa búsqueda.</p>
+                </div>
+                <p v-else class="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-xs font-semibold text-amber-600">
+                  No hay navieras configuradas. Agréguelas en Configuración → Catálogos → Navieras.
+                </p>
+                <p class="mt-3 text-[11px] font-semibold leading-relaxed text-[var(--dh-text-muted)]">
+                  Puede añadir una opción manual aunque no exista tarifa vigente, o seleccionar una tarifa preaprobada o preautorizada más abajo.
+                </p>
               </div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-3">
                 <p class="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cobertura de puertos</p>
@@ -6587,16 +6739,27 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
+            <div v-if="askAddMoreCarriers && currentPoeCarrierIds.length" class="mt-4 rounded-2xl border border-[var(--dh-primary)]/40 bg-[rgb(var(--dh-primary-rgb)/0.08)] p-4">
+              <p class="text-sm font-black text-[var(--dh-text)]">¿Desea añadir más navieras?</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Puede añadir manuales, preaprobadas o preautorizadas para este POE sin reemplazar las ya elegidas.</p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <DhButton variant="secondary" @click="addAnotherCarrierChoice">Sí, añadir otra naviera</DhButton>
+                <DhButton @click="finishCarrierChoice">No, continuar</DhButton>
+              </div>
+            </div>
+            <p v-if="carrierAdditionFeedback" class="mt-2 text-xs font-semibold text-[var(--dh-primary)]">{{ carrierAdditionFeedback }}</p>
+
             <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4">
               <p class="text-xs font-semibold" :class="allPoeCarriersSelected ? 'text-emerald-500' : 'text-[var(--dh-text-muted)]'">
                 {{ allPoeCarriersSelected ? 'Todos los POE tienen navieras asignadas.' : 'Falta seleccionar al menos una naviera en cada POE.' }}
               </p>
               <DhButton :disabled="!allPoeCarriersSelected || loadingRates" @click="continueWithSelectedCarriers">
-                Continuar a proveedor <ChevronRight class="h-4 w-4" />
+                Configurar {{ carrierRouteCount }} alternativas <ChevronRight class="h-4 w-4" />
               </DhButton>
             </div>
           </div>
 
+          <div class="space-y-4">
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
 
           <template v-else-if="availableRates.length">
@@ -6643,22 +6806,25 @@ onMounted(async () => {
                 </span>
               </button>
             </div>
+            <div v-if="!multiCarrierSelectionMode">
             <div class="flex justify-end">
               <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
+            </div>
             </div>
           </template>
 
           <div v-else class="crystal-empty p-9 text-center">
-            <p class="text-lg font-black">No existen tarifas vigentes para esa ruta y equipo</p>
-            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">Puede guardar la solicitud como Abierta para que Pricing la procese después, o continuar de manera manual.</p>
-            <div class="mt-5 flex flex-wrap justify-center gap-2">
+            <p class="text-lg font-black">{{ multiCarrierSelectionMode ? 'No hay tarifas preaprobadas para este POE' : 'No existen tarifas vigentes para esa ruta y equipo' }}</p>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">{{ multiCarrierSelectionMode ? 'Puede añadir manualmente las navieras arriba y continuar con sus costos.' : 'Puede guardar la solicitud como Abierta para que Pricing la procese después, o continuar de manera manual.' }}</p>
+            <div v-if="!multiCarrierSelectionMode" class="mt-5 flex flex-wrap justify-center gap-2">
               <DhButton :disabled="saving" @click="saveOpenRequest">{{ saving ? 'Guardando…' : 'Guardar solicitud abierta' }}</DhButton>
               <DhButton variant="secondary" @click="continueManual">Continuar de manera manual</DhButton>
             </div>
           </div>
 
-          <div v-if="form.manualRate && availableRates.length" class="crystal-soft px-4 py-3 text-sm font-bold">
+          <div v-if="form.manualRate && availableRates.length && !multiCarrierSelectionMode" class="crystal-soft px-4 py-3 text-sm font-bold">
             Se usará captura manual en la siguiente pantalla.
+          </div>
           </div>
         </div>
 
@@ -6666,9 +6832,23 @@ onMounted(async () => {
           <div>
             <p class="crystal-kicker">Pantalla 6</p>
             <h2 class="crystal-title">Proveedor y flete internacional</h2>
-            <p class="crystal-description">Los selects muestran el Value configurado en Config.</p>
+            <p class="crystal-description">{{ multiCarrierSelectionMode ? 'Configure el agente, moneda, costo y venta del flete para cada alternativa. Use «Siguiente naviera» para recorrerlas.' : 'Los selects muestran el Value configurado en Config.' }}</p>
           </div>
 
+          <div v-if="multiCarrierSelectionMode" class="grid gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:grid-cols-3">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">POE de esta opción</p>
+              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">{{ displayValue(selectedDestination) || 'Sin seleccionar' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Naviera seleccionada en pantalla 5</p>
+              <p class="mt-1 text-sm font-black text-[var(--dh-primary)]">{{ displayValue(findById(catalogs.carriers, form.carrierId)) || 'Sin seleccionar' }}</p>
+            </div>
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Modalidad de captura</p>
+              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">Manual · precios independientes</p>
+            </div>
+          </div>
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
             <div data-required-field="agentId" :class="isInvalid('agentId') ? 'rounded-[18px] ring-2 ring-red-500/40' : ''">
             <DhSelect v-model="form.agentId" label="Agente" :options="agentOptions" />
@@ -6862,7 +7042,14 @@ onMounted(async () => {
             <div>
               <p class="crystal-kicker">Pantalla 7</p>
               <h2 class="crystal-title">Líneas de tarifa</h2>
-              <p class="crystal-description">Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.</p>
+              <p class="crystal-description">{{ multiCarrierSelectionMode
+                ? 'Cargos de la opción activa. Edite costo y venta, agregue los rubros manuales que necesite y utilice las pestañas para configurar las demás navieras.'
+                : 'Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.' }}</p>
+              <div v-if="multiCarrierSelectionMode" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-bold">
+                <Ship class="h-4 w-4 text-[var(--dh-primary)]" />
+                <span class="text-[var(--dh-text)]">{{ currentRouteLabel }}</span>
+                <span class="ml-auto rounded-full border border-[var(--dh-border)] px-2 py-1 text-[10px] text-[var(--dh-text-muted)]">Costos exclusivos de esta alternativa</span>
+              </div>
               <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>
             </div>
             <div class="crystal-total-card" aria-label="Resumen financiero de la tarifa">
