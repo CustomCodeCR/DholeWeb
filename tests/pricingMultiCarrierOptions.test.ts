@@ -158,12 +158,29 @@ test('FCL route review follows standard full-width collapsible layout per subtar
   assert.match(wizard, /Las tarifas son opciones independientes/)
 })
 
-test('haulage switches are present for each alternative on screen seven', () => {
-  assert.match(wizard, /Cargos Merchant \/ Carrier/)
-  assert.match(wizard, /toggleMerchantHaulage/)
-  assert.match(wizard, /toggleCarrierHaulage/)
-  assert.match(wizard, /syncHaulageOptionalLines\(\)/)
-  assert.match(wizard, /reloadCurrentAlternativeCosts\(\)/)
+test('screen 7 inherits the Carrier or Merchant selected on screen 6, without duplicate toggle buttons', () => {
+  const haulagePlugin = readFileSync(new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8')
+  const screenSeven = wizard.split('<div v-else-if="step === 7"')[1]!.split('<div v-else-if="step === 4"')[0]!
+  assert.match(screenSeven, /Transporte en destino · \{\{ form\.carrierHaulage/)
+  assert.match(screenSeven, /Se conserva automáticamente la selección de Pantalla 6/)
+  assert.doesNotMatch(screenSeven, /@click="toggleCarrierHaulage"/)
+  assert.doesNotMatch(screenSeven, /@click="toggleMerchantHaulage"/)
+  assert.match(haulagePlugin, /rememberCurrentCarrierDraft\(\)/)
+  assert.doesNotMatch(haulagePlugin, /if \(changedContext\) \{[\s\S]*?form\.carrierHaulage = false/)
+})
+
+test('Caldera MSC Carrier Inland from screen 6 reaches screen 7 priced with its CostId', () => {
+  const haulagePlugin = readFileSync(new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8')
+  assert.match(haulagePlugin, /function dholeEnsureSelectedHaulageLines\(\)/)
+  assert.match(haulagePlugin, /for \(const cost of dholeSelectedHaulageCosts\.value\)/)
+  assert.match(haulagePlugin, /rateLines\.value\.find\(\(line\) => line\.costId === cost\.id\)/)
+  assert.match(haulagePlugin, /key: \`cost:\$\{cost\.id\}\`/)
+  assert.match(haulagePlugin, /costAmount: number\(price\.costAmount\)/)
+  assert.match(haulagePlugin, /saleAmount: number\(price\.saleAmount\)/)
+  assert.match(haulagePlugin, /dholeEnsureSelectedHaulageLines\(\)/)
+  assert.match(haulagePlugin, /if \(props\.viewOnly \|\| !multiCarrierSelectionMode\.value \|\| step\.value !== 7\) return/)
+  assert.match(wizard, /await activateCarrierRoute\(first\.poeId, first\.carrierId\)/)
+  assert.match(wizard, /await loadCostsForSelectedAlternative\(\)/)
 })
 
 test('approved FCL tariff cards expose pressed status and a visible selected badge', () => {
