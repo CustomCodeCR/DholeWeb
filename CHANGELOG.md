@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0] - 2026-11-06 (en desarrollo)
+
+- Incorpora las reglas compartidas de identidad de sub-QUO A..Z/AA, combinaciones únicas POE/naviera/Merchant/Carrier y aceptación exclusiva en borradores.
+- Añade regresiones de numeración, estabilidad y aislamiento de alternativas; la integración del wizard y el backend queda pendiente para el batch coordinado.
+- Release DH-20261106-MULTI-QUO-018, en rama intermedia: no desplegado.
+
+
 ## [1.4.0] - 2026-11-06
 
 - Añade ruta y comentarios de la naviera en pantalla 6, conserva ambos datos al editar y los envía al PDF de la cotización.
