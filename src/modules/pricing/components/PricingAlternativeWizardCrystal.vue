@@ -17,6 +17,7 @@ import {
   Sparkles,
   Truck,
   Waypoints,
+  X,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
@@ -482,7 +483,149 @@ function copyPoeLines(lines: RateLine[]): RateLine[] {
   }))
 }
 
+
+/**
+ * Selection is per destination, not a global "Navieras" filter.
+ * Drafts remain independent for each [POE, naviera] until the Pricing group
+ * transaction is available. The existing single-rate REST create is not used
+ * for multiple options.
+ */
+const selectedCarriersByPoe = ref<Record<string, string[]>>({})
+const activeCarrierByPoe = ref<Record<string, string>>({})
+const optionDrafts = ref<Record<string, PoeRouteDraft>>({})
+const selectedBundleByOption = ref<Record<string, string>>({})
+let restoreFclBundleForOption: ((poeId: string, carrierId: string) => void) | null = null
+
+function carrierRouteKey(poeId: string, carrierId: string): string {
+  return JSON.stringify([poeId, carrierId])
+}
+
+const multiCarrierSelectionMode = computed(() =>
+  !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
+  && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
+  && selectedPoeIds.value.length > 0,
+)
+const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
+const carrierRouteCount = computed(() =>
+  selectedPoeIds.value.reduce((total, id) => total + (selectedCarriersByPoe.value[id]?.length ?? 0), 0),
+)
+const allPoeCarriersSelected = computed(() =>
+  selectedPoeIds.value.length > 0
+  && selectedPoeIds.value.every((id) => (selectedCarriersByPoe.value[id]?.length ?? 0) > 0),
+)
+const selectedCarrierRoutes = computed(() =>
+  selectedPoeIds.value.flatMap((poeId) =>
+    (selectedCarriersByPoe.value[poeId] ?? []).map((carrierId) => ({ poeId, carrierId })),
+  ),
+)
+const activeCarrierForCurrentPoe = computed(() =>
+  activeCarrierByPoe.value[form.destinationId] ?? '',
+)
+
+function resolveConfiguredCarrierId(id: string, name: string): string {
+  if (id && catalogs.carriers.some((carrier) => carrier.id === id)) return id
+  const normalized = normalizeCatalogValue(name)
+  return catalogs.carriers.find((carrier) =>
+    normalizeCatalogValue(displayValue(carrier)) === normalized,
+  )?.id ?? ''
+}
+
+function rememberCurrentCarrierDraft() {
+  if (!multiCarrierSelectionMode.value) return
+  const poeId = form.destinationId
+  const carrierId = activeCarrierByPoe.value[poeId]
+  if (!poeId || !carrierId || !(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
+  const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
+  optionDrafts.value[carrierRouteKey(poeId, carrierId)] = {
+    fields: { ...fields, carrierId },
+    rates: [...availableRates.value],
+    lines: copyPoeLines(rateLines.value),
+  }
+}
+
+async function activateCarrierRoute(poeId: string, carrierId: string) {
+  if (!multiCarrierSelectionMode.value || loadingRates.value) return
+  if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
+  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId) return
+  rememberCurrentCarrierDraft()
+  if (poeId !== form.destinationId) await activatePoeRoute(poeId)
+  switchingPoeRoute.value = true
+  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
+  const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
+  if (draft) {
+    Object.assign(form, draft.fields)
+    rateLines.value = copyPoeLines(draft.lines)
+  } else {
+    Object.assign(form, {
+      carrierId, selectedImportRateId: '', manualRate: true,
+      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
+      carrierRoute: '', carrierComments: '',
+      merchantHaulage: false, carrierHaulage: false,
+    })
+    rateLines.value = []
+  }
+  form.carrierId = carrierId
+  restoreFclBundleForOption?.(poeId, carrierId)
+  await nextTickForPoe()
+  switchingPoeRoute.value = false
+}
+
+function setCurrentPoeCarrierIds(ids: string[]) {
+  if (!multiCarrierSelectionMode.value || !form.destinationId) return
+  rememberCurrentCarrierDraft()
+  const allowed = new Set(catalogs.carriers.map((item) => item.id))
+  const next = [...new Set(ids.filter((id) => allowed.has(id)))]
+  const poeId = form.destinationId
+  const previous = selectedCarriersByPoe.value[poeId] ?? []
+  selectedCarriersByPoe.value = { ...selectedCarriersByPoe.value, [poeId]: next }
+  for (const carrierId of previous.filter((id) => !next.includes(id))) {
+    const key = carrierRouteKey(poeId, carrierId)
+    delete optionDrafts.value[key]
+    delete selectedBundleByOption.value[key]
+  }
+  if (!next.includes(activeCarrierByPoe.value[poeId])) {
+    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: '' }
+    form.carrierId = ''
+    if (next.length) void activateCarrierRoute(poeId, next[0])
+  }
+}
+
+function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
+  if (!multiCarrierSelectionMode.value || !carrierId || !form.destinationId) return
+  const poeId = form.destinationId
+  const previous = selectedCarriersByPoe.value[poeId] ?? []
+  selectedCarriersByPoe.value = {
+    ...selectedCarriersByPoe.value,
+    [poeId]: previous.includes(carrierId) ? previous : [...previous, carrierId],
+  }
+  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
+  selectedBundleByOption.value = {
+    ...selectedBundleByOption.value,
+    [carrierRouteKey(poeId, carrierId)]: bundleKey,
+  }
+  form.carrierId = carrierId
+  rememberCurrentCarrierDraft()
+}
+
+function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
+  const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
+  return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+}
+
+async function continueWithSelectedCarriers() {
+  if (!multiCarrierSelectionMode.value || !allPoeCarriersSelected.value) {
+    toastStore.warning('Faltan navieras', 'Seleccione al menos una naviera en cada POE antes de ir a Proveedor.')
+    return
+  }
+  rememberCurrentCarrierDraft()
+  const first = selectedCarrierRoutes.value[0]
+  if (!first) return
+  await activateCarrierRoute(first.poeId, first.carrierId)
+  step.value = 6
+}
+
 function rememberActivePoe() {
+  rememberCurrentCarrierDraft()
   const id = form.destinationId
   if (!id || !selectedPoeIds.value.includes(id)) return
   const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
@@ -516,6 +659,17 @@ async function activatePoeRoute(destinationId: string) {
       merchantHaulage: false, carrierHaulage: false,
     })
   }
+  // POE tabs restore their last active carrier without overwriting other navieras.
+  if (multiCarrierSelectionMode.value && destinationId) {
+    const selectedCarrier = activeCarrierByPoe.value[destinationId]
+      || (selectedCarriersByPoe.value[destinationId] ?? [])[0] || ''
+    const selectedDraft = optionDrafts.value[carrierRouteKey(destinationId, selectedCarrier)]
+    if (selectedDraft) {
+      Object.assign(form, selectedDraft.fields)
+      rateLines.value = copyPoeLines(selectedDraft.lines)
+    } else if (selectedCarrier) form.carrierId = selectedCarrier
+    restoreFclBundleForOption?.(destinationId, selectedCarrier)
+  }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
   switchingPoeRoute.value = false
   if (!cached && destinationId && step.value > 5) step.value = 5
@@ -529,6 +683,15 @@ function setSelectedPoeIds(values: string[]) {
     destinationOptions.value.map((item) => item.value),
   )
   selectedPoeIds.value = selection.ids
+  for (const id of Object.keys(selectedCarriersByPoe.value)) {
+    if (selection.ids.includes(id)) continue
+    for (const carrierId of selectedCarriersByPoe.value[id]) {
+      delete optionDrafts.value[carrierRouteKey(id, carrierId)]
+      delete selectedBundleByOption.value[carrierRouteKey(id, carrierId)]
+    }
+    delete selectedCarriersByPoe.value[id]
+    delete activeCarrierByPoe.value[id]
+  }
   for (const id of Object.keys(poeRouteDrafts.value)) {
     if (!selection.ids.includes(id)) delete poeRouteDrafts.value[id]
   }
@@ -2178,7 +2341,9 @@ const canNext = computed(() => {
       form.cargoHeightCm > 0,
     )
   }
-  if (step.value === 5) return Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
+  if (step.value === 5) return multiCarrierSelectionMode.value
+    ? allPoeCarriersSelected.value
+    : Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
   if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
   return true
 })
@@ -2239,7 +2404,11 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
     }
   }
   if (step.value === 5 && !props.rateId) {
-    add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
+    if (multiCarrierSelectionMode.value) {
+      add(!allPoeCarriersSelected.value, 'carrierIdsByPoe', 'Seleccione navieras para cada POE')
+    } else {
+      add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
+    }
   }
   if (step.value === 6) {
     // LCL chooses its own source; land LTL/FTL and air have no naviera.
@@ -4310,6 +4479,10 @@ async function next() {
   if (!props.viewOnly && !validateRequiredFields()) return
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
+  if (step.value === 5 && multiCarrierSelectionMode.value) {
+    await continueWithSelectedCarriers()
+    return
+  }
   if (step.value === 6) {
     await loadApplicableCosts()
     rebuildRateLines()
@@ -4607,7 +4780,7 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
-  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+  if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
     toastStore.warning('Guardado agrupado pendiente', 'Pricing todavía no puede crear todas las sub-QUO en una transacción. Los POE continúan seleccionados.')
     return
   }
@@ -4800,7 +4973,7 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
-  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+  if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
     toastStore.warning('Guardado agrupado pendiente', 'No se creó ninguna tarifa: es necesario implementar la API que guarde todas las rutas y sub-QUO juntas.')
     return
   }
@@ -5438,7 +5611,7 @@ async function handleSaveRateClick() {
   saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
   const initialStep = step.value
   try {
-    if (!editingRate.value && selectedPoeIds.value.length > 1) {
+    if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
       saveButtonFeedback.value = 'No se enviaron las rutas: la API todavía no admite sub-QUO agrupadas.'
       toastStore.warning('Sincronización multi-QUO pendiente', saveButtonFeedback.value)
       return
@@ -5475,6 +5648,10 @@ function resetWizard() {
   step.value = 1
   createdRateId.value = ''
   selectedPoeIds.value = []
+  selectedCarriersByPoe.value = {}
+  activeCarrierByPoe.value = {}
+  optionDrafts.value = {}
+  selectedBundleByOption.value = {}
   poeRouteDrafts.value = {}
   ++approvedRatesSearchSequence
   availableRates.value = []
