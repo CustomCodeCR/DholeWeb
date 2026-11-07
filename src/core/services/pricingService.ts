@@ -58,6 +58,33 @@ import type {
   UpdateRateRequest,
 } from '@/core/interfaces/pricing'
 
+export interface GroupQuoteAlternativeRequest {
+  rate: CreateRateRequest
+  haulageMode: 'Merchant' | 'Carrier'
+  routeKey?: string | null
+}
+export interface GroupQuoteResponse {
+  parentRateId: string
+  parentQuoteNumber: string
+  alternatives: Array<{
+    rateId: string
+    quoteNumber: string
+    suffix: string
+    poeId: string
+    podId: string | null
+    carrierId: string
+    haulageMode: 'Merchant' | 'Carrier'
+  }>
+}
+export interface GroupQuoteSnapshot extends GroupQuoteResponse {
+  alternatives: Array<GroupQuoteResponse['alternatives'][number] & {
+    status: 'Draft' | 'Selected' | 'NotSelected'
+    poeName: string
+    podName: string | null
+    carrierName: string
+  }>
+}
+
 type NoContent = Record<string, never>
 
 function downloadBlob(blob: Blob, fileName: string) {
@@ -670,6 +697,40 @@ export const PricingService = {
     })
 
     return unwrapApiResponse<string>(response as never)
+  },
+
+  async createRateGroup(
+    payload: { alternatives: GroupQuoteAlternativeRequest[] },
+    idempotencyKey?: string,
+  ): Promise<GroupQuoteResponse> {
+    const response = await callEndpoint<unknown, typeof payload>({
+      method: 'POST',
+      path: '/api/pricing/rates/groups',
+    }, { body: payload, idempotencyKey })
+    return unwrapApiResponse<GroupQuoteResponse>(response as never)
+  },
+
+  async selectRateGroup(rateId: string, idempotencyKey = crypto.randomUUID()): Promise<{ parentRateId: string; selectedRateId: string }> {
+    const response = await callEndpoint<unknown>({
+      method: 'POST',
+      path: `/api/pricing/rates/groups/${encodeURIComponent(rateId)}/select`,
+    }, { idempotencyKey })
+    return unwrapApiResponse<{ parentRateId: string; selectedRateId: string }>(response as never)
+  },
+
+  async getRateGroup(rateId: string): Promise<GroupQuoteSnapshot | null> {
+    try {
+      const response = await callEndpoint<unknown>({
+        method: 'GET',
+        path: `/api/pricing/rates/groups/${encodeURIComponent(rateId)}`,
+      })
+      return unwrapApiResponse<GroupQuoteSnapshot>(response as never)
+    } catch (error) {
+      // The 404 is expected for a historical single QUO, but other errors must
+      // not be hidden as a non-group quotation.
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404) return null
+      throw error
+    }
   },
 
   updateRate(rateId: string, payload: UpdateRateRequest): Promise<NoContent> {
