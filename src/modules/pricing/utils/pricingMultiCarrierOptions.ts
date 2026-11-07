@@ -38,7 +38,7 @@ export function nextCarrierRoute(
 
 /** Keep customer edits and manually added lines when refreshed catalog costs arrive. */
 export function mergeOptionCostLines<
-  T extends { key: string; costId?: string; manual?: boolean; costAmount: number; saleAmount: number; included: boolean }
+  T extends { key: string; costId?: string | null; manual?: boolean; costAmount: number; saleAmount: number; included: boolean }
 >(previous: readonly T[], incoming: readonly T[]): T[] {
   const existing = new Map(previous.map(line => [line.key, line]))
   const seen = new Set(incoming.map(line => line.key))
