@@ -6438,7 +6438,7 @@ onMounted(async () => {
                 placeholder="Buscar destino final"
                 search-placeholder="Buscar destino, ciudad o región…"
                 terminal-type="SD"
-                :optional="!maritimePodRequired"
+                :optional="true"
                 :options="podOptions"
               />
 
