@@ -7342,6 +7342,38 @@ onMounted(async () => {
             <p class="crystal-description">Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.</p>
           </div>
 
+          <div v-if="multiCarrierSelectionMode && carrierRouteCount > 1" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:p-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Tarifa principal + subtarifas</p>
+                <h3 class="mt-1 text-lg font-black text-[var(--dh-text)]">Resumen de {{ carrierRouteCount }} alternativas</h3>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Cada alternativa conserva su POE, naviera, fuente tarifaria y costos independientes.</p>
+              </div>
+              <span class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-black">{{ selectedPoeIds.length }} POE</span>
+            </div>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+              <div
+                v-for="(route, index) in selectedCarrierRoutes"
+                :key="carrierRouteKey(route.poeId, route.carrierId)"
+                class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3.5"
+              >
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Alternativa {{ index + 1 }} / {{ carrierRouteCount }}</span>
+                  <span class="rounded-full bg-[var(--dh-card)] px-2 py-1 text-[10px] font-bold">{{ optionDrafts[carrierRouteKey(route.poeId, route.carrierId)]?.fields.selectedImportRateId ? 'Tarifa cargada' : 'Manual' }}</span>
+                </div>
+                <p class="mt-2 text-sm font-black text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, route.poeId)) }}</p>
+                <p class="mt-1 text-sm font-bold text-[var(--dh-primary)]">{{ displayValue(findById(catalogs.carriers, route.carrierId)) }}</p>
+                <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, optionDrafts[carrierRouteKey(route.poeId, route.carrierId)]?.fields.agentId || '')) || 'Por revisar' }}</p>
+                <button
+                  type="button"
+                  class="mt-3 text-xs font-black text-[var(--dh-primary)] hover:underline"
+                  @click="activateCarrierRoute(route.poeId, route.carrierId); step = 6"
+                >Revisar proveedor y flete</button>
+              </div>
+            </div>
+            <p class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs font-semibold text-[var(--dh-text-muted)]">El grupo permanece como borrador: todavía se requiere la operación transaccional de Pricing para crear la QUO principal y todas sus sub-QUO sin registros parciales.</p>
+          </div>
+
           <div class="crystal-soft p-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
               <div>
