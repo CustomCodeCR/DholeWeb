@@ -244,12 +244,22 @@ function patchWizard(source: string) {
     'provider-to-lines own LCL guard',
   )
 
-  code = replaceOne(
-    code,
-    `    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()`,
-    `    await loadApplicableCosts()\n    if (step.value >= 7) refreshRateLinesForCurrentSource()`,
-    'agent/carrier line refresh',
-  )
+  const modernAgentRefresh = "    if (loaded && step.value >= 7) {\n      rebuildRateLines()"
+  if (code.includes(modernAgentRefresh)) {
+    code = replaceOne(
+      code,
+      modernAgentRefresh,
+      modernAgentRefresh.replace("rebuildRateLines()", "refreshRateLinesForCurrentSource()"),
+      'agent/carrier line refresh with context-aware costs',
+    )
+  } else {
+    code = replaceOne(
+      code,
+      \`    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()\`,
+      \`    await loadApplicableCosts()\n    if (step.value >= 7) refreshRateLinesForCurrentSource()\`,
+      'agent/carrier line refresh',
+    )
+  }
 
   // Earlier versions of the wizard have no edit guard. Newer versions must
   // keep that guard so changing header currency does not reset saved sales.
