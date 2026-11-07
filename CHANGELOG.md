@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.0] - 2026-11-07 (en validación)
+
+- Recupera POE/POD, navieras, importaciones y precios independientes de cada alternativa desde borradores.
+- Corrige duplicación de flete FCL y recupera Merchant/Carrier y cargos opcionales.
+- Amplía al ancho completo los campos de cliente y habilita navegación a subQUO guardadas.
+- Envía multiQUO de 2 a 52 alternativas FCL en una transacción única de Pricing.
+- Release coordinado DH-20261107-PRICING-MULTIQUO-025; CI y staging pendientes; producción no autorizada.
+
+
 ## [1.10.1] - 2026-11-07
 
 - Corrige selección visual de tarifas FCL y agrega navegación sticky entre POE y navieras.
