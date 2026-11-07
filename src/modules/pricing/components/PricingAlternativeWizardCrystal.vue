@@ -1993,15 +1993,10 @@ function isOwnLclMatrixContext() {
   ))
 }
 
-function haulageAssociation(line: { name: string; notes?: string | null }) {
+function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
-  // Catálogo: "Inland Caldera a GAM (Naviera)" and "Inland ... (Merchant)".
-  if (value.includes('carrier haulage')
-    || ((value.includes('inland') || value.includes('transport'))
-      && (value.includes('naviera') || value.includes('carrier')))) return 'carrier'
-  if (value.includes('merchant haulage') || value === 'gate'
-    || ((value.includes('inland') || value.includes('transport'))
-      && value.includes('merchant'))) return 'merchant'
+  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
+  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
   return null
 }
 
