@@ -129,6 +129,47 @@ function dholeHaulageConverted(value: number, currencyCode: string) {
   return convertUsdCrc(value, source, dholeHaulageCurrency.value)
 }
 
+function dholeEnsureSelectedHaulageLines() {
+  if (props.viewOnly || !multiCarrierSelectionMode.value || step.value !== 7) return
+  // Screen 6 and 7 must use the SAME eligible CostIds for the active route.
+  // This also covers a configured Inland classified as delivery_destination
+  // that the generic Incoterm line builder would otherwise omit.
+  for (const cost of dholeSelectedHaulageCosts.value) {
+    const price = resolvedConditionalCost(cost)
+    if (!price) continue
+    const existing = rateLines.value.find((line) => line.costId === cost.id)
+    if (existing) {
+      existing.included = true
+      if (number(existing.costAmount) === 0 && number(existing.saleAmount) === 0
+        && (number(price.costAmount) > 0 || number(price.saleAmount) > 0)) {
+        existing.costAmount = number(price.costAmount)
+        existing.saleAmount = number(price.saleAmount)
+      }
+      continue
+    }
+    rateLines.value.push({
+      key: `cost:${cost.id}`,
+      section: sectionForCost(cost),
+      name: cost.name,
+      costDetailType: cost.costDetailType,
+      costType: cost.costType,
+      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+      costId: cost.id,
+      contextLabel: costContextLabel(cost),
+      notes: cost.notes?.trim() || null,
+      serviceIds: cost.services?.map((service) => service.id) ?? [],
+      currencyId: cost.currencyId,
+      currencyName: cost.currencyName,
+      currencyCode: cost.currencyCode,
+      costAmount: number(price.costAmount),
+      saleAmount: number(price.saleAmount),
+      included: true,
+      optional: true,
+      manual: false,
+    })
+  }
+}
+
 function dholeHaulageCostAmount(cost: CostSelectDto, field: 'costAmount' | 'saleAmount') {
   const quantity = quantityForChargeBasis(
     cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
@@ -202,6 +243,9 @@ function dholeChooseHaulage(mode: DholeHaulageChoice) {
   form.merchantHaulage = mode === 'merchant'
   form.carrierHaulage = mode === 'carrier'
   syncHaulageOptionalLines()
+  // The decision belongs to THIS POE+carrier, not to the global wizard.
+  // Persist it as soon as it is clicked, before navigating to another option.
+  rememberCurrentCarrierDraft()
 }
 
 // Re-read Costos y recargos whenever the selected route, naviera or agent changes.
@@ -216,12 +260,11 @@ watch(
     }
 
     const requestedContext = currentCostContextKey()
-    const changedContext = requestedContext !== dholeHaulageLoadedContext.value
     dholeHaulagePending.value = true
-    if (changedContext) {
-      form.merchantHaulage = false
-      form.carrierHaulage = false
-    }
+    // activateCarrierRoute already restores the per-POE/carrier draft or clears
+    // the mode for a brand-new route. Do not reset it here: when returning from
+    // the last provider to the first, this watcher used to erase Carrier after
+    // it had been restored, right before entering step 7.
 
     try {
       await loadApplicableCosts()
@@ -376,6 +419,8 @@ function patchWizard(source: string) {
     line.included = shouldIncludeOptionalCost({ ...configured, costId: line.costId })
     if (!line.included) line.applyDestinationTax = false
   })
+  // Apply exactly the selected real Inland rows before showing or saving step 7.
+  dholeEnsureSelectedHaulageLines()
 }`
   code = code.slice(0, syncStart) + syncBlock + code.slice(syncEnd + 2)
 
