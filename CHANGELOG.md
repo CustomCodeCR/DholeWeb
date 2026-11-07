@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.0] - 2026-11-07
+
+- Permite seleccionar y quitar múltiples POE desde la pantalla 3 mediante un selector con búsqueda y chips.
+- Incorpora pestañas por POE en pantallas 5–8, conserva flete, naviera y líneas de cada ruta al alternar, y evita resultados cruzados de consultas concurrentes.
+- Protege el guardado: no se crea una única tarifa silenciosamente cuando el usuario seleccionó múltiples POE; la persistencia de sub-QUO agrupadas sigue pendiente de API transaccional en Pricing.
+- Mantiene el flujo de selección simple para modificaciones y solicitudes del vendedor, con pruebas de regresión.
+- Release coordinado DH-20261107-MULTI-POE-SELECTOR-019.
+
+
 ## [1.5.0] - 2026-11-06 (en desarrollo)
 
 - Incorpora las reglas compartidas de identidad de sub-QUO A..Z/AA, combinaciones únicas POE/naviera/Merchant/Carrier y aceptación exclusiva en borradores.
