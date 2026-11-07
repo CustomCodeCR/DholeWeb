@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick as nextTickForPoe, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -66,6 +66,7 @@ import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCryst
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -455,6 +456,84 @@ const supportCategories = [
   { key: 'msds-tech-sheet', label: 'MSDS / Ficha técnica' },
 ] as const
 const supportAccept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.xlsb'
+
+// The legacy Pricing REST contract persists one POE per RateHeader. Keep the
+// visible POE separate from the multi-selection to prevent lost alternatives.
+const selectedPoeIds = ref<string[]>([])
+const switchingPoeRoute = ref(false)
+let approvedRatesSearchSequence = 0
+const perPoeFieldNames = [
+  'selectedImportRateId', 'manualRate', 'agentId', 'carrierId', 'currencyId',
+  'freightCost', 'freightSale', 'freeDays', 'transitDays', 'carrierRoute',
+  'carrierComments', 'validTo', 'merchantHaulage', 'carrierHaulage',
+] as const
+type PerPoeField = (typeof perPoeFieldNames)[number]
+interface PoeRouteDraft {
+  fields: Pick<typeof form, PerPoeField>
+  rates: ImportRateSelectDto[]
+  lines: RateLine[]
+}
+const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
+
+function copyPoeLines(lines: RateLine[]): RateLine[] {
+  return lines.map((line) => ({
+    ...line,
+    serviceIds: line.serviceIds ? [...line.serviceIds] : undefined,
+  }))
+}
+
+function rememberActivePoe() {
+  const id = form.destinationId
+  if (!id || !selectedPoeIds.value.includes(id)) return
+  const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
+  poeRouteDrafts.value[id] = {
+    fields,
+    rates: [...availableRates.value],
+    lines: copyPoeLines(rateLines.value),
+  }
+}
+
+async function activatePoeRoute(destinationId: string) {
+  // A pending preapproved-rate lookup must finish before changing tabs: the
+  // legacy Panama quotation resolver also shares availableRates state.
+  if (loadingRates.value) return
+  if (form.destinationId === destinationId
+      || (destinationId && !selectedPoeIds.value.includes(destinationId))) return
+  rememberActivePoe()
+  ++approvedRatesSearchSequence
+  const cached = poeRouteDrafts.value[destinationId]
+  switchingPoeRoute.value = true
+  form.destinationId = destinationId
+  availableRates.value = cached ? [...cached.rates] : []
+  rateLines.value = cached ? copyPoeLines(cached.lines) : []
+  if (cached) {
+    Object.assign(form, cached.fields)
+  } else {
+    Object.assign(form, {
+      selectedImportRateId: '', manualRate: false, carrierId: '',
+      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
+      carrierRoute: '', carrierComments: '',
+      merchantHaulage: false, carrierHaulage: false,
+    })
+  }
+  await nextTickForPoe() // watchers must not recalculate another POE's edited lines
+  switchingPoeRoute.value = false
+  if (!cached && destinationId && step.value > 5) step.value = 5
+  if (!cached && destinationId && step.value === 5) await searchApprovedRates()
+}
+
+function setSelectedPoeIds(values: string[]) {
+  const selection = normalizePoeSelection(
+    values,
+    form.destinationId,
+    destinationOptions.value.map((item) => item.value),
+  )
+  selectedPoeIds.value = selection.ids
+  for (const id of Object.keys(poeRouteDrafts.value)) {
+    if (!selection.ids.includes(id)) delete poeRouteDrafts.value[id]
+  }
+  if (form.destinationId !== selection.activeId) void activatePoeRoute(selection.activeId)
+}
 
 const pickupLocations = ref<RatePickupLocationDto[]>([])
 const pickupCargoCondition = ref<PickupCargoCondition | ''>('')
@@ -3839,6 +3918,7 @@ async function hydrateExistingRate() {
     form.destinationId = rate.poeId
     form.podId = rate.podId ?? ''
     form.equipmentId = rate.containerTypeId
+    selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
     form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
     form.equipmentSize = String(equipmentMeta?.size ?? '')
     form.equipmentType = equipmentHasSizes.value ? String(equipmentMeta?.kind ?? '') : rate.containerTypeId
@@ -4527,6 +4607,10 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
+  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+    toastStore.warning('Guardado agrupado pendiente', 'Pricing todavía no puede crear todas las sub-QUO en una transacción. Los POE continúan seleccionados.')
+    return
+  }
   if (!validateSelectedCrmCustomer() || !validateWizardReferences()) return
   const origin = selectedOrigin.value
   const poe = selectedDestination.value
@@ -4716,6 +4800,10 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
+  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+    toastStore.warning('Guardado agrupado pendiente', 'No se creó ninguna tarifa: es necesario implementar la API que guarde todas las rutas y sub-QUO juntas.')
+    return
+  }
   if (pendingModificationDelivery.value) {
     // Guardar nunca envía una revisión persistida; el envío es una acción separada.
     toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
@@ -5350,6 +5438,11 @@ async function handleSaveRateClick() {
   saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
   const initialStep = step.value
   try {
+    if (!editingRate.value && selectedPoeIds.value.length > 1) {
+      saveButtonFeedback.value = 'No se enviaron las rutas: la API todavía no admite sub-QUO agrupadas.'
+      toastStore.warning('Sincronización multi-QUO pendiente', saveButtonFeedback.value)
+      return
+    }
     if (pendingModificationDelivery.value) {
       saveButtonFeedback.value = 'Enviando la revisión guardada al vendedor…'
       await retrySavedModificationDelivery()
@@ -5381,6 +5474,9 @@ async function handleSaveRateClick() {
 function resetWizard() {
   step.value = 1
   createdRateId.value = ''
+  selectedPoeIds.value = []
+  poeRouteDrafts.value = {}
+  ++approvedRatesSearchSequence
   availableRates.value = []
   rateLines.value = []
   supportEntityId.value = crypto.randomUUID()
@@ -5502,6 +5598,7 @@ watch(
 watch(
   () => form.destinationId,
   () => {
+    if (switchingPoeRoute.value) return // preserve the shared POD across route tabs
     const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
     form.podId = equivalent?.id ?? ''
   },
@@ -5544,7 +5641,7 @@ watch(
 watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
-    if (hydratingExistingRate.value || step.value < 6 || !agentId) return
+    if (hydratingExistingRate.value || switchingPoeRoute.value || step.value < 6 || !agentId) return
     await loadApplicableCosts()
     if (step.value >= 7) rebuildRateLines()
   },
@@ -5553,7 +5650,7 @@ watch(
 watch(() => form.currencyId, () => {
   // A saved quotation already has individually priced currencies and sales.
   // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.
-  if (hydratingExistingRate.value || editingRate.value) return
+  if (hydratingExistingRate.value || switchingPoeRoute.value || editingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
 
@@ -5562,7 +5659,7 @@ watch(() => form.currencyId, () => {
 watch(
   () => [form.freightCost, form.freightSale] as const,
   (amounts, previous) => {
-    if (!previous || props.viewOnly || hydratingExistingRate.value || shipmentModeForApi.value !== 'Lcl') return
+    if (!previous || props.viewOnly || switchingPoeRoute.value || hydratingExistingRate.value || shipmentModeForApi.value !== 'Lcl') return
     if (amounts[0] !== previous[0]) applyFreightUnitAmount(rateLines.value, 'costAmount', amounts[0])
     if (amounts[1] !== previous[1]) applyFreightUnitAmount(rateLines.value, 'saleAmount', amounts[1])
   },
@@ -5577,7 +5674,7 @@ watch(
     return line ? [line.costAmount, line.saleAmount] as const : null
   },
   (amounts) => {
-    if (!amounts || props.viewOnly || hydratingExistingRate.value) return
+    if (!amounts || props.viewOnly || switchingPoeRoute.value || hydratingExistingRate.value) return
     form.freightCost = number(amounts[0])
     form.freightSale = number(amounts[1])
   },
@@ -5675,6 +5772,32 @@ onMounted(async () => {
           </div>
         </div>
       </details>
+    </div>
+
+    <div
+      v-if="!isEditing && !sellerRequestMode && selectedPoeIds.length > 1 && step >= 5 && step <= 8"
+      class="mb-6 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+    >
+      <p class="mb-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+        Opciones por POE · {{ selectedPoeIds.length }} rutas seleccionadas
+      </p>
+      <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
+        <button
+          v-for="poeId in selectedPoeIds"
+          :key="poeId"
+          type="button"
+          role="tab"
+          :aria-selected="form.destinationId === poeId"
+          :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
+          class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
+          @click="activatePoeRoute(poeId)"
+        >
+          {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
+        </button>
+      </div>
+      <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+        Los fletes y rubros mostrados corresponden al POE activo. El guardado comercial agrupado sigue pendiente de integración en Pricing.
+      </p>
     </div>
 
     <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
@@ -5826,6 +5949,20 @@ onMounted(async () => {
                 :options="originOptions"
               />
               <PricingLocationSearchSelect
+                v-if="!isEditing && !sellerRequestMode"
+                :model-value="form.destinationId"
+                :model-values="selectedPoeIds"
+                multiple
+                data-required-field="destinationId" :error="fieldError('destinationId')"
+                label="Destinos (POE) · selección múltiple"
+                placeholder="Buscar y seleccionar varios POE"
+                search-placeholder="Buscar puerto, ciudad o país…"
+                terminal-type="CY"
+                :options="destinationOptions"
+                @update:model-values="setSelectedPoeIds"
+              />
+              <PricingLocationSearchSelect
+                v-else
                 v-model="form.destinationId"
                 data-required-field="destinationId" :error="fieldError('destinationId')"
                 label="Destino (POE)"
