@@ -51,6 +51,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
@@ -58,6 +59,7 @@ import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPe
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
+import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { requiresMaritimeCarrier } from '@/modules/pricing/utils/pricingCarrierRequirement'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
@@ -331,6 +333,7 @@ const exchangeRateError = ref('')
 const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
+const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
@@ -2059,8 +2062,8 @@ function isOwnLclMatrixContext() {
 
 function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
-  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
-  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+  if (/\bmerchant\b/.test(value) || value === 'gate') return 'merchant'
+  if (/\bcarrier\b/.test(value) || value.includes('inland gam naviera')) return 'carrier'
   return null
 }
 
@@ -3446,6 +3449,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
     const preserved = mergeOptionCostLines(previousOptionLines, lines)
     lines.splice(0, lines.length, ...preserved)
   }
+  lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
 }
 
@@ -4308,6 +4312,7 @@ async function hydrateExistingRate() {
     ])
     editingRate.value = rate
     rateRevisions.value = revisions
+    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id).catch(() => null)
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = true
     const modality = modalityForRate(rate)
@@ -5349,6 +5354,7 @@ async function saveRate() {
   // Todas las líneas que se muestran como incluidas deben viajar en el POST.
   // Las líneas generadas por matrices/reglas antiguas pueden no traer CurrencyId;
   // en ese caso heredan la moneda válida del encabezado. Costo/venta en cero son válidos.
+  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
   const normalizedIncludedLines = includedLines.value.map((line) => {
     if (line.currencyId) return line
 
@@ -5840,6 +5846,7 @@ async function saveRate() {
 const saveButtonWorking = ref(false)
 const saveButtonFeedback = ref('')
 const saveRequestSentToBackend = ref(false)
+const saveRequestIdempotencyKey = ref(crypto.randomUUID())
 
 // The button must always give an observable result, even if validation
 // exits before fetch or an earlier wizard transform throws synchronously.
@@ -6032,9 +6039,10 @@ watch(
 watch(
   () => form.destinationId,
   () => {
-    if (switchingPoeRoute.value) return // preserve the shared POD across route tabs
+    if (switchingPoeRoute.value || hydratingExistingRate.value) return
+    if (form.podId && catalogs.pod.some((item) => item.id === form.podId)) return
     const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
-    form.podId = equivalent?.id ?? ''
+    if (equivalent && !form.podId) form.podId = equivalent.id
   },
 )
 
@@ -6423,7 +6431,7 @@ onMounted(async () => {
           </div>
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4">
               <div v-if="!isEditing" class="space-y-2">
                 <PricingCrmClientSelect :model-value="form.clientId"
                   :mode="sellerRequestMode ? 'request' : 'create'"
