@@ -248,6 +248,7 @@ const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
+const savedGroupRates = ref<RateDto[]>([])
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
@@ -4259,7 +4260,10 @@ async function hydrateExistingRate() {
     ])
     editingRate.value = rate
     rateRevisions.value = revisions
-    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id).catch(() => null)
+    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id)
+    savedGroupRates.value = savedQuoteGroup.value
+      ? await Promise.all(savedQuoteGroup.value.alternatives.map((option) => PricingService.getRate(option.rateId)))
+      : []
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = true
     const modality = modalityForRate(rate)
@@ -4273,7 +4277,22 @@ async function hydrateExistingRate() {
     form.destinationId = rate.poeId
     form.podId = rate.podId ?? ''
     form.equipmentId = rate.containerTypeId
-    selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
+    selectedPoeIds.value = savedQuoteGroup.value
+      ? [...new Set(savedQuoteGroup.value.alternatives.map((option) => option.poeId))]
+      : form.destinationId ? [form.destinationId] : []
+    if (savedQuoteGroup.value) {
+      selectedCarriersByPoe.value = Object.fromEntries(selectedPoeIds.value.map((poeId) => [
+        poeId,
+        savedQuoteGroup.value!.alternatives.filter((option) => option.poeId === poeId)
+          .map((option) => option.carrierId),
+      ]))
+      const current = savedQuoteGroup.value.alternatives.find((option) => option.rateId === rate.id)
+      if (current) {
+        activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [current.poeId]: current.carrierId }
+        form.merchantHaulage = current.haulageMode === 'Merchant'
+        form.carrierHaulage = current.haulageMode === 'Carrier'
+      }
+    }
     form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
     form.equipmentSize = String(equipmentMeta?.size ?? '')
     form.equipmentType = equipmentHasSizes.value ? String(equipmentMeta?.kind ?? '') : rate.containerTypeId
@@ -5822,7 +5841,7 @@ async function saveRate() {
               carrierComments: draft.fields.carrierComments.trim(),
               validTo: draft.fields.validTo || createPayload.validTo,
               details: routeDetails,
-              includes: routeIncludes.join('\\n') || null,
+              includes: routeIncludes.join('\n') || null,
             },
           })
         }
@@ -7657,7 +7676,7 @@ onMounted(async () => {
           </div>
 
           <div class="grid gap-4 lg:grid-cols-2">
-            <div class="crystal-soft p-5">
+            <div class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
@@ -7818,6 +7837,49 @@ onMounted(async () => {
               Descargar cotización PDF
             </DhButton>
           </div>
+
+          <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
+            <div class="crystal-soft p-5">
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Cotización multiQUO</p>
+              <h3 class="mt-1 text-xl font-black">{{ savedQuoteGroup.parentQuoteNumber }}</h3>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
+            </div>
+            <details v-for="subRate in savedGroupRates" :key="subRate.id" class="crystal-soft group overflow-hidden" :open="subRate.id === editingRate.id">
+              <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 marker:hidden md:p-5">
+                <div class="min-w-0">
+                  <p class="text-xs font-black text-[var(--dh-primary)]">{{ subRate.quoNumber || subRate.rateCode }}</p>
+                  <h4 class="mt-1 text-base font-black">{{ subRate.poeName }} · {{ subRate.carrierName || 'Naviera sin asignar' }}</h4>
+                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ subRate.polName }} → {{ subRate.poeName }} → {{ subRate.podName || 'POD pendiente' }} · {{ savedQuoteGroup.alternatives.find(item => item.rateId === subRate.id)?.haulageMode === 'Merchant' ? 'Merchant Haulage' : 'Carrier Haulage' }}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), subRate.currencyCode || 'USD') }}</strong>
+                  <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] group-open:rotate-180" />
+                </div>
+              </summary>
+              <div class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Ocean Freight</p><strong class="text-sm">{{ formatMoney(subRate.rateDetails.filter(item => item.costDetailType === 'Freight').reduce((total, item) => total + Number(item.saleAmount || 0) * Number(item.quantity || 1), 0), subRate.currencyCode || 'USD') }}</strong></div>
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Costo</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalCostAmount || 0), subRate.currencyCode || 'USD') }}</strong></div>
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Venta</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), subRate.currencyCode || 'USD') }}</strong></div>
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Ruta de la naviera</p><strong class="break-words text-xs">{{ subRate.carrierRoute || 'Por confirmar' }}</strong></div>
+                </div>
+                <div class="mt-4 overflow-x-auto rounded-xl border border-[var(--dh-border)]">
+                  <table class="w-full min-w-[700px] text-left text-xs">
+                    <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase"><tr><th class="px-3 py-2">Rubro</th><th class="px-3 py-2">Base</th><th class="px-3 py-2">Cantidad</th><th class="px-3 py-2">Moneda</th><th class="px-3 py-2 text-right">Costo</th><th class="px-3 py-2 text-right">Venta</th></tr></thead>
+                    <tbody><tr v-for="line in subRate.rateDetails" :key="line.id" class="border-t border-[var(--dh-border)]">
+                      <td class="px-3 py-2"><strong>{{ line.name }}</strong><p v-if="line.notes" class="mt-1 whitespace-pre-wrap text-[10px]">{{ line.notes }}</p></td>
+                      <td class="px-3 py-2">{{ line.chargeBasis }}</td><td class="px-3 py-2">{{ line.quantity }}</td><td class="px-3 py-2">{{ line.currencyCode }}</td>
+                      <td class="px-3 py-2 text-right">{{ formatMoney(Number(line.costAmount) * Number(line.quantity || 1), line.currencyCode || 'USD') }}</td>
+                      <td class="px-3 py-2 text-right font-black">{{ formatMoney(Number(line.saleAmount) * Number(line.quantity || 1), line.currencyCode || 'USD') }}</td>
+                    </tr></tbody>
+                  </table>
+                </div>
+                <div class="mt-4 flex justify-end">
+                  <DhButton size="sm" variant="secondary" @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: subRate.id }, query: { mode: 'view' } })">Ver subQUO individual</DhButton>
+                </div>
+              </div>
+            </details>
+          </section>
 
           <div class="crystal-soft p-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
