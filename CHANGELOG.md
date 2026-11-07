@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.10.1] - 2026-11-07
+
+- Corrige selección visual de tarifas FCL y agrega navegación sticky entre POE y navieras.
+- Añade Merchant/Carrier Haulage en pantalla 7 por alternativa y rediseña pantalla 8 con acordeones y desglose comercial por subtarifa.
+- Restringe las sub-QUO multi-POE a FCL; continúa pendiente el guardado transaccional.
 ## [1.10.0] - 2026-11-07
 
 - Mantiene visibles y seleccionados los POE en pantalla 3, conserva su orden y ofrece regresar directamente a modificar POE o POD desde pantallas 5 a 8.

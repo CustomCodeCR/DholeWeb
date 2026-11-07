@@ -205,7 +205,7 @@ const fclAgentContacts = computed(() => {
 
   code = replaceOne(
     code,
-    `    <div class="crystal-footer flex items-center justify-between gap-3 p-3">`,
+    `    <div class="crystal-footer crystal-footer--sticky flex items-center justify-between gap-2 p-3" role="navigation" aria-label="Navegación del asistente">`,
     `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3">`,
     'screen 0 footer visibility',
   )

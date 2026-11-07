@@ -77,7 +77,7 @@ export function pricingCargoHaulageKeywordFix(): Plugin {
 
       code = replaceRegexRequired(
         code,
-        /(function toggleCarrierHaulage\(\) \{[\s\S]*?syncHaulageOptionalLines\(\)\n\})/,
+        /(function toggleCarrierHaulage\(\) \{[\s\S]*?syncHaulageOptionalLines\(\)[\s\S]*?\n\})/,
         `$1\n\nfunction togglePortHandlingMode(mode: 'Anticipado' | 'Redestino') {\n  form.portHandlingMode = form.portHandlingMode === mode ? '' : mode\n  syncHaulageOptionalLines()\n}\n\nwatch(\n  () => [form.dangerousCargo, form.overweight, form.merchantHaulage, form.carrierHaulage, form.portHandlingMode] as const,\n  () => syncHaulageOptionalLines(),\n)`,
         'condition synchronization functions',
       )
