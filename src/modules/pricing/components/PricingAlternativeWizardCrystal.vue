@@ -3387,7 +3387,8 @@ if (insuranceRequested && visible.has('destination_charges')) {
     const preserved = mergeOptionCostLines(previousOptionLines, lines)
     lines.splice(0, lines.length, ...preserved)
   }
-  rateLines.value = removeDuplicateFclFreight(lines, shipmentModeForApi.value)
+  lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
+  rateLines.value = lines
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
