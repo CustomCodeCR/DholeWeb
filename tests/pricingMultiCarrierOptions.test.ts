@@ -174,7 +174,7 @@ test('Caldera MSC Carrier Inland from screen 6 reaches screen 7 priced with its 
   assert.match(haulagePlugin, /function dholeEnsureSelectedHaulageLines\(\)/)
   assert.match(haulagePlugin, /for \(const cost of dholeSelectedHaulageCosts\.value\)/)
   assert.match(haulagePlugin, /rateLines\.value\.find\(\(line\) => line\.costId === cost\.id\)/)
-  assert.match(haulagePlugin, /key: \`cost:\$\{cost\.id\}\`/)
+  assert.match(haulagePlugin, /key: 'cost:' \+ cost\.id/)
   assert.match(haulagePlugin, /costAmount: number\(price\.costAmount\)/)
   assert.match(haulagePlugin, /saleAmount: number\(price\.saleAmount\)/)
   assert.match(haulagePlugin, /dholeEnsureSelectedHaulageLines\(\)/)
