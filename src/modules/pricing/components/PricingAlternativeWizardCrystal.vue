@@ -4237,6 +4237,17 @@ function hydratePersistedCargoDescription(rawDescription: string | null | undefi
   form.cargoDescription = sanitizeCargoDescriptionForField(raw)
 }
 
+async function selectCommercialGroupAlternative(rateId: string) {
+  if (!savedQuoteGroup.value) return
+  try {
+    await PricingService.selectRateGroup(rateId)
+    savedQuoteGroup.value = await PricingService.getRateGroup(rateId)
+    toastStore.success('Alternativa elegida', 'La sub-QUO seleccionada es la unica que podra aceptarse en el grupo.')
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo seleccionar la sub-QUO.')
+  }
+}
+
 async function hydrateExistingRate() {
   if (!props.rateId) return
   try {
@@ -6227,14 +6238,22 @@ onMounted(async () => {
           <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
         </div>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          <button v-for="option in savedQuoteGroup.alternatives" :key="option.rateId"
-            type="button" class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs transition hover:border-[var(--dh-primary)]"
-            :class="option.rateId === editingRate.id ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'"
-            @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
-            <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
-            <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
-            <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
-          </button>
+          <div v-for="option in savedQuoteGroup.alternatives" :key="option.rateId"
+            class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs"
+            :class="option.rateId === editingRate.id ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'">
+            <button type="button" class="block w-full text-left hover:text-[var(--dh-primary)]"
+              @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
+              <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
+              <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
+              <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
+            </button>
+            <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Alternativa seleccionada</span>
+            <button v-else-if="authStore.hasScope('pricing.rate.update')" type="button"
+              class="mt-2 rounded-lg border border-[var(--dh-border)] px-2 py-1.5 font-bold hover:border-[var(--dh-primary)]"
+              @click="selectCommercialGroupAlternative(option.rateId)">
+              Elegir esta sub-QUO
+            </button>
+          </div>
         </div>
       </div>
       <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
