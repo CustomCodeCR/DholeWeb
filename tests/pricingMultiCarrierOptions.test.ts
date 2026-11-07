@@ -6,6 +6,8 @@ import {
   nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey,
 } from '../src/modules/pricing/utils/pricingMultiCarrierOptions.ts'
 
+import { pricingCurrencyValue } from '../src/modules/pricing/utils/pricingCurrencyValue.ts'
+import { haulageAssociation, keepFreshInlandPrice } from '../src/modules/pricing/utils/pricingHaulageCosts.ts'
 const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
 const plugin = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
 
@@ -169,4 +171,51 @@ test('approved FCL tariff cards expose pressed status and a visible selected bad
   assert.match(bundles, /:aria-pressed="multiCarrierSelectionMode/)
   assert.match(bundles, /Naviera seleccionada/)
   assert.match(wizard, /currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+})
+
+test('MultiQUO always displays CatalogItem.value and never an internal CUR-2026 code', () => {
+  assert.equal(pricingCurrencyValue('USD', 'CUR-2026-001'), 'USD')
+  assert.equal(pricingCurrencyValue('CRC', 'USD'), 'CRC')
+  assert.equal(pricingCurrencyValue('', 'USD'), 'USD')
+  assert.equal(pricingCurrencyValue(null, 'CUR-2026-001'), '—')
+  assert.match(wizard, /savedRateCurrencyValue\(subRate\)/)
+  assert.match(wizard, /detailCurrencyValue\(line\)/)
+  assert.doesNotMatch(wizard, /subRate\.currencyCode \|\| 'USD'/)
+})
+
+test('screen 8 commercial summary occupies full width with responsive columns', () => {
+  assert.match(wizard, /class="crystal-soft p-5 lg:col-span-2"[^>]*>\s*<p[^>]*>Resumen comercial<\/p>/)
+  assert.match(wizard, /grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4/)
+})
+
+test('route-specific Inland charge is recognized as the selected Merchant or Carrier haulage', () => {
+  assert.equal(haulageAssociation('Inland Caldera a GAM (Naviera)'), 'carrier')
+  assert.equal(haulageAssociation('Inland Moin a GAM (Naviera)'), 'carrier')
+  assert.equal(haulageAssociation('Inland de Balboa a Colon Free Zone (Merchant)'), 'merchant')
+  assert.equal(haulageAssociation('Gate + Inland GAM Merchant'), 'merchant')
+  assert.equal(haulageAssociation('Inland GAM Naviera'), 'carrier')
+  assert.equal(haulageAssociation('Flete Internacional'), null)
+})
+
+test('refreshing selected carrier replaces a stale zero Inland with configured cost and sale', () => {
+  const previous = [{ key: 'cost:inland', name: 'Inland Caldera a GAM (Naviera)', costId: 'inland',
+    costAmount: 0, saleAmount: 0, included: true }]
+  const incoming = [{ ...previous[0], costAmount: 663, saleAmount: 685 }]
+  const merged = mergeOptionCostLines(previous, incoming)
+  assert.equal(merged[0]?.costAmount, 663)
+  assert.equal(merged[0]?.saleAmount, 685)
+  assert.equal(merged[0]?.included, true)
+  assert.equal(keepFreshInlandPrice(previous[0]!.name, 0, 0, 663, 685), true)
+  assert.equal(keepFreshInlandPrice('Despacho', 0, 0, 663, 685), false)
+  // Manual price edits must not be overwritten by refreshing a real catalog cost.
+  const edited = mergeOptionCostLines([{ ...previous[0]!, costAmount: 700, saleAmount: 830 }], incoming)
+  assert.equal(edited[0]?.costAmount, 700)
+  assert.equal(edited[0]?.saleAmount, 830)
+})
+
+test('wizard includes selected configured inland and warns about missing prices', () => {
+  assert.match(wizard, /haulageAssociation\(cost\) === 'carrier'/)
+  assert.match(wizard, /haulageAssociation\(cost\) === 'merchant'/)
+  assert.match(wizard, /selectedHaulageMissingPrice/)
+  assert.match(wizard, /line\.costId && haulageAssociation\(line\) === mode/)
 })

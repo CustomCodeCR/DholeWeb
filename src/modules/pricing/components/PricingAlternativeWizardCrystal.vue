@@ -84,6 +84,8 @@ import PricingCancelAcceptedRateModal from '@/modules/pricing/components/Pricing
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { pricingCurrencyValue } from '@/modules/pricing/utils/pricingCurrencyValue'
+import { haulageAssociation as identifyHaulage } from '@/modules/pricing/utils/pricingHaulageCosts'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { resolveDestinationVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
@@ -1059,15 +1061,19 @@ function displayValue(item?: CatalogItemSelectDto | null) {
 }
 
 function detailCurrencyValue(detail: { currencyId: string; currencyName: string; currencyCode: string }) {
-  const configuredCurrency = findById(catalogs.currencies, detail.currencyId)
-  const configuredValue = displayValue(configuredCurrency)
-  if (configuredValue) return configuredValue
+  return pricingCurrencyValue(
+    displayValue(findById(catalogs.currencies, detail.currencyId)),
+    detail.currencyName,
+  )
+}
 
-  // Historical rates can predate the current catalog item. In that case prefer
-  // the persisted display value/name and use the internal CODE only as last fallback.
-  const persistedValue = String(detail.currencyName ?? '').trim()
-  if (persistedValue) return persistedValue
-  return String(detail.currencyCode ?? '').trim()
+// MultiQUO headers and saved lines display the same catalog Value as the selectors.
+// CurrencyCode is an internal identifier, not a currency to pass into Intl.NumberFormat.
+function savedRateCurrencyValue(rate: Pick<RateDto, 'currencyId' | 'currencyName'>) {
+  return pricingCurrencyValue(
+    displayValue(findById(catalogs.currencies, rate.currencyId)),
+    rate.currencyName,
+  )
 }
 
 function normalizeCatalogValue(value: string) {
@@ -2086,6 +2092,18 @@ const optionalChargeOptions = computed(() =>
       label: `${line.name} · ${sectionLabel(line.section)}`,
     })),
 )
+// A chosen Inland from Costos y recargos is shown with its actual catalog price.
+// When a route has no priced cost, explain that instead of displaying a fictitious
+// zero-priced Inland as though it had been retrieved automatically.
+const selectedHaulageMissingPrice = computed(() => {
+  if (!multiCarrierSelectionMode.value || step.value !== 7) return false
+  const mode = form.merchantHaulage ? 'merchant' : form.carrierHaulage ? 'carrier' : null
+  if (!mode) return false
+  return !rateLines.value.some(line =>
+    haulageAssociation(line) === mode && line.included
+    && (number(line.costAmount) > 0 || number(line.saleAmount) > 0))
+})
+
 const selectedOptionalChargeKeys = computed<string[]>({
   get: () =>
     selectableOptionalLines.value
@@ -3373,7 +3391,11 @@ addVariableSectionFallback(
 
   const addHaulageOption = (key: string, name: string) => {
     if (!visible.has('destination_charges')) return
-    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(name))) return
+    const mode = identifyHaulage(name)
+    // A genuine route-specific configured cost (e.g. Inland Caldera a GAM
+    // Naviera) must win over the old generic, zero-priced placeholder.
+    if (lines.some((line) => normalizeCatalogValue(line.name) === normalizeCatalogValue(name)
+      || (mode && line.costId && haulageAssociation(line) === mode))) return
     lines.push({
       key,
       section: 'destination_charges',
@@ -7349,6 +7371,9 @@ onMounted(async () => {
             </div>
             <button type="button" :aria-pressed="form.merchantHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.merchantHaulage }" @click="toggleMerchantHaulage"><Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant Haulage</button>
             <button type="button" :aria-pressed="form.carrierHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.carrierHaulage }" @click="toggleCarrierHaulage"><Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier Haulage</button>
+            <p v-if="selectedHaulageMissingPrice" class="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-300">
+              El Inland seleccionado todavía no tiene costo y venta aplicables a este POE y naviera. Revise los cargos configurados o complete un Inland manual antes de guardar.
+            </p>
           </div>
           <div v-if="storageServiceSelected" class="crystal-soft p-4">
             <div class="grid gap-3 md:grid-cols-2 md:items-center">
@@ -7723,7 +7748,7 @@ onMounted(async () => {
                       <strong class="block">{{ line.name }}</strong>
                       <span class="text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ detailTypeLabel(line.costDetailType) }} · {{ chargeBasisLabel(effectiveChargeBasisForLine(line)) }}</span>
                     </div>
-                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), line.currencyCode || line.currencyName || 'USD') }}</strong>
+                    <strong>{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), detailCurrencyValue(line)) }}</strong>
                   </div>
                 </div>
               </details>
@@ -7768,11 +7793,11 @@ onMounted(async () => {
               <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ multiCarrierSelectionMode && carrierRouteCount > 1 ? selectedPoeIds.map(id => displayValue(findById(catalogs.poe, id)) || id).join(' / ') : displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
             </div>
-            <div v-if="!multiCarrierSelectionMode || carrierRouteCount === 1" class="crystal-soft p-5">
+            <div v-if="!multiCarrierSelectionMode || carrierRouteCount === 1" class="crystal-soft p-5 lg:col-span-2">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Resumen comercial</p>
               <p class="mt-3 text-sm font-bold">Proveedor: {{ displayValue(selectedCarrier) || 'Sin proveedor' }}</p>
               <p class="mt-1 text-sm font-bold">Agente: {{ displayValue(selectedAgent) || 'Sin agente' }}</p>
-              <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <div class="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
                 <span>Costo USD <strong class="block">{{ formatMoney(totalCostUsd, 'USD') }}</strong></span>
                 <span>Costo CRC <strong class="block">{{ formatMoney(totalCostCrc, 'CRC') }}</strong></span>
                 <span>Venta sin IVA USD <strong class="block">{{ formatMoney(totalSaleBeforeTaxUsd, 'USD') }}</strong></span>
@@ -7908,15 +7933,15 @@ onMounted(async () => {
                   <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ subRate.polName }} → {{ subRate.poeName }} → {{ subRate.podName || 'POD pendiente' }} · {{ savedQuoteGroup.alternatives.find(item => item.rateId === subRate.id)?.haulageMode === 'Merchant' ? 'Merchant Haulage' : 'Carrier Haulage' }}</p>
                 </div>
                 <div class="flex items-center gap-3">
-                  <strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), subRate.currencyCode || 'USD') }}</strong>
+                  <strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), savedRateCurrencyValue(subRate)) }}</strong>
                   <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] group-open:rotate-180" />
                 </div>
               </summary>
               <div class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Ocean Freight</p><strong class="text-sm">{{ formatMoney(subRate.rateDetails.filter(item => item.costDetailType === 'Freight').reduce((total, item) => total + Number(item.saleAmount || 0) * Number(item.quantity || 1), 0), subRate.currencyCode || 'USD') }}</strong></div>
-                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Costo</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalCostAmount || 0), subRate.currencyCode || 'USD') }}</strong></div>
-                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Venta</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), subRate.currencyCode || 'USD') }}</strong></div>
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Ocean Freight</p><strong class="text-sm">{{ formatMoney(subRate.rateDetails.filter(item => item.costDetailType === 'Freight').reduce((total, item) => total + Number(item.saleAmount || 0) * Number(item.quantity || 1), 0), savedRateCurrencyValue(subRate)) }}</strong></div>
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Costo</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalCostAmount || 0), savedRateCurrencyValue(subRate)) }}</strong></div>
+                  <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Venta</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), savedRateCurrencyValue(subRate)) }}</strong></div>
                   <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Ruta de la naviera</p><strong class="break-words text-xs">{{ subRate.carrierRoute || 'Por confirmar' }}</strong></div>
                 </div>
                 <div class="mt-4 overflow-x-auto rounded-xl border border-[var(--dh-border)]">
@@ -7924,9 +7949,9 @@ onMounted(async () => {
                     <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase"><tr><th class="px-3 py-2">Rubro</th><th class="px-3 py-2">Base</th><th class="px-3 py-2">Cantidad</th><th class="px-3 py-2">Moneda</th><th class="px-3 py-2 text-right">Costo</th><th class="px-3 py-2 text-right">Venta</th></tr></thead>
                     <tbody><tr v-for="line in subRate.rateDetails" :key="line.id" class="border-t border-[var(--dh-border)]">
                       <td class="px-3 py-2"><strong>{{ line.name }}</strong><p v-if="line.notes" class="mt-1 whitespace-pre-wrap text-[10px]">{{ line.notes }}</p></td>
-                      <td class="px-3 py-2">{{ line.chargeBasis }}</td><td class="px-3 py-2">{{ line.quantity }}</td><td class="px-3 py-2">{{ line.currencyCode }}</td>
-                      <td class="px-3 py-2 text-right">{{ formatMoney(Number(line.costAmount) * Number(line.quantity || 1), line.currencyCode || 'USD') }}</td>
-                      <td class="px-3 py-2 text-right font-black">{{ formatMoney(Number(line.saleAmount) * Number(line.quantity || 1), line.currencyCode || 'USD') }}</td>
+                      <td class="px-3 py-2">{{ line.chargeBasis }}</td><td class="px-3 py-2">{{ line.quantity }}</td><td class="px-3 py-2">{{ detailCurrencyValue(line) }}</td>
+                      <td class="px-3 py-2 text-right">{{ formatMoney(Number(line.costAmount) * Number(line.quantity || 1), detailCurrencyValue(line)) }}</td>
+                      <td class="px-3 py-2 text-right font-black">{{ formatMoney(Number(line.saleAmount) * Number(line.quantity || 1), detailCurrencyValue(line)) }}</td>
                     </tr></tbody>
                   </table>
                 </div>
