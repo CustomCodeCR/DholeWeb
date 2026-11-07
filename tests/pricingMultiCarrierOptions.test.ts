@@ -159,8 +159,9 @@ test('Haulage chosen on Screen 4 is inherited by each new FCL route', () => {
   assert.match(wizard, /merchantHaulage: defaultFclHaulageMode\.value === 'merchant'/)
   assert.match(wizard, /carrierHaulage: defaultFclHaulageMode\.value === 'carrier'/)
   assert.match(wizard, /syncHaulageOptionalLines\(\)/)
-  assert.match(wizard, /value\.includes\('inland'\)/)
-  assert.match(wizard, /value\.includes\('naviera'\)/)
+  const haulagePlugin = readFileSync(new URL('../build/pricingCargoHaulageKeywordFix.ts', import.meta.url), 'utf8')
+  assert.match(haulagePlugin, /conditions\.includes\('MerchantHaulage'\)/)
+  assert.match(haulagePlugin, /conditions\.includes\('CarrierHaulage'\)/)
 })
 
 test('FCL route navigation is pinned on all devices with POE/naviera progress', () => {
