@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick as nextTickForPoe, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Check,
@@ -516,7 +516,7 @@ async function activatePoeRoute(destinationId: string) {
       merchantHaulage: false, carrierHaulage: false,
     })
   }
-  await nextTick() // watchers must not recalculate another POE's edited lines
+  await nextTickForPoe() // watchers must not recalculate another POE's edited lines
   switchingPoeRoute.value = false
   if (!cached && destinationId && step.value > 5) step.value = 5
   if (!cached && destinationId && step.value === 5) await searchApprovedRates()
