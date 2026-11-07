@@ -22,6 +22,19 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         code = code.replace(needle, replacement)
       }
 
+      // Last transform overrides all legacy LCL carrier validation while preserving
+      // the exact-string anchors expected by earlier Pricing plugins.
+      replaceOnce(
+        'const canNext = computed(() => {',
+        [
+          'const canNext = computed(() => {',
+          "  if (step.value === 6 && shipmentModeForApi.value === 'Lcl') {",
+          '    return Boolean(form.agentId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)',
+          '  }',
+        ].join('\n'),
+        'LCL provider without maritime carrier',
+      )
+
       replaceOnce(
         'async function next() {',
         [
@@ -38,7 +51,9 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
           '  }',
           '  if (!props.viewOnly && !canNext.value) {',
           "    toastStore.warning('Faltan datos para continuar',",
-          "      'Revise las selecciones y cantidades de esta pantalla. Los campos pendientes aparecen marcados en rojo.')",
+          '      requiredStepIssues.value.length',
+          "        ? 'Complete: ' + requiredStepIssues.value.map(issue => issue.label).join(' · ')",
+          "        : 'Revise los datos del proveedor y los importes de esta pantalla.')",
           '    return',
           '  }',
         ].join('\n'),
