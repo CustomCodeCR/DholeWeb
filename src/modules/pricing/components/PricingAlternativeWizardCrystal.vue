@@ -68,6 +68,7 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
+import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -496,10 +497,6 @@ const optionDrafts = ref<Record<string, PoeRouteDraft>>({})
 const selectedBundleByOption = ref<Record<string, string>>({})
 let restoreFclBundleForOption: ((poeId: string, carrierId: string) => void) | null = null
 
-function carrierRouteKey(poeId: string, carrierId: string): string {
-  return JSON.stringify([poeId, carrierId])
-}
-
 const multiCarrierSelectionMode = computed(() =>
   !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
   && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
@@ -510,8 +507,7 @@ const carrierRouteCount = computed(() =>
   selectedPoeIds.value.reduce((total, id) => total + (selectedCarriersByPoe.value[id]?.length ?? 0), 0),
 )
 const allPoeCarriersSelected = computed(() =>
-  selectedPoeIds.value.length > 0
-  && selectedPoeIds.value.every((id) => (selectedCarriersByPoe.value[id]?.length ?? 0) > 0),
+  poeCarrierSelectionComplete(selectedPoeIds.value, selectedCarriersByPoe.value),
 )
 const selectedCarrierRoutes = computed(() =>
   selectedPoeIds.value.flatMap((poeId) =>
@@ -573,8 +569,7 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
 function setCurrentPoeCarrierIds(ids: string[]) {
   if (!multiCarrierSelectionMode.value || !form.destinationId) return
   rememberCurrentCarrierDraft()
-  const allowed = new Set(catalogs.carriers.map((item) => item.id))
-  const next = [...new Set(ids.filter((id) => allowed.has(id)))]
+  const next = normalizePoeCarrierIds(ids, catalogs.carriers.map((item) => item.id))
   const poeId = form.destinationId
   const previous = selectedCarriersByPoe.value[poeId] ?? []
   selectedCarriersByPoe.value = { ...selectedCarriersByPoe.value, [poeId]: next }
