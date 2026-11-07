@@ -6663,7 +6663,8 @@ onMounted(async () => {
 
         <div v-else-if="step === 5" class="space-y-6">
           <div>
-            <p class="crystal-kicker">Pantalla 5 <span v-if="multiCarrierSelectionMode">· POE {{ currentPoeIndex + 1 }} de {{ selectedPoeIds.length }}</span></p>
+            <p class="crystal-kicker">Pantalla 5</p>
+            <p v-if="multiCarrierSelectionMode" class="mt-1 text-xs font-black text-[var(--dh-primary)]">POE {{ currentPoeIndex + 1 }} de {{ selectedPoeIds.length }} · {{ displayValue(selectedDestination) }}</p>
             <h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
             <p v-if="multiCarrierSelectionMode" class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">Marca todas las tarifas cargadas que desees y, solo si hace falta, añade opciones manuales. Después continúa al siguiente POE.</p>
