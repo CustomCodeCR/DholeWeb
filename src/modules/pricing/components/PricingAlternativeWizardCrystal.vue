@@ -4301,6 +4301,17 @@ function hydratePersistedCargoDescription(rawDescription: string | null | undefi
   form.cargoDescription = sanitizeCargoDescriptionForField(raw)
 }
 
+async function selectCommercialGroupAlternative(rateId: string) {
+  if (!savedQuoteGroup.value) return
+  try {
+    await PricingService.selectRateGroup(rateId)
+    savedQuoteGroup.value = await PricingService.getRateGroup(rateId)
+    toastStore.success('Alternativa elegida', 'La sub-QUO seleccionada es la unica que podra aceptarse en el grupo.')
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo seleccionar la sub-QUO.')
+  }
+}
+
 async function hydrateExistingRate() {
   if (!props.rateId) return
   try {
@@ -5217,10 +5228,6 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
-  if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
-    toastStore.warning('Guardado agrupado pendiente', 'No se creó ninguna tarifa: es necesario implementar la API que guarde todas las rutas y sub-QUO juntas.')
-    return
-  }
   if (pendingModificationDelivery.value) {
     // Guardar nunca envía una revisión persistida; el envío es una acción separada.
     toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
@@ -5810,7 +5817,86 @@ async function saveRate() {
       )
     } else {
       saveRequestSentToBackend.value = true
-      rateId = await PricingService.createRate(createPayload)
+      if (multiCarrierSelectionMode.value && carrierRouteCount.value > 1) {
+        // Freeze the visible option, then submit one complete rate per POE/carrier.
+        // Nothing is persisted if the backend rejects one alternative.
+        rememberCurrentCarrierDraft()
+        const alternatives: GroupQuoteAlternativeRequest[] = []
+        for (const route of selectedCarrierRoutes.value) {
+          const draft = optionDrafts.value[carrierRouteKey(route.poeId, route.carrierId)]
+          const targetPoe = findById(catalogs.poe, route.poeId)
+          const targetCarrier = findById(catalogs.carriers, route.carrierId)
+          const targetAgent = findById(catalogs.agents, draft?.fields.agentId ?? '')
+          const targetCurrency = findById(catalogs.currencies, draft?.fields.currencyId ?? '')
+          const routeLines = removeDuplicateFclFreight(draft?.lines ?? [], 'Fcl')
+            .filter((line) => shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)))
+          if (!draft || !targetPoe || !targetCarrier || !targetAgent || !targetCurrency || !routeLines.length) {
+            step.value = 7
+            throw new Error('La alternativa ' + (displayValue(targetPoe) || route.poeId)
+              + ' / ' + (displayValue(targetCarrier) || route.carrierId)
+              + ' requiere agente, moneda y cargos completos. Revísela antes de guardar.')
+          }
+          const routeDetails: CreateRateDetailRequest[] = routeLines.map((line) => ({
+            costId: line.costId ?? null,
+            name: line.name,
+            costDetailType: line.costDetailType,
+            costType: line.costType,
+            chargeBasis: effectiveChargeBasisForLine(line),
+            currencyId: line.currencyId || targetCurrency.id,
+            currencyName: line.currencyName || displayValue(targetCurrency),
+            currencyCode: line.currencyCode || targetCurrency.code,
+            costAmount: number(line.costAmount),
+            saleAmount: number(line.saleAmount),
+            billToClient: normalizeBillToClient(line.billToClient),
+            quantity: quantityForRateLine(line),
+            applyDestinationTax: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line),
+            destinationTaxRate: Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)
+              ? lineDestinationTaxRate(line) : 0,
+            notes: stripGeneratedPodVatNotes(line.notes) || null,
+          }))
+          const routeIncludes = [...new Set([
+            ...commercialTerms.includes.map((term) => term.text),
+            ...routeLines.map((line) => line.name),
+          ].map((term) => term.trim()).filter(Boolean))]
+          alternatives.push({
+            haulageMode: draft.fields.merchantHaulage ? 'Merchant' : 'Carrier',
+            routeKey: draft.fields.carrierRoute || null,
+            rate: {
+              ...createPayload,
+              sourceImportFclRateId: draft.fields.selectedImportRateId || null,
+              agentId: targetAgent.id,
+              agentName: displayValue(targetAgent),
+              agentCode: targetAgent.code,
+              carrierId: targetCarrier.id,
+              carrierName: displayValue(targetCarrier),
+              carrierCode: targetCarrier.code,
+              poeId: targetPoe.id,
+              poeName: displayValue(targetPoe),
+              poeCode: targetPoe.code,
+              podId: pod?.id ?? null,
+              podName: pod ? displayValue(pod) : null,
+              podCode: pod?.code ?? null,
+              currencyId: targetCurrency.id,
+              currencyName: displayValue(targetCurrency),
+              currencyCode: targetCurrency.code,
+              freeDays: number(draft.fields.freeDays),
+              transitDays: Math.max(0, Math.trunc(number(draft.fields.transitDays))),
+              transitTime: number(draft.fields.transitDays) > 0
+                ? `${Math.trunc(number(draft.fields.transitDays))} días` : null,
+              carrierRoute: draft.fields.carrierRoute.trim(),
+              carrierComments: draft.fields.carrierComments.trim(),
+              validTo: draft.fields.validTo || createPayload.validTo,
+              details: routeDetails,
+              includes: routeIncludes.join('\\n') || null,
+            },
+          })
+        }
+        saveRequestSentToBackend.value = true
+        const group = await PricingService.createRateGroup({ alternatives }, saveRequestIdempotencyKey.value)
+        rateId = group.parentRateId
+      } else {
+        rateId = await PricingService.createRate(createPayload)
+      }
     }
     createdRateId.value = rateId
     if (props.rateRequestId) {
@@ -5857,11 +5943,6 @@ async function handleSaveRateClick() {
   saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
   const initialStep = step.value
   try {
-    if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
-      saveButtonFeedback.value = 'No se enviaron las rutas: la API todavía no admite sub-QUO agrupadas.'
-      toastStore.warning('Sincronización multi-QUO pendiente', saveButtonFeedback.value)
-      return
-    }
     if (pendingModificationDelivery.value) {
       saveButtonFeedback.value = 'Enviando la revisión guardada al vendedor…'
       await retrySavedModificationDelivery()
@@ -6192,6 +6273,30 @@ onMounted(async () => {
       </div>
       <div v-if="editingRate.status === 'AcceptedByClient' && !viewOnly" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
         Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
+      </div>
+      <div v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p class="text-sm font-black">Alternativas de la QUO {{ savedQuoteGroup.parentQuoteNumber }}</p>
+          <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
+        </div>
+        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div v-for="option in savedQuoteGroup.alternatives" :key="option.rateId"
+            class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs"
+            :class="option.rateId === editingRate.id ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'">
+            <button type="button" class="block w-full text-left hover:text-[var(--dh-primary)]"
+              @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
+              <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
+              <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
+              <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
+            </button>
+            <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Alternativa seleccionada</span>
+            <button v-else-if="authStore.hasScope('pricing.rate.update')" type="button"
+              class="mt-2 rounded-lg border border-[var(--dh-border)] px-2 py-1.5 font-bold hover:border-[var(--dh-primary)]"
+              @click="selectCommercialGroupAlternative(option.rateId)">
+              Elegir esta sub-QUO
+            </button>
+          </div>
+        </div>
       </div>
       <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
       <PricingLinkedSellerRequest v-if="authStore.hasScope('pricing.rate.update')" :rate-id="editingRate.id" />
@@ -7547,7 +7652,7 @@ onMounted(async () => {
                 </div>
               </details>
             </div>
-            <p class="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">La creación transaccional de la QUO principal y todas las sub-QUO sigue pendiente en Pricing. No se enviarán registros parciales.</p>
+            <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Pricing registra todas las alternativas en una sola transacción. Si una falla, no se guarda ninguna QUO.</p>
           </section>
 
           <div v-if="!multiCarrierSelectionMode || carrierRouteCount === 1" class="crystal-soft p-5">
