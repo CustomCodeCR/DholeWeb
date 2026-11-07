@@ -5951,30 +5951,57 @@ onMounted(async () => {
       </details>
     </div>
 
+
     <div
-      v-if="!isEditing && !sellerRequestMode && selectedPoeIds.length > 1 && step >= 5 && step <= 8"
-      class="mb-6 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3"
+      v-if="!isEditing && !sellerRequestMode && multiCarrierSelectionMode && (selectedPoeIds.length > 1 || carrierRouteCount > 1) && step >= 5 && step <= 8"
+      class="mb-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4"
     >
-      <p class="mb-2 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-        Opciones por POE · {{ selectedPoeIds.length }} rutas seleccionadas
-      </p>
-      <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5">
+          <span class="grid h-9 w-9 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-4 w-4" /></span>
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ step === 5 ? 'Puertos de destino' : 'Alternativas de la cotización' }}</p>
+            <p class="text-xs font-semibold text-[var(--dh-text)]">{{ selectedPoeIds.length }} POE · {{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'naviera seleccionada' : 'combinaciones POE–naviera' }}</p>
+          </div>
+        </div>
+        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-[11px] font-bold text-[var(--dh-text-muted)]">
+          {{ step === 5 ? 'Seleccione navieras por puerto' : 'Cada combinación conserva sus costos' }}
+        </span>
+      </div>
+      <div v-if="step === 5" class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
         <button
           v-for="poeId in selectedPoeIds"
           :key="poeId"
           type="button"
           role="tab"
+          :disabled="loadingRates"
           :aria-selected="form.destinationId === poeId"
           :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
-          class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold"
+          class="flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-50"
           @click="activatePoeRoute(poeId)"
         >
           {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
+          <span class="rounded-full bg-[var(--dh-input)] px-1.5 py-0.5 text-[10px]">{{ (selectedCarriersByPoe[poeId] || []).length }}</span>
         </button>
       </div>
-      <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-        Los fletes y rubros mostrados corresponden al POE activo. El guardado comercial agrupado sigue pendiente de integración en Pricing.
-      </p>
+      <div v-else class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Alternativas por POE y naviera">
+        <button
+          v-for="route in selectedCarrierRoutes"
+          :key="carrierRouteKey(route.poeId, route.carrierId)"
+          type="button"
+          role="tab"
+          :aria-selected="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId"
+          :class="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
+          class="flex max-w-[290px] shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold"
+          @click="activateCarrierRoute(route.poeId, route.carrierId)"
+        >
+          <span class="min-w-0">
+            <span class="block truncate">{{ displayValue(findById(catalogs.poe, route.poeId)) || route.poeId }}</span>
+            <span class="mt-0.5 block truncate text-[11px] text-[var(--dh-text-muted)]">{{ displayValue(findById(catalogs.carriers, route.carrierId)) || route.carrierId }}</span>
+          </span>
+          <Check v-if="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId" class="h-4 w-4 shrink-0" />
+        </button>
+      </div>
     </div>
 
     <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
