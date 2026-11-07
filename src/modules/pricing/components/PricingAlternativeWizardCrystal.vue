@@ -7155,8 +7155,8 @@ onMounted(async () => {
               <p class="text-sm font-black">Cargos Merchant / Carrier</p>
               <p class="text-xs text-[var(--dh-text-muted)]">Seleccione el tipo de transporte de esta naviera para mostrar sus cargos asociados. Se guarda por alternativa.</p>
             </div>
-            <button type="button" :aria-pressed="form.merchantHaulage" class="crystal-flag" :class="form.merchantHaulage ? 'crystal-flag--active' : ''" @click="toggleMerchantHaulage"><Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant Haulage</button>
-            <button type="button" :aria-pressed="form.carrierHaulage" class="crystal-flag" :class="form.carrierHaulage ? 'crystal-flag--active' : ''" @click="toggleCarrierHaulage"><Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier Haulage</button>
+            <button type="button" :aria-pressed="form.merchantHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.merchantHaulage }" @click="toggleMerchantHaulage"><Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant Haulage</button>
+            <button type="button" :aria-pressed="form.carrierHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.carrierHaulage }" @click="toggleCarrierHaulage"><Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier Haulage</button>
           </div>
           <div v-if="storageServiceSelected" class="crystal-soft p-4">
             <div class="grid gap-3 md:grid-cols-2 md:items-center">
