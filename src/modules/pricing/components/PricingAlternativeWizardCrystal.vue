@@ -2068,7 +2068,10 @@ function isOwnLclMatrixContext() {
 }
 
 function haulageAssociation(line: { name: string }) {
-  return identifyHaulage(line.name)
+  const value = normalizeCatalogValue(line.name)
+  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
+  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+  return null
 }
 
 // A chosen Inland from Costos y recargos is shown with its actual catalog price.
@@ -3637,13 +3640,9 @@ function syncHaulageOptionalLines() {
     const association = haulageAssociation(line)
     if (!association) return
 
-    const selected =
+    line.included =
       (association === 'merchant' && form.merchantHaulage) ||
       (association === 'carrier' && form.carrierHaulage)
-    // Auto-select real, priced charges. An unpriced fallback remains visible
-    // for manual entry but must not enter totals as a valid zero Inland.
-    line.included = selected && (Boolean(line.costId)
-      || number(line.costAmount) > 0 || number(line.saleAmount) > 0)
 
     if (!line.included) {
       line.applyDestinationTax = false
