@@ -3919,6 +3919,7 @@ async function hydrateExistingRate() {
     form.shipmentMode = String(rate.shipmentMode).toUpperCase()
     form.originId = rate.polId
     form.destinationId = rate.poeId
+    selectedPoeIds.value = rate.poeId ? [rate.poeId] : []
     form.podId = rate.podId ?? ''
     form.equipmentId = rate.containerTypeId
     form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
@@ -4609,6 +4610,10 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
+  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+    toastStore.warning('Guardado agrupado pendiente', 'Pricing todavía no puede crear todas las sub-QUO en una transacción. Los POE continúan seleccionados.')
+    return
+  }
   if (!validateSelectedCrmCustomer() || !validateWizardReferences()) return
   const origin = selectedOrigin.value
   const poe = selectedDestination.value
@@ -4798,6 +4803,10 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
+  if (!editingRate.value && selectedPoeIds.value.length > 1) {
+    toastStore.warning('Guardado agrupado pendiente', 'No se creó ninguna tarifa: es necesario implementar la API que guarde todas las rutas y sub-QUO juntas.')
+    return
+  }
   if (pendingModificationDelivery.value) {
     // Guardar nunca envía una revisión persistida; el envío es una acción separada.
     toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
@@ -5432,6 +5441,11 @@ async function handleSaveRateClick() {
   saveButtonFeedback.value = 'Validando la tarifa antes de guardar…'
   const initialStep = step.value
   try {
+    if (!editingRate.value && selectedPoeIds.value.length > 1) {
+      saveButtonFeedback.value = 'No se enviaron las rutas: la API todavía no admite sub-QUO agrupadas.'
+      toastStore.warning('Sincronización multi-QUO pendiente', saveButtonFeedback.value)
+      return
+    }
     if (pendingModificationDelivery.value) {
       saveButtonFeedback.value = 'Enviando la revisión guardada al vendedor…'
       await retrySavedModificationDelivery()
@@ -5463,6 +5477,9 @@ async function handleSaveRateClick() {
 function resetWizard() {
   step.value = 1
   createdRateId.value = ''
+  selectedPoeIds.value = []
+  poeRouteDrafts.value = {}
+  ++approvedRatesSearchSequence
   availableRates.value = []
   rateLines.value = []
   supportEntityId.value = crypto.randomUUID()
@@ -5584,6 +5601,7 @@ watch(
 watch(
   () => form.destinationId,
   () => {
+    if (switchingPoeRoute.value) return // preserve the shared POD across route tabs
     const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
     form.podId = equivalent?.id ?? ''
   },
@@ -5626,7 +5644,7 @@ watch(
 watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
-    if (hydratingExistingRate.value || step.value < 6 || !agentId) return
+    if (hydratingExistingRate.value || switchingPoeRoute.value || step.value < 6 || !agentId) return
     await loadApplicableCosts()
     if (step.value >= 7) rebuildRateLines()
   },
@@ -5635,7 +5653,7 @@ watch(
 watch(() => form.currencyId, () => {
   // A saved quotation already has individually priced currencies and sales.
   // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.
-  if (hydratingExistingRate.value || editingRate.value) return
+  if (hydratingExistingRate.value || switchingPoeRoute.value || editingRate.value) return
   if (step.value === 7) rebuildRateLines()
 })
 
@@ -5644,7 +5662,7 @@ watch(() => form.currencyId, () => {
 watch(
   () => [form.freightCost, form.freightSale] as const,
   (amounts, previous) => {
-    if (!previous || props.viewOnly || hydratingExistingRate.value || shipmentModeForApi.value !== 'Lcl') return
+    if (!previous || props.viewOnly || switchingPoeRoute.value || hydratingExistingRate.value || shipmentModeForApi.value !== 'Lcl') return
     if (amounts[0] !== previous[0]) applyFreightUnitAmount(rateLines.value, 'costAmount', amounts[0])
     if (amounts[1] !== previous[1]) applyFreightUnitAmount(rateLines.value, 'saleAmount', amounts[1])
   },
@@ -5659,7 +5677,7 @@ watch(
     return line ? [line.costAmount, line.saleAmount] as const : null
   },
   (amounts) => {
-    if (!amounts || props.viewOnly || hydratingExistingRate.value) return
+    if (!amounts || props.viewOnly || switchingPoeRoute.value || hydratingExistingRate.value) return
     form.freightCost = number(amounts[0])
     form.freightSale = number(amounts[1])
   },
