@@ -6130,6 +6130,7 @@ onMounted(async () => {
                 :model-value="form.destinationId"
                 :model-values="selectedPoeIds"
                 multiple
+                :show-chips="false"
                 data-required-field="destinationId" :error="fieldError('destinationId')"
                 label="Destinos (POE) · selección múltiple"
                 placeholder="Buscar y seleccionar varios POE"
@@ -6157,6 +6158,49 @@ onMounted(async () => {
                 :optional="true"
                 :options="podOptions"
               />
+
+              <div v-if="!isEditing && !sellerRequestMode" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex min-w-0 items-center gap-3">
+                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-5 w-5" /></span>
+                    <div>
+                      <h3 class="text-sm font-black text-[var(--dh-text)]">Destinos de la cotización</h3>
+                      <p class="mt-0.5 text-xs font-medium text-[var(--dh-text-muted)]">Agregue todos los POE. Cada uno tendrá sus navieras, fletes y costos separados.</p>
+                    </div>
+                  </div>
+                  <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-black text-[var(--dh-text)]">
+                    {{ selectedPoeIds.length }} {{ selectedPoeIds.length === 1 ? 'destino' : 'destinos' }}
+                  </span>
+                </div>
+                <div v-if="selectedPoeIds.length" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" aria-label="Lista de POE seleccionados">
+                  <div
+                    v-for="(poeId, index) in selectedPoeIds"
+                    :key="poeId"
+                    class="flex min-w-0 items-center gap-1 rounded-2xl border p-1.5 transition-colors"
+                    :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                  >
+                    <button
+                      type="button"
+                      class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                      :aria-pressed="form.destinationId === poeId"
+                      @click="activatePoeRoute(poeId)"
+                    >
+                      <span class="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-[var(--dh-border)] text-[10px] font-black text-[var(--dh-text-muted)]">{{ String(index + 1).padStart(2, '0') }}</span>
+                      <span class="min-w-0 truncate text-xs font-bold text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
+                      <Check v-if="form.destinationId === poeId" class="ml-auto h-3.5 w-3.5 shrink-0 text-[var(--dh-primary)]" />
+                    </button>
+                    <button
+                      type="button"
+                      class="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[var(--dh-text-muted)] hover:bg-red-500/10 hover:text-red-500"
+                      :aria-label="`Eliminar ${displayValue(findById(catalogs.poe, poeId)) || poeId} de la cotización`"
+                      @click="setSelectedPoeIds(selectedPoeIds.filter((id) => id !== poeId))"
+                    ><X class="h-4 w-4" /></button>
+                  </div>
+                </div>
+                <p v-else class="rounded-xl border border-dashed border-[var(--dh-border-strong)] px-4 py-4 text-center text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Busque y agregue un POE arriba para empezar a crear sus alternativas.
+                </p>
+              </div>
             </div>
 
             <!-- Fila 3: tamaño, tipo y cantidad del equipo. -->
