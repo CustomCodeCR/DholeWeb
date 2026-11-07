@@ -6604,8 +6604,10 @@ onMounted(async () => {
         <div v-else-if="step === 5" class="space-y-6">
           <div>
             <p class="crystal-kicker">Pantalla 5</p>
-            <h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>
-            <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
+            <h2 class="crystal-title">{{ multiCarrierSelectionMode ? 'Configurar alternativas manuales' : 'Tarifas pre-aprobadas disponibles' }}</h2>
+            <p class="crystal-description">{{ multiCarrierSelectionMode
+              ? 'Seleccione todas las navieras que desee cotizar manualmente en cada POE. No necesita escoger una tarifa preaprobada.'
+              : 'La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.' }}</p>
           </div>
 
 
@@ -6614,25 +6616,62 @@ onMounted(async () => {
               <div class="flex min-w-0 items-start gap-3">
                 <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Ship class="h-5 w-5" /></span>
                 <div>
-                  <h3 class="text-base font-black">Navieras para {{ displayValue(selectedDestination) || 'este POE' }}</h3>
+                  <h3 class="text-base font-black">Navieras manuales · {{ displayValue(selectedDestination) || 'este POE' }}</h3>
                   <p class="mt-1 max-w-xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-                    Seleccione una o varias navieras para este puerto. Repita la selección en los demás POE antes de continuar.
+                    Marque todas las opciones que necesite; no se sustituye una naviera por otra. Después podrá indicar costo, venta y cargos para cada combinación.
                   </p>
                 </div>
               </div>
               <span class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.10)] px-3 py-1.5 text-xs font-black text-[var(--dh-primary)]">{{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'alternativa' : 'alternativas' }}</span>
             </div>
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(250px,1fr)]">
-              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
-                <PricingCrystalMultiSelect
-                  :model-value="currentPoeCarrierIds"
-                  :options="carrierOptions"
-                  label="Seleccionar navieras de este POE"
-                  placeholder="Buscar y seleccionar navieras"
-                  search-placeholder="Buscar naviera por nombre..."
-                  @update:model-value="setCurrentPoeCarrierIds"
-                />
-                <p class="mt-2 text-[11px] font-semibold text-[var(--dh-text-muted)]">Las tarifas preaprobadas de abajo pueden asignar automáticamente su naviera. También puede elegir navieras para cotizar manualmente.</p>
+              <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3.5">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Navieras disponibles</p>
+                    <p class="mt-1 text-xs font-semibold text-[var(--dh-text)]">{{ currentPoeCarrierIds.length }} seleccionadas para este puerto</p>
+                  </div>
+                  <button
+                    v-if="currentPoeCarrierIds.length"
+                    type="button"
+                    class="rounded-xl border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]"
+                    @click="setCurrentPoeCarrierIds([])"
+                  >Quitar todas</button>
+                </div>
+                <label class="mb-3 flex items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5">
+                  <Search class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
+                  <input
+                    v-model="manualCarrierSearch"
+                    type="search"
+                    class="min-w-0 w-full bg-transparent text-sm font-semibold text-[var(--dh-text)] outline-none"
+                    placeholder="Buscar MSC, ONE, MAERSK u otra naviera"
+                    aria-label="Buscar navieras para cotización manual"
+                  />
+                </label>
+                <div v-if="carrierOptions.length" class="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2" role="group" aria-label="Navieras manuales disponibles">
+                  <button
+                    v-for="carrier in filteredManualCarrierOptions"
+                    :key="carrier.value"
+                    type="button"
+                    class="flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors"
+                    :class="currentPoeCarrierIds.includes(carrier.value) ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]/50'"
+                    :aria-pressed="currentPoeCarrierIds.includes(carrier.value)"
+                    @click="toggleManualCarrier(carrier.value)"
+                  >
+                    <span class="grid h-5 w-5 shrink-0 place-items-center rounded-md border"
+                      :class="currentPoeCarrierIds.includes(carrier.value) ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)]'">
+                      <Check v-if="currentPoeCarrierIds.includes(carrier.value)" class="h-3.5 w-3.5" />
+                    </span>
+                    <span class="min-w-0 flex-1 truncate text-sm font-bold">{{ carrier.label }}</span>
+                  </button>
+                  <p v-if="!filteredManualCarrierOptions.length" class="col-span-full py-4 text-center text-xs font-semibold text-[var(--dh-text-muted)]">No se encontraron navieras para esa búsqueda.</p>
+                </div>
+                <p v-else class="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-xs font-semibold text-amber-600">
+                  No hay navieras configuradas. Agréguelas en Configuración → Catálogos → Navieras.
+                </p>
+                <p class="mt-3 text-[11px] font-semibold leading-relaxed text-[var(--dh-text-muted)]">
+                  Puede marcar varias navieras. Todas las opciones se cotizan manualmente con flete y costos independientes en las pantallas 6 y 7.
+                </p>
               </div>
               <div class="rounded-2xl border border-[var(--dh-border)] p-3">
                 <p class="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cobertura de puertos</p>
@@ -6658,11 +6697,12 @@ onMounted(async () => {
                 {{ allPoeCarriersSelected ? 'Todos los POE tienen navieras asignadas.' : 'Falta seleccionar al menos una naviera en cada POE.' }}
               </p>
               <DhButton :disabled="!allPoeCarriersSelected || loadingRates" @click="continueWithSelectedCarriers">
-                Continuar a proveedor <ChevronRight class="h-4 w-4" />
+                Configurar {{ carrierRouteCount }} alternativas <ChevronRight class="h-4 w-4" />
               </DhButton>
             </div>
           </div>
 
+          <div v-if="!multiCarrierSelectionMode" class="space-y-4">
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
 
           <template v-else-if="availableRates.length">
@@ -6725,6 +6765,7 @@ onMounted(async () => {
 
           <div v-if="form.manualRate && availableRates.length" class="crystal-soft px-4 py-3 text-sm font-bold">
             Se usará captura manual en la siguiente pantalla.
+          </div>
           </div>
         </div>
 
