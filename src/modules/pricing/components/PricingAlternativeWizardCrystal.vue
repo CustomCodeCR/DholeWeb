@@ -3419,9 +3419,11 @@ if (insuranceRequested && visible.has('destination_charges')) {
     line.amountCurrencyCode = canonicalCurrencyCode(line)
     enforceLineCurrency(line)
   })
-  rateLines.value = previousOptionLines.length
-    ? mergeOptionCostLines(previousOptionLines, lines)
-    : lines
+  if (previousOptionLines.length) {
+    const preserved = mergeOptionCostLines(previousOptionLines, lines)
+    lines.splice(0, lines.length, ...preserved)
+  }
+  rateLines.value = lines
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
