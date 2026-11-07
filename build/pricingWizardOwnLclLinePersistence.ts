@@ -255,8 +255,8 @@ function patchWizard(source: string) {
   } else {
     code = replaceOne(
       code,
-      \`    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()\`,
-      \`    await loadApplicableCosts()\n    if (step.value >= 7) refreshRateLinesForCurrentSource()\`,
+      `    await loadApplicableCosts()\n    if (step.value >= 7) rebuildRateLines()`,
+      `    await loadApplicableCosts()\n    if (step.value >= 7) refreshRateLinesForCurrentSource()`,
       'agent/carrier line refresh',
     )
   }
