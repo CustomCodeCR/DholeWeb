@@ -410,6 +410,8 @@ const form = reactive({
   inlandDeliveryLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
   freeDays: 0,
   transitDays: 0,
+  carrierRoute: '',
+  carrierComments: '',
   agentId: '',
   carrierId: '',
   currencyId: '',
@@ -3816,6 +3818,8 @@ async function hydrateExistingRate() {
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
     form.freeDays = Number(rate.freeDays || 0)
     form.transitDays = Math.max(0, Math.trunc(number(rate.transitDays ?? transitDaysFrom(rate.transitTime))))
+    form.carrierRoute = rate.carrierRoute ?? ''
+    form.carrierComments = rate.carrierComments ?? ''
     form.agentId = rate.agentId ?? ''
     // Evitar rehidratar la naviera del anterior LCL propio cuando la tarifa
     // vigente ya es coloader, también para cotizaciones sin marcador antiguo.
@@ -5004,6 +5008,8 @@ async function saveRate() {
           ],
       transitDays: Math.max(0, Math.trunc(number(form.transitDays))),
       transitTime: number(form.transitDays) > 0 ? `${Math.trunc(number(form.transitDays))} días` : null,
+      carrierRoute: form.carrierRoute.trim(),
+      carrierComments: form.carrierComments.trim(),
       useAllInPresentation: multimodalAllInPresentation.value,
       finalBackupStorageIds: finalBackupDocuments.value.map((document) => document.id),
       includes: includeTerms.join('\n') || null,
@@ -5350,6 +5356,8 @@ function resetWizard() {
     inlandDeliveryLocation: { address: '', latitude: null, longitude: null },
     freeDays: 0,
     transitDays: 0,
+    carrierRoute: '',
+    carrierComments: '',
     agentId: '',
     carrierId: '',
     freightCost: 0,
@@ -6194,6 +6202,10 @@ onMounted(async () => {
             <DhInput v-if="form.modality !== 'Land' && shipmentModeForApi !== 'Lcl'" v-model.number="form.freeDays" type="number" min="0" label="Días libres" :disabled="number(selectedImportRate?.freeDays) > 0" />
             <div v-else-if="form.modality !== 'Land'" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm font-bold text-[var(--dh-text-muted)]"><span class="block text-[10px] font-black uppercase tracking-[0.12em]">Días libres</span><span class="mt-1 block text-[var(--dh-text)]">No aplica para LCL</span></div>
             <DhInput v-model.number="form.transitDays" type="number" min="0" label="Días de tránsito" />
+          </div>
+          <div v-if="form.modality !== 'Land'" class="mt-3 grid gap-4 md:grid-cols-2">
+            <DhInput v-model="form.carrierRoute" label="Ruta de la naviera" placeholder="Puertos de conexión o escalas de la naviera" />
+            <DhTextarea v-model="form.carrierComments" label="Comentarios de la naviera" placeholder="Observaciones, transbordos o condiciones de la naviera" :rows="3" />
           </div>
 
           <div class="crystal-route-summary grid gap-3 md:grid-cols-4">
