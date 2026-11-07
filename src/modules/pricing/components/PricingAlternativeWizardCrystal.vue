@@ -578,10 +578,10 @@ function setCurrentPoeCarrierIds(ids: string[]) {
     delete optionDrafts.value[key]
     delete selectedBundleByOption.value[key]
   }
-  if (!next.includes(activeCarrierByPoe.value[poeId])) {
+  if (!next.includes(activeCarrierByPoe.value[poeId] ?? '')) {
     activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: '' }
     form.carrierId = ''
-    if (next.length) void activateCarrierRoute(poeId, next[0])
+    if (next[0]) void activateCarrierRoute(poeId, next[0])
   }
 }
 
@@ -680,7 +680,7 @@ function setSelectedPoeIds(values: string[]) {
   selectedPoeIds.value = selection.ids
   for (const id of Object.keys(selectedCarriersByPoe.value)) {
     if (selection.ids.includes(id)) continue
-    for (const carrierId of selectedCarriersByPoe.value[id]) {
+    for (const carrierId of selectedCarriersByPoe.value[id] ?? []) {
       delete optionDrafts.value[carrierRouteKey(id, carrierId)]
       delete selectedBundleByOption.value[carrierRouteKey(id, carrierId)]
     }
@@ -4474,10 +4474,6 @@ async function next() {
   if (!props.viewOnly && !validateRequiredFields()) return
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
-  if (step.value === 5 && multiCarrierSelectionMode.value) {
-    await continueWithSelectedCarriers()
-    return
-  }
   if (step.value === 6) {
     await loadApplicableCosts()
     rebuildRateLines()
