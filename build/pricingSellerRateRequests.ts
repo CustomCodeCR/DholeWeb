@@ -121,32 +121,29 @@ function patchWizard(source: string) {
     'request previous step floor',
   )
 
-  const pinnedBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving || switchingPoeRoute" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()">'
-  if (code.includes(pinnedBackButton)) {
+  // A sticky footer can gain ARIA attributes or separate-line button text.
+  // Normalize only its first Back button, retaining the seller minimum-step guard.
+  const footerStart = code.indexOf('class="crystal-footer flex items-center')
+  const backStart = footerStart < 0 ? -1 : code.indexOf('<DhButton variant="secondary"', footerStart)
+  const backMatch = backStart < 0 ? null : code.slice(backStart).match(/^<DhButton variant="secondary"[^\n]*previousSequentialWizard\(\) : previous\(\)">/)
+  if (backMatch) {
+    const oldDisabled = backMatch[0].match(/:disabled="[^"]+"/)?.[0]
+    if (!oldDisabled) throw new Error('[pricingSellerRateRequests] Missing footer Back disabled attribute.')
     code = replaceOne(
       code,
-      pinnedBackButton,
-      pinnedBackButton.replace(':disabled="step === 1 || saving || switchingPoeRoute"', ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving || switchingPoeRoute"'),
+      backMatch[0],
+      backMatch[0].replace(oldDisabled, ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving || switchingPoeRoute"'),
       'request back button floor for pinned FCL',
     )
   } else {
-  const sequentialBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>'
-  if (code.includes(sequentialBackButton)) {
     code = replaceOne(
       code,
-      sequentialBackButton,
-      sequentialBackButton.replace(':disabled="step === 1 || saving"', ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving"'),
-      'request back button floor for sequential POE',
+      `<DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>`,
+      `<DhButton variant="secondary" :disabled="(rateRequestId ? step <= 5 : step === 1) || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>`,
+      'request back button floor',
     )
-  } else {
-  code = replaceOne(
-    code,
-    `<DhButton variant=\"secondary\" :disabled=\"step === 1 || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
-    `<DhButton variant=\"secondary\" :disabled=\"(rateRequestId ? step <= 5 : step === 1) || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
-    'request back button floor',
-  )
   }
-  }
+
 
   code = replaceOne(
     code,
