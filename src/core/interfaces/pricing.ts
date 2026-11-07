@@ -863,6 +863,8 @@ export interface RateDto extends Record<string, unknown> {
   subjectTo?: string | null
   excludes?: string | null
   transitTime?: string | null
+  carrierRoute?: string | null
+  carrierComments?: string | null
   transitDays?: number | null
   cargoValue?: number
   useAllInPresentation: boolean
@@ -1024,6 +1026,8 @@ export interface CreateRateRequest extends Record<string, unknown> {
   subjectTo?: string | null
   excludes?: string | null
   transitTime?: string | null
+  carrierRoute?: string | null
+  carrierComments?: string | null
   transitDays?: number | null
   cargoValue?: number
   useAllInPresentation?: boolean
