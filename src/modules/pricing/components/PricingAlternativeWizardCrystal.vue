@@ -48,7 +48,7 @@ import type {
   ShipmentMode,
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { PricingService, type GroupQuoteAlternativeRequest } from '@/core/services/pricingService'
+import { PricingService, type GroupQuoteAlternativeRequest, type GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
@@ -246,6 +246,7 @@ const exchangeRateError = ref('')
 const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
+const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
@@ -4247,6 +4248,7 @@ async function hydrateExistingRate() {
     ])
     editingRate.value = rate
     rateRevisions.value = revisions
+    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id).catch(() => null)
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = true
     const modality = modalityForRate(rate)
@@ -6218,6 +6220,22 @@ onMounted(async () => {
       </div>
       <div v-if="editingRate.status === 'AcceptedByClient' && !viewOnly" class="mt-4 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">
         Esta tarifa ya fue aceptada. Al guardar, Dhole conservará la revisión {{ editingRate.revisionNumber || 1 }} como versión histórica y abrirá la revisión {{ (editingRate.revisionNumber || 1) + 1 }}.
+      </div>
+      <div v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p class="text-sm font-black">Alternativas de la QUO {{ savedQuoteGroup.parentQuoteNumber }}</p>
+          <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
+        </div>
+        <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <button v-for="option in savedQuoteGroup.alternatives" :key="option.rateId"
+            type="button" class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs transition hover:border-[var(--dh-primary)]"
+            :class="option.rateId === editingRate.id ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'"
+            @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
+            <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
+            <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
+            <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
+          </button>
+        </div>
       </div>
       <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
       <PricingLinkedSellerRequest v-if="authStore.hasScope('pricing.rate.update')" :rate-id="editingRate.id" />
