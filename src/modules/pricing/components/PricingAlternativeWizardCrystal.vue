@@ -663,7 +663,19 @@ function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
 
 function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
-  return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+  return Boolean(configuredId && selectedCarriersByPoe.value[form.destinationId]?.includes(configuredId)
+    && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+}
+
+function isCarrierSelectedFcl(carrierId: string, carrierName: string): boolean {
+  const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
+  return Boolean(configuredId && selectedCarriersByPoe.value[form.destinationId]?.includes(configuredId))
+}
+
+function isManualCarrierSelectedFcl(carrierId: string, carrierName: string): boolean {
+  const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
+  return Boolean(configuredId && isCarrierSelectedFcl(carrierId, carrierName)
+    && !selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)])
 }
 
 /** Select every available or manual carrier in one POE before moving on. */
@@ -3770,13 +3782,14 @@ function chooseRate(rate: ImportRateSelectDto) {
   // comercial; no arrastramos los 30 días predeterminados ni fechas anteriores.
   const freightValidFrom = String(rate.validFrom ?? '').slice(0, 10)
   const freightValidTo = String(rate.validTo ?? '').slice(0, 10)
-  if (freightValidFrom) form.loadDate = freightValidFrom
+  if (freightValidFrom && !multiCarrierSelectionMode.value) form.loadDate = freightValidFrom
   if (freightValidTo) form.validTo = freightValidTo
 
   const ratePod = rate.podId
     ? findById(catalogs.pod, rate.podId)
     : findEquivalentValue(catalogs.pod, rate.pod)
-  if (ratePod) form.podId = ratePod.id
+  // The final POD belongs to the whole group, never to a single imported source rate.
+  if (ratePod && !multiCarrierSelectionMode.value) form.podId = ratePod.id
 
   const rateCarrier = normalizeCatalogValue(String(rate.carrier ?? ''))
   const carrier = catalogs.carriers.find((item) =>
