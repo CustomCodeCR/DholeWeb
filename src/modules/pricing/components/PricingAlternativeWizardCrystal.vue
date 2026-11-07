@@ -505,6 +505,8 @@ const multiCarrierSelectionMode = computed(() =>
 )
 const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
 const manualCarrierSearch = ref('')
+const askAddMoreCarriers = ref(false)
+const carrierAdditionFeedback = ref('')
 const filteredManualCarrierOptions = computed(() => {
   const search = manualCarrierSearch.value.trim().toLocaleLowerCase()
   return search
@@ -534,6 +536,10 @@ function toggleManualCarrier(carrierId: string) {
     ? currentPoeCarrierIds.value.filter((id) => id !== carrierId)
     : [...currentPoeCarrierIds.value, carrierId]
   setCurrentPoeCarrierIds(next)
+  if (next.includes(carrierId)) {
+    askAddMoreCarriers.value = true
+    carrierAdditionFeedback.value = ''
+  }
 }
 async function moveToManualCarrier(delta: number) {
   const target = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + delta]
@@ -652,11 +658,31 @@ function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
   }
   form.carrierId = carrierId
   rememberCurrentCarrierDraft()
+  askAddMoreCarriers.value = true
+  carrierAdditionFeedback.value = ''
 }
 
 function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
   return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
+}
+
+function addAnotherCarrierChoice() {
+  askAddMoreCarriers.value = false
+  manualCarrierSearch.value = ''
+  carrierAdditionFeedback.value = 'Marque otra naviera o elija otra tarifa preaprobada o preautorizada. Las opciones anteriores se conservan.'
+}
+
+async function finishCarrierChoice() {
+  const pendingPoe = selectedPoeIds.value.find((id) => !(selectedCarriersByPoe.value[id]?.length))
+  if (pendingPoe) {
+    askAddMoreCarriers.value = false
+    carrierAdditionFeedback.value = 'Seleccione navieras para este POE y luego continúe.'
+    await activatePoeRoute(pendingPoe)
+    return
+  }
+  carrierAdditionFeedback.value = ''
+  await continueWithSelectedCarriers()
 }
 
 async function continueWithSelectedCarriers() {
@@ -6713,6 +6739,16 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
+            <div v-if="askAddMoreCarriers && currentPoeCarrierIds.length" class="mt-4 rounded-2xl border border-[var(--dh-primary)]/40 bg-[rgb(var(--dh-primary-rgb)/0.08)] p-4">
+              <p class="text-sm font-black text-[var(--dh-text)]">¿Desea añadir más navieras?</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Puede añadir manuales, preaprobadas o preautorizadas para este POE sin reemplazar las ya elegidas.</p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <DhButton variant="secondary" @click="addAnotherCarrierChoice">Sí, añadir otra naviera</DhButton>
+                <DhButton @click="finishCarrierChoice">No, continuar</DhButton>
+              </div>
+            </div>
+            <p v-if="carrierAdditionFeedback" class="mt-2 text-xs font-semibold text-[var(--dh-primary)]">{{ carrierAdditionFeedback }}</p>
+
             <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4">
               <p class="text-xs font-semibold" :class="allPoeCarriersSelected ? 'text-emerald-500' : 'text-[var(--dh-text-muted)]'">
                 {{ allPoeCarriersSelected ? 'Todos los POE tienen navieras asignadas.' : 'Falta seleccionar al menos una naviera en cada POE.' }}
