@@ -27,7 +27,7 @@ test('the multi-POE wizard has isolated route tabs and refuses silent partial sa
   assert.match(wizard, /rememberActivePoe\(\)/)
   assert.match(wizard, /switchingPoeRoute/)
   assert.match(wizard, /approvedRatesSearchSequence/)
-  assert.match(wizard, /if \(!editingRate\.value && selectedPoeIds\.value\.length > 1\)/)
+  assert.match(wizard, /if \(!editingRate\.value && \(selectedPoeIds\.value\.length > 1 \|\| carrierRouteCount\.value > 1\)\)/)
   assert.match(selector, /emit\('update:modelValues', next\)/)
   assert.match(selector, /multiSelected/)
 })
