@@ -505,8 +505,9 @@ const multiCarrierSelectionMode = computed(() =>
 )
 const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
 const manualCarrierSearch = ref('')
-const askAddMoreCarriers = ref(false)
-const carrierAdditionFeedback = ref('')
+const currentPoeIndex = computed(() => selectedPoeIds.value.indexOf(form.destinationId))
+const isLastPoeSelection = computed(() => currentPoeIndex.value >= selectedPoeIds.value.length - 1)
+const alternativeCostsLoaded = ref<Record<string, boolean>>({})
 const filteredManualCarrierOptions = computed(() => {
   const search = manualCarrierSearch.value.trim().toLocaleLowerCase()
   return search
@@ -536,10 +537,6 @@ function toggleManualCarrier(carrierId: string) {
     ? currentPoeCarrierIds.value.filter((id) => id !== carrierId)
     : [...currentPoeCarrierIds.value, carrierId]
   setCurrentPoeCarrierIds(next)
-  if (next.includes(carrierId)) {
-    askAddMoreCarriers.value = true
-    carrierAdditionFeedback.value = ''
-  }
 }
 async function moveToManualCarrier(delta: number) {
   const target = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + delta]
@@ -658,8 +655,6 @@ function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
   }
   form.carrierId = carrierId
   rememberCurrentCarrierDraft()
-  askAddMoreCarriers.value = true
-  carrierAdditionFeedback.value = ''
 }
 
 function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
@@ -667,22 +662,83 @@ function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: 
   return Boolean(configuredId && selectedBundleByOption.value[carrierRouteKey(form.destinationId, configuredId)] === bundleKey)
 }
 
-function addAnotherCarrierChoice() {
-  askAddMoreCarriers.value = false
-  manualCarrierSearch.value = ''
-  carrierAdditionFeedback.value = 'Marque otra naviera o elija otra tarifa preaprobada o preautorizada. Las opciones anteriores se conservan.'
-}
-
-async function finishCarrierChoice() {
-  const pendingPoe = selectedPoeIds.value.find((id) => !(selectedCarriersByPoe.value[id]?.length))
-  if (pendingPoe) {
-    askAddMoreCarriers.value = false
-    carrierAdditionFeedback.value = 'Seleccione navieras para este POE y luego continúe.'
-    await activatePoeRoute(pendingPoe)
+/** Select every available or manual carrier in one POE before moving on. */
+async function advanceScreenFive() {
+  if (!currentPoeCarrierIds.value.length) {
+    toastStore.warning('Seleccione una naviera', 'Elija una o varias tarifas cargadas o navieras manuales para este POE.')
     return
   }
-  carrierAdditionFeedback.value = ''
+  if (loadingRates.value || switchingPoeRoute.value) return
+  const nextPoeId = selectedPoeIds.value[currentPoeIndex.value + 1]
+  if (nextPoeId) {
+    await activatePoeRoute(nextPoeId)
+    return
+  }
   await continueWithSelectedCarriers()
+}
+
+async function loadCostsForSelectedAlternative() {
+  if (step.value !== 7 || !multiCarrierSelectionMode.value) return
+  const key = carrierRouteKey(form.destinationId, form.carrierId)
+  if (alternativeCostsLoaded.value[key]) return
+  await loadApplicableCosts()
+  rebuildRateLines()
+  alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: true }
+  rememberCurrentCarrierDraft()
+}
+
+/** "Continue" means next carrier within the current screen, not skipping work. */
+async function advanceSequentialWizard() {
+  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value || loadingRates.value) return
+  if (step.value === 5) return advanceScreenFive()
+  if (step.value !== 6 && step.value !== 7) return next()
+  if (!validateRequiredFields() || !canNext.value) return
+  rememberCurrentCarrierDraft()
+  const nextRoute = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + 1]
+  if (nextRoute) {
+    await activateCarrierRoute(nextRoute.poeId, nextRoute.carrierId)
+    await loadCostsForSelectedAlternative()
+    return
+  }
+  const first = selectedCarrierRoutes.value[0]
+  if (!first) return
+  await activateCarrierRoute(first.poeId, first.carrierId)
+  step.value += 1
+  await loadCostsForSelectedAlternative()
+}
+
+async function previousSequentialWizard() {
+  if (!multiCarrierSelectionMode.value) return previous()
+  if (step.value === 5) {
+    const previousPoe = selectedPoeIds.value[currentPoeIndex.value - 1]
+    if (previousPoe) await activatePoeRoute(previousPoe)
+    else previous()
+    return
+  }
+  if (step.value === 6 || step.value === 7) {
+    const route = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value - 1]
+    if (route) {
+      await activateCarrierRoute(route.poeId, route.carrierId)
+      await loadCostsForSelectedAlternative()
+      return
+    }
+    const last = selectedCarrierRoutes.value[selectedCarrierRoutes.value.length - 1]
+    step.value -= 1
+    if (step.value === 5) {
+      await activatePoeRoute(selectedPoeIds.value[selectedPoeIds.value.length - 1] ?? '')
+    } else if (last) {
+      await activateCarrierRoute(last.poeId, last.carrierId)
+    }
+    return
+  }
+  if (step.value === 8) {
+    step.value = 7
+    const last = selectedCarrierRoutes.value[selectedCarrierRoutes.value.length - 1]
+    if (last) await activateCarrierRoute(last.poeId, last.carrierId)
+    await loadCostsForSelectedAlternative()
+    return
+  }
+  previous()
 }
 
 async function continueWithSelectedCarriers() {
@@ -752,7 +808,7 @@ async function activatePoeRoute(destinationId: string) {
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
   switchingPoeRoute.value = false
   if (!cached && destinationId && step.value > 5 && !multiCarrierSelectionMode.value) step.value = 5
-  if (!cached && destinationId && step.value === 5 && !multiCarrierSelectionMode.value) await searchApprovedRates()
+  if (!cached && destinationId && step.value === 5) await searchApprovedRates()
 }
 
 function setSelectedPoeIds(values: string[]) {
@@ -2421,7 +2477,7 @@ const canNext = computed(() => {
     )
   }
   if (step.value === 5) return multiCarrierSelectionMode.value
-    ? allPoeCarriersSelected.value
+    ? currentPoeCarrierIds.value.length > 0
     : Boolean(form.selectedImportRateId || form.manualRate || availableRates.value.length === 0)
   if (step.value === 6) return Boolean(form.agentId && form.carrierId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)
   return true
@@ -2484,7 +2540,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   }
   if (step.value === 5 && !props.rateId) {
     if (multiCarrierSelectionMode.value) {
-      add(!allPoeCarriersSelected.value, 'carrierIdsByPoe', 'Seleccione navieras para cada POE')
+      add(!currentPoeCarrierIds.value.length, 'carrierIdsByPoe', 'Seleccione navieras para este POE')
     } else {
       add(!form.selectedImportRateId && !form.manualRate && availableRates.value.length > 0, 'selectedImportRateId', 'Tarifa preaprobada o captura manual')
     }
@@ -3628,6 +3684,7 @@ async function searchApprovedRates() {
 }
 
 function chooseRate(rate: ImportRateSelectDto) {
+  if (multiCarrierSelectionMode.value) rememberCurrentCarrierDraft()
   form.selectedImportRateId = rate.id
   form.manualRate = false
   form.freightCost = number(rate.freight)
@@ -3658,6 +3715,20 @@ function chooseRate(rate: ImportRateSelectDto) {
   )
   if (currency) form.currencyId = currency.id
 
+  if (multiCarrierSelectionMode.value) {
+    if (!carrier) {
+      toastStore.warning('Naviera sin catálogo', 'La naviera de esta tarifa debe existir en el catálogo.')
+      return
+    }
+    const current = selectedCarriersByPoe.value[form.destinationId] ?? []
+    selectedCarriersByPoe.value = {
+      ...selectedCarriersByPoe.value,
+      [form.destinationId]: current.includes(carrier.id) ? current : [...current, carrier.id],
+    }
+    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [form.destinationId]: carrier.id }
+    rememberCurrentCarrierDraft()
+    return
+  }
   step.value = 6
 }
 
@@ -5733,6 +5804,7 @@ function resetWizard() {
   createdRateId.value = ''
   selectedPoeIds.value = []
   selectedCarriersByPoe.value = {}
+  alternativeCostsLoaded.value = {}
   activeCarrierByPoe.value = {}
   optionDrafts.value = {}
   selectedBundleByOption.value = {}
@@ -6088,10 +6160,10 @@ onMounted(async () => {
       </div>
       <div v-if="step === 6 || step === 7" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3.5 py-3">
         <div class="min-w-0">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Opción {{ activeCarrierRoutePosition }} de {{ carrierRouteCount }} · captura manual</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Opción {{ activeCarrierRoutePosition }} de {{ carrierRouteCount }} · {{ form.selectedImportRateId ? 'Tarifa cargada' : 'Captura manual' }}</p>
           <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ currentRouteLabel || 'Seleccione una ruta' }}</p>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            {{ step === 6 ? 'Ingrese el flete de esta naviera. Cambie de opción sin perder los datos ingresados.' : 'Revise y ajuste los cargos de esta opción. Cada naviera tiene sus propios rubros.' }}
+            {{ step === 6 ? 'Completa este flete y pulsa Continuar. Se conservará la información antes de pasar a otra naviera.' : 'Revisa los cargos exclusivos de esta opción; Continuar avanza a la siguiente.' }}
           </p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
@@ -6649,23 +6721,24 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-else-if="step === 5" class="space-y-6">
+        <div v-else-if="step === 5" class="flex flex-col gap-5">
           <div>
-            <p class="crystal-kicker">Pantalla 5</p>
-            <h2 class="crystal-title">Tarifas pre-aprobadas disponibles</h2>
+            <p class="crystal-kicker">Pantalla 5 <span v-if="multiCarrierSelectionMode">· POE {{ currentPoeIndex + 1 }} de {{ selectedPoeIds.length }}</span></p>
+            <h2 class="crystal-title">{{ multiCarrierSelectionMode ? 'Selecciona las navieras de ' + (displayValue(selectedDestination) || 'este puerto') : 'Tarifas pre-aprobadas disponibles' }}</h2>
             <p class="crystal-description">La búsqueda usa POL, POE, equipo y fecha de carga; el POD se toma en cuenta únicamente cuando se selecciona.</p>
-            <p v-if="multiCarrierSelectionMode" class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">Puede combinar tarifas preaprobadas, preautorizadas y opciones manuales para cada POE.</p>
+            <p v-if="multiCarrierSelectionMode" class="mt-2 text-sm font-semibold text-[var(--dh-text-muted)]">Marca todas las tarifas cargadas que desees y, solo si hace falta, añade opciones manuales. Después continúa al siguiente POE.</p>
           </div>
 
 
-          <div v-if="multiCarrierSelectionMode" class="rounded-[24px] border border-[var(--dh-primary)]/25 bg-[var(--dh-card)] p-4 md:p-5">
-            <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <details v-if="multiCarrierSelectionMode" class="order-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:p-5">
+            <summary class="cursor-pointer text-sm font-black text-[var(--dh-text)]">Añadir naviera manual sin tarifa cargada <span class="ml-2 text-xs font-semibold text-[var(--dh-text-muted)]">Opcional</span></summary>
+            <div class="mb-4 mt-4 flex flex-wrap items-start justify-between gap-3">
               <div class="flex min-w-0 items-start gap-3">
                 <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Ship class="h-5 w-5" /></span>
                 <div>
                   <h3 class="text-base font-black">Navieras para {{ displayValue(selectedDestination) || 'este POE' }}</h3>
                   <p class="mt-1 max-w-xl text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-                    Añada navieras manualmente o elija tarifas preaprobadas y preautorizadas más abajo. Puede combinar ambos tipos en una misma cotización.
+                    Agregue aquí únicamente las navieras que quiera cotizar manualmente. Las opciones preaprobadas y preautorizadas están arriba.
                   </p>
                 </div>
               </div>
@@ -6695,7 +6768,7 @@ onMounted(async () => {
                     aria-label="Buscar navieras para cotización manual"
                   />
                 </label>
-                <div v-if="carrierOptions.length" class="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2" role="group" aria-label="Navieras manuales disponibles">
+                <div v-if="carrierOptions.length" class="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2" role="group" aria-label="Navieras manuales disponibles">
                   <button
                     v-for="carrier in filteredManualCarrierOptions"
                     :key="carrier.value"
@@ -6739,27 +6812,9 @@ onMounted(async () => {
                 </div>
               </div>
             </div>
-            <div v-if="askAddMoreCarriers && currentPoeCarrierIds.length" class="mt-4 rounded-2xl border border-[var(--dh-primary)]/40 bg-[rgb(var(--dh-primary-rgb)/0.08)] p-4">
-              <p class="text-sm font-black text-[var(--dh-text)]">¿Desea añadir más navieras?</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Puede añadir manuales, preaprobadas o preautorizadas para este POE sin reemplazar las ya elegidas.</p>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <DhButton variant="secondary" @click="addAnotherCarrierChoice">Sí, añadir otra naviera</DhButton>
-                <DhButton @click="finishCarrierChoice">No, continuar</DhButton>
-              </div>
-            </div>
-            <p v-if="carrierAdditionFeedback" class="mt-2 text-xs font-semibold text-[var(--dh-primary)]">{{ carrierAdditionFeedback }}</p>
+          </details>
 
-            <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4">
-              <p class="text-xs font-semibold" :class="allPoeCarriersSelected ? 'text-emerald-500' : 'text-[var(--dh-text-muted)]'">
-                {{ allPoeCarriersSelected ? 'Todos los POE tienen navieras asignadas.' : 'Falta seleccionar al menos una naviera en cada POE.' }}
-              </p>
-              <DhButton :disabled="!allPoeCarriersSelected || loadingRates" @click="continueWithSelectedCarriers">
-                Configurar {{ carrierRouteCount }} alternativas <ChevronRight class="h-4 w-4" />
-              </DhButton>
-            </div>
-          </div>
-
-          <div class="space-y-4">
+          <div class="order-1 space-y-4">
           <div v-if="loadingRates" class="py-14 text-center text-sm font-semibold text-[var(--dh-text-muted)]">Buscando tarifas vigentes…</div>
 
           <template v-else-if="availableRates.length">
@@ -6826,6 +6881,15 @@ onMounted(async () => {
             Se usará captura manual en la siguiente pantalla.
           </div>
           </div>
+          <div v-if="multiCarrierSelectionMode" class="order-3 flex flex-col gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-sm font-black">{{ currentPoeCarrierIds.length }} {{ currentPoeCarrierIds.length === 1 ? 'naviera seleccionada' : 'navieras seleccionadas' }} · {{ displayValue(selectedDestination) }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isLastPoeSelection ? 'Último puerto. Continúa para configurar cada alternativa.' : 'Al continuar se mostrarán las opciones del siguiente puerto.' }}</p>
+            </div>
+            <DhButton :disabled="!currentPoeCarrierIds.length || loadingRates || switchingPoeRoute" @click="advanceSequentialWizard">
+              {{ isLastPoeSelection ? 'Configurar ' + carrierRouteCount + ' alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" />
+            </DhButton>
+          </div>
         </div>
 
         <div v-else-if="step === 6" class="space-y-6">
@@ -6846,7 +6910,7 @@ onMounted(async () => {
             </div>
             <div>
               <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Modalidad de captura</p>
-              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">Manual · precios independientes</p>
+              <p class="mt-1 text-sm font-black text-[var(--dh-text)]">{{ form.selectedImportRateId ? 'Tarifa preaprobada o preautorizada' : 'Captura manual' }}</p>
             </div>
           </div>
           <div class="crystal-soft grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3 md:p-5">
@@ -7742,9 +7806,10 @@ onMounted(async () => {
     </section>
 
     <div class="crystal-footer flex items-center justify-between gap-3 p-3">
-      <DhButton variant="secondary" :disabled="step === 1 || saving" @click="previous"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
+      <DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
       <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">Continuar {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
