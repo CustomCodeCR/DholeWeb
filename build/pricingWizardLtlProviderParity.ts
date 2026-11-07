@@ -418,11 +418,13 @@ ${advanceAnchor}`,
 
   // Keep the selected LTL tariff matrix attached to screen 7 after any normal
   // rebuild caused by costs, currency, services or cargo changes.
-  const rebuildLinesAnchor = '  rateLines.value = lines\n}'
+  const rebuildLinesAnchor = code.includes('  rateLines.value = previousOptionLines.length')
+    ? '  rateLines.value = previousOptionLines.length\n    ? mergeOptionCostLines(previousOptionLines, lines)\n    : lines\n}'
+    : '  rateLines.value = lines\n}'
   if (code.includes(rebuildLinesAnchor) && !code.includes('syncResolvedLandLtlTariffLines() after every rebuild')) {
     code = code.replace(
       rebuildLinesAnchor,
-      `  rateLines.value = lines
+      `${rebuildLinesAnchor.slice(0, -2)}
   if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {
     syncResolvedLandLtlTariffLines()
   }
