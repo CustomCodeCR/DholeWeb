@@ -121,6 +121,15 @@ function patchWizard(source: string) {
     'request previous step floor',
   )
 
+  const pinnedBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving || switchingPoeRoute" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()">'
+  if (code.includes(pinnedBackButton)) {
+    code = replaceOne(
+      code,
+      pinnedBackButton,
+      pinnedBackButton.replace(':disabled="step === 1 || saving || switchingPoeRoute"', ':disabled="(rateRequestId ? step <= 5 : step === 1) || saving || switchingPoeRoute"'),
+      'request back button floor for pinned FCL',
+    )
+  } else {
   const sequentialBackButton = '<DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>'
   if (code.includes(sequentialBackButton)) {
     code = replaceOne(
@@ -136,6 +145,7 @@ function patchWizard(source: string) {
     `<DhButton variant=\"secondary\" :disabled=\"(rateRequestId ? step <= 5 : step === 1) || saving\" @click=\"previous\"><ChevronLeft class=\"h-4 w-4\" /> Atrás</DhButton>`,
     'request back button floor',
   )
+  }
   }
 
   code = replaceOne(
