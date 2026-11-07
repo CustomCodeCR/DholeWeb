@@ -3916,9 +3916,9 @@ async function hydrateExistingRate() {
     form.shipmentMode = String(rate.shipmentMode).toUpperCase()
     form.originId = rate.polId
     form.destinationId = rate.poeId
-    selectedPoeIds.value = rate.poeId ? [rate.poeId] : []
     form.podId = rate.podId ?? ''
     form.equipmentId = rate.containerTypeId
+    selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
     form.equipmentQuantity = Math.max(1, Number(rate.containerQuantity || 1))
     form.equipmentSize = String(equipmentMeta?.size ?? '')
     form.equipmentType = equipmentHasSizes.value ? String(equipmentMeta?.kind ?? '') : rate.containerTypeId
