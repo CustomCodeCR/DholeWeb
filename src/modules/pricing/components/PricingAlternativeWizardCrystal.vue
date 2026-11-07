@@ -494,6 +494,9 @@ function rememberActivePoe() {
 }
 
 async function activatePoeRoute(destinationId: string) {
+  // A pending preapproved-rate lookup must finish before changing tabs: the
+  // legacy Panama quotation resolver also shares availableRates state.
+  if (loadingRates.value) return
   if (form.destinationId === destinationId
       || (destinationId && !selectedPoeIds.value.includes(destinationId))) return
   rememberActivePoe()
@@ -3347,8 +3350,6 @@ function resolvePodForDestination() {
 }
 
 async function searchApprovedRates() {
-  const requestSequence = ++approvedRatesSearchSequence
-  const searchedPoe = form.destinationId
   availableRates.value = []
   form.selectedImportRateId = ''
   form.manualRate = false
@@ -3367,19 +3368,15 @@ async function searchApprovedRates() {
       containerType: catalogSearchText(selectedEquipment.value),
       quoteDate: form.loadDate,
     }
-    const rates = await PricingService.selectImportRates(query)
-    if (requestSequence !== approvedRatesSearchSequence || searchedPoe !== form.destinationId) return
-    availableRates.value = rates
-    await loadImportSources(rates)
+    availableRates.value = await PricingService.selectImportRates(query)
+    await loadImportSources(availableRates.value)
   } catch (error) {
-    if (requestSequence === approvedRatesSearchSequence) {
-      toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
-    }
+    toastStore.backendError(error, 'No se pudieron consultar las tarifas aprobadas.')
   } finally {
-    if (requestSequence === approvedRatesSearchSequence) loadingRates.value = false
+    loadingRates.value = false
   }
 
-  if (requestSequence === approvedRatesSearchSequence && !availableRates.value.length) form.manualRate = true
+  if (!availableRates.value.length) form.manualRate = true
 }
 
 function chooseRate(rate: ImportRateSelectDto) {
