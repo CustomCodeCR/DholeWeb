@@ -56,6 +56,7 @@ import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPe
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
+import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
 import { requiresMaritimeCarrier } from '@/modules/pricing/utils/pricingCarrierRequirement'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
@@ -1995,8 +1996,10 @@ function isOwnLclMatrixContext() {
 
 function haulageAssociation(line: { name: string }) {
   const value = normalizeCatalogValue(line.name)
-  if (value.includes('inland gam naviera') || value.includes('carrier haulage')) return 'carrier'
-  if (value.includes('inland gam merchant') || value.includes('merchant haulage') || value === 'gate') return 'merchant'
+  // Catalog charges may be called "transporte en destino merchant/carrier",
+  // not only "inland GAM". Resolve the association before filtering optionals.
+  if (/\bmerchant\b/.test(value) || value === 'gate') return 'merchant'
+  if (/\bcarrier\b/.test(value) || value.includes('inland gam naviera')) return 'carrier'
   return null
 }
 
@@ -3382,7 +3385,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
     const preserved = mergeOptionCostLines(previousOptionLines, lines)
     lines.splice(0, lines.length, ...preserved)
   }
-  rateLines.value = lines
+  rateLines.value = removeDuplicateFclFreight(lines, shipmentModeForApi.value)
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -5288,6 +5291,9 @@ async function saveRate() {
   // Todas las líneas que se muestran como incluidas deben viajar en el POST.
   // Las líneas generadas por matrices/reglas antiguas pueden no traer CurrencyId;
   // en ese caso heredan la moneda válida del encabezado. Costo/venta en cero son válidos.
+  // One FCL freight per equipment/basis. The generic screen-6 freight cannot
+  // coexist with the equipment-specific freight from the selected bundle.
+  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
   const normalizedIncludedLines = includedLines.value.map((line) => {
     if (line.currencyId) return line
 
@@ -5986,9 +5992,12 @@ watch(
 watch(
   () => form.destinationId,
   () => {
-    if (switchingPoeRoute.value) return
+    if (switchingPoeRoute.value || hydratingExistingRate.value) return
+    // POD is selected independently of POE. Never overwrite a manually
+    // selected POD when switching between destinations or loading a draft.
+    if (form.podId && catalogs.pod.some((item) => item.id === form.podId)) return
     const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
-    form.podId = equivalent?.id ?? ''
+    if (equivalent && !form.podId) form.podId = equivalent.id
   },
 )
 
@@ -6377,7 +6386,7 @@ onMounted(async () => {
           </div>
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
-            <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4">
               <DhSelect v-if="clientOptions.length" v-model="form.clientId" data-required-field="client" :error="fieldError('client')" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
               <DhInput v-else v-model="form.clientName" data-required-field="client" :error="fieldError('client')" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
               <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
