@@ -6146,6 +6146,23 @@ onMounted(async () => {
           <Check v-if="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId" class="h-4 w-4 shrink-0" />
         </button>
       </div>
+      <div v-if="step === 5" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3.5 py-3">
+        <div class="min-w-0">
+          <p class="text-xs font-black text-[var(--dh-text)]">POE {{ currentPoeIndex + 1 }} / {{ selectedPoeIds.length }} · {{ displayValue(selectedDestination) }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">POD: {{ displayValue(selectedPod) || 'Sin definir' }} · {{ currentPoeCarrierIds.length }} naviera(s) seleccionada(s) aquí</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <DhButton variant="secondary" size="sm" @click="goToStep(3)">Editar POE / POD</DhButton>
+          <DhButton variant="secondary" size="sm" :disabled="loadingRates || switchingPoeRoute" @click="previousSequentialWizard"><ChevronLeft class="h-4 w-4" /> {{ currentPoeIndex > 0 ? 'POE anterior' : 'Volver a ruta' }}</DhButton>
+          <DhButton size="sm" :disabled="!currentPoeCarrierIds.length || loadingRates || switchingPoeRoute" @click="advanceSequentialWizard">
+            {{ isLastPoeSelection ? 'Configurar ' + carrierRouteCount + ' alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" />
+          </DhButton>
+        </div>
+      </div>
+      <div v-if="step >= 6 && step <= 8" class="mt-3 flex flex-wrap items-center justify-end gap-2">
+        <span class="mr-auto text-xs font-semibold text-[var(--dh-text-muted)]">{{ selectedPoeIds.length }} POE seleccionados · POD {{ displayValue(selectedPod) || 'Pendiente' }}</span>
+        <DhButton variant="secondary" size="sm" @click="goToStep(3)">Editar POE / POD</DhButton>
+      </div>
       <div v-if="step === 6 || step === 7" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3.5 py-3">
         <div class="min-w-0">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Opción {{ activeCarrierRoutePosition }} de {{ carrierRouteCount }} · {{ form.selectedImportRateId ? 'Tarifa cargada' : 'Captura manual' }}</p>
@@ -6308,7 +6325,7 @@ onMounted(async () => {
                 :model-value="form.destinationId"
                 :model-values="selectedPoeIds"
                 multiple
-                :show-chips="false"
+                :show-chips="true"
                 data-required-field="destinationId" :error="fieldError('destinationId')"
                 label="Destinos (POE) · selección múltiple"
                 placeholder="Buscar y seleccionar varios POE"
@@ -6333,7 +6350,7 @@ onMounted(async () => {
                 placeholder="Buscar destino final"
                 search-placeholder="Buscar destino, ciudad o región…"
                 terminal-type="SD"
-                :optional="true"
+                :optional="!maritimePodRequired"
                 :options="podOptions"
               />
 
@@ -6858,15 +6875,6 @@ onMounted(async () => {
             </div>
           </details>
 
-          <div v-if="multiCarrierSelectionMode" class="order-3 flex flex-col gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p class="text-sm font-black">{{ currentPoeCarrierIds.length }} {{ currentPoeCarrierIds.length === 1 ? 'naviera seleccionada' : 'navieras seleccionadas' }} · {{ displayValue(selectedDestination) }}</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isLastPoeSelection ? 'Último puerto. Continúa para configurar cada alternativa.' : 'Al continuar se mostrarán las opciones del siguiente puerto.' }}</p>
-            </div>
-            <DhButton :disabled="!currentPoeCarrierIds.length || loadingRates || switchingPoeRoute" @click="advanceSequentialWizard">
-              {{ isLastPoeSelection ? 'Configurar ' + carrierRouteCount + ' alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" />
-            </DhButton>
-          </div>
         </div>
 
         <div v-else-if="step === 6" class="space-y-6">
@@ -7084,12 +7092,13 @@ onMounted(async () => {
               <p class="crystal-kicker">Pantalla 7</p>
               <h2 class="crystal-title">Líneas de tarifa</h2>
               <p class="crystal-description">{{ multiCarrierSelectionMode
-                ? 'Cargos de la opción activa. Edite costo y venta, agregue los rubros manuales que necesite y utilice las pestañas para configurar las demás navieras.'
+                ? 'Costos exclusivos del POE y naviera activos. Revise cada cargo y avance con Continuar; utilice Atrás para revisar la alternativa anterior.'
                 : 'Los costos aplicables vienen de Pricing según rubro, ruta, Incoterm, proveedor y base de cobro.' }}</p>
               <div v-if="multiCarrierSelectionMode" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-bold">
                 <Ship class="h-4 w-4 text-[var(--dh-primary)]" />
                 <span class="text-[var(--dh-text)]">{{ currentRouteLabel }}</span>
-                <span class="ml-auto rounded-full border border-[var(--dh-border)] px-2 py-1 text-[10px] text-[var(--dh-text-muted)]">Costos exclusivos de esta alternativa</span>
+                <span class="ml-auto text-[10px] text-[var(--dh-text-muted)]">{{ costs.length }} costos consultados</span>
+                <DhButton variant="secondary" size="sm" :disabled="switchingPoeRoute" @click="reloadCurrentAlternativeCosts">Recargar costos</DhButton>
               </div>
               <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>
             </div>
@@ -7818,6 +7827,7 @@ onMounted(async () => {
       <DhButton variant="secondary" :disabled="step === 1 || saving" @click="multiCarrierSelectionMode && step >= 5 && step <= 8 ? previousSequentialWizard() : previous()"><ChevronLeft class="h-4 w-4" /> Atrás</DhButton>
       <div class="text-xs font-black tracking-[0.14em] text-[var(--dh-text-muted)]">{{ step }} / {{ maxStep }}</div>
       <DhButton v-if="isEditing && step < maxStep" :disabled="saving" @click="next">Siguiente <ChevronRight class="h-4 w-4" /></DhButton>
+      <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && step === 5" :disabled="!currentPoeCarrierIds.length || loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">{{ isLastPoeSelection ? 'Configurar alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="!isEditing && multiCarrierSelectionMode && (step === 6 || step === 7)" :disabled="loadingRates || saving || switchingPoeRoute" @click="advanceSequentialWizard">Continuar {{ activeCarrierRoutePosition }} / {{ carrierRouteCount }} <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="!isEditing && step < 8 && ![1, 2, 5].includes(step)" :disabled="loadingRates || saving" @click="next">Continuar <ChevronRight class="h-4 w-4" /></DhButton>
       <DhButton v-else-if="step === 9 && viewOnly && editingRate" @click="editCurrentRate"><Edit3 class="h-4 w-4" /> Editar tarifa</DhButton>
