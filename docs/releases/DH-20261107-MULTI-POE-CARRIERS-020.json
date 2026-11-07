@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261107-MULTI-POE-CARRIERS-020",
+  "ecosystemVersion": "1.7.0",
+  "releaseType": "MINOR",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.6.0",
+      "to": "1.7.0"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.6.0",
+      "to": "1.7.0"
+    }
+  ],
+  "features": [
+    "Screen 3 POE card design",
+    "Screen 5 per-POE multiple carrier selection",
+    "Screen 6-8 isolated POE-carrier draft navigation"
+  ],
+  "limitations": [
+    "API transaction for multi-option sub-QUO + single accepted alternative not yet integrated",
+    "Selections kept in memory while wizard is open; ensure draft persistence integration in next release"
+  ],
+  "validation": "pending CI and staging",
+  "productionDeploymentAuthorized": false
+}
