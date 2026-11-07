@@ -7391,71 +7391,77 @@ onMounted(async () => {
             <p class="crystal-description">{{ multiCarrierSelectionMode && carrierRouteCount > 1 ? 'Revise cada POE y naviera con sus cifras independientes. Puede editar cualquier alternativa desde su tarjeta.' : 'Revise los datos antes de crear la tarifa. Atrás permite corregir cualquier pantalla.' }}</p>
           </div>
 
-          <section v-if="multiCarrierSelectionMode && carrierRouteCount > 1" class="space-y-4" aria-label="Tarifa principal y subtarifas">
-            <div class="rounded-2xl border border-[var(--dh-primary)]/30 bg-[rgb(var(--dh-primary-rgb)/0.06)] p-4 md:p-5">
-              <div class="flex flex-wrap items-center justify-between gap-4">
+          <section v-if="multiCarrierSelectionMode && carrierRouteCount > 1" class="space-y-4" aria-label="Resumen individual de subtarifas FCL">
+            <div class="crystal-soft p-4 md:p-5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p class="text-xs font-black uppercase tracking-wider text-[var(--dh-primary)]">Cotización principal · borrador del grupo</p>
-                  <h3 class="mt-2 text-xl font-black text-[var(--dh-text)]">{{ carrierRouteCount }} subtarifas independientes</h3>
-                  <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Cada POE y naviera conserva sus propias líneas, proveedor, flete, costos y venta. Los importes de abajo corresponden a cada alternativa, no a una única tarifa.</p>
+                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Tarifa principal · FCL</p>
+                  <h3 class="mt-1 text-xl font-black">Resumen de {{ carrierRouteCount }} alternativas</h3>
+                  <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Despliegue una alternativa para revisar todos sus rubros. Las tarifas son opciones independientes y sus valores no se suman entre sí.</p>
                 </div>
-                <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-center">
-                  <span class="block text-xs text-[var(--dh-text-muted)]">Destinos seleccionados</span>
-                  <strong class="text-xl">{{ selectedPoeIds.length }}</strong>
-                </div>
+                <DhBadge variant="primary">{{ selectedPoeIds.length }} POE</DhBadge>
               </div>
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span v-for="poeId in selectedPoeIds" :key="'summary-poe:' + poeId" class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1.5 text-xs font-bold">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
-                <span class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1.5 text-xs font-bold">POD: {{ displayValue(selectedPod) || 'Pendiente' }}</span>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span v-for="poeId in selectedPoeIds" :key="'summary-poe:' + poeId" class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ displayValue(findById(catalogs.poe, poeId)) || poeId }}</span>
+                <span class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">POD: {{ displayValue(selectedPod) || 'Pendiente' }}</span>
               </div>
             </div>
-
-            <div class="grid gap-4 lg:grid-cols-2">
-              <article v-for="preview in alternativePreviewCards" :key="preview.key" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 md:p-5">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Subtarifa {{ preview.index + 1 }} de {{ carrierRouteCount }}</p>
-                    <h4 class="mt-1 text-lg font-black text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, preview.poeId)) }}</h4>
-                    <p class="mt-1 text-sm font-bold text-[var(--dh-primary)]">{{ displayValue(findById(catalogs.carriers, preview.carrierId)) }}</p>
-                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, preview.agentId)) || 'Sin asignar' }}</p>
-                  </div>
-                  <DhBadge :variant="preview.imported ? 'success' : 'neutral'">{{ preview.imported ? 'Tarifa cargada' : 'Manual' }}</DhBadge>
-                </div>
-                <div class="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-[var(--dh-input)] p-3">
-                  <div>
-                    <span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Costo USD</span>
-                    <strong class="text-sm">{{ formatMoney(preview.costUsd, 'USD') }}</strong>
-                  </div>
-                  <div>
-                    <span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Venta USD</span>
-                    <strong class="text-sm">{{ formatMoney(preview.saleUsd, 'USD') }}</strong>
-                  </div>
-                  <div>
-                    <span class="block text-[10px] font-bold text-[var(--dh-text-muted)]">Utilidad USD</span>
-                    <strong class="text-sm" :class="preview.utilityUsd < 0 ? 'text-red-500' : 'text-[var(--dh-primary)]'">{{ formatMoney(preview.utilityUsd, 'USD') }}</strong>
-                  </div>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-xs">
-                  <span class="font-semibold text-[var(--dh-text-muted)]">{{ preview.lines.length }} rubros · Margen {{ preview.margin.toFixed(2) }}%</span>
-                  <span :class="preview.ready ? 'text-[var(--dh-primary)]' : 'text-amber-500'" class="font-bold">{{ preview.ready ? 'Configurada' : 'Revisar datos' }}</span>
-                </div>
-                <details class="mt-3 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-                  <summary class="cursor-pointer text-xs font-black">Ver {{ preview.lines.length }} líneas de esta subtarifa</summary>
-                  <div class="mt-3 max-h-60 space-y-2 overflow-auto">
-                    <div v-for="line in preview.lines" :key="preview.key + ':' + line.key" class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] pb-2 text-xs last:border-b-0">
-                      <span class="min-w-0 flex-1">{{ line.name }}</span>
-                      <strong class="shrink-0">{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), line.currencyCode || line.currencyName || 'USD') }}</strong>
+            <div class="space-y-3">
+              <details v-for="preview in alternativePreviewCards" :key="preview.key" :open="preview.index === 0" class="crystal-soft group overflow-hidden">
+                <summary class="cursor-pointer list-none px-4 py-4 marker:hidden md:px-5" :aria-label="'Desplegar subtarifa ' + (preview.index + 1)">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex min-w-0 flex-1 items-start gap-3">
+                      <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-sm font-black text-[var(--dh-primary)]">{{ preview.index + 1 }}</span>
+                      <div class="min-w-0">
+                        <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Subtarifa {{ preview.index + 1 }} / {{ carrierRouteCount }} · {{ preview.imported ? 'Tarifa cargada' : 'Manual' }}</p>
+                        <h4 class="mt-0.5 text-base font-black text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, preview.poeId)) || preview.poeId }} · {{ displayValue(findById(catalogs.carriers, preview.carrierId)) || preview.carrierId }}</h4>
+                        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, preview.agentId)) || 'Sin asignar' }} · {{ preview.lines.length }} rubros</p>
+                      </div>
                     </div>
-                    <p v-if="!preview.lines.length" class="text-xs text-amber-500">No se han configurado los rubros de esta alternativa.</p>
+                    <div class="flex shrink-0 items-center gap-3">
+                      <div class="text-right">
+                        <p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta</p>
+                        <strong class="text-base text-[var(--dh-primary)]">{{ formatMoney(preview.saleUsd, 'USD') }}</strong>
+                        <p class="text-[10px] text-[var(--dh-text-muted)]">Margen {{ preview.margin.toFixed(2) }}%</p>
+                      </div>
+                      <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" />
+                    </div>
                   </div>
-                </details>
-                <div class="mt-4 flex flex-wrap gap-2">
-                  <DhButton variant="secondary" size="sm" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 6)">Editar proveedor</DhButton>
-                  <DhButton variant="secondary" size="sm" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 7)">Editar costos</DhButton>
+                </summary>
+                <div class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
+                  <div class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Costo USD</p><strong class="mt-1 block text-base">{{ formatMoney(preview.costUsd, 'USD') }}</strong></div>
+                    <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta USD</p><strong class="mt-1 block text-base">{{ formatMoney(preview.saleUsd, 'USD') }}</strong></div>
+                    <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Utilidad USD</p><strong class="mt-1 block text-base" :class="preview.utilityUsd < 0 ? 'text-red-500' : 'text-[var(--dh-primary)]'">{{ formatMoney(preview.utilityUsd, 'USD') }}</strong></div>
+                    <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Margen</p><strong class="mt-1 block text-base">{{ preview.margin.toFixed(2) }}%</strong></div>
+                  </div>
+                  <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div><h5 class="text-sm font-black">Desglose comercial</h5><p class="text-[11px] text-[var(--dh-text-muted)]">Costos y ventas propios de esta alternativa, por rubro.</p></div>
+                    <span :class="preview.ready ? 'text-[var(--dh-primary)]' : 'text-amber-500'" class="text-xs font-bold">{{ preview.ready ? 'Configurada' : 'Revisar datos' }}</span>
+                  </div>
+                  <div class="overflow-x-auto rounded-xl border border-[var(--dh-border)]">
+                    <table class="w-full min-w-[650px] text-left text-xs">
+                      <thead class="bg-[var(--dh-input)] text-[10px] font-black uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Rubro</th><th class="px-3 py-3">Base</th><th class="px-3 py-3 text-right">Cantidad</th><th class="px-3 py-3 text-right">Costo</th><th class="px-3 py-3 text-right">Venta</th></tr></thead>
+                      <tbody>
+                        <tr v-for="line in preview.lines" :key="preview.key + ':' + line.key" class="border-t border-[var(--dh-border)]">
+                          <td class="px-3 py-3"><strong>{{ line.name }}</strong><p v-if="line.notes" class="mt-1 max-w-[280px] whitespace-pre-wrap text-[10px] text-[var(--dh-text-muted)]">{{ line.notes }}</p></td>
+                          <td class="px-3 py-3">{{ chargeBasisLabel(line.chargeBasis) }}</td>
+                          <td class="px-3 py-3 text-right">{{ quantityForRateLine(line) }}</td>
+                          <td class="px-3 py-3 text-right">{{ formatMoney(number(line.costAmount) * quantityForRateLine(line), canonicalCurrencyCode(line)) }}</td>
+                          <td class="px-3 py-3 text-right font-black">{{ formatMoney(number(line.saleAmount) * quantityForRateLine(line), canonicalCurrencyCode(line)) }}</td>
+                        </tr>
+                        <tr v-if="!preview.lines.length"><td colspan="5" class="px-3 py-5 text-center text-amber-500">No se han registrado cargos para esta alternativa.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ displayValue(findById(catalogs.poe, preview.poeId)) }} · {{ displayValue(findById(catalogs.carriers, preview.carrierId)) }}</span>
+                    <div class="flex flex-wrap gap-2"><DhButton size="sm" variant="secondary" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 6)">Editar proveedor</DhButton><DhButton size="sm" variant="secondary" @click="editAlternativeFromPreview(preview.poeId, preview.carrierId, 7)">Editar costos</DhButton></div>
+                  </div>
                 </div>
-              </article>
+              </details>
             </div>
-            <p class="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Las alternativas se conservan separadas en el asistente. La creación definitiva de la QUO principal y todas sus sub-QUO requiere una operación transaccional del backend de Pricing, que continúa pendiente.</p>
+            <p class="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">La creación transaccional de la QUO principal y todas las sub-QUO sigue pendiente en Pricing. No se enviarán registros parciales.</p>
           </section>
 
           <div v-if="!multiCarrierSelectionMode || carrierRouteCount === 1" class="crystal-soft p-5">
