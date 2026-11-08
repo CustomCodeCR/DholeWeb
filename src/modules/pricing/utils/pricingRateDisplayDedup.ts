@@ -184,21 +184,37 @@ function sameBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boole
   })
 }
 
-function sameCommercialBundle(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
+// Group by what Screen 5 actually displays. Hidden source comments, transit
+// and imported metadata are selectable alternatives, not duplicate cards.
+function sameVisibleBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
+  if (left.lines.length !== right.lines.length) return false
+  const a = [...left.lines].sort((x, y) => x.containerTypeId.localeCompare(y.containerTypeId))
+  const b = [...right.lines].sort((x, y) => x.containerTypeId.localeCompare(y.containerTypeId))
+  return a.every((line, index) => {
+    const other = b[index]
+    return Boolean(other)
+      && sameDisplayIdentity(line.containerTypeId, other.containerTypeId)
+      && amount(line.quantity) === amount(other.quantity)
+      && amount(line.unitCost) === amount(other.unitCost)
+      && amount(line.unitSale) === amount(other.unitSale)
+      && sameOptionalCatalogTerm(line.rate.polId, line.rate.pol, other.rate.polId, other.rate.pol)
+      && sameOptionalCatalogTerm(line.rate.poeId, line.rate.poe, other.rate.poeId, other.rate.poe)
+      && sameOptionalCatalogTerm(line.rate.podId, line.rate.pod, other.rate.podId, other.rate.pod)
+  })
+}
+function sameVisibleBundle(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
   return sameCatalogOrName(left.carrierId, left.carrier, right.carrierId, right.carrier)
     && sameCatalogOrName(left.agentId, left.agent, right.agentId, right.agent)
     && sameCatalogOrName(left.currencyId, left.currency, right.currencyId, right.currency)
     && amount(left.totalCost) === amount(right.totalCost)
     && amount(left.totalSale) === amount(right.totalSale)
     && amount(left.freeDays) === amount(right.freeDays)
-    && amount(left.transitDays) === amount(right.transitDays)
-    && sameBundleLines(left, right)
+    && sameVisibleBundleLines(left, right)
     && sameOrOverlappingValidity(
       { validFrom: left.validFrom, validTo: left.validTo },
       { validFrom: right.validFrom, validTo: right.validTo },
     )
 }
-
 function preferCommercialBundle(candidate: FclDisplayBundle, original: FclDisplayBundle) {
   const ends = day(candidate.validTo).localeCompare(day(original.validTo))
   if (ends !== 0) return ends > 0
@@ -211,17 +227,24 @@ function preferCommercialBundle(candidate: FclDisplayBundle, original: FclDispla
   return completeness(candidate) > completeness(original)
 }
 
-export function uniqueVisibleFclBundles<T extends FclDisplayBundle>(bundles: readonly T[]): T[] {
-  const visible: T[] = []
+export function uniqueVisibleFclBundles<T extends FclDisplayBundle>(
+  bundles: readonly T[],
+): Array<T & { groupedAlternatives: T[] }> {
+  const groups: Array<{ primary: T; sources: T[] }> = []
   for (const bundle of bundles) {
-    const index = visible.findIndex((existing) => sameCommercialBundle(existing, bundle))
-    if (index === -1) {
-      visible.push(bundle)
-    } else if (preferCommercialBundle(bundle, visible[index]!)) {
-      // Preserve the original key/id from the selected source record, not a
-      // synthetic combination. The chosen card remains fully selectable.
-      visible[index] = bundle
+    const group = groups.find(({ sources }) => sources.some((source) => sameVisibleBundle(source, bundle)))
+    if (!group) {
+      groups.push({ primary: bundle, sources: [bundle] })
+      continue
     }
+    if (group.sources.some((source) => source.key === bundle.key)) continue
+    group.sources.push(bundle)
+    if (preferCommercialBundle(bundle, group.primary)) group.primary = bundle
   }
-  return visible
+  // Every underlying source retains its real RateId, including those hidden
+  // behind the 'sources grouped' disclosure. Nothing is deleted or synthesized.
+  return groups.map(({ primary, sources }) => ({
+    ...primary,
+    groupedAlternatives: sources.filter((source) => source.key !== primary.key),
+  }))
 }
