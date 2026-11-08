@@ -36,5 +36,7 @@ jobs:
         run: pnpm run test:email-mobile-i18n
       - name: Type-check and build
         run: pnpm run build
+      - name: Mount transformed Pricing wizard in SSR (blocks blank pages)
+        run: node --test tests/pricingWizardSsrSetup.test.mjs
       - name: Verify IDTRA action survived production bundle compilation
         run: node --test tests/pricingIdtraBundle.test.mjs
