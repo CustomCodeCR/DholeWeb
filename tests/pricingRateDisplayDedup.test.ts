@@ -152,8 +152,8 @@ test('Screen 5 deduplicates FINAL FCL cards despite different imported source me
   }
   const older = build('maersk-nov04', '2026-11-04', {}, { spaceComment: 'Vigente en Caldera' })
   const duplicate = build('maersk-nov05', '2026-11-05', {}, { spaceComment: 'Vigente en Caldera' })
-  // Raw import metadata differs, yet the cards show the same commercial offer.
-  assert.notEqual(pricingRateDisplayKey(older.lines[0]!.rate), pricingRateDisplayKey(duplicate.lines[0]!.rate))
+  // Batch IDs differ, but commercial terms are identical and must collapse.
+  assert.equal(pricingRateDisplayKey(older.lines[0]!.rate), pricingRateDisplayKey(duplicate.lines[0]!.rate))
   assert.deepEqual(uniqueVisibleFclBundles([older, duplicate]).map(x => x.key), ['single:maersk-nov04'])
   assert.deepEqual(uniqueVisibleFclBundles([duplicate, older]).map(x => x.key), ['single:maersk-nov04'])
 
