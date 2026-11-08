@@ -156,3 +156,16 @@ test('Pricing handles wizard setup failures without a blank page or unguarded te
   assert.match(step5, /const step5RawImportRowCount = computed/)
   assert.doesNotMatch(step5, /fclRateCoverage\.reduce/)
 })
+
+test('Pricing declares core cost refs before injected FCL pricing state', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const anchor = wizard.indexOf('const availableRates = ref<ImportRateSelectDto[]>([])')
+  assert.ok(anchor > 0)
+  for (const declaration of [
+    'const costs = ref<CostSelectDto[]>([])',
+    'const allCosts = ref<CostSelectDto[]>([])',
+    'const rateLines = ref<RateLine[]>([])',
+  ]) {
+    assert.ok(wizard.indexOf(declaration) >= 0 && wizard.indexOf(declaration) < anchor, declaration + ' must not be inserted behind FCL state')
+  }
+})

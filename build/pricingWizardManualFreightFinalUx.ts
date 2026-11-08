@@ -14,6 +14,32 @@ function patchWizard(source: string) {
     )
   }
 
+  // The old injection places this watch next to the manual-freight refs,
+  // before the wizard declares its reactive form. Vue evaluates a watch getter
+  // immediately during setup; this triggered a TDZ ReferenceError in the
+  // minified production bundle (G === form). Move it after all declarations.
+  const earlyManualOceanDateWatch = `watch(
+  () => form.loadDate,
+  (validFrom) => {
+    if (shipmentModeForApi.value !== 'Fcl') return
+    if (!['Maritime', 'Multimodal'].includes(String(form.modality))) return
+    if (!(form.manualRate || !form.selectedImportRateId)) return
+    if (!validFrom) return
+    if (!form.validTo || form.validTo < validFrom) form.validTo = addDaysIso(validFrom, 1)
+  },
+)`
+  if (code.includes(earlyManualOceanDateWatch)) {
+    if (code.split(earlyManualOceanDateWatch).length !== 2) {
+      throw new Error('[pricingWizardManualFreightFinalUx] Multiple unexpected FCL validity watchers')
+    }
+    code = code.replace(earlyManualOceanDateWatch, '')
+    const scriptEnd = code.lastIndexOf('</script>')
+    if (scriptEnd < 0) {
+      throw new Error('[pricingWizardManualFreightFinalUx] Vue setup closing script was not found')
+    }
+    code = code.slice(0, scriptEnd) + earlyManualOceanDateWatch + String.fromCharCode(10) + code.slice(scriptEnd)
+  }
+
   // Evita que se pueda disparar el guardado por una llamada directa con datos incompletos.
   const saveDataAnchor = `  const origin = selectedOrigin.value\n  const destination = selectedDestination.value\n  const poe = selectedManualOceanFreightPoe.value\n  const pod = resolvePodForDestination() ?? destination`
   if (code.includes(saveDataAnchor) && !code.includes("Complete todos los datos de Pantalla 6 antes de crear el flete.")) {
