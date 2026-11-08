@@ -25,6 +25,7 @@ const fixture = [
   '              >',
   '                        <strong class="block font-black">Comentarios de la tarifa</strong>',
   "                          <span class=\"mt-0.5 block whitespace-pre-line font-semibold\">{{ line.rate.spaceComment || 'Sin observaciones registradas' }}</span>",
+  '                <div class="mt-4 flex flex-col gap-3 border-t border-[var(--dh-border)] pt-4 sm:flex-row sm:items-end sm:justify-between">',
   '              </button>',
   '<template v-else-if="availableRates.length">',
   '            <div class="crystal-soft flex flex-col gap-3 p-4 md:flex-row md:items-end md:justify-between">Naviera</div>',
@@ -63,10 +64,24 @@ test('comment actions are independently focusable and never select the rate', ()
   assert.match(result, /v-for="rate in step5VisibleAvailableRates"/)
   assert.match(result, /@keydown\.enter\.self="chooseFclRateBundle\(bundle\)"/)
   assert.match(result, /@keydown\.space\.self\.prevent="chooseRate\(rate\)"/)
-  assert.equal((result.match(/@click\.stop="step5ToggleComment/g) ?? []).length, 2)
-  assert.equal((result.match(/:aria-expanded=/g) ?? []).length, 2)
-  assert.equal((result.match(/<button/g) ?? []).length, 2)
-  assert.equal((result.match(/<\/button>/g) ?? []).length, 2)
+  assert.equal((result.match(/@click\.stop="step5ToggleComment/g) ?? []).length, 3)
+  assert.equal((result.match(/:aria-expanded=/g) ?? []).length, 3)
+  assert.match(result, /bundle\.groupedAlternatives\.length/)
+  assert.match(result, /chooseFclRateBundle\(alternative\)/)
+  assert.equal((result.match(/<button/g) ?? []).length, 4)
+  assert.equal((result.match(/<\/button>/g) ?? []).length, 4)
+})
+
+test('a selected alternative keeps the parent FCL tariff card highlighted', () => {
+  const withSelection = fixture.replace(
+    '                @click="chooseFclRateBundle(bundle)"',
+    '                :aria-pressed="multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key"\n' +
+    '                @click="chooseFclRateBundle(bundle)"',
+  )
+  const result = patchPricingWizardStep5ValidityComments(withSelection)
+  assert.match(result, /function step5IsBundleSelected/)
+  assert.match(result, /:aria-pressed="step5IsBundleSelected\(bundle\)"/)
+  assert.match(result, /selectedFclBundleKey\.value === option\.key/)
 })
 
 test('fails loudly instead of silently dropping a future markup change', () => {
