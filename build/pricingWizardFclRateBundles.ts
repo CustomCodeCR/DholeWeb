@@ -86,10 +86,14 @@ const fclRateRequirements = computed(() =>
     : [],
 )
 
+// Coverage is the number of independent COMMERCIAL offers that a user can
+// select, not the number of imported source rows returned by the API.
 const fclRateCoverage = computed(() =>
   fclRateRequirements.value.map((requirement) => ({
     ...requirement,
-    availableCount: requirement.rates.length,
+    rawCount: (fclRatesByContainer.value[requirement.containerTypeId] ?? []).length,
+    availableCount: uniqueVisibleFclBundles(fclRateBundles.value)
+      .filter((bundle) => bundle.lines.some((line) => line.containerTypeId === requirement.containerTypeId)).length,
   })),
 )
 
@@ -188,6 +192,23 @@ const visibleFclRateBundles = computed(() =>
 )
 
 const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string; rateIds: Record<string, string> }>>({})
+
+// The selection is tied to the real RateId(s) and the active POE+carrier.
+// An imported source can move into a different display group after another
+// fetch without losing the selected ring or selecting unrelated offers.
+function fclBundleHasSelectedSources(bundle: FclRateBundle): boolean {
+  if (!bundle.lines.length) return false
+  if (!multiCarrierSelectionMode.value) {
+    return bundle.lines.every((line) => fclSelectedImportRateIds.value[line.containerTypeId] === line.rate.id)
+      && Boolean(form.selectedImportRateId)
+  }
+  const catalogId = resolveConfiguredCarrierId(bundle.carrierId, bundle.carrier)
+  if (!catalogId) return false
+  const selected = selectedFclBundlesByOption.value[carrierRouteKey(form.destinationId, catalogId)]
+  return Boolean(selected && bundle.lines.every(
+    (line) => selected.rateIds[line.containerTypeId] === line.rate.id,
+  ))
+}
 onMounted(() => {
   restoreFclBundleForOption = (poeId, carrierId) => {
     const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
