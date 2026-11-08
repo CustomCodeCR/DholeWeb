@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.0] - 2026-11-07 (candidato F4, NO liberado)
+
+- Cliente universal Vue `RealtimeManager` con una conexión SignalR por pestaña, tickets opacos, suscripción autorizada por recurso, reconexión inicial/con backoff y jitter, apagado por triple feature flag.
+- Recuperación por REST de vistas activas CRM/Pricing, deduplicación, revisión de versiones y protección de formularios sucios: nunca se reemplaza una edición sin guardar, se muestra aviso de conflicto.
+- Estado discreto para conectado, reconectando, degradado, offline y sesión no autorizada; escucha solo mientras la sesión está activa, se limpia en logout/cambio de usuario/impersonación.
+- Pruebas aisladas para 100 montajes/desmontajes, 30 reconexiones, 30 fallos iniciales y contingencia; **gate F4 no aprobado hasta CI y gates F0–F3**.
+- La migración sigue aislada de `develop` y `master`; no se activa realtime, no se publica ni despliega.
+
 ## [1.12.4] - 2026-11-08
 
 - Pantalla 8 FCL: los encabezados de las sub-QUO vuelven a responder en modo visualización. La excepción de eventos se limita a los botones de desplegar/ocultar y el resto del wizard continúa en solo lectura.
