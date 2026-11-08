@@ -2,6 +2,8 @@
 
 ## [1.13.0] - 2026-11-07 (candidato F4, NO liberado)
 
+- F6.02: detalle de tarifa en Vue reconcilia cada invalidación mediante GET REST, sin asumir que `RevisionNumber` cambia en todas las mutaciones. [CI #42492212712](https://github.com/CustomCodeCR/DholeWeb/actions/runs/42492212712) PASS.
+- Seguridad F6: el manager elimina inmediatamente las vistas observadas al recibir `resourceRevoked` del Gateway; ignora mensajes malformados y no vuelve a aplicar eventos sobre el recurso revocado. [CI #42492867135](https://github.com/CustomCodeCR/DholeWeb/actions/runs/42492867135) PASS. Web `1.13.0` continúa versión global candidata sin activar flags.
 - Cliente universal Vue `RealtimeManager` con una conexión SignalR por pestaña, tickets opacos, suscripción autorizada por recurso, reconexión inicial/con backoff y jitter, apagado por triple feature flag.
 - Recuperación por REST de vistas activas CRM/Pricing, deduplicación, revisión de versiones y protección de formularios sucios: nunca se reemplaza una edición sin guardar, se muestra aviso de conflicto.
 - Estado discreto para conectado, reconectando, degradado, offline y sesión no autorizada; escucha solo mientras la sesión está activa, se limpia en logout/cambio de usuario/impersonación.
