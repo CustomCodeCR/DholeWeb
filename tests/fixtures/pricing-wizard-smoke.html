@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Pricing wizard browser setup regression</title></head>
+<body data-smoke-status="booting">
+  <div id="app"></div>
+  <script type="module">
+    import { createApp, h } from '/node_modules/.vite/deps/vue.js'
+    import { createPinia } from '/node_modules/.vite/deps/pinia.js'
+    import { createRouter, createWebHistory } from '/node_modules/.vite/deps/vue-router.js'
+    import { createI18n } from '/node_modules/.vite/deps/vue-i18n.js'
+    import PricingWizard from '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+    let failed = ''
+    const report = (error) => {
+      failed ||= String(error?.stack || error?.message || error)
+      document.body.dataset.smokeError = failed.substring(0, 1000)
+      document.body.dataset.smokeStatus = 'failed'
+    }
+    window.addEventListener('error', (event) => report(event.error || event.message))
+    window.addEventListener('unhandledrejection', (event) => report(event.reason))
+    try {
+      const app = createApp({ render: () => h(PricingWizard, { rateId: null, viewOnly: false }) })
+      const router = createRouter({
+        history: createWebHistory(),
+        routes: [{ path: '/:pathMatch(.*)*', component: { render: () => null } }],
+      })
+      app.config.errorHandler = report
+      app.use(createPinia())
+      app.use(router)
+      app.use(createI18n({ legacy: false, locale: 'es', messages: { es: {} } }))
+      await router.isReady()
+      app.mount('#app')
+      setTimeout(() => {
+        if (!failed) {
+          document.body.dataset.smokeStatus =
+            document.querySelector('.pricing-crystal-shell') ? 'ready' : 'empty'
+        }
+      }, 1300)
+    } catch (error) { report(error) }
+  </script>
+</body>
+</html>
