@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.6] - 2026-11-08
+
+- Convierte la sub-QUO elegida en cotización definitiva sin sufijo; enlaces antiguos abren el registro seleccionado, con una sola ruta y POE comercial.
+- Bloquea reselección de opciones descartadas; quedan en historial únicamente.
+- Paneles Vue realmente colapsables en pantallas 8 y 9, con botones accesibles.
+- Descarga PDF individual después de elección, sin índice multiQUO.
+- Release DH-20261108-MULTIQUO-FINAL-INDIVIDUAL-031 coordinado con Pricing. CI y staging obligatorios, sin despliegue a producción autorizado.
+
 ## [1.11.5] - 2026-11-07
 
 - Al elegir una sub-QUO, esa alternativa se convierte en la principal comercial en el wizard, queda destacada y se muestra primero, sin alterar el ancla inmutable del grupo.
