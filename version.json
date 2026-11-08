@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.12.13",
-  "ecosystemVersion": "1.12.13",
-  "releaseId": "DH-20261108-PRICING-RENDER-GUARD-044"
+  "version": "1.12.14",
+  "ecosystemVersion": "1.12.14",
+  "releaseId": "DH-20261108-PRICING-SETUP-TDZ-045"
 }
