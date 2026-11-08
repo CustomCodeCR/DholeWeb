@@ -547,3 +547,15 @@ test('CRM calendar submits repeat frequency and recurring reminder cadence', () 
     'Recordatorios: 24 horas y 1 hora antes'
   ]) assert.ok(calendar.includes(marker), 'Missing CRM reminder UI binding: ' + marker)
 })
+
+test('CRM create activity keeps save and notification activation visible in modal footer', () => {
+  const modal = read('src/shared/components/organisms/DhModal.vue')
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  assert.match(modal, /<footer v-if="\$slots\.footer"/)
+  assert.match(modal, /<slot name="footer"\s*\/>/)
+  assert.match(calendar, /id="crm-agenda-create-form"/)
+  assert.match(calendar, /<template #footer>/)
+  assert.match(calendar, /form="crm-agenda-create-form"/)
+  assert.match(calendar, /Guardar actividad y activar avisos/)
+  assert.match(calendar, /Los avisos se activan solamente al guardar/)
+})

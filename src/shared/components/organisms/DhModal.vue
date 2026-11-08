@@ -26,30 +26,30 @@ const { t } = useI18n()
       <div
         v-if="open"
         data-dh-overlay="modal"
-        class="fixed inset-0 z-[90] flex min-w-0 items-end justify-center overflow-hidden bg-black/25 p-2 backdrop-blur-sm sm:items-center sm:p-4"
+        class="fixed inset-0 z-[90] flex items-end justify-center bg-black/25 p-2 backdrop-blur-sm sm:items-center sm:p-4"
         @click.self="emit('close')"
       >
         <section
           role="dialog"
           aria-modal="true"
           :aria-label="title || t('common.dialog')"
-          class="dh-glass-strong dh-liquid flex w-full min-w-0 flex-col overflow-hidden rounded-[26px] shadow-[var(--dh-shadow-lg)] max-sm:max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-0.5rem)] sm:max-h-[90dvh] sm:rounded-[var(--dh-radius-xl)]"
+          class="dh-glass-strong dh-liquid flex min-h-0 min-w-0 flex-col max-h-[calc(100dvh-1rem)] overflow-hidden rounded-[26px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
           :class="[
-            size === 'sm' && 'max-w-sm',
-            size === 'md' && 'max-w-lg',
-            size === 'lg' && 'max-w-2xl',
-            size === 'xl' && 'max-w-5xl',
+            size === 'sm' && 'w-full max-w-sm',
+            size === 'md' && 'w-full max-w-lg',
+            size === 'lg' && 'w-full max-w-2xl',
+            size === 'xl' && 'w-full max-w-5xl',
           ]"
         >
           <header
-            class="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3 sm:px-5 sm:py-4"
+            class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] px-4 py-3 sm:px-5 sm:py-4"
           >
-            <h2 class="min-w-0 break-words text-base font-bold text-[var(--dh-text)]">
+            <h2 class="text-base font-bold text-[var(--dh-text)]">
               {{ title }}
             </h2>
 
             <button
-              class="inline-flex min-h-11 min-w-11 shrink-0 touch-manipulation items-center justify-center rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10 sm:min-h-9 sm:min-w-9"
+              class="rounded-2xl p-2 hover:bg-black/5 dark:hover:bg-white/10"
               :aria-label="t('common.close')"
               :title="t('common.close')"
               @click="emit('close')"
@@ -58,9 +58,12 @@ const { t } = useI18n()
             </button>
           </header>
 
-          <main class="dh-scrollbar min-h-0 min-w-0 flex-1 overscroll-contain overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
+          <main class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:max-h-[calc(90vh-65px)] sm:p-5 dh-scrollbar">
             <slot />
           </main>
+          <footer v-if="$slots.footer" class="shrink-0 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 sm:px-5">
+            <slot name="footer" />
+          </footer>
         </section>
       </div>
     </Transition>

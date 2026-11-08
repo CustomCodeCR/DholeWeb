@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.12.2",
-  "ecosystemVersion": "1.12.2",
-  "releaseId": "DH-20261108-FCL-EQUIVALENT-RATES-033"
+  "version": "1.12.3",
+  "ecosystemVersion": "1.12.3",
+  "releaseId": "DH-20261108-CRM-REDIS-OUTBOX-034"
 }
