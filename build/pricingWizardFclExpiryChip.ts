@@ -15,7 +15,7 @@ function patchWizard(source: string) {
   code = replaceRequired(
     code,
     `<DhBadge\n                      v-for="requirement in fclRateRequirements"\n                      :key="'required:' + requirement.containerTypeId"\n                      variant="primary"\n                    >\n                      {{ requirement.quantity }} × {{ requirement.containerTypeName }}\n                    </DhBadge>`,
-    `<DhBadge\n                      v-for="coverage in fclRateCoverage"\n                      :key="'required:' + coverage.containerTypeId"\n                      :variant="coverage.availableCount > 0 ? 'success' : 'danger'"\n                    >\n                      {{ coverage.quantity }} × {{ coverage.containerTypeName }} · {{ coverage.availableCount > 0 ? coverage.availableCount + ' tarifa' + (coverage.availableCount === 1 ? '' : 's') : 'Sin tarifas' }}\n                    </DhBadge>`,
+    `<DhBadge\n                      v-for="coverage in fclRateCoverage"\n                      :key="'required:' + coverage.containerTypeId"\n                      :variant="coverage.availableCount > 0 ? 'success' : 'danger'"\n                    >\n                      {{ coverage.quantity }} × {{ coverage.containerTypeName }} · {{ coverage.availableCount > 0 ? coverage.availableCount + ' oferta' + (coverage.availableCount === 1 ? '' : 's') + ' única' + (coverage.availableCount === 1 ? '' : 's') : 'Sin tarifas' }} ({{ coverage.rawCount }} registros)\n                    </DhBadge>`,
     'FCL coverage chips',
   )
 

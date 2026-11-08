@@ -24,6 +24,7 @@ const fixture = [
   '                class="crystal-rate-card text-left"',
   '                @click="chooseFclRateBundle(bundle)"',
   '              >',
+  '                    <DhBadge v-if="multiCarrierSelectionMode && isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key)" variant="success"><Check class="mr-1 inline h-3.5 w-3.5" /> Naviera seleccionada</DhBadge>',
   '                        <strong class="block font-black">Comentarios de la tarifa</strong>',
   "                          <span class=\"mt-0.5 block whitespace-pre-line font-semibold\">{{ line.rate.spaceComment || 'Sin observaciones registradas' }}</span>",
   '                <div class="mt-4 flex flex-col gap-3 border-t border-[var(--dh-border)] pt-4 sm:flex-row sm:items-end sm:justify-between">',
@@ -52,7 +53,8 @@ test('adds date controls for FCL bundles and normal rates without changing shipm
   assert.match(result, /const step5VisibleFclRateBundles = computed/)
   assert.match(result, /uniqueVisibleFclBundles\(/)
   assert.match(result, /const step5UniqueFclBundleCount = computed/)
-  assert.match(result, /ofertas comerciales únicas/)
+  assert.match(result, /ofertas comerciales distintas/)
+  assert.match(result, /registros originales consultados/)
   assert.match(result, /const step5VisibleAvailableRates = computed/)
   assert.match(result, /step5RateMatchesDates\(bundle\.validFrom, bundle\.validTo\)/)
   assert.match(result, /step5RateMatchesDates\(rate\.validFrom, rate\.validTo\)/)
@@ -82,7 +84,9 @@ test('a selected alternative keeps the parent FCL tariff card highlighted', () =
   const result = patchPricingWizardStep5ValidityComments(withSelection)
   assert.match(result, /function step5IsBundleSelected/)
   assert.match(result, /:aria-pressed="step5IsBundleSelected\(bundle\)"/)
-  assert.match(result, /selectedFclBundleKey\.value === option\.key/)
+  assert.match(result, /fclBundleHasSelectedSources\(option\)/)
+  assert.match(result, /Tarifa elegida/)
+  assert.match(result, /Naviera agregada/)
 })
 
 test('fails loudly instead of silently dropping a future markup change', () => {
@@ -104,4 +108,18 @@ test('Screen 5 uses last known working v1.12.7 card layout without experimental 
   assert.ok(!wizard.includes('await Promise.all(batchIds.map'))
   assert.ok(wizard.includes('component: PricingEmailSourceModal'))
   assert.ok(wizard.includes('return selectedBundleByOption.value[route] === bundleKey'))
+})
+
+test('stable visual selection is tied to real FCL import source IDs on each POE', () => {
+  const bundles = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
+  const stability = readFileSync(new URL('../build/pricingWizardScreen5Stability.ts', import.meta.url), 'utf8')
+  const expiry = readFileSync(new URL('../build/pricingWizardFclExpiryChip.ts', import.meta.url), 'utf8')
+  assert.ok(bundles.includes('function fclBundleHasSelectedSources(bundle: FclRateBundle)'))
+  assert.ok(bundles.includes('selected.rateIds[line.containerTypeId] === line.rate.id'))
+  assert.ok(bundles.includes('rawCount: (fclRatesByContainer.value'))
+  assert.ok(bundles.includes('availableCount: uniqueVisibleFclBundles(fclRateBundles.value)'))
+  assert.ok(stability.includes("key: 'single:' + String(rate.id),"))
+  assert.ok(!stability.includes("key: 'single:' + String(rate.id) + ':' + index"))
+  assert.ok(expiry.includes('coverage.rawCount'))
+  assert.ok(expiry.includes('oferta'))
 })
