@@ -38,6 +38,8 @@ jobs:
         run: pnpm run build
       - name: Mount transformed Pricing wizard in SSR (blocks blank pages)
         run: node --test tests/pricingWizardSsrSetup.test.mjs
+      - name: Inspect production Pricing bundle symbol W (TDZ root cause)
+        run: node scripts/diagnose-pricing-bundle.mjs
       - name: Mount Pricing wizard in headless Chrome (detect TDZ)
         run: node scripts/test-pricing-browser-smoke.mjs
       - name: Verify IDTRA action survived production bundle compilation
