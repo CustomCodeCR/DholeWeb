@@ -58,8 +58,14 @@ export function useResourceRealtime<T>(config: {
           conflictSnapshot.value = snapshot
           conflict.value = true
         },
-        onDenied: config.onDenied,
-        onError: config.onError,
+        onDenied: () => {
+          // A delayed denial from a prior route cannot clear a different
+          // resource after Vue reused the same component instance.
+          if (config.id.value === boundId) config.onDenied?.()
+        },
+        onError: (error) => {
+          if (config.id.value === boundId) config.onError?.(error)
+        },
       })
     } catch {
       // Unsupported/non-GUID resource ids cannot become SignalR subscriptions.
