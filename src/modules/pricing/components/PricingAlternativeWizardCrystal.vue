@@ -51,7 +51,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
-import { uniqueDisplayRates, uniqueVisibleFclBundles, groupFclCarrierCards } from '@/modules/pricing/utils/pricingRateDisplayDedup'
+import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
@@ -706,9 +706,8 @@ function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: 
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
   if (!configuredId) return false
   const route = carrierRouteKey(form.destinationId, configuredId)
-  // A carrier selected for configuration is NOT a selected tariff.
-  // Never highlight every offer merely because the user chose this carrier
-  // on the POE route screen.
+  // Mark the exact chosen bundle, not every tariff belonging to a
+  // preconfigured carrier. The carrier selection is not a freight selection.
   return selectedBundleByOption.value[route] === bundleKey
 }
 
@@ -1718,10 +1717,8 @@ function importSourceTitle(rate: ImportRateSelectDto) {
 }
 
 async function loadImportSources(_rates: ImportRateSelectDto[]) {
-  // Loading every source file for 110 FCL rates starts dozens of parallel
-  // /source requests, many of which are 404 for legacy/manual imports.
-  // Source details are fetched on demand by PricingEmailSourceModal when
-  // the user chooses "Ver fuente". Never block tariff rendering on them.
+  // Source metadata is optional. Do not block Screen 5 with 36+ /source
+  // requests from historical imports. The source modal loads on demand.
 }
 
 function rateCommentRank(comment?: string | null) {
@@ -3867,21 +3864,12 @@ function chooseRate(rate: ImportRateSelectDto) {
   const ratePod = rate.podId
     ? findById(catalogs.pod, rate.podId)
     : findEquivalentValue(catalogs.pod, rate.pod)
-  // Imported tariffs without a real POD ("Por asignar"/PENDING) cannot
-  // overwrite the destination explicitly chosen by the user. In MultiQUO
-  // each alternative must keep the POE/POD configured on Screen 3.
-  const pendingPod = ['pending', 'por asignar', 'sin asignar', 'not assigned', 'n/a']
-  const podIsPlaceholder = pendingPod.some((value) =>
-    normalizeCatalogValue(String(rate.podCode ?? '')) === value
-      || normalizeCatalogValue(String(rate.pod ?? '')) === value)
-  if (ratePod && !podIsPlaceholder && !multiCarrierSelectionMode.value)
-    form.podId = ratePod.id
+  if (ratePod) form.podId = ratePod.id
 
   const rateCarrier = normalizeCatalogValue(String(rate.carrier ?? ''))
-  const carrier = catalogs.carriers.find((item) => item.id === rate.carrierId)
-    ?? catalogs.carriers.find((item) =>
-      normalizeCatalogValue(displayValue(item)) === rateCarrier,
-    )
+  const carrier = catalogs.carriers.find((item) =>
+    normalizeCatalogValue(displayValue(item)).includes(rateCarrier),
+  )
   if (carrier) form.carrierId = carrier.id
 
   const rateCurrency = normalizeCatalogValue(String(rate.currency ?? ''))
