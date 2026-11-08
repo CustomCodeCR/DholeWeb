@@ -75,13 +75,13 @@ test('comment actions are independently focusable and never select the rate', ()
 test('a selected alternative keeps the parent FCL tariff card highlighted', () => {
   const withSelection = fixture.replace(
     '                @click="chooseFclRateBundle(bundle)"',
-    '                :aria-pressed="multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key"\\n' +
+    '                :aria-pressed="multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key"\n' +
     '                @click="chooseFclRateBundle(bundle)"',
   )
   const result = patchPricingWizardStep5ValidityComments(withSelection)
   assert.match(result, /function step5IsBundleSelected/)
-  assert.match(result, /:aria-pressed="step5IsBundleSelected\\(bundle\\)"/)
-  assert.match(result, /selectedFclBundleKey\\.value === option\\.key/)
+  assert.match(result, /:aria-pressed="step5IsBundleSelected\(bundle\)"/)
+  assert.match(result, /selectedFclBundleKey\.value === option\.key/)
 })
 
 test('fails loudly instead of silently dropping a future markup change', () => {
