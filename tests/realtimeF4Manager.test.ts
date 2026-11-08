@@ -623,3 +623,29 @@ test('F7 C12 candidate: logout clears authorized snapshots, sockets, listeners a
   assert.equal(host.clock.callbacks.size, 0)
   assert.equal(host.manager.currentIdentity, null)
 })
+
+for (const dirty of [false, true]) {
+  test(`F7 C07: an in-flight GET cannot restore revoked data (dirty=${dirty})`, async () => {
+    const host = new FakeHost()
+    await host.start()
+    let finish!: (value: { value: string; version: number }) => void
+    const delayed = new Promise<{ value: string; version: number }>(resolve => { finish = resolve })
+    let applied = 0
+    let conflicts = 0
+    let denied = 0
+    host.manager.subscribe({
+      kind: 'crm.account', id: ID, dirty: () => dirty,
+      fetchSnapshot: () => delayed,
+      applySnapshot: () => { applied++ },
+      onConflict: () => { conflicts++ },
+      onDenied: () => { denied++ },
+    })
+    host.latestSocket().emitRevoked('crm.account', ID)
+    finish({ value: 'private-data', version: 2 })
+    await settle()
+    assert.equal(denied, 1)
+    assert.equal(applied, 0)
+    assert.equal(conflicts, 0)
+    host.manager.stop()
+  })
+}

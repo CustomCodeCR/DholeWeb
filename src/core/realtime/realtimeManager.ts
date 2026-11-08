@@ -470,7 +470,7 @@ export class RealtimeManager {
     const task = (async () => {
       try {
         const snapshot = await watcher.fetchSnapshot()
-        if (this.stopped || epoch !== this.generation ||
+        if (this.stopped || watcher.denied || epoch !== this.generation ||
           !this.watchers.get(watcher.key)?.has(watcher)) return
         const version = snapshot.version
         if (version != null && (!Number.isSafeInteger(version) || version < 0))

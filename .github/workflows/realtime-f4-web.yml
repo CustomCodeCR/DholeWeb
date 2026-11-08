@@ -16,6 +16,7 @@ on:
       - 'src/modules/agent/stores/agentStore.ts'
       - 'tests/agentModule.test.ts'
       - 'tests/realtimeF4Manager.test.ts'
+      - 'tests/realtimeResourceBinding.test.mjs'
       - 'tests/realtimeF4Browser.mjs'
       - 'tests/fixtures/realtime-f4-browser.html'
       - 'package.json'
@@ -49,7 +50,7 @@ jobs:
       - name: Check release metadata
         run: pnpm run version:check
       - name: F4 gate - 100 mounts, 30 reconnects, 30 initial failures, conflicts
-        run: node --test tests/realtimeF4Manager.test.ts
+        run: pnpm run test:realtime-f4
       - name: CRM and Pricing regression suites
         run: |
           pnpm run test:crm

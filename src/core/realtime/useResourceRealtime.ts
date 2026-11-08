@@ -33,13 +33,16 @@ export function useResourceRealtime<T>(config: {
   const conflict = ref(false)
   const conflictSnapshot = ref<RealtimeSnapshot<T> | null>(null)
   let unsubscribe: () => void = () => {}
+  let generation = 0
 
   const stopWatch = watch(config.id, (id) => {
+    const boundGeneration = ++generation
     unsubscribe()
     conflict.value = false
     conflictSnapshot.value = null
     if (!id) return
     const boundId = id
+    const isCurrent = () => generation === boundGeneration && config.id.value === boundId
     try {
       unsubscribe = (config.transport?.subscribe ?? subscribeUniversalRealtime)({
         kind: config.kind,
@@ -48,23 +51,27 @@ export function useResourceRealtime<T>(config: {
         dirty: config.dirty,
         fetchSnapshot: () => config.fetchSnapshot(boundId),
         applySnapshot: snapshot => {
-          if (config.id.value !== boundId) return
+          if (!isCurrent()) return
           conflict.value = false
           conflictSnapshot.value = null
           config.applySnapshot(snapshot)
         },
         onConflict: (snapshot: RealtimeSnapshot<T>, _event: RealtimeInvalidation | null) => {
-          if (config.id.value !== boundId) return
+          if (!isCurrent()) return
           conflictSnapshot.value = snapshot
           conflict.value = true
         },
         onDenied: () => {
           // A delayed denial from a prior route cannot clear a different
           // resource after Vue reused the same component instance.
-          if (config.id.value === boundId) config.onDenied?.()
+          if (!isCurrent()) return
+          generation++
+          conflict.value = false
+          conflictSnapshot.value = null
+          config.onDenied?.()
         },
         onError: (error) => {
-          if (config.id.value === boundId) config.onError?.(error)
+          if (isCurrent()) config.onError?.(error)
         },
       })
     } catch {
@@ -82,6 +89,9 @@ export function useResourceRealtime<T>(config: {
   }
 
   onScopeDispose(() => {
+    generation++
+    conflict.value = false
+    conflictSnapshot.value = null
     stopWatch()
     unsubscribe()
   })

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.13.1] - 2026-11-08
+
+- Purge realtime conflict snapshots on revocation and disposal; reject stale callbacks after revisiting a resource.
+
 - F6.12 (candidato, sin release): vista AgentExecutionDetail enlazada al Hub universal por `agent.execution`, con GET REST autoritativo, polling fallback, rechazo de respuestas stale tras revocación y limpieza de caché Pinia. CI Vue/Agent/regresiones #42507658702 PASS.
 
 - F6/F7 (candidato): soporte de los 21 recursos con ACL del Gateway, reconciliación REST aun con pistas de versión fuera de orden y purga de vistas autorizadas al logout/expiración; pruebas de contingencia C01/C02/C03/C06/C07/C09/C10/C12 agregadas, **sin sustituir chaos real de staging**.

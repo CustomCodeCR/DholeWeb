@@ -570,5 +570,5 @@ test('F6 Agent detail binds scoped realtime invalidations to authorized REST and
   assert.match(pinia, /function forgetExecution\(executionId: string\)/)
   assert.match(pinia, /selectedExecution\.value = null/)
   assert.match(manager, /'agent.execution'/)
-  assert.match(composable, /config\.id\.value === boundId\) config\.onDenied/)
+  // Behavioral stale-callback and revocation coverage is in realtimeResourceBinding.test.mjs.
 })
