@@ -39,9 +39,9 @@ test('FCL selection survives the carrier filter rewrite and is bound to exact Ra
   assert.match(carrierRewrite, /function chooseFclRateBundle\(bundle: FclRateBundle\)/)
 
   const injected = wizard.replace(
-    "const rateCarrierFilter = ref('')",
+    '<script setup lang="ts">',
     [
-      "const rateCarrierFilter = ref('')",
+      '<script setup lang="ts">',
       'const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string }>>({})',
       'restoreFclBundleForOption = (poeId, carrierId) => {}',
       'function chooseFclRateBundle(bundle: FclRateBundle) {',
