@@ -48,7 +48,7 @@ test('adds date controls for FCL bundles and normal rates without changing shipm
   assert.equal((result.match(/v-model="step5ValidityFrom"/g) ?? []).length, 2)
   assert.equal((result.match(/v-model="step5ValidityTo"/g) ?? []).length, 2)
   assert.match(result, /const step5VisibleFclRateBundles = computed/)
-  assert.match(result, /uniqueVisibleFclBundles\\(/)
+  assert.match(result, /uniqueVisibleFclBundles\(/)
   assert.match(result, /const step5UniqueFclBundleCount = computed/)
   assert.match(result, /ofertas comerciales únicas/)
   assert.match(result, /const step5VisibleAvailableRates = computed/)
