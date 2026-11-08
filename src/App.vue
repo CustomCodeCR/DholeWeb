@@ -32,6 +32,19 @@ let uninstallNativeValidation: (() => void) | undefined
 const isPublicRoute = computed(() => router.currentRoute.value.meta.public === true)
 const isEmbedded = new URLSearchParams(window.location.search).get('dhEmbed') === '1'
 
+// Login/logout, impersonation and route changes are separate from token refresh.
+// These guards ensure the universal manager never retains the previous subject.
+watch(() => authStore.userId, (next) => {
+  if (isEmbedded || isPublicRoute.value) return
+  if (next && authStore.isAuthenticated) void startUniversalRealtime()
+  else stopUniversalRealtime()
+}, { flush: 'post' })
+watch(isPublicRoute, (publicRoute) => {
+  if (isEmbedded) return
+  if (publicRoute) stopUniversalRealtime()
+  else if (authStore.isAuthenticated) void startUniversalRealtime()
+})
+
 function handleAuthExpired() {
   // Public origin pages must never redirect to Login because they intentionally work
   // without a Dhole session. Clearing a stale session is fine; navigation is not.
