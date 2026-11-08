@@ -56,8 +56,9 @@ type Step5CarrierCard = FclRateBundle & {
 // Simply adding a carrier to the list of planned navieras MUST NOT paint
 // all its unrelated rates as preselected.
 function step5IsBundleSelected(bundle: Step5CarrierCard): boolean {
-  const options = [bundle, ...bundle.alternativeOffers]
-    .flatMap((offer) => [offer, ...offer.groupedAlternatives])
+  // A partially hydrated card must never crash the entire pricing wizard.
+  const options = [bundle, ...(bundle.alternativeOffers ?? [])]
+    .flatMap((offer) => [offer, ...(offer.groupedAlternatives ?? [])])
   return options.some((option) => step5IsSelectedOffer(option))
 }
 
@@ -105,13 +106,28 @@ const step5VisibleAvailableRates = computed(() =>
 )
 // Deduplicate AFTER the FCL combination engine, carrier filter and date filter.
 // Only the final visible cards reflect the commercial offer the customer sees.
+// Never leave Screen 5 blank if an imported source row is malformed.
+function step5GroupCarrierOffers(rates: FclRateBundle[]): Step5CarrierCard[] {
+  try {
+    return groupFclCarrierCards(uniqueVisibleFclBundles(rates))
+  } catch (error) {
+    console.error('[Pricing Screen 5] Falló la agrupación FCL; mostrando tarifas individuales', error)
+    return rates.map((rate) => ({
+      ...rate,
+      groupedAlternatives: [],
+      alternativeOffers: [],
+      offerCount: 1,
+      sourceRecordCount: 1,
+    }))
+  }
+}
 const step5VisibleFclRateBundles = computed(() =>
-  groupFclCarrierCards(uniqueVisibleFclBundles(
+  step5GroupCarrierOffers(
     visibleFclRateBundles.value.filter((bundle) => step5RateMatchesDates(bundle.validFrom, bundle.validTo)),
-  )),
+  ),
 )
 const step5UniqueFclBundleCount = computed(() =>
-  groupFclCarrierCards(uniqueVisibleFclBundles(visibleFclRateBundles.value)).length,
+  step5GroupCarrierOffers(visibleFclRateBundles.value).length,
 )
 `
   code = replaceOnce(code, state, state + logic, 'date and comment state')
