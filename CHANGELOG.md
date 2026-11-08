@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.0] - 2026-11-07
+
+- Agenda CRM: configura repetición diaria, semanal, quincenal o cada 30 días de visitas, llamadas y reuniones.
+- Configura recordatorios periódicos de 5 minutos a un día mientras la actividad siga pendiente, además de recordatorios antes y al inicio.
+- Muestra frecuencias guardadas en el detalle e incorpora prueba de regresión del contrato.
+
 ## [1.11.5] - 2026-11-07
 
 - Al elegir una sub-QUO, esa alternativa se convierte en la principal comercial en el wizard, queda destacada y se muestra primero, sin alterar el ancla inmutable del grupo.
