@@ -56,12 +56,20 @@ function patchWizard(source: string) {
     `  if (!canNext.value) return\n  if (step.value === 4) {\n    step.value = 5\n    try {\n      await searchApprovedRates()\n    } catch (error) {\n      toastStore.backendError(error, 'No se pudieron cargar las tarifas disponibles.')\n    }\n    return\n  }\n  if (step.value === 6) {`,
   )
 
+  // Deduplicate tariffs at the point where the FCL requirements are computed.
+  // Repeated import records for one commercial offer must not produce repeated cards.
+  code = replaceIfPresent(
+    code,
+    `rates: fclRatesByContainer.value[allocation.containerTypeId] ?? [],`,
+    `rates: uniqueDisplayRates(fclRatesByContainer.value[allocation.containerTypeId] ?? []),`,
+  )
+
   // A single requested equipment type (for example 1 x 40HC) must map one API
   // rate to one visible card. It does not need the mixed-equipment cartesian
   // combination engine. Besides being simpler, this isolates malformed legacy
   // rows so one bad entry cannot prevent every valid tariff from being displayed.
   const singleEquipmentBundleAnchor = `const fclRateBundles = computed<FclRateBundle[]>(() => {\n  const requirements = fclRateRequirements.value\n  if (!requirements.length || requirements.some((requirement) => !requirement.rates.length)) return []`
-  const singleEquipmentBundleReplacement = `${singleEquipmentBundleAnchor}\n\n  if (requirements.length === 1) {\n    const requirement = requirements[0]\n    return [...requirement.rates]\n      .filter((rate): rate is ImportRateSelectDto => Boolean(rate?.id))\n      .sort(compareFclCandidateRates)\n      .map((rate, index) => {\n        const unitCost = number(rate.freight)\n        const unitSale = number(rate.totalSale ?? rate.freight)\n        const totalCost = unitCost * requirement.quantity\n        const totalSale = unitSale * requirement.quantity\n\n        return {\n          key: 'single:' + String(rate.id) + ':' + index,\n          carrierFilterKey: fclRateCarrierFilterKey(rate),\n          carrierId: String(rate.carrierId ?? ''),\n          carrier: String(rate.carrier ?? 'Naviera'),\n          agentId: String(rate.agentId ?? ''),\n          agent: String(rate.agent ?? ''),\n          currencyId: String(rate.currencyId ?? ''),\n          currency: String(rate.currency ?? rate.currencyCode ?? 'USD'),\n          lines: [{\n            containerTypeId: requirement.containerTypeId,\n            containerTypeName: requirement.containerTypeName,\n            containerTypeCode: requirement.containerTypeCode,\n            quantity: requirement.quantity,\n            rate,\n            unitCost,\n            unitSale,\n            totalCost,\n            totalSale,\n          }],\n          totalCost,\n          totalSale,\n          validFrom: String(rate.validFrom ?? ''),\n          validTo: String(rate.validTo ?? ''),\n          freeDays: Math.max(0, number(rate.freeDays)),\n          transitDays: Math.max(0, number(rate.transitDays)),\n          sourceCount: rate.importBatchId ? 1 : 0,\n          preAuthorized: rate.status === 'PreAuthorized',\n        } satisfies FclRateBundle\n      })\n  }`
+  const singleEquipmentBundleReplacement = `${singleEquipmentBundleAnchor}\n\n  if (requirements.length === 1) {\n    const requirement = requirements[0]\n    return uniqueDisplayRates([...requirement.rates]\n      .filter((rate): rate is ImportRateSelectDto => Boolean(rate?.id))\n      .sort(compareFclCandidateRates))\n      .map((rate, index) => {\n        const unitCost = number(rate.freight)\n        const unitSale = number(rate.totalSale ?? rate.freight)\n        const totalCost = unitCost * requirement.quantity\n        const totalSale = unitSale * requirement.quantity\n\n        return {\n          key: 'single:' + String(rate.id) + ':' + index,\n          carrierFilterKey: fclRateCarrierFilterKey(rate),\n          carrierId: String(rate.carrierId ?? ''),\n          carrier: String(rate.carrier ?? 'Naviera'),\n          agentId: String(rate.agentId ?? ''),\n          agent: String(rate.agent ?? ''),\n          currencyId: String(rate.currencyId ?? ''),\n          currency: String(rate.currency ?? rate.currencyCode ?? 'USD'),\n          lines: [{\n            containerTypeId: requirement.containerTypeId,\n            containerTypeName: requirement.containerTypeName,\n            containerTypeCode: requirement.containerTypeCode,\n            quantity: requirement.quantity,\n            rate,\n            unitCost,\n            unitSale,\n            totalCost,\n            totalSale,\n          }],\n          totalCost,\n          totalSale,\n          validFrom: String(rate.validFrom ?? ''),\n          validTo: String(rate.validTo ?? ''),\n          freeDays: Math.max(0, number(rate.freeDays)),\n          transitDays: Math.max(0, number(rate.transitDays)),\n          sourceCount: rate.importBatchId ? 1 : 0,\n          preAuthorized: rate.status === 'PreAuthorized',\n        } satisfies FclRateBundle\n      })\n  }`
   code = replaceIfPresent(code, singleEquipmentBundleAnchor, singleEquipmentBundleReplacement)
 
   // Mixed-equipment requests still use combinations, but ignore malformed rows
@@ -71,8 +79,8 @@ function patchWizard(source: string) {
     `new Set(requirement.rates.filter((rate): rate is ImportRateSelectDto => Boolean(rate?.id)).map(fclRateBundleGroupKey))`,
   )
 
-  // For one requested equipment type, every matching tariff must remain visible:
-  // 25 API matches means 25 cards. For mixed equipment, however, an unrestricted
+  // For one requested equipment type, every DISTINCT tariff must remain visible:
+  // 25 API matches representing 10 unique commercial offers means 10 cards. For mixed equipment, however, an unrestricted
   // cartesian product (25 x 25 x ...) can freeze the browser and blank the wizard.
   // Keep all candidates but bound only the number of generated multi-type bundles.
   code = replaceIfPresent(

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.5] - 2026-11-07
+
+- La sub-QUO elegida se presenta como principal comercial, ordenada primero, sin cambiar el ancla inmutable del grupo.
+- Las sub-QUO guardadas son acordeones individuales en pantallas 8 y 9, con expansión y cierre explícitos.
+- La pantalla 5 elimina ofertas importadas comercialmente duplicadas y conserva precios, fechas y agentes diferentes.
+- Integra contrato de Pricing con selectedRateId, PDF ordenado por selección y regresiones automatizadas.
+- Release `DH-20261107-MULTIQUO-PRINCIPAL-DEDUP-ACCORDION-030` coordinado con DholePricingService v1.5.4; requiere validación en CI/staging y no autoriza despliegue a producción.
+
 ## [1.11.4] - 2026-11-07
 
 - Pantalla 8 en visualización/edición de MultiQUO muestra acordeones independientes con datos guardados: subQUO, POE, naviera, haulage, flete, rubros, costos y totales; se ocultan los resúmenes de la única tarifa y los controles de creación.
