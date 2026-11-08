@@ -62,6 +62,11 @@ class FakeSocket implements BrowserSocket {
       type: 1, target: 'resourceChanged', arguments: [event],
     }) + RS } as MessageEvent)
   }
+  emitRevoked(kind: string, id: string) {
+    this.onmessage?.({ data: JSON.stringify({
+      type: 1, target: 'resourceRevoked', arguments: [kind, id],
+    }) + RS } as MessageEvent)
+  }
   close() {
     if (this.closed) return
     this.closed = true
@@ -369,5 +374,30 @@ test('F4: invalid client resource identifier cannot become a subscription', asyn
     applySnapshot: () => {},
   }))
   assert.equal(host.manager.activeWatchers, 0)
+  host.manager.stop()
+})
+
+test('F6: resource revocation immediately clears only the denied account without REST refresh', async () => {
+  const host = new FakeHost()
+  await host.start()
+  let denied = 0
+  const applied: number[] = []
+  const unsubscribe = host.manager.subscribe({
+    kind: 'crm.account', id: ID,
+    fetchSnapshot: async () => ({ value: host.restVersion, version: host.restVersion }),
+    applySnapshot: snapshot => applied.push(snapshot.value as number),
+    onDenied: () => { denied++ },
+  })
+  await settle()
+  const previous = applied.length
+  host.latestSocket().emitRevoked('pricing.rate', ID)
+  host.latestSocket().emitRevoked('crm.account', '00000000-0000-0000-0000-000000000000')
+  host.latestSocket().emitRevoked('crm.account', ID)
+  assert.equal(denied, 1)
+  host.restVersion = 2
+  host.latestSocket().emitEvent(host.event(2))
+  await settle()
+  assert.equal(applied.length, previous, 'Revoked resource must not be repopulated by stale events.')
+  unsubscribe()
   host.manager.stop()
 })
