@@ -271,3 +271,22 @@ test('MAERSK Caldera 04/05: hidden transit and import metadata do not create dup
   assert.equal(grouped[0]!.groupedAlternatives[0]!.lines[0]!.rate.id, 'maersk-05')
   assert.equal(uniqueVisibleFclBundles([make(first), make({ ...second, id: 'different-price', freight: 6100 })]).length, 2)
 })
+
+
+test('FCL grouping never chains non-overlapping validity periods', () => {
+  const card = (id: string, from: string, to: string) => {
+    const rate = sample({ id, validFrom: from, validTo: to })
+    return { key: id, carrierId: rate.carrierId, carrier: 'MSC',
+      agentId: rate.agentId, agent: 'AGENCY', currencyId: rate.currencyId,
+      currency: 'USD', totalCost: rate.freight, totalSale: rate.totalSale ?? rate.freight,
+      freeDays: rate.freeDays, transitDays: rate.transitDays ?? 0,
+      validFrom: from, validTo: to, preAuthorized: false,
+      lines: [{ containerTypeId: '40hc', quantity: 1, unitCost: rate.freight,
+        unitSale: rate.totalSale ?? rate.freight, rate }],
+    }
+  }
+  const rows = [card('early', '2026-11-01', '2026-11-03'),
+    card('bridge', '2026-11-03', '2026-11-05'),
+    card('later', '2026-11-05', '2026-11-07')]
+  assert.equal(uniqueVisibleFclBundles(rows).length, 2)
+})
