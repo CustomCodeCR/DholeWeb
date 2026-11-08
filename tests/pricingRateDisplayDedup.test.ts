@@ -23,7 +23,7 @@ const sample = (changes: Partial<ImportRateSelectDto> = {}): ImportRateSelectDto
   transitDays: 25,
   validFrom: '2026-11-01T00:00:00',
   validTo: '2026-11-07T00:00:00',
-  status: 'PreApproved',
+  status: 'Approved',
   ...changes,
 } as ImportRateSelectDto)
 
@@ -32,7 +32,7 @@ test('same commercial offer in multiple imported emails produces one visible tar
   const duplicate = sample({ id: 'source-2', importBatchId: 'batch-2', status: 'PreAuthorized' })
   assert.equal(pricingRateDisplayKey(original), pricingRateDisplayKey(duplicate))
   assert.deepEqual(uniqueDisplayRates([original, duplicate]), [original])
-  assert.deepEqual(uniqueDisplayRates([duplicate, original]), [duplicate])
+  assert.deepEqual(uniqueDisplayRates([duplicate, original]), [original])
 })
 
 test('different price, agent, dates, haulage route and container remain separate offers', () => {
@@ -80,11 +80,11 @@ test('never hide distinct commercial terms or non-overlapping offers', () => {
   assert.equal(uniqueDisplayRates([base, ...genuinelyDifferent]).length, genuinelyDifferent.length + 1)
 })
 
-test('identical dated offers prefer preapproved and retain the selected source id', () => {
+test('identical dated offers prefer approved and retain the selected source id', () => {
   const preauthorized = sample({ id: 'preauthorized', status: 'PreAuthorized' })
-  const preapproved = sample({ id: 'preapproved', status: 'PreApproved' })
-  assert.deepEqual(uniqueDisplayRates([preauthorized, preapproved]).map((r) => r.id), ['preapproved'])
-  assert.deepEqual(uniqueDisplayRates([preapproved, preauthorized]).map((r) => r.id), ['preapproved'])
+  const approved = sample({ id: 'approved', status: 'Approved' })
+  assert.deepEqual(uniqueDisplayRates([preauthorized, approved]).map((r) => r.id), ['approved'])
+  assert.deepEqual(uniqueDisplayRates([approved, preauthorized]).map((r) => r.id), ['approved'])
 })
 
 test('saved FCL group panels open and close explicitly and selected quote is primary', () => {
