@@ -32,6 +32,8 @@ interface CalendarEvent {
   rowVersion: number
   reminderLeadMinutes: number | null
   reminderChannelStrategy: string
+  repeatEveryDays: number | null
+  reminderRepeatMinutes: number | null
 }
 const router = useRouter()
 const auth = useAuthStore()
@@ -122,6 +124,8 @@ const editor = ref({
   nextCommitment: '',
   commitmentDue: '',
   reminderMinutes: 60,
+  repeatEveryDays: 0,
+  reminderRepeatMinutes: 0,
   channel: 'BOTH',
 })
 watch(() => editor.value.agreements, (text) => {
@@ -228,10 +232,28 @@ const selectableActivityTypes = computed(() => [
     ? [{ value: 'FOLLOWUP', label: 'Seguimiento' }] : []),
 ])
 const reminderOptions = [
-  { value: 5, label: '5 minutos antes' }, { value: 15, label: '15 minutos antes' },
-  { value: 30, label: '30 minutos antes' }, { value: 60, label: '1 hora antes' },
-  { value: 1440, label: '1 día antes' }, { value: 10080, label: '7 días antes' },
+  { value: 0, label: 'Al comenzar' }, { value: 5, label: '5 minutos antes' },
+  { value: 15, label: '15 minutos antes' }, { value: 30, label: '30 minutos antes' },
+  { value: 60, label: '1 hora antes' }, { value: 1440, label: '1 día antes' },
+  { value: 10080, label: '7 días antes' },
 ]
+const activityRepeatOptions = [
+  { value: 0, label: 'No repetir' }, { value: 1, label: 'Cada día' },
+  { value: 7, label: 'Cada semana' }, { value: 14, label: 'Cada dos semanas' },
+  { value: 30, label: 'Cada 30 días' },
+]
+const reminderRepeatOptions = [
+  { value: 0, label: 'No repetir el aviso' },
+  { value: 5, label: 'Cada 5 minutos' }, { value: 15, label: 'Cada 15 minutos' },
+  { value: 30, label: 'Cada 30 minutos' }, { value: 60, label: 'Cada hora' },
+  { value: 240, label: 'Cada 4 horas' }, { value: 1440, label: 'Cada día' },
+]
+function activityRepeatLabel(days: number | null): string {
+  return activityRepeatOptions.find(item => item.value === (days ?? 0))?.label ?? 'No repetir'
+}
+function reminderRepeatLabel(minutes: number | null): string {
+  return reminderRepeatOptions.find(item => item.value === (minutes ?? 0))?.label ?? 'Sin avisos extra'
+}
 const dateKey = (d: Date) => [
   d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0'),
 ].join('-')
@@ -341,7 +363,8 @@ function openCreation(date?: Date) {
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
     location: '', involved: '', agreements: '', nextCommitment: '', commitmentDue: '',
-    reminderMinutes: 60, channel: 'BOTH',
+    reminderMinutes: 60, repeatEveryDays: 0, reminderRepeatMinutes: 0,
+    channel: 'BOTH',
   }
   agreementDrafts.value = []
   userEditedStart.value = false
@@ -475,6 +498,8 @@ async function load() {
         rowVersion: Number(item.rowVersion ?? 0),
         reminderLeadMinutes: typeof item.reminderLeadMinutes === 'number' ? item.reminderLeadMinutes : null,
         reminderChannelStrategy: String(item.reminderChannelStrategy ?? 'BOTH'),
+        repeatEveryDays: typeof item.repeatEveryDays === 'number' ? item.repeatEveryDays : null,
+        reminderRepeatMinutes: typeof item.reminderRepeatMinutes === 'number' ? item.reminderRepeatMinutes : null,
       })
     }
   }
@@ -567,7 +592,9 @@ async function create() {
       await crmRequest(crmPath('activities'), 'POST', {
         ...common, contactId: data.contactId || null, ownerUserId: data.ownerId || auth.userId,
         type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
-        scheduledEndAt: end.toISOString(), occurredAt: null, locationText: data.location.trim() || null,
+        scheduledEndAt: end.toISOString(), occurredAt: null,
+        repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
+        locationText: data.location.trim() || null,
         involved: data.involved.trim() || null, agreements: data.agreements.trim() || null,
         nextCommitment: data.nextCommitment.trim() || null,
         commitmentDueAt: commitmentDue?.toISOString() ?? null,
@@ -857,7 +884,14 @@ function openEvent(item: CalendarEvent) {
         <div><h3 class="font-extrabold">{{ active.subject }}</h3>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(effectiveStatus(active)) }} · {{ active.at.toLocaleString('es-CR') }}</p>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cliente: {{ clientName(active) }} · Vendedor: {{ ownerName(active) }}</p>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Recordatorios: 24 horas, 1 hora, al inicio y cada 24 horas si vence. Siempre sistema y correo.</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            Recordatorios: 24 horas y 1 hora antes, {{ active.reminderLeadMinutes ?? 60 }} minutos antes y al inicio.
+            {{ active.reminderRepeatMinutes ? reminderRepeatLabel(active.reminderRepeatMinutes) + ' mientras esté pendiente.' : 'Cada 24 horas si vence.' }}
+            Sistema y correo electrónico.
+          </p>
+          <p v-if="active.source==='activity'" class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            Repetición de actividad: {{ activityRepeatLabel(active.repeatEveryDays) }}.
+          </p>
         </div>
         <button type="button" aria-label="Cerrar detalle" @click="active=null"><X class="h-4 w-4" /></button>
       </div>
@@ -956,6 +990,23 @@ function openEvent(item: CalendarEvent) {
         <div class="calendar-label">
           Canal obligatorio
           <p class="calendar-input flex items-center text-sm">Sistema y correo electrónico</p>
+        </div>
+        <div v-if="editor.type!=='FOLLOWUP'"
+          class="sm:col-span-2 grid gap-4 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-2">
+          <label class="calendar-label">¿Cada cuánto repetir esta actividad?
+            <select v-model.number="editor.repeatEveryDays" class="calendar-input">
+              <option v-for="item in activityRepeatOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+          <label class="calendar-label">¿Cada cuánto volver a recordar?
+            <select v-model.number="editor.reminderRepeatMinutes" class="calendar-input">
+              <option v-for="item in reminderRepeatOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+          <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
+            El primer aviso llega antes según «Recordar»; siempre habrá otro al inicio.
+            Los avisos adicionales se repiten desde el inicio hasta completar o cancelar la actividad.
+          </p>
         </div>
         <template v-if="editor.type!=='FOLLOWUP'">
           <label class="calendar-label sm:col-span-2">Involucrados
