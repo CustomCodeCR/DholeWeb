@@ -61,6 +61,9 @@ const { t } = useI18n()
           <main class="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:max-h-[calc(90vh-65px)] sm:p-5 dh-scrollbar">
             <slot />
           </main>
+          <footer v-if="$slots.footer" class="shrink-0 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 sm:px-5">
+            <slot name="footer" />
+          </footer>
         </section>
       </div>
     </Transition>
