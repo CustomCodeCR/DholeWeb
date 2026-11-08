@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.6] - 2026-11-08
+
+- Corrige los términos de «Tarifa incluye», «Sujeta a» y «Tarifa no incluye» persistidos como un solo texto con `\\n` o `\\r\\n`: se convierten en ítems individuales sin alterar cotizaciones históricas.
+- Normaliza líneas reales, comas heredadas (sin dividir decimales), términos repetidos y saltos escapados dos veces; prioriza registros activos del catálogo.
+- Emplea el mismo normalizador para el selector, carga y guardado de cotizaciones en el wizard, y para conceptos manuales pegados con múltiples líneas.
+- Da a las tarjetas ajuste de palabras y agrega pruebas de regresión para contenido histórico y compilación del wizard.
+- Release `DH-20261108-PRICING-COMMERCIAL-TERMS-037`: validaciones CI y staging antes de master; mantiene las mejoras FCL de 1.12.5.
+
 ## [1.12.5] - 2026-11-08
 
 - Pantalla 5 FCL: consolida las tarjetas equivalentes que tienen los mismos identificadores de naviera, agente, moneda y puertos aunque la importación utilice nombres o alias distintos.
@@ -9,11 +17,11 @@
 
 ## [1.12.4] - 2026-11-08
 
-- Pantalla 8: corrige los acordeones de sub-QUO en vista sin habilitar acciones de edición.
-- Pantalla 5 FCL: filtra duplicados en las tarjetas finales incluso cuando la importación incluye metadatos o vigencias distintas pero superpuestas.
-- Conserva tarifas con precios, rutas, proveedores, equipos y condiciones realmente distintos, y conserva registros de origen.
-- Pruebas de regresión de tarjeta MAERSK y apertura de paneles en vista.
-- Release coordinado `DH-20261108-PRICING-VIEW-ACCORDION-FCL-UNIQUE-035`, CI y staging obligatorios.
+- Pantalla 8 FCL: los encabezados de las sub-QUO vuelven a responder en modo visualización. La excepción de eventos se limita a los botones de desplegar/ocultar y el resto del wizard continúa en solo lectura.
+- Pantalla 5 FCL: deduplicación definitiva sobre las tarjetas visibles tras construir combinaciones y aplicar filtros de naviera/fecha. Evita dos MAERSK con mismo precio/equipo/ruta y vigencias superpuestas, incluso con diferencias menores de metadatos de importación.
+- Respeta distintas rutas, agentes, equipos, costos, condiciones, días libres, tránsito y vigencias que no se superponen, sin eliminar registros de la base de datos.
+- Pruebas de regresión nuevas del filtro final y del control de acordeones en vista, sin cambiar APIs REST.
+- Release coordinado `DH-20261108-PRICING-VIEW-ACCORDION-FCL-UNIQUE-035`; requiere CI, staging y validación antes de promoción.
 
 ## [1.12.3] - 2026-11-08
 

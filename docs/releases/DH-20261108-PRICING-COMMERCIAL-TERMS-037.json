@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261108-PRICING-COMMERCIAL-TERMS-037",
+  "ecosystemVersion": "1.12.6",
+  "releaseType": "PATCH",
+  "createdAt": "2026-11-08",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.12.5",
+      "to": "1.12.6"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "from": "1.12.3",
+      "to": "1.12.6"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "version": "1.5.8",
+      "status": "previous-release-unchanged"
+    }
+  ],
+  "changes": [
+    "Split literal escaped newline and CRLF content in saved Pricing includes/subject-to/excludes into individual draggable commercial terms",
+    "Normalize legacy catalog entries in the UI, prioritize active canonical terms, and retain decimal comma monetary values",
+    "Use the same parser in wizard hydration and saved draft terms, including manual pasted lists",
+    "Preserve all existing database records and the unrelated FCL dedup improvements from 1.12.5"
+  ],
+  "validation": "pending CI and staging",
+  "productionDeploymentAuthorized": false
+}
