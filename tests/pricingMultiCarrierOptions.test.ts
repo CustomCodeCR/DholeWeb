@@ -240,16 +240,16 @@ test('wizard includes selected configured inland and warns about missing prices'
 
 test('saved MultiQUO screen 8 renders the same accordion design after reopening the rate', () => {
   const step8 = wizard.split('<div v-else-if="step === 8"')[1]!.split('<div v-else-if="step === 9 && viewOnly')[0]!
-  assert.match(wizard, /savedQuoteGroup\.value = await PricingService\.getRateGroup\(rate\.id\)/)
-  assert.match(wizard, /await Promise\.all\(savedQuoteGroup\.value\.alternatives\.map\(\(option\) => PricingService\.getRate\(option\.rateId\)\)\)/)
+  assert.match(wizard, /const groupedQuote = await PricingService\.getRateGroup\(rate\.id\)/)
+  assert.match(wizard, /await Promise\.all\(groupedQuote\.alternatives\.map\(\(option\) => PricingService\.getRate\(option\.rateId\)\)\)/)
   assert.match(wizard, /const hasSavedMultiQuote = computed\(\(\) =>/)
   assert.match(wizard, /Boolean\(props\.rateId && savedQuoteGroup\.value && savedQuoteGroup\.value\.alternatives\.length > 1\)/)
   assert.match(wizard, /const savedMultiQuotePreviewCards = computed\(\(\) =>/)
   assert.match(wizard, /const byId = new Map\(savedGroupRates\.value\.map/)
   assert.match(wizard, /alternatives\.flatMap\(\(alternative, index\) =>/)
   assert.match(step8, /<section v-if="hasSavedMultiQuote"/)
-  assert.match(step8, /<details v-for="preview in savedMultiQuotePreviewCards"/)
-  assert.match(step8, /:open="preview\.index === 0"/)
+  assert.match(step8, /<div v-for="preview in savedMultiQuotePreviewCards"/)
+  assert.match(step8, /v-if="expandedSavedQuotePanels\[preview\.key\]"/)
   assert.match(step8, /preview\.rate\.rateDetails/)
   assert.match(step8, /preview\.rate\.carrierRoute/)
   assert.match(step8, /preview\.rate\.carrierComments/)
