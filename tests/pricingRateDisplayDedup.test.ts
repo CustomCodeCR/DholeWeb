@@ -40,7 +40,7 @@ test('different price, agent, dates, haulage route and container remain separate
   const variants = [
     sample({ id: 'other-price', freight: 6900 }),
     sample({ id: 'other-agent', agentId: 'second-agent' }),
-    sample({ id: 'other-validity', validTo: '2026-11-14' }),
+    sample({ id: 'other-validity', validFrom: '2026-11-08', validTo: '2026-11-14' }),
     sample({ id: 'other-terminal', poeId: 'moin' }),
     sample({ id: 'other-container', containerTypeId: '20dc' }),
     sample({ id: 'other-remarks', spaceComment: 'Vía otro puerto' }),
@@ -48,6 +48,43 @@ test('different price, agent, dates, haulage route and container remain separate
   ]
   assert.equal(uniqueDisplayRates([original, ...variants]).length, variants.length + 1)
   assert.equal(uniqueDisplayRates([sample({ id: '' }), original]).length, 1)
+})
+
+test('Screen 5 hides identical MAERSK offers with overlapping validity but different start dates', () => {
+  const wider = sample({ id: 'maersk-04', carrier: 'MAERSK', validFrom: '2026-11-04', validTo: '2026-11-13', freight: 6000, totalSale: 6000 })
+  const narrower = sample({ id: 'maersk-05', carrier: 'MAERSK', validFrom: '2026-11-05', validTo: '2026-11-13', freight: 6000, totalSale: 6000 })
+  assert.equal(pricingRateDisplayKey(wider), pricingRateDisplayKey(narrower))
+  assert.deepEqual(uniqueDisplayRates([wider, narrower]), [wider])
+  assert.deepEqual(uniqueDisplayRates([narrower, wider]), [wider])
+})
+
+test('keep the later expiration when two otherwise identical offers overlap', () => {
+  const earlier = sample({ id: 'earlier', validFrom: '2026-11-04', validTo: '2026-11-10' })
+  const later = sample({ id: 'later', validFrom: '2026-11-06', validTo: '2026-11-14' })
+  assert.deepEqual(uniqueDisplayRates([earlier, later]), [later])
+  assert.deepEqual(uniqueDisplayRates([later, earlier]), [later])
+})
+
+test('never hide distinct commercial terms or non-overlapping offers', () => {
+  const base = sample()
+  const genuinelyDifferent = [
+    sample({ id: 'different-freight', freight: 7000 }),
+    sample({ id: 'different-sale', totalSale: 7100 }),
+    sample({ id: 'different-agent', agentId: 'another-agent' }),
+    sample({ id: 'different-free-days', freeDays: 14 }),
+    sample({ id: 'different-transit', transitDays: 32 }),
+    sample({ id: 'different-route', poeId: 'moin' }),
+    sample({ id: 'different-terms', spaceComment: 'Sujeto a espacio' }),
+    sample({ id: 'non-overlap', validFrom: '2026-11-08', validTo: '2026-11-20' }),
+  ]
+  assert.equal(uniqueDisplayRates([base, ...genuinelyDifferent]).length, genuinelyDifferent.length + 1)
+})
+
+test('identical dated offers prefer preapproved and retain the selected source id', () => {
+  const preauthorized = sample({ id: 'preauthorized', status: 'PreAuthorized' })
+  const preapproved = sample({ id: 'preapproved', status: 'PreApproved' })
+  assert.deepEqual(uniqueDisplayRates([preauthorized, preapproved]).map((r) => r.id), ['preapproved'])
+  assert.deepEqual(uniqueDisplayRates([preapproved, preauthorized]).map((r) => r.id), ['preapproved'])
 })
 
 test('saved FCL group panels open and close explicitly and selected quote is primary', () => {
