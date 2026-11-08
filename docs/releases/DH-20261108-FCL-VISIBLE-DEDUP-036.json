@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261108-FCL-VISIBLE-DEDUP-036",
+  "ecosystemVersion": "1.12.5",
+  "releaseType": "PATCH",
+  "createdAt": "2026-11-08",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.12.4",
+      "to": "1.12.5"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "from": "1.5.7",
+      "to": "1.5.8"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "version": "1.12.0",
+      "status": "unchanged"
+    }
+  ],
+  "changes": [
+    "Canonical catalog IDs take precedence over inconsistent imported provider and port labels in final FCL Screen 5 deduplication",
+    "Preserve genuine commercial differences and original rate IDs",
+    "Regression test for MAERSK Caldera overlapping validity and differing importer labels"
+  ],
+  "validation": "pending CI and staging",
+  "productionDeploymentAuthorized": false
+}

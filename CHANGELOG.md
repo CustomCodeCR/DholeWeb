@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.5] - 2026-11-08
+
+- Pantalla 5 FCL: consolida las tarjetas equivalentes que tienen los mismos identificadores de naviera, agente, moneda y puertos aunque la importación utilice nombres o alias distintos.
+- Corrige MAERSK Caldera con fechas 04-13 y 05-13 de noviembre; conserva una sola opción con la vigencia más amplia y el ID auténtico de origen.
+- Mantiene separadas las rutas, agentes, monedas, precios, días libres, condiciones comerciales y vigencias no superpuestas; no borra tarifas importadas.
+- Release coordinado `DH-20261108-FCL-VISIBLE-DEDUP-036`; validar CI/staging antes de promover a master; producción sin autorizar.
+
 ## [1.12.4] - 2026-11-08
 
 - Pantalla 8: corrige los acordeones de sub-QUO en vista sin habilitar acciones de edición.

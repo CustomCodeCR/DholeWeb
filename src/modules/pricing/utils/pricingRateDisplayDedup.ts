@@ -136,11 +136,30 @@ function sameOptionalCommercialTerm(left: string | null | undefined, right: stri
 function sameCatalogOrName(
   leftId: string, leftName: string, rightId: string, rightName: string,
 ): boolean {
-  // Match named providers across differing import/catalog identifiers.
-  // Two different known providers must remain separate even at equal prices.
-  if (normalized(leftName) && normalized(rightName)) return sameDisplayIdentity(leftName, rightName)
-  if (normalized(leftId) && normalized(rightId)) return sameDisplayIdentity(leftId, rightId)
+  // Catalog IDs are authoritative: imports can give the same carrier/agent/
+  // currency different display labels, including localizations and aliases.
+  // Conversely, matching names let equivalent legacy IDs collapse.
+  if (normalized(leftId) && sameDisplayIdentity(leftId, rightId)) return true
+  if (normalized(leftName) && sameDisplayIdentity(leftName, rightName)) return true
+  if (normalized(leftId) && normalized(rightId)) return false
+  if (normalized(leftName) && normalized(rightName)) return false
   return !normalized(leftId) || !normalized(rightId)
+}
+
+function sameOptionalCatalogTerm(
+  leftId: string | null | undefined,
+  leftName: string | null | undefined,
+  rightId: string | null | undefined,
+  rightName: string | null | undefined,
+): boolean {
+  // Always compare the canonical route identity before an imported label:
+  // e.g. POE "Caldera" and "Puerto Caldera, Costa Rica" are one port when
+  // the catalog POE ID matches. An absent source label does not create a
+  // separate commercial offer, but contradictory known routes remain distinct.
+  if (normalized(leftId) && sameDisplayIdentity(leftId, rightId)) return true
+  if (normalized(leftName) && sameDisplayIdentity(leftName, rightName)) return true
+  if (normalized(leftId) && normalized(rightId)) return false
+  return sameOptionalCommercialTerm(leftName || leftId, rightName || rightId)
 }
 
 function sameBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
@@ -154,9 +173,9 @@ function sameBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boole
       && amount(line.quantity) === amount(other.quantity)
       && amount(line.unitCost) === amount(other.unitCost)
       && amount(line.unitSale) === amount(other.unitSale)
-      && sameOptionalCommercialTerm(line.rate.pol || line.rate.polId, other.rate.pol || other.rate.polId)
-      && sameOptionalCommercialTerm(line.rate.poe || line.rate.poeId, other.rate.poe || other.rate.poeId)
-      && sameOptionalCommercialTerm(line.rate.pod || line.rate.podId, other.rate.pod || other.rate.podId)
+      && sameOptionalCatalogTerm(line.rate.polId, line.rate.pol, other.rate.polId, other.rate.pol)
+      && sameOptionalCatalogTerm(line.rate.poeId, line.rate.poe, other.rate.poeId, other.rate.poe)
+      && sameOptionalCatalogTerm(line.rate.podId, line.rate.pod, other.rate.podId, other.rate.pod)
       && sameOptionalCommercialTerm(line.rate.spaceComment, other.rate.spaceComment)
       && sameOptionalCommercialTerm(line.rate.commodity, other.rate.commodity)
       && amount(line.rate.originCharges) === amount(other.rate.originCharges)
