@@ -12,6 +12,9 @@ on:
       - 'src/modules/crm/views/CrmRecordDetailView.vue'
       - 'src/modules/pricing/views/PricingRateReadOnlyView.vue'
       - 'src/modules/pricing/components/PricingRateDetailDrawer.vue'
+      - 'src/modules/agent/views/AgentExecutionDetailView.vue'
+      - 'src/modules/agent/stores/agentStore.ts'
+      - 'tests/agentModule.test.ts'
       - 'tests/realtimeF4Manager.test.ts'
       - 'tests/realtimeF4Browser.mjs'
       - 'tests/fixtures/realtime-f4-browser.html'
@@ -52,6 +55,7 @@ jobs:
           pnpm run test:crm
           pnpm run test:pricing-multi-poe
           pnpm run test:multi-quo
+          pnpm run test:agent
       - name: Type-check entire Vue app
         run: pnpm run type-check
       - name: Build production bundle with realtime OFF
