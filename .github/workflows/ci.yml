@@ -20,10 +20,8 @@ jobs:
         run: corepack enable
       - name: Install
         run: pnpm install --frozen-lockfile
-      # The SEO/marketing modules are not present in the current DholeWeb tree.
-      # Run existing public-origin regressions instead of unresolved pnpm scripts.
-      - name: Public origin route and contact regression tests
-        run: node --test tests/publicOriginContactPolicy.test.ts tests/publicOriginDirectory.test.ts
+      # Develop has no SEO/marketing scripts or public origin test files.
+      # Existing agent, Pricing, CRM, locale and build validations run below.
       - name: Agent module tests
         run: pnpm run test:agent
       - name: Pricing rate update regression tests
