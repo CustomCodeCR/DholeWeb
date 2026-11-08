@@ -1,6 +1,7 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue'
 import {
   type RealtimeKind,
+  type RealtimeObserver,
   type RealtimeSnapshot,
   type RealtimeInvalidation,
 } from '@/core/realtime/realtimeManager'
@@ -23,6 +24,11 @@ export function useResourceRealtime<T>(config: {
   applySnapshot: (snapshot: RealtimeSnapshot<T>) => void
   onDenied?: () => void
   onError?: (error: unknown) => void
+  /** Inject a test transport to mount real Vue components without enabling a release flag. */
+  transport?: {
+    subscribe: (observer: RealtimeObserver<T>) => () => void
+    resume: (kind: RealtimeKind, id: string) => void
+  }
 }) {
   const conflict = ref(false)
   const conflictSnapshot = ref<RealtimeSnapshot<T> | null>(null)
@@ -35,7 +41,7 @@ export function useResourceRealtime<T>(config: {
     if (!id) return
     const boundId = id
     try {
-      unsubscribe = subscribeUniversalRealtime({
+      unsubscribe = (config.transport?.subscribe ?? subscribeUniversalRealtime)({
         kind: config.kind,
         id: boundId,
         visible: config.visible,
@@ -65,7 +71,8 @@ export function useResourceRealtime<T>(config: {
     if (config.dirty?.()) return
     conflict.value = false
     conflictSnapshot.value = null
-    if (config.id.value) universalRealtimeManager.resume(config.kind, config.id.value)
+    if (config.id.value) (config.transport?.resume ?? ((kind, id) =>
+      universalRealtimeManager.resume(kind, id)))(config.kind, config.id.value)
   }
 
   onScopeDispose(() => {
