@@ -44,6 +44,16 @@ const step5ValidityFrom = ref('')
 const step5ValidityTo = ref('')
 const step5ExpandedComments = reactive<Record<string, boolean>>({})
 
+// A source alternative is still represented by its group's single card.
+// Keep the selected badge/ring active when that alternative RateId was chosen.
+function step5IsBundleSelected(bundle: FclRateBundle & { groupedAlternatives?: FclRateBundle[] }): boolean {
+  return [bundle, ...(bundle.groupedAlternatives ?? [])].some((option) =>
+    multiCarrierSelectionMode.value
+      ? isSelectedFclBundle(option.carrierId, option.carrier, option.key)
+      : selectedFclBundleKey.value === option.key,
+  )
+}
+
 const step5InvalidDateRange = computed(() =>
   Boolean(step5ValidityFrom.value && step5ValidityTo.value && step5ValidityFrom.value > step5ValidityTo.value),
 )
@@ -84,6 +94,17 @@ const step5UniqueFclBundleCount = computed(() =>
 )
 `
   code = replaceOnce(code, state, state + logic, 'date and comment state')
+
+  // A grouped source can be chosen independently, while its displayed card
+  // continues to show the selection ring and the selected badge.
+  code = code.replaceAll(
+    'multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key',
+    'step5IsBundleSelected(bundle)',
+  )
+  code = code.replaceAll(
+    'multiCarrierSelectionMode && isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key)',
+    'multiCarrierSelectionMode && step5IsBundleSelected(bundle)',
+  )
 
   code = wrapSelectableCard(code, 'bundle in visibleFclRateBundles', 'bundle in step5VisibleFclRateBundles', 'chooseFclRateBundle(bundle)')
   code = wrapSelectableCard(code, 'rate in sortedAvailableRates', 'rate in step5VisibleAvailableRates', 'chooseRate(rate)')
