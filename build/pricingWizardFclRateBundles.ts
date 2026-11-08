@@ -159,19 +159,9 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
   })
 })
 
-// Declare the FCL bundle before calculating coverage. Vue may read coverage
-// during initial setup; forward references to a later const are unsafe (TDZ).
-// Coverage is the number of independent COMMERCIAL offers that a user can
-// select, not the number of imported source rows returned by the API.
-const fclRateCoverage = computed(() =>
-  fclRateRequirements.value.map((requirement) => ({
-    ...requirement,
-    rawCount: (fclRatesByContainer.value[requirement.containerTypeId] ?? []).length,
-    availableCount: uniqueVisibleFclBundles(fclRateBundles.value)
-      .filter((bundle) => bundle.lines.some((line) => line.containerTypeId === requirement.containerTypeId)).length,
-  })),
-)
-
+// Equipment badges derive their counts from fclRateRequirements directly.
+// Avoid a bundle-derived computed coverage chain during setup: reading it
+// before all reactive declarations exist can cause a TDZ ReferenceError.
 const fclCarrierFilterOptions = computed(() => {
   const carriers = new Map<string, string>()
   fclRateBundles.value.forEach((bundle) => {
