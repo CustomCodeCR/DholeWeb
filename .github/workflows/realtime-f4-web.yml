@@ -1,0 +1,67 @@
+name: Realtime F4 Vue singleton + offline gate (isolated)
+on:
+  push:
+    branches: [feature/dhole-realtime-universal-rt-20261107-01]
+    paths:
+      - 'src/core/realtime/realtimeManager.ts'
+      - 'src/core/realtime/universalRealtime.ts'
+      - 'src/core/realtime/useResourceRealtime.ts'
+      - 'src/App.vue'
+      - 'src/shared/components/organisms/DholeRealtimeStatus.vue'
+      - 'src/shared/components/layouts/MainLayout.vue'
+      - 'src/modules/crm/views/CrmRecordDetailView.vue'
+      - 'src/modules/pricing/views/PricingRateReadOnlyView.vue'
+      - 'src/modules/pricing/components/PricingRateDetailDrawer.vue'
+      - 'tests/realtimeF4Manager.test.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'version.json'
+      - '.github/workflows/realtime-f4-web.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rt-20261107-01-f4-vue
+  cancel-in-progress: true
+jobs:
+  f4-vue-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      VITE_DHOLE_REALTIME_ENABLED: "false"
+      VITE_DHOLE_REALTIME_BATCH_APPROVED: "false"
+      VITE_DHOLE_REALTIME_RELEASE: "rt-20261107-01"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - name: Enable corepack
+        run: corepack enable
+      - name: Frozen dependencies (no package drift)
+        run: pnpm install --frozen-lockfile
+      - name: Check release metadata
+        run: pnpm run version:check
+      - name: F4 gate - 100 mounts, 30 reconnects, 30 initial failures, conflicts
+        run: node --test tests/realtimeF4Manager.test.ts
+      - name: CRM and Pricing regression suites
+        run: |
+          pnpm run test:crm
+          pnpm run test:pricing-multi-poe
+          pnpm run test:multi-quo
+      - name: Type-check entire Vue app
+        run: pnpm run type-check
+      - name: Build production bundle with realtime OFF
+        run: pnpm run build
+      - name: Confirm no live realtime flag can be enabled by default
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const s=fs.readFileSync('src/core/realtime/universalRealtime.ts','utf8'); if(!s.includes('VITE_DHOLE_REALTIME_BATCH_APPROVED')||!s.includes('VITE_DHOLE_REALTIME_ENABLED'))process.exit(1);console.log('PASS: batch-gated realtime OFF by default');"
+      - name: Upload F4 CI results (no deployment)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rt-20261107-01-f4-vue-gate
+          path: |
+            node_modules/.tmp/tsconfig.app.tsbuildinfo
+          if-no-files-found: ignore
