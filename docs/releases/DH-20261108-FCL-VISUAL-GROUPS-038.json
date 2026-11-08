@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261108-FCL-VISUAL-GROUPS-038",
+  "ecosystemVersion": "1.12.7",
+  "releaseType": "PATCH",
+  "createdAt": "2026-11-08",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.12.6",
+      "to": "1.12.7"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "from": "1.5.8",
+      "to": "1.5.9"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "version": "1.12.0",
+      "status": "unchanged"
+    }
+  ],
+  "changes": [
+    "Group visually identical FCL Screen 5 cards while retaining each real source as a selectable collapsed alternative",
+    "Preserve genuinely different visible commercial conditions and non-overlapping validity",
+    "Regression MAERSK Caldera November 04/05"
+  ],
+  "validation": "pending CI and staging",
+  "productionDeploymentAuthorized": false
+}
