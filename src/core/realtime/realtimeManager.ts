@@ -62,6 +62,7 @@ interface Watcher {
   version: number | null
   conflictVersion: number | null
   inFlight: Promise<void> | null
+  queuedRefresh: { reason: RefreshReason; event: RealtimeInvalidation | null } | null
   denied: boolean
 }
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -226,7 +227,8 @@ export class RealtimeManager {
       applySnapshot: observer.applySnapshot as Watcher['applySnapshot'],
       onConflict: observer.onConflict as Watcher['onConflict'],
       onDenied: observer.onDenied, onError: observer.onError,
-      version: observer.initialVersion ?? null, conflictVersion: null, inFlight: null, denied: false,
+      version: observer.initialVersion ?? null, conflictVersion: null, inFlight: null,
+      queuedRefresh: null, denied: false,
     }
     let set = this.watchers.get(key)
     const first = !set
@@ -273,6 +275,7 @@ export class RealtimeManager {
     const ws = this.socket
     this.socket = null
     this.frameBuffer = ''
+    this.pending.clear()
     if (this.handshakeReject) this.handshakeReject(new Error('Realtime session ended.'))
     this.handshakeResolve = null
     this.handshakeReject = null
@@ -431,7 +434,11 @@ export class RealtimeManager {
     if (this.stopped || watcher.denied || !watcher.visible() || !this.runtime.online() ||
       !this.runtime.pageVisible() ||
       !this.watchers.get(watcher.key)?.has(watcher)) return
-    if (watcher.inFlight) return watcher.inFlight
+    if (watcher.inFlight) {
+      // An event arriving during an older REST GET must not be lost.
+      watcher.queuedRefresh = { reason, event }
+      return watcher.inFlight
+    }
     const epoch = this.generation
     const task = (async () => {
       try {
@@ -470,7 +477,14 @@ export class RealtimeManager {
     })()
     watcher.inFlight = task
     try { await task } finally {
-      if (watcher.inFlight === task) watcher.inFlight = null
+      if (watcher.inFlight === task) {
+        watcher.inFlight = null
+        const queued = watcher.queuedRefresh
+        watcher.queuedRefresh = null
+        if (queued && !this.stopped && epoch === this.generation &&
+          this.watchers.get(watcher.key)?.has(watcher))
+          void this.reconcile(watcher, queued.reason, queued.event)
+      }
     }
   }
 
