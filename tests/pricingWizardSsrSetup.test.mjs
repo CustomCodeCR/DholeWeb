@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createSSRApp, h } from 'vue'
 import { createPinia } from 'pinia'
+import { createI18n } from 'vue-i18n'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { renderToString } from 'vue/server-renderer'
 import { createServer } from 'vite'
@@ -40,6 +41,7 @@ test('Crear tarifa: transformed wizard setup must render on a clean session', { 
     const app = createSSRApp({ render: () => h(Wizard, { rateId: null, viewOnly: false }) })
     app.use(createPinia())
     app.use(router)
+    app.use(createI18n({ legacy: false, locale: 'es', messages: { es: {} } }))
     const markup = await renderToString(app)
     assert.match(markup, /Crear tarifa|pricing-crystal-shell/, 'Wizard needs to produce real HTML, not an error boundary')
   } finally {
