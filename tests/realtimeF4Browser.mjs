@@ -49,7 +49,12 @@ async function createPage(user) {
   const page = await context.newPage()
   page.on('pageerror', error => errors.push({ user, error: String(error) }))
   page.on('console', msg => {
-    if (msg.type() === 'error') errors.push({ user, console: msg.text() })
+    if (msg.type() !== 'error') return
+    // Chromium reports a deliberately denied GET as a console network error.
+    // That single 403 for user C is expected and separately asserted below.
+    if (user === 'C' &&
+        msg.text().includes('403 (Forbidden)')) return
+    errors.push({ user, console: msg.text() })
   })
   await page.goto(url + '/tests/fixtures/realtime-f4-browser.html?user=' + user, {
     waitUntil: 'networkidle',
