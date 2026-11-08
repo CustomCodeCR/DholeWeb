@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261108-FCL-OFFER-COVERAGE-042",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.12.11",
+  "createdAt": "2026-11-08",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.12.10",
+      "to": "1.12.11"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "from": "1.5.12",
+      "to": "1.5.13"
+    }
+  ],
+  "changes": [
+    "Count distinct displayed FCL offers rather than 108 imported source records",
+    "Preserve differences in comments, charges, transit, source profile, rates and currency while merging genuinely identical duplicates",
+    "Highlight only the explicitly selected source RateId on the active POE, and show a separate configured-carrier badge",
+    "Use stable source keys for reload selection"
+  ],
+  "validation": "CI and staging required before master release",
+  "productionDeploymentAuthorized": true
+}
