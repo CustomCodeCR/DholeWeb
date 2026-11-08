@@ -200,8 +200,8 @@ test('F4 gate: 30 initial negotiation failures recover with jittered backoff', a
   host.initialFailures = 30
   await host.start()
   assert.equal(host.manager.status, 'degraded')
-  // Thirty failed retries, then the thirty-first scheduled attempt succeeds.
-  for (let i = 0; i < 31; i++) await host.clock.advanceNext()
+  // Initial start consumes failure #1, 29 retry failures, then a successful retry.
+  for (let i = 0; i < 30; i++) await host.clock.advanceNext()
   assert.equal(host.initialFailures, 0)
   assert.equal(host.manager.status, 'connected')
   assert.equal(host.sockets.length, 1)
