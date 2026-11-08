@@ -10,6 +10,16 @@ export function validatePricingModificationSaveBindings(source: string): void {
     throw new Error('[pricing-save-binding] Wizard script setup was not found')
   }
   const script = source.slice(scriptStart, scriptEnd)
+  // Pricing FCL state is injected by a pre-Vue transform. Another transform
+  // replaces the carrier filter block, so guard the final SFC before Vue compiles.
+  if (script.includes('function chooseFclRateBundle(bundle: FclRateBundle)')) {
+    const definitions = script.match(/\\bconst\\s+selectedFclBundlesByOption\\s*=\\s*ref\\s*</g) ?? []
+    const restoreBinding = script.includes('restoreFclBundleForOption = (poeId, carrierId) =>')
+    const exactRateIds = script.includes('selectedFclBundlesByOption.value[optionKey]')
+    if (definitions.length !== 1 || !restoreBinding || !exactRateIds) {
+      throw new Error('[pricing-fcl-selection-binding] FCL selected RateIds must be declared, restored and saved per POE/carrier after all Vite transforms')
+    }
+  }
   const definitions = script.match(/\basync\s+function\s+retrySavedModificationDelivery\s*\(/g) ?? []
   const references = script.match(/\bretrySavedModificationDelivery\s*\(/g) ?? []
   if (definitions.length !== 1 || references.length < 2) {
