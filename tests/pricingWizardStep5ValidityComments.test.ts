@@ -71,8 +71,8 @@ test('comment actions are independently focusable and never select the rate', ()
   assert.match(result, /bundle\.alternativeOffers\.length/)
   assert.match(result, /chooseFclRateBundle\(source\)/)
   assert.match(result, /chooseFclRateBundle\(alternative\)/)
-  assert.equal((result.match(/<button/g) ?? []).length, 7)
-  assert.equal((result.match(/<\/button>/g) ?? []).length, 7)
+  assert.equal((result.match(/<button/g) ?? []).length, 8)
+  assert.equal((result.match(/<\/button>/g) ?? []).length, 8)
 })
 
 test('a selected alternative keeps the parent FCL tariff card highlighted', () => {
