@@ -21,6 +21,7 @@ import { useAgentFormatting } from '@/modules/agent/composables/useAgentFormatti
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useAgentPolling } from '@/modules/agent/composables/useAgentPolling'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
+import { useResourceRealtime } from '@/core/realtime/useResourceRealtime'
 
 type ExecutionTab = 'summary' | 'tasks' | 'result' | 'activity' | 'prompt' | 'captures' | 'errors'
 
@@ -60,6 +61,37 @@ const polling = useAgentPolling({
   refresh: () => refresh(false),
   intervalMs: 5000,
 })
+
+/** F6.12: read-only Agent execution detail follows the universal Hub.
+ * A SignalR message is only an invalidation; owner REST remains authoritative.
+ * Existing polling stays as the offline/disabled-feature fallback.
+ */
+useResourceRealtime<AgentExecutionDto>({
+  kind: 'agent.execution',
+  id: executionId,
+  fetchSnapshot: async (id) => ({
+    value: await AgentService.executions.get(id),
+    version: null, // Agent DTO does not expose a global aggregate revision.
+  }),
+  applySnapshot: (snapshot) => {
+    execution.value = snapshot.value
+    store.upsertExecution(snapshot.value)
+    polling.sync()
+    if (['Completed', 'PartiallyCompleted'].includes(snapshot.value.status)) {
+      void loadStoredResult()
+    }
+  },
+  onDenied: () => {
+    // Purge previously visible privileged details when owner REST revokes access.
+    execution.value = null
+    storedResult.value = null
+    promptSnapshot.value = null
+    promptLoaded.value = false
+    promptUnavailable.value = false
+    polling.stop()
+  },
+})
+
 
 const canCancel = computed(
   () =>
