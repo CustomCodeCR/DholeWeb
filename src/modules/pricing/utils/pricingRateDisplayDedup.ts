@@ -170,8 +170,8 @@ function sameVisibleBundleLines(left: FclDisplayBundle, right: FclDisplayBundle)
   const b = [...right.lines].sort((x, y) => x.containerTypeId.localeCompare(y.containerTypeId))
   return a.every((line, index) => {
     const other = b[index]
-    return Boolean(other)
-      && sameDisplayIdentity(line.containerTypeId, other.containerTypeId)
+    if (!other) return false
+    return sameDisplayIdentity(line.containerTypeId, other.containerTypeId)
       && amount(line.quantity) === amount(other.quantity)
       && amount(line.unitCost) === amount(other.unitCost)
       && amount(line.unitSale) === amount(other.unitSale)
