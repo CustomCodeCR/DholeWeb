@@ -51,6 +51,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { uniqueDisplayRates } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
@@ -337,6 +338,23 @@ const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
+const expandedSavedQuotePanels = ref<Record<string, boolean>>({})
+const primarySavedGroupAlternative = computed(() => {
+  const group = savedQuoteGroup.value
+  return group?.alternatives.find((option) => option.rateId === group.selectedRateId)
+    ?? group?.alternatives.find((option) => option.status === 'Selected')
+    ?? group?.alternatives[0] ?? null
+})
+const orderedSavedGroupRates = computed(() => {
+  const primaryId = primarySavedGroupAlternative.value?.rateId
+  return [...savedGroupRates.value].sort((left, right) => Number(right.id === primaryId) - Number(left.id === primaryId))
+})
+function toggleSavedQuotePanel(rateId: string) {
+  expandedSavedQuotePanels.value = {
+    ...expandedSavedQuotePanels.value,
+    [rateId]: !expandedSavedQuotePanels.value[rateId],
+  }
+}
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
@@ -1718,13 +1736,13 @@ function rateCommentRank(comment?: string | null) {
 }
 
 const sortedAvailableRates = computed(() =>
-  [...availableRates.value].sort((left, right) => {
+  uniqueDisplayRates([...availableRates.value].sort((left, right) => {
     const price = number(left.freight) - number(right.freight)
     if (price !== 0) return price
     const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)
     if (comment !== 0) return comment
     return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
-  }),
+  })),
 )
 
 function remainingValidityDays(validTo: string) {
@@ -2339,7 +2357,9 @@ const showSingleRoutePreview = computed(() =>
   !hasSavedMultiQuote.value && (!multiCarrierSelectionMode.value || carrierRouteCount.value === 1),
 )
 const savedMultiQuotePreviewCards = computed(() => {
-  const alternatives = savedQuoteGroup.value?.alternatives ?? []
+  const primaryId = primarySavedGroupAlternative.value?.rateId
+  const alternatives = [...(savedQuoteGroup.value?.alternatives ?? [])]
+    .sort((left, right) => Number(right.rateId === primaryId) - Number(left.rateId === primaryId))
   const byId = new Map(savedGroupRates.value.map((rate) => [rate.id, rate]))
   return alternatives.flatMap((alternative, index) => {
     const rate = byId.get(alternative.rateId)
@@ -4364,8 +4384,22 @@ async function selectCommercialGroupAlternative(rateId: string) {
   if (!savedQuoteGroup.value) return
   try {
     await PricingService.selectRateGroup(rateId)
-    savedQuoteGroup.value = await PricingService.getRateGroup(rateId)
-    toastStore.success('Alternativa elegida', 'La sub-QUO seleccionada es la unica que podra aceptarse en el grupo.')
+    const refreshed = await PricingService.getRateGroup(rateId)
+    if (!refreshed || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected')) {
+      throw new Error('Pricing no confirmó la sub-QUO principal seleccionada.')
+    }
+    savedQuoteGroup.value = refreshed
+    expandedSavedQuotePanels.value = { ...expandedSavedQuotePanels.value, [rateId]: true }
+    toastStore.success('Sub-QUO principal actualizada', 'La alternativa elegida será la principal comercial; las demás permanecen como opciones.')
+    if (props.rateId !== rateId) {
+      await router.push({
+        name: 'pricing-rate-wizard',
+        params: { rateId },
+        query: { mode: props.viewOnly ? 'view' : 'edit' },
+      })
+    } else {
+      await hydrateExistingRate()
+    }
   } catch (error) {
     toastStore.backendError(error, 'No se pudo seleccionar la sub-QUO.')
   }
@@ -6313,6 +6347,10 @@ watch(step, (value) => {
   }
 })
 
+watch(() => props.rateId, async (nextRateId, previousRateId) => {
+  if (nextRateId && nextRateId !== previousRateId) await hydrateExistingRate()
+})
+
 onMounted(async () => {
   await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])
   if (props.rateId) await hydrateExistingRate()
@@ -6353,20 +6391,20 @@ onMounted(async () => {
       </div>
       <div v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p class="text-sm font-black">Alternativas de la QUO {{ savedQuoteGroup.parentQuoteNumber }}</p>
+          <p class="text-sm font-black">Principal: {{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup.parentQuoteNumber }} · Grupo {{ savedQuoteGroup.parentQuoteNumber }}</p>
           <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
         </div>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <div v-for="option in savedQuoteGroup.alternatives" :key="option.rateId"
             class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs"
-            :class="option.rateId === editingRate.id ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'">
+            :class="option.rateId === primarySavedGroupAlternative?.rateId ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'">
             <button type="button" class="block w-full text-left hover:text-[var(--dh-primary)]"
               @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
               <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
               <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
               <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
             </button>
-            <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Alternativa seleccionada</span>
+            <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Sub-QUO principal seleccionada</span>
             <button v-else-if="authStore.hasScope('pricing.rate.update')" type="button"
               class="mt-2 rounded-lg border border-[var(--dh-border)] px-2 py-1.5 font-bold hover:border-[var(--dh-primary)]"
               @click="selectCommercialGroupAlternative(option.rateId)">
@@ -7676,8 +7714,9 @@ onMounted(async () => {
             <div class="crystal-soft p-4 md:p-5">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Tarifa principal · FCL</p>
-                  <h3 class="mt-1 text-xl font-black">{{ savedQuoteGroup?.parentQuoteNumber }} · {{ savedQuoteGroup?.alternatives.length }} subQUO</h3>
+                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Sub-QUO principal · FCL</p>
+                  <h3 class="mt-1 text-xl font-black">{{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup?.parentQuoteNumber }}</h3>
+                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup?.parentQuoteNumber }} · {{ savedQuoteGroup?.alternatives.length }} alternativas</p>
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Despliegue cada alternativa guardada para consultar sus líneas y totales. Las alternativas son independientes; sus montos no se suman.</p>
                 </div>
                 <DhBadge variant="primary">{{ selectedPoeIds.length }} POE</DhBadge>
@@ -7688,13 +7727,13 @@ onMounted(async () => {
               </div>
             </div>
             <div class="space-y-3">
-              <details v-for="preview in savedMultiQuotePreviewCards" :key="preview.key" :open="preview.index === 0" class="crystal-soft group overflow-hidden">
-                <summary class="cursor-pointer list-none px-4 py-4 marker:hidden md:px-5" :aria-label="'Desplegar subQUO ' + (preview.rate.quoNumber || preview.rate.rateCode)">
+              <details v-for="preview in savedMultiQuotePreviewCards" :key="preview.key" :open="Boolean(expandedSavedQuotePanels[preview.key])" class="crystal-soft group overflow-hidden">
+                <summary class="cursor-pointer list-none px-4 py-4 marker:hidden md:px-5" :aria-expanded="Boolean(expandedSavedQuotePanels[preview.key])" :aria-label="'Desplegar u ocultar subQUO ' + (preview.rate.quoNumber || preview.rate.rateCode)" @click.prevent="toggleSavedQuotePanel(preview.key)">
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex min-w-0 flex-1 items-start gap-3">
                       <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-sm font-black text-[var(--dh-primary)]">{{ preview.index + 1 }}</span>
                       <div class="min-w-0">
-                        <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">{{ preview.rate.quoNumber || preview.rate.rateCode }} · Subtarifa {{ preview.index + 1 }} / {{ savedQuoteGroup?.alternatives.length }}</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">{{ preview.rate.quoNumber || preview.rate.rateCode }} · Subtarifa {{ preview.index + 1 }} / {{ savedQuoteGroup?.alternatives.length }} <span v-if="preview.key === primarySavedGroupAlternative?.rateId" class="text-[var(--dh-primary)]">· PRINCIPAL SELECCIONADA</span></p>
                         <h4 class="mt-0.5 text-base font-black text-[var(--dh-text)]">{{ preview.rate.poeName }} · {{ preview.rate.carrierName || preview.option.carrierName }}</h4>
                         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preview.option.haulageMode === 'Merchant' ? 'Merchant Haulage' : 'Carrier Haulage' }} · Agente: {{ preview.rate.agentName || 'Sin asignar' }} · {{ preview.rate.rateDetails.length }} rubros</p>
                       </div>
@@ -7705,6 +7744,7 @@ onMounted(async () => {
                         <strong class="text-base text-[var(--dh-primary)]">{{ formatMoney(preview.sale, preview.currency) }}</strong>
                         <p class="text-[10px] text-[var(--dh-text-muted)]">Margen {{ preview.margin.toFixed(2) }}%</p>
                       </div>
+                      <span class="text-xs font-semibold text-[var(--dh-primary)]">{{ expandedSavedQuotePanels[preview.key] ? 'Ocultar' : 'Desplegar' }}</span>
                       <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" />
                     </div>
                   </div>
@@ -8046,18 +8086,19 @@ onMounted(async () => {
           <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Cotización multiQUO</p>
-              <h3 class="mt-1 text-xl font-black">{{ savedQuoteGroup.parentQuoteNumber }}</h3>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
+              <h3 class="mt-1 text-xl font-black">Principal: {{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup.parentQuoteNumber }}</h3>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
-            <details v-for="subRate in savedGroupRates" :key="subRate.id" class="crystal-soft group overflow-hidden" :open="subRate.id === editingRate.id">
-              <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 marker:hidden md:p-5">
+            <details v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft group overflow-hidden" :open="Boolean(expandedSavedQuotePanels[subRate.id])">
+              <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 marker:hidden md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click.prevent="toggleSavedQuotePanel(subRate.id)">
                 <div class="min-w-0">
-                  <p class="text-xs font-black text-[var(--dh-primary)]">{{ subRate.quoNumber || subRate.rateCode }}</p>
+                  <p class="text-xs font-black text-[var(--dh-primary)]">{{ subRate.quoNumber || subRate.rateCode }} <span v-if="subRate.id === primarySavedGroupAlternative?.rateId">· PRINCIPAL SELECCIONADA</span></p>
                   <h4 class="mt-1 text-base font-black">{{ subRate.poeName }} · {{ subRate.carrierName || 'Naviera sin asignar' }}</h4>
                   <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ subRate.polName }} → {{ subRate.poeName }} → {{ subRate.podName || 'POD pendiente' }} · {{ savedQuoteGroup.alternatives.find(item => item.rateId === subRate.id)?.haulageMode === 'Merchant' ? 'Merchant Haulage' : 'Carrier Haulage' }}</p>
                 </div>
                 <div class="flex items-center gap-3">
                   <strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), savedRateCurrencyValue(subRate)) }}</strong>
+                  <span class="text-xs font-semibold text-[var(--dh-primary)]">{{ expandedSavedQuotePanels[subRate.id] ? 'Ocultar' : 'Desplegar' }}</span>
                   <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] group-open:rotate-180" />
                 </div>
               </summary>
