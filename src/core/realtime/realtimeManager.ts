@@ -21,6 +21,7 @@ export interface RealtimeSnapshot<T> { value: T; version: number | null }
 export interface RealtimeObserver<T> {
   kind: RealtimeKind
   id: string
+  initialVersion?: number | null
   visible?: () => boolean
   dirty?: () => boolean
   fetchSnapshot: () => Promise<RealtimeSnapshot<T>>
@@ -139,7 +140,7 @@ export class RealtimeManager {
       this.changeState('unauthorized')
       return
     }
-    const changed = this.identity !== identity.toLowerCase()
+    const changed = this.identity != null && this.identity !== identity.toLowerCase()
     if (changed) this.stop()
     this.identity = identity.toLowerCase()
     this.tokenProvider = token
@@ -179,6 +180,7 @@ export class RealtimeManager {
     this.generation++
     this.clearTimers()
     this.closeSocket()
+    this.connecting = null
     this.attempt = 0
     for (const set of this.watchers.values())
       for (const watcher of set) watcher.denied = false
@@ -192,6 +194,7 @@ export class RealtimeManager {
       this.generation++
       this.clearTimers()
       this.closeSocket()
+      this.connecting = null
       this.changeState('offline')
       return
     }
@@ -222,7 +225,7 @@ export class RealtimeManager {
       applySnapshot: observer.applySnapshot as Watcher['applySnapshot'],
       onConflict: observer.onConflict as Watcher['onConflict'],
       onDenied: observer.onDenied, onError: observer.onError,
-      version: null, conflictVersion: null, inFlight: null, denied: false,
+      version: observer.initialVersion ?? null, conflictVersion: null, inFlight: null, denied: false,
     }
     let set = this.watchers.get(key)
     const first = !set
