@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.4] - 2026-11-08
+
+- Pantalla 8: corrige los acordeones de sub-QUO en vista sin habilitar acciones de edición.
+- Pantalla 5 FCL: filtra duplicados en las tarjetas finales incluso cuando la importación incluye metadatos o vigencias distintas pero superpuestas.
+- Conserva tarifas con precios, rutas, proveedores, equipos y condiciones realmente distintos, y conserva registros de origen.
+- Pruebas de regresión de tarjeta MAERSK y apertura de paneles en vista.
+- Release coordinado `DH-20261108-PRICING-VIEW-ACCORDION-FCL-UNIQUE-035`, CI y staging obligatorios.
+
 ## [1.12.3] - 2026-11-08
 
 - Agenda CRM: mantiene los botones Guardar/Cancelar visibles en un pie de modal fijo, aunque haya muchos campos y se desplace el formulario.
