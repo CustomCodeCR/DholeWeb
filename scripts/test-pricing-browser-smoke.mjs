@@ -4,7 +4,11 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 const base = 'http://127.0.0.1:5188'
 const debugBase = 'http://127.0.0.1:9229'
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5188', '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] })
+const productionBundle = process.env.DHOLE_PRICING_RUNTIME_SMOKE === '1'
+const serveArgs = productionBundle
+  ? ['node_modules/vite/bin/vite.js', 'preview', '--outDir', 'dist-smoke', '--host', '127.0.0.1', '--port', '5188', '--strictPort']
+  : ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5188', '--strictPort']
+const vite = spawn(process.execPath, serveArgs, { stdio: ['ignore', 'pipe', 'pipe'] })
 let viteLog = ''
 vite.stdout.on('data', (chunk) => viteLog += chunk)
 vite.stderr.on('data', (chunk) => viteLog += chunk)

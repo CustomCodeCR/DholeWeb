@@ -40,7 +40,11 @@ jobs:
         run: node --test tests/pricingWizardSsrSetup.test.mjs
       - name: Inspect production Pricing bundle symbol W (TDZ root cause)
         run: node scripts/diagnose-pricing-bundle.mjs
-      - name: Mount Pricing wizard in headless Chrome (detect TDZ)
+      - name: Compile browser smoke using production Vite minification
+        run: DHOLE_PRICING_RUNTIME_SMOKE=1 pnpm exec vite build --outDir dist-smoke
+      - name: Mount production Pricing wizard in headless Chrome (detect TDZ)
         run: node scripts/test-pricing-browser-smoke.mjs
+        env:
+          DHOLE_PRICING_RUNTIME_SMOKE: '1'
       - name: Verify IDTRA action survived production bundle compilation
         run: node --test tests/pricingIdtraBundle.test.mjs

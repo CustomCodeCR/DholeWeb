@@ -252,6 +252,14 @@ export default defineConfig({
     tailwindcss(),
   ],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // Separate CI-only HTML entry for a real production/minified wizard mount.
+  // The normal production build remains unchanged when this flag is absent.
+  ...(process.env.DHOLE_PRICING_RUNTIME_SMOKE === '1'
+    ? { build: { rollupOptions: { input: {
+        app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        pricingSmoke: fileURLToPath(new URL('./tests/fixtures/pricing-wizard-smoke.html', import.meta.url)),
+      } } } }
+    : {}),
   server: { host: '0.0.0.0', port: 5173, strictPort: true },
   preview: { host: '0.0.0.0', port: 5173, strictPort: true },
 })
