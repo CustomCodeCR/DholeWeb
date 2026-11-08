@@ -21,10 +21,14 @@ export function pricingRateDisplayKey(rate: ImportRateSelectDto): string {
     normalized(rate.containerTypeId || rate.containerType),
     normalized(rate.currencyId || rate.currency),
     amount(rate.freight),
+    amount(rate.oceanFreight ?? rate.freight),
+    amount(rate.totalCost ?? rate.freight),
     amount(rate.totalSale ?? rate.freight),
     amount(rate.originCharges),
     amount(rate.destinationCharges),
     amount(rate.surcharges),
+    normalized(rate.sourceType),
+    normalized(rate.importProfileId || rate.importProfileName),
     amount(rate.freeDays),
     amount(rate.transitDays),
     normalized(rate.spaceComment),
@@ -136,36 +140,65 @@ function sameOptionalCommercialTerm(left: string | null | undefined, right: stri
 function sameCatalogOrName(
   leftId: string, leftName: string, rightId: string, rightName: string,
 ): boolean {
-  // Match named providers across differing import/catalog identifiers.
-  // Two different known providers must remain separate even at equal prices.
-  if (normalized(leftName) && normalized(rightName)) return sameDisplayIdentity(leftName, rightName)
-  if (normalized(leftId) && normalized(rightId)) return sameDisplayIdentity(leftId, rightId)
+  // Catalog IDs are authoritative: imports can give the same carrier/agent/
+  // currency different display labels, including localizations and aliases.
+  // Conversely, matching names let equivalent legacy IDs collapse.
+  if (normalized(leftId) && sameDisplayIdentity(leftId, rightId)) return true
+  if (normalized(leftName) && sameDisplayIdentity(leftName, rightName)) return true
+  if (normalized(leftId) && normalized(rightId)) return false
+  if (normalized(leftName) && normalized(rightName)) return false
   return !normalized(leftId) || !normalized(rightId)
 }
 
-function sameBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
+function sameOptionalCatalogTerm(
+  leftId: string | null | undefined,
+  leftName: string | null | undefined,
+  rightId: string | null | undefined,
+  rightName: string | null | undefined,
+): boolean {
+  // Always compare the canonical route identity before an imported label:
+  // e.g. POE "Caldera" and "Puerto Caldera, Costa Rica" are one port when
+  // the catalog POE ID matches. An absent source label does not create a
+  // separate commercial offer, but contradictory known routes remain distinct.
+  if (normalized(leftId) && sameDisplayIdentity(leftId, rightId)) return true
+  if (normalized(leftName) && sameDisplayIdentity(leftName, rightName)) return true
+  if (normalized(leftId) && normalized(rightId)) return false
+  return sameOptionalCommercialTerm(leftName || leftId, rightName || rightId)
+}
+
+// Group by what Screen 5 actually displays. Hidden source comments, transit
+// and imported metadata are selectable alternatives, not duplicate cards.
+function sameVisibleBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
   if (left.lines.length !== right.lines.length) return false
-  const leftSorted = [...left.lines].sort((a, b) => a.containerTypeId.localeCompare(b.containerTypeId))
-  const rightSorted = [...right.lines].sort((a, b) => a.containerTypeId.localeCompare(b.containerTypeId))
-  return leftSorted.every((line, index) => {
-    const other = rightSorted[index]
+  const a = [...left.lines].sort((x, y) => x.containerTypeId.localeCompare(y.containerTypeId))
+  const b = [...right.lines].sort((x, y) => x.containerTypeId.localeCompare(y.containerTypeId))
+  return a.every((line, index) => {
+    const other = b[index]
     if (!other) return false
     return sameDisplayIdentity(line.containerTypeId, other.containerTypeId)
       && amount(line.quantity) === amount(other.quantity)
       && amount(line.unitCost) === amount(other.unitCost)
       && amount(line.unitSale) === amount(other.unitSale)
-      && sameOptionalCommercialTerm(line.rate.pol || line.rate.polId, other.rate.pol || other.rate.polId)
-      && sameOptionalCommercialTerm(line.rate.poe || line.rate.poeId, other.rate.poe || other.rate.poeId)
-      && sameOptionalCommercialTerm(line.rate.pod || line.rate.podId, other.rate.pod || other.rate.podId)
-      && sameOptionalCommercialTerm(line.rate.spaceComment, other.rate.spaceComment)
-      && sameOptionalCommercialTerm(line.rate.commodity, other.rate.commodity)
+      // Hidden terms can be materially different despite identical totals.
+      // Never collapse a distinct provider cost, charge, shipment comment,
+      // transit time, import profile or source type just because the card
+      // summary initially displays the same USD freight.
+      && amount(line.rate.oceanFreight ?? line.rate.freight) === amount(other.rate.oceanFreight ?? other.rate.freight)
+      && amount(line.rate.totalCost ?? line.rate.freight) === amount(other.rate.totalCost ?? other.rate.freight)
       && amount(line.rate.originCharges) === amount(other.rate.originCharges)
       && amount(line.rate.destinationCharges) === amount(other.rate.destinationCharges)
       && amount(line.rate.surcharges) === amount(other.rate.surcharges)
+      && amount(line.rate.transitDays) === amount(other.rate.transitDays)
+      && normalized(line.rate.spaceComment) === normalized(other.rate.spaceComment)
+      && normalized(line.rate.commodity) === normalized(other.rate.commodity)
+      && normalized(line.rate.sourceType) === normalized(other.rate.sourceType)
+      && normalized(line.rate.importProfileId || line.rate.importProfileName) === normalized(other.rate.importProfileId || other.rate.importProfileName)
+      && sameOptionalCatalogTerm(line.rate.polId, line.rate.pol, other.rate.polId, other.rate.pol)
+      && sameOptionalCatalogTerm(line.rate.poeId, line.rate.poe, other.rate.poeId, other.rate.poe)
+      && sameOptionalCatalogTerm(line.rate.podId, line.rate.pod, other.rate.podId, other.rate.pod)
   })
 }
-
-function sameCommercialBundle(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
+function sameVisibleBundle(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
   return sameCatalogOrName(left.carrierId, left.carrier, right.carrierId, right.carrier)
     && sameCatalogOrName(left.agentId, left.agent, right.agentId, right.agent)
     && sameCatalogOrName(left.currencyId, left.currency, right.currencyId, right.currency)
@@ -173,13 +206,12 @@ function sameCommercialBundle(left: FclDisplayBundle, right: FclDisplayBundle): 
     && amount(left.totalSale) === amount(right.totalSale)
     && amount(left.freeDays) === amount(right.freeDays)
     && amount(left.transitDays) === amount(right.transitDays)
-    && sameBundleLines(left, right)
+    && sameVisibleBundleLines(left, right)
     && sameOrOverlappingValidity(
       { validFrom: left.validFrom, validTo: left.validTo },
       { validFrom: right.validFrom, validTo: right.validTo },
     )
 }
-
 function preferCommercialBundle(candidate: FclDisplayBundle, original: FclDisplayBundle) {
   const ends = day(candidate.validTo).localeCompare(day(original.validTo))
   if (ends !== 0) return ends > 0
@@ -192,17 +224,26 @@ function preferCommercialBundle(candidate: FclDisplayBundle, original: FclDispla
   return completeness(candidate) > completeness(original)
 }
 
-export function uniqueVisibleFclBundles<T extends FclDisplayBundle>(bundles: readonly T[]): T[] {
-  const visible: T[] = []
+export function uniqueVisibleFclBundles<T extends FclDisplayBundle>(
+  bundles: readonly T[],
+): Array<T & { groupedAlternatives: T[] }> {
+  const groups: Array<{ primary: T; sources: T[] }> = []
   for (const bundle of bundles) {
-    const index = visible.findIndex((existing) => sameCommercialBundle(existing, bundle))
-    if (index === -1) {
-      visible.push(bundle)
-    } else if (preferCommercialBundle(bundle, visible[index]!)) {
-      // Preserve the original key/id from the selected source record, not a
-      // synthetic combination. The chosen card remains fully selectable.
-      visible[index] = bundle
+    // Require pairwise overlap: A(1-3), B(3-5), C(5-7) must not
+    // merge A and C through B, since A and C never overlap.
+    const group = groups.find(({ sources }) => sources.every((source) => sameVisibleBundle(source, bundle)))
+    if (!group) {
+      groups.push({ primary: bundle, sources: [bundle] })
+      continue
     }
+    if (group.sources.some((source) => source.key === bundle.key)) continue
+    group.sources.push(bundle)
+    if (preferCommercialBundle(bundle, group.primary)) group.primary = bundle
   }
-  return visible
+  // Every underlying source retains its real RateId, including those hidden
+  // behind the 'sources grouped' disclosure. Nothing is deleted or synthesized.
+  return groups.map(({ primary, sources }) => ({
+    ...primary,
+    groupedAlternatives: sources.filter((source) => source.key !== primary.key),
+  }))
 }

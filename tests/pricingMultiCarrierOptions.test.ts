@@ -187,7 +187,8 @@ test('approved FCL tariff cards expose pressed status and a visible selected bad
   const bundles = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
   assert.match(bundles, /:aria-pressed="multiCarrierSelectionMode/)
   assert.match(bundles, /Naviera seleccionada/)
-  assert.match(wizard, /currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+  assert.match(wizard, /return selectedBundleByOption\.value\[route\] === bundleKey/)
+  assert.doesNotMatch(wizard, /currentPoeCarrierIds\.value\.includes\(configuredId\)/)
 })
 
 test('MultiQUO always displays CatalogItem.value and never an internal CUR-2026 code', () => {

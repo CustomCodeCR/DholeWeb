@@ -53,6 +53,20 @@ const fclRatesByContainer = ref<Record<string, ImportRateSelectDto[]>>({})
 const selectedFclBundleKey = ref('')
 const fclSelectedImportRateIds = ref<Record<string, string>>({})
 
+// Keep the chosen tariff per POE/carrier outside the filter block replaced by
+// pricingWizardMixedCarrierExpiry. Selection is tied to the exact RateIds.
+const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string; rateIds: Record<string, string> }>>({})
+// The receiving 'let restoreFclBundleForOption' is declared farther below in
+// the original Vue SFC. Defer assignment until setup has completed to avoid TDZ.
+onMounted(() => {
+  restoreFclBundleForOption = (poeId, carrierId) => {
+    const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
+    selectedFclBundleKey.value = snapshot?.bundleKey ?? ''
+    fclSelectedImportRateIds.value = { ...(snapshot?.rateIds ?? {}) }
+  }
+})
+
+
 function fclRateCarrierFilterKey(rate: ImportRateSelectDto) {
   return String(rate.carrierId || normalizeCatalogValue(String(rate.carrier ?? ''))).trim()
 }
@@ -84,13 +98,6 @@ const fclRateRequirements = computed(() =>
         rates: fclRatesByContainer.value[allocation.containerTypeId] ?? [],
       }))
     : [],
-)
-
-const fclRateCoverage = computed(() =>
-  fclRateRequirements.value.map((requirement) => ({
-    ...requirement,
-    availableCount: requirement.rates.length,
-  })),
 )
 
 const fclRateBundles = computed<FclRateBundle[]>(() => {
@@ -166,6 +173,9 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
   })
 })
 
+// Equipment badges derive their counts from fclRateRequirements directly.
+// Avoid a bundle-derived computed coverage chain during setup: reading it
+// before all reactive declarations exist can cause a TDZ ReferenceError.
 const fclCarrierFilterOptions = computed(() => {
   const carriers = new Map<string, string>()
   fclRateBundles.value.forEach((bundle) => {
@@ -187,14 +197,6 @@ const visibleFclRateBundles = computed(() =>
   ),
 )
 
-const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string; rateIds: Record<string, string> }>>({})
-onMounted(() => {
-  restoreFclBundleForOption = (poeId, carrierId) => {
-    const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
-    selectedFclBundleKey.value = snapshot?.bundleKey ?? ''
-    fclSelectedImportRateIds.value = { ...(snapshot?.rateIds ?? {}) }
-  }
-})
 
 function chooseFclRateBundle(bundle: FclRateBundle) {
   const selectedCarrierOptionId = multiCarrierSelectionMode.value

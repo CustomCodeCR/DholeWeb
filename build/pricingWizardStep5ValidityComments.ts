@@ -44,6 +44,15 @@ const step5ValidityFrom = ref('')
 const step5ValidityTo = ref('')
 const step5ExpandedComments = reactive<Record<string, boolean>>({})
 
+// Highlight only the actual tariff record selected for this POE/carrier.
+// A grouped source is not the parent card's tariff, and selecting a naviera
+// never implies selection of all its offers.
+function step5IsBundleSelected(bundle: FclRateBundle): boolean {
+  return multiCarrierSelectionMode.value
+    ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key)
+    : selectedFclBundleKey.value === bundle.key
+}
+
 const step5InvalidDateRange = computed(() =>
   Boolean(step5ValidityFrom.value && step5ValidityTo.value && step5ValidityFrom.value > step5ValidityTo.value),
 )
@@ -82,8 +91,33 @@ const step5VisibleFclRateBundles = computed(() =>
 const step5UniqueFclBundleCount = computed(() =>
   uniqueVisibleFclBundles(visibleFclRateBundles.value).length,
 )
+// The source-record total does not need FCL bundle coverage to calculate.
+// Missing or partial API arrays must never crash the UI during rendering.
+const step5RawImportRowCount = computed(() =>
+  Object.values(fclRatesByContainer.value ?? {}).reduce(
+    (total, rates) => total + (Array.isArray(rates) ? rates.length : 0), 0,
+  ),
+)
 `
   code = replaceOnce(code, state, state + logic, 'date and comment state')
+
+  // A grouped source can be chosen independently, while its displayed card
+  // continues to show the selection ring and the selected badge.
+  code = code.replaceAll(
+    'multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key',
+    'step5IsBundleSelected(bundle)',
+  )
+  code = code.replaceAll(
+    'multiCarrierSelectionMode && isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key)',
+    'multiCarrierSelectionMode && step5IsBundleSelected(bundle)',
+  )
+
+  code = replaceOnce(
+    code,
+    '<DhBadge v-if="multiCarrierSelectionMode && step5IsBundleSelected(bundle)" variant="success"><Check class="mr-1 inline h-3.5 w-3.5" /> Naviera seleccionada</DhBadge>',
+    '<DhBadge v-if="multiCarrierSelectionMode && step5IsBundleSelected(bundle)" variant="success"><Check class="mr-1 inline h-3.5 w-3.5" /> Tarifa elegida</DhBadge>\n                    <DhBadge v-else-if="multiCarrierSelectionMode && currentPoeCarrierIds.includes(resolveConfiguredCarrierId(bundle.carrierId, bundle.carrier))" variant="primary">Naviera agregada · elija tarifa</DhBadge>',
+    'exact selected rate badge',
+  )
 
   code = wrapSelectableCard(code, 'bundle in visibleFclRateBundles', 'bundle in step5VisibleFclRateBundles', 'chooseFclRateBundle(bundle)')
   code = wrapSelectableCard(code, 'rate in sortedAvailableRates', 'rate in step5VisibleAvailableRates', 'chooseRate(rate)')
@@ -105,7 +139,7 @@ const step5UniqueFclBundleCount = computed(() =>
   const insertion = code.indexOf(description, start)
   if (start < 0 || insertion < 0 || insertion - start > 4500) throw new Error('Missing FCL filter panel')
   code = code.slice(0, insertion) + dateFields + '\n' +
-    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales únicas con las fechas seleccionadas.</p>\n' +
+    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales distintas con las fechas seleccionadas; {{ step5RawImportRowCount }} registros originales consultados.</p>\n' +
     code.slice(insertion)
 
   // The single-rate selection has its own carrier bar, so date fields are
@@ -115,6 +149,32 @@ const step5UniqueFclBundleCount = computed(() =>
     '            <div class="crystal-soft space-y-3 p-4">' + dateFields + '\n' +
     '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleAvailableRates.length }} de {{ sortedAvailableRates.length }} tarifas en el rango seleccionado.</p>\n' +
     '            </div>\n\n' + singleEmptyState, 'single-rate date controls')
+
+  // Group visually identical offers, but retain source selection on demand.
+  const fclFooter = '                <div class="mt-4 flex flex-col gap-3 border-t border-[var(--dh-border)] pt-4 sm:flex-row sm:items-end sm:justify-between">'
+  const groupedSources = `
+                <div v-if="bundle.groupedAlternatives.length" class="mt-3 rounded-lg border border-[var(--dh-border)] px-3 py-2">
+                  <button type="button" class="flex w-full items-center justify-between gap-2 text-left text-xs font-semibold"
+                    :aria-expanded="Boolean(step5ExpandedComments['sources:' + bundle.key] || bundle.groupedAlternatives.some(step5IsBundleSelected))"
+                    @click.stop="step5ToggleComment('sources:' + bundle.key)">
+                    <span>{{ bundle.groupedAlternatives.length }} fuente{{ bundle.groupedAlternatives.length === 1 ? '' : 's' }} adicional{{ bundle.groupedAlternatives.length === 1 ? '' : 'es' }} agrupada{{ bundle.groupedAlternatives.length === 1 ? '' : 's' }}</span>
+                    <ChevronRight class="h-4 w-4 transition-transform" :class="step5ExpandedComments['sources:' + bundle.key] ? 'rotate-90' : ''" />
+                  </button>
+                  <div v-if="step5ExpandedComments['sources:' + bundle.key] || bundle.groupedAlternatives.some(step5IsBundleSelected)" class="mt-2 grid gap-2">
+                    <button v-for="alternative in bundle.groupedAlternatives" :key="'source:' + alternative.key"
+                      type="button" class="rounded-md border border-[var(--dh-border)] px-2 py-2 text-left text-xs font-semibold"
+                      :aria-pressed="step5IsBundleSelected(alternative)"
+                      :class="step5IsBundleSelected(alternative) ? 'border-[var(--dh-primary)] ring-2 ring-[rgb(var(--dh-primary-rgb)/0.28)]' : ''"
+                      @click.stop="chooseFclRateBundle(alternative)">
+                      {{ alternative.carrier }} · {{ formatMoney(alternative.totalCost, alternative.currency) }} ·
+                      {{ formatDate(alternative.validFrom) }} – {{ formatDate(alternative.validTo) }}
+                      <span v-if="alternative.transitDays !== bundle.transitDays" class="block">Tránsito: {{ alternative.transitDays }} días</span>
+                      <span v-if="step5IsBundleSelected(alternative)" class="mt-1 block font-black text-[var(--dh-primary)]">Tarifa elegida</span>
+                    </button>
+                  </div>
+                </div>
+`
+  code = replaceOnce(code, fclFooter, groupedSources + fclFooter, 'FCL grouped rate alternatives')
 
   const fclComment = `<strong class="block font-black">Comentarios de la tarifa</strong>
                           <span class="mt-0.5 block whitespace-pre-line font-semibold">{{ line.rate.spaceComment || 'Sin observaciones registradas' }}</span>`

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261108-FCL-RESTORE-RENDER-041",
+  "ecosystemVersion": "1.12.10",
+  "releaseType": "PATCH",
+  "createdAt": "2026-11-08",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.12.9",
+      "to": "1.12.10"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "from": "1.5.11",
+      "to": "1.5.12"
+    }
+  ],
+  "changes": [
+    "Revert Screen 5 FCL experimental carrier grouping to last visually working version v1.12.7",
+    "Retain exact rate selection and lazy source loading protections",
+    "No persisted rate deletion or API contract change"
+  ],
+  "validation": "CI and staging required",
+  "productionDeploymentAuthorized": true
+}

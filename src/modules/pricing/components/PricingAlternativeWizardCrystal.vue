@@ -429,12 +429,14 @@ const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar
 const pageDescription = computed(() => isEditing.value
   ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'
   : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.')
-const availableRates = ref<ImportRateSelectDto[]>([])
-const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
+// Core reactive refs must exist before plugins inject rate-filter/FCL setup logic.
+// The previous ordering left `costs` in TDZ when an injected early effect ran.
 const costs = ref<CostSelectDto[]>([])
 const allCosts = ref<CostSelectDto[]>([])
-const cabysResults = ref<CabysItem[]>([])
 const rateLines = ref<RateLine[]>([])
+const availableRates = ref<ImportRateSelectDto[]>([])
+const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
+const cabysResults = ref<CabysItem[]>([])
 // Preserve the values visible when the quote was opened. Catalog refreshes must
 // not overwrite a manual adjustment made by Pricing during the current edit.
 const persistedRateLineBaselines = new Map<string, string>()
@@ -706,10 +708,9 @@ function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: 
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
   if (!configuredId) return false
   const route = carrierRouteKey(form.destinationId, configuredId)
-  // A clicked pre-approved option must remain visually checked even if its
-  // bundle key changes when the rate catalogue is refreshed.
+  // Mark the exact chosen bundle, not every tariff belonging to a
+  // preconfigured carrier. The carrier selection is not a freight selection.
   return selectedBundleByOption.value[route] === bundleKey
-    || currentPoeCarrierIds.value.includes(configuredId)
 }
 
 /** Select every available or manual carrier in one POE before moving on. */
@@ -1717,17 +1718,9 @@ function importSourceTitle(rate: ImportRateSelectDto) {
   return sourceTitle(rate, resolvedImportSource(rate))
 }
 
-async function loadImportSources(rates: ImportRateSelectDto[]) {
-  const batchIds = [...new Set(rates.map((rate) => rate.importBatchId).filter(Boolean))]
-  await Promise.all(batchIds.map(async (batchId) => {
-    if (importSourceByBatch.value[batchId]) return
-    try {
-      const source = await EmailExtractionService.getPricingImportSource(batchId)
-      importSourceByBatch.value = { ...importSourceByBatch.value, [batchId]: source }
-    } catch {
-      // Importaciones históricas pueden no tener vínculo de correo; RawData sigue siendo fallback.
-    }
-  }))
+async function loadImportSources(_rates: ImportRateSelectDto[]) {
+  // Source metadata is optional. Do not block Screen 5 with 36+ /source
+  // requests from historical imports. The source modal loads on demand.
 }
 
 function rateCommentRank(comment?: string | null) {
