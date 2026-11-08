@@ -7308,16 +7308,19 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
-          <div v-if="multiCarrierSelectionMode" class="crystal-soft flex flex-wrap items-center gap-3 p-4">
-            <div class="mr-auto min-w-0">
-              <p class="text-sm font-black">Cargos Merchant / Carrier</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">Seleccione el tipo de transporte de esta naviera para mostrar sus cargos asociados. Se guarda por alternativa.</p>
+          <div v-if="multiCarrierSelectionMode" class="crystal-soft flex flex-wrap items-center gap-3 p-4" aria-label="Transporte seleccionado en Proveedor">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-black">Transporte en destino · {{ form.carrierHaulage ? 'Carrier Haulage' : form.merchantHaulage ? 'Merchant Haulage' : 'Pendiente de selección' }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ currentRouteLabel }} · Se conserva automáticamente la selección de Pantalla 6 (Proveedor).
+              </p>
+              <p v-if="!form.carrierHaulage && !form.merchantHaulage" class="mt-2 text-xs font-bold text-amber-600">
+                Seleccione Carrier o Merchant en Proveedor; aquí no es necesario volver a elegirlo.
+              </p>
+              <p v-else-if="selectedHaulageMissingPrice" class="mt-2 text-xs font-bold text-amber-600">
+                El Inland elegido no tiene precio aplicable para este POE y naviera. Revise Costos y recargos antes de guardar.
+              </p>
             </div>
-            <button type="button" :aria-pressed="form.merchantHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.merchantHaulage }" @click="toggleMerchantHaulage"><Check v-if="form.merchantHaulage" class="h-4 w-4" /> Merchant Haulage</button>
-            <button type="button" :aria-pressed="form.carrierHaulage" class="crystal-flag" :class="{ 'crystal-flag--active': form.carrierHaulage }" @click="toggleCarrierHaulage"><Check v-if="form.carrierHaulage" class="h-4 w-4" /> Carrier Haulage</button>
-            <p v-if="selectedHaulageMissingPrice" class="w-full rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-300">
-              El Inland seleccionado todavía no tiene costo y venta aplicables a este POE y naviera. Revise los cargos configurados o complete un Inland manual antes de guardar.
-            </p>
           </div>
           <div v-if="storageServiceSelected" class="crystal-soft p-4">
             <div class="grid gap-3 md:grid-cols-2 md:items-center">
