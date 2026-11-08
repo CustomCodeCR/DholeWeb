@@ -72,6 +72,18 @@ test('comment actions are independently focusable and never select the rate', ()
   assert.equal((result.match(/<\/button>/g) ?? []).length, 4)
 })
 
+test('a selected alternative keeps the parent FCL tariff card highlighted', () => {
+  const withSelection = fixture.replace(
+    '                @click="chooseFclRateBundle(bundle)"',
+    '                :aria-pressed="multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key"\\n' +
+    '                @click="chooseFclRateBundle(bundle)"',
+  )
+  const result = patchPricingWizardStep5ValidityComments(withSelection)
+  assert.match(result, /function step5IsBundleSelected/)
+  assert.match(result, /:aria-pressed="step5IsBundleSelected\\(bundle\\)"/)
+  assert.match(result, /selectedFclBundleKey\\.value === option\\.key/)
+})
+
 test('fails loudly instead of silently dropping a future markup change', () => {
   assert.throws(
     () => patchPricingWizardStep5ValidityComments(fixture.replace('No hay tarifas para la naviera seleccionada', 'No se encontraron tarifas')),
