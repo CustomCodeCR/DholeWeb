@@ -47,10 +47,14 @@ const step5ExpandedComments = reactive<Record<string, boolean>>({})
 // A source alternative is still represented by its group's single card.
 // Keep the selected badge/ring active when that alternative RateId was chosen.
 function step5IsBundleSelected(bundle: FclRateBundle & { groupedAlternatives?: FclRateBundle[] }): boolean {
-  // A chosen source may be nested under an equivalent imported offer.
-  // A checked manual carrier by itself is NEVER a checked price/tariff.
-  return [bundle, ...(bundle.groupedAlternatives ?? [])]
-    .some((option) => fclBundleHasSelectedSources(option))
+  // This uses the wizard's existing selected bundle key (stored by POE and
+  // carrier). No dynamically injected helper is required at render time.
+  // A checked manual carrier never implies the freight offer was selected.
+  return [bundle, ...(bundle.groupedAlternatives ?? [])].some((option) =>
+    multiCarrierSelectionMode.value
+      ? isSelectedFclBundle(option.carrierId, option.carrier, option.key)
+      : selectedFclBundleKey.value === option.key,
+  )
 }
 
 const step5InvalidDateRange = computed(() =>
