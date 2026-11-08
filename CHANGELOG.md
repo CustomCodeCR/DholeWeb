@@ -1,12 +1,18 @@
 # Changelog
 
+## [1.12.0] - 2026-11-07
+
+- Agenda CRM: configura repetición diaria, semanal, quincenal o cada 30 días de visitas, llamadas y reuniones.
+- Configura recordatorios periódicos de 5 minutos a un día mientras la actividad siga pendiente, además de recordatorios antes y al inicio.
+- Muestra frecuencias guardadas en el detalle e incorpora prueba de regresión del contrato.
+
 ## [1.11.5] - 2026-11-07
 
-- La sub-QUO elegida se presenta como principal comercial, ordenada primero, sin cambiar el ancla inmutable del grupo.
-- Las sub-QUO guardadas son acordeones individuales en pantallas 8 y 9, con expansión y cierre explícitos.
-- La pantalla 5 elimina ofertas importadas comercialmente duplicadas y conserva precios, fechas y agentes diferentes.
-- Integra contrato de Pricing con selectedRateId, PDF ordenado por selección y regresiones automatizadas.
-- Release `DH-20261107-MULTIQUO-PRINCIPAL-DEDUP-ACCORDION-030` coordinado con DholePricingService v1.5.4; requiere validación en CI/staging y no autoriza despliegue a producción.
+- Al elegir una sub-QUO, esa alternativa se convierte en la principal comercial en el wizard, queda destacada y se muestra primero, sin alterar el ancla inmutable del grupo.
+- Pantallas 8 y 9 permiten expandir y contraer cada sub-QUO guardada con controles explícitos; corrige el estado visual durante navegación.
+- Pantalla 5 elimina tarjetas de tarifas importadas equivalentes incluso si proceden de diferentes correos/batches, conservando ofertas con condiciones distintas.
+- Actualiza el contrato de Pricing para identificar la sub-QUO seleccionada y priorizarla en el índice PDF.
+- Release `DH-20261107-MULTIQUO-PRINCIPAL-DEDUP-ACCORDION-030`. Requiere CI y staging antes de integración en master; no autoriza despliegue a producción.
 
 ## [1.11.4] - 2026-11-07
 
@@ -30,22 +36,18 @@
 
 ## [1.11.0] - 2026-11-07 (en validación)
 
-- Borradores preservan selección completa de POE/POD, navieras, líneas y Merchant/Carrier para cada alternativa.
-- FCL evita doble flete internacional; carga los costos opcionales correspondientes a la opción elegida.
-- Cliente/ejecutivo en todo el ancho y navegación por opciones de subQUO guardadas.
-- MultiQUO transaccional DholePricingService 1.5.0, con selección exclusiva y aceptación protegida.
-- Release DH-20261107-PRICING-MULTIQUO-025. CI/staging pendiente; producción no autorizada.
+- Recupera POE/POD, navieras, importaciones y precios independientes de cada alternativa desde borradores.
+- Corrige duplicación de flete FCL y recupera Merchant/Carrier y cargos opcionales.
+- Amplía al ancho completo los campos de cliente y habilita navegación a subQUO guardadas.
+- Envía multiQUO de 2 a 52 alternativas FCL en una transacción única de Pricing.
+- Release coordinado DH-20261107-PRICING-MULTIQUO-025; CI y staging pendientes; producción no autorizada.
 
 
 ## [1.10.1] - 2026-11-07
 
-- Restringe selección múltiple de POE, alternativas por naviera y sub-QUO a marítimo FCL. Cambiar a LCL, terrestre o aéreo limpia la cola de alternativas FCL.
-- Muestra estado seleccionado visible y accesible (aria-pressed, borde y distintivo) en tarifas cargadas de pantalla 5.
-- Convierte la navegación inferior en una barra sticky con Atrás/Siguiente y la ruta activa, manteniendo recorrido secuencial por POE y naviera.
-- En pantalla 7 permite seleccionar Merchant Haulage o Carrier Haulage por alternativa, refrescar sus costos y preservar los cargos editados.
-- Reemplaza la presentación de tarjetas de pantalla 8 por acordeones de ancho completo con desglose comercial, costo, venta, utilidad y margen de cada subtarifa.
-- La API transaccional para creación agrupada sigue pendiente; se mantiene el bloqueo de guardados parciales.
-
+- Corrige selección visual de tarifas FCL y agrega navegación sticky entre POE y navieras.
+- Añade Merchant/Carrier Haulage en pantalla 7 por alternativa y rediseña pantalla 8 con acordeones y desglose comercial por subtarifa.
+- Restringe las sub-QUO multi-POE a FCL; continúa pendiente el guardado transaccional.
 ## [1.10.0] - 2026-11-07
 
 - Mantiene visibles y seleccionados los POE en pantalla 3, conserva su orden y ofrece regresar directamente a modificar POE o POD desde pantallas 5 a 8.
@@ -133,9 +135,10 @@
 
 ## [1.3.3] - 2026-11-06
 
-- La revisión guardada no completa automáticamente una solicitud de modificación; el envío es una acción explícita y separada.
-- Evita duplicar revisiones y requiere seleccionar un motivo con confirmación para cancelar modificaciones.
-- Incluye cobertura de regresión para persistencia, cierre, cancelación y actualización del dashboard.
+- Separates saving a Pricing seller-modification revision from explicitly sending it; the request remains open after save.
+- Prevents the wizard from treating a backend auto-closed request as a successful send, and avoids duplicate quote revisions.
+- Requires the operator to choose a cancellation reason and transmits explicit seller-modification cancellation intent.
+- Adds regression checks for explicit completion, cancellation, and request dashboard refresh.
 
 
 ## [1.3.2] - 2026-11-06
@@ -155,20 +158,20 @@
 
 ## [1.3.0] - 2026-11-05
 
-- Convierte «Otras pestañas» en un panel integrado que no cubre el contenido y mejora accesibilidad, idiomas y cierre de pestañas.
-- Muestra versiones verificadas por health o identificadas como registradas en el manifiesto, sin confundirlas con versiones desplegadas.
-- Añade pruebas de regresión del overflow y de lectura segura de versiones.
+- Convierte «Otras pestañas» en un panel integrado que no cubre el contenido, con navegación y cierre accesibles.
+- Integra versiones verificadas del servicio y versiones declaradas en el manifiesto del release, señalando su origen.
+- Agrega validaciones y pruebas de regresión para ambos cambios.
 
 ## [1.2.4] - 2026-11-05
 
-- Alinea el versionamiento SemVer de Dhole Web y su bundle con el release global.
-- Mantiene deploy automático a staging y producción en todo push sin cancelar los pendientes.
+- Actualiza DholeWeb SemVer 1.2.4 y manifiesto al release global Dhole 1.3.1.
+- Verifica versión real del bundle sin número fijo y mantiene despliegue automático master/develop.
 
 ## [1.2.3] - 2026-11-05
 
 - Asegurar que el botón Asignar IDTRA aparezca en Pantalla 9 para tarifas aceptadas sin identificador válido, incluyendo marcadores heredados como Pendiente.
-- Separar la visibilidad del botón de los permisos: si faltan permisos, mostrarlo deshabilitado con explicación en lugar de ocultarlo.
-- Validar en CI que el botón esté presente en el JavaScript final generado por Vite, además de comprobar la fuente.
+- Separar visibilidad de permisos: si faltan permisos, mostrar botón deshabilitado con explicación.
+- Validar en CI que el botón esté presente en el JavaScript final generado por Vite.
 
 ## [1.2.2] - 2026-11-05
 
