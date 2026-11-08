@@ -162,28 +162,6 @@ function sameOptionalCatalogTerm(
   return sameOptionalCommercialTerm(leftName || leftId, rightName || rightId)
 }
 
-function sameBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
-  if (left.lines.length !== right.lines.length) return false
-  const leftSorted = [...left.lines].sort((a, b) => a.containerTypeId.localeCompare(b.containerTypeId))
-  const rightSorted = [...right.lines].sort((a, b) => a.containerTypeId.localeCompare(b.containerTypeId))
-  return leftSorted.every((line, index) => {
-    const other = rightSorted[index]
-    if (!other) return false
-    return sameDisplayIdentity(line.containerTypeId, other.containerTypeId)
-      && amount(line.quantity) === amount(other.quantity)
-      && amount(line.unitCost) === amount(other.unitCost)
-      && amount(line.unitSale) === amount(other.unitSale)
-      && sameOptionalCatalogTerm(line.rate.polId, line.rate.pol, other.rate.polId, other.rate.pol)
-      && sameOptionalCatalogTerm(line.rate.poeId, line.rate.poe, other.rate.poeId, other.rate.poe)
-      && sameOptionalCatalogTerm(line.rate.podId, line.rate.pod, other.rate.podId, other.rate.pod)
-      && sameOptionalCommercialTerm(line.rate.spaceComment, other.rate.spaceComment)
-      && sameOptionalCommercialTerm(line.rate.commodity, other.rate.commodity)
-      && amount(line.rate.originCharges) === amount(other.rate.originCharges)
-      && amount(line.rate.destinationCharges) === amount(other.rate.destinationCharges)
-      && amount(line.rate.surcharges) === amount(other.rate.surcharges)
-  })
-}
-
 // Group by what Screen 5 actually displays. Hidden source comments, transit
 // and imported metadata are selectable alternatives, not duplicate cards.
 function sameVisibleBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
