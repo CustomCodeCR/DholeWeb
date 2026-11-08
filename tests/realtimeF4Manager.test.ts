@@ -45,7 +45,8 @@ class FakeSocket implements BrowserSocket {
   onerror: ((event: Event) => void) | null = null
   sent: string[] = []
   closed = false
-  constructor(public url: string) { queueMicrotask(() => this.open()) }
+  url: string
+  constructor(url: string) { this.url = url; queueMicrotask(() => this.open()) }
   private open() {
     if (this.closed) return
     this.readyState = 1
