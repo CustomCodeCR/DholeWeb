@@ -519,7 +519,8 @@ test('Execution detail uses tabs, real prompt snapshot and explicit backend-cont
     assert.ok(detail.includes(`key: '${tab}'`), `Missing execution detail tab: ${tab}`)
   }
 
-  assert.match(detail, /AgentService\.executions\.getPrompt\(executionId\.value\)/)
+  assert.match(detail, /AgentService\.executions\.getPrompt\(requestId\)/)
+  assert.match(detail, /epoch === permissionEpoch/)
   assert.match(detail, /promptSnapshot\.promptSnapshot/)
   assert.match(detail, /configurationSnapshotJson/)
   assert.match(detail, /Feature blocked by backend contract: falta GET \/api\/agents\/executions\/\{id\}\/steps/)
