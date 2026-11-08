@@ -132,7 +132,7 @@ test('Screen 8 summarizes each independent subtariff, not the active one as a wh
   assert.match(wizard, /Editar costos/)
   assert.match(wizard, /carrierRouteKey\(route\.poeId, route\.carrierId\)/)
   const parity = readFileSync(new URL('../build/pricingWizardUiParity.ts', import.meta.url), 'utf8')
-  assert.match(parity, /v-if="!multiCarrierSelectionMode \|\| carrierRouteCount === 1"/)
+  assert.match(parity, /v-if="showSingleRoutePreview"/)
 })
 
 test('FCL-only multi-POE controls keep single POE for LCL and other modalities', () => {
@@ -235,4 +235,37 @@ test('wizard includes selected configured inland and warns about missing prices'
   assert.match(wizard, /haulageAssociation\(cost\) === 'merchant'/)
   assert.match(wizard, /selectedHaulageMissingPrice/)
   assert.match(wizard, /line\.costId && haulageAssociation\(line\) === mode/)
+})
+
+
+test('saved MultiQUO screen 8 renders the same accordion design after reopening the rate', () => {
+  const step8 = wizard.split('<div v-else-if="step === 8"')[1]!.split('<div v-else-if="step === 9 && viewOnly')[0]!
+  assert.match(wizard, /savedQuoteGroup\.value = await PricingService\.getRateGroup\(rate\.id\)/)
+  assert.match(wizard, /await Promise\.all\(savedQuoteGroup\.value\.alternatives\.map\(\(option\) => PricingService\.getRate\(option\.rateId\)\)\)/)
+  assert.match(wizard, /const hasSavedMultiQuote = computed\(\(\) =>/)
+  assert.match(wizard, /Boolean\(props\.rateId && savedQuoteGroup\.value && savedQuoteGroup\.value\.alternatives\.length > 1\)/)
+  assert.match(wizard, /const savedMultiQuotePreviewCards = computed\(\(\) =>/)
+  assert.match(wizard, /const byId = new Map\(savedGroupRates\.value\.map/)
+  assert.match(wizard, /alternatives\.flatMap\(\(alternative, index\) =>/)
+  assert.match(step8, /<section v-if="hasSavedMultiQuote"/)
+  assert.match(step8, /<details v-for="preview in savedMultiQuotePreviewCards"/)
+  assert.match(step8, /:open="preview\.index === 0"/)
+  assert.match(step8, /preview\.rate\.rateDetails/)
+  assert.match(step8, /preview\.rate\.carrierRoute/)
+  assert.match(step8, /preview\.rate\.carrierComments/)
+  assert.match(step8, /preview\.rate\.quoNumber/)
+  assert.match(step8, /preview\.option\.haulageMode/)
+  assert.match(step8, /detailCurrencyValue\(line\)/)
+  assert.match(step8, /commercialSaleSubtotal/)
+  assert.match(step8, /showSingleRoutePreview/)
+  assert.doesNotMatch(step8, /@click="selectCommercialGroupAlternative/)
+})
+
+test('saved MultiQUO suppresses the single-rate summary and transient draft-only table', () => {
+  const step8 = wizard.split('<div v-else-if="step === 8"')[1]!.split('<div v-else-if="step === 9 && viewOnly')[0]!
+  const parity = readFileSync(new URL('../build/pricingWizardUiParity.ts', import.meta.url), 'utf8')
+  assert.match(wizard, /!hasSavedMultiQuote\.value && \(!multiCarrierSelectionMode\.value \|\| carrierRouteCount\.value === 1\)/)
+  assert.equal((step8.match(/v-if="showSingleRoutePreview"/g) ?? []).length, 3)
+  assert.match(parity, /const linesTable = `\s*<section v-if="showSingleRoutePreview"/)
+  assert.match(step8, /Las alternativas son independientes; sus montos no se suman/)
 })
