@@ -25,6 +25,10 @@ useResourceRealtime<RateDto>({
     return { value: snapshot, version: Number.isSafeInteger(version) ? version : null }
   },
   applySnapshot: ({ value }) => { if (value.id === props.rateId) rate.value = value },
+  onDenied: () => {
+    rate.value = null
+    errorMessage.value = 'Ya no tenés permiso para consultar esta tarifa.'
+  },
 })
 
 async function loadRate() {
