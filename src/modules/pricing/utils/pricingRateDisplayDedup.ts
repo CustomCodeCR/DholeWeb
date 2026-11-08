@@ -210,7 +210,9 @@ export function uniqueVisibleFclBundles<T extends FclDisplayBundle>(
 ): Array<T & { groupedAlternatives: T[] }> {
   const groups: Array<{ primary: T; sources: T[] }> = []
   for (const bundle of bundles) {
-    const group = groups.find(({ sources }) => sources.some((source) => sameVisibleBundle(source, bundle)))
+    // Require pairwise overlap: A(1-3), B(3-5), C(5-7) must not
+    // merge A and C through B, since A and C never overlap.
+    const group = groups.find(({ sources }) => sources.every((source) => sameVisibleBundle(source, bundle)))
     if (!group) {
       groups.push({ primary: bundle, sources: [bundle] })
       continue
