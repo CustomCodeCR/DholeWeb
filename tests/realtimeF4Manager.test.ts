@@ -1,0 +1,340 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import {
+  RealtimeManager,
+  type BrowserSocket,
+  type RealtimeRuntime,
+  type RealtimeInvalidation,
+} from '../src/core/realtime/realtimeManager.ts'
+
+const ID = '12345678-1111-4111-8111-111111111111'
+const USER_A = 'aaaaaaaa-1111-4111-8111-111111111111'
+const USER_B = 'bbbbbbbb-2222-4222-8222-222222222222'
+const RS = '\u001e'
+const TICKET = 'abcdefghijklmnopqrstuvwxyz0123456789-_ABCde'
+
+async function settle() {
+  for (let i = 0; i < 20; i++) await Promise.resolve()
+  await new Promise<void>(resolve => setImmediate(resolve))
+}
+class FakeClock {
+  private nextId = 1
+  callbacks = new Map<number, { cb: () => void; delay: number }>()
+  schedule = (cb: () => void, delay: number): ReturnType<typeof setTimeout> => {
+    const id = this.nextId++
+    this.callbacks.set(id, { cb, delay })
+    return id as unknown as ReturnType<typeof setTimeout>
+  }
+  cancel = (id: ReturnType<typeof setTimeout>) => {
+    this.callbacks.delete(id as unknown as number)
+  }
+  async advanceNext() {
+    const next = [...this.callbacks.entries()].sort((a, b) => a[1].delay - b[1].delay)[0]
+    if (!next) throw new Error('No timers to advance.')
+    this.callbacks.delete(next[0])
+    next[1].cb()
+    await settle()
+  }
+}
+
+class FakeSocket implements BrowserSocket {
+  readyState = 0
+  onopen: ((event: Event) => void) | null = null
+  onmessage: ((event: MessageEvent) => void) | null = null
+  onclose: ((event: CloseEvent) => void) | null = null
+  onerror: ((event: Event) => void) | null = null
+  sent: string[] = []
+  closed = false
+  constructor(public url: string) { queueMicrotask(() => this.open()) }
+  private open() {
+    if (this.closed) return
+    this.readyState = 1
+    this.onopen?.({} as Event)
+  }
+  send(text: string) {
+    this.sent.push(text)
+    if (text.includes('"protocol":"json"')) queueMicrotask(() =>
+      this.onmessage?.({ data: '{}' + RS } as MessageEvent))
+  }
+  emitEvent(event: RealtimeInvalidation) {
+    this.onmessage?.({ data: JSON.stringify({
+      type: 1, target: 'resourceChanged', arguments: [event],
+    }) + RS } as MessageEvent)
+  }
+  close() {
+    if (this.closed) return
+    this.closed = true
+    this.readyState = 3
+    this.onclose?.({} as CloseEvent)
+  }
+}
+
+class FakeHost {
+  clock = new FakeClock()
+  sockets: FakeSocket[] = []
+  requests: { url: string; bearer: string }[] = []
+  states: string[] = []
+  online = true
+  visible = true
+  initialFailures = 0
+  expired = false
+  restVersion = 1
+  restFetches = 0
+  bearer = 'CI-JWT-BEARER-SHOULD-NEVER-BE-PLACED-IN-WS-URL'
+  runtime: RealtimeRuntime = {
+    baseUrl: 'https://gateway.example',
+    fetch: async (url, options) => {
+      const bearer = new Headers(options?.headers).get('Authorization') ?? ''
+      this.requests.push({ url, bearer })
+      if (this.expired) return new Response('', { status: 401 })
+      if (this.initialFailures > 0) {
+        this.initialFailures--
+        throw new Error('simulated connect failure')
+      }
+      if (url.includes('/negotiate')) {
+        return Response.json({ connectionId: 'local-id', connectionToken: 'opaque-conn-id' })
+      }
+      if (url.includes('/ticket')) return Response.json({ ticket: TICKET })
+      throw new Error('Unexpected REST endpoint for realtime host')
+    },
+    createSocket: url => {
+      const socket = new FakeSocket(url)
+      this.sockets.push(socket)
+      return socket
+    },
+    online: () => this.online,
+    pageVisible: () => this.visible,
+    schedule: this.clock.schedule,
+    cancel: this.clock.cancel,
+    random: () => 0.5,
+    onState: state => this.states.push(state),
+  }
+  manager = new RealtimeManager(this.runtime)
+  async start(user = USER_A) {
+    await this.manager.start(user, async () => this.bearer)
+    await settle()
+  }
+  latestSocket() {
+    const socket = this.sockets.at(-1)
+    assert.ok(socket)
+    return socket
+  }
+  event(version: number, eventId = crypto.randomUUID()): RealtimeInvalidation {
+    return {
+      eventId, eventType: 'crm.account.updated.v1', aggregateType: 'account',
+      aggregateId: ID, aggregateVersion: version,
+      occurredAtUtc: new Date().toISOString(),
+    }
+  }
+  bind(dirty: () => boolean = () => false, hooks?: {
+    conflicts?: number[]
+    applied?: number[]
+  }) {
+    const data = hooks ?? {}
+    data.conflicts ??= []
+    data.applied ??= []
+    const unsubscribe = this.manager.subscribe({
+      kind: 'crm.account', id: ID, dirty,
+      fetchSnapshot: async () => {
+        this.restFetches++
+        return { value: this.restVersion, version: this.restVersion }
+      },
+      applySnapshot: snapshot => { data.applied?.push(snapshot.value) },
+      onConflict: () => { data.conflicts?.push(this.restVersion) },
+    })
+    return { unsubscribe, hooks: data }
+  }
+}
+
+test('F4: one logical WebSocket per browser instance and no JWT in WSS URL', async () => {
+  const host = new FakeHost()
+  await Promise.all(Array.from({ length: 25 }, () => host.start()))
+  assert.equal(host.sockets.length, 1)
+  assert.equal(host.manager.socketCount, 1)
+  assert.equal(host.manager.status, 'connected')
+  assert.ok(host.latestSocket().url.startsWith('wss://gateway.example/hubs/realtime?'))
+  assert.ok(!host.latestSocket().url.includes(host.bearer))
+  assert.ok(!host.latestSocket().url.includes('access_token'))
+  assert.equal(new URL(host.latestSocket().url).searchParams.get('ticket'), TICKET)
+  assert.ok(host.requests.every(request => request.bearer === 'Bearer ' + host.bearer))
+  host.manager.stop()
+  assert.equal(host.manager.socketCount, 0)
+})
+
+test('F4 gate: 100 mount/unmount cycles leave zero observers and no new sockets', async () => {
+  const host = new FakeHost()
+  await host.start()
+  for (let i = 0; i < 100; i++) {
+    const { unsubscribe } = host.bind()
+    await settle()
+    assert.equal(host.manager.activeWatchers, 1)
+    unsubscribe()
+    assert.equal(host.manager.activeWatchers, 0)
+  }
+  assert.equal(host.sockets.length, 1)
+  host.manager.stop()
+  assert.equal(host.clock.callbacks.size, 0)
+})
+
+test('F4 gate: 30 unexpected socket closes reconnect and resubscribe with fresh ticket', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const { unsubscribe } = host.bind()
+  for (let i = 0; i < 30; i++) {
+    const previous = host.latestSocket()
+    previous.close()
+    assert.ok(host.manager.status === 'degraded' || host.manager.status === 'reconnecting')
+    await host.clock.advanceNext()
+    assert.equal(host.manager.status, 'connected')
+    assert.equal(host.manager.socketCount, 1)
+    assert.ok(host.latestSocket().sent.some(frame => frame.includes('"target":"Subscribe"')))
+  }
+  assert.equal(host.sockets.length, 31)
+  unsubscribe()
+  host.manager.stop()
+})
+
+test('F4 gate: 30 initial negotiation failures recover with jittered backoff', async () => {
+  const host = new FakeHost()
+  host.initialFailures = 30
+  await host.start()
+  assert.equal(host.manager.status, 'degraded')
+  for (let i = 0; i < 30; i++) await host.clock.advanceNext()
+  assert.equal(host.initialFailures, 0)
+  assert.equal(host.manager.status, 'connected')
+  assert.equal(host.sockets.length, 1)
+  assert.ok(host.requests.length >= 31)
+  host.manager.stop()
+})
+
+test('F4: initial, duplicate, stale, gap and reconnect all reconcile via authoritative REST', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  assert.deepEqual(bound.hooks.applied, [1])
+  host.restVersion = 3
+  const e = host.event(3)
+  host.latestSocket().emitEvent(e)
+  await settle()
+  assert.deepEqual(bound.hooks.applied, [1, 3])
+  const queries = host.restFetches
+  host.latestSocket().emitEvent(e)
+  host.latestSocket().emitEvent(host.event(2))
+  await settle()
+  assert.equal(host.restFetches, queries)
+  host.latestSocket().close()
+  host.restVersion = 6
+  await host.clock.advanceNext()
+  assert.equal(bound.hooks.applied?.at(-1), 6)
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F4: a dirty form never gets overwritten and raises a stable server conflict', async () => {
+  const host = new FakeHost()
+  await host.start()
+  let dirty = false
+  const bound = host.bind(() => dirty)
+  await settle()
+  dirty = true
+  host.restVersion = 2
+  const e = host.event(2)
+  host.latestSocket().emitEvent(e)
+  await settle()
+  assert.deepEqual(bound.hooks.applied, [1])
+  assert.deepEqual(bound.hooks.conflicts, [2])
+  host.latestSocket().emitEvent(e)
+  await settle()
+  assert.deepEqual(bound.hooks.conflicts, [2])
+  dirty = false
+  host.manager.resume('crm.account', ID)
+  await settle()
+  assert.deepEqual(bound.hooks.applied, [1, 2])
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F4: offline never writes or polls and online reconciles open views', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  const previous = host.restFetches
+  host.online = false
+  host.manager.networkChanged()
+  assert.equal(host.manager.status, 'offline')
+  assert.equal(host.manager.socketCount, 0)
+  host.restVersion = 5
+  host.manager.visibilityChanged()
+  await settle()
+  assert.equal(host.restFetches, previous)
+  host.online = true
+  host.manager.networkChanged()
+  await settle()
+  assert.equal(bound.hooks.applied?.at(-1), 5)
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F4: tab hidden does not refresh until it becomes visible', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  host.visible = false
+  host.manager.visibilityChanged()
+  host.restVersion = 7
+  const before = host.restFetches
+  host.latestSocket().emitEvent(host.event(7))
+  await settle()
+  assert.equal(host.restFetches, before)
+  host.visible = true
+  host.manager.visibilityChanged()
+  await settle()
+  assert.equal(bound.hooks.applied?.at(-1), 7)
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F4: expired token is unauthorized and cannot reconnect using previous privileges', async () => {
+  const host = new FakeHost()
+  host.expired = true
+  await host.start()
+  assert.equal(host.manager.status, 'unauthorized')
+  assert.equal(host.sockets.length, 0)
+  assert.equal(host.clock.callbacks.size, 0)
+  host.expired = false
+  await host.start(USER_B)
+  assert.equal(host.manager.currentIdentity, USER_B)
+  assert.equal(host.manager.status, 'connected')
+  host.manager.stop()
+})
+
+test('F4: logout and switch identity clear old resources and detach old sockets', async () => {
+  const host = new FakeHost()
+  await host.start(USER_A)
+  host.bind()
+  await settle()
+  assert.equal(host.manager.activeWatchers, 1)
+  await host.start(USER_B)
+  assert.equal(host.manager.currentIdentity, USER_B)
+  assert.equal(host.manager.activeWatchers, 0)
+  assert.equal(host.manager.socketCount, 1)
+  host.manager.stop()
+  assert.equal(host.manager.currentIdentity, null)
+  assert.equal(host.manager.activeWatchers, 0)
+  assert.equal(host.clock.callbacks.size, 0)
+})
+
+test('F4: invalid client resource identifier cannot become a subscription', async () => {
+  const host = new FakeHost()
+  await host.start()
+  assert.throws(() => host.manager.subscribe({
+    kind: 'crm.account', id: 'not-a-guid',
+    fetchSnapshot: async () => ({ value: null, version: 1 }),
+    applySnapshot: () => {},
+  }))
+  assert.equal(host.manager.activeWatchers, 0)
+  host.manager.stop()
+})
