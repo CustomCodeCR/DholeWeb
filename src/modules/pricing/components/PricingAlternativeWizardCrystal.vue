@@ -49,6 +49,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { uniqueDisplayRates } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
@@ -251,6 +252,23 @@ const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
+const expandedSavedQuotePanels = ref<Record<string, boolean>>({})
+const primarySavedGroupAlternative = computed(() => {
+  const group = savedQuoteGroup.value
+  return group?.alternatives.find((option) => option.rateId === group.selectedRateId)
+    ?? group?.alternatives.find((option) => option.status === 'Selected')
+    ?? group?.alternatives[0] ?? null
+})
+const orderedSavedGroupRates = computed(() => {
+  const primaryId = primarySavedGroupAlternative.value?.rateId
+  return [...savedGroupRates.value].sort((left, right) => Number(right.id === primaryId) - Number(left.id === primaryId))
+})
+function toggleSavedQuotePanel(rateId: string) {
+  expandedSavedQuotePanels.value = {
+    ...expandedSavedQuotePanels.value,
+    [rateId]: !expandedSavedQuotePanels.value[rateId],
+  }
+}
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
@@ -1700,13 +1718,13 @@ function rateCommentRank(comment?: string | null) {
 }
 
 const sortedAvailableRates = computed(() =>
-  [...availableRates.value].sort((left, right) => {
+  uniqueDisplayRates([...availableRates.value].sort((left, right) => {
     const price = number(left.freight) - number(right.freight)
     if (price !== 0) return price
     const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)
     if (comment !== 0) return comment
     return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
-  }),
+  })),
 )
 
 function remainingValidityDays(validTo: string) {
@@ -2275,7 +2293,9 @@ const showSingleRoutePreview = computed(() =>
   !hasSavedMultiQuote.value && (!multiCarrierSelectionMode.value || carrierRouteCount.value === 1),
 )
 const savedMultiQuotePreviewCards = computed(() => {
-  const alternatives = savedQuoteGroup.value?.alternatives ?? []
+  const primaryId = primarySavedGroupAlternative.value?.rateId
+  const alternatives = [...(savedQuoteGroup.value?.alternatives ?? [])]
+    .sort((left, right) => Number(right.rateId === primaryId) - Number(left.rateId === primaryId))
   const byId = new Map(savedGroupRates.value.map((rate) => [rate.id, rate]))
   return alternatives.flatMap((alternative, index) => {
     const rate = byId.get(alternative.rateId)
@@ -4300,8 +4320,22 @@ async function selectCommercialGroupAlternative(rateId: string) {
   if (!savedQuoteGroup.value) return
   try {
     await PricingService.selectRateGroup(rateId)
-    savedQuoteGroup.value = await PricingService.getRateGroup(rateId)
-    toastStore.success('Alternativa elegida', 'La sub-QUO seleccionada es la unica que podra aceptarse en el grupo.')
+    const refreshed = await PricingService.getRateGroup(rateId)
+    if (!refreshed || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected')) {
+      throw new Error('Pricing no confirmó la sub-QUO principal seleccionada.')
+    }
+    savedQuoteGroup.value = refreshed
+    expandedSavedQuotePanels.value = { ...expandedSavedQuotePanels.value, [rateId]: true }
+    toastStore.success('Sub-QUO principal actualizada', 'La alternativa elegida será la principal comercial; las demás permanecen como opciones.')
+    if (props.rateId !== rateId) {
+      await router.push({
+        name: 'pricing-rate-wizard',
+        params: { rateId },
+        query: { mode: props.viewOnly ? 'view' : 'edit' },
+      })
+    } else {
+      await hydrateExistingRate()
+    }
   } catch (error) {
     toastStore.backendError(error, 'No se pudo seleccionar la sub-QUO.')
   }
@@ -6269,6 +6303,10 @@ watch(step, (value) => {
     void loadHaciendaExchangeRate(false)
     syncDeclaredCargoInsuranceOnEdit()
   }
+})
+
+watch(() => props.rateId, async (nextRateId, previousRateId) => {
+  if (nextRateId && nextRateId !== previousRateId) await hydrateExistingRate()
 })
 
 onMounted(async () => {
