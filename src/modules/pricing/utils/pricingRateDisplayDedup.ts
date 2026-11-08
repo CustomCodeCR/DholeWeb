@@ -32,7 +32,7 @@ export function pricingRateDisplayKey(rate: ImportRateSelectDto): string {
   ])
 }
 
-function sameOrOverlappingValidity(left: ImportRateSelectDto, right: ImportRateSelectDto): boolean {
+function sameOrOverlappingValidity(left: Pick<ImportRateSelectDto, 'validFrom' | 'validTo'>, right: Pick<ImportRateSelectDto, 'validFrom' | 'validTo'>): boolean {
   const leftFrom = day(left.validFrom)
   const leftTo = day(left.validTo)
   const rightFrom = day(right.validFrom)
@@ -175,8 +175,8 @@ function sameCommercialBundle(left: FclDisplayBundle, right: FclDisplayBundle): 
     && amount(left.transitDays) === amount(right.transitDays)
     && sameBundleLines(left, right)
     && sameOrOverlappingValidity(
-      { validFrom: left.validFrom, validTo: left.validTo } as ImportRateSelectDto,
-      { validFrom: right.validFrom, validTo: right.validTo } as ImportRateSelectDto,
+      { validFrom: left.validFrom, validTo: left.validTo },
+      { validFrom: right.validFrom, validTo: right.validTo },
     )
 }
 
