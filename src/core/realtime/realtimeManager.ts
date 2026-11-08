@@ -6,7 +6,18 @@
 export type RealtimeStatus =
   | 'connecting' | 'connected' | 'reconnecting'
   | 'degraded' | 'offline' | 'unauthorized'
-export type RealtimeKind = 'crm.account' | 'pricing.rate'
+/** F6: resource kinds must match the Gateway's resource-scoped REST ACL allowlist. */
+export const REALTIME_RESOURCE_KINDS = [
+  'crm.account', 'pricing.rate',
+  'auth.user', 'config.catalog-group', 'config.catalog-item', 'srm.supplier',
+  'audit.event', 'storage.file',
+  'extraction.execution', 'extraction.emailjob', 'extraction.airequest',
+  'reports.template', 'dynamics.job', 'ai.execution', 'ai.emailjob',
+  'agent.execution', 'agent.definition', 'agent.schedule',
+  'content.item', 'content.menu', 'content.setting',
+] as const
+export type RealtimeKind = typeof REALTIME_RESOURCE_KINDS[number]
+const REALTIME_RESOURCE_KIND_SET: ReadonlySet<string> = new Set(REALTIME_RESOURCE_KINDS)
 export type RefreshReason = 'initial' | 'event' | 'reconnect' | 'poll' | 'visible' | 'resume'
 
 export interface RealtimeInvalidation {
@@ -72,7 +83,7 @@ const MAX_FRAME = 8192
 export const REALTIME_BACKOFF_MS = [0, 2000, 5000, 10_000, 30_000] as const
 
 function resourceKey(kind: RealtimeKind, id: string): string {
-  if (kind !== 'crm.account' && kind !== 'pricing.rate') throw new Error('Unsupported resource.')
+  if (!REALTIME_RESOURCE_KIND_SET.has(kind)) throw new Error('Unsupported resource.')
   if (!GUID.test(id) || /^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(id))
     throw new Error('Invalid realtime resource identifier.')
   return kind + ':' + id.toLowerCase()
@@ -551,10 +562,10 @@ export class RealtimeManager {
       if (!Array.isArray(revoked) || revoked.length !== 2) return
       const kind = revoked[0]
       const id = revoked[1]
-      if ((kind !== 'crm.account' && kind !== 'pricing.rate') ||
+      if (typeof kind !== 'string' || !REALTIME_RESOURCE_KIND_SET.has(kind) ||
           typeof id !== 'string') return
       let key: string
-      try { key = resourceKey(kind, id) } catch { return }
+      try { key = resourceKey(kind as RealtimeKind, id) } catch { return }
       for (const watcher of this.watchers.get(key) ?? []) {
         watcher.denied = true
         watcher.onDenied?.()
@@ -572,14 +583,19 @@ export class RealtimeManager {
       const oldest = this.seenQueue.shift()
       if (oldest) this.seen.delete(oldest)
     }
-    const kind = event.aggregateType === 'account' ? 'crm.account'
-      : event.aggregateType === 'rate' ? 'pricing.rate' : null
+    // Match both the declared domain event and aggregate type, never infer a
+    // resource by aggregateType alone (several services share e.g. "job").
+    const kind = REALTIME_RESOURCE_KINDS.find(candidate =>
+      event.eventType.startsWith(candidate + '.') &&
+      event.aggregateType === candidate.slice(candidate.indexOf('.') + 1))
     if (!kind) return
     let key: string
     try { key = resourceKey(kind, event.aggregateId) } catch { return }
     for (const watcher of this.watchers.get(key) ?? []) {
-      if (watcher.denied || !watcher.visible() ||
-        (watcher.version != null && event.aggregateVersion <= watcher.version)) continue
+      if (watcher.denied || !watcher.visible()) continue
+      // F7 C06: several producers emit a process-local version hint rather
+      // than an authoritative entity sequence. Do not discard a distinct
+      // event solely because its hint is lower than the last REST snapshot.
       void this.reconcile(watcher, 'event', event)
     }
   }
