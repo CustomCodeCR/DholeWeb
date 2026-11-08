@@ -37,7 +37,7 @@ function patchWizard(source: string) {
     if (scriptEnd < 0) {
       throw new Error('[pricingWizardManualFreightFinalUx] Vue setup closing script was not found')
     }
-    code = code.slice(0, scriptEnd) + earlyManualOceanDateWatch + '\\n' + code.slice(scriptEnd)
+    code = code.slice(0, scriptEnd) + earlyManualOceanDateWatch + String.fromCharCode(10) + code.slice(scriptEnd)
   }
 
   // Evita que se pueda disparar el guardado por una llamada directa con datos incompletos.
