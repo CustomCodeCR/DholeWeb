@@ -21,10 +21,14 @@ export function pricingRateDisplayKey(rate: ImportRateSelectDto): string {
     normalized(rate.containerTypeId || rate.containerType),
     normalized(rate.currencyId || rate.currency),
     amount(rate.freight),
+    amount(rate.oceanFreight ?? rate.freight),
+    amount(rate.totalCost ?? rate.freight),
     amount(rate.totalSale ?? rate.freight),
     amount(rate.originCharges),
     amount(rate.destinationCharges),
     amount(rate.surcharges),
+    normalized(rate.sourceType),
+    normalized(rate.importProfileId || rate.importProfileName),
     amount(rate.freeDays),
     amount(rate.transitDays),
     normalized(rate.spaceComment),
@@ -175,6 +179,20 @@ function sameVisibleBundleLines(left: FclDisplayBundle, right: FclDisplayBundle)
       && amount(line.quantity) === amount(other.quantity)
       && amount(line.unitCost) === amount(other.unitCost)
       && amount(line.unitSale) === amount(other.unitSale)
+      // Hidden terms can be materially different despite identical totals.
+      // Never collapse a distinct provider cost, charge, shipment comment,
+      // transit time, import profile or source type just because the card
+      // summary initially displays the same USD freight.
+      && amount(line.rate.oceanFreight ?? line.rate.freight) === amount(other.rate.oceanFreight ?? other.rate.freight)
+      && amount(line.rate.totalCost ?? line.rate.freight) === amount(other.rate.totalCost ?? other.rate.freight)
+      && amount(line.rate.originCharges) === amount(other.rate.originCharges)
+      && amount(line.rate.destinationCharges) === amount(other.rate.destinationCharges)
+      && amount(line.rate.surcharges) === amount(other.rate.surcharges)
+      && amount(line.rate.transitDays) === amount(other.rate.transitDays)
+      && normalized(line.rate.spaceComment) === normalized(other.rate.spaceComment)
+      && normalized(line.rate.commodity) === normalized(other.rate.commodity)
+      && normalized(line.rate.sourceType) === normalized(other.rate.sourceType)
+      && normalized(line.rate.importProfileId || line.rate.importProfileName) === normalized(other.rate.importProfileId || other.rate.importProfileName)
       && sameOptionalCatalogTerm(line.rate.polId, line.rate.pol, other.rate.polId, other.rate.pol)
       && sameOptionalCatalogTerm(line.rate.poeId, line.rate.poe, other.rate.poeId, other.rate.poe)
       && sameOptionalCatalogTerm(line.rate.podId, line.rate.pod, other.rate.podId, other.rate.pod)
@@ -187,6 +205,7 @@ function sameVisibleBundle(left: FclDisplayBundle, right: FclDisplayBundle): boo
     && amount(left.totalCost) === amount(right.totalCost)
     && amount(left.totalSale) === amount(right.totalSale)
     && amount(left.freeDays) === amount(right.freeDays)
+    && amount(left.transitDays) === amount(right.transitDays)
     && sameVisibleBundleLines(left, right)
     && sameOrOverlappingValidity(
       { validFrom: left.validFrom, validTo: left.validTo },
