@@ -72,8 +72,15 @@ function step5ToggleComment(key: string) {
 const step5VisibleAvailableRates = computed(() =>
   sortedAvailableRates.value.filter((rate) => step5RateMatchesDates(rate.validFrom, rate.validTo)),
 )
+// Deduplicate AFTER the FCL combination engine, carrier filter and date filter.
+// Only the final visible cards reflect the commercial offer the customer sees.
 const step5VisibleFclRateBundles = computed(() =>
-  visibleFclRateBundles.value.filter((bundle) => step5RateMatchesDates(bundle.validFrom, bundle.validTo)),
+  uniqueVisibleFclBundles(
+    visibleFclRateBundles.value.filter((bundle) => step5RateMatchesDates(bundle.validFrom, bundle.validTo)),
+  ),
+)
+const step5UniqueFclBundleCount = computed(() =>
+  uniqueVisibleFclBundles(visibleFclRateBundles.value).length,
 )
 `
   code = replaceOnce(code, state, state + logic, 'date and comment state')
@@ -98,7 +105,7 @@ const step5VisibleFclRateBundles = computed(() =>
   const insertion = code.indexOf(description, start)
   if (start < 0 || insertion < 0 || insertion - start > 4500) throw new Error('Missing FCL filter panel')
   code = code.slice(0, insertion) + dateFields + '\n' +
-    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ visibleFclRateBundles.length }} combinaciones con las fechas seleccionadas.</p>\n' +
+    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales únicas con las fechas seleccionadas.</p>\n' +
     code.slice(insertion)
 
   // The single-rate selection has its own carrier bar, so date fields are
