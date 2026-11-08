@@ -77,6 +77,8 @@ export interface GroupQuoteResponse {
   }>
 }
 export interface GroupQuoteSnapshot extends GroupQuoteResponse {
+  /** Selected commercial principal; parentRateId remains the immutable group anchor. */
+  selectedRateId?: string | null
   alternatives: Array<GroupQuoteResponse['alternatives'][number] & {
     status: 'Draft' | 'Selected' | 'NotSelected'
     poeName: string
