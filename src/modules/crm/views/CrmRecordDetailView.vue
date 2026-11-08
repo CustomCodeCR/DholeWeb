@@ -108,7 +108,14 @@ const realtimeAccount = useResourceRealtime<CrmRow>({
     record.value = value
     if (relation.value && !showRelationForm.value) void loadRelation()
   },
-  onDenied: () => { /* server controls audience; no local privilege escalation */ },
+  onDenied: () => {
+    // Scope/ownership revoked: do not keep presenting previously authorized CRM data.
+    record.value = null
+    relationRows.value = []
+    showAccountEditor.value = false
+    accountEditingDirty.value = false
+    error.value = 'Ya no tenés permiso para consultar esta cuenta.'
+  },
   onError: () => { /* existing REST view remains usable */ },
 })
 const discardOpen = ref(false)
