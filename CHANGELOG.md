@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.13.5] - 2026-11-08 (F9 candidate only)
+
+- Sincronizado a versión global `1.13.12` tras auditoría de staging de F6. PATCH Web `1.13.4` → `1.13.5`; no cambia estado, vistas, comunicación WS/REST, validaciones ni feature flags. Integración sujeta a gates formales del batch.
+
+
 ## [1.13.4] - 2026-11-08 (candidato F9, sin publicación)
 
 - Coordina la versión global `1.13.11` de Dhole Realtime tras las correcciones de CI de Config, Reports y Gateway. PATCH Web `1.13.3` → `1.13.4` en package.json, package-lock.json y version.json; sin cambios de UI, precios, rutas ni flags.
