@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.13.3] - 2026-11-08 (candidato F9, sin publicación)
+
+- Versionado PATCH coordinado con las 13 APIs, Gateway, System y Framework: `ecosystemVersion=1.13.10` para el batch realtime `rt-20261107-01` sin desplegar ni habilitar flags. Mantiene reconciliación REST, vista de cotización y correcciones FCL existentes sin cambios de interfaz o API; actualiza package.json, package-lock.json y version.json.
+
+
 ## [1.13.2] - 2026-11-08
 
 - Reconcile current develop fixes into the isolated realtime candidate while preserving realtime security changes.
