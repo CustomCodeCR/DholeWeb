@@ -11,7 +11,7 @@ export function splitPricingCommercialTermLines(values: readonly (string | null 
 
   for (const value of values) {
     const separators = String(value ?? '').replace(/\\+r\\+n|\\+n|\\+r/g, '\n')
-    for (const segment of separators.split(/\r\n|\r|\n|,/g)) {
+    for (const segment of separators.split(/\r\n|\r|\n|,(?!\d)/g)) {
       const text = segment.trim()
       const key = text.normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -30,7 +30,7 @@ export function splitPricingCommercialTermLines(values: readonly (string | null 
 export function expandPricingCommercialCatalogItems<T extends { id: string; text: string }>(
   items: readonly T[],
 ): T[] {
-  const seen = new Set<string>()
+  const positions = new Map<string, number>()
   const expanded: T[] = []
 
   for (const item of items) {
@@ -39,13 +39,20 @@ export function expandPricingCommercialCatalogItems<T extends { id: string; text
       const key = text.normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLocaleLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      expanded.push({
+      const expandedItem = {
         ...item,
         id: index === 0 ? item.id : item.id + ':legacy-term:' + index,
         text,
-      })
+      }
+      const existingIndex = positions.get(key)
+      if (existingIndex !== undefined) {
+        const previous = expanded[existingIndex] as T & { isActive?: boolean }
+        const candidate = item as T & { isActive?: boolean }
+        if (previous.isActive === false && candidate.isActive !== false) expanded[existingIndex] = expandedItem
+        continue
+      }
+      positions.set(key, expanded.length)
+      expanded.push(expandedItem)
     }
   }
   return expanded
