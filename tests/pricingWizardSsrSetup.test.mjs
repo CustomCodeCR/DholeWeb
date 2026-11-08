@@ -10,6 +10,18 @@ import { createServer } from 'vite'
 // This catches TDZ failures that compile and bundle successfully, but make the
 // production "Crear tarifa" view unusable on its very first render.
 test('Crear tarifa: transformed wizard setup must render on a clean session', { timeout: 180_000 }, async () => {
+  // AuthStore expects browser storage even though SSR ignores onMounted.
+  const memory = new Map()
+  const storage = {
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => { memory.set(key, String(value)) },
+    removeItem: (key) => { memory.delete(key) },
+    clear: () => { memory.clear() },
+    key: (index) => [...memory.keys()][index] ?? null,
+    get length() { return memory.size },
+  }
+  globalThis.localStorage = storage
+  globalThis.sessionStorage = storage
   const server = await createServer({
     configFile: new URL('../vite.config.ts', import.meta.url).pathname,
     server: { middlewareMode: true, hmr: false },
