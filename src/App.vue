@@ -16,6 +16,11 @@ import {
   startNotificationRealtime,
   stopNotificationRealtime,
 } from '@/core/realtime/notificationRealtime'
+import {
+  startUniversalRealtime,
+  stopUniversalRealtime,
+  refreshUniversalRealtimeCredentials,
+} from '@/core/realtime/universalRealtime'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -44,6 +49,7 @@ function handleAuthExpired() {
   }
 
   void stopNotificationRealtime()
+  stopUniversalRealtime()
   authStore.clearSession()
   tabsStore.clear()
   void brandingStore.loadCurrentClientBranding()
@@ -72,6 +78,7 @@ function handleAuthRefreshed(event: Event) {
   if (isEmbedded) return
 
   void startNotificationRealtime()
+  refreshUniversalRealtimeCredentials()
 }
 
 onMounted(() => {
@@ -107,6 +114,7 @@ onMounted(() => {
 
   void brandingStore.loadCurrentClientBranding()
   void startNotificationRealtime()
+  void startUniversalRealtime()
 
   window.addEventListener('dhole:auth:expired', handleAuthExpired)
   window.addEventListener('dhole:auth:refreshed', handleAuthRefreshed)
@@ -114,7 +122,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   uninstallNativeValidation?.()
-  if (!isPublicRoute.value && !isEmbedded) void stopNotificationRealtime()
+  if (!isPublicRoute.value && !isEmbedded) {
+    void stopNotificationRealtime()
+    stopUniversalRealtime()
+  }
   ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup?.()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
   window.removeEventListener('dhole:auth:refreshed', handleAuthRefreshed)
