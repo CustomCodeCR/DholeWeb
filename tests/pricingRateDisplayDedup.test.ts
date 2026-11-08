@@ -185,3 +185,58 @@ test('view-only saved FCL accordion is clickable despite the editing guard', () 
   // A view must remain read-only in every other respect.
   assert.match(wizard, /\.wizard-view-readonly\s*\{\s*pointer-events: none;/)
 })
+
+
+test('Screen 5 MAERSK Caldera commercial aliases do not generate repeat cards', () => {
+  const make = (source: ImportRateSelectDto) => ({
+    key: 'single:' + source.id,
+    carrierId: source.carrierId,
+    carrier: source.carrier,
+    agentId: source.agentId,
+    agent: source.agent,
+    currencyId: source.currencyId,
+    currency: source.currency,
+    totalCost: source.freight,
+    totalSale: source.totalSale ?? source.freight,
+    freeDays: source.freeDays,
+    transitDays: source.transitDays ?? 0,
+    validFrom: source.validFrom,
+    validTo: source.validTo,
+    preAuthorized: source.status === 'PreAuthorized',
+    lines: [{ containerTypeId: '40hc', quantity: 1, unitCost: source.freight,
+      unitSale: source.totalSale ?? source.freight, rate: source }],
+  })
+  const first = sample({
+    id: 'maersk-caldera-04', carrierId: 'maersk', carrier: 'MAERSK',
+    agentId: 'same-agent', agent: 'Agent Group', currencyId: 'usd', currency: 'USD',
+    polId: 'shanghai', pol: 'Shanghai', poeId: 'caldera', poe: 'Caldera',
+    podId: 'san-jose', pod: 'San José', freight: 6000, totalSale: 6000,
+    freeDays: 7, transitDays: 25, spaceComment: 'Válida para carga general', validFrom: '2026-11-04', validTo: '2026-11-13',
+  })
+  const second = sample({
+    ...first, id: 'maersk-caldera-05', importBatchId: 'different-batch',
+    carrier: 'MAERSK LINE', agent: 'AGENT GROUP S.A.',
+    currency: 'Dólar estadounidense', pol: 'Puerto de Shanghái',
+    poe: 'Puerto Caldera, Costa Rica', pod: 'San Jose, Costa Rica',
+    validFrom: '2026-11-05',
+  })
+  assert.deepEqual(
+    uniqueVisibleFclBundles([make(first), make(second)]).map((bundle) => bundle.key),
+    ['single:maersk-caldera-04'],
+  )
+  assert.deepEqual(
+    uniqueVisibleFclBundles([make(second), make(first)]).map((bundle) => bundle.key),
+    ['single:maersk-caldera-04'],
+  )
+  // Do not hide truly different lanes, agents, currency or commercial terms.
+  const differentPort = sample({ ...second, id: 'different-port', poeId: 'moin', poe: 'Moín' })
+  const differentAgent = sample({ ...second, id: 'different-agent', agentId: 'another-agent', agent: 'Another agent' })
+  const differentCurrency = sample({ ...second, id: 'different-currency', currencyId: 'crc', currency: 'CRC' })
+  const differentFreeDays = sample({ ...second, id: 'different-free-days', freeDays: 14 })
+  const differentComments = sample({ ...second, id: 'different-terms', spaceComment: 'No incluye carga IMO' })
+  const differentPrice = sample({ ...second, id: 'different-price', freight: 6100, totalSale: 6100 })
+  const nonOverlapping = sample({ ...second, id: 'different-period', validFrom: '2026-11-14', validTo: '2026-11-20' })
+  for (const other of [differentPort, differentAgent, differentCurrency, differentFreeDays, differentComments, differentPrice, nonOverlapping]) {
+    assert.equal(uniqueVisibleFclBundles([make(first), make(other)]).length, 2, other.id)
+  }
+})
