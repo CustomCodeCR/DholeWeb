@@ -53,6 +53,16 @@ const fclRatesByContainer = ref<Record<string, ImportRateSelectDto[]>>({})
 const selectedFclBundleKey = ref('')
 const fclSelectedImportRateIds = ref<Record<string, string>>({})
 
+// Keep the chosen tariff per POE/carrier outside the filter block replaced by
+// pricingWizardMixedCarrierExpiry. Selection is tied to the exact RateIds.
+const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string; rateIds: Record<string, string> }>>({})
+restoreFclBundleForOption = (poeId, carrierId) => {
+  const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
+  selectedFclBundleKey.value = snapshot?.bundleKey ?? ''
+  fclSelectedImportRateIds.value = { ...(snapshot?.rateIds ?? {}) }
+}
+
+
 function fclRateCarrierFilterKey(rate: ImportRateSelectDto) {
   return String(rate.carrierId || normalizeCatalogValue(String(rate.carrier ?? ''))).trim()
 }
@@ -183,15 +193,6 @@ const visibleFclRateBundles = computed(() =>
   ),
 )
 
-const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string; rateIds: Record<string, string> }>>({})
-
-onMounted(() => {
-  restoreFclBundleForOption = (poeId, carrierId) => {
-    const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
-    selectedFclBundleKey.value = snapshot?.bundleKey ?? ''
-    fclSelectedImportRateIds.value = { ...(snapshot?.rateIds ?? {}) }
-  }
-})
 
 function chooseFclRateBundle(bundle: FclRateBundle) {
   const selectedCarrierOptionId = multiCarrierSelectionMode.value
