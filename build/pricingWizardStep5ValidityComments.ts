@@ -243,6 +243,13 @@ const step5UniqueFclBundleCount = computed(() =>
                   <p v-if="step5ExpandedComments['single:' + rate.id]" class="mt-2 whitespace-pre-line break-words font-semibold">{{ rate.spaceComment || 'Sin comentarios registrados' }}</p>`
   code = replaceOnce(code, singleComment, singleToggle, 'single-rate comment toggle')
 
+  // Counts reflect real source records vs unique carrier/offer choices.
+  code = code.replaceAll(
+    "{{ bundle.sourceCount }} fuente{{ bundle.sourceCount === 1 ? '' : 's' }}",
+    "{{ bundle.sourceRecordCount }} registros de origen",
+  )
+  code = code.replaceAll('Naviera seleccionada</DhBadge>', 'Tarifa elegida</DhBadge>')
+
   // Distinguish dates from carrier-only empty results without hiding all rates.
   code = replaceOnce(code, 'No hay combinaciones completas para las navieras seleccionadas',
     '{{ step5ValidityFrom || step5ValidityTo ? "No hay combinaciones para ese rango de vigencia" : "No hay combinaciones completas para las navieras seleccionadas" }}',
