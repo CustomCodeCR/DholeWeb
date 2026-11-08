@@ -95,6 +95,13 @@ const step5VisibleFclRateBundles = computed(() =>
 const step5UniqueFclBundleCount = computed(() =>
   uniqueVisibleFclBundles(visibleFclRateBundles.value).length,
 )
+// The source-record total does not need FCL bundle coverage to calculate.
+// Missing or partial API arrays must never crash the UI during rendering.
+const step5RawImportRowCount = computed(() =>
+  Object.values(fclRatesByContainer.value ?? {}).reduce(
+    (total, rates) => total + (Array.isArray(rates) ? rates.length : 0), 0,
+  ),
+)
 `
   code = replaceOnce(code, state, state + logic, 'date and comment state')
 
@@ -136,7 +143,7 @@ const step5UniqueFclBundleCount = computed(() =>
   const insertion = code.indexOf(description, start)
   if (start < 0 || insertion < 0 || insertion - start > 4500) throw new Error('Missing FCL filter panel')
   code = code.slice(0, insertion) + dateFields + '\n' +
-    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales distintas con las fechas seleccionadas; {{ fclRateCoverage.reduce((sum, item) => sum + item.rawCount, 0) }} registros originales consultados.</p>\n' +
+    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales distintas con las fechas seleccionadas; {{ step5RawImportRowCount }} registros originales consultados.</p>\n' +
     code.slice(insertion)
 
   // The single-rate selection has its own carrier bar, so date fields are
