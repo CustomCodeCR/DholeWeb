@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import type { ImportRateSelectDto } from '../src/core/interfaces/pricing.ts'
-import { pricingRateDisplayKey, uniqueDisplayRates } from '../src/modules/pricing/utils/pricingRateDisplayDedup.ts'
+import { pricingRateDisplayKey, uniqueDisplayRates, uniqueVisibleFclBundles } from '../src/modules/pricing/utils/pricingRateDisplayDedup.ts'
 
 const sample = (changes: Partial<ImportRateSelectDto> = {}): ImportRateSelectDto => ({
   id: 'source-1',
@@ -103,4 +103,85 @@ test('saved FCL group panels open and close explicitly and selected quote is pri
   assert.match(wizard, /groupedQuote\?\.selectedRateId \&\& groupedQuote\.selectedRateId !== rate\.id/)
   assert.match(wizard, /router\.replace\(/)
   assert.match(stability, /uniqueDisplayRates\(\[\.\.\.requirement\.rates\]/)
+})
+
+test('Screen 5 deduplicates FINAL FCL cards despite different imported source metadata', () => {
+  const build = (
+    id: string,
+    from: string,
+    overrides: Record<string, unknown> = {},
+    sourceOverrides: Partial<ImportRateSelectDto> = {},
+  ) => {
+    const rate = sample({
+      id,
+      importBatchId: 'batch-' + id,
+      carrierId: 'maersk',
+      carrier: 'MAERSK',
+      agentId: 'wvl',
+      agent: 'WVL',
+      freight: 6000,
+      totalSale: 6000,
+      validFrom: from,
+      validTo: '2026-11-13',
+      ...sourceOverrides,
+    })
+    return {
+      key: 'single:' + id,
+      carrierId: rate.carrierId || '',
+      carrier: 'MAERSK',
+      agentId: 'wvl',
+      agent: 'WVL',
+      currencyId: 'usd',
+      currency: 'USD',
+      totalCost: rate.freight,
+      totalSale: rate.totalSale ?? rate.freight,
+      freeDays: rate.freeDays ?? 0,
+      transitDays: rate.transitDays ?? 0,
+      validFrom: rate.validFrom,
+      validTo: rate.validTo,
+      preAuthorized: rate.status === 'PreAuthorized',
+      lines: [{
+        containerTypeId: '40hc',
+        quantity: 1,
+        unitCost: rate.freight,
+        unitSale: rate.totalSale ?? rate.freight,
+        rate,
+      }],
+      ...overrides,
+    }
+  }
+  const older = build('maersk-nov04', '2026-11-04', {}, { spaceComment: 'Vigente en Caldera' })
+  const duplicate = build('maersk-nov05', '2026-11-05', {}, { spaceComment: '' })
+  // Raw import metadata differs, yet the cards show the same commercial offer.
+  assert.notEqual(pricingRateDisplayKey(older.lines[0]!.rate), pricingRateDisplayKey(duplicate.lines[0]!.rate))
+  assert.deepEqual(uniqueVisibleFclBundles([older, duplicate]).map(x => x.key), ['single:maersk-nov04'])
+  assert.deepEqual(uniqueVisibleFclBundles([duplicate, older]).map(x => x.key), ['single:maersk-nov04'])
+
+  const variants = [
+    build('different-freight', '2026-11-05', { totalCost: 6200, totalSale: 6200, lines: [{
+      ...duplicate.lines[0]!, unitCost: 6200, unitSale: 6200, rate: sample({
+        ...duplicate.lines[0]!.rate, id: 'different-freight', freight: 6200, totalSale: 6200,
+      }),
+    }] }),
+    build('different-agent', '2026-11-05', { agentId: 'other', agent: 'OTRO' }),
+    build('different-route', '2026-11-05', {}, { poe: 'Moin', poeId: 'moin' }),
+    build('different-equipment', '2026-11-05', { lines: [{
+      ...duplicate.lines[0]!, containerTypeId: '20dc',
+    }] }),
+    build('different-transit', '2026-11-05', { transitDays: 30 }),
+    build('different-free-days', '2026-11-05', { freeDays: 14 }),
+    build('different-period', '2026-11-14', { validTo: '2026-11-20' }),
+  ]
+  assert.equal(uniqueVisibleFclBundles([older, ...variants]).length, variants.length + 1)
+})
+
+test('view-only saved FCL accordion is clickable despite the editing guard', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(wizard, /'wizard-view-readonly': viewOnly && step !== 9/)
+  assert.match(wizard, /class="saved-quote-accordion-toggle block w-full cursor-pointer/)
+  assert.match(wizard, /\.wizard-view-readonly \.saved-quote-accordion-toggle\s*\{\s*pointer-events: auto;/)
+  assert.match(wizard, /@click="toggleSavedQuotePanel\(preview\.key\)"/)
+  assert.match(wizard, /v-if="expandedSavedQuotePanels\[preview\.key\]"/)
+  // A view must remain read-only in every other respect.
+  assert.match(wizard, /\.wizard-view-readonly\s*\{\s*pointer-events: none;/)
 })
