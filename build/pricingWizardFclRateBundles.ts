@@ -97,6 +97,53 @@ const fclRateBundles = computed<FclRateBundle[]>(() => {
   const requirements = fclRateRequirements.value
   if (!requirements.length || requirements.some((requirement) => !requirement.rates.length)) return []
 
+  // Do not discard source offers at the bundle-construction stage.
+  // Previously one source was chosen per carrier/agent/currency, losing
+  // genuinely different 40HC prices (e.g. approved MSC 6800 vs
+  // preauthorized MSC 6300) before Screen 5 could group them.
+  // For one equipment type, keep every original RateId until the final
+  // visual deduplication and carrier grouping.
+  if (requirements.length === 1) {
+    const requirement = requirements[0]!
+    return requirement.rates.map((rate) => {
+      const unitCost = number(rate.freight)
+      const unitSale = number(rate.totalSale ?? rate.freight)
+      const quantity = requirement.quantity
+      return {
+        key: fclRateBundleGroupKey(rate) + ':source:' + rate.id,
+        carrierFilterKey: fclRateCarrierFilterKey(rate),
+        carrierId: String(rate.carrierId ?? ''),
+        carrier: String(rate.carrier || 'Naviera'),
+        agentId: String(rate.agentId ?? ''),
+        agent: String(rate.agent ?? ''),
+        currencyId: String(rate.currencyId ?? ''),
+        currency: String(rate.currency ?? rate.currencyCode ?? 'USD'),
+        lines: [{
+          containerTypeId: requirement.containerTypeId,
+          containerTypeName: requirement.containerTypeName,
+          containerTypeCode: requirement.containerTypeCode,
+          quantity, rate, unitCost, unitSale,
+          totalCost: unitCost * quantity,
+          totalSale: unitSale * quantity,
+        }],
+        totalCost: unitCost * quantity,
+        totalSale: unitSale * quantity,
+        validFrom: String(rate.validFrom ?? ''),
+        validTo: String(rate.validTo ?? ''),
+        freeDays: Math.max(0, number(rate.freeDays)),
+        transitDays: Math.max(0, number(rate.transitDays)),
+        sourceCount: 1,
+        preAuthorized: rate.status === 'PreAuthorized',
+      } satisfies FclRateBundle
+    }).sort((left, right) => {
+      const approval = Number(left.preAuthorized) - Number(right.preAuthorized)
+      if (approval !== 0) return approval
+      const expiry = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
+      if (expiry !== 0) return expiry
+      return left.totalCost - right.totalCost
+    })
+  }
+
   const groupSets = requirements.map(
     (requirement) => new Set(requirement.rates.map(fclRateBundleGroupKey)),
   )
