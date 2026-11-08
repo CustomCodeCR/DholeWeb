@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import PricingAlternativeWizardCrystal from '@/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+import PricingWizardBoundary from '@/modules/pricing/components/PricingWizardBoundary.vue'
 import PricingOwnLclView from '@/modules/pricing/views/PricingOwnLclView.vue'
 
 const route = useRoute()
@@ -21,10 +22,11 @@ const ownLcl = computed(() =>
 
 <template>
   <PricingOwnLclView v-if="ownLcl" />
-  <PricingAlternativeWizardCrystal
-    v-else
-    :key="rateId ? `${rateId}:${viewOnly ? 'view' : 'edit'}` : 'new'"
-    :rate-id="rateId"
-    :view-only="Boolean(rateId) && viewOnly"
-  />
+  <PricingWizardBoundary v-else>
+    <PricingAlternativeWizardCrystal
+      :key="rateId ? `${rateId}:${viewOnly ? 'view' : 'edit'}` : 'new'"
+      :rate-id="rateId"
+      :view-only="Boolean(rateId) && viewOnly"
+    />
+  </PricingWizardBoundary>
 </template>
