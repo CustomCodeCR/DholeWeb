@@ -1736,13 +1736,13 @@ function rateCommentRank(comment?: string | null) {
 }
 
 const sortedAvailableRates = computed(() =>
-  uniqueDisplayRates([...availableRates.value].sort((left, right) => {
+  [...availableRates.value].sort((left, right) => {
     const price = number(left.freight) - number(right.freight)
     if (price !== 0) return price
     const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)
     if (comment !== 0) return comment
     return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()
-  })),
+  }),
 )
 
 function remainingValidityDays(validTo: string) {
