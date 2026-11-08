@@ -70,7 +70,8 @@ function step5IsSelectedOffer(offer: FclRateBundle): boolean {
   const catalogId = resolveConfiguredCarrierId(offer.carrierId, offer.carrier)
   if (!catalogId) return false
   const selected = selectedFclBundlesByOption.value[carrierRouteKey(form.destinationId, catalogId)]
-  return Boolean(selected && selected.bundleKey === offer.key
+  return Boolean(selected && isSelectedFclBundle(offer.carrierId, offer.carrier, offer.key)
+    && selected.bundleKey === offer.key
     && offer.lines.every((line) => selected.rateIds[line.containerTypeId] === line.rate.id))
 }
 
@@ -157,6 +158,7 @@ const step5UniqueFclBundleCount = computed(() =>
     '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleAvailableRates.length }} de {{ sortedAvailableRates.length }} tarifas en el rango seleccionado.</p>\n' +
     '            </div>\n\n' + singleEmptyState, 'single-rate date controls')
 
+  const fclFooter = '                <div class="mt-4 flex flex-col gap-3 border-t border-[var(--dh-border)] pt-4 sm:flex-row sm:items-end sm:justify-between">'
   // Group visually identical offers, but retain source selection on demand.
   // Show every different price/condition under its carrier rather than
   // rendering a second MSC/PIL card. Identical imported sources remain in
@@ -198,7 +200,6 @@ const step5UniqueFclBundleCount = computed(() =>
 `
   code = replaceOnce(code, fclFooter, alternativeOffers + fclFooter, 'FCL carrier offers disclosure')
 
-  const fclFooter = '                <div class="mt-4 flex flex-col gap-3 border-t border-[var(--dh-border)] pt-4 sm:flex-row sm:items-end sm:justify-between">'
   const groupedSources = `
                 <div v-if="bundle.groupedAlternatives.length" class="mt-3 rounded-lg border border-[var(--dh-border)] px-3 py-2">
                   <button type="button" class="flex w-full items-center justify-between gap-2 text-left text-xs font-semibold"
