@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { patchPricingWizardStep5ValidityComments } from '../build/pricingWizardStep5ValidityComments.ts'
 
 // Fixture is deliberately the materialized markup from the earlier FCL,
@@ -93,4 +94,24 @@ test('fails loudly instead of silently dropping a future markup change', () => {
     () => patchPricingWizardStep5ValidityComments(fixture.replace('No hay tarifas para la naviera seleccionada', 'No se encontraron tarifas')),
     /single-rate empty label/,
   )
+})
+
+
+test('FCL Screen 5 catches imported source grouping errors instead of rendering a black screen', () => {
+  const compiled = patchPricingWizardStep5ValidityComments(fixture)
+  assert.ok(compiled.includes('function step5GroupCarrierOffers(rates: FclRateBundle[])'))
+  assert.ok(compiled.includes('catch (error) {'))
+  assert.ok(compiled.includes('alternativeOffers: []'))
+  assert.ok(compiled.includes('sourceRecordCount: 1'))
+  assert.ok(compiled.includes('bundle.alternativeOffers ?? []'))
+  assert.ok(compiled.includes('offer.groupedAlternatives ?? []'))
+})
+
+test('FCL preview does not fetch every imported email source before rendering', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const fcl = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
+  assert.ok(wizard.includes('async function loadImportSources(_rates: ImportRateSelectDto[])'))
+  assert.ok(!wizard.includes('await Promise.all(batchIds.map'))
+  assert.ok(wizard.includes('component: PricingEmailSourceModal'))
+  assert.ok(fcl.includes('await loadImportSources(availableRates.value)'))
 })
