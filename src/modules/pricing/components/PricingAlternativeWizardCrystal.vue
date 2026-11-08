@@ -259,6 +259,11 @@ const primarySavedGroupAlternative = computed(() => {
     ?? group?.alternatives.find((option) => option.status === 'Selected')
     ?? group?.alternatives[0] ?? null
 })
+const finalizedSavedGroup = computed(() => Boolean(savedQuoteGroup.value?.selectedRateId))
+const isDiscardedSavedAlternative = computed(() => Boolean(
+  savedQuoteGroup.value?.selectedRateId && editingRate.value
+  && savedQuoteGroup.value.selectedRateId !== editingRate.value.id,
+))
 const orderedSavedGroupRates = computed(() => {
   const primaryId = primarySavedGroupAlternative.value?.rateId
   return [...savedGroupRates.value].sort((left, right) => Number(right.id === primaryId) - Number(left.id === primaryId))
@@ -943,7 +948,7 @@ const canDownloadCurrentQuote = computed(() => {
   )
 })
 const canMarkSent = computed(() =>
-  canUpdateRateStatus.value
+  !isDiscardedSavedAlternative.value && canUpdateRateStatus.value
   && !isMasterTariff.value
   && editingRate.value?.requiredApproval !== true
   && ['Open', 'ApprovedByManagement'].includes(currentCommercialStatus.value),
@@ -956,7 +961,7 @@ const canResendPendingReapproval = computed(() =>
   && currentCommercialStatus.value === 'Sent',
 )
 const canAcceptOrReject = computed(() => {
-  if (isMasterTariff.value) return false
+  if (isMasterTariff.value || isDiscardedSavedAlternative.value) return false
 
   const status = currentCommercialStatus.value
   const regularDecision =
@@ -4319,14 +4324,18 @@ function hydratePersistedCargoDescription(rawDescription: string | null | undefi
 async function selectCommercialGroupAlternative(rateId: string) {
   if (!savedQuoteGroup.value) return
   try {
+    if (savedQuoteGroup.value.selectedRateId && savedQuoteGroup.value.selectedRateId !== rateId) {
+      toastStore.warning('Cotización finalizada', 'La sub-QUO definitiva ya fue elegida; no se puede reemplazar.')
+      return
+    }
     await PricingService.selectRateGroup(rateId)
     const refreshed = await PricingService.getRateGroup(rateId)
-    if (!refreshed || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected')) {
+    if (!refreshed || refreshed.selectedRateId !== rateId || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected' && option.quoteNumber === refreshed.parentQuoteNumber)) {
       throw new Error('Pricing no confirmó la sub-QUO principal seleccionada.')
     }
     savedQuoteGroup.value = refreshed
     expandedSavedQuotePanels.value = { ...expandedSavedQuotePanels.value, [rateId]: true }
-    toastStore.success('Sub-QUO principal actualizada', 'La alternativa elegida será la principal comercial; las demás permanecen como opciones.')
+    toastStore.success('Cotización definitiva seleccionada', 'Se conservará una única QUO comercial sin sufijo; las demás alternativas quedan solo como historial.')
     if (props.rateId !== rateId) {
       await router.push({
         name: 'pricing-rate-wizard',
@@ -4352,10 +4361,22 @@ async function hydrateExistingRate() {
     ])
     editingRate.value = rate
     rateRevisions.value = revisions
-    savedQuoteGroup.value = await PricingService.getRateGroup(rate.id)
-    savedGroupRates.value = savedQuoteGroup.value
-      ? await Promise.all(savedQuoteGroup.value.alternatives.map((option) => PricingService.getRate(option.rateId)))
+    const groupedQuote = await PricingService.getRateGroup(rate.id)
+    // Redirect old parent and discarded sub-QUO links to the definitive quote.
+    if (groupedQuote?.selectedRateId && groupedQuote.selectedRateId !== rate.id) {
+      await router.replace({
+        name: 'pricing-rate-wizard',
+        params: { rateId: groupedQuote.selectedRateId },
+        query: { mode: props.viewOnly ? 'view' : 'edit' },
+      })
+      return
+    }
+    savedQuoteGroup.value = groupedQuote
+    savedGroupRates.value = groupedQuote
+      ? await Promise.all(groupedQuote.alternatives.map((option) => PricingService.getRate(option.rateId)))
       : []
+    if (groupedQuote?.selectedRateId && !Object.keys(expandedSavedQuotePanels.value).length)
+      expandedSavedQuotePanels.value = { [groupedQuote.selectedRateId]: true }
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = true
     const modality = modalityForRate(rate)
@@ -4370,7 +4391,9 @@ async function hydrateExistingRate() {
     form.podId = rate.podId ?? ''
     form.equipmentId = rate.containerTypeId
     selectedPoeIds.value = savedQuoteGroup.value
-      ? [...new Set(savedQuoteGroup.value.alternatives.map((option) => option.poeId))]
+      ? [...new Set(savedQuoteGroup.value.alternatives
+          .filter((option) => !savedQuoteGroup.value?.selectedRateId || option.rateId === savedQuoteGroup.value.selectedRateId)
+          .map((option) => option.poeId))]
       : form.destinationId ? [form.destinationId] : []
     if (savedQuoteGroup.value) {
       selectedCarriersByPoe.value = Object.fromEntries(selectedPoeIds.value.map((poeId) => [
@@ -6356,17 +6379,19 @@ onMounted(async () => {
           <div v-for="option in savedQuoteGroup.alternatives" :key="option.rateId"
             class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs"
             :class="option.rateId === primarySavedGroupAlternative?.rateId ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'">
-            <button type="button" class="block w-full text-left hover:text-[var(--dh-primary)]"
+            <button type="button" class="block w-full text-left hover:text-[var(--dh-primary)] disabled:cursor-default disabled:opacity-75"
+              :disabled="finalizedSavedGroup && option.rateId !== savedQuoteGroup?.selectedRateId"
               @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
               <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
               <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
               <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
             </button>
             <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Sub-QUO principal seleccionada</span>
+            <span v-else-if="finalizedSavedGroup" class="mt-2 block text-xs font-semibold text-[var(--dh-text-muted)]">Descartada · Solo historial</span>
             <button v-else-if="authStore.hasScope('pricing.rate.update')" type="button"
               class="mt-2 rounded-lg border border-[var(--dh-border)] px-2 py-1.5 font-bold hover:border-[var(--dh-primary)]"
               @click="selectCommercialGroupAlternative(option.rateId)">
-              Elegir esta sub-QUO
+              Elegir como QUO definitiva
             </button>
           </div>
         </div>
@@ -7658,9 +7683,9 @@ onMounted(async () => {
             <div class="crystal-soft p-4 md:p-5">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Sub-QUO principal · FCL</p>
+                  <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ finalizedSavedGroup ? 'Cotización definitiva · FCL' : 'Alternativas FCL pendientes de elegir' }}</p>
                   <h3 class="mt-1 text-xl font-black">{{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup?.parentQuoteNumber }}</h3>
-                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup?.parentQuoteNumber }} · {{ savedQuoteGroup?.alternatives.length }} alternativas</p>
+                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ finalizedSavedGroup ? 'La ruta elegida es la única cotización comercial; las demás quedan en historial.' : 'La elección de la sub-QUO será definitiva.' }} · {{ savedQuoteGroup?.alternatives.length }} alternativas registradas</p>
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Despliegue cada alternativa guardada para consultar sus líneas y totales. Las alternativas son independientes; sus montos no se suman.</p>
                 </div>
                 <DhBadge variant="primary">{{ selectedPoeIds.length }} POE</DhBadge>
@@ -8029,7 +8054,7 @@ onMounted(async () => {
 
           <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
             <div class="crystal-soft p-5">
-              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">Cotización multiQUO</p>
+              <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ finalizedSavedGroup ? 'Cotización definitiva' : 'Cotización multiQUO pendiente' }}</p>
               <h3 class="mt-1 text-xl font-black">Principal: {{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup.parentQuoteNumber }}</h3>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
@@ -8180,8 +8205,8 @@ onMounted(async () => {
           <div class="grid gap-4 lg:grid-cols-3">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Identificación</p>
-              <p class="mt-3 text-lg font-black">{{ editingRate.rateCode }}</p>
-              <p class="mt-1 text-sm font-bold">QUO: {{ editingRate.quoNumber || '—' }}</p>
+              <p class="mt-3 text-lg font-black">{{ editingRate.quoNumber || editingRate.rateCode }}</p>
+              <p class="mt-1 text-sm font-bold">QUO comercial: {{ editingRate.quoNumber || '—' }}</p>
               <div class="mt-2 flex flex-wrap items-center gap-2">
                 <DhBadge
                   :label="commercialRateTypeLabel"
