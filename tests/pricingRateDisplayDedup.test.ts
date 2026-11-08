@@ -349,8 +349,8 @@ test('real-data shape: 110 original records become 5 carrier cards without losin
 test('Screen 5 never marks all rates of a selected carrier as selected', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const generator = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
-  assert.match(wizard, /return selectedBundleByOption\\.value\\[route\\] === bundleKey/)
-  assert.doesNotMatch(wizard, /\\|\\| currentPoeCarrierIds\\.value\\.includes\\(configuredId\\)/)
-  assert.match(wizard, /if \\(ratePod && !podIsPlaceholder && !multiCarrierSelectionMode\\.value\\)/)
-  assert.match(generator, /key: fclRateBundleGroupKey\\(rate\\) \\+ ':source:' \\+ rate\\.id/)
+  assert.match(wizard, /return selectedBundleByOption\.value\[route\] === bundleKey/)
+  assert.doesNotMatch(wizard, /\|\| currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+  assert.match(wizard, /if \(ratePod && !podIsPlaceholder && !multiCarrierSelectionMode\.value\)/)
+  assert.match(generator, /key: fclRateBundleGroupKey\(rate\) \+ ':source:' \+ rate\.id/)
 })
