@@ -13,6 +13,7 @@ import {
   setPricingRateComment,
 } from '@/modules/pricing/services/pricingRateCommentState'
 import PricingTermDragBoard, { type PricingTermBoardColumn } from './PricingTermDragBoard.vue'
+import { expandPricingCommercialCatalogItems, splitPricingCommercialTermLines } from '@/modules/pricing/utils/pricingCommercialTermLines'
 
 export interface CommercialTermsSelection {
   includes: string[]
@@ -65,13 +66,7 @@ function key(value: string) {
 }
 
 function unique(values: string[]) {
-  const seen = new Set<string>()
-  return values.map((x) => x.trim()).filter((x) => {
-    const normalized = key(x)
-    if (!normalized || seen.has(normalized)) return false
-    seen.add(normalized)
-    return true
-  })
+  return splitPricingCommercialTermLines(values)
 }
 
 function ensureLegacyItems(values: string[]) {
@@ -118,14 +113,14 @@ function emitBoard(value: Record<string, string[]>) {
 }
 
 function addManualTerm() {
-  const text = manualText.value.trim()
+  const texts = unique([manualText.value])
   manualError.value = ''
 
-  if (!text) {
+  if (!texts.length) {
     manualError.value = 'Escriba el concepto que desea agregar.'
     return
   }
-  if (!props.allowInternationalTransportTerms && isInternationalTransportTerm(text)) {
+  if (!props.allowInternationalTransportTerms && texts.some(isInternationalTransportTerm)) {
     manualError.value = 'Este concepto corresponde a Transporte Internacional y no aplica a la tarifa aduanal.'
     return
   }
@@ -135,16 +130,20 @@ function addManualTerm() {
     ...props.modelValue.subjectTo,
     ...props.modelValue.excludes,
   ]
-  if (currentTerms.some((item) => key(item) === key(text))) {
+  const existing = new Set(unique(currentTerms).map(key))
+  if (texts.some((text) => existing.has(key(text)))) {
     manualError.value = 'Este concepto ya está incluido en una categoría.'
     return
   }
 
-  const id = `manual-${crypto.randomUUID()}`
-  catalogItems.value.push({ id, text, sortOrder: 99999, isActive: false })
+  const addedIds = texts.map((text) => {
+    const id = `manual-${crypto.randomUUID()}`
+    catalogItems.value.push({ id, text, sortOrder: 99999, isActive: false })
+    return id
+  })
   emitBoard({
     ...board.value,
-    [manualCategory.value]: [...(board.value[manualCategory.value] ?? []), id],
+    [manualCategory.value]: [...(board.value[manualCategory.value] ?? []), ...addedIds],
   })
   manualText.value = ''
 }
@@ -191,7 +190,7 @@ async function load() {
   try {
     loading.value = true
     error.value = ''
-    catalogItems.value = await PricingService.browseRateTermItems()
+    catalogItems.value = expandPricingCommercialCatalogItems(await PricingService.browseRateTermItems())
     syncFromProps()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible cargar el catálogo de términos.'
