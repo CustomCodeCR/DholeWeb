@@ -211,7 +211,7 @@ test('Screen 5 MAERSK Caldera commercial aliases do not generate repeat cards', 
     agentId: 'same-agent', agent: 'Agent Group', currencyId: 'usd', currency: 'USD',
     polId: 'shanghai', pol: 'Shanghai', poeId: 'caldera', poe: 'Caldera',
     podId: 'san-jose', pod: 'San José', freight: 6000, totalSale: 6000,
-    freeDays: 7, transitDays: 25, validFrom: '2026-11-04', validTo: '2026-11-13',
+    freeDays: 7, transitDays: 25, spaceComment: 'Válida para carga general', validFrom: '2026-11-04', validTo: '2026-11-13',
   })
   const second = sample({
     ...first, id: 'maersk-caldera-05', importBatchId: 'different-batch',
