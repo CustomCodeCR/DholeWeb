@@ -32,7 +32,7 @@ export function pricingRateDisplayKey(rate: ImportRateSelectDto): string {
   ])
 }
 
-function sameOrOverlappingValidity(left: ImportRateSelectDto, right: ImportRateSelectDto): boolean {
+function sameOrOverlappingValidity(left: Pick<ImportRateSelectDto, 'validFrom' | 'validTo'>, right: Pick<ImportRateSelectDto, 'validFrom' | 'validTo'>): boolean {
   const leftFrom = day(left.validFrom)
   const leftTo = day(left.validTo)
   const rightFrom = day(right.validFrom)
@@ -86,5 +86,123 @@ export function uniqueDisplayRates<T extends ImportRateSelectDto>(rates: readonl
     if (previous && preferRate(rate, previous)) visible[overlappingIndex] = rate
   }
 
+  return visible
+}
+
+/**
+ * Final display-card representation. Unlike raw ImportFclRate records, a bundle
+ * reflects exactly what Screen 5 will render after carrier, equipment and
+ * date filtering. Deduplicate here as well: raw records can differ in optional
+ * source metadata yet still create identical commercial cards.
+ */
+export interface FclDisplayBundleLine {
+  containerTypeId: string
+  quantity: number
+  unitCost: number
+  unitSale: number
+  rate: ImportRateSelectDto
+}
+
+export interface FclDisplayBundle {
+  key: string
+  carrierId: string
+  carrier: string
+  agentId: string
+  agent: string
+  currencyId: string
+  currency: string
+  totalCost: number
+  totalSale: number
+  freeDays: number
+  transitDays: number
+  validFrom: string
+  validTo: string
+  preAuthorized: boolean
+  lines: readonly FclDisplayBundleLine[]
+}
+
+function sameDisplayIdentity(left: string | null | undefined, right: string | null | undefined) {
+  return normalized(left) === normalized(right)
+}
+
+function sameOptionalCommercialTerm(left: string | null | undefined, right: string | null | undefined) {
+  const one = normalized(left)
+  const two = normalized(right)
+  // An omitted importer field is not a second commercial offer.
+  // Two contradictory non-empty values are genuinely different offers.
+  return !one || !two || one === two
+}
+
+function sameCatalogOrName(
+  leftId: string, leftName: string, rightId: string, rightName: string,
+): boolean {
+  // Match named providers across differing import/catalog identifiers.
+  // Two different known providers must remain separate even at equal prices.
+  if (normalized(leftName) && normalized(rightName)) return sameDisplayIdentity(leftName, rightName)
+  if (normalized(leftId) && normalized(rightId)) return sameDisplayIdentity(leftId, rightId)
+  return !normalized(leftId) || !normalized(rightId)
+}
+
+function sameBundleLines(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
+  if (left.lines.length !== right.lines.length) return false
+  const leftSorted = [...left.lines].sort((a, b) => a.containerTypeId.localeCompare(b.containerTypeId))
+  const rightSorted = [...right.lines].sort((a, b) => a.containerTypeId.localeCompare(b.containerTypeId))
+  return leftSorted.every((line, index) => {
+    const other = rightSorted[index]
+    if (!other) return false
+    return sameDisplayIdentity(line.containerTypeId, other.containerTypeId)
+      && amount(line.quantity) === amount(other.quantity)
+      && amount(line.unitCost) === amount(other.unitCost)
+      && amount(line.unitSale) === amount(other.unitSale)
+      && sameOptionalCommercialTerm(line.rate.pol || line.rate.polId, other.rate.pol || other.rate.polId)
+      && sameOptionalCommercialTerm(line.rate.poe || line.rate.poeId, other.rate.poe || other.rate.poeId)
+      && sameOptionalCommercialTerm(line.rate.pod || line.rate.podId, other.rate.pod || other.rate.podId)
+      && sameOptionalCommercialTerm(line.rate.spaceComment, other.rate.spaceComment)
+      && sameOptionalCommercialTerm(line.rate.commodity, other.rate.commodity)
+      && amount(line.rate.originCharges) === amount(other.rate.originCharges)
+      && amount(line.rate.destinationCharges) === amount(other.rate.destinationCharges)
+      && amount(line.rate.surcharges) === amount(other.rate.surcharges)
+  })
+}
+
+function sameCommercialBundle(left: FclDisplayBundle, right: FclDisplayBundle): boolean {
+  return sameCatalogOrName(left.carrierId, left.carrier, right.carrierId, right.carrier)
+    && sameCatalogOrName(left.agentId, left.agent, right.agentId, right.agent)
+    && sameCatalogOrName(left.currencyId, left.currency, right.currencyId, right.currency)
+    && amount(left.totalCost) === amount(right.totalCost)
+    && amount(left.totalSale) === amount(right.totalSale)
+    && amount(left.freeDays) === amount(right.freeDays)
+    && amount(left.transitDays) === amount(right.transitDays)
+    && sameBundleLines(left, right)
+    && sameOrOverlappingValidity(
+      { validFrom: left.validFrom, validTo: left.validTo },
+      { validFrom: right.validFrom, validTo: right.validTo },
+    )
+}
+
+function preferCommercialBundle(candidate: FclDisplayBundle, original: FclDisplayBundle) {
+  const ends = day(candidate.validTo).localeCompare(day(original.validTo))
+  if (ends !== 0) return ends > 0
+  const starts = day(candidate.validFrom).localeCompare(day(original.validFrom))
+  if (starts !== 0) return starts < 0
+  if (candidate.preAuthorized !== original.preAuthorized) return !candidate.preAuthorized
+  // A complete provider description takes priority when dates and prices agree.
+  const completeness = (rate: FclDisplayBundle) =>
+    Number(Boolean(rate.agent)) + rate.lines.filter((line) => Boolean(line.rate.spaceComment)).length
+  return completeness(candidate) > completeness(original)
+}
+
+export function uniqueVisibleFclBundles<T extends FclDisplayBundle>(bundles: readonly T[]): T[] {
+  const visible: T[] = []
+  for (const bundle of bundles) {
+    const index = visible.findIndex((existing) => sameCommercialBundle(existing, bundle))
+    if (index === -1) {
+      visible.push(bundle)
+    } else if (preferCommercialBundle(bundle, visible[index]!)) {
+      // Preserve the original key/id from the selected source record, not a
+      // synthetic combination. The chosen card remains fully selectable.
+      visible[index] = bundle
+    }
+  }
   return visible
 }
