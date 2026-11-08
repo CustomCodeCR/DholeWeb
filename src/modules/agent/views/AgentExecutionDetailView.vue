@@ -46,6 +46,7 @@ const cancelling = ref(false)
 const activeTab = ref<ExecutionTab>('summary')
 
 const executionId = computed(() => String(route.params.id ?? ''))
+let permissionEpoch = 0
 const tabs: DhTabItem[] = [
   { key: 'summary', label: 'Resumen' },
   { key: 'tasks', label: 'Tareas' },
@@ -83,6 +84,8 @@ useResourceRealtime<AgentExecutionDto>({
   },
   onDenied: () => {
     // Purge previously visible privileged details when owner REST revokes access.
+    permissionEpoch++
+    store.forgetExecution(executionId.value)
     execution.value = null
     storedResult.value = null
     promptSnapshot.value = null
@@ -139,10 +142,16 @@ async function loadPromptSnapshot(force = false) {
   try {
     promptLoading.value = true
     promptUnavailable.value = false
-    promptSnapshot.value = await AgentService.executions.getPrompt(executionId.value)
+    const requestId = executionId.value
+    const epoch = permissionEpoch
+    const value = await AgentService.executions.getPrompt(requestId)
+    if (epoch === permissionEpoch && execution.value?.id === requestId)
+      promptSnapshot.value = value
   } catch {
-    promptSnapshot.value = null
-    promptUnavailable.value = true
+    if (execution.value?.id === executionId.value) {
+      promptSnapshot.value = null
+      promptUnavailable.value = true
+    }
   } finally {
     promptLoaded.value = true
     promptLoading.value = false
@@ -154,9 +163,13 @@ async function loadStoredResult() {
 
   try {
     resultLoading.value = true
-    storedResult.value = await AgentService.executions.getResult(executionId.value)
+    const requestId = executionId.value
+    const epoch = permissionEpoch
+    const value = await AgentService.executions.getResult(requestId)
+    if (epoch === permissionEpoch && execution.value?.id === requestId)
+      storedResult.value = value
   } catch {
-    storedResult.value = null
+    if (execution.value?.id === executionId.value) storedResult.value = null
   } finally {
     resultLoading.value = false
   }
@@ -167,10 +180,13 @@ async function refresh(showToast = false) {
 
   try {
     loading.value = true
+    const requestId = executionId.value
+    const epoch = permissionEpoch
     const [row] = await Promise.all([
-      AgentService.executions.get(executionId.value),
+      AgentService.executions.get(requestId),
       loadReferenceData(),
     ])
+    if (epoch !== permissionEpoch || executionId.value !== requestId) return
     execution.value = row
     store.upsertExecution(row)
     polling.sync()
