@@ -43,6 +43,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import DhSidebar, { type SidebarItem } from '@/shared/components/organisms/DhSidebar.vue'
 import DhTopbar from '@/shared/components/organisms/DhTopbar.vue'
+import DholeRealtimeStatus from '@/shared/components/organisms/DholeRealtimeStatus.vue'
 import DhWorkspaceTabs from '@/shared/components/organisms/DhWorkspaceTabs.vue'
 import DhCommandPalette, {
   type CommandItem,
@@ -788,6 +789,7 @@ onBeforeUnmount(() => {
 
     <div class="min-h-screen min-w-0 pr-0 transition-[padding] duration-300 sm:pr-2 lg:pr-4" :class="contentClass">
       <DhTopbar @navigation="toggleMobileSidebar" @search="commandOpen = true" @logout="logout" />
+      <DholeRealtimeStatus />
       <DhWorkspaceTabs />
 
       <main class="min-w-0 p-2 sm:p-4">
