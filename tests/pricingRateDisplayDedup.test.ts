@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import type { ImportRateSelectDto } from '../src/core/interfaces/pricing.ts'
-import { pricingRateDisplayKey, uniqueDisplayRates, uniqueVisibleFclBundles } from '../src/modules/pricing/utils/pricingRateDisplayDedup.ts'
+import { pricingRateDisplayKey, uniqueDisplayRates, uniqueVisibleFclBundles, groupFclCarrierCards } from '../src/modules/pricing/utils/pricingRateDisplayDedup.ts'
 
 const sample = (changes: Partial<ImportRateSelectDto> = {}): ImportRateSelectDto => ({
   id: 'source-1',
@@ -289,4 +289,68 @@ test('FCL grouping never chains non-overlapping validity periods', () => {
     card('bridge', '2026-11-03', '2026-11-05'),
     card('later', '2026-11-05', '2026-11-07')]
   assert.equal(uniqueVisibleFclBundles(rows).length, 2)
+})
+
+
+test('real-data shape: 110 original records become 5 carrier cards without losing their RateIds', () => {
+  const rows = [
+    { carrier: 'ONE', count: 78, freight: 6300, freeDays: 21, status: 'PreAuthorized' },
+    { carrier: 'MSC', count: 18, freight: 6300, freeDays: 21, status: 'PreAuthorized' },
+    { carrier: 'MSC', count: 2, freight: 6800, freeDays: 0, status: 'Approved' },
+    { carrier: 'MSC', count: 1, freight: 7200, freeDays: 0, status: 'PreAuthorized' },
+    { carrier: 'MSC', count: 1, freight: 6300, freeDays: 21, status: 'PreAuthorized' },
+    { carrier: 'PIL', count: 3, freight: 6500, freeDays: 18, status: 'PreAuthorized' },
+    { carrier: 'PIL', count: 1, freight: 7004, freeDays: 7, status: 'PreAuthorized' },
+    { carrier: 'PIL', count: 1, freight: 7500, freeDays: 7, status: 'PreAuthorized' },
+    { carrier: 'OOCL', count: 3, freight: 6565, freeDays: 18, status: 'PreAuthorized' },
+    { carrier: 'MAERSK', count: 2, freight: 6000, freeDays: 7, status: 'Approved' },
+  ] as const
+  const sourceBundles = rows.flatMap((r, i) =>
+    Array.from({ length: r.count }, (_, index) => {
+      const id = r.carrier + ':' + i + ':' + index
+      const rate = sample({
+        id, importBatchId: 'batch:' + id,
+        carrierId: r.carrier.toLowerCase(), carrier: r.carrier,
+        freight: r.freight, totalSale: r.freight, freeDays: r.freeDays,
+        validFrom: '2026-11-08', validTo: '2026-11-14',
+        status: r.status,
+      })
+      return {
+        key: 'source:' + id, carrierId: rate.carrierId, carrier: rate.carrier,
+        agentId: 'agency', agent: 'agency', currencyId: 'usd',
+        currency: 'USD', totalCost: rate.freight, totalSale: rate.totalSale ?? rate.freight,
+        freeDays: rate.freeDays, transitDays: 0,
+        validFrom: rate.validFrom, validTo: rate.validTo,
+        preAuthorized: rate.status === 'PreAuthorized',
+        lines: [{ containerTypeId: '40hc', quantity: 1,
+          unitCost: rate.freight, unitSale: rate.totalSale ?? rate.freight, rate }],
+      }
+    }),
+  )
+  assert.equal(sourceBundles.length, 110)
+  const cards = groupFclCarrierCards(uniqueVisibleFclBundles(sourceBundles))
+  assert.equal(cards.length, 5)
+  assert.deepEqual(cards.map((card) => card.carrier), ['ONE', 'MSC', 'PIL', 'OOCL', 'MAERSK'])
+  assert.equal(cards.reduce((sum, card) => sum + card.sourceRecordCount, 0), 110)
+  const msc = cards.find((card) => card.carrier === 'MSC')!
+  assert.equal(msc.totalCost, 6800) // Prefer explicitly approved source.
+  assert.ok(msc.alternativeOffers.some((offer) => offer.totalCost === 6300))
+  const pil = cards.find((card) => card.carrier === 'PIL')!
+  assert.equal(pil.offerCount, 3)
+  const one = cards.find((card) => card.carrier === 'ONE')!
+  assert.equal(one.sourceRecordCount, 78)
+  assert.equal(one.offerCount, 1)
+  const allIds = cards.flatMap((card) =>
+    [card, ...card.groupedAlternatives, ...card.alternativeOffers.flatMap((o) => [o, ...o.groupedAlternatives])])
+    .map((offer) => offer.lines[0]!.rate.id)
+  assert.equal(new Set(allIds).size, 110)
+})
+
+test('Screen 5 never marks all rates of a selected carrier as selected', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const generator = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
+  assert.match(wizard, /return selectedBundleByOption\.value\[route\] === bundleKey/)
+  assert.doesNotMatch(wizard, /\|\| currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+  assert.match(wizard, /if \(ratePod && !podIsPlaceholder && !multiCarrierSelectionMode\.value\)/)
+  assert.match(generator, /key: fclRateBundleGroupKey\(rate\) \+ ':source:' \+ rate\.id/)
 })

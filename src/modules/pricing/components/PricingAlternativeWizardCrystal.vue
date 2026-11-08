@@ -49,7 +49,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
-import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
+import { uniqueDisplayRates, uniqueVisibleFclBundles, groupFclCarrierCards } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
@@ -689,10 +689,10 @@ function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: 
   const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
   if (!configuredId) return false
   const route = carrierRouteKey(form.destinationId, configuredId)
-  // A clicked pre-approved option must remain visually checked even if its
-  // bundle key changes when the rate catalogue is refreshed.
+  // A carrier selected for configuration is NOT a selected tariff.
+  // Never highlight every offer merely because the user chose this carrier
+  // on the POE route screen.
   return selectedBundleByOption.value[route] === bundleKey
-    || currentPoeCarrierIds.value.includes(configuredId)
 }
 
 /** Select every available or manual carrier in one POE before moving on. */
@@ -3809,12 +3809,21 @@ function chooseRate(rate: ImportRateSelectDto) {
   const ratePod = rate.podId
     ? findById(catalogs.pod, rate.podId)
     : findEquivalentValue(catalogs.pod, rate.pod)
-  if (ratePod) form.podId = ratePod.id
+  // Imported tariffs without a real POD ("Por asignar"/PENDING) cannot
+  // overwrite the destination explicitly chosen by the user. In MultiQUO
+  // each alternative must keep the POE/POD configured on Screen 3.
+  const pendingPod = ['pending', 'por asignar', 'sin asignar', 'not assigned', 'n/a']
+  const podIsPlaceholder = pendingPod.some((value) =>
+    normalizeCatalogValue(String(rate.podCode ?? '')) === value
+      || normalizeCatalogValue(String(rate.pod ?? '')) === value)
+  if (ratePod && !podIsPlaceholder && !multiCarrierSelectionMode.value)
+    form.podId = ratePod.id
 
   const rateCarrier = normalizeCatalogValue(String(rate.carrier ?? ''))
-  const carrier = catalogs.carriers.find((item) =>
-    normalizeCatalogValue(displayValue(item)).includes(rateCarrier),
-  )
+  const carrier = catalogs.carriers.find((item) => item.id === rate.carrierId)
+    ?? catalogs.carriers.find((item) =>
+      normalizeCatalogValue(displayValue(item)) === rateCarrier,
+    )
   if (carrier) form.carrierId = carrier.id
 
   const rateCurrency = normalizeCatalogValue(String(rate.currency ?? ''))
