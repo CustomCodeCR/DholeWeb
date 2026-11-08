@@ -5,6 +5,7 @@ import {
   type BrowserSocket,
   type RealtimeRuntime,
   type RealtimeInvalidation,
+  REALTIME_RESOURCE_KINDS,
 } from '../src/core/realtime/realtimeManager.ts'
 
 const ID = '12345678-1111-4111-8111-111111111111'
@@ -400,4 +401,221 @@ test('F6: resource revocation immediately clears only the denied account without
   assert.equal(applied.length, previous, 'Revoked resource must not be repopulated by stale events.')
   unsubscribe()
   host.manager.stop()
+})
+
+
+test('F6 coverage: all 21 Gateway kinds trigger owner REST refresh and scoped revocation', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const applied = new Map<string, number>()
+  const denied = new Map<string, number>()
+  const subscriptions = REALTIME_RESOURCE_KINDS.map(kind => host.manager.subscribe({
+    kind, id: ID,
+    fetchSnapshot: async () => ({ value: kind, version: null }),
+    applySnapshot: () => applied.set(kind, (applied.get(kind) ?? 0) + 1),
+    onDenied: () => denied.set(kind, (denied.get(kind) ?? 0) + 1),
+  }))
+  await settle()
+  assert.equal(REALTIME_RESOURCE_KINDS.length, 21)
+  for (const kind of REALTIME_RESOURCE_KINDS) {
+    assert.equal(applied.get(kind), 1, kind + ' initial REST')
+    host.latestSocket().emitEvent({
+      ...host.event(2), eventType: kind + '.changed.v1',
+      aggregateType: kind.slice(kind.indexOf('.') + 1),
+    })
+    await settle()
+  }
+  for (const kind of REALTIME_RESOURCE_KINDS)
+    assert.equal(applied.get(kind), 2, kind + ' targeted realtime REST refresh')
+  host.latestSocket().emitRevoked('ai.emailjob', ID)
+  assert.equal(denied.get('ai.emailjob'), 1)
+  assert.equal(denied.get('crm.account') ?? 0, 0)
+  host.latestSocket().emitEvent({
+    ...host.event(3), eventType: 'ai.emailjob.changed.v1', aggregateType: 'emailjob',
+  })
+  await settle()
+  assert.equal(applied.get('ai.emailjob'), 2, 'Revoked resource must remain cleared')
+  // A domain event cannot be redirected to a different resource sharing an aggregate ID.
+  host.latestSocket().emitEvent({
+    ...host.event(4), eventType: 'auth.user.changed.v1', aggregateType: 'emailjob',
+  })
+  await settle()
+  assert.equal(applied.get('auth.user'), 2, 'Cross-domain aggregate type rejected')
+  subscriptions.forEach(unsubscribe => unsubscribe())
+  host.manager.stop()
+})
+
+test('F7 C01 candidate: 10 browser outages retain prior snapshots and converge after recovery', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  for (let i = 0; i < 10; i++) {
+    const last = bound.hooks.applied?.at(-1)
+    host.online = false
+    host.manager.networkChanged()
+    assert.equal(host.manager.status, 'offline')
+    assert.equal(host.manager.socketCount, 0)
+    host.restVersion = i + 2
+    await settle()
+    assert.equal(bound.hooks.applied?.at(-1), last, 'No invented offline data')
+    host.online = true
+    host.manager.networkChanged()
+    await settle()
+    assert.equal(bound.hooks.applied?.at(-1), host.restVersion)
+    assert.equal(host.manager.status, 'connected')
+  }
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F7 C02 candidate: 10 initial SignalR failures recover without extra logical sockets', async () => {
+  for (let i = 0; i < 10; i++) {
+    const host = new FakeHost()
+    host.initialFailures = 1
+    await host.start()
+    assert.equal(host.manager.status, 'degraded')
+    await host.clock.advanceNext()
+    assert.equal(host.manager.status, 'connected')
+    assert.equal(host.manager.socketCount, 1)
+    host.manager.stop()
+  }
+})
+
+test('F7 C03 candidate: 10 Hub disconnects reauthorize and reconcile active REST snapshots', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  for (let i = 0; i < 10; i++) {
+    host.restVersion = i + 2
+    host.latestSocket().close()
+    await host.clock.advanceNext()
+    assert.equal(host.manager.status, 'connected')
+    assert.equal(bound.hooks.applied?.at(-1), host.restVersion)
+    assert.ok(host.latestSocket().sent.some(frame => frame.includes('"target":"Subscribe"')))
+  }
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F7 C06 candidate: distinct reordered version hints still refresh REST, duplicates do not', async () => {
+  const host = new FakeHost()
+  host.restVersion = 50
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  host.restVersion = 51
+  const event = host.event(1, crypto.randomUUID()) // 1 < last authoritative REST version 50
+  host.latestSocket().emitEvent(event)
+  await settle()
+  assert.equal(bound.hooks.applied?.at(-1), 51)
+  const queries = host.restFetches
+  host.latestSocket().emitEvent(event)
+  await settle()
+  assert.equal(host.restFetches, queries, 'Exactly-once UI invalidation by eventId')
+  for (const versionHint of [8, 5, 3]) {
+    host.restVersion++
+    host.latestSocket().emitEvent(host.event(versionHint))
+    await settle()
+    assert.equal(bound.hooks.applied?.at(-1), host.restVersion)
+  }
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F7 C07 candidate: expired authentication immediately purges authorized view', async () => {
+  const host = new FakeHost()
+  await host.start()
+  let denied = 0
+  let applied = 0
+  host.manager.subscribe({
+    kind: 'crm.account', id: ID,
+    fetchSnapshot: async () => ({ value: host.restVersion, version: host.restVersion }),
+    applySnapshot: () => { applied++ },
+    onDenied: () => { denied++ },
+  })
+  await settle()
+  assert.equal(applied, 1)
+  host.expired = true
+  host.manager.refreshAuthentication()
+  await settle()
+  assert.equal(host.manager.status, 'unauthorized')
+  assert.equal(denied, 1)
+  assert.equal(host.manager.socketCount, 0)
+  assert.equal(host.clock.callbacks.size, 0)
+  host.manager.stop()
+  assert.equal(denied, 1, 'No duplicate purge callbacks')
+})
+
+test('F7 C09 candidate: 10 sleeping tabs reconcile their snapshots on wake-up', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const bound = host.bind()
+  await settle()
+  for (let i = 0; i < 10; i++) {
+    host.visible = false
+    host.manager.visibilityChanged()
+    const previous = host.restFetches
+    host.restVersion++
+    host.latestSocket().emitEvent(host.event(i + 2))
+    await settle()
+    assert.equal(host.restFetches, previous)
+    host.visible = true
+    host.manager.visibilityChanged()
+    await settle()
+    assert.equal(bound.hooks.applied?.at(-1), host.restVersion)
+  }
+  bound.unsubscribe()
+  host.manager.stop()
+})
+
+test('F7 C10 candidate: REST outage with WS connected keeps last confirmed snapshot', async () => {
+  const host = new FakeHost()
+  await host.start()
+  let restDown = false
+  const applied: number[] = []
+  const errors: unknown[] = []
+  const unsubscribe = host.manager.subscribe({
+    kind: 'crm.account', id: ID,
+    fetchSnapshot: async () => {
+      if (restDown) throw new Error('503 REST unavailable')
+      return { value: host.restVersion, version: host.restVersion }
+    },
+    applySnapshot: snapshot => applied.push(snapshot.value),
+    onError: error => errors.push(error),
+  })
+  await settle()
+  restDown = true
+  host.restVersion = 2
+  host.latestSocket().emitEvent(host.event(2))
+  await settle()
+  assert.deepEqual(applied, [1])
+  assert.equal(errors.length, 1)
+  assert.equal(host.manager.status, 'connected')
+  restDown = false
+  host.manager.resume('crm.account', ID)
+  await settle()
+  assert.deepEqual(applied, [1, 2])
+  unsubscribe()
+  host.manager.stop()
+})
+
+test('F7 C12 candidate: logout clears authorized snapshots, sockets, listeners and timers', async () => {
+  const host = new FakeHost()
+  await host.start()
+  let purged = 0
+  host.manager.subscribe({
+    kind: 'crm.account', id: ID,
+    fetchSnapshot: async () => ({ value: host.restVersion, version: host.restVersion }),
+    applySnapshot: () => {},
+    onDenied: () => { purged++ },
+  })
+  await settle()
+  host.manager.stop()
+  assert.equal(purged, 1)
+  assert.equal(host.manager.activeWatchers, 0)
+  assert.equal(host.manager.socketCount, 0)
+  assert.equal(host.clock.callbacks.size, 0)
+  assert.equal(host.manager.currentIdentity, null)
 })
