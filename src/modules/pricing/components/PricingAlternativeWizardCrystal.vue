@@ -7696,8 +7696,8 @@ onMounted(async () => {
               </div>
             </div>
             <div class="space-y-3">
-              <details v-for="preview in savedMultiQuotePreviewCards" :key="preview.key" :open="Boolean(expandedSavedQuotePanels[preview.key])" class="crystal-soft group overflow-hidden">
-                <summary class="cursor-pointer list-none px-4 py-4 marker:hidden md:px-5" :aria-expanded="Boolean(expandedSavedQuotePanels[preview.key])" :aria-label="'Desplegar u ocultar subQUO ' + (preview.rate.quoNumber || preview.rate.rateCode)" @click.prevent="toggleSavedQuotePanel(preview.key)">
+              <div v-for="preview in savedMultiQuotePreviewCards" :key="preview.key" class="crystal-soft overflow-hidden">
+                <button type="button" class="block w-full cursor-pointer px-4 py-4 text-left md:px-5" :aria-expanded="Boolean(expandedSavedQuotePanels[preview.key])" :aria-label="'Desplegar u ocultar subQUO ' + (preview.rate.quoNumber || preview.rate.rateCode)" @click="toggleSavedQuotePanel(preview.key)">
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex min-w-0 flex-1 items-start gap-3">
                       <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-sm font-black text-[var(--dh-primary)]">{{ preview.index + 1 }}</span>
@@ -7714,11 +7714,11 @@ onMounted(async () => {
                         <p class="text-[10px] text-[var(--dh-text-muted)]">Margen {{ preview.margin.toFixed(2) }}%</p>
                       </div>
                       <span class="text-xs font-semibold text-[var(--dh-primary)]">{{ expandedSavedQuotePanels[preview.key] ? 'Ocultar' : 'Desplegar' }}</span>
-                      <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" />
+                      <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] transition-transform" :class="expandedSavedQuotePanels[preview.key] ? 'rotate-180' : ''" />
                     </div>
                   </div>
-                </summary>
-                <div class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
+                </button>
+                <div v-if="expandedSavedQuotePanels[preview.key]" class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
                   <div class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Costo</p><strong class="mt-1 block text-base">{{ formatMoney(preview.cost, preview.currency) }}</strong></div>
                     <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Venta</p><strong class="mt-1 block text-base">{{ formatMoney(preview.sale, preview.currency) }}</strong></div>
@@ -7752,7 +7752,7 @@ onMounted(async () => {
                   </div>
                   <p class="mt-4 text-right text-xs font-semibold text-[var(--dh-text-muted)]">Cotización {{ preview.rate.quoNumber || preview.rate.rateCode }} · Datos guardados</p>
                 </div>
-              </details>
+              </div>
               <div v-if="savedMultiQuotePreviewCards.length !== savedQuoteGroup?.alternatives.length" class="rounded-xl border border-amber-500/40 px-4 py-3 text-xs font-semibold text-amber-600">
                 Algunas subQUO no pudieron recuperarse. Revise la información guardada en Pricing.
               </div>
@@ -8058,8 +8058,8 @@ onMounted(async () => {
               <h3 class="mt-1 text-xl font-black">Principal: {{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup.parentQuoteNumber }}</h3>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
-            <details v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft group overflow-hidden" :open="Boolean(expandedSavedQuotePanels[subRate.id])">
-              <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 marker:hidden md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click.prevent="toggleSavedQuotePanel(subRate.id)">
+            <div v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft overflow-hidden">
+              <button type="button" class="flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 p-4 text-left md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click="toggleSavedQuotePanel(subRate.id)">
                 <div class="min-w-0">
                   <p class="text-xs font-black text-[var(--dh-primary)]">{{ subRate.quoNumber || subRate.rateCode }} <span v-if="subRate.id === primarySavedGroupAlternative?.rateId">· PRINCIPAL SELECCIONADA</span></p>
                   <h4 class="mt-1 text-base font-black">{{ subRate.poeName }} · {{ subRate.carrierName || 'Naviera sin asignar' }}</h4>
@@ -8068,10 +8068,10 @@ onMounted(async () => {
                 <div class="flex items-center gap-3">
                   <strong class="text-sm">{{ formatMoney(Number(subRate.totalSaleAmount || 0), savedRateCurrencyValue(subRate)) }}</strong>
                   <span class="text-xs font-semibold text-[var(--dh-primary)]">{{ expandedSavedQuotePanels[subRate.id] ? 'Ocultar' : 'Desplegar' }}</span>
-                  <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] group-open:rotate-180" />
+                  <ChevronDown class="h-5 w-5 text-[var(--dh-text-muted)] transition-transform" :class="expandedSavedQuotePanels[subRate.id] ? 'rotate-180' : ''" />
                 </div>
-              </summary>
-              <div class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
+              </button>
+              <div v-if="expandedSavedQuotePanels[subRate.id]" class="border-t border-[var(--dh-border)] px-4 pb-5 pt-4 md:px-5">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Ocean Freight</p><strong class="text-sm">{{ formatMoney(subRate.rateDetails.filter(item => item.costDetailType === 'Freight').reduce((total, item) => total + Number(item.saleAmount || 0) * Number(item.quantity || 1), 0), savedRateCurrencyValue(subRate)) }}</strong></div>
                   <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-[10px] font-black uppercase">Costo</p><strong class="text-sm">{{ formatMoney(Number(subRate.totalCostAmount || 0), savedRateCurrencyValue(subRate)) }}</strong></div>
@@ -8093,7 +8093,7 @@ onMounted(async () => {
                   <DhButton size="sm" variant="secondary" @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: subRate.id }, query: { mode: 'view' } })">Ver subQUO individual</DhButton>
                 </div>
               </div>
-            </details>
+            </div>
           </section>
 
           <div class="crystal-soft p-5">
