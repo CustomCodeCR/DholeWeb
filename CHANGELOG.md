@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.3] - 2026-11-08
+
+- Agenda CRM: mantiene los botones Guardar/Cancelar visibles en un pie de modal fijo, aunque haya muchos campos y se desplace el formulario.
+- Explica que programar una actividad no activa recordatorios hasta guardarla y muestra los errores de validación junto al botón.
+- Corrige el mensaje de confirmación para diferenciar el guardado y encolado de la entrega efectiva de avisos.
+- Incluye regresiones de la interfaz de calendario y conserva la compatibilidad con otros modales.
+
 ## [1.12.2] - 2026-11-08
 
 - Pantalla 5 FCL elimina ofertas visualmente repetidas de un mismo POL, POE, POD, naviera, equipo, agente, moneda, importe y condiciones comerciales aunque difiera la fecha inicial, cuando sus vigencias se superponen.

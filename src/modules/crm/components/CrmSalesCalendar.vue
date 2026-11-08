@@ -606,7 +606,7 @@ async function create() {
     creationOpen.value = false
     selected.value = start
     notice.value = (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
-      'Actividad y acuerdos registrados. Se programaron ' +
+      'Actividad guardada; avisos del sistema y correo encolados. Se programaron ' +
       (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
       ' compromisos en el calendario del cliente y del vendedor.'
     emit('changed')
@@ -918,7 +918,7 @@ function openEvent(item: CalendarEvent) {
         <button type="button" class="ml-2 font-bold underline" @click="loadConfiguredActivityTypes">Reintentar consulta</button>
       </div>
       <p v-if="error" role="alert" class="mb-3 text-sm text-red-500">{{ error }}</p>
-      <form class="grid gap-4 sm:grid-cols-2" @submit.prevent="create">
+      <form id="crm-agenda-create-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="create">
         <label class="calendar-label">Tipo de actividad
           <select v-model="editor.type" class="calendar-input" required>
             <option v-if="!selectableActivityTypes.some(item => item.value === editor.type)" :value="editor.type" disabled>Seleccionar tipo disponible</option>
@@ -1049,14 +1049,24 @@ function openEvent(item: CalendarEvent) {
             Los pendientes vencidos activan recordatorios por sistema y correo y su escalamiento a jmesen.
           </p>
         </template>
-        <div class="flex flex-wrap justify-end gap-2 sm:col-span-2">
-          <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
-          <button type="submit" class="calendar-btn calendar-primary" :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
-            {{ saving?'Guardando…':'Guardar y programar recordatorio' }}
-          </button>
-        </div>
+        <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
+          Los avisos se activan solamente al guardar. Si ya pasó la hora del recordatorio anticipado,
+          se enviará al procesarse la actividad guardada, siempre que el inicio no haya vencido.
+        </p>
       </form>
       </div>
+      <template #footer>
+        <div class="w-full space-y-2">
+          <p v-if="error" role="alert" class="text-xs font-semibold text-red-500">{{ error }}</p>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
+            <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary"
+              :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
+              {{ saving?'Guardando…':'Guardar actividad y activar avisos' }}
+            </button>
+          </div>
+        </div>
+      </template>
     </DhModal>
   </section>
 </template>
