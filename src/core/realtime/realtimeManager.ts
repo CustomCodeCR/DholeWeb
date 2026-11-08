@@ -543,6 +543,24 @@ export class RealtimeManager {
       }
       return
     }
+    // F6: when owner REST denies a previously subscribed resource, drop its
+    // cached data immediately instead of waiting for socket failure/polling.
+    // The backend sends only its existing resource identifier, no business data.
+    if (message.type === 1 && message.target === 'resourceRevoked') {
+      const revoked = message.arguments
+      if (!Array.isArray(revoked) || revoked.length !== 2) return
+      const kind = revoked[0]
+      const id = revoked[1]
+      if ((kind !== 'crm.account' && kind !== 'pricing.rate') ||
+          typeof id !== 'string') return
+      let key: string
+      try { key = resourceKey(kind, id) } catch { return }
+      for (const watcher of this.watchers.get(key) ?? []) {
+        watcher.denied = true
+        watcher.onDenied?.()
+      }
+      return
+    }
     if (message.type !== 1 || message.target !== 'resourceChanged') return
     const args = message.arguments
     if (!Array.isArray(args) || !isEvent(args[0])) return
