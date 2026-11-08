@@ -75,7 +75,7 @@ test('comment actions are independently focusable and never select the rate', ()
   assert.equal((result.match(/<\/button>/g) ?? []).length, 4)
 })
 
-test('a selected alternative keeps the parent FCL tariff card highlighted', () => {
+test('only the selected FCL source is highlighted, not the surrounding carrier or parent offer', () => {
   const withSelection = fixture.replace(
     '                @click="chooseFclRateBundle(bundle)"',
     '                :aria-pressed="multiCarrierSelectionMode ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key) : selectedFclBundleKey === bundle.key"\n' +
@@ -84,8 +84,11 @@ test('a selected alternative keeps the parent FCL tariff card highlighted', () =
   const result = patchPricingWizardStep5ValidityComments(withSelection)
   assert.match(result, /function step5IsBundleSelected/)
   assert.match(result, /:aria-pressed="step5IsBundleSelected\(bundle\)"/)
-  assert.match(result, /isSelectedFclBundle\(option\.carrierId, option\.carrier, option\.key\)/)
-  assert.match(result, /selectedFclBundleKey\.value === option\.key/)
+  assert.match(result, /:aria-pressed="step5IsBundleSelected\(alternative\)"/)
+  assert.match(result, /bundle\.groupedAlternatives\.some\(step5IsBundleSelected\)/)
+  assert.doesNotMatch(result, /isSelectedFclBundle\(option\.carrierId/)
+  assert.match(result, /isSelectedFclBundle\(bundle\.carrierId, bundle\.carrier, bundle\.key\)/)
+  assert.match(result, /selectedFclBundleKey\.value === bundle\.key/)
   assert.doesNotMatch(result, /fclBundleHasSelectedSources/)
   assert.match(result, /Tarifa elegida/)
   assert.match(result, /Naviera agregada/)
@@ -136,8 +139,8 @@ test('Pricing wizard runtime setup does not depend on late-injected selection fu
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
 
   assert.match(wizard, /function isSelectedFclBundle\(carrierId: string, carrierName: string, bundleKey: string\)/)
-  assert.match(step5, /isSelectedFclBundle\(option\.carrierId, option\.carrier, option\.key\)/)
-  assert.match(step5, /selectedFclBundleKey\.value === option\.key/)
+  assert.match(step5, /isSelectedFclBundle\(bundle\.carrierId, bundle\.carrier, bundle\.key\)/)
+  assert.match(step5, /selectedFclBundleKey\.value === bundle\.key/)
   assert.doesNotMatch(step5, /fclBundleHasSelectedSources/)
   assert.doesNotMatch(bundles, /fclBundleHasSelectedSources/)
   const bundleDeclaration = bundles.indexOf('const fclRateBundles = computed<FclRateBundle[]>')

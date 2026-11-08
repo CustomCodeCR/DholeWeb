@@ -44,17 +44,13 @@ const step5ValidityFrom = ref('')
 const step5ValidityTo = ref('')
 const step5ExpandedComments = reactive<Record<string, boolean>>({})
 
-// A source alternative is still represented by its group's single card.
-// Keep the selected badge/ring active when that alternative RateId was chosen.
-function step5IsBundleSelected(bundle: FclRateBundle & { groupedAlternatives?: FclRateBundle[] }): boolean {
-  // This uses the wizard's existing selected bundle key (stored by POE and
-  // carrier). No dynamically injected helper is required at render time.
-  // A checked manual carrier never implies the freight offer was selected.
-  return [bundle, ...(bundle.groupedAlternatives ?? [])].some((option) =>
-    multiCarrierSelectionMode.value
-      ? isSelectedFclBundle(option.carrierId, option.carrier, option.key)
-      : selectedFclBundleKey.value === option.key,
-  )
+// Highlight only the actual tariff record selected for this POE/carrier.
+// A grouped source is not the parent card's tariff, and selecting a naviera
+// never implies selection of all its offers.
+function step5IsBundleSelected(bundle: FclRateBundle): boolean {
+  return multiCarrierSelectionMode.value
+    ? isSelectedFclBundle(bundle.carrierId, bundle.carrier, bundle.key)
+    : selectedFclBundleKey.value === bundle.key
 }
 
 const step5InvalidDateRange = computed(() =>
@@ -159,18 +155,21 @@ const step5RawImportRowCount = computed(() =>
   const groupedSources = `
                 <div v-if="bundle.groupedAlternatives.length" class="mt-3 rounded-lg border border-[var(--dh-border)] px-3 py-2">
                   <button type="button" class="flex w-full items-center justify-between gap-2 text-left text-xs font-semibold"
-                    :aria-expanded="Boolean(step5ExpandedComments['sources:' + bundle.key])"
+                    :aria-expanded="Boolean(step5ExpandedComments['sources:' + bundle.key] || bundle.groupedAlternatives.some(step5IsBundleSelected))"
                     @click.stop="step5ToggleComment('sources:' + bundle.key)">
                     <span>{{ bundle.groupedAlternatives.length }} fuente{{ bundle.groupedAlternatives.length === 1 ? '' : 's' }} adicional{{ bundle.groupedAlternatives.length === 1 ? '' : 'es' }} agrupada{{ bundle.groupedAlternatives.length === 1 ? '' : 's' }}</span>
                     <ChevronRight class="h-4 w-4 transition-transform" :class="step5ExpandedComments['sources:' + bundle.key] ? 'rotate-90' : ''" />
                   </button>
-                  <div v-if="step5ExpandedComments['sources:' + bundle.key]" class="mt-2 grid gap-2">
+                  <div v-if="step5ExpandedComments['sources:' + bundle.key] || bundle.groupedAlternatives.some(step5IsBundleSelected)" class="mt-2 grid gap-2">
                     <button v-for="alternative in bundle.groupedAlternatives" :key="'source:' + alternative.key"
                       type="button" class="rounded-md border border-[var(--dh-border)] px-2 py-2 text-left text-xs font-semibold"
+                      :aria-pressed="step5IsBundleSelected(alternative)"
+                      :class="step5IsBundleSelected(alternative) ? 'border-[var(--dh-primary)] ring-2 ring-[rgb(var(--dh-primary-rgb)/0.28)]' : ''"
                       @click.stop="chooseFclRateBundle(alternative)">
                       {{ alternative.carrier }} · {{ formatMoney(alternative.totalCost, alternative.currency) }} ·
                       {{ formatDate(alternative.validFrom) }} – {{ formatDate(alternative.validTo) }}
                       <span v-if="alternative.transitDays !== bundle.transitDays" class="block">Tránsito: {{ alternative.transitDays }} días</span>
+                      <span v-if="step5IsBundleSelected(alternative)" class="mt-1 block font-black text-[var(--dh-primary)]">Tarifa elegida</span>
                     </button>
                   </div>
                 </div>

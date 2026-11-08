@@ -24,3 +24,37 @@ test('saving again does not silently send the already-persisted revision', () =>
   assert.notEqual(broken, wizard)
   assert.throws(() => validatePricingModificationSaveBindings(broken), /must not automatically deliver/)
 })
+
+
+test('FCL selection survives the carrier filter rewrite and is bound to exact RateIds', () => {
+  const plugin = readFileSync(new URL('../build/pricingWizardFclRateBundles.ts', import.meta.url), 'utf8')
+  const carrierRewrite = readFileSync(new URL('../build/pricingWizardMixedCarrierExpiry.ts', import.meta.url), 'utf8')
+  const declaration = plugin.indexOf('const selectedFclBundlesByOption = ref<')
+  const filterBlock = plugin.indexOf('const fclCarrierFilterOptions = computed')
+  const chooser = plugin.indexOf('function chooseFclRateBundle(bundle: FclRateBundle)')
+  assert.ok(declaration > 0 && declaration < filterBlock, 'FCL selection must exist before the replaceable filter block')
+  assert.ok(plugin.indexOf('restoreFclBundleForOption = (poeId, carrierId) =>') < filterBlock)
+  assert.ok(chooser > filterBlock)
+  assert.match(carrierRewrite, /const fclCarrierFilterOptions = computed/)
+  assert.match(carrierRewrite, /function chooseFclRateBundle\(bundle: FclRateBundle\)/)
+
+  const injected = wizard.replace(
+    '<script setup lang="ts">',
+    [
+      '<script setup lang="ts">',
+      'const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string }>>({})',
+      'restoreFclBundleForOption = (poeId, carrierId) => {}',
+      'function chooseFclRateBundle(bundle: FclRateBundle) {',
+      '  selectedFclBundlesByOption.value[optionKey] = { bundleKey: bundle.key }',
+      '}',
+    ].join('\n'),
+  )
+  assert.notEqual(injected, wizard)
+  assert.doesNotThrow(() => validatePricingModificationSaveBindings(injected))
+  assert.throws(() => validatePricingModificationSaveBindings(
+    injected.replace('const selectedFclBundlesByOption =', 'const missingFclSelectionState ='),
+  ), /pricing-fcl-selection-binding/)
+  assert.throws(() => validatePricingModificationSaveBindings(
+    injected.replace('restoreFclBundleForOption = (poeId, carrierId) =>', 'missingRestore = (poeId, carrierId) =>'),
+  ), /pricing-fcl-selection-binding/)
+})
