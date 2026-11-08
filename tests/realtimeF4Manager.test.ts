@@ -329,6 +329,37 @@ test('F4: logout and switch identity clear old resources and detach old sockets'
   assert.equal(host.clock.callbacks.size, 0)
 })
 
+
+test('F4: an invalidation arriving during slow REST is replayed after the old snapshot completes', async () => {
+  const host = new FakeHost()
+  await host.start()
+  let firstComplete: ((value: { value: number; version: number }) => void) | undefined
+  let requests = 0
+  const applied: number[] = []
+  const unsubscribe = host.manager.subscribe({
+    kind: 'crm.account',
+    id: ID,
+    fetchSnapshot: async () => {
+      requests++
+      if (requests === 1) return await new Promise<{ value: number; version: number }>(
+        resolve => { firstComplete = resolve })
+      return { value: 2, version: 2 }
+    },
+    applySnapshot: snapshot => { applied.push(snapshot.value) },
+  })
+  await settle()
+  host.latestSocket().emitEvent(host.event(2))
+  await settle()
+  assert.equal(requests, 1, 'Two concurrent GETs were issued for the same observer.')
+  assert.ok(firstComplete, 'First snapshot is pending.')
+  firstComplete({ value: 1, version: 1 })
+  await settle()
+  assert.deepEqual(applied, [1, 2], 'Newer event was lost while REST GET was pending.')
+  assert.equal(requests, 2)
+  unsubscribe()
+  host.manager.stop()
+})
+
 test('F4: invalid client resource identifier cannot become a subscription', async () => {
   const host = new FakeHost()
   await host.start()
