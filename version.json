@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.12.15",
-  "ecosystemVersion": "1.12.15",
-  "releaseId": "DH-20261108-PRICING-SETUP-TDZ-046"
+  "version": "1.12.16",
+  "ecosystemVersion": "1.12.16",
+  "releaseId": "DH-20261108-PRICING-RATE-SELECTION-047"
 }
