@@ -7914,7 +7914,7 @@ onMounted(async () => {
                   Otras referencias se guardan únicamente en Dhole.
                 </p>
               </div>
-              <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ (hasSavedMultiQuote || (multiCarrierSelectionMode && carrierRouteCount > 1)) ? selectedPoeIds.map(id => displayValue(findById(catalogs.poe, id)) || id).join(' / ') : displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
+              <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ multiCarrierSelectionMode && carrierRouteCount > 1 ? selectedPoeIds.map(id => displayValue(findById(catalogs.poe, id)) || id).join(' / ') : displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ direction }} · {{ form.modality }} · {{ form.shipmentMode }} · {{ displayValue(selectedEquipment) }} · {{ displayValue(selectedIncoterm) }}</p>
             </div>
             <div v-if="showSingleRoutePreview" class="crystal-soft p-5 lg:col-span-2">
