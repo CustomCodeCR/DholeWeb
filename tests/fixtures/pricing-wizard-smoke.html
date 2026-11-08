@@ -4,10 +4,10 @@
 <body data-smoke-status="booting">
   <div id="app"></div>
   <script type="module">
-    import { createApp, h } from '/node_modules/.vite/deps/vue.js'
-    import { createPinia } from '/node_modules/.vite/deps/pinia.js'
-    import { createRouter, createWebHistory } from '/node_modules/.vite/deps/vue-router.js'
-    import { createI18n } from '/node_modules/.vite/deps/vue-i18n.js'
+    import { createApp, h } from 'vue'
+    import { createPinia } from 'pinia'
+    import { createRouter, createWebHistory } from 'vue-router'
+    import { createI18n } from 'vue-i18n'
     import PricingWizard from '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
     let failed = ''
     const report = (error) => {
