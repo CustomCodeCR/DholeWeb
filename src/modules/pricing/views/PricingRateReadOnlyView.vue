@@ -20,9 +20,10 @@ useResourceRealtime<RateDto>({
   // Editing takes place in a separately managed form drawer; never modify that draft.
   fetchSnapshot: async (rateId) => {
     const snapshot = await PricingService.getRate(rateId)
-    const version = Number((snapshot as RateDto & { rowVersion?: number; revision?: number }).rowVersion ??
-      (snapshot as RateDto & { rowVersion?: number; revision?: number }).revision)
-    return { value: snapshot, version: Number.isSafeInteger(version) ? version : null }
+    // F6.02: Pricing's commercial revision is NOT a monotonic version for
+    // every status/field mutation. Never suppress an authorized invalidation
+    // merely because its revision did not change; REST remains authoritative.
+    return { value: snapshot, version: null }
   },
   applySnapshot: ({ value }) => { if (value.id === props.rateId) rate.value = value },
   onDenied: () => {
