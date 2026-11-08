@@ -56,11 +56,15 @@ const fclSelectedImportRateIds = ref<Record<string, string>>({})
 // Keep the chosen tariff per POE/carrier outside the filter block replaced by
 // pricingWizardMixedCarrierExpiry. Selection is tied to the exact RateIds.
 const selectedFclBundlesByOption = ref<Record<string, { bundleKey: string; rateIds: Record<string, string> }>>({})
-restoreFclBundleForOption = (poeId, carrierId) => {
-  const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
-  selectedFclBundleKey.value = snapshot?.bundleKey ?? ''
-  fclSelectedImportRateIds.value = { ...(snapshot?.rateIds ?? {}) }
-}
+// The receiving 'let restoreFclBundleForOption' is declared farther below in
+// the original Vue SFC. Defer assignment until setup has completed to avoid TDZ.
+onMounted(() => {
+  restoreFclBundleForOption = (poeId, carrierId) => {
+    const snapshot = selectedFclBundlesByOption.value[carrierRouteKey(poeId, carrierId)]
+    selectedFclBundleKey.value = snapshot?.bundleKey ?? ''
+    fclSelectedImportRateIds.value = { ...(snapshot?.rateIds ?? {}) }
+  }
+})
 
 
 function fclRateCarrierFilterKey(rate: ImportRateSelectDto) {
