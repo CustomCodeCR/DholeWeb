@@ -1699,17 +1699,11 @@ function importSourceTitle(rate: ImportRateSelectDto) {
   return sourceTitle(rate, resolvedImportSource(rate))
 }
 
-async function loadImportSources(rates: ImportRateSelectDto[]) {
-  const batchIds = [...new Set(rates.map((rate) => rate.importBatchId).filter(Boolean))]
-  await Promise.all(batchIds.map(async (batchId) => {
-    if (importSourceByBatch.value[batchId]) return
-    try {
-      const source = await EmailExtractionService.getPricingImportSource(batchId)
-      importSourceByBatch.value = { ...importSourceByBatch.value, [batchId]: source }
-    } catch {
-      // Importaciones históricas pueden no tener vínculo de correo; RawData sigue siendo fallback.
-    }
-  }))
+async function loadImportSources(_rates: ImportRateSelectDto[]) {
+  // Loading every source file for 110 FCL rates starts dozens of parallel
+  // /source requests, many of which are 404 for legacy/manual imports.
+  // Source details are fetched on demand by PricingEmailSourceModal when
+  // the user chooses "Ver fuente". Never block tariff rendering on them.
 }
 
 function rateCommentRank(comment?: string | null) {
