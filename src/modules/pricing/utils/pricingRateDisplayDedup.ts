@@ -53,9 +53,9 @@ function preferRate(candidate: ImportRateSelectDto, existing: ImportRateSelectDt
   const starts = day(candidate.validFrom).localeCompare(day(existing.validFrom))
   if (starts !== 0) return starts < 0
 
-  // When all commercial terms/dates match, prefer preapproved over
-  // preauthorized, without ever conflating genuinely different prices.
-  return candidate.status === 'PreApproved' && existing.status !== 'PreApproved'
+  // When all commercial terms/dates match, prefer Approved over
+  // PreAuthorized, without ever conflating genuinely different prices.
+  return candidate.status === 'Approved' && existing.status !== 'Approved'
 }
 
 /**
@@ -72,14 +72,18 @@ export function uniqueDisplayRates<T extends ImportRateSelectDto>(rates: readonl
     if (!rate?.id) continue
     const key = pricingRateDisplayKey(rate)
     const indices = positions.get(key) ?? []
-    const overlappingIndex = indices.find((index) => sameOrOverlappingValidity(visible[index], rate))
+    const overlappingIndex = indices.find((index) => {
+      const previous = visible[index]
+      return previous ? sameOrOverlappingValidity(previous, rate) : false
+    })
     if (overlappingIndex === undefined) {
       indices.push(visible.length)
       positions.set(key, indices)
       visible.push(rate)
       continue
     }
-    if (preferRate(rate, visible[overlappingIndex])) visible[overlappingIndex] = rate
+    const previous = visible[overlappingIndex]
+    if (previous && preferRate(rate, previous)) visible[overlappingIndex] = rate
   }
 
   return visible
