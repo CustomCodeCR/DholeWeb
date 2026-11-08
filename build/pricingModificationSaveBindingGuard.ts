@@ -13,7 +13,7 @@ export function validatePricingModificationSaveBindings(source: string): void {
   // Pricing FCL state is injected by a pre-Vue transform. Another transform
   // replaces the carrier filter block, so guard the final SFC before Vue compiles.
   if (script.includes('function chooseFclRateBundle(bundle: FclRateBundle)')) {
-    const definitions = script.match(/\\bconst\\s+selectedFclBundlesByOption\\s*=\\s*ref\\s*</g) ?? []
+    const definitions = script.match(/\bconst\s+selectedFclBundlesByOption\s*=\s*ref\s*</g) ?? []
     const restoreBinding = script.includes('restoreFclBundleForOption = (poeId, carrierId) =>')
     const exactRateIds = script.includes('selectedFclBundlesByOption.value[optionKey]')
     if (definitions.length !== 1 || !restoreBinding || !exactRateIds) {
