@@ -168,7 +168,6 @@ test('Screen 5 deduplicates FINAL FCL cards despite different imported source me
     build('different-equipment', '2026-11-05', { lines: [{
       ...duplicate.lines[0]!, containerTypeId: '20dc',
     }] }),
-    build('different-transit', '2026-11-05', { transitDays: 30 }),
     build('different-free-days', '2026-11-05', { freeDays: 14 }),
     build('different-period', '2026-11-14', { validTo: '2026-11-20' }),
   ]
@@ -236,7 +235,39 @@ test('Screen 5 MAERSK Caldera commercial aliases do not generate repeat cards', 
   const differentComments = sample({ ...second, id: 'different-terms', spaceComment: 'No incluye carga IMO' })
   const differentPrice = sample({ ...second, id: 'different-price', freight: 6100, totalSale: 6100 })
   const nonOverlapping = sample({ ...second, id: 'different-period', validFrom: '2026-11-14', validTo: '2026-11-20' })
-  for (const other of [differentPort, differentAgent, differentCurrency, differentFreeDays, differentComments, differentPrice, nonOverlapping]) {
+  for (const other of [differentPort, differentAgent, differentCurrency, differentFreeDays, differentPrice, nonOverlapping]) {
     assert.equal(uniqueVisibleFclBundles([make(first), make(other)]).length, 2, other.id)
   }
+  // Hidden comment differences are still selectable but not duplicate cards.
+  const grouped = uniqueVisibleFclBundles([make(first), make(differentComments)])
+  assert.equal(grouped.length, 1)
+  assert.deepEqual(grouped[0]!.groupedAlternatives.map(x => x.key), ['single:different-terms'])
+})
+
+
+test('MAERSK Caldera 04/05: hidden transit and import metadata do not create duplicate visual cards', () => {
+  const make = (rate: ImportRateSelectDto) => ({
+    key: rate.id, carrierId: rate.carrierId, carrier: rate.carrier,
+    agentId: rate.agentId, agent: rate.agent,
+    currencyId: rate.currencyId, currency: rate.currency,
+    totalCost: rate.freight, totalSale: rate.totalSale ?? rate.freight,
+    freeDays: rate.freeDays, transitDays: rate.transitDays ?? 0,
+    validFrom: rate.validFrom, validTo: rate.validTo,
+    preAuthorized: rate.status === 'PreAuthorized',
+    lines: [{ containerTypeId: '40hc', quantity: 1, unitCost: rate.freight,
+      unitSale: rate.totalSale ?? rate.freight, rate }],
+  })
+  const first = sample({ id: 'maersk-04', carrierId: 'maersk', carrier: 'MAERSK',
+    agentId: '', agent: '', freight: 6000, totalSale: 6000,
+    freeDays: 7, transitDays: 29, validFrom: '2026-11-04',
+    validTo: '2026-11-13', spaceComment: 'Primera importación',
+    commodity: 'Carga general' })
+  const second = sample({ ...first, id: 'maersk-05', importBatchId: 'batch-2',
+    transitDays: 32, validFrom: '2026-11-05', spaceComment: 'Segundo correo',
+    commodity: 'General cargo', originCharges: 45 })
+  const grouped = uniqueVisibleFclBundles([make(first), make(second)])
+  assert.equal(grouped.length, 1)
+  assert.equal(grouped[0]!.key, 'maersk-04')
+  assert.equal(grouped[0]!.groupedAlternatives[0]!.lines[0]!.rate.id, 'maersk-05')
+  assert.equal(uniqueVisibleFclBundles([make(first), make({ ...second, id: 'different-price', freight: 6100 })]).length, 2)
 })
