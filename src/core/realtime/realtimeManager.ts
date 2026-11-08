@@ -143,6 +143,20 @@ export class RealtimeManager {
     this.runtime.onState?.(next)
   }
 
+  private purgeAuthorizedSnapshots() {
+    // A logout, identity switch, or rejected refresh must not leave previously
+    // authorized business snapshots visible in still-mounted components.
+    for (const set of this.watchers.values()) {
+      for (const watcher of set) {
+        if (watcher.denied) continue
+        watcher.denied = true
+        try { watcher.onDenied?.() } catch {
+          // Other observers must still be cleared if one callback fails.
+        }
+      }
+    }
+  }
+
   async start(
     identity: string | null,
     token: () => Promise<string | null>,
@@ -180,6 +194,7 @@ export class RealtimeManager {
     this.closeSocket()
     this.connecting = null
     this.pending.clear()
+    this.purgeAuthorizedSnapshots()
     this.watchers.clear()
     this.seen.clear()
     this.seenQueue.length = 0
@@ -394,6 +409,7 @@ export class RealtimeManager {
         this.cancelTimer('handshake')
         this.closeSocket()
         if (error instanceof RealtimeUnauthorized) {
+          this.purgeAuthorizedSnapshots()
           this.changeState('unauthorized')
           return
         }
