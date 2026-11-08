@@ -49,7 +49,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
-import { uniqueDisplayRates } from '@/modules/pricing/utils/pricingRateDisplayDedup'
+import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
@@ -7697,7 +7697,7 @@ onMounted(async () => {
             </div>
             <div class="space-y-3">
               <div v-for="preview in savedMultiQuotePreviewCards" :key="preview.key" class="crystal-soft overflow-hidden">
-                <button type="button" class="block w-full cursor-pointer px-4 py-4 text-left md:px-5" :aria-expanded="Boolean(expandedSavedQuotePanels[preview.key])" :aria-label="'Desplegar u ocultar subQUO ' + (preview.rate.quoNumber || preview.rate.rateCode)" @click="toggleSavedQuotePanel(preview.key)">
+                <button type="button" class="saved-quote-accordion-toggle block w-full cursor-pointer px-4 py-4 text-left md:px-5" :aria-expanded="Boolean(expandedSavedQuotePanels[preview.key])" :aria-label="'Desplegar u ocultar subQUO ' + (preview.rate.quoNumber || preview.rate.rateCode)" @click="toggleSavedQuotePanel(preview.key)">
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex min-w-0 flex-1 items-start gap-3">
                       <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-sm font-black text-[var(--dh-primary)]">{{ preview.index + 1 }}</span>
@@ -8059,7 +8059,7 @@ onMounted(async () => {
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
             <div v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft overflow-hidden">
-              <button type="button" class="flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 p-4 text-left md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click="toggleSavedQuotePanel(subRate.id)">
+              <button type="button" class="saved-quote-accordion-toggle flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 p-4 text-left md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click="toggleSavedQuotePanel(subRate.id)">
                 <div class="min-w-0">
                   <p class="text-xs font-black text-[var(--dh-primary)]">{{ subRate.quoNumber || subRate.rateCode }} <span v-if="subRate.id === primarySavedGroupAlternative?.rateId">· PRINCIPAL SELECCIONADA</span></p>
                   <h4 class="mt-1 text-base font-black">{{ subRate.poeName }} · {{ subRate.carrierName || 'Naviera sin asignar' }}</h4>
@@ -8971,5 +8971,13 @@ onMounted(async () => {
 .wizard-view-readonly {
   pointer-events: none;
   user-select: text;
+}
+
+/* Read-only must block mutations, not the disclosure of persisted details.
+   Descendants with pointer-events:auto remain clickable even though their
+   read-only parent intentionally ignores clicks on the editing controls. */
+.wizard-view-readonly .saved-quote-accordion-toggle {
+  pointer-events: auto;
+  cursor: pointer;
 }
 </style>
