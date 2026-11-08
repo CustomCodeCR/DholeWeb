@@ -188,7 +188,7 @@ test('approved FCL tariff cards expose pressed status and a visible selected bad
   assert.match(bundles, /:aria-pressed="multiCarrierSelectionMode/)
   assert.match(bundles, /Naviera seleccionada/)
   assert.match(wizard, /return selectedBundleByOption\.value\[route\] === bundleKey/)
-  assert.doesNotMatch(wizard, /\\|\\| currentPoeCarrierIds\.value\.includes\(configuredId\)/)
+  assert.doesNotMatch(wizard, /currentPoeCarrierIds\.value\.includes\(configuredId\)/)
 })
 
 test('MultiQUO always displays CatalogItem.value and never an internal CUR-2026 code', () => {
