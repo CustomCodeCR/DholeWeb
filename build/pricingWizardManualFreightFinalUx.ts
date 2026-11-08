@@ -28,13 +28,16 @@ function patchWizard(source: string) {
     if (!form.validTo || form.validTo < validFrom) form.validTo = addDaysIso(validFrom, 1)
   },
 )`
-  const lateInitializationAnchor = 'onMounted(async () => {\\n  await loadCatalogs()'
   if (code.includes(earlyManualOceanDateWatch)) {
-    if (code.split(earlyManualOceanDateWatch).length !== 2 || code.split(lateInitializationAnchor).length !== 2) {
-      throw new Error('[pricingWizardManualFreightFinalUx] Cannot safely relocate FCL validity watcher')
+    if (code.split(earlyManualOceanDateWatch).length !== 2) {
+      throw new Error('[pricingWizardManualFreightFinalUx] Multiple unexpected FCL validity watchers')
     }
     code = code.replace(earlyManualOceanDateWatch, '')
-    code = code.replace(lateInitializationAnchor, earlyManualOceanDateWatch + '\\n\\n' + lateInitializationAnchor)
+    const scriptEnd = code.lastIndexOf('</script>')
+    if (scriptEnd < 0) {
+      throw new Error('[pricingWizardManualFreightFinalUx] Vue setup closing script was not found')
+    }
+    code = code.slice(0, scriptEnd) + earlyManualOceanDateWatch + '\\n' + code.slice(scriptEnd)
   }
 
   // Evita que se pueda disparar el guardado por una llamada directa con datos incompletos.
