@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useResourceRealtime } from '@/core/realtime/useResourceRealtime'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -87,6 +88,29 @@ const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
 const showAccountEditor = ref(false)
 const accountEditingDirty = ref(false)
+
+// F4 candidate: only accounts are subscribed. No other CRM resource receives
+// a generic broadcast until its owner authorization and F6 adapter are ready.
+const liveAccountId = computed(() => section.value === 'accounts' ? id.value : '')
+const realtimeAccount = useResourceRealtime<CrmRow>({
+  kind: 'crm.account',
+  id: liveAccountId,
+  visible: () => document.visibilityState === 'visible',
+  dirty: () => accountEditingDirty.value || showAccountEditor.value ||
+    showRelationForm.value || saving.value || documentBusy.value,
+  fetchSnapshot: async (accountId) => {
+    const snapshot = await crmGet('accounts', accountId)
+    const rawVersion = Number(snapshot.rowVersion)
+    return { value: snapshot, version: Number.isSafeInteger(rawVersion) ? rawVersion : null }
+  },
+  applySnapshot: ({ value }) => {
+    if (section.value !== 'accounts' || value.id !== id.value) return
+    record.value = value
+    if (relation.value && !showRelationForm.value) void loadRelation()
+  },
+  onDenied: () => { /* server controls audience; no local privilege escalation */ },
+  onError: () => { /* existing REST view remains usable */ },
+})
 const discardOpen = ref(false)
 let discardAction: (() => void) | null = null
 let navigationDecision: ((allowed: boolean) => void) | null = null
@@ -737,11 +761,25 @@ watch(() => [route.query.edit, section.value], ([edit]) => {
 }, { immediate: true })
 watch(relation, () => { showRelationForm.value = false; if (relation.value) void loadRelation() })
 watch(success, value => { if (value) showRelationForm.value = false })
+watch([accountEditingDirty, showAccountEditor, showRelationForm, saving], () => {
+  if (!accountEditingDirty.value && !showAccountEditor.value &&
+      !showRelationForm.value && !saving.value)
+    realtimeAccount.reconcileAfterEditorClose()
+})
 onMounted(() => { if (crmEnabled()) void load() })
 </script>
 
 <template>
   <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
+    <div
+      v-if="realtimeAccount.conflict.value"
+      class="rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-[var(--dh-text)]"
+      role="status"
+      data-realtime-unsaved-conflict
+    >
+      Esta cuenta cambió en el servidor. Tus cambios sin guardar se conservaron.
+      Guardá o descartá la edición para volver a sincronizar; no se reemplazó el formulario.
+    </div>
     <DhModal :open="discardOpen" title="Cambios sin guardar" size="sm" @close="cancelDiscard">
       <p class="text-sm text-[var(--dh-text-muted)]">Hay cambios en la ficha sin guardar. Si salís, los cambios no se conservarán.</p>
       <div class="mt-5 flex justify-end gap-2">
