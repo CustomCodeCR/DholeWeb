@@ -228,9 +228,13 @@ test('F4: initial, duplicate, stale, gap and reconnect all reconcile via authori
   assert.deepEqual(bound.hooks.applied, [1, 3])
   const queries = host.restFetches
   host.latestSocket().emitEvent(e)
+  await settle()
+  assert.equal(host.restFetches, queries, 'Duplicate eventId must not refetch')
+  // A distinct event may have a lower process-local version hint; REST must
+  // still be consulted, because event versions are not always global.
   host.latestSocket().emitEvent(host.event(2))
   await settle()
-  assert.equal(host.restFetches, queries)
+  assert.equal(host.restFetches, queries + 1)
   host.latestSocket().close()
   host.restVersion = 6
   await host.clock.advanceNext()
