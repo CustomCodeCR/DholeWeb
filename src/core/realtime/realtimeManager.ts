@@ -113,7 +113,8 @@ export class RealtimeManager {
   private generation = 0
   private stopped = true
 
-  constructor(private readonly runtime: RealtimeRuntime) {}
+  private readonly runtime: RealtimeRuntime
+  constructor(runtime: RealtimeRuntime) { this.runtime = runtime }
 
   get status(): RealtimeStatus { return this.state }
   get activeWatchers(): number {
