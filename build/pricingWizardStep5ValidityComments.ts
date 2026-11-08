@@ -47,11 +47,10 @@ const step5ExpandedComments = reactive<Record<string, boolean>>({})
 // A source alternative is still represented by its group's single card.
 // Keep the selected badge/ring active when that alternative RateId was chosen.
 function step5IsBundleSelected(bundle: FclRateBundle & { groupedAlternatives?: FclRateBundle[] }): boolean {
-  return [bundle, ...(bundle.groupedAlternatives ?? [])].some((option) =>
-    multiCarrierSelectionMode.value
-      ? isSelectedFclBundle(option.carrierId, option.carrier, option.key)
-      : selectedFclBundleKey.value === option.key,
-  )
+  // A chosen source may be nested under an equivalent imported offer.
+  // A checked manual carrier by itself is NEVER a checked price/tariff.
+  return [bundle, ...(bundle.groupedAlternatives ?? [])]
+    .some((option) => fclBundleHasSelectedSources(option))
 }
 
 const step5InvalidDateRange = computed(() =>
@@ -106,6 +105,13 @@ const step5UniqueFclBundleCount = computed(() =>
     'multiCarrierSelectionMode && step5IsBundleSelected(bundle)',
   )
 
+  code = replaceOnce(
+    code,
+    '<DhBadge v-if="multiCarrierSelectionMode && step5IsBundleSelected(bundle)" variant="success"><Check class="mr-1 inline h-3.5 w-3.5" /> Naviera seleccionada</DhBadge>',
+    '<DhBadge v-if="multiCarrierSelectionMode && step5IsBundleSelected(bundle)" variant="success"><Check class="mr-1 inline h-3.5 w-3.5" /> Tarifa elegida</DhBadge>\n                    <DhBadge v-else-if="multiCarrierSelectionMode && currentPoeCarrierIds.includes(resolveConfiguredCarrierId(bundle.carrierId, bundle.carrier))" variant="primary">Naviera agregada · elija tarifa</DhBadge>',
+    'exact selected rate badge',
+  )
+
   code = wrapSelectableCard(code, 'bundle in visibleFclRateBundles', 'bundle in step5VisibleFclRateBundles', 'chooseFclRateBundle(bundle)')
   code = wrapSelectableCard(code, 'rate in sortedAvailableRates', 'rate in step5VisibleAvailableRates', 'chooseRate(rate)')
 
@@ -126,7 +132,7 @@ const step5UniqueFclBundleCount = computed(() =>
   const insertion = code.indexOf(description, start)
   if (start < 0 || insertion < 0 || insertion - start > 4500) throw new Error('Missing FCL filter panel')
   code = code.slice(0, insertion) + dateFields + '\n' +
-    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales únicas con las fechas seleccionadas.</p>\n' +
+    '              <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ step5VisibleFclRateBundles.length }} de {{ step5UniqueFclBundleCount }} ofertas comerciales distintas con las fechas seleccionadas; {{ fclRateCoverage.reduce((sum, item) => sum + item.rawCount, 0) }} registros originales consultados.</p>\n' +
     code.slice(insertion)
 
   // The single-rate selection has its own carrier bar, so date fields are
