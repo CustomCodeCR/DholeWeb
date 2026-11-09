@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.13.6] - 2026-11-08 (candidato F3)
+
+- Versionado PATCH 1.13.6 / ecosistema 1.13.13 sincronizado para integrar el ensayo TLS/WSS automático del Gateway en el release coordinado. Sin cambios en comportamiento frontend, flags no activados.
+
+
 ## [1.13.5] - 2026-11-08 (F9 candidate only)
 
 - Sincronizado a versión global `1.13.12` tras auditoría de staging de F6. PATCH Web `1.13.4` → `1.13.5`; no cambia estado, vistas, comunicación WS/REST, validaciones ni feature flags. Integración sujeta a gates formales del batch.
