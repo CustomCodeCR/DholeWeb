@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.19] - 2026-11-09
+
+- PATCH CRM: tablas y paginación unificadas con DhDataTable y DhPagination en cuentas, prospectos, contactos, agenda, relaciones, historial de cambios y rutas.
+- Selección de 10/25/50 filas; conserva filtros y permisos de API, con reinicio de página al cambiar filtros o tamaño.
+- Release DH-20261109-CRM-DHPAGINATION-050 para master tras validación de staging desde develop.
+
 ## [1.12.18] - 2026-11-09
 
 - ALL IN solo cuando la alternativa FCL es marítima/multimodal, su POE está en Panamá y el POD final en Costa Rica; Caldera, Moín y otros destinos mantienen desglose. La decisión se calcula para cada alternativa al crear MultiQUO y se visualiza por subtarifa en pantalla 8.

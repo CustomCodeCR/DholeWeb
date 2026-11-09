@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261109-CRM-DHPAGINATION-050",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.12.19",
+  "createdAt": "2026-11-09",
+  "targetBranch": "master",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.12.18",
+      "to": "1.12.19"
+    }
+  ],
+  "changes": [
+    "Unify CRM pages with DhPagination controls and 10/25/50 rows",
+    "Preserve authenticated REST pagination and filters",
+    "Paginate embedded account lists and relations"
+  ],
+  "validation": "CRM regression tests, typecheck, build and staging before master",
+  "productionDeploymentAuthorized": true
+}
