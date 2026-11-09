@@ -15,7 +15,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
-import { currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
+import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
 // Los endpoints personales y la autorización de Pricing determinan las acciones propias.
@@ -466,14 +466,7 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  if (!canActOnRate(rate)) return false
-  if (!rate.revisionPending) return ['Sent', 'RequestedByClient', 'Open'].includes(rate.status)
-
-  // An Open Pricing header may still have the last quote issued to Sales.
-  // Actions target that issued quote, never an unpublished draft or active work.
-  return currentSellerWorkflowStatus(rate) === 'Open'
-    && !hasOpenPricingModification(rate)
-    && ['Sent', 'RequestedByClient'].includes(rate.status)
+  return canActOnRate(rate) && canDecideSellerQuote(rate, hasOpenPricingModification(rate))
 }
 
 function pendingModification(rate: RateDto): boolean {
