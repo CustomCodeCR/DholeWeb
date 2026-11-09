@@ -11,6 +11,7 @@ import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { sellerRateCurrencyValue, type SellerRateCurrency } from '@/modules/pricing/utils/sellerRateCurrency'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from '@/modules/dashboard/components/SellerRateDecisionModal.vue'
@@ -55,9 +56,8 @@ function requestModification() {
 
 const statusText = computed(() => {
   if (!rate.value) return ''
-  if (revisionPending.value) return revisionWorkActive.value
-    ? 'En modificación por Pricing'
-    : 'Última revisión enviada · Actualización pendiente'
+  if (revisionPending.value) return unpublishedSellerWorkflowLabel(rate.value, revisionWorkActive.value)
+    ?? 'Última revisión enviada · Actualización pendiente'
   if (rate.value.status === 'AcceptedByClient') return 'Aceptada por cliente'
   if (rate.value.status === 'RejectedByClient') return 'No aceptada por cliente'
   if (rate.value.status === 'Cancelled') return 'Cancelada'
