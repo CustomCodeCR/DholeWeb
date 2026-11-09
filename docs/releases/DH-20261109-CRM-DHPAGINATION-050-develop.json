@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261109-CRM-DHPAGINATION-050",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.14.1",
+  "createdAt": "2026-11-09",
+  "targetBranch": "develop",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.14.0",
+      "to": "1.14.1"
+    }
+  ],
+  "changes": [
+    "Unified DhDataTable / DhPagination controls across CRM",
+    "Server paging for directories, account audit and routes",
+    "Local paging for embedded records"
+  ],
+  "validation": "CRM tests and TypeScript build in CI, staging before master",
+  "productionDeploymentAuthorized": false
+}

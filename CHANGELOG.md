@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.1] - 2026-11-09
+
+- PATCH CRM: tablas y paginación unificadas con DhDataTable y DhPagination en cuentas, prospectos, contactos, agenda, relaciones, historial de cambios y rutas.
+- Selección de 10/25/50 filas, reinicio a la primera página al cambiar filtros o tamaño; respeta la paginación y autorización del backend.
+- Release DH-20261109-CRM-DHPAGINATION-050; preserva el piloto realtime NotificationsHub de develop.
+
 ## [1.14.0] - 2026-11-09 (NotificationsHub universal realtime pilot; candidate)
 
 - Coordinación 2026-11-09: integrados los commits recientes de `develop` y `master` en la rama candidata, conservando los cambios del release 1.14.0; validación post-sincronización mediante CI.

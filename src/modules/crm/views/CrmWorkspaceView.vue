@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
 import { DhButton, DhInput, DhMultiSelect, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
-import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
+import { DhCard, DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import CrmReferencePicker from '../components/CrmReferencePicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
@@ -129,7 +129,9 @@ function accountCategoryLabel(item: CrmRow): string {
   return label + (type !== 'LITTLE' && ['A','B','C','D'].includes(tier)
     ? ' categoría ' + tier : '')
 }
-const tableRows = computed(() => rows.value.map(item => ({
+const tableRows = computed(() => (section.value === 'finance' || section.value === 'settings'
+  ? rows.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
+  : rows.value).map(item => ({
   ...item,
   _crmResource: item._crmResource,
   _crmConvertedAccountId: item.convertedAccountId,
@@ -172,6 +174,7 @@ const success = ref('')
 const rows = ref<CrmRow[]>([])
 const total = ref(0)
 const page = ref(1)
+const pageSize = ref(25)
 const search = ref('')
 const agendaStatusFilter = ref('')
 const agendaSourceFilter = ref('')
@@ -455,7 +458,8 @@ async function load() {
       }).sort((a,b) => Date.parse(String(a.scheduledStartAt ?? a.dueAt ?? a.createdAt ?? ''))
         - Date.parse(String(b.scheduledStartAt ?? b.dueAt ?? b.createdAt ?? '')))
       total.value = filtered.length
-      rows.value = filtered.slice((page.value - 1) * 25, page.value * 25)
+      page.value = Math.min(page.value, Math.max(1, Math.ceil(total.value / pageSize.value)))
+      rows.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
       if (failures.length) error.value = 'No se pudieron consultar todos los registros de la agenda (' + failures.join(', ') + ').'
     }
     else if (section.value === 'dashboard') await loadDashboard()
@@ -465,7 +469,7 @@ async function load() {
       total.value = rows.value.length
     } else {
       const response = await crmList(model.value!.resource, {
-        page: page.value, pageSize: 25, q: search.value.trim(),
+        page: page.value, pageSize: pageSize.value, q: search.value.trim(),
         ...(section.value === 'accounts' && accountTypeFilter.value.length ? { customerTypeCode: accountTypeFilter.value.join(',') } : {}),
         ...(section.value === 'accounts' && accountCategoryFilter.value.length ? { categoryCode: accountCategoryFilter.value.join(',') } : {}),
         ...(section.value === 'accounts' && accountSellerFilter.value.length ? { seller: accountSellerFilter.value.join(',') } : {}),
@@ -479,6 +483,18 @@ async function load() {
     }
   } catch (e) { error.value = crmError(e); rows.value = [] }
   finally { loading.value = false }
+}
+function changeCrmPage(nextPage: number) {
+  const lastPage = Math.max(1, Math.ceil(total.value / pageSize.value))
+  if (nextPage < 1 || nextPage > lastPage || nextPage === page.value) return
+  page.value = nextPage
+  if (section.value !== 'settings' && section.value !== 'finance') void load()
+}
+function changeCrmPageSize(nextSize: number) {
+  if (![10, 25, 50].includes(nextSize) || nextSize === pageSize.value) return
+  pageSize.value = nextSize
+  page.value = 1
+  if (section.value !== 'settings' && section.value !== 'finance') void load()
 }
 async function save() {
   if (!model.value || saving.value) return
@@ -556,7 +572,7 @@ const agendaForDay = (dateKey: string) => crmAgendaRecordsForDay(rows.value, dat
 const financeAllowed = computed(() =>
   financeTab.value === 'credit' ? can('crm.credit.read') : can('crm.contract.read'))
 watch([section, financeTab, pipelineId], () => { page.value = 1; showForm.value = false; void load() })
-watch(selectedAccount, () => { if (section.value === 'finance') void load() })
+watch(selectedAccount, () => { if (section.value === 'finance') { page.value = 1; void load() } })
 onMounted(() => {
   if (allowed.value) {
     void load()
@@ -793,14 +809,9 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
             </div>
           </template>
         </DhDataTable>
-        <footer class="flex items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
-          <span>{{ rows.length }} de {{ total }}</span>
-          <div class="flex items-center gap-2">
-            <DhButton :disabled="page <= 1 || loading" label="‹" variant="secondary" size="sm" @click="page--;load()" />
-            <span class="min-w-6 text-center font-semibold">{{ page }}</span>
-            <DhButton :disabled="page*25 >= total || loading" label="›" variant="secondary" size="sm" @click="page++;load()" />
-          </div>
-        </footer>
+        <DhPagination :page="page" :page-size="pageSize" :total="total"
+          :class="loading ? 'pointer-events-none opacity-60' : ''"
+          @update:page="changeCrmPage" @update:page-size="changeCrmPageSize" />
       </div>
       <div v-else-if="section !== 'dashboard' && section !== 'followups'" class="space-y-3">
         <div v-if="section === 'accounts'" class="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">
@@ -855,14 +866,9 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
           <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">El listado usa las cuentas reales autorizadas por el servidor. Los contactos, rutas y condiciones se gestionan dentro de cada ficha.</p>
           <DhButton v-if="canCreate() && !hasAccountFilters" class="mt-4" :icon="Plus" label="Crear primera cuenta" @click="beginCreate" />
         </div>
-        <footer v-if="section !== 'settings' && section !== 'finance'" class="flex flex-wrap items-center justify-between gap-3 px-2 text-sm text-[var(--dh-text-muted)]">
-          <span>{{ rows.length }} / {{ total }}</span>
-          <div class="flex items-center gap-2">
-            <DhButton :disabled="page <= 1 || loading" label="‹" variant="secondary" size="sm" @click="page--;load()" />
-            <span class="min-w-6 text-center font-bold">{{ page }}</span>
-            <DhButton :disabled="page*25 >= total || loading" label="›" variant="secondary" size="sm" @click="page++;load()" />
-          </div>
-        </footer>
+        <DhPagination :page="page" :page-size="pageSize" :total="total"
+          :class="loading ? 'pointer-events-none opacity-60' : ''"
+          @update:page="changeCrmPage" @update:page-size="changeCrmPageSize" />
       </div>
 
       <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'xl' : 'lg'" @close="showForm = false">
