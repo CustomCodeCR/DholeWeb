@@ -67,6 +67,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useRequiredFieldFeedback, type RequiredFieldIssue } from '@/core/composables/useRequiredFieldFeedback'
 import { useModalStore } from '@/core/stores/modalStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
+import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
@@ -281,6 +282,7 @@ const form = reactive({
   selectedImportRateId: '',
   manualRate: false,
   clientId: '',
+  crmClientKind: '' as 'account' | 'lead' | '',
   clientName: '',
   executiveId: '',
   executiveName: '',
@@ -4437,6 +4439,8 @@ async function hydrateExistingRate() {
     form.manualRate = !rate.sourceImportFclRateId
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
+    form.clientId = rate.clientAccountId ?? rate.clientLeadId ?? ''
+    form.crmClientKind = rate.clientLeadId ? 'lead' : rate.clientAccountId ? 'account' : ''
     form.idtraNumber = rate.idtraNumber ?? ''
     form.otherReferences = rate.otherReferences ?? ''
     commercialIdtra.value = rate.idtraNumber ?? ''
@@ -5196,6 +5200,8 @@ async function saveOpenRequest() {
       currencyId: currency.id,
       currencyName: displayValue(currency),
       currencyCode: currency.code,
+      clientAccountId: form.crmClientKind === 'account' ? form.clientId || null : null,
+      clientLeadId: form.crmClientKind === 'lead' ? form.clientId || null : null,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
@@ -5651,6 +5657,8 @@ async function saveRate() {
       currencyId: currency!.id,
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
+      clientAccountId: form.crmClientKind === 'account' ? form.clientId || null : null,
+      clientLeadId: form.crmClientKind === 'lead' ? form.clientId || null : null,
       clientName: form.clientName.trim() || null,
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
@@ -6105,6 +6113,7 @@ function resetWizard() {
     selectedImportRateId: '',
     manualRate: false,
     clientId: '',
+  crmClientKind: '' as 'account' | 'lead' | '',
     clientName: '',
     executiveId: '',
     executiveName: '',
@@ -6180,6 +6189,20 @@ watch(
     if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()
   },
 )
+
+function setCrmClient(client: {
+  id: string
+  kind?: 'account' | 'lead'
+  displayName: string
+  executiveUserId: string
+  executiveName: string
+} | null) {
+  form.crmClientKind = client?.kind || ''
+  form.clientId = client?.id || ''
+  form.clientName = client?.displayName || ''
+  form.executiveId = client?.executiveUserId || ''
+  form.executiveName = client?.executiveName || ''
+}
 
 watch(
   () => form.clientId,
@@ -6660,12 +6683,10 @@ onMounted(async () => {
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
             <div class="grid gap-4">
-              <DhSelect v-if="clientOptions.length" v-model="form.clientId" data-required-field="client" :error="fieldError('client')" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
-              <DhInput v-else v-model="form.clientName" data-required-field="client" :error="fieldError('client')" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
-              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
-              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
+              <PricingCrmClientSelect v-model="form.clientId" data-required-field="client" :mode="sellerRequestMode ? 'request' : 'create'" :initial-name="form.clientName" :error="fieldError('client')" @selected="setCrmClient" />
+              <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
-            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">Clientes y ejecutivos usan catálogos temporales de Config para evitar duplicar el futuro módulo Comercial.</p>
+            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">

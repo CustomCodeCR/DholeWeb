@@ -23,9 +23,10 @@ const props = withDefaults(defineProps<{
   modelValue: string
   mode: 'request' | 'create'
   sellerUserId?: string
+  initialName?: string
   disabled?: boolean
   error?: string
-}>(), {sellerUserId:'',disabled:false,error:''})
+}>(), {sellerUserId:'',initialName:'',disabled:false,error:''})
 const emit = defineEmits<{
   'update:modelValue': [id:string]
   selected: [client:PricingCrmClient|null]
@@ -101,13 +102,15 @@ async function nextPage(){
 watch(()=>[props.mode,props.sellerUserId] as const,()=>{
   ++requestId
   if(searchTimer)clearTimeout(searchTimer)
-  query.value=''
+  query.value=props.modelValue ? props.initialName : ''
   items.value=[]
   current.value=null
-  emit('update:modelValue','')
-  emit('selected',null)
   void load()
 },{immediate:true})
+watch(() => [props.modelValue, props.initialName] as const, ([id, label]) => {
+  if (id && current.value?.id !== id) query.value = label
+  else if (!id && !current.value) query.value = ''
+})
 onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
 </script>
 <template>
