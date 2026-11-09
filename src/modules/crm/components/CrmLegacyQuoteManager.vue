@@ -94,11 +94,11 @@ async function reconcile() {
           accountId: props.accountId, clientName: name.value.trim(), rateIds: [...selected.value],
         },
       })
-    success.value = `${result.linked} cotización(es) vinculada(s). Se conservaron sus montos, fechas y revisiones.`
     selected.value = []
     confirmed.value = false
     candidatesPage.value = 1
     await Promise.all([refresh(), searchLegacy()])
+    success.value = `${result.linked} cotización(es) vinculada(s). Se conservaron sus montos, fechas y revisiones.`
     emit('changed')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudieron vincular las cotizaciones.'

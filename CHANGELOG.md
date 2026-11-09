@@ -1,8 +1,9 @@
-## 1.15.0 — 2026-11-09
+# Changelog
+
+## [1.15.0] - 2026-11-09
+
 - Cotizaciones y solicitudes: selección de cuentas o prospectos CRM con ejecutivo asignado y persistencia de identificadores estables.
 - CRM Cotizaciones e Historial: consulta de QUO por ID y conciliación explícita de cotizaciones históricas sin alterar datos financieros.
-
-# Changelog
 
 ## [1.14.3] - 2026-11-09
 
