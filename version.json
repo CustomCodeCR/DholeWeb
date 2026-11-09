@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.14.1",
-  "ecosystemVersion": "1.14.1",
-  "releaseId": "DH-20261109-CRM-DHPAGINATION-050",
-  "releaseStatus": "candidate-crm-pagination-staging-validation"
+  "version": "1.14.2",
+  "ecosystemVersion": "1.14.2",
+  "releaseId": "DH-20261109-PRICING-OWNLCL-VISIBILITY-051",
+  "releaseStatus": "candidate-pricing-ownlcl-staging-validation"
 }

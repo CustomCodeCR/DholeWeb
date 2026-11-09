@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.2] - 2026-11-09
+
+- PATCH Pricing: mostrar inventario LCL del POE si no hay salidas compatibles y vigentes; ETD vencidas y otros POL son solo consulta, nunca cotizables.
+- Preservar matriz Shanghai/Ningbo, POL físico Yantian, Balboa/Moín y guardas de selección. Contratos REST y backend sin cambios.
+- Release DH-20261109-PRICING-OWNLCL-VISIBILITY-051 (develop).
+
 ## [1.14.1] - 2026-11-09
 
 - PATCH CRM: tablas y paginación unificadas con DhDataTable y DhPagination en cuentas, prospectos, contactos, agenda, relaciones, historial de cambios y rutas.
