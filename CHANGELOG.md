@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.23] - 2026-11-09
+
+- PATCH: permitir Aceptar/Rechazar cotizaciones comerciales Abiertas si existe una revisión enviada y no hay modificación activa en Pricing. Se habilitan las acciones del dashboard vendedor y del detalle mediante una regla común, sin mostrar borradores ni permitir aceptar cotizaciones sin publicar.
+- La confirmación comunica cuándo el aviso con PDF a Apertura queda pendiente hasta que Pricing valide la revisión nueva. Regresión para QUO-00000-000269, estado Open, y restricciones de seguridad.
+- Release coordinado DH-20261109-SELLER-OPEN-DECISION-054 (master); PricingService 1.5.23, ecosistema 1.12.23.
+
 ## [1.12.22] - 2026-11-09
 
 - PATCH QUO-00000-000269: mostrar el estado real Open (Abierta) de Pricing en el panel y detalle comercial incluso cuando el snapshot de la última cotización enviada tenga estado Sent. Filtros, contadores e indicadores comerciales comparten el estado actual.
