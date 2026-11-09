@@ -110,23 +110,23 @@ jobs:
               # candidate patch with git's three-way safety instead of
               # blindly replacing master business screens.
               if ! grep -q "startUniversalRealtime" "src/App.vue"; then
-                key="${path//\//_}"
+                key="src_App.vue"
                 git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
               fi
               if ! grep -q "useResourceRealtime" "src/modules/agent/views/AgentExecutionDetailView.vue"; then
-                key="${path//\//_}"
+                key="src_modules_agent_views_AgentExecutionDetailView.vue"
                 git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
               fi
               if ! grep -q "useResourceRealtime" "src/modules/crm/views/CrmRecordDetailView.vue"; then
-                key="${path//\//_}"
+                key="src_modules_crm_views_CrmRecordDetailView.vue"
                 git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
               fi
               if ! grep -q "useResourceRealtime" "src/modules/pricing/views/PricingRateReadOnlyView.vue"; then
-                key="${path//\//_}"
+                key="src_modules_pricing_views_PricingRateReadOnlyView.vue"
                 git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
               fi
               if ! grep -q "DholeRealtimeStatus" "src/shared/components/layouts/MainLayout.vue"; then
-                key="${path//\//_}"
+                key="src_shared_components_layouts_MainLayout.vue"
                 git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
               fi
               python3 -m json.tool src/core/i18n/en.json >/dev/null
