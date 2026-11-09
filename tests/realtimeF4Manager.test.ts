@@ -159,7 +159,7 @@ test('F4: one logical WebSocket per browser instance and no JWT in WSS URL', asy
   assert.equal(host.sockets.length, 1)
   assert.equal(host.manager.socketCount, 1)
   assert.equal(host.manager.status, 'connected')
-  assert.ok(host.latestSocket().url.startsWith('wss://gateway.example/hubs/realtime?'))
+  assert.ok(host.latestSocket().url.startsWith('wss://gateway.example/api/notifications/hub?'))
   assert.ok(!host.latestSocket().url.includes(host.bearer))
   assert.ok(!host.latestSocket().url.includes('access_token'))
   assert.equal(new URL(host.latestSocket().url).searchParams.get('ticket'), TICKET)
@@ -194,7 +194,7 @@ test('F4 gate: 30 unexpected socket closes reconnect and resubscribe with fresh 
     await host.clock.advanceNext()
     assert.equal(host.manager.status, 'connected')
     assert.equal(host.manager.socketCount, 1)
-    assert.ok(host.latestSocket().sent.some(frame => frame.includes('"target":"Subscribe"')))
+    assert.ok(host.latestSocket().sent.some(frame => frame.includes('"target":"SubscribeResource"')))
   }
   assert.equal(host.sockets.length, 31)
   unsubscribe()
@@ -497,7 +497,7 @@ test('F7 C03 candidate: 10 Hub disconnects reauthorize and reconcile active REST
     await host.clock.advanceNext()
     assert.equal(host.manager.status, 'connected')
     assert.equal(bound.hooks.applied?.at(-1), host.restVersion)
-    assert.ok(host.latestSocket().sent.some(frame => frame.includes('"target":"Subscribe"')))
+    assert.ok(host.latestSocket().sent.some(frame => frame.includes('"target":"SubscribeResource"')))
   }
   bound.unsubscribe()
   host.manager.stop()
