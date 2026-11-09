@@ -15,7 +15,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
-import { currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
+import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
 // Los endpoints personales y la autorización de Pricing determinan las acciones propias.
@@ -466,7 +466,7 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return canActOnRate(rate) && !rate.revisionPending && ['Sent', 'RequestedByClient'].includes(rate.status)
+  return canActOnRate(rate) && canDecideSellerQuote(rate, hasOpenPricingModification(rate))
 }
 
 function pendingModification(rate: RateDto): boolean {
