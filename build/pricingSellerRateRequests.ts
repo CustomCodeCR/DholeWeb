@@ -140,8 +140,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `onMounted(async () => {\n  await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])\n  if (props.rateId) await hydrateExistingRate()\n  else await loadHaciendaExchangeRate(true)\n})`,
-    `onMounted(async () => {\n  await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])\n  if (props.rateId) await hydrateExistingRate()\n  else if (props.rateRequestId) {\n    await hydrateRateRequest()\n    await loadHaciendaExchangeRate(true)\n  } else await loadHaciendaExchangeRate(true)\n})`,
+    `onMounted(async () => {\n  await loadCatalogs()\n  if (props.rateId) await hydrateExistingRate()\n  else await loadHaciendaExchangeRate(true)\n})`,
+    `onMounted(async () => {\n  await loadCatalogs()\n  if (props.rateId) await hydrateExistingRate()\n  else if (props.rateRequestId) {\n    await hydrateRateRequest()\n    await loadHaciendaExchangeRate(true)\n  } else await loadHaciendaExchangeRate(true)\n})`,
     'mounted request hydration',
   )
 
