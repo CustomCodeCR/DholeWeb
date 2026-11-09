@@ -466,7 +466,14 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return canActOnRate(rate) && !rate.revisionPending && ['Sent', 'RequestedByClient'].includes(rate.status)
+  if (!canActOnRate(rate)) return false
+  if (!rate.revisionPending) return ['Sent', 'RequestedByClient', 'Open'].includes(rate.status)
+
+  // An Open Pricing header may still have the last quote issued to Sales.
+  // Actions target that issued quote, never an unpublished draft or active work.
+  return currentSellerWorkflowStatus(rate) === 'Open'
+    && !hasOpenPricingModification(rate)
+    && ['Sent', 'RequestedByClient'].includes(rate.status)
 }
 
 function pendingModification(rate: RateDto): boolean {
