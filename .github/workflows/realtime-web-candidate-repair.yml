@@ -1,0 +1,88 @@
+name: Repair realtime Web release candidate on feature branch
+on:
+  push:
+    branches:
+      - feature/rt-notificationshub-20261109-01
+    paths:
+      - .github/workflows/realtime-web-candidate-repair.yml
+permissions:
+  contents: write
+jobs:
+  repair-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore master-parity for non-realtime broken merge files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          for file in \
+            src/modules/pricing/components/PricingAlternativeWizardCrystal.vue \
+            src/modules/pricing/components/PricingRateRequestsPanel.vue \
+            src/modules/pricing/views/PricingRatesView.vue \
+            build/pricingWizardFclRateBundlesCompat.ts \
+            build/pricingWizardStep5RateFilter.ts; do
+            git show "origin/master:$file" > "$file"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          def amend(path, old, new):
+              p=Path(path)
+              content=p.read_text()
+              if old not in content:
+                  raise SystemExit(f"Expected anchor absent in {path}: {old[:90]}")
+              p.write_text(content.replace(old,new,1))
+          amend("src/shared/components/layouts/MainLayout.vue", "  BellRing,\n  Bot,\n", "  BellRing,\n")
+          amend("src/shared/components/atoms/index.ts",
+                "export { default as DhEmptyState } from './DhEmptyState.vue'",
+                "export { default as DhEmptyState } from './DhEmptyState.vue'\nexport { default as DhSkeleton } from './DhSkeleton.vue'")
+          amend("src/shared/components/molecules/index.ts",
+                "export { default as DhCard } from './DhCard.vue'",
+                "export { default as DhCard } from './DhCard.vue'\nexport { default as DhBlockCard } from './DhBlockCard.vue'\nexport { default as DhBlockDropZone } from './DhBlockDropZone.vue'")
+          amend("src/core/api/fetchConfig.ts",
+                "export async function fetchProtectedBlob(endpoint: string): Promise<Blob> {",
+                "/** Authenticated media access for marketing editor; never embeds tokens in URLs. */\nexport async function downloadFile(endpoint: string, _fileName: string): Promise<{ blob: Blob }> {\n  return { blob: await fetchProtectedBlob(endpoint) }\n}\n\nexport async function fetchProtectedBlob(endpoint: string): Promise<Blob> {")
+          amend("src/modules/agent/stores/agentStore.ts",
+                "  return {\n    providers,",
+                "  function forgetExecution(id: string) {\n    executions.value = executions.value.filter((item) => item.id !== id)\n    if (selectedExecution.value?.id === id) selectedExecution.value = null\n  }\n\n  return {\n    providers,")
+          amend("src/modules/agent/stores/agentStore.ts",
+                "    upsertExecution,\n  }",
+                "    upsertExecution,\n    forgetExecution,\n  }")
+          PY
+          git diff --check
+          git status --short
+          git add src/modules/pricing/components/PricingAlternativeWizardCrystal.vue \
+            src/modules/pricing/components/PricingRateRequestsPanel.vue \
+            src/modules/pricing/views/PricingRatesView.vue \
+            build/pricingWizardFclRateBundlesCompat.ts \
+            build/pricingWizardStep5RateFilter.ts \
+            src/shared/components/layouts/MainLayout.vue \
+            src/shared/components/atoms/index.ts \
+            src/shared/components/molecules/index.ts \
+            src/core/api/fetchConfig.ts \
+            src/modules/agent/stores/agentStore.ts
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m 'fix(web): resolve realtime release candidate merge conflicts'
+          git push origin HEAD:feature/rt-notificationshub-20261109-01
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Verify ecosystem Web version metadata
+        run: pnpm run version:check
+      - name: Compile Vue TypeScript
+        run: pnpm run type-check
+      - name: Run realtime manager and resource binding tests
+        run: pnpm run test:realtime-f4
+      - name: Compile staging-only pilot
+        env:
+          VITE_API_URL: https://dhole-api.customcodecr.com
+          VITE_DHOLE_REALTIME_ENABLED: 'true'
+          VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT: 'true'
+          VITE_DHOLE_REALTIME_RELEASE: rt-20261107-01
+        run: pnpm run build
