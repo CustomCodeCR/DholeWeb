@@ -490,6 +490,7 @@ interface PoeRouteDraft {
   rates: ImportRateSelectDto[]
   lines: RateLine[]
   costs?: CostSelectDto[]
+  manualFreight?: { poeId: string; comment: string; savedId: string; fingerprint: string }
 }
 const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
 
@@ -610,11 +611,24 @@ function rememberCurrentCarrierDraft() {
     rates: [...availableRates.value],
     lines: copyPoeLines(rateLines.value),
     costs: [...costs.value],
+    manualFreight: {
+      poeId,
+      comment: manualOceanFreightComment.value,
+      savedId: manualOceanFreightSavedId.value,
+      fingerprint: savedManualOceanFreightFingerprint.value,
+    },
   }
 }
 
+function restoreManualOceanFreightOption(draft: PoeRouteDraft | undefined, poeId: string) {
+  manualOceanFreightPoeId.value = draft?.manualFreight?.poeId || poeId
+  manualOceanFreightComment.value = draft?.manualFreight?.comment ?? ''
+  manualOceanFreightSavedId.value = draft?.manualFreight?.savedId ?? ''
+  savedManualOceanFreightFingerprint.value = draft?.manualFreight?.fingerprint ?? ''
+}
+
 async function activateCarrierRoute(poeId: string, carrierId: string) {
-  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value) return
+  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value || savingManualOceanFreight.value) return
   if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
   if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId && form.carrierId === carrierId) return
   rememberCurrentCarrierDraft()
@@ -637,6 +651,7 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
       rateLines.value = []
       costs.value = []
     }
+    restoreManualOceanFreightOption(draft, poeId)
     // Restore the selected preapproved/preauthorized rate when available.
     // Only combinations without imported tariffs default to manual.
     form.carrierId = carrierId
@@ -821,6 +836,7 @@ function rememberActivePoe() {
 }
 
 async function activatePoeRoute(destinationId: string) {
+  if (savingManualOceanFreight.value) return
   // A pending preapproved-rate lookup must finish before changing tabs: the
   // legacy Panama quotation resolver also shares availableRates state.
   if (loadingRates.value && !multiCarrierSelectionMode.value) return
@@ -854,6 +870,7 @@ async function activatePoeRoute(destinationId: string) {
       rateLines.value = copyPoeLines(selectedDraft.lines)
       costs.value = [...(selectedDraft.costs ?? [])]
     } else if (selectedCarrier) form.carrierId = selectedCarrier
+    restoreManualOceanFreightOption(selectedDraft, destinationId)
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
   }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
