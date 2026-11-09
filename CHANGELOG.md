@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.15.1] - 2026-11-09
+
+- PATCH: aceptar/rechazar cotizaciones Abiertas en Ventas cuando exista una revisión comercial enviada y no queden modificaciones abiertas. La interfaz de dashboard y detalle mantiene protegida cualquier revisión no publicada.
+- Mostrar cuando el envío de PDF a Apertura queda pendiente de validación; regresión para QUO-00000-000269 y estados Open, Sent y PendingApproval. Release DH-20261109-SELLER-OPEN-DECISION-054, PricingService 1.8.1.
+
 ## [1.15.0] - 2026-11-09
 
 - Cotizaciones Pricing: cuentas y prospectos CRM y vendedor asignado automáticamente.
