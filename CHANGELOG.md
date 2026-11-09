@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.15.0] - 2026-11-09
+
+- Cliente y ejecutivo seleccionados desde CRM para cotizaciones nuevas.
+- Migración manual verificada de cotizaciones históricas a la identidad de cuenta CRM.
+
 ## [1.12.21] - 2026-11-09
 
 - PATCH Ventas/Pricing: una revisión pendiente de publicación no implica trabajo abierto en Pricing. El badge solo muestra «En modificación por Pricing» con una solicitud realmente abierta; en los demás casos identifica la actualización pendiente.
