@@ -72,6 +72,7 @@ import PricingInlandServiceLocation from '@/modules/pricing/components/PricingIn
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
 import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete, nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
+import { shouldUseFclPanamaCostaRicaAllIn } from '@/modules/pricing/utils/pricingPanamaCostaRicaAllIn'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -230,6 +231,99 @@ const router = useRouter()
 const toastStore = useToastStore()
 const modalStore = useModalStore()
 const authStore = useAuthStore()
+// These state roots must be initialized before any Vite pricing plugins inject
+// eager watch() registrations near step/support-document state. Otherwise the
+// first client setup reads form while it is still in the temporal dead zone.
+const catalogs = reactive({
+  shipmentModes: [] as CatalogItemSelectDto[],
+  services: [] as CatalogItemSelectDto[],
+  incoterms: [] as CatalogItemSelectDto[],
+  pol: [] as CatalogItemSelectDto[],
+  pod: [] as CatalogItemSelectDto[],
+  poe: [] as CatalogItemSelectDto[],
+  landEquipmentTypes: [] as CatalogItemSelectDto[],
+  landEquipmentSizes: [] as CatalogItemSelectDto[],
+  landEquipmentKinds: [] as CatalogItemSelectDto[],
+  containers: [] as CatalogItemSelectDto[],
+  agents: [] as CatalogItemSelectDto[],
+  carriers: [] as CatalogItemSelectDto[],
+  currencies: [] as CatalogItemSelectDto[],
+  warehouses: [] as CatalogItemSelectDto[],
+  countries: [] as CatalogItemSelectDto[],
+  clients: [] as CatalogItemSelectDto[],
+  salesExecutives: [] as CatalogItemSelectDto[],
+})
+
+// Manual-ocean refs must exist in source for vue-tsc; the Vite plugin only
+// injects the manual freight helper and template, not duplicate state.
+const savingManualOceanFreight = ref(false)
+const manualOceanFreightComment = ref('')
+const manualOceanFreightSavedId = ref('')
+const manualOceanFreightPoeId = ref('')
+const savedManualOceanFreightFingerprint = ref('')
+
+const form = reactive({
+  rateType: 'Spot' as RateType,
+  modality: '' as Modality | '',
+  shipmentMode: '',
+  originId: '',
+  destinationId: '',
+  podId: '',
+  equipmentSize: '',
+  equipmentType: '',
+  equipmentId: '',
+  equipmentQuantity: 1,
+  incotermId: '',
+  cargoCondition: '' as PickupCargoCondition | '',
+  serviceIds: [] as string[],
+  loadDate: todayIso(),
+  validTo: addDaysIso(todayIso(), 30),
+  selectedImportRateId: '',
+  manualRate: false,
+  clientId: '',
+  clientName: '',
+  executiveId: '',
+  executiveName: '',
+  idtraNumber: '',
+  otherReferences: '',
+  pickupAddress: '',
+  warehouseId: '',
+  pickupLatitude: null as number | null,
+  pickupLongitude: null as number | null,
+  inlandPickupLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
+  inlandDeliveryLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
+  freeDays: 0,
+  transitDays: 0,
+  carrierRoute: '',
+  carrierComments: '',
+  agentId: '',
+  carrierId: '',
+  currencyId: '',
+  freightCost: 0,
+  freightSale: 0,
+  cabysSearch: '',
+  cabysCode: '',
+  cargoDescription: '',
+  cargoObservations: '',
+  cargoValue: 0,
+  cargoWeightKg: 0,
+  cargoPackages: 0,
+  storageDays: 0,
+  cargoPallets: 1,
+  cargoLengthCm: 0,
+  cargoWidthCm: 0,
+  cargoHeightCm: 0,
+  dangerousCargo: false,
+  nonStackable: false,
+  overweight: false,
+  merchantHaulage: false,
+  carrierHaulage: false,
+  manualName: '',
+  manualSection: 'destination_charges' as RateSection,
+  manualChargeBasis: '' as ChargeBasis | '',
+})
+
+
 const step = ref(1)
 const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
@@ -490,6 +584,7 @@ interface PoeRouteDraft {
   rates: ImportRateSelectDto[]
   lines: RateLine[]
   costs?: CostSelectDto[]
+  manualFreight?: { poeId: string; comment: string; savedId: string; fingerprint: string }
 }
 const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
 
@@ -610,11 +705,24 @@ function rememberCurrentCarrierDraft() {
     rates: [...availableRates.value],
     lines: copyPoeLines(rateLines.value),
     costs: [...costs.value],
+    manualFreight: {
+      poeId,
+      comment: manualOceanFreightComment.value,
+      savedId: manualOceanFreightSavedId.value,
+      fingerprint: savedManualOceanFreightFingerprint.value,
+    },
   }
 }
 
+function restoreManualOceanFreightOption(draft: PoeRouteDraft | undefined, poeId: string) {
+  manualOceanFreightPoeId.value = draft?.manualFreight?.poeId || poeId
+  manualOceanFreightComment.value = draft?.manualFreight?.comment ?? ''
+  manualOceanFreightSavedId.value = draft?.manualFreight?.savedId ?? ''
+  savedManualOceanFreightFingerprint.value = draft?.manualFreight?.fingerprint ?? ''
+}
+
 async function activateCarrierRoute(poeId: string, carrierId: string) {
-  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value) return
+  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value || savingManualOceanFreight.value) return
   if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
   if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId && form.carrierId === carrierId) return
   rememberCurrentCarrierDraft()
@@ -637,6 +745,7 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
       rateLines.value = []
       costs.value = []
     }
+    restoreManualOceanFreightOption(draft, poeId)
     // Restore the selected preapproved/preauthorized rate when available.
     // Only combinations without imported tariffs default to manual.
     form.carrierId = carrierId
@@ -821,6 +930,7 @@ function rememberActivePoe() {
 }
 
 async function activatePoeRoute(destinationId: string) {
+  if (savingManualOceanFreight.value) return
   // A pending preapproved-rate lookup must finish before changing tabs: the
   // legacy Panama quotation resolver also shares availableRates state.
   if (loadingRates.value && !multiCarrierSelectionMode.value) return
@@ -854,6 +964,7 @@ async function activatePoeRoute(destinationId: string) {
       rateLines.value = copyPoeLines(selectedDraft.lines)
       costs.value = [...(selectedDraft.costs ?? [])]
     } else if (selectedCarrier) form.carrierId = selectedCarrier
+    restoreManualOceanFreightOption(selectedDraft, destinationId)
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
   }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
@@ -1345,23 +1456,12 @@ const isMiamiLcl = computed(() => {
 })
 
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
-const multimodalAllInPresentation = computed(() => {
-  if (form.modality === 'Multimodal') return true
-
-  const destination = selectedDestination.value
-  if (!destination) return false
-
-  const destinationMetadata = metadata(destination) as (CatalogMetadata & { multimodalViaPanama?: boolean }) | null
-  const descriptor = normalizeCatalogValue(
-    [destination.code, destination.slug, destination.label, displayValue(destination)]
-      .filter(Boolean)
-      .join(' '),
-  )
-
-  return destinationMetadata?.multimodalViaPanama === true
-    || String(destination.code ?? '').trim().toUpperCase() === 'MULTIMODAL_VIA_PANAMA'
-    || descriptor.includes('multimodal via panama')
-})
+const multimodalAllInPresentation = computed(() => shouldUseFclPanamaCostaRicaAllIn({
+  modality: form.modality,
+  shipmentMode: shipmentModeForApi.value,
+  poe: selectedDestination.value,
+  pod: findById(catalogs.pod, form.podId),
+}))
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
@@ -2333,6 +2433,12 @@ const alternativePreviewCards = computed(() => selectedCarrierRoutes.value.map((
   return {
     key, index, poeId: route.poeId, carrierId: route.carrierId,
     agentId: active ? form.agentId : (draft?.fields.agentId ?? ''),
+    allIn: shouldUseFclPanamaCostaRicaAllIn({
+      modality: form.modality,
+      shipmentMode: 'Fcl',
+      poe: findById(catalogs.poe, route.poeId),
+      pod: selectedPod.value,
+    }),
     imported: Boolean(active ? form.selectedImportRateId : draft?.fields.selectedImportRateId),
     lines, costUsd, saleUsd, utilityUsd: saleUsd - costUsd,
     margin: saleUsd > 0 ? ((saleUsd - costUsd) / saleUsd) * 100 : 0,
@@ -5926,6 +6032,13 @@ async function saveRate() {
             rate: {
               ...createPayload,
               sourceImportFclRateId: draft.fields.selectedImportRateId || null,
+              // Each commercial presentation belongs to this POE, never the active form.
+              useAllInPresentation: shouldUseFclPanamaCostaRicaAllIn({
+                modality: form.modality,
+                shipmentMode: 'Fcl',
+                poe: targetPoe,
+                pod,
+              }),
               agentId: targetAgent.id,
               agentName: displayValue(targetAgent),
               agentCode: targetAgent.code,
@@ -7697,6 +7810,7 @@ onMounted(async () => {
                       <div class="min-w-0">
                         <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">{{ preview.rate.quoNumber || preview.rate.rateCode }} · Subtarifa {{ preview.index + 1 }} / {{ savedQuoteGroup?.alternatives.length }} <span v-if="preview.key === primarySavedGroupAlternative?.rateId" class="text-[var(--dh-primary)]">· PRINCIPAL SELECCIONADA</span></p>
                         <h4 class="mt-0.5 text-base font-black text-[var(--dh-text)]">{{ preview.rate.poeName }} · {{ preview.rate.carrierName || preview.option.carrierName }}</h4>
+                        <DhBadge :variant="preview.rate.useAllInPresentation ? 'success' : 'neutral'">{{ preview.rate.useAllInPresentation ? 'ALL IN · Panamá → Costa Rica' : 'Desglose por rubros' }}</DhBadge>
                         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preview.option.haulageMode === 'Merchant' ? 'Merchant Haulage' : 'Carrier Haulage' }} · Agente: {{ preview.rate.agentName || 'Sin asignar' }} · {{ preview.rate.rateDetails.length }} rubros</p>
                       </div>
                     </div>
@@ -7776,6 +7890,7 @@ onMounted(async () => {
                       <div class="min-w-0">
                         <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Subtarifa {{ preview.index + 1 }} / {{ carrierRouteCount }} · {{ preview.imported ? 'Tarifa cargada' : 'Manual' }}</p>
                         <h4 class="mt-0.5 text-base font-black text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, preview.poeId)) || preview.poeId }} · {{ displayValue(findById(catalogs.carriers, preview.carrierId)) || preview.carrierId }}</h4>
+                        <DhBadge :variant="preview.allIn ? 'success' : 'neutral'">{{ preview.allIn ? 'ALL IN · Panamá → Costa Rica' : 'Desglose por rubros' }}</DhBadge>
                         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, preview.agentId)) || 'Sin asignar' }} · {{ preview.lines.length }} rubros</p>
                       </div>
                     </div>

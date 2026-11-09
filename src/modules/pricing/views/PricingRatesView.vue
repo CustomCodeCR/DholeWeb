@@ -217,6 +217,10 @@ function rateFinancialSummary(rate: RateDto) {
   }
 }
 
+function visibleQuoteNumber(rate: RateDto) {
+  return rate.groupQuoteNumber || rate.quoNumber || rate.rateCode
+}
+
 const rows = ref<RateDto[]>([])
 const creatorDirectory = ref<Record<string, { displayName: string; userName: string }>>({})
 
@@ -519,6 +523,7 @@ async function load() {
       validFrom: filters.validFrom || undefined,
       validTo: filters.validTo || undefined,
       excludeTariffMasters: true,
+      groupQuotes: true,
       executiveNames: selectedExecutiveNames.value.length ? selectedExecutiveNames.value : undefined,
     })
 
@@ -982,7 +987,7 @@ onMounted(async () => {
               <div class="min-w-0 flex-1">
                 <div data-rate-quo-client class="flex min-w-0 flex-col items-start gap-2">
                   <span data-rate-quo class="inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-lg dh-bg-primary-soft px-3 py-1.5 text-sm font-black tracking-tight text-[var(--dh-primary)]">
-                    {{ row.quoNumber || row.rateCode }}
+                    {{ visibleQuoteNumber(row) }}
                   </span>
                   <span data-rate-client class="block w-full min-w-0 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
                     {{ row.clientName || 'Sin cliente' }}
@@ -990,6 +995,7 @@ onMounted(async () => {
                 </div>
                 <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                   <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
+                  <DhBadge v-if="row.groupAlternativeCount && row.groupAlternativeCount > 1" :label="`${row.groupAlternativeCount} alternativas`" variant="neutral" />
                   <DhBadge
                     :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
                     :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
@@ -1178,7 +1184,7 @@ onMounted(async () => {
                   <div class="min-w-0">
                     <div data-rate-quo-client class="flex min-w-0 flex-col items-start gap-2">
                       <span data-rate-quo class="inline-flex max-w-full shrink-0 items-center whitespace-nowrap rounded-lg dh-bg-primary-soft px-3 py-1.5 text-sm font-black tracking-tight text-[var(--dh-primary)]">
-                        {{ row.quoNumber || row.rateCode }}
+                        {{ visibleQuoteNumber(row) }}
                       </span>
                       <span data-rate-client class="block w-full min-w-0 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
                         {{ row.clientName || 'Sin cliente' }}
@@ -1186,6 +1192,7 @@ onMounted(async () => {
                     </div>
                     <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                       <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
+                  <DhBadge v-if="row.groupAlternativeCount && row.groupAlternativeCount > 1" :label="`${row.groupAlternativeCount} alternativas`" variant="neutral" />
                       <DhBadge
                         :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
                         :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
