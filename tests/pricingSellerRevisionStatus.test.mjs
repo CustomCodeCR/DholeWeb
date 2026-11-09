@@ -6,6 +6,7 @@ const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'u
 const dashboard = source('src/modules/dashboard/components/SellerRoleDashboard.vue')
 const detail = source('src/modules/pricing/views/PricingSellerRateDetailView.vue')
 const contract = source('src/core/interfaces/pricing.ts')
+const workflow = source('src/modules/pricing/utils/sellerRateWorkflowStatus.ts')
 
 test('an unpublished revision is not automatically active work in Pricing', () => {
   assert.match(contract, /pricingModificationActive\?: boolean/)
@@ -13,14 +14,16 @@ test('an unpublished revision is not automatically active work in Pricing', () =
   assert.match(dashboard, /typeof rate\.pricingModificationActive === 'boolean'/)
   assert.match(dashboard, /request\.kind === 'Modification' && request\.status === 'Open'/)
   assert.match(dashboard, /hasOpenPricingModification\(rate\)/)
-  assert.match(dashboard, /Última revisión enviada · Actualización pendiente/)
+  assert.match(workflow, /Última revisión enviada · Actualización pendiente/)
+  assert.match(dashboard, /unpublishedSellerWorkflowLabel/)
   assert.doesNotMatch(dashboard, /if \(rate\.revisionPending\) return 'En modificación por Pricing'/)
 })
 
 test('seller detail distinguishes active work and blocks unreleased draft actions', () => {
   assert.match(detail, /const revisionWorkActive = computed\(/)
   assert.match(detail, /activePricingModification\.value = modificationRequests\.some\(request => request\.status === 'Open'\)/)
-  assert.match(detail, /Última revisión enviada · Actualización pendiente/)
+  assert.match(detail, /unpublishedSellerWorkflowLabel/)
+  assert.match(workflow, /case 'Open': return 'Abierta'/)
   assert.match(detail, /const canReceive = computed\(\(\) => isSent\.value && !revisionPending\.value/)
   assert.match(detail, /&& !revisionPending\.value && rate\.value\.status !== 'Closed'/)
   assert.match(detail, /function refreshSellerRateOnFocus\(/)
