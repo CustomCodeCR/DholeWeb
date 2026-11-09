@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.22] - 2026-11-09
+
+- PATCH QUO-00000-000269: mostrar el estado real Open (Abierta) de Pricing en el panel y detalle comercial incluso cuando el snapshot de la última cotización enviada tenga estado Sent. Filtros, contadores e indicadores comerciales comparten el estado actual.
+- La API separa currentRateStatus de status del snapshot; no publica borradores, cargos ni importes internos. Las acciones permanecen bloqueadas mientras revisionPending sea true.
+- Regression tests para cotización abierta, solicitud de modificación abierta, aprobación y compatibilidad con APIs anteriores. Release DH-20261109-QUO269-SELLER-STATUS-053 con DholePricingService 1.5.22 y ecosistema 1.12.22 (master).
+
 ## [1.12.21] - 2026-11-09
 
 - PATCH Ventas/Pricing: una revisión pendiente de publicación no implica trabajo abierto en Pricing. El badge solo muestra «En modificación por Pricing» con una solicitud realmente abierta; en los demás casos identifica la actualización pendiente.
