@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.13.7] - 2026-11-08 (F9 staging candidate)
+
+- Alineación PATCH de release 1.13.14. Se conserva recuperación REST y autorización; pruebas funcionales reales de staging se ejecutarán tras desplegar a staging, sin activar flags de producción.
+
+
 ## [1.13.6] - 2026-11-08 (candidato F3)
 
 - Versionado PATCH 1.13.6 / ecosistema 1.13.13 sincronizado para integrar el ensayo TLS/WSS automático del Gateway en el release coordinado. Sin cambios en comportamiento frontend, flags no activados.
