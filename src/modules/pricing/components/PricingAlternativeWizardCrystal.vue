@@ -6684,6 +6684,14 @@ onMounted(async () => {
           <div class="crystal-soft space-y-5 p-4 md:p-5">
             <div class="grid gap-4">
               <PricingCrmClientSelect v-model="form.clientId" data-required-field="client" :mode="sellerRequestMode ? 'request' : 'create'" :initial-name="form.clientName" :error="fieldError('client')" @selected="setCrmClient" />
+              <!-- Unmounted compatibility anchors for the legacy Pricing build transforms.
+                   CRM remains the only active source of client and assigned executive. -->
+              <template v-if="false">
+              <DhSelect v-if="clientOptions.length" v-model="form.clientId" data-required-field="client" :error="fieldError('client')" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
+              <DhInput v-else v-model="form.clientName" data-required-field="client" :error="fieldError('client')" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
+              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
+              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
+              </template>
               <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
             <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha.</p>
