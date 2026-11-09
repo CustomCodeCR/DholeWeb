@@ -15,6 +15,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
 // Los endpoints personales y la autorización de Pricing determinan las acciones propias.
@@ -124,11 +125,14 @@ const currentPage = ref(1)
 const pageSize = 10
 
 function commercialStatus(rate: RateDto): SellerCommercialStatus {
-  if (rate.status === 'AcceptedByClient') return 'AcceptedByClient'
-  if (rate.status === 'Cancelled') return 'Cancelled'
-  if (rate.status === 'RejectedByClient' || rate.status === 'Closed') return 'RejectedByClient'
-  if (rate.status === 'Expired') return 'Expired'
-  if (rate.status === 'Sent' || rate.status === 'RequestedByClient') return 'Sent'
+  // Use the live Pricing workflow state for status filters and KPIs.
+  // Prices and line items are still taken from the last published revision.
+  const status = currentSellerWorkflowStatus(rate)
+  if (status === 'AcceptedByClient') return 'AcceptedByClient'
+  if (status === 'Cancelled') return 'Cancelled'
+  if (status === 'RejectedByClient' || status === 'Closed') return 'RejectedByClient'
+  if (status === 'Expired') return 'Expired'
+  if (status === 'Sent' || status === 'RequestedByClient') return 'Sent'
   return 'Open'
 }
 
@@ -153,18 +157,16 @@ function hasOpenPricingModification(rate: RateDto): boolean {
 }
 
 function sellerStatusLabel(rate: RateDto) {
-  if (rate.revisionPending) {
-    return hasOpenPricingModification(rate)
-      ? 'En modificación por Pricing'
-      : 'Última revisión enviada · Actualización pendiente'
-  }
+  const unpublishedLabel = unpublishedSellerWorkflowLabel(rate, hasOpenPricingModification(rate))
+  if (unpublishedLabel) return unpublishedLabel
   return commercialStatus(rate) === 'Sent' && rate.sellerReceivedAtUtc
     ? 'Recibida · Esperando cliente'
     : statusLabel(commercialStatus(rate))
 }
 
 function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (rate.revisionPending) return 'warning'
+  if (rate.revisionPending && (hasOpenPricingModification(rate) || !rate.currentRateStatus)) return 'warning'
+  if (rate.revisionPending && ['PendingApproval', 'RejectedByManagement'].includes(rate.currentRateStatus || '')) return 'warning'
   const status = commercialStatus(rate)
   if (status === 'AcceptedByClient') return 'success'
   if (status === 'RejectedByClient' || status === 'Cancelled' || status === 'Expired') return 'danger'
