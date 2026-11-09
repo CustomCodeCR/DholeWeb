@@ -2,6 +2,8 @@
 
 ## [1.14.0] - 2026-11-09 (NotificationsHub universal realtime pilot; candidate)
 
+- Coordinación 2026-11-09: integrados los commits recientes de `develop` y `master` en la rama candidata, conservando los cambios del release 1.14.0; validación post-sincronización mediante CI.
+
 - MINOR: Share the existing Notifications SignalR endpoint and legacy notificationReceived dispatcher for resourceChanged, with REST reconciliation and staging-only Vite flags.
 - Ecosystem candidate 1.14.0 / 16 Dhole repositories; CustomCodeFramework excluded. Release `rt-20261107-01`, isolated branch `feature/rt-notificationshub-20261109-01`.
 - Staging compile, deployment and post-deploy security audit pending; `develop`, `master` and production not changed by this candidate.
