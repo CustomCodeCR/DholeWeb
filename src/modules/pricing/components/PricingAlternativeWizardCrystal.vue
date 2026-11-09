@@ -72,6 +72,7 @@ import PricingInlandServiceLocation from '@/modules/pricing/components/PricingIn
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
 import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete, nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
+import { shouldUseFclPanamaCostaRicaAllIn } from '@/modules/pricing/utils/pricingPanamaCostaRicaAllIn'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import PricingRateRevisionViewer from '@/modules/pricing/components/PricingRateRevisionViewer.vue'
@@ -1370,23 +1371,12 @@ const isMiamiLcl = computed(() => {
 })
 
 const selectedDestination = computed(() => findById(catalogs.poe, form.destinationId))
-const multimodalAllInPresentation = computed(() => {
-  if (form.modality === 'Multimodal') return true
-
-  const destination = selectedDestination.value
-  if (!destination) return false
-
-  const destinationMetadata = metadata(destination) as (CatalogMetadata & { multimodalViaPanama?: boolean }) | null
-  const descriptor = normalizeCatalogValue(
-    [destination.code, destination.slug, destination.label, displayValue(destination)]
-      .filter(Boolean)
-      .join(' '),
-  )
-
-  return destinationMetadata?.multimodalViaPanama === true
-    || String(destination.code ?? '').trim().toUpperCase() === 'MULTIMODAL_VIA_PANAMA'
-    || descriptor.includes('multimodal via panama')
-})
+const multimodalAllInPresentation = computed(() => shouldUseFclPanamaCostaRicaAllIn({
+  modality: form.modality,
+  shipmentMode: shipmentModeForApi.value,
+  poe: selectedDestination.value,
+  pod: findById(catalogs.pod, form.podId),
+}))
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
@@ -2358,6 +2348,12 @@ const alternativePreviewCards = computed(() => selectedCarrierRoutes.value.map((
   return {
     key, index, poeId: route.poeId, carrierId: route.carrierId,
     agentId: active ? form.agentId : (draft?.fields.agentId ?? ''),
+    allIn: shouldUseFclPanamaCostaRicaAllIn({
+      modality: form.modality,
+      shipmentMode: 'Fcl',
+      poe: findById(catalogs.poe, route.poeId),
+      pod: selectedPod.value,
+    }),
     imported: Boolean(active ? form.selectedImportRateId : draft?.fields.selectedImportRateId),
     lines, costUsd, saleUsd, utilityUsd: saleUsd - costUsd,
     margin: saleUsd > 0 ? ((saleUsd - costUsd) / saleUsd) * 100 : 0,
@@ -5951,6 +5947,13 @@ async function saveRate() {
             rate: {
               ...createPayload,
               sourceImportFclRateId: draft.fields.selectedImportRateId || null,
+              // Each commercial presentation belongs to this POE, never the active form.
+              useAllInPresentation: shouldUseFclPanamaCostaRicaAllIn({
+                modality: form.modality,
+                shipmentMode: 'Fcl',
+                poe: targetPoe,
+                pod,
+              }),
               agentId: targetAgent.id,
               agentName: displayValue(targetAgent),
               agentCode: targetAgent.code,
@@ -7722,6 +7725,7 @@ onMounted(async () => {
                       <div class="min-w-0">
                         <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">{{ preview.rate.quoNumber || preview.rate.rateCode }} · Subtarifa {{ preview.index + 1 }} / {{ savedQuoteGroup?.alternatives.length }} <span v-if="preview.key === primarySavedGroupAlternative?.rateId" class="text-[var(--dh-primary)]">· PRINCIPAL SELECCIONADA</span></p>
                         <h4 class="mt-0.5 text-base font-black text-[var(--dh-text)]">{{ preview.rate.poeName }} · {{ preview.rate.carrierName || preview.option.carrierName }}</h4>
+                        <DhBadge :variant="preview.rate.useAllInPresentation ? 'success' : 'neutral'">{{ preview.rate.useAllInPresentation ? 'ALL IN · Panamá → Costa Rica' : 'Desglose por rubros' }}</DhBadge>
                         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ preview.option.haulageMode === 'Merchant' ? 'Merchant Haulage' : 'Carrier Haulage' }} · Agente: {{ preview.rate.agentName || 'Sin asignar' }} · {{ preview.rate.rateDetails.length }} rubros</p>
                       </div>
                     </div>
@@ -7801,6 +7805,7 @@ onMounted(async () => {
                       <div class="min-w-0">
                         <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Subtarifa {{ preview.index + 1 }} / {{ carrierRouteCount }} · {{ preview.imported ? 'Tarifa cargada' : 'Manual' }}</p>
                         <h4 class="mt-0.5 text-base font-black text-[var(--dh-text)]">{{ displayValue(findById(catalogs.poe, preview.poeId)) || preview.poeId }} · {{ displayValue(findById(catalogs.carriers, preview.carrierId)) || preview.carrierId }}</h4>
+                        <DhBadge :variant="preview.allIn ? 'success' : 'neutral'">{{ preview.allIn ? 'ALL IN · Panamá → Costa Rica' : 'Desglose por rubros' }}</DhBadge>
                         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Agente: {{ displayValue(findById(catalogs.agents, preview.agentId)) || 'Sin asignar' }} · {{ preview.lines.length }} rubros</p>
                       </div>
                     </div>
