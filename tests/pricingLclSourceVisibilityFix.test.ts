@@ -138,7 +138,7 @@ test('Yantian can select a compatible Shanghai sailing and keep its commercial P
 test('sin salidas elegibles se visualiza el inventario como referencia y se mantiene guard de ruta', () => {
   assert.ok(selector.includes('const eligibleOwnCount = computed('))
   assert.ok(selector.includes('showAllOwnConsolidations.value = ownRows.value.length > 0 && eligibleOwnCount.value === 0'))
-  assert.ok(selector.includes('ETD vencida · Solo consulta'))
+  assert.ok(selector.includes("showAllOwnConsolidations ? 'Inventario del POE"))
   assert.ok(selector.includes('No hay salidas vigentes compatibles con'))
   assert.ok(selector.includes("if (!ownConsolidationSupportsPol(row)) return 'Otro POL'"))
   assert.ok(selector.includes("if (ownDepartureExpired(row)) return 'Revisar ETD'"))
