@@ -92,7 +92,7 @@ function patchWizard(source: string) {
     'seller request edit hydration')
 
   code = replaceOnce(code,
-    '  await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])\n  if (props.rateId) await hydrateExistingRate()',
+    '  await loadCatalogs()\n  if (props.rateId) await hydrateExistingRate()',
     '  await loadCatalogs()\n  if (props.sellerEditRequestId) await hydrateSellerRequestEdit()\n  if (props.rateId) await hydrateExistingRate()',
     'edit mount after catalogs')
 

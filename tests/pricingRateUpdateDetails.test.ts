@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { buildRateUpdateExtraDetails, reconcileRateUpdateDetailChanges, stalePersistedFclFreightDetailIds } from '../src/modules/pricing/utils/pricingRateUpdateDetails.ts'
+import { dedupeEquivalentReleaseLines } from '../src/modules/pricing/utils/pricingReleaseLineDeduplication.ts'
 
 test('two different HBL costs with the same persisted ID remain distinct', () => {
   const rows = buildRateUpdateExtraDetails(
@@ -66,6 +67,28 @@ test('non-FCL updates never infer equipment freight deletions', () => {
     [],
   )
   assert.equal(removed.size, 0)
+})
+
+test('identical Release charges from different catalog CostIds are only shown once', () => {
+  const lines = [
+    { name: 'Release', costId: 'cost-one', costDetailType: 'CarrierCharge', costType: 'Fixed', chargeBasis: 'PerShipment', currencyCode: 'USD', costAmount: 75, saleAmount: 0 },
+    { name: ' Release ', costId: 'cost-two', costDetailType: 'CarrierCharge', costType: 'Fixed', chargeBasis: 'PerShipment', currencyCode: 'USD', costAmount: 75, saleAmount: 0 },
+  ]
+  assert.deepEqual(dedupeEquivalentReleaseLines(lines), [lines[0]])
+})
+
+test('Release charges with different values or tax configuration remain separate', () => {
+  const base = { name: 'Release', costDetailType: 'CarrierCharge', costType: 'Fixed', chargeBasis: 'PerShipment', currencyCode: 'USD', costAmount: 75, saleAmount: 0 }
+  const lines = [base, { ...base, costAmount: 90 }, { ...base, applyDestinationTax: true, destinationTaxRate: 13 }]
+  assert.equal(dedupeEquivalentReleaseLines(lines).length, 3)
+})
+
+test('two distinct Manejos lines are preserved', () => {
+  const lines = [
+    { name: 'Manejos', costAmount: 0, saleAmount: 55 },
+    { name: 'Manejos', costAmount: 50, saleAmount: 0 },
+  ]
+  assert.deepEqual(dedupeEquivalentReleaseLines(lines), lines)
 })
 
 

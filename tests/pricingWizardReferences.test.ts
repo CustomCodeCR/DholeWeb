@@ -28,7 +28,7 @@ for (const file of wizards) {
     if (file.includes("PricingRateExistingWizardStable")) {
       assert.match(source, /if \(!validateWizardReferences\(\)\) return/)
     } else {
-      assert.match(source, /if \(!validateSelectedCrmCustomer\(\) \|\| !validateRequiredFields\(\) \|\| !validateWizardReferences\(\)\) return/)
+      assert.match(source, /if \((?:!validateSelectedCrmCustomer\(\) \|\| )?!validateRequiredFields\(\) \|\| !validateWizardReferences\(\)\) return/)
     }
   })
 }

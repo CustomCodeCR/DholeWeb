@@ -48,38 +48,33 @@ function patchWizard(source: string) {
     'default Castro Fallas executive',
   )
 
-  // These four Config inputs are superseded by the searchable CRM account picker.
-  // Keep the transformations for old installations but do not replace new CRM controls.
-  if (!code.includes('<PricingCrmClientSelect')) {
-    code = replacePattern(
-      code,
-      /<DhSelect\s+v-if="clientOptions\.length"[\s\S]*?:options="clientOptions"\s*\/>/,
-      `<DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Nombre del cliente *" placeholder="Seleccione cliente" :options="clientOptions" hint="Obligatorio" />`,
-      'required client select',
-    )
-  
-    code = replacePattern(
-      code,
-      /<DhInput\s+v-else\s+v-model="form\.clientName"[\s\S]*?\/>/,
-      `<DhInput v-else v-model="form.clientName" label="Nombre del cliente *" placeholder="Escriba el nombre del cliente" autocomplete="off" hint="Obligatorio" />`,
-      'required client input',
-    )
-  
-    code = replacePattern(
-      code,
-      /<DhInput\s+v-if="sellerRequestMode"[\s\S]*?disabled\s*\/>/,
-      `<DhSelect\n                v-if="sellerRequestMode"\n                v-model="sellerRequestOwnerId"\n                label="Ejecutivo comercial *"\n                :placeholder="sellerRequestOwnerOptions.length ? 'Seleccione vendedor' : 'No hay vendedores disponibles'"\n                :options="sellerRequestOwnerOptions"\n                :disabled="sellerRequestOwnersLoading || !sellerRequestOwnerOptions.length"\n                hint="Usuarios disponibles con rol Vendedor"\n              />`,
-      'seller request executive field',
-    )
-  
-    code = replacePattern(
-      code,
-      /<DhSelect\s+v-else-if="salesExecutiveOptions\.length"[\s\S]*?:options="salesExecutiveOptions"\s*\/>\s*<DhInput\s+v-else\s+v-model="form\.executiveName"[\s\S]*?\/>/,
-      `<DhSelect\n                v-else\n                v-model="form.executiveId"\n                label="Ejecutivo comercial *"\n                :placeholder="salesExecutiveOptions.length ? 'Seleccione vendedor' : 'No hay usuarios con rol Vendedor'"\n                :options="salesExecutiveOptions"\n                :disabled="!salesExecutiveOptions.length"\n                hint="Usuarios activos con rol Vendedor"\n              />`,
-      'Vendedor select',
-    )
-  
-    }
+  code = replacePattern(
+    code,
+    /<DhSelect\s+v-if="clientOptions\.length"[\s\S]*?:options="clientOptions"\s*\/>/,
+    `<DhSelect v-if="clientOptions.length" v-model="form.clientId" label="Nombre del cliente *" placeholder="Seleccione cliente" :options="clientOptions" hint="Obligatorio" />`,
+    'required client select',
+  )
+
+  code = replacePattern(
+    code,
+    /<DhInput\s+v-else\s+v-model="form\.clientName"[\s\S]*?\/>/,
+    `<DhInput v-else v-model="form.clientName" label="Nombre del cliente *" placeholder="Escriba el nombre del cliente" autocomplete="off" hint="Obligatorio" />`,
+    'required client input',
+  )
+
+  code = replacePattern(
+    code,
+    /<DhInput\s+v-if="sellerRequestMode"[\s\S]*?disabled\s*\/>/,
+    `<DhSelect\n                v-if="sellerRequestMode"\n                v-model="sellerRequestOwnerId"\n                label="Ejecutivo comercial *"\n                :placeholder="sellerRequestOwnerOptions.length ? 'Seleccione vendedor' : 'No hay vendedores disponibles'"\n                :options="sellerRequestOwnerOptions"\n                :disabled="sellerRequestOwnersLoading || !sellerRequestOwnerOptions.length"\n                hint="Usuarios disponibles con rol Vendedor"\n              />`,
+    'seller request executive field',
+  )
+
+  code = replacePattern(
+    code,
+    /<DhSelect\s+v-else-if="salesExecutiveOptions\.length"[\s\S]*?:options="salesExecutiveOptions"\s*\/>\s*<DhInput\s+v-else\s+v-model="form\.executiveName"[\s\S]*?\/>/,
+    `<DhSelect\n                v-else\n                v-model="form.executiveId"\n                label="Ejecutivo comercial *"\n                :placeholder="salesExecutiveOptions.length ? 'Seleccione vendedor' : 'No hay usuarios con rol Vendedor'"\n                :options="salesExecutiveOptions"\n                :disabled="!salesExecutiveOptions.length"\n                hint="Usuarios activos con rol Vendedor"\n              />`,
+    'Vendedor select',
+  )
 
   const legacyHelp = `Clientes y ejecutivos usan catálogos temporales de Config para evitar duplicar el futuro módulo Comercial.`
   if (code.includes(legacyHelp)) {

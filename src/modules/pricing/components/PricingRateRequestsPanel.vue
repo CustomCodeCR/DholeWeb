@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocale } from '@/core/stores/locale'
-import { Ban, CheckCircle2, Clock3, FileDown, PlayCircle, RefreshCcw } from 'lucide-vue-next'
+import { Ban, CheckCircle2, Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { fetchBlobClient } from '@/core/api/fetchBlobClient'
@@ -10,6 +10,7 @@ import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
+import { useAuthStore } from '@/core/stores/authStore'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { PricingService } from '@/core/services/pricingService'
@@ -17,7 +18,6 @@ import type { RateDto } from '@/core/interfaces/pricing'
 
 type Priority = 'Green' | 'Yellow' | 'Red'
 type CancellationReason = 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'
-type RequestStatus = 'Open' | 'Completed' | 'Cancelled'
 
 type ModificationItem = { action: string; field: string; details?: string; original?: string; requested?: string }
 type RequestPayload = {
@@ -31,7 +31,7 @@ interface RateRequestDto {
   id: string
   priority: Priority
   kind?: 'New' | 'Modification'
-  status: RequestStatus
+  status: 'Open' | 'Completed' | 'Cancelled'
   workStatus?: 'Working' | 'RequestedFromProvider' | null
   preparedRevisionNumber?: number | null
   requestedAtUtc: string
@@ -43,7 +43,6 @@ interface RateRequestDto {
   lockedByUserId?: string | null
   lockedByName?: string | null
   lockExpiresAtUtc?: string | null
-  completedAtUtc?: string | null
   rateId?: string | null
   sellerName?: string | null
   sellerEmail?: string | null
@@ -62,8 +61,8 @@ interface RateRequestDto {
 
 const router = useRouter()
 const localeStore = useLocale()
-const authStore = useAuthStore()
 const toast = useToastStore()
+const authStore = useAuthStore()
 const pricingCatalogs = usePricingCatalogs()
 const loading = ref(false)
 const completingRequestId = ref<string | null>(null)
@@ -79,7 +78,6 @@ const recoveryRateId = ref('')
 const recoveryLoading = ref(false)
 const recoverySaving = ref(false)
 const recoveryMismatchAcknowledged = ref(false)
-const exporting = ref(false)
 const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
 let timer: number | undefined
@@ -90,8 +88,7 @@ const sortedRequests = computed(() => {
   // Urgentes primero. Dentro de una prioridad, FIFO por fecha de recepción.
   const order: Record<Priority, number> = { Red: 0, Yellow: 1, Green: 2 }
   return [...requests.value].sort((left, right) =>
-    (left.status === 'Open' ? 0 : 1) - (right.status === 'Open' ? 0 : 1)
-    || order[left.priority] - order[right.priority]
+    order[left.priority] - order[right.priority]
     || new Date(left.requestedAtUtc).getTime() - new Date(right.requestedAtUtc).getTime()
     || left.id.localeCompare(right.id)
   )
@@ -236,7 +233,7 @@ async function load() {
     loading.value = true
     const response = await callEndpoint<unknown>({
       method: 'GET',
-      path: canViewAll.value ? '/api/pricing/rate-requests/all' : '/api/pricing/rate-requests/open',
+      path: '/api/pricing/rate-requests/open',
       headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
     })
     requests.value = unwrapListResponse<RateRequestDto>(response)
@@ -246,26 +243,6 @@ async function load() {
       : 'No se pudieron cargar las solicitudes abiertas de vendedores.')
   } finally {
     loading.value = false
-  }
-}
-
-async function exportRequestedRates() {
-  if (!canViewAll.value || exporting.value) return
-  try {
-    exporting.value = true
-    const blob = await fetchBlobClient('/api/pricing/rate-requests/export.xlsx', { method: 'GET' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `tarifas-solicitadas-${new Date().toISOString().slice(0, 10)}.xlsx`
-    document.body.appendChild(anchor)
-    anchor.click()
-    anchor.remove()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  } catch (error) {
-    toast.backendError(error, 'No se pudo descargar el reporte Excel de tarifas solicitadas.')
-  } finally {
-    exporting.value = false
   }
 }
 
@@ -303,7 +280,6 @@ function isOwnLock(request: RateRequestDto): boolean {
 }
 
 async function continueRequest(request: RateRequestDto) {
-  if (request.status !== 'Open') return
   if (claimingRequestId.value || (isLocked(request) && !isOwnLock(request))) return
   claimingRequestId.value = request.id
   try {
@@ -542,14 +518,6 @@ onBeforeUnmount(() => {
         </p>
         <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">Orden de atención: <span class="text-red-500">Rojo · Urgente (0–24 h)</span> → <span class="text-amber-500">Amarillo · Prioritario (24–48 h)</span> → <span class="text-emerald-500">Verde · Regular (48–72 h)</span>. Primero las solicitudes más antiguas de cada prioridad.</p>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <DhButton v-if="canViewAll" variant="secondary" :disabled="exporting" @click="exportRequestedRates">
-          <FileDown class="h-4 w-4" /> {{ exporting ? 'Generando…' : 'Exportar Excel' }}
-        </DhButton>
-        <DhButton variant="secondary" :disabled="loading" @click="load">
-          <RefreshCcw class="h-4 w-4" /> Actualizar
-        </DhButton>
-      </div>
     </div>
 
     <div v-if="loading && !requests.length" class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
@@ -559,7 +527,7 @@ onBeforeUnmount(() => {
       No hay solicitudes para mostrar.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[2300px] w-full text-left text-sm">
+      <table class="min-w-[2200px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
             <th class="px-4 py-3">Estado</th>
@@ -582,14 +550,6 @@ onBeforeUnmount(() => {
         </thead>
         <tbody>
           <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]" :class="request.priority === 'Red' ? 'bg-red-500/10' : request.priority === 'Yellow' ? 'bg-amber-500/10' : 'bg-emerald-500/5'">
-            <td class="px-4 py-3">
-              <DhBadge :label="statusLabel(request.status)" :variant="statusVariant(request.status)" />
-              <div v-if="request.status === 'Cancelled'" class="mt-1 max-w-64 text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ cancellationReasonLabel(request.cancellationReason) }}
-                <p v-if="request.cancellationDetails" class="mt-1 whitespace-normal">{{ request.cancellationDetails }}</p>
-                <p v-if="request.cancelledByName">Por: {{ request.cancelledByName }}</p>
-              </div>
-            </td>
             <td class="px-4 py-3"><strong>{{ request.executiveName || request.sellerName || 'Vendedor' }}</strong></td>
             <td class="px-4 py-3">
               <strong>{{ request.clientName || 'Cliente sin definir' }}</strong>
@@ -626,10 +586,10 @@ onBeforeUnmount(() => {
             <td class="px-4 py-3"><strong>{{ elapsed(request) }}</strong><p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recibida: {{ new Date(request.requestedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</p></td>
             <td class="px-4 py-3">
               <strong :class="isOverdue(request) ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text)]'">{{ remaining(request) }}</strong>
-              <p v-if="request.status === 'Open'" class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ new Date(request.dueAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</p>
             </td>
             <td class="px-4 py-3 text-right">
-              <div v-if="request.status === 'Open'" class="flex items-center justify-end gap-2">
+              <div class="flex items-center justify-end gap-2">
                 <DhButton :disabled="(isLocked(request) && !isOwnLock(request)) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="continueRequest(request)">
                   <PlayCircle class="h-4 w-4" />
                   {{ claimingRequestId === request.id ? 'Abriendo…' : isOwnLock(request) ? 'Retomar mi trabajo' : isLocked(request) ? 'En proceso' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
@@ -651,7 +611,6 @@ onBeforeUnmount(() => {
                   <Ban class="h-4 w-4" /> Cancelar
                 </DhButton>
               </div>
-              <span v-else class="text-xs font-bold text-[var(--dh-text-muted)]">Sin acción pendiente</span>
             </td>
           </tr>
         </tbody>

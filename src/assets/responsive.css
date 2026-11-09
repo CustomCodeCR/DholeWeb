@@ -157,6 +157,7 @@ body {
   max-width: 100%;
 }
 
+/* Overlays share a predictable viewport contract. */
 #app :where([role='dialog']) {
   max-width: min(calc(100vw - 2rem), 100%);
   max-height: calc(100dvh - 2rem);
@@ -164,11 +165,13 @@ body {
   overscroll-behavior: contain;
 }
 
+/* Common action groups should wrap before labels become unreadable. */
 #app :where(.dh-page-header-actions, .dh-responsive-actions) {
   min-width: 0;
   flex-wrap: wrap;
 }
 
+/* Charts/maps/media must never establish a desktop minimum width. */
 #app :where(.leaflet-container, [class*='map'], [class*='chart']) {
   max-width: 100%;
 }
@@ -183,6 +186,9 @@ body {
   }
 }
 
+/* --------------------------------------------------------------------------
+ * Large tablets / compact laptops
+ * -------------------------------------------------------------------------- */
 @media (max-width: 1279px) {
   #app :where(.grid) > * {
     max-width: 100%;
@@ -192,11 +198,15 @@ body {
     min-width: 0;
   }
 
+  /* Dense four/six-column utility grids receive breathing room on compact screens. */
   #app :where(.dh-glass, .dh-glass-strong, .dh-liquid) {
     background-clip: padding-box;
   }
 }
 
+/* --------------------------------------------------------------------------
+ * Tablet and below
+ * -------------------------------------------------------------------------- */
 @media (max-width: 1023px) {
   #app :where(.grid) > * {
     max-width: 100%;
@@ -206,15 +216,20 @@ body {
     margin-inline: auto;
   }
 
+  /* Keep headers/toolbars aesthetically balanced when controls wrap. */
   #app :where(header, .dh-page-header-actions, .dh-responsive-actions) {
     row-gap: 0.75rem;
   }
 
+  /* Split panes and side-by-side workspaces may scroll, but cannot widen the app. */
   #app :where([class*='grid-cols-'], [class*='flex-row']) {
     min-width: 0;
   }
 }
 
+/* --------------------------------------------------------------------------
+ * Phone / compact tablet
+ * -------------------------------------------------------------------------- */
 @media (max-width: 767px) {
   #app :where(section, article, div):has(> table) {
     max-width: 100%;
@@ -227,6 +242,7 @@ body {
     max-width: none;
   }
 
+  /* Shared data tables stay horizontally usable while preserving the sticky action column. */
   #app .dh-scrollbar > table {
     min-width: 620px !important;
   }
@@ -258,12 +274,13 @@ body {
     font-size: 16px;
   }
 
-  /* Component-level mobile layouts replace global grid flattening. */
+  /* Forms opt into mobile stacking where needed; do not flatten every nested grid. */
 
   #app form :where(.flex):has(> button) {
     flex-wrap: wrap;
   }
 
+  /* CRUD/filter action rows become comfortable two-column or wrapping controls. */
   #app :where(.dh-responsive-actions, .dh-page-header-actions) > :where(button, a) {
     flex: 1 1 auto;
   }
@@ -300,6 +317,7 @@ body {
     max-width: 100vw;
   }
 
+  /* Modals use nearly the full phone width, keep their header/footer visible and scroll content. */
   #app :where([role='dialog']) {
     width: min(100%, calc(100vw - 1rem));
     max-width: calc(100vw - 1rem) !important;
@@ -308,11 +326,13 @@ body {
     border-radius: 1.35rem;
   }
 
+  /* Cards retain the visual language without wasting the narrow viewport. */
   #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='p-6'],
   #app :where(.dh-glass, .dh-glass-strong, .dh-liquid)[class*='p-8'] {
     padding: 1rem !important;
   }
 
+  /* Pricing wizard/footer actions and generic multi-button bars wrap cleanly. */
   #app :where(.crystal-actions, .wizard-actions, .dh-responsive-actions) {
     display: flex;
     flex-wrap: wrap;
@@ -334,6 +354,9 @@ body {
   }
 }
 
+/* --------------------------------------------------------------------------
+ * Small phones (320–479 px)
+ * -------------------------------------------------------------------------- */
 @media (max-width: 479px) {
   #app :where(main) {
     width: 100%;
@@ -369,6 +392,7 @@ body {
     width: 100%;
   }
 
+  /* Dense filter/action rows become a vertical rhythm instead of tiny controls. */
   /* Only form action rows stack automatically on very small phones.
      Generic card/article action bars must keep control of their own layout. */
   #app form > .flex:has(> button):not(.justify-center) {
@@ -393,12 +417,14 @@ body {
     padding: 0.875rem !important;
   }
 
+  /* Keep primary navigation/action icons comfortably tappable. */
   #app :where(button.rounded-2xl, a.rounded-2xl) {
     min-width: 42px;
     min-height: 42px;
   }
 }
 
+/* Very narrow devices: prioritize content over decoration. */
 @media (max-width: 359px) {
   #app :where(h1) {
     font-size: 1.3rem;
@@ -413,6 +439,7 @@ body {
   }
 }
 
+/* Landscape phones have little vertical space. */
 @media (max-height: 520px) and (orientation: landscape) {
   #app :where([role='dialog']) {
     max-height: calc(100dvh - 0.5rem) !important;
@@ -429,6 +456,8 @@ body {
   }
 }
 
+/* Larger monitors: keep readable content measures while allowing data-heavy screens
+   such as Pricing and Monitoring to use the available width. */
 @media (min-width: 1536px) {
   #app :where(main) {
     min-width: 0;

@@ -116,13 +116,6 @@ export const PRICING_SCOPES = {
     create: 'pricing.own-lcl-consolidation.create',
   },
 
-  rateRequests: {
-    create: 'pricing.rate-request.create',
-    viewSelected: 'pricing.rate-request.view-selected',
-    viewAll: 'pricing.rate-request.view-all',
-    manageVisibility: 'pricing.rate-request.visibility.manage',
-  },
-
   sellerAssignments: {
     manage: 'pricing.seller.assignment.manage',
   },
@@ -236,7 +229,6 @@ export const AI_SCOPES = {
     cancel: 'ai.execution.cancel',
   },
 } as const
-
 
 export const AGENT_SCOPES = {
   providers: {
@@ -410,9 +402,6 @@ export const VIEW_SCOPES = {
   pricingCosts: PRICING_SCOPES.costs.view,
   pricingRateTerms: PRICING_SCOPES.rateTerms.view,
   pricingSellerAssignment: PRICING_SCOPES.sellerAssignments.manage,
-  pricingRateRequests: PRICING_SCOPES.rateRequests.viewAll,
-  pricingRateRequestsSelected: PRICING_SCOPES.rateRequests.viewSelected,
-  pricingRateRequestVisibility: PRICING_SCOPES.rateRequests.manageVisibility,
 
   aiConnections: AI_SCOPES.connections.view,
   aiModels: AI_SCOPES.models.view,

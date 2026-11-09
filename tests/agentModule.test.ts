@@ -519,8 +519,7 @@ test('Execution detail uses tabs, real prompt snapshot and explicit backend-cont
     assert.ok(detail.includes(`key: '${tab}'`), `Missing execution detail tab: ${tab}`)
   }
 
-  assert.match(detail, /AgentService\.executions\.getPrompt\(requestId\)/)
-  assert.match(detail, /epoch === permissionEpoch/)
+  assert.match(detail, /AgentService\.executions\.getPrompt\(executionId\.value\)/)
   assert.match(detail, /promptSnapshot\.promptSnapshot/)
   assert.match(detail, /configurationSnapshotJson/)
   assert.match(detail, /Feature blocked by backend contract: falta GET \/api\/agents\/executions\/\{id\}\/steps/)
@@ -551,24 +550,4 @@ test('Extraction profile screens are operational instead of showing a backend-co
   assert.match(detail, /AgentCaptureRulesTable/)
   assert.match(detail, /AgentExtractionFieldsTable/)
   assert.match(detail, /AgentPromptPreview/)
-})
-
-test('F6 Agent detail binds scoped realtime invalidations to authorized REST and purges revoked results', async () => {
-  const detail = await source('../src/modules/agent/views/AgentExecutionDetailView.vue')
-  const pinia = await source('../src/modules/agent/stores/agentStore.ts')
-  const manager = await source('../src/core/realtime/realtimeManager.ts')
-  const composable = await source('../src/core/realtime/useResourceRealtime.ts')
-  assert.match(detail, /useResourceRealtime<AgentExecutionDto>\(\{/)
-  assert.match(detail, /kind: 'agent.execution'/)
-  assert.match(detail, /AgentService\.executions\.get\(id\)/)
-  assert.match(detail, /version: null/)
-  assert.match(detail, /store\.forgetExecution\(executionId\.value\)/)
-  assert.match(detail, /epoch !== permissionEpoch/)
-  assert.match(detail, /execution\.value = null/)
-  assert.match(detail, /storedResult\.value = null/)
-  assert.match(detail, /promptSnapshot\.value = null/)
-  assert.match(pinia, /function forgetExecution\(executionId: string\)/)
-  assert.match(pinia, /selectedExecution\.value = null/)
-  assert.match(manager, /'agent.execution'/)
-  // Behavioral stale-callback and revocation coverage is in realtimeResourceBinding.test.mjs.
 })

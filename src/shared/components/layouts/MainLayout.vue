@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import {
   Activity,
-  Ship,
-  History,
-  Globe2,
-  FileCode2,
+  Bot,
   CalendarClock,
+  FileCode2,
+  Globe2,
+  History,
+  Ship,
   BadgeDollarSign,
   Bell,
   BellRing,
@@ -344,7 +345,8 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     },
   ]
 
-  // Effective scopes filter the actual rendered navigation.
+  // Use effective session scopes for the actual rendered CRM sidebar.
+  // Customer-specific analyses, followups and credit remain inside account detail.
   if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) {
     const crmChildren: SidebarItem[] = []
     if (canView('crm.account.read') || canView('crm.account.read-all'))
@@ -444,13 +446,11 @@ const sidebarItems = computed<SidebarItem[]>(() => {
     canView(VIEW_SCOPES.agentExecutions)
 
   if (canManageAgent) {
-    if (canView(VIEW_SCOPES.agentProviders)) {
-      agentChildren.push({
-        label: t('sidebar.agentProfiles'),
-        path: '/agents/profiles',
-        icon: Bot,
-      })
-    }
+    agentChildren.push({
+      label: t('sidebar.agentProfiles'),
+      path: '/agents/profiles',
+      icon: Bot,
+    })
 
     if (canView(VIEW_SCOPES.agentExecutions)) {
       agentChildren.push({

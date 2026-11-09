@@ -33,6 +33,12 @@ function replaceMany(source: string, anchor: string, replacement: string, expect
   return source
 }
 
+function replaceMany(source: string, anchor: string, replacement: string, expected: number, label: string) {
+  const count = source.split(anchor).length - 1
+  if (count !== expected) throw new Error(`[pricingWizardStep5RateFilter] Expected ${expected} ${label}, found ${count}.`)
+  return source.split(anchor).join(replacement)
+}
+
 function patchWizard(source: string) {
   let code = source
 
@@ -56,16 +62,8 @@ function patchWizard(source: string) {
 
   code = replaceOneOf(
     code,
-    [
-      {
-        anchor: `const sortedAvailableRates = computed(() =>\n  [...availableRates.value].sort((left, right) => {\n    const price = number(left.freight) - number(right.freight)\n    if (price !== 0) return price\n    const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n    if (comment !== 0) return comment\n    return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n  }),\n)`,
-        replacement: enhancedSorting,
-      },
-      {
-        anchor: `const sortedAvailableRates = computed(() => sortImportRates(availableRates.value))\nconst sortedContinuationRates = computed(() => sortImportRates(continuationRates.value))`,
-        replacement: `${enhancedSorting}\nconst sortedContinuationRates = computed(() => sortImportRates(continuationRates.value))`,
-      },
-    ],
+    `const sortedAvailableRates = computed(() =>\n  [...availableRates.value].sort((left, right) => {\n    const price = number(left.freight) - number(right.freight)\n    if (price !== 0) return price\n    const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n    if (comment !== 0) return comment\n    return new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n  }),\n)`,
+    `const rateCarrierFilterOptions = computed(() => {\n  const carriers = new Map<string, string>()\n  availableRates.value.forEach((rate) => {\n    const value = String(rate.carrierId ?? '').trim()\n    const label = String(rate.carrier ?? '').trim()\n    if (value && label && !carriers.has(value)) carriers.set(value, label)\n  })\n\n  return [\n    { value: '', label: 'Todas las navieras' },\n    ...[...carriers.entries()]\n      .sort((left, right) => left[1].localeCompare(right[1], 'es'))\n      .map(([value, label]) => ({ value, label })),\n  ]\n})\n\nfunction screen5ImportStatusRank(status: ImportRateSelectDto['status']) {\n  if (status === 'Approved') return 0\n  if (status === 'PreAuthorized') return 1\n  return 2\n}\n\nconst sortedAvailableRates = computed(() =>\n  [...availableRates.value]\n    .filter((rate) => !rateCarrierFilter.value || rate.carrierId === rateCarrierFilter.value)\n    .sort((left, right) => {\n      const status = screen5ImportStatusRank(left.status) - screen5ImportStatusRank(right.status)\n      if (status !== 0) return status\n      const validityDays = remainingValidityDays(right.validTo) - remainingValidityDays(left.validTo)\n      if (validityDays !== 0) return validityDays\n      const validityDate = new Date(right.validTo).getTime() - new Date(left.validTo).getTime()\n      if (validityDate !== 0) return validityDate\n      const comment = rateCommentRank(right.spaceComment) - rateCommentRank(left.spaceComment)\n      if (comment !== 0) return comment\n      const price = number(left.freight) - number(right.freight)\n      if (price !== 0) return price\n      return String(left.carrier ?? '').localeCompare(String(right.carrier ?? ''), 'es')\n    }),\n)`,
     'available rate sorting',
   )
 

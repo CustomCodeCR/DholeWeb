@@ -202,6 +202,8 @@ function coloaderFreightPerCbm(row: LclColoaderRateDto) {
   const freight = row.lines.find((line) => line.costDetailType === 'Freight')
   return freight ? n(freight.saleAmount || freight.costAmount) : null
 }
+// Provider prices are originally per kg or per lb; keep the displayed rate
+// consistent with the customer's selected billing unit.
 function coloaderFreightDisplayRate(row: LclColoaderRateDto) {
   const freight = row.lines.find((line) => line.costDetailType === 'Freight')
   const amount = coloaderFreightPerCbm(row)
@@ -356,7 +358,7 @@ const ownLclOriginAliases: Record<string, string> = {
 function canonicalOwnLclOrigin(value: unknown) {
   const key = normalize(value).replace(/[^a-z0-9]/g, '')
   if (ownLclOriginAliases[key]) return ownLclOriginAliases[key]
-  // En "Yantian, Shenzhen, China" el POL es Yantian, no Shenzhen.
+  // Prioritize the actual POL in labels like "Yantian, Shenzhen, China".
   const firstPort = (normalize(value).split(',')[0] ?? '').trim().replace(/[^a-z0-9]/g, '')
   if (ownLclOriginAliases[firstPort]) return ownLclOriginAliases[firstPort]
 
@@ -415,6 +417,8 @@ function ownCalculationPolCode(row: OwnLclConsolidationDto) {
 }
 
 function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
+  // El ID es la coincidencia más fuerte. Evita perder el consolidado cuando el
+  // catálogo usa un código auxiliar distinto al UN/LOCODE (por ejemplo CY).
   if (props.polId && row.polId && String(props.polId) === String(row.polId)) return true
 
   const requestedOrigins = requestedOwnLclOrigins()
@@ -430,17 +434,22 @@ function ownConsolidationSupportsPol(row: OwnLclConsolidationDto) {
   for (const origin of requestedOrigins) {
     if (consolidationOrigins.has(origin)) return true
   }
-  // Los consolidados que no son Shanghai solo admiten su POL seleccionado.
   // Guangzhou dispone de su consolidado específico de Yantian y también
   // pertenece a los escenarios FOB de Shanghai. Cada uno usa su propia matriz.
   if (requestedOrigins.has('guangzhou') && consolidationOrigins.has('yantian')) return true
 
+  // Los consolidados que no son Shanghai solo admiten su propio POL.
   if (!consolidationOrigins.has('shanghai')) return false
 
+  // Miami es una matriz independiente. Si el nombre del POL solicitado resuelve
+  // a Miami, únicamente debe ofrecer consolidaciones Miami.
   if (requestedOrigins.has('miami')) {
     return consolidationOrigins.has('miami')
   }
 
+  // Shanghai también contempla Yantian mediante la línea Shenzhen de su matriz.
+  // No convierte el consolidado Yantian en uno de Shanghai: solo habilita esa
+  // alternativa de precio para el POL real de la cotización.
   return consolidationOrigins.has('shanghai')
     && [...requestedOrigins].some((origin) => chinaOwnLclOrigins.has(origin))
 }
@@ -732,7 +741,7 @@ function chooseColoader(rate: LclColoaderRateDto) {
     transitDays: Number.parseInt(rate.transitTime || '0', 10) || 0,
     validFrom: rate.validFrom,
     validTo: rate.validTo,
-    includes: splitTerms(rate.includes),
+    includes: splitTerms(rate.includes).map((name) => isAir.value && /^flete\s+internacional(?:\s+mar[ií]timo)?(?:\s+lcl)?$/i.test(name) ? 'Flete Internacional' : name),
     subjectTo: splitTerms(rate.subjectTo),
     excludes: splitTerms(rate.excludes),
     lines: rate.lines.map((line) => mapColoaderLine(line, rate)),
@@ -820,6 +829,7 @@ watch(
   },
   { deep: true },
 )
+
 watch(ownPoeEligible, (eligible, previous) => {
   if (!eligible) {
     tab.value = 'Coloader'

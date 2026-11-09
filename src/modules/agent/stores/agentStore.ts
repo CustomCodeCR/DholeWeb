@@ -229,12 +229,6 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
-  /** Purge cached details immediately when the owner REST revokes access. */
-  function forgetExecution(executionId: string) {
-    executions.value = executions.value.filter((item) => item.id !== executionId)
-    if (selectedExecution.value?.id === executionId) selectedExecution.value = null
-  }
-
   return {
     providers,
     definitions,
@@ -284,6 +278,5 @@ export const useAgentStore = defineStore('agent', () => {
     loadDashboard,
     refreshAll,
     upsertExecution,
-    forgetExecution,
   }
 })

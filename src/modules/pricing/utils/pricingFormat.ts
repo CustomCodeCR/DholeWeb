@@ -100,6 +100,26 @@ function rateViaLabel(poeName: string) {
   return poeName
 }
 
+function compactLandEquipmentLabel(name?: string | null, code?: string | null) {
+  const source = `${code ?? ''} ${name ?? ''}`
+  const match = source.match(/(?:^|\D)(24|26|48|53)(?:\D|$)/)
+  if (match?.[1]) return match[1]
+  return name?.trim() || code?.trim() || 'FTL'
+}
+
+export function landEquipmentSummary(rate: RateDto) {
+  const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
+  if (allocations.length === 0) {
+    return `${Math.max(Number(rate.containerQuantity || 0), 1)}x${compactLandEquipmentLabel(rate.containerTypeName, rate.containerTypeCode)}`
+  }
+
+  return allocations
+    .slice()
+    .sort((a, b) => a.containerTypeName.localeCompare(b.containerTypeName))
+    .map((item) => `${item.quantity}x${compactLandEquipmentLabel(item.containerTypeName, item.containerTypeCode)}`)
+    .join(' + ')
+}
+
 export function rateDisplayName(rate: RateDto) {
   const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
   // Miami (and other CFT-billed LCL quotes) must not be labeled CBM in the PDF filename.
@@ -115,7 +135,7 @@ export function rateDisplayName(rate: RateDto) {
     rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl'
       ? `${rate.shipmentMode.toUpperCase()} · ${chargeableLabel} cobrables`
       : rate.shipmentMode === 'Ftl'
-        ? `${rate.containerQuantity} x FTL`
+        ? landEquipmentSummary(rate)
         : allocations.length > 0
           ? allocations
               .slice()

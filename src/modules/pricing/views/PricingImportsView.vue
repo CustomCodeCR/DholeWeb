@@ -687,21 +687,27 @@ onUnmounted(() => {
           <X class="h-4 w-4" /> Rechazar
         </DhButton>
         <DhButton v-if="canInactivateImported && selectedInactivatableIds.length" variant="secondary" :disabled="processing" @click="inactivate(selectedInactivatableIds)">
-          <PowerOff class="h-4 w-4" /> {{ t('pricing.imports.inactivate') }}
+          <PowerOff class="h-4 w-4" /> Inactivar
         </DhButton>
         <DhButton v-if="canPreApprove && selectedPendingIds.length" :disabled="processing" @click="approve(selectedPendingIds)">
-          <Check class="h-4 w-4" /> {{ t('pricing.imports.preapprove') }}
+          <Check class="h-4 w-4" /> Preaprobar
         </DhButton>
       </div>
     </section>
 
     <section class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div data-pricing-imports-mobile class="grid gap-3 p-3 lg:hidden">
-        <div v-if="loading" class="rounded-2xl border border-[var(--dh-border)] p-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-          {{ t('common.loading') }}
+        <div
+          v-if="loading"
+          class="rounded-2xl border border-[var(--dh-border)] p-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          Cargando...
         </div>
-        <div v-else-if="!rows.length" class="rounded-2xl border border-[var(--dh-border)] p-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-          {{ t('pricing.imports.noMatch') }}
+        <div
+          v-else-if="!rows.length"
+          class="rounded-2xl border border-[var(--dh-border)] p-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
+        >
+          No hay tarifas con esos filtros.
         </div>
         <article
           v-for="row in rows"
@@ -710,52 +716,85 @@ onUnmounted(() => {
           class="min-w-0 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)]"
         >
           <div class="flex min-w-0 items-start gap-3">
-            <input type="checkbox" class="mt-1 shrink-0" :checked="selectedIds.includes(row.id)" :aria-label="t('pricing.imports.selectRow', { name: row.carrier || row.id })" @change="toggle(row.id)" />
+            <input
+              type="checkbox"
+              class="mt-1 shrink-0"
+              :checked="selectedIds.includes(row.id)"
+              :aria-label="`Seleccionar ${row.carrier}`"
+              @change="toggle(row.id)"
+            />
             <div class="min-w-0 flex-1">
               <div class="flex min-w-0 flex-wrap items-center gap-2">
                 <DhBadge variant="neutral">{{ sourceLabel(row.sourceType) }}</DhBadge>
-                <DhBadge :variant="shipmentModeVariant(row.shipmentMode)">{{ shipmentModeLabel(row.shipmentMode) }}</DhBadge>
-                <DhBadge class="ml-auto" :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</DhBadge>
+                <DhBadge :variant="shipmentModeVariant(row.shipmentMode)">
+                  {{ shipmentModeLabel(row.shipmentMode) }}
+                </DhBadge>
+                <DhBadge class="ml-auto" :variant="statusVariant(row.status)">
+                  {{ statusLabel(row.status) }}
+                </DhBadge>
               </div>
-              <p class="mt-3 break-words text-sm font-black text-[var(--dh-text)]">{{ row.pol }} → {{ row.poe }} → {{ row.pod }}</p>
-              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ row.carrier || '—' }} · {{ row.agent || 'Por asignar' }}</p>
-              <p v-if="sourceDetails(row)" class="mt-1 break-words text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]">{{ sourceDetails(row) }}</p>
+
+              <p class="mt-3 break-words text-sm font-black text-[var(--dh-text)]">
+                {{ row.pol }} → {{ row.poe }} → {{ row.pod }}
+              </p>
+              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ row.carrier || '—' }} · {{ row.agent || 'Por asignar' }}
+              </p>
+              <p
+                v-if="sourceDetails(row)"
+                class="mt-1 break-words text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]"
+              >
+                {{ sourceDetails(row) }}
+              </p>
             </div>
           </div>
 
           <dl class="mt-4 grid grid-cols-2 gap-2 text-xs">
             <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
-              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.imports.columns.loaded') }}</dt>
+              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cargada</dt>
               <dd class="mt-1 font-bold">{{ formatDate(row.createdAt) }}</dd>
             </div>
             <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
-              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.imports.columns.equipment') }}</dt>
+              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Equipo</dt>
               <dd class="mt-1 break-words font-bold">{{ row.containerType || '—' }}</dd>
             </div>
             <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
-              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.imports.columns.freight') }}</dt>
+              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Flete</dt>
               <dd class="mt-1 font-black">{{ formatMoney(row.freight, row.currency || 'USD') }}</dd>
             </div>
             <div class="rounded-xl bg-black/[0.035] p-3 dark:bg-white/[0.04]">
-              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.imports.columns.transit') }}</dt>
+              <dt class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Tránsito</dt>
               <dd class="mt-1 font-black">{{ row.transitDays == null ? '—' : `${Math.ceil(row.transitDays)} días` }}</dd>
             </div>
           </dl>
 
           <div class="mt-3 rounded-xl border border-[var(--dh-border)] p-3 text-xs">
-            <p class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.imports.columns.validity') }}</p>
+            <p class="font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Vigencia</p>
             <p class="mt-1 font-semibold">{{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }}</p>
           </div>
 
           <div class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3">
             <DhButton class="flex-1" size="sm" variant="secondary" @click="openReview(row)">
-              <MessageSquareText class="h-4 w-4" /> {{ t('pricing.imports.review') }}
+              <MessageSquareText class="h-4 w-4" /> Revisar
             </DhButton>
-            <DhButton v-if="canInactivateImported && inactivatableStatuses.includes(row.status)" class="flex-1" size="sm" variant="secondary" :disabled="processing" @click="inactivate([row.id])">
-              <PowerOff class="h-4 w-4" /> {{ t('pricing.imports.inactivate') }}
+            <DhButton
+              v-if="canInactivateImported && inactivatableStatuses.includes(row.status)"
+              class="flex-1"
+              size="sm"
+              variant="secondary"
+              :disabled="processing"
+              @click="inactivate([row.id])"
+            >
+              <PowerOff class="h-4 w-4" /> Inactivar
             </DhButton>
-            <DhButton v-if="canPreApprove && ['Pending', 'PreAuthorized'].includes(row.status)" class="flex-1" size="sm" :disabled="processing" @click="approve([row.id])">
-              <Check class="h-4 w-4" /> {{ t('pricing.imports.preapprove') }}
+            <DhButton
+              v-if="canPreApprove && ['Pending', 'PreAuthorized'].includes(row.status)"
+              class="flex-1"
+              size="sm"
+              :disabled="processing"
+              @click="approve([row.id])"
+            >
+              <Check class="h-4 w-4" /> Preaprobar
             </DhButton>
           </div>
         </article>
@@ -768,25 +807,25 @@ onUnmounted(() => {
               <th class="px-4 py-3">
                 <input type="checkbox" :checked="allSelected" :aria-label="t('pricing.imports.selectAllPage')" @change="toggleAll" />
               </th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.loaded') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.source') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.mode') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.carrierAgent') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.route') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.equipment') }}</th>
-              <th class="px-4 py-3 text-right">{{ t('pricing.imports.columns.freight') }}</th>
-              <th class="px-4 py-3 text-center">{{ t('pricing.imports.columns.transit') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.validity') }}</th>
-              <th class="px-4 py-3">{{ t('pricing.imports.columns.status') }}</th>
-              <th class="px-4 py-3 text-right">{{ t('pricing.imports.columns.action') }}</th>
+              <th class="px-4 py-3">Cargada</th>
+              <th class="px-4 py-3">Origen</th>
+              <th class="px-4 py-3">Modalidad</th>
+              <th class="px-4 py-3">Naviera / Agente</th>
+              <th class="px-4 py-3">Ruta</th>
+              <th class="px-4 py-3">Equipo</th>
+              <th class="px-4 py-3 text-right">Flete</th>
+              <th class="px-4 py-3 text-center">Tránsito</th>
+              <th class="px-4 py-3">Vigencia</th>
+              <th class="px-4 py-3">Estado</th>
+              <th class="px-4 py-3 text-right">Acción</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('common.loading') }}</td>
+              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.imports.noMatch') }}</td>
+              <td colspan="12" class="px-4 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas con esos filtros.</td>
             </tr>
             <tr
               v-for="row in rows"
@@ -806,26 +845,36 @@ onUnmounted(() => {
                   {{ sourceDetails(row) }}
                 </p>
               </td>
-              <td :data-label="t('pricing.imports.columns.mode')" class="min-w-[180px] px-4 py-3">
+              <td class="whitespace-nowrap px-4 py-3 font-semibold">{{ formatDate(row.createdAt) }}</td>
+              <td class="min-w-[220px] px-4 py-3">
+                <DhBadge variant="neutral">{{ sourceLabel(row.sourceType) }}</DhBadge>
+                <p
+                  v-if="sourceDetails(row)"
+                  class="mt-1 max-w-[320px] text-[11px] font-semibold leading-4 text-[var(--dh-text-muted)]"
+                >
+                  {{ sourceDetails(row) }}
+                </p>
+              </td>
+              <td class="min-w-[180px] px-4 py-3">
                 <DhBadge :variant="shipmentModeVariant(row.shipmentMode)">
                   {{ shipmentModeLabel(row.shipmentMode) }}
                 </DhBadge>
               </td>
-              <td :data-label="t('pricing.imports.columns.carrierAgent')" class="px-4 py-3">
+              <td class="px-4 py-3">
                 <p class="font-black text-[var(--dh-text)]">{{ row.carrier || '—' }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ row.agent || 'Por asignar' }}</p>
               </td>
               <td :data-label="t('pricing.imports.columns.route')" class="min-w-[220px] px-4 py-3">
                 <p class="font-semibold">{{ row.pol }} → {{ row.poe }} → {{ row.pod }}</p>
               </td>
-              <td :data-label="t('pricing.imports.columns.equipment')" class="px-4 py-3 font-semibold">{{ row.containerType }}</td>
-              <td :data-label="t('pricing.imports.columns.freight')" class="px-4 py-3 text-right font-black">{{ formatMoney(row.freight, row.currency || 'USD') }}</td>
-              <td :data-label="t('pricing.imports.columns.transit')" class="whitespace-nowrap px-4 py-3 text-center font-black">
+              <td class="px-4 py-3 font-semibold">{{ row.containerType }}</td>
+              <td class="px-4 py-3 text-right font-black">{{ formatMoney(row.freight, row.currency || 'USD') }}</td>
+              <td class="whitespace-nowrap px-4 py-3 text-center font-black">
                 {{ row.transitDays == null ? '—' : `${Math.ceil(row.transitDays)} días` }}
               </td>
-              <td :data-label="t('pricing.imports.columns.validity')" class="whitespace-nowrap px-4 py-3 text-xs font-semibold">{{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }}</td>
-              <td :data-label="t('pricing.imports.columns.status')" class="px-4 py-3"><DhBadge :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</DhBadge></td>
-              <td :data-label="t('pricing.imports.columns.action')" class="px-4 py-3">
+              <td class="whitespace-nowrap px-4 py-3 text-xs font-semibold">{{ formatDate(row.validFrom) }} – {{ formatDate(row.validTo) }}</td>
+              <td class="px-4 py-3"><DhBadge :variant="statusVariant(row.status)">{{ statusLabel(row.status) }}</DhBadge></td>
+              <td class="px-4 py-3">
                 <div class="flex justify-end gap-2">
                   <DhButton size="sm" variant="secondary" @click="openReview(row)">
                     <MessageSquareText class="h-4 w-4" /> {{ t('pricing.imports.review') }}
@@ -838,6 +887,15 @@ onUnmounted(() => {
                     @click="inactivate([row.id])"
                   >
                     <PowerOff class="h-4 w-4" /> {{ t('pricing.imports.inactivate') }}
+                  </DhButton>
+                  <DhButton
+                    v-if="canInactivateImported && inactivatableStatuses.includes(row.status)"
+                    size="sm"
+                    variant="secondary"
+                    :disabled="processing"
+                    @click="inactivate([row.id])"
+                  >
+                    <PowerOff class="h-4 w-4" /> Inactivar
                   </DhButton>
                   <DhButton v-if="canPreApprove && ['Pending', 'PreAuthorized'].includes(row.status)" size="sm" :disabled="processing" @click="approve([row.id])">
                     <Check class="h-4 w-4" /> {{ t('pricing.imports.preapprove') }}

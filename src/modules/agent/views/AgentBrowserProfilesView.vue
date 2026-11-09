@@ -50,7 +50,7 @@ const generationSessionsAvailable = ref(true)
 const activeGeneration = ref<string | null>(null)
 const activeGenerationSession = computed(() => generationSessions.value.find(
   entry => entry.generation === activeGeneration.value) ?? null)
-// Only future standbys remain visible; retired generations are excluded.
+// Only show future prepared standbys. Retired generations are no longer visible.
 const historicGenerationSessions = computed(() => {
   const current = Number(activeGeneration.value?.replace(/^prod/, '') || '0')
   return generationSessions.value.filter(entry =>

@@ -24,7 +24,9 @@ const toast = useToastStore()
 const details = ref<MaerskOperationsDto | null>(null)
 const activeGeneration = ref<string | null>(null)
 const activeGenerationAuth = ref<{
-  generation: string; status: string; accountVerifiedAtUtc?: string | null
+  generation: string
+  status: string
+  accountVerifiedAtUtc?: string | null
 } | null>(null)
 async function refreshGenerationContext() {
   try {
@@ -331,7 +333,7 @@ function onVisible() {
 onMounted(() => {
   void refresh()
   poll = setInterval(() => {
-    if (!document.hidden && !confirmOpen.value && !resumeTarget.value) void refresh(true)
+    if (!document.hidden && !confirmOpen.value && !resumeTarget.value && !verifyOpen.value) void refresh(true)
   }, 15000)
   document.addEventListener('visibilitychange', onVisible)
 })
