@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.0] - 2026-11-09 (NotificationsHub universal realtime pilot; candidate)
+
+- MINOR: Share the existing Notifications SignalR endpoint and legacy notificationReceived dispatcher for resourceChanged, with REST reconciliation and staging-only Vite flags.
+- Ecosystem candidate 1.14.0 / 16 Dhole repositories; CustomCodeFramework excluded. Release `rt-20261107-01`, isolated branch `feature/rt-notificationshub-20261109-01`.
+- Staging compile, deployment and post-deploy security audit pending; `develop`, `master` and production not changed by this candidate.
+
 ## [1.13.8] - 2026-11-08 (Dhole realtime 1.13.15 coordination)
 
 - PATCH synchronization with 17-repository realtime release. F2/F6 read-only AOF evidence and F10 production branch retention correction remain in DholeSystem.
