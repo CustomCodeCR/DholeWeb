@@ -2,7 +2,6 @@ name: NotificationsHub Web pilot - compile candidate only
 on:
   push:
     branches: [feature/rt-notificationshub-20261109-01]
-    paths: [.github/workflows/notificationshub-compile.yml]
 permissions:
   contents: read
 jobs:
@@ -20,6 +19,8 @@ jobs:
         run: pnpm run version:check
       - name: Type-check Vue/TypeScript
         run: pnpm run type-check
+      - name: Verify F4/F7 realtime manager contracts
+        run: pnpm run test:realtime-f4
       - name: Compile Web with staging pilot only
         env:
           VITE_API_URL: https://dhole-api.customcodecr.com
