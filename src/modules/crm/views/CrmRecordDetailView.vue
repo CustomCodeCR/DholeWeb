@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhPagination } from '@/shared/components/molecules'
 import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
@@ -40,6 +41,12 @@ const saving = ref(false)
 const conversionRedirectAllowed = ref(false)
 const pendingCreateKeys = new Map<string, string>()
 const relationRows = ref<CrmRow[]>([])
+const relationPage = ref(1)
+const relationPageSize = ref(25)
+const pagedRelationRows = computed(() => relationRows.value.slice(
+  (relationPage.value - 1) * relationPageSize.value,
+  relationPage.value * relationPageSize.value,
+))
 const relation = ref('')
 const showRelationForm = ref(false)
 const creditIncluded = ref<string[]>([])
@@ -193,6 +200,7 @@ function endpoint(tab: string) {
   return crmPath(section.value, id.value, tab)
 }
 async function loadRelation() {
+  relationPage.value = 1
   relationRows.value = []
   if (!permitted(relation.value)) return
   try {
@@ -970,7 +978,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           <p class="text-sm font-semibold">{{ section === 'accounts' ? (accountRelationInfo?.empty ?? 'Sin información registrada.') : t('common.noData') }}</p>
           <p v-if="section === 'accounts' && canAddRelation" class="mt-2 text-xs text-[var(--dh-text-muted)]">Podés agregar el primer registro con el botón de arriba.</p>
         </div>
-        <div v-for="item in relationRows" :key="item.id"
+        <div v-for="item in pagedRelationRows" :key="item.id"
           class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-sm sm:p-4">
           <template v-if="section === 'accounts' && relation === 'contacts'">
             <div class="flex flex-wrap items-center gap-3">
@@ -1081,6 +1089,9 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
 
         </div>
+        <DhPagination v-if="relationRows.length > relationPageSize" :page="relationPage"
+          :page-size="relationPageSize" :total="relationRows.length"
+          @update:page="relationPage = $event" @update:page-size="relationPageSize = $event; relationPage = 1" />
         <DhDrawer :open="showRelationForm && canAddRelation"
           :title="section === 'accounts'
              ? (relation === 'contacts' ? 'Nuevo contacto' :

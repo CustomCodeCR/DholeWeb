@@ -17,6 +17,7 @@ import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
 import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
 import { DhDrawer } from '@/shared/components/organisms'
+import { DhPagination } from '@/shared/components/molecules'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
   Activity, CalendarClock, CheckCircle2, Clock3, FileText, MapPin, Phone,
@@ -86,11 +87,18 @@ const overview = ref<Overview>(initial())
 const accountChanges = ref<AccountAuditEntry[]>([])
 const accountChangesTotal = ref(0)
 const accountChangesPage = ref(1)
+const accountChangesPageSize = ref(25)
 const accountChangesLoading = ref(false)
 const accountChangesError = ref('')
 let accountChangesGeneration = 0
 
 const contacts = ref<CrmRow[]>([])
+const contactsPage = ref(1)
+const contactsPageSize = ref(25)
+const pagedContacts = computed(() => contacts.value.slice(
+  (contactsPage.value - 1) * contactsPageSize.value,
+  contactsPage.value * contactsPageSize.value,
+))
 const addresses = ref<CrmRow[]>([])
 const credit = ref<CrmRow[]>([])
 const contracts = ref<CrmRow[]>([])
@@ -102,6 +110,7 @@ const quoteRoutePage = ref(1)
 const quoteRouteLoading = ref(false)
 const quoteRouteError = ref('')
 const routeHistoryPage = ref(1)
+const routeHistoryPageSize = ref(25)
 const routeHistoryTotal = ref(0)
 const routeHistoryError = ref('')
 const routeCaptureOpen = ref(false)
@@ -517,7 +526,7 @@ async function loadAccountChanges() {
   try {
     const result = await get<AccountAuditPage>(
       crmPath('accounts', accountId, 'change-history') +
-      '?page=' + accountChangesPage.value + '&pageSize=15')
+      '?page=' + accountChangesPage.value + '&pageSize=' + accountChangesPageSize.value)
     if (generation !== accountChangesGeneration) return
     accountChanges.value = result.items || []
     accountChangesTotal.value = result.total || 0
@@ -529,8 +538,13 @@ async function loadAccountChanges() {
     if (generation === accountChangesGeneration) accountChangesLoading.value = false
   }
 }
-function changeAccountChangesPage(delta: number) {
-  accountChangesPage.value += delta
+function changeAccountChangesPage(nextPage: number) {
+  accountChangesPage.value = nextPage
+  void loadAccountChanges()
+}
+function changeAccountChangesPageSize(nextSize: number) {
+  accountChangesPageSize.value = nextSize
+  accountChangesPage.value = 1
   void loadAccountChanges()
 }
 
@@ -595,6 +609,7 @@ watch(() => props.account.id, () => {
   accountChangesError.value = ''
   overview.value = initial()
   contacts.value = []
+  contactsPage.value = 1
   addresses.value = []
   credit.value = []
   contracts.value = []
@@ -615,7 +630,7 @@ async function loadRouteHistory(generation = requestGeneration) {
   try {
     const result = await get<{ items: CrmRow[], total: number, popularRoutes: CrmRow[] }>(
       crmPath('accounts', rowId(props.account.id), 'route-history') +
-      '?page=' + routeHistoryPage.value + '&pageSize=20')
+      '?page=' + routeHistoryPage.value + '&pageSize=' + routeHistoryPageSize.value)
     if (generation !== requestGeneration) return
     routeHistory.value = result.items ?? []
     routeHistoryTotal.value = result.total ?? 0
@@ -691,8 +706,13 @@ async function saveRouteEvidence() {
   } catch (cause) { error.value = message(cause) }
   finally { busy.value = false }
 }
-function changeRouteHistoryPage(delta: number) {
-  routeHistoryPage.value += delta
+function changeRouteHistoryPage(nextPage: number) {
+  routeHistoryPage.value = nextPage
+  void loadRouteHistory()
+}
+function changeRouteHistoryPageSize(nextSize: number) {
+  routeHistoryPageSize.value = nextSize
+  routeHistoryPage.value = 1
   void loadRouteHistory()
 }
 
@@ -1033,13 +1053,16 @@ async function saveRoute() {
       </div>
       <p v-if="!contacts.length" class="hub-empty">No hay contactos vinculados. Podés administrarlos desde la gestión avanzada de la cuenta.</p>
       <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <RouterLink v-for="contact in contacts" :key="contact.id" :to="returnToAccount('/crm/contacts/' + encodeURIComponent(rowId(contact.id)))"
+        <RouterLink v-for="contact in pagedContacts" :key="contact.id" :to="returnToAccount('/crm/contacts/' + encodeURIComponent(rowId(contact.id)))"
           class="rounded-lg border border-[var(--dh-border)] p-4 hover:border-[var(--dh-primary)]">
           <p class="text-sm font-bold text-[var(--dh-primary)]">{{ text(contact.name || contact.displayName) }}</p>
           <p class="mt-2 text-xs">{{ text(contact.jobTitle) }}</p>
           <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ text(contact.email) }} · {{ text(contact.countryId && contact.countryId !== account.countryId ? contact.phone : phoneWithCountryPrefix(String(contact.phone || ''), businessPhonePrefix)) }}</p>
         </RouterLink>
       </div>
+    <DhPagination v-if="contacts.length > contactsPageSize" :page="contactsPage"
+          :page-size="contactsPageSize" :total="contacts.length"
+          @update:page="contactsPage = $event" @update:page-size="contactsPageSize = $event; contactsPage = 1" />
     </section>
 
     <div v-else-if="activeTab === 'commercial'" id="crm-account-commercial" role="tabpanel" class="grid items-start gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(255px,.76fr)]">
@@ -1257,16 +1280,9 @@ async function saveRoute() {
             </details>
           </li>
         </ol>
-        <footer v-if="accountChangesTotal > 15" class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--dh-border)] pt-4 text-xs">
-          <span class="text-[var(--dh-text-muted)]">
-            Mostrando {{ (accountChangesPage - 1) * 15 + 1 }}–{{ Math.min(accountChangesPage * 15, accountChangesTotal) }} de {{ accountChangesTotal }}
-          </span>
-          <div class="flex items-center gap-2">
-            <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage <= 1 || accountChangesLoading" @click="changeAccountChangesPage(-1)">Anterior</button>
-            <span class="px-2 font-semibold">{{ accountChangesPage }}</span>
-            <button type="button" class="hub-outline-button hub-small" :disabled="accountChangesPage * 15 >= accountChangesTotal || accountChangesLoading" @click="changeAccountChangesPage(1)">Siguiente</button>
-          </div>
-        </footer>
+        <DhPagination v-if="accountChangesTotal > 0" :page="accountChangesPage" :page-size="accountChangesPageSize"
+          :total="accountChangesTotal" :class="accountChangesLoading ? 'pointer-events-none opacity-60' : ''"
+          @update:page="changeAccountChangesPage" @update:page-size="changeAccountChangesPageSize" />
       </div>
     </section>
 
@@ -1365,11 +1381,9 @@ async function saveRoute() {
               class="hub-outline-button hub-small">{{ record.sourceKind === 'MEETING' ? 'Abrir reunión' : 'Abrir cotización' }}</RouterLink>
           </li>
         </ol>
-        <footer v-if="routeHistoryTotal > 20" class="mt-4 flex items-center justify-end gap-3 text-xs">
-          <button type="button" class="hub-outline-button hub-small" :disabled="routeHistoryPage === 1" @click="changeRouteHistoryPage(-1)">Anterior</button>
-          <span>Página {{ routeHistoryPage }} · {{ routeHistoryTotal }} registros</span>
-          <button type="button" class="hub-outline-button hub-small" :disabled="routeHistoryPage * 20 >= routeHistoryTotal" @click="changeRouteHistoryPage(1)">Siguiente</button>
-        </footer>
+        <DhPagination v-if="routeHistoryTotal > 0" :page="routeHistoryPage" :page-size="routeHistoryPageSize"
+          :total="routeHistoryTotal" @update:page="changeRouteHistoryPage"
+          @update:page-size="changeRouteHistoryPageSize" />
       </div>
       <DhDrawer :open="routeCaptureOpen" title="Documentar ruta de cliente" size="lg" @close="routeCaptureOpen=false">
         <form class="space-y-4 p-2" @submit.prevent="saveRouteEvidence">
