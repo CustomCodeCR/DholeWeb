@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.12.19",
-  "ecosystemVersion": "1.12.19",
-  "releaseId": "DH-20261109-CRM-DHPAGINATION-050"
+  "version": "1.12.20",
+  "ecosystemVersion": "1.12.20",
+  "releaseId": "DH-20261109-PRICING-OWNLCL-VISIBILITY-051"
 }
