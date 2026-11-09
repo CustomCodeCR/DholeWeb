@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ContactRound, Plus, RefreshCw, Search, UsersRound } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
-import { DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
+import { DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmContactForm from '../components/CrmContactForm.vue'
@@ -19,6 +19,7 @@ const rows = ref<CrmRow[]>([])
 const search = ref('')
 const query = ref('')
 const page = ref(1)
+const pageSize = ref(25)
 const total = ref(0)
 const loading = ref(false)
 const error = ref('')
@@ -41,11 +42,22 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const response = await crmList('contacts', { q: query.value, page: page.value, pageSize: 25 })
+    const response = await crmList('contacts', { q: query.value, page: page.value, pageSize: pageSize.value })
     rows.value = response.items
     total.value = response.total
   } catch (e) { rows.value = []; total.value = 0; error.value = crmError(e) }
   finally { loading.value = false }
+}
+function changeContactsPage(nextPage: number) {
+  if (nextPage < 1 || nextPage > Math.max(1, Math.ceil(total.value / pageSize.value)) || nextPage === page.value) return
+  page.value = nextPage
+  void load()
+}
+function changeContactsPageSize(nextSize: number) {
+  if (![10, 25, 50].includes(nextSize) || nextSize === pageSize.value) return
+  pageSize.value = nextSize
+  page.value = 1
+  void load()
 }
 function find() { query.value = search.value.trim(); page.value = 1; void load() }
 function openCreate() {
@@ -111,14 +123,9 @@ watch(locale, () => { /* localized headers recompute without reloading */ })
         </template>
       </DhDataTable>
     </section>
-    <footer class="flex items-center justify-between gap-3 text-xs text-[var(--dh-text-muted)]">
-      <span>{{ rows.length }} / {{ total }}</span>
-      <div class="flex items-center gap-2">
-        <DhButton variant="secondary" label="‹" size="sm" :disabled="page <= 1 || loading" @click="page--;load()" />
-        <span>{{ page }}</span>
-        <DhButton variant="secondary" label="›" size="sm" :disabled="page * 25 >= total || loading" @click="page++;load()" />
-      </div>
-    </footer>
+    <DhPagination :page="page" :page-size="pageSize" :total="total"
+      :class="loading ? 'pointer-events-none opacity-60' : ''"
+      @update:page="changeContactsPage" @update:page-size="changeContactsPageSize" />
     <DhDrawer :open="drawer" :title="en ? 'New contact' : 'Nuevo contacto'" size="lg" @close="drawer=false">
       <CrmContactForm v-if="drawer" @saved="onContactSaved" @cancel="drawer=false" />    </DhDrawer>
   </main>
