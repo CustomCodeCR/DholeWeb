@@ -8,6 +8,8 @@ export { default as DhCrudToolbar } from './DhCrudToolbar.vue'
 export { default as DhConfirmDialog } from './DhConfirmDialog.vue'
 export { default as DhPromptDialog } from './DhPromptDialog.vue'
 export { default as DhCard } from './DhCard.vue'
+export { default as DhBlockCard } from './DhBlockCard.vue'
+export { default as DhBlockDropZone } from './DhBlockDropZone.vue'
 
 export type { DhTableColumn } from './DhDataTable.vue'
 export type { DhDropdownItem } from './DhDropdownMenu.vue'

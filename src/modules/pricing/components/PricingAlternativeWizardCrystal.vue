@@ -24,8 +24,6 @@ import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { fetchClient } from '@/core/api/fetchConfig'
-import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -475,600 +473,6 @@ const form = reactive({
   manualSection: 'destination_charges' as RateSection,
   manualChargeBasis: '' as ChargeBasis | '',
 })
-
-// The legacy Pricing REST contract persists one POE per RateHeader. Keep the
-// visible POE separate from the multi-selection to prevent lost alternatives.
-const selectedPoeIds = ref<string[]>([])
-const switchingPoeRoute = ref(false)
-let approvedRatesSearchSequence = 0
-const perPoeFieldNames = [
-  'selectedImportRateId', 'manualRate', 'agentId', 'carrierId', 'currencyId',
-  'freightCost', 'freightSale', 'freeDays', 'transitDays', 'carrierRoute',
-  'carrierComments', 'validTo', 'merchantHaulage', 'carrierHaulage',
-] as const
-type PerPoeField = (typeof perPoeFieldNames)[number]
-interface PoeRouteDraft {
-  fields: Pick<typeof form, PerPoeField>
-  rates: ImportRateSelectDto[]
-  lines: RateLine[]
-  costs?: CostSelectDto[]
-}
-const poeRouteDrafts = ref<Record<string, PoeRouteDraft>>({})
-
-function copyPoeLines(lines: RateLine[]): RateLine[] {
-  return lines.map((line) => ({
-    ...line,
-    serviceIds: line.serviceIds ? [...line.serviceIds] : undefined,
-  }))
-}
-
-
-/**
- * Selection is per destination, not a global "Navieras" filter.
- * Drafts remain independent for each [POE, naviera] until the Pricing group
- * transaction is available. The existing single-rate REST create is not used
- * for multiple options.
- */
-const selectedCarriersByPoe = ref<Record<string, string[]>>({})
-const activeCarrierByPoe = ref<Record<string, string>>({})
-const optionDrafts = ref<Record<string, PoeRouteDraft>>({})
-const selectedBundleByOption = ref<Record<string, string>>({})
-let restoreFclBundleForOption: ((poeId: string, carrierId: string) => void) | null = null
-
-const multiCarrierSelectionMode = computed(() =>
-  !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
-  && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
-  && selectedPoeIds.value.length > 0,
-)
-const currentPoeCarrierIds = computed(() => selectedCarriersByPoe.value[form.destinationId] ?? [])
-const manualCarrierSearch = ref('')
-const currentPoeIndex = computed(() => selectedPoeIds.value.indexOf(form.destinationId))
-const isLastPoeSelection = computed(() => currentPoeIndex.value >= selectedPoeIds.value.length - 1)
-const alternativeCostsLoaded = ref<Record<string, string>>({})
-const filteredManualCarrierOptions = computed(() => {
-  const search = manualCarrierSearch.value.trim().toLocaleLowerCase()
-  return search
-    ? carrierOptions.value.filter((option) => option.label.toLocaleLowerCase().includes(search))
-    : carrierOptions.value
-})
-const selectedCarrierRouteIndex = computed(() =>
-  selectedCarrierRoutes.value.findIndex(
-    (route) => route.poeId === form.destinationId
-      && route.carrierId === activeCarrierByPoe.value[form.destinationId],
-  ),
-)
-const activeCarrierRoutePosition = computed(() => Math.max(0, selectedCarrierRouteIndex.value) + 1)
-const previousWizardAction = computed(() => {
-  if (!multiCarrierSelectionMode.value || step.value < 5) return 'Atrás'
-  if (step.value === 5) return currentPoeIndex.value > 0 ? 'POE anterior' : 'Volver a ruta'
-  if (step.value === 8) return 'Volver a líneas'
-  if (selectedCarrierRouteIndex.value > 0) return 'Alternativa anterior'
-  return step.value === 7 ? 'Volver a proveedor' : 'Volver a POE'
-})
-const nextWizardAction = computed(() => {
-  if (step.value === 5) return isLastPoeSelection.value ? 'Configurar navieras' : 'Siguiente POE'
-  if (step.value === 6 || step.value === 7) {
-    return selectedCarrierRouteIndex.value >= carrierRouteCount.value - 1
-      ? (step.value === 6 ? 'Ir a líneas' : 'Ver borrador')
-      : 'Siguiente alternativa'
-  }
-  return 'Continuar'
-})
-const currentRouteLabel = computed(() =>
-  [displayValue(findById(catalogs.poe, form.destinationId)), displayValue(findById(catalogs.carriers, form.carrierId))]
-    .filter(Boolean).join(' · '),
-)
-const configuredCarrierCount = computed(() => selectedCarrierRoutes.value.filter(({ poeId, carrierId }) => {
-  const values = poeId === form.destinationId && carrierId === form.carrierId
-    ? form
-    : optionDrafts.value[carrierRouteKey(poeId, carrierId)]?.fields
-  return Boolean(values?.agentId && values?.currencyId && values?.carrierId)
-}).length)
-function toggleManualCarrier(carrierId: string) {
-  if (!multiCarrierSelectionMode.value) return
-  const next = currentPoeCarrierIds.value.includes(carrierId)
-    ? currentPoeCarrierIds.value.filter((id) => id !== carrierId)
-    : [...currentPoeCarrierIds.value, carrierId]
-  setCurrentPoeCarrierIds(next)
-}
-async function moveToManualCarrier(delta: number) {
-  const target = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value + delta]
-  if (!target) return
-  await activateCarrierRoute(target.poeId, target.carrierId)
-  await loadCostsForSelectedAlternative()
-}
-
-const carrierRouteCount = computed(() =>
-  selectedPoeIds.value.reduce((total, id) => total + (selectedCarriersByPoe.value[id]?.length ?? 0), 0),
-)
-const allPoeCarriersSelected = computed(() =>
-  poeCarrierSelectionComplete(selectedPoeIds.value, selectedCarriersByPoe.value),
-)
-const selectedCarrierRoutes = computed(() =>
-  selectedPoeIds.value.flatMap((poeId) =>
-    (selectedCarriersByPoe.value[poeId] ?? []).map((carrierId) => ({ poeId, carrierId })),
-  ),
-)
-const activeCarrierForCurrentPoe = computed(() =>
-  activeCarrierByPoe.value[form.destinationId] ?? '',
-)
-
-function resolveConfiguredCarrierId(id: string, name: string): string {
-  if (id && catalogs.carriers.some((carrier) => carrier.id === id)) return id
-  const normalized = normalizeCatalogValue(name)
-  return catalogs.carriers.find((carrier) =>
-    normalizeCatalogValue(displayValue(carrier)) === normalized,
-  )?.id ?? ''
-}
-
-function rememberCurrentCarrierDraft() {
-  if (!multiCarrierSelectionMode.value) return
-  const poeId = form.destinationId
-  const carrierId = activeCarrierByPoe.value[poeId]
-  if (!poeId || !carrierId || !(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
-  const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
-  optionDrafts.value[carrierRouteKey(poeId, carrierId)] = {
-    fields: { ...fields, carrierId },
-    rates: [...availableRates.value],
-    lines: copyPoeLines(rateLines.value),
-    costs: [...costs.value],
-  }
-}
-
-async function activateCarrierRoute(poeId: string, carrierId: string) {
-  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value) return
-  if (!(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
-  if (poeId === form.destinationId && activeCarrierByPoe.value[poeId] === carrierId && form.carrierId === carrierId) return
-  rememberCurrentCarrierDraft()
-  if (poeId !== form.destinationId) await activatePoeRoute(poeId)
-  switchingPoeRoute.value = true
-  try {
-    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
-    const draft = optionDrafts.value[carrierRouteKey(poeId, carrierId)]
-    if (draft) {
-      Object.assign(form, draft.fields)
-      rateLines.value = copyPoeLines(draft.lines)
-      costs.value = [...(draft.costs ?? [])]
-    } else {
-      Object.assign(form, {
-        carrierId, agentId: '', selectedImportRateId: '', manualRate: true,
-        freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
-        carrierRoute: '', carrierComments: '',
-        merchantHaulage: false, carrierHaulage: false,
-      })
-      rateLines.value = []
-      costs.value = []
-    }
-    // Restore the selected preapproved/preauthorized rate when available.
-    // Only combinations without imported tariffs default to manual.
-    form.carrierId = carrierId
-    restoreFclBundleForOption?.(poeId, carrierId)
-    await nextTickForPoe()
-  } finally {
-    switchingPoeRoute.value = false
-  }
-  // Switching tabs must hydrate the destination's catalog context, not reuse another POE's costs.
-  await loadCostsForSelectedAlternative()
-}
-
-function setCurrentPoeCarrierIds(ids: string[]) {
-  if (!multiCarrierSelectionMode.value || !form.destinationId) return
-  const poeId = form.destinationId
-  rememberCurrentCarrierDraft()
-  const next = normalizePoeCarrierIds(ids, catalogs.carriers.map((item) => item.id))
-  const previous = selectedCarriersByPoe.value[poeId] ?? []
-  selectedCarriersByPoe.value = { ...selectedCarriersByPoe.value, [poeId]: next }
-  for (const carrierId of previous.filter((id) => !next.includes(id))) {
-    const key = carrierRouteKey(poeId, carrierId)
-    delete optionDrafts.value[key]
-    delete selectedBundleByOption.value[key]
-  }
-  const active = activeCarrierByPoe.value[poeId] ?? ''
-  if (active && !next.includes(active)) {
-    activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: '' }
-    form.carrierId = ''
-  }
-  // Selecting navieras never navigates automatically or steals focus.
-  // All selected carriers remain available when continuing to Screen 6.
-}
-
-function registerSelectedFclBundleOption(carrierId: string, bundleKey: string) {
-  if (!multiCarrierSelectionMode.value || !carrierId || !form.destinationId) return
-  const poeId = form.destinationId
-  const previous = selectedCarriersByPoe.value[poeId] ?? []
-  selectedCarriersByPoe.value = {
-    ...selectedCarriersByPoe.value,
-    [poeId]: previous.includes(carrierId) ? previous : [...previous, carrierId],
-  }
-  activeCarrierByPoe.value = { ...activeCarrierByPoe.value, [poeId]: carrierId }
-  selectedBundleByOption.value = {
-    ...selectedBundleByOption.value,
-    [carrierRouteKey(poeId, carrierId)]: bundleKey,
-  }
-  form.carrierId = carrierId
-  rememberCurrentCarrierDraft()
-}
-
-function isSelectedFclBundle(carrierId: string, carrierName: string, bundleKey: string): boolean {
-  const configuredId = resolveConfiguredCarrierId(carrierId, carrierName)
-  if (!configuredId) return false
-  const route = carrierRouteKey(form.destinationId, configuredId)
-  // Mark the exact chosen bundle, not every tariff belonging to a
-  // preconfigured carrier. The carrier selection is not a freight selection.
-  return selectedBundleByOption.value[route] === bundleKey
-}
-
-/** Select every available or manual carrier in one POE before moving on. */
-async function advanceScreenFive() {
-  if (!currentPoeCarrierIds.value.length) {
-    toastStore.warning('Seleccione una naviera', 'Elija una o varias tarifas cargadas o navieras manuales para este POE.')
-    return
-  }
-  if (loadingRates.value || switchingPoeRoute.value) return
-  const nextPoeId = nextPoeInSelection(selectedPoeIds.value, form.destinationId)
-  if (nextPoeId) {
-    await activatePoeRoute(nextPoeId)
-    return
-  }
-  await continueWithSelectedCarriers()
-}
-
-function activeCostContextKey(): string {
-  return pricingCostContextKey({
-    poeId: form.destinationId, podId: form.podId, carrierId: form.carrierId,
-    agentId: form.agentId, polId: form.originId, incotermId: form.incotermId,
-    shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
-  })
-}
-
-async function loadCostsForSelectedAlternative(force = false) {
-  if (step.value !== 7 || !multiCarrierSelectionMode.value || switchingPoeRoute.value) return
-  const key = carrierRouteKey(form.destinationId, form.carrierId)
-  const context = activeCostContextKey()
-  if (!force && alternativeCostsLoaded.value[key] === context) return
-  const loaded = await loadApplicableCosts()
-  // Do not cache failed requests or attach the response to another alternative.
-  if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
-  rebuildRateLines()
-  syncHaulageOptionalLines()
-  alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
-  rememberCurrentCarrierDraft()
-}
-
-async function reloadCurrentAlternativeCosts() {
-  await loadCostsForSelectedAlternative(true)
-}
-
-/** "Continue" means next carrier within the current screen, not skipping work. */
-async function advanceSequentialWizard() {
-  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value || loadingRates.value) return
-  if (step.value === 5) return advanceScreenFive()
-  if (step.value !== 6 && step.value !== 7) return next()
-  if (!validateRequiredFields() || !canNext.value) return
-  rememberCurrentCarrierDraft()
-  const nextRoute = nextCarrierRoute(selectedCarrierRoutes.value, form.destinationId, form.carrierId)
-  if (nextRoute) {
-    await activateCarrierRoute(nextRoute.poeId, nextRoute.carrierId)
-    await loadCostsForSelectedAlternative()
-    return
-  }
-  const first = selectedCarrierRoutes.value[0]
-  if (!first) return
-  await activateCarrierRoute(first.poeId, first.carrierId)
-  step.value += 1
-  await loadCostsForSelectedAlternative()
-}
-
-async function previousSequentialWizard() {
-  if (!multiCarrierSelectionMode.value) return previous()
-  if (step.value === 5) {
-    const previousPoe = selectedPoeIds.value[currentPoeIndex.value - 1]
-    if (previousPoe) await activatePoeRoute(previousPoe)
-    else goToStep(3)
-    return
-  }
-  if (step.value === 6 || step.value === 7) {
-    const route = selectedCarrierRoutes.value[selectedCarrierRouteIndex.value - 1]
-    if (route) {
-      await activateCarrierRoute(route.poeId, route.carrierId)
-      await loadCostsForSelectedAlternative()
-      return
-    }
-    const last = selectedCarrierRoutes.value[selectedCarrierRoutes.value.length - 1]
-    step.value -= 1
-    if (step.value === 5) {
-      await activatePoeRoute(selectedPoeIds.value[selectedPoeIds.value.length - 1] ?? '')
-    } else if (last) {
-      await activateCarrierRoute(last.poeId, last.carrierId)
-    }
-    return
-  }
-  if (step.value === 8) {
-    step.value = 7
-    const last = selectedCarrierRoutes.value[selectedCarrierRoutes.value.length - 1]
-    if (last) await activateCarrierRoute(last.poeId, last.carrierId)
-    await loadCostsForSelectedAlternative()
-    return
-  }
-  previous()
-}
-
-async function continueWithSelectedCarriers() {
-  if (!multiCarrierSelectionMode.value || !allPoeCarriersSelected.value) {
-    toastStore.warning('Faltan navieras', 'Seleccione al menos una naviera en cada POE antes de ir a Proveedor.')
-    return
-  }
-  rememberCurrentCarrierDraft()
-  const first = selectedCarrierRoutes.value[0]
-  if (!first) return
-  await activateCarrierRoute(first.poeId, first.carrierId)
-  if (form.destinationId !== first.poeId || form.carrierId !== first.carrierId) {
-    toastStore.warning('Ruta no activa', 'Seleccione nuevamente la primera opción POE–naviera.')
-    return
-  }
-  step.value = 6
-}
-
-function rememberActivePoe() {
-  rememberCurrentCarrierDraft()
-  const id = form.destinationId
-  if (!id || !selectedPoeIds.value.includes(id)) return
-  const fields = Object.fromEntries(perPoeFieldNames.map((key) => [key, form[key]])) as PoeRouteDraft['fields']
-  poeRouteDrafts.value[id] = {
-    fields,
-    rates: [...availableRates.value],
-    lines: copyPoeLines(rateLines.value),
-    costs: [...costs.value],
-  }
-}
-
-async function activatePoeRoute(destinationId: string) {
-  // A pending preapproved-rate lookup must finish before changing tabs: the
-  // legacy Panama quotation resolver also shares availableRates state.
-  if (loadingRates.value && !multiCarrierSelectionMode.value) return
-  if (form.destinationId === destinationId
-      || (destinationId && !selectedPoeIds.value.includes(destinationId))) return
-  rememberActivePoe()
-  ++approvedRatesSearchSequence
-  const cached = poeRouteDrafts.value[destinationId]
-  switchingPoeRoute.value = true
-  form.destinationId = destinationId
-  availableRates.value = cached ? [...cached.rates] : []
-  rateLines.value = cached ? copyPoeLines(cached.lines) : []
-  costs.value = cached ? [...(cached.costs ?? [])] : []
-  if (cached) {
-    Object.assign(form, cached.fields)
-  } else {
-    Object.assign(form, {
-      selectedImportRateId: '', manualRate: false, carrierId: '',
-      freightCost: 0, freightSale: 0, freeDays: 0, transitDays: 0,
-      carrierRoute: '', carrierComments: '',
-      merchantHaulage: false, carrierHaulage: false,
-    })
-  }
-  // POE tabs restore their last active carrier without overwriting other navieras.
-  if (multiCarrierSelectionMode.value && destinationId) {
-    const selectedCarrier = activeCarrierByPoe.value[destinationId]
-      || (selectedCarriersByPoe.value[destinationId] ?? [])[0] || ''
-    const selectedDraft = optionDrafts.value[carrierRouteKey(destinationId, selectedCarrier)]
-    if (selectedDraft) {
-      Object.assign(form, selectedDraft.fields)
-      rateLines.value = copyPoeLines(selectedDraft.lines)
-      costs.value = [...(selectedDraft.costs ?? [])]
-    } else if (selectedCarrier) form.carrierId = selectedCarrier
-    restoreFclBundleForOption?.(destinationId, selectedCarrier)
-  }
-  await nextTickForPoe() // watchers must not recalculate another POE's edited lines
-  switchingPoeRoute.value = false
-  if (!cached && destinationId && step.value > 5 && !multiCarrierSelectionMode.value) step.value = 5
-  if (!cached && destinationId && step.value === 5) await searchApprovedRates()
-}
-
-function setSelectedPoeIds(values: string[]) {
-  const selection = normalizePoeSelection(
-    values,
-    form.destinationId,
-    [...destinationOptions.value.map((item) => item.value), ...selectedPoeIds.value],
-  )
-  selectedPoeIds.value = selection.ids
-  for (const id of Object.keys(selectedCarriersByPoe.value)) {
-    if (selection.ids.includes(id)) continue
-    for (const carrierId of selectedCarriersByPoe.value[id] ?? []) {
-      delete optionDrafts.value[carrierRouteKey(id, carrierId)]
-      delete selectedBundleByOption.value[carrierRouteKey(id, carrierId)]
-    }
-    delete selectedCarriersByPoe.value[id]
-    delete activeCarrierByPoe.value[id]
-  }
-  for (const id of Object.keys(poeRouteDrafts.value)) {
-    if (!selection.ids.includes(id)) delete poeRouteDrafts.value[id]
-  }
-  if (form.destinationId !== selection.activeId) void activatePoeRoute(selection.activeId)
-}
-
-const pickupLocations = ref<RatePickupLocationDto[]>([])
-const pickupCargoCondition = ref<PickupCargoCondition | ''>('')
-const editingPickupIndex = ref<number | null>(null)
-const pickupCargoConditionOptions: Array<{ label: string; value: PickupCargoCondition }> = [
-  { label: 'Carga fiscal', value: 'FiscalCargo' },
-  { label: 'Carga nacionalizada', value: 'NationalizedCargo' },
-]
-
-
-const step = ref(1)
-const loadingCatalogs = ref(false)
-const loadingRates = ref(false)
-const loadingCabys = ref(false)
-const saving = ref(false)
-const pendingModificationDelivery = ref(false)
-const savedModificationRevision = ref<number | null>(null)
-const exchangeRateLoading = ref(false)
-const exchangeRatePurchase = ref<number | null>(null)
-const exchangeRateSale = ref<number | null>(null)
-const exchangeRateDate = ref('')
-const exchangeRateSource = ref('Ministerio de Hacienda de Costa Rica')
-const euroUsdRate = ref<number | null>(null)
-const euroRateDate = ref('')
-const euroRateError = ref('')
-const euroRateLoading = ref(false)
-const exchangeRateError = ref('')
-const createdRateId = ref('')
-const editingRate = ref<RateDto | null>(null)
-const rateRevisions = ref<RateRevisionDto[]>([])
-const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
-const savedGroupRates = ref<RateDto[]>([])
-const expandedSavedQuotePanels = ref<Record<string, boolean>>({})
-const primarySavedGroupAlternative = computed(() => {
-  const group = savedQuoteGroup.value
-  return group?.alternatives.find((option) => option.rateId === group.selectedRateId)
-    ?? group?.alternatives.find((option) => option.status === 'Selected')
-    ?? group?.alternatives[0] ?? null
-})
-const finalizedSavedGroup = computed(() => Boolean(savedQuoteGroup.value?.selectedRateId))
-const isDiscardedSavedAlternative = computed(() => Boolean(
-  savedQuoteGroup.value?.selectedRateId && editingRate.value
-  && savedQuoteGroup.value.selectedRateId !== editingRate.value.id,
-))
-const orderedSavedGroupRates = computed(() => {
-  const primaryId = primarySavedGroupAlternative.value?.rateId
-  return [...savedGroupRates.value].sort((left, right) => Number(right.id === primaryId) - Number(left.id === primaryId))
-})
-function toggleSavedQuotePanel(rateId: string) {
-  expandedSavedQuotePanels.value = {
-    ...expandedSavedQuotePanels.value,
-    [rateId]: !expandedSavedQuotePanels.value[rateId],
-  }
-}
-const loadingExistingRate = ref(false)
-const hydratingExistingRate = ref(false)
-const commercialAction = ref<'accept' | 'reject' | null>(null)
-// Same CSV contract used by the acceptance and assignment modals.
-const wizardIdtraIdentifiers = computed(() => {
-  const seen = new Set<string>()
-  return form.idtraNumber.split(',').map((value) => value.trim()).filter((value) => {
-    const key = value.toLocaleUpperCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-})
-const wizardNormalizedIdtra = computed(() => wizardIdtraIdentifiers.value.join(', '))
-const wizardIdtraError = computed(() => {
-  if (wizardIdtraIdentifiers.value.length > 30) return 'Se permiten como máximo 30 IDTRA.'
-  if (wizardIdtraIdentifiers.value.some((idtra) => idtra.length > 100 || idtra.includes(';')))
-    return 'Cada IDTRA admite hasta 100 caracteres y no puede contener punto y coma.'
-  if (wizardNormalizedIdtra.value.length > 2000) return 'La lista de IDTRA no puede superar 2000 caracteres.'
-  return ''
-})
-const wizardOtherReferencesError = computed(() =>
-  form.otherReferences.length > 2000 ? 'Las otras referencias no pueden superar 2000 caracteres.' : ''
-)
-function validateWizardReferences() {
-  const message = wizardIdtraError.value || wizardOtherReferencesError.value
-  if (!message) return true
-  step.value = 8
-  toastStore.warning('Revise las referencias', message)
-  return false
-}
-const commercialIdtra = ref('')
-const commercialOtherReferences = ref('')
-const commercialIdtraIdentifiers = computed(() => {
-  const seen = new Set<string>()
-  return commercialIdtra.value.split(',').map((value) => value.trim()).filter((value) => {
-    const key = value.toLocaleUpperCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-})
-const commercialNormalizedIdtra = computed(() => commercialIdtraIdentifiers.value.join(', '))
-const commercialIdtraError = computed(() => {
-  if (!commercialIdtra.value.trim()) return ''
-  if (!commercialIdtraIdentifiers.value.length) return 'Indique un IDTRA válido o deje el campo vacío.'
-  if (commercialIdtraIdentifiers.value.length > 30) return 'Se permiten como máximo 30 IDTRA.'
-  if (commercialIdtraIdentifiers.value.some((value) => value.length > 100 || value.includes(';')))
-    return 'Cada IDTRA admite hasta 100 caracteres y no puede contener punto y coma.'
-  if (commercialNormalizedIdtra.value.length > 2000) return 'El conjunto de IDTRA no puede superar 2000 caracteres.'
-  return ''
-})
-const commercialOtherReferencesError = computed(() =>
-  commercialOtherReferences.value.length > 2000 ? 'Las otras referencias no pueden superar 2000 caracteres.' : ''
-)
-const commercialAcceptanceInvalid = computed(() =>
-  Boolean(commercialIdtraError.value || commercialOtherReferencesError.value)
-)
-const commercialRejectionReason = ref('')
-const commercialStatusSaving = ref(false)
-const commercialActionError = ref('')
-const downloadingQuote = ref(false)
-const downloadingLinesExcel = ref(false)
-const allInPresentation = ref(true)
-const isEditing = computed(() => Boolean(props.rateId))
-const pageTitle = computed(() => isEditing.value ? (props.viewOnly ? 'Visualizar tarifa' : 'Editar tarifa') : 'Crear tarifa')
-const pageDescription = computed(() => isEditing.value
-  ? 'Toda la tarifa se revisa en el mismo wizard. Las tarifas aceptadas crean una nueva revisión al guardar.'
-  : 'Construya la alternativa paso a paso con catálogos filtrados por modalidad.')
-// Core reactive refs must exist before plugins inject rate-filter/FCL setup logic.
-// The previous ordering left `costs` in TDZ when an injected early effect ran.
-const costs = ref<CostSelectDto[]>([])
-const allCosts = ref<CostSelectDto[]>([])
-const rateLines = ref<RateLine[]>([])
-const availableRates = ref<ImportRateSelectDto[]>([])
-const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
-const cabysResults = ref<CabysItem[]>([])
-// Preserve the values visible when the quote was opened. Catalog refreshes must
-// not overwrite a manual adjustment made by Pricing during the current edit.
-const persistedRateLineBaselines = new Map<string, string>()
-
-function rateLineEditableSignature(line: RateLine) {
-  return JSON.stringify([
-    line.name, line.costId, line.costDetailType, line.costType, line.chargeBasis,
-    line.currencyId, line.currencyCode, number(line.costAmount), number(line.saleAmount),
-    Boolean(line.applyDestinationTax), number(line.destinationTaxRate),
-    line.notes ?? null, line.billToClient ?? null,
-  ])
-}
-const billToBatchByGroup = ref<Record<string, string>>({})
-const locatingPickup = ref(false)
-const recommendingPorts = ref(false)
-const nearestPortRecommendations = ref<NearestPortRecommendation[]>([])
-const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.flatMap((recommendation) => {
-  if (recommendation.latitude == null || recommendation.longitude == null) return []
-  if (!Number.isFinite(recommendation.latitude) || !Number.isFinite(recommendation.longitude)) return []
-  const distanceLabel = recommendation.distanceKm == null ? '' : ` · ${recommendation.distanceKm.toFixed(1)} km`
-  return [{
-    id: `nearest-port:${recommendation.key}`,
-    label: `${recommendation.name}${distanceLabel}`,
-    latitude: recommendation.latitude,
-    longitude: recommendation.longitude,
-    selected: false,
-  }]
-}))
-// CRM refs must exist before Vite's seller plugins register watchers at setup.
-interface PricingCrmClient {
-  kind?:'account' | 'lead'; id:string; displayName:string; legalName:string; taxId?:string|null
-  executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
-}
-interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
-const authorizedSellers = ref<AuthorizedSeller[]>([])
-const requestSellerUserId = ref('')
-const sellerOptionsError = ref('')
-const chosenCrmClient = ref<PricingCrmClient|null>(null)
-const crmCustomerError = ref('')
-
-const supportEntityId = ref(crypto.randomUUID())
-const supportDocuments = ref<SupportDocument[]>([])
-const uploadingSupportKey = ref('')
-const finalBackupEntityId = ref(crypto.randomUUID())
-const finalBackupDocuments = ref<SupportDocument[]>([])
-const uploadingFinalBackups = ref(false)
-const supportCategories = [
-  { key: 'purchase-order', label: 'OC / Detalle de la carga' },
-  { key: 'packing-list', label: 'Packing List (PL)' },
-  { key: 'invoice', label: 'Invoice' },
-  { key: 'msds-tech-sheet', label: 'MSDS / Ficha técnica' },
-] as const
-const supportAccept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.xlsb'
 
 // The legacy Pricing REST contract persists one POE per RateHeader. Keep the
 // visible POE separate from the multi-selection to prevent lost alternatives.
@@ -2439,50 +1843,8 @@ const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
     ].filter(Boolean).join(' '),
   }
 }))
-async function loadAuthorizedRequestSellers(){
-  if(!props.sellerRequestMode)return
-  try{
-    const result = await fetchClient<{viewerUserId:string;sellers:AuthorizedSeller[]}>(
-      '/api/pricing/seller-visibility/me/options',{method:'GET'})
-    authorizedSellers.value=result.sellers || []
-    // The chosen CRM account determines the sales representative; never preselect
-    // a seller and accidentally hide other authorized portfolios.
-    requestSellerUserId.value=''
-    sellerOptionsError.value=authorizedSellers.value.length?'':'No tenés vendedores autorizados para solicitar tarifas.'
-  }catch{
-    sellerOptionsError.value='No se pudieron consultar los vendedores autorizados. Actualizá la pantalla.'
-  }
-}
-function useCrmClient(account:PricingCrmClient|null){
-  if(account && props.sellerRequestMode &&
-      !authorizedSellers.value.some(s=>s.userId===account.executiveUserId)){
-    chosenCrmClient.value=null
-    form.clientId=''
-    form.clientName=''
-    form.executiveId=''
-    form.executiveName=''
-    requestSellerUserId.value=''
-    crmCustomerError.value='Este cliente no corresponde a un vendedor que puedas gestionar.'
-    return
-  }
-  chosenCrmClient.value=account
-  if(props.sellerRequestMode)requestSellerUserId.value=account?.executiveUserId ?? ''
-  form.clientId=account?.id ?? ''
-  form.clientName=account?.displayName ?? ''
-  form.executiveId=account?.executiveUserId ?? ''
-  form.executiveName=account?.executiveName ?? ''
-  crmCustomerError.value=''
-}
-function validateSelectedCrmCustomer(){
-  if(isEditing.value || props.rateRequestId || props.modificationRequestId || props.sellerEditRequestId)return true
-  if(chosenCrmClient.value?.id===form.clientId && form.clientId &&
-      (!props.sellerRequestMode || Boolean(requestSellerUserId.value &&
-        chosenCrmClient.value.executiveUserId===requestSellerUserId.value)))
-    return true
-  crmCustomerError.value='Seleccioná una cuenta o prospecto activo del CRM que corresponda al vendedor autorizado.'
-  step.value=3
-  return false
-}
+const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
+const salesExecutiveOptions = computed(() => catalogs.salesExecutives.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
 
 const shipmentModeForApi = computed<ShipmentMode>(() => {
   const value = form.shipmentMode.toUpperCase().replace(/[\s_-]+/g, '')
@@ -5048,7 +4410,6 @@ async function hydrateExistingRate() {
     form.validTo = String(rate.validTo).slice(0,10)
     form.selectedImportRateId = rate.sourceImportFclRateId ?? ''
     form.manualRate = !rate.sourceImportFclRateId
-    form.clientId = rate.clientAccountId ?? rate.clientLeadId ?? ''
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
@@ -5811,12 +5172,6 @@ async function saveOpenRequest() {
       currencyName: displayValue(currency),
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
-      clientAccountId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind !== 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientAccountId ?? null),
-      clientLeadId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientLeadId ?? null),
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -6272,12 +5627,6 @@ async function saveRate() {
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
-      clientAccountId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind !== 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientAccountId ?? null),
-      clientLeadId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientLeadId ?? null),
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -6801,28 +6150,26 @@ watch(
 )
 
 watch(
-  () => [form.modality, shipmentModeForApi.value] as const,
-  ([modality, shipmentMode]) => {
-    if (modality === 'Maritime' && shipmentMode === 'Fcl') return
-    // Multiple POEs and sub-QUO exist exclusively for FCL. Never carry a
-    // previously selected FCL route queue into LCL, land or air workflows.
-    if (selectedPoeIds.value.length > 1) {
-      selectedPoeIds.value = form.destinationId ? [form.destinationId] : []
+  () => form.clientId,
+  (clientId) => {
+    const client = findById(catalogs.clients, clientId)
+    if (!client) return
+    form.clientName = displayValue(client) || client.label
+    const assignedExecutiveId = metadata(client)?.salesExecutiveId
+    if (assignedExecutiveId && catalogs.salesExecutives.some((item) => item.id === assignedExecutiveId)) {
+      form.executiveId = assignedExecutiveId
     }
-    selectedCarriersByPoe.value = {}
-    activeCarrierByPoe.value = {}
-    optionDrafts.value = {}
-    selectedBundleByOption.value = {}
-    alternativeCostsLoaded.value = {}
   },
 )
 
 watch(
-  () => form.originId,
-  () => assignAgentForOrigin(),
+  () => form.executiveId,
+  (executiveId) => {
+    const executive = findById(catalogs.salesExecutives, executiveId)
+    if (executive) form.executiveName = displayValue(executive) || executive.label
+  },
 )
 
-// Revalidar también al cargar o actualizar el catálogo (incluida la restauración de borradores).
 watch(
   () => [form.modality, shipmentModeForApi.value] as const,
   ([modality, shipmentMode]) => {
@@ -6979,7 +6326,7 @@ watch(() => props.rateId, async (nextRateId, previousRateId) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])
+  await loadCatalogs()
   if (props.rateId) await hydrateExistingRate()
   else await loadHaciendaExchangeRate(true)
 })
@@ -7072,97 +6419,6 @@ onMounted(async () => {
           </div>
         </div>
       </details>
-    </div>
-
-
-    <div
-      v-if="!isEditing && !sellerRequestMode && multiCarrierSelectionMode && (selectedPoeIds.length > 1 || carrierRouteCount > 1) && step >= 5 && step <= 8"
-      class="mb-5 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4"
-    >
-      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2.5">
-          <span class="grid h-9 w-9 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-4 w-4" /></span>
-          <div>
-            <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ step === 5 ? 'Puertos de destino' : 'Alternativas de la cotización' }}</p>
-            <p class="text-xs font-semibold text-[var(--dh-text)]">{{ selectedPoeIds.length }} POE · {{ carrierRouteCount }} {{ carrierRouteCount === 1 ? 'naviera seleccionada' : 'combinaciones POE–naviera' }}</p>
-          </div>
-        </div>
-        <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-[11px] font-bold text-[var(--dh-text-muted)]">
-          {{ step === 5 ? 'Tarifas vigentes y opciones manuales' : configuredCarrierCount + ' de ' + carrierRouteCount + ' alternativas con proveedor asignado' }}
-        </span>
-      </div>
-      <div v-if="step === 5" class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Rutas por POE">
-        <button
-          v-for="poeId in selectedPoeIds"
-          :key="poeId"
-          type="button"
-          role="tab"
-          :disabled="loadingRates"
-          :aria-selected="form.destinationId === poeId"
-          :class="form.destinationId === poeId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
-          class="flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold disabled:opacity-50"
-          @click="activatePoeRoute(poeId)"
-        >
-          {{ displayValue(findById(catalogs.poe, poeId)) || poeId }}
-          <span class="rounded-full bg-[var(--dh-input)] px-1.5 py-0.5 text-[10px]">{{ (selectedCarriersByPoe[poeId] || []).length }}</span>
-        </button>
-      </div>
-      <div v-else class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Alternativas por POE y naviera">
-        <button
-          v-for="route in selectedCarrierRoutes"
-          :key="carrierRouteKey(route.poeId, route.carrierId)"
-          type="button"
-          role="tab"
-          :aria-selected="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId"
-          :class="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]' : 'border-[var(--dh-border)] text-[var(--dh-text)]'"
-          class="flex max-w-[290px] shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold"
-          @click="activateCarrierRoute(route.poeId, route.carrierId)"
-        >
-          <span class="min-w-0">
-            <span class="block truncate">{{ displayValue(findById(catalogs.poe, route.poeId)) || route.poeId }}</span>
-            <span class="mt-0.5 block truncate text-[11px] text-[var(--dh-text-muted)]">{{ displayValue(findById(catalogs.carriers, route.carrierId)) || route.carrierId }}</span>
-          </span>
-          <Check v-if="form.destinationId === route.poeId && activeCarrierForCurrentPoe === route.carrierId" class="h-4 w-4 shrink-0" />
-        </button>
-      </div>
-      <div v-if="step === 5" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3.5 py-3">
-        <div class="min-w-0">
-          <p class="text-xs font-black text-[var(--dh-text)]">POE {{ currentPoeIndex + 1 }} / {{ selectedPoeIds.length }} · {{ displayValue(selectedDestination) }}</p>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">POD: {{ displayValue(selectedPod) || 'Sin definir' }} · {{ currentPoeCarrierIds.length }} naviera(s) seleccionada(s) aquí</p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <DhButton variant="secondary" size="sm" @click="goToStep(3)">Editar POE / POD</DhButton>
-          <DhButton variant="secondary" size="sm" :disabled="loadingRates || switchingPoeRoute" @click="previousSequentialWizard"><ChevronLeft class="h-4 w-4" /> {{ currentPoeIndex > 0 ? 'POE anterior' : 'Volver a ruta' }}</DhButton>
-          <DhButton size="sm" :disabled="!currentPoeCarrierIds.length || loadingRates || switchingPoeRoute" @click="advanceSequentialWizard">
-            {{ isLastPoeSelection ? 'Configurar ' + carrierRouteCount + ' alternativas' : 'Siguiente POE' }} <ChevronRight class="h-4 w-4" />
-          </DhButton>
-        </div>
-      </div>
-      <div v-if="step >= 6 && step <= 8" class="mt-3 flex flex-wrap items-center justify-end gap-2">
-        <span class="mr-auto text-xs font-semibold text-[var(--dh-text-muted)]">{{ selectedPoeIds.length }} POE seleccionados · POD {{ displayValue(selectedPod) || 'Pendiente' }}</span>
-        <DhButton variant="secondary" size="sm" @click="goToStep(3)">Editar POE / POD</DhButton>
-      </div>
-      <div v-if="step === 6 || step === 7" class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3.5 py-3">
-        <div class="min-w-0">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Opción {{ activeCarrierRoutePosition }} de {{ carrierRouteCount }} · {{ form.selectedImportRateId ? 'Tarifa cargada' : 'Captura manual' }}</p>
-          <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ currentRouteLabel || 'Seleccione una ruta' }}</p>
-          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-            {{ step === 6 ? 'Completa este flete y pulsa Continuar. Se conservará la información antes de pasar a otra naviera.' : 'Revisa los cargos exclusivos de esta opción; Continuar avanza a la siguiente.' }}
-          </p>
-        </div>
-        <div class="flex shrink-0 items-center gap-2">
-          <button type="button" class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-xs font-bold disabled:opacity-40"
-            :disabled="selectedCarrierRouteIndex <= 0 || switchingPoeRoute"
-            @click="moveToManualCarrier(-1)">
-            <ChevronLeft class="h-4 w-4" /> Anterior
-          </button>
-          <button type="button" class="inline-flex items-center gap-1.5 rounded-xl border border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.10)] px-3 py-2 text-xs font-bold text-[var(--dh-primary)] disabled:opacity-40"
-            :disabled="selectedCarrierRouteIndex < 0 || selectedCarrierRouteIndex >= carrierRouteCount - 1 || switchingPoeRoute"
-            @click="moveToManualCarrier(1)">
-            Siguiente naviera <ChevronRight class="h-4 w-4" />
-          </button>
-        </div>
-      </div>
     </div>
 
 
@@ -7377,7 +6633,7 @@ onMounted(async () => {
               <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
               <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
             </div>
-            <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">Los clientes y sus vendedores se consultan en CRM. No se pueden ingresar nombres de cliente manualmente.</p>
+            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">Clientes y ejecutivos usan catálogos temporales de Config para evitar duplicar el futuro módulo Comercial.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">

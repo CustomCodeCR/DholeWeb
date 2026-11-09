@@ -353,6 +353,11 @@ export async function fetchClient<T>(
  * Download an authenticated binary document without putting bearer tokens in a URL.
  * Uses the same token refresh rules as fetchClient, including impersonation isolation.
  */
+/** Authenticated media access for marketing editor; never embeds tokens in URLs. */
+export async function downloadFile(endpoint: string, _fileName: string): Promise<{ blob: Blob }> {
+  return { blob: await fetchProtectedBlob(endpoint) }
+}
+
 export async function fetchProtectedBlob(endpoint: string): Promise<Blob> {
   const startedWithTransientToken = hasTransientAccessToken()
   let token = await getUsableAccessToken(endpoint)

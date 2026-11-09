@@ -10,7 +10,6 @@ import {
   BadgeDollarSign,
   Bell,
   BellRing,
-  Bot,
   BookOpen,
   BrainCircuit,
   ClipboardList,

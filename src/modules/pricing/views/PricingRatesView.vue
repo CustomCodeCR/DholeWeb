@@ -65,7 +65,6 @@ function acceptedRateMissingIdtra(rate: RateDto): boolean {
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
 const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()

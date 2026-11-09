@@ -5,10 +5,8 @@ import { useLocale } from '@/core/stores/locale'
 import { Ban, CheckCircle2, Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { fetchBlobClient } from '@/core/api/fetchBlobClient'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
-import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -45,7 +43,6 @@ interface RateRequestDto {
   lockExpiresAtUtc?: string | null
   rateId?: string | null
   sellerName?: string | null
-  sellerEmail?: string | null
   clientName?: string | null
   executiveName?: string | null
   shipmentMode?: string | null
@@ -82,8 +79,6 @@ const requests = ref<RateRequestDto[]>([])
 const now = ref(Date.now())
 let timer: number | undefined
 
-const canViewAll = computed(() => authStore.hasScope('pricing.rate-request.view-all'))
-
 const sortedRequests = computed(() => {
   // Urgentes primero. Dentro de una prioridad, FIFO por fecha de recepción.
   const order: Record<Priority, number> = { Red: 0, Yellow: 1, Green: 2 }
@@ -102,18 +97,6 @@ function priorityVariant(priority: Priority): 'success' | 'warning' | 'danger' {
   return priority === 'Green' ? 'success' : priority === 'Yellow' ? 'warning' : 'danger'
 }
 
-function statusLabel(status: RequestStatus) {
-  if (status === 'Open') return 'Pendiente'
-  if (status === 'Completed') return 'Completada'
-  return 'Cancelada'
-}
-
-function statusVariant(status: RequestStatus): 'primary' | 'success' | 'danger' {
-  if (status === 'Completed') return 'success'
-  if (status === 'Cancelled') return 'danger'
-  return 'primary'
-}
-
 function formatDuration(milliseconds: number) {
   const totalMinutes = Math.max(0, Math.floor(milliseconds / 60000))
   const days = Math.floor(totalMinutes / 1440)
@@ -129,7 +112,6 @@ function elapsed(request: RateRequestDto) {
 }
 
 function remaining(request: RateRequestDto) {
-  if (request.status !== 'Open') return request.completedAtUtc ? `Completada ${new Date(request.completedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR'))}` : statusLabel(request.status)
   const difference = new Date(request.dueAtUtc).getTime() - now.value
   return difference >= 0
     ? `Restan ${formatDuration(difference)}`
@@ -137,7 +119,7 @@ function remaining(request: RateRequestDto) {
 }
 
 function isOverdue(request: RateRequestDto) {
-  return request.status === 'Open' && new Date(request.dueAtUtc).getTime() <= now.value
+  return new Date(request.dueAtUtc).getTime() <= now.value
 }
 
 function objectValue(request: RateRequestDto, key: string): unknown {
@@ -238,9 +220,7 @@ async function load() {
     })
     requests.value = unwrapListResponse<RateRequestDto>(response)
   } catch (error) {
-    toast.backendError(error, canViewAll.value
-      ? 'No se pudieron cargar todas las solicitudes de vendedores.'
-      : 'No se pudieron cargar las solicitudes abiertas de vendedores.')
+    toast.backendError(error, 'No se pudieron cargar las solicitudes abiertas de vendedores.')
   } finally {
     loading.value = false
   }
@@ -509,28 +489,28 @@ onBeforeUnmount(() => {
       <div>
         <div class="flex items-center gap-2">
           <Clock3 class="h-5 w-5 text-[var(--dh-primary)]" />
-          <h2 class="text-lg font-black">{{ canViewAll ? 'Todas las tarifas solicitadas' : 'Solicitudes de tarifas de vendedores' }}</h2>
+          <h2 class="text-lg font-black">Solicitudes de tarifas de vendedores</h2>
         </div>
         <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">
-          {{ canViewAll
-            ? 'Vista global habilitada por el scope pricing.rate-request.view-all.'
-            : 'Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.' }}
+          Pricing ve POL, POE y POD definidos por Ventas antes de continuar la tarifa.
         </p>
         <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">Orden de atención: <span class="text-red-500">Rojo · Urgente (0–24 h)</span> → <span class="text-amber-500">Amarillo · Prioritario (24–48 h)</span> → <span class="text-emerald-500">Verde · Regular (48–72 h)</span>. Primero las solicitudes más antiguas de cada prioridad.</p>
       </div>
+      <DhButton variant="secondary" :disabled="loading" @click="load">
+        <RefreshCcw class="h-4 w-4" /> Actualizar
+      </DhButton>
     </div>
 
     <div v-if="loading && !requests.length" class="py-8 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
       Cargando solicitudes…
     </div>
     <div v-else-if="!sortedRequests.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm font-semibold text-[var(--dh-text-muted)]">
-      No hay solicitudes para mostrar.
+      No hay solicitudes abiertas pendientes de atender.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
       <table class="min-w-[2200px] w-full text-left text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
-            <th class="px-4 py-3">Estado</th>
             <th class="px-4 py-3">Vendedor</th>
             <th class="px-4 py-3">Cliente</th>
             <th class="px-4 py-3">Embarque / equipo</th>
