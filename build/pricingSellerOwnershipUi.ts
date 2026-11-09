@@ -19,12 +19,23 @@ function patchWizard(source: string) {
     if (!crmSource.includes('const sellerExecutiveLabel = computed(() => {')) {
       crmSource = replaceOne(crmSource, 'const stepTitles = [',
         `const sellerExecutiveLabel = computed(() => {
+  if (form.clientId && form.executiveName.trim()) return form.executiveName.trim()
   const display = String(authStore.displayName || authStore.userDisplayName || '').trim()
   return display || String(authStore.username || authStore.email?.split('@')[0] || '').trim()
 })
 void sellerExecutiveLabel
 
 const stepTitles = [`, 'seller label anchor for FCL compatibility')
+    }
+    // The downstream shipment-mode precompat transform requires this prefix.
+    // The computed value above resolves the CRM-assigned owner when selected.
+    if (!crmSource.includes('if (props.sellerRequestMode && sellerExecutiveLabel.value)')) {
+      crmSource = replaceOne(
+        crmSource,
+        `async function saveOpenRequest() {\n  if (props.sellerRequestMode) {`,
+        `async function saveOpenRequest() {\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {`,
+        'seller request prefix for pricing compatibility',
+      )
     }
     if (crmSource.includes('requestContext: {')) return crmSource
     return replaceOne(
