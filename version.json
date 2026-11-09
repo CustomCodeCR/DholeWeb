@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.12.20",
-  "ecosystemVersion": "1.12.20",
-  "releaseId": "DH-20261109-PRICING-OWNLCL-VISIBILITY-051"
+  "version": "1.12.21",
+  "ecosystemVersion": "1.12.21",
+  "releaseId": "DH-20261109-SELLER-PRICING-STATUS-052",
+  "releaseStatus": "master-candidate-staging-verification-pending"
 }
