@@ -60,6 +60,7 @@ export interface RealtimeRuntime {
   cancel: (id: ReturnType<typeof setTimeout>) => void
   random: () => number
   onState?: (status: RealtimeStatus) => void
+  onNotificationReceived?: (notification: unknown) => void
 }
 interface Watcher {
   key: string
@@ -322,7 +323,7 @@ export class RealtimeManager {
     return base
   }
   private async negotiate(token: string): Promise<{ id: string; ticket: string }> {
-    const negotiation = this.endpoint('/hubs/realtime/negotiate')
+    const negotiation = this.endpoint('/api/notifications/hub/negotiate')
     negotiation.searchParams.set('negotiateVersion', '1')
     const response = await this.runtime.fetch(negotiation.toString(), {
       method: 'POST', headers: {
@@ -335,7 +336,7 @@ export class RealtimeManager {
     const value = await response.json() as { connectionToken?: string; connectionId?: string; error?: string }
     const id = value.connectionToken ?? value.connectionId
     if (value.error || !id || id.length > 200) throw new Error('Invalid SignalR negotiation.')
-    const ticketResponse = await this.runtime.fetch(this.endpoint('/hubs/realtime/ticket').toString(), {
+    const ticketResponse = await this.runtime.fetch(this.endpoint('/api/notifications/hub/ticket').toString(), {
       method: 'POST', headers: { Authorization: 'Bearer ' + token }, cache: 'no-store',
     })
     if (ticketResponse.status === 401 || ticketResponse.status === 403)
@@ -368,7 +369,7 @@ export class RealtimeManager {
           session = await this.negotiate(token)
         }
         if (this.stopped || epoch !== this.generation) return
-        const url = this.endpoint('/hubs/realtime')
+        const url = this.endpoint('/api/notifications/hub')
         url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
         url.searchParams.set('id', session.id)
         url.searchParams.set('ticket', session.ticket)
@@ -524,7 +525,9 @@ export class RealtimeManager {
     const invocationId = String(++this.invocationId)
     if (method === 'Subscribe') this.pending.set(invocationId, key)
     this.socket.send(JSON.stringify({
-      type: 1, invocationId, target: method, arguments: [kind, id],
+      type: 1, invocationId,
+      target: method === 'Subscribe' ? 'SubscribeResource' : 'UnsubscribeResource',
+      arguments: [kind, id],
     }) + RS)
   }
 
@@ -553,6 +556,13 @@ export class RealtimeManager {
     if (this.handshakeResolve) {
       if (typeof message.error === 'string') this.handshakeReject?.(new Error('Handshake rejected.'))
       else this.handshakeResolve()
+      return
+    }
+    if (message.type === 1 &&
+        String(message.target ?? '').toLowerCase() === 'notificationreceived') {
+      const values = message.arguments
+      if (Array.isArray(values) && values.length === 1)
+        this.runtime.onNotificationReceived?.(values[0])
       return
     }
     if (message.type === 7) {
