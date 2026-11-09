@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SellerGuideButton from '@/modules/pricing/components/SellerGuideButton.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -29,12 +29,14 @@ const receiving = ref(false)
 const downloading = ref(false)
 const loadError = ref('')
 const pendingModification = ref(false)
+const activePricingModification = ref(false)
 const activeStep = ref(9)
 const steps = ['Modalidad', 'Embarque', 'Ruta', 'Carga', 'Tarifa', 'Proveedor', 'Líneas', 'Borrador', 'Vista completa'] as const
 const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => Number(line.saleAmount) > 0) ?? [])
 
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
+const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
 const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocaleLowerCase() === 'castro fallas')
 const canReceive = computed(() => isSent.value && !revisionPending.value && !isReceived.value && !isCastroFallas.value)
@@ -53,7 +55,9 @@ function requestModification() {
 
 const statusText = computed(() => {
   if (!rate.value) return ''
-  if (revisionPending.value) return 'En modificación por Pricing'
+  if (revisionPending.value) return revisionWorkActive.value
+    ? 'En modificación por Pricing'
+    : 'Última revisión enviada · Actualización pendiente'
   if (rate.value.status === 'AcceptedByClient') return 'Aceptada por cliente'
   if (rate.value.status === 'RejectedByClient') return 'No aceptada por cliente'
   if (rate.value.status === 'Cancelled') return 'Cancelada'
@@ -94,23 +98,26 @@ async function load() {
         path: '/api/pricing/rate-requests/mine',
         headers: { Accept: 'application/json' },
       })
-      pendingModification.value = unwrapListResponse<{
+      const modificationRequests = unwrapListResponse<{
         rateId?: string | null
         kind?: string
         status: string
         completedAtUtc?: string | null
         preparedRevisionNumber?: number | null
         payload?: { modification?: { sourceRevisionNumber?: number | null } } | null
-      }>(response).some(request => {
-        if (request.rateId !== rateId.value || request.kind !== 'Modification') return false
+      }>(response).filter(request =>
+        request.rateId === rateId.value && request.kind === 'Modification')
+      activePricingModification.value = modificationRequests.some(request => request.status === 'Open')
+      pendingModification.value = modificationRequests.some(request => {
         if (request.status === 'Open') return true
-        // Legacy prematurely-completed work cannot be considered delivered
-        // without an explicitly prepared and completed revision.
+        // An unverified historical completion still blocks another request,
+        // but is no longer represented as an active Pricing work item.
         return request.status === 'Completed'
           && (!request.completedAtUtc || Number(request.preparedRevisionNumber || 0) <=
             Number(request.payload?.modification?.sourceRevisionNumber || 0))
       })
     } catch {
+      activePricingModification.value = false
       pendingModification.value = false
     }
   } catch (error) {
@@ -171,7 +178,19 @@ function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
 }
 
 watch(rateId, () => { activeStep.value = 9; rate.value = null; void load() })
-onMounted(() => { void load(); void loadCurrencies() })
+function refreshSellerRateOnFocus() {
+  if (!document.hidden && !loading.value) void load()
+}
+onMounted(() => {
+  void load()
+  void loadCurrencies()
+  window.addEventListener('focus', refreshSellerRateOnFocus)
+  document.addEventListener('visibilitychange', refreshSellerRateOnFocus)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshSellerRateOnFocus)
+  document.removeEventListener('visibilitychange', refreshSellerRateOnFocus)
+})
 </script>
 
 <template>
@@ -212,7 +231,9 @@ onMounted(() => { void load(); void loadCurrencies() })
           <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
         </div>
         <div v-if="revisionPending || pendingModification" class="mt-3 space-y-1 text-xs font-semibold text-amber-500">
-          <p v-if="revisionPending">Pricing está preparando una nueva revisión. Se muestra únicamente la última cotización enviada, no el borrador.</p>
+          <p v-if="revisionPending">{{ revisionWorkActive
+            ? 'Pricing está preparando una nueva revisión. Se muestra únicamente la última cotización enviada, no el borrador.'
+            : 'La revisión nueva todavía no está publicada. Se muestra la última cotización enviada, sin exponer el borrador.' }}</p>
           <p v-if="pendingModification">Existe una solicitud de modificación pendiente para esta tarifa.</p>
         </div>
       </header>

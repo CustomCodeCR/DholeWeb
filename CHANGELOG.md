@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.3] - 2026-11-09
+
+- PATCH Ventas/Pricing: separar revisión no publicada de modificación realmente abierta en Pricing; mostrar el estado comercial correcto sin exponer borradores.
+- Refrescar tarifas del vendedor tras cambios de solicitudes y entregas diferidas, manteniendo bloqueadas las acciones hasta el envío de la revisión.
+- Release coordinado DH-20261109-SELLER-PRICING-STATUS-052 con DholePricingService 1.7.1 y manifiesto central 1.14.3.
+
 ## [1.14.2] - 2026-11-09
 
 - PATCH Pricing: mostrar inventario LCL del POE si no hay salidas compatibles y vigentes; ETD vencidas y otros POL son solo consulta, nunca cotizables.
