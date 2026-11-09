@@ -11,7 +11,7 @@ import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { sellerRateCurrencyValue, type SellerRateCurrency } from '@/modules/pricing/utils/sellerRateCurrency'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
-import { currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
+import { canDecideSellerQuote, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from '@/modules/dashboard/components/SellerRateDecisionModal.vue'
@@ -38,17 +38,8 @@ const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => N
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
 const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
-const canRespondToRate = computed(() => {
-  if (!rate.value) return false
-  if (!revisionPending.value)
-    return ['Open', 'Sent', 'RequestedByClient'].includes(rate.value.status)
-
-  // Open workflow with a prior sent revision: decisions apply to the issued
-  // version, while Pricing's unfinished changes remain inaccessible.
-  return currentSellerWorkflowStatus(rate.value) === 'Open'
-    && !revisionWorkActive.value
-    && ['Sent', 'RequestedByClient'].includes(rate.value.status)
-})
+const canRespondToRate = computed(() => rate.value
+  ? canDecideSellerQuote(rate.value, revisionWorkActive.value) : false)
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
 const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocaleLowerCase() === 'castro fallas')
 const canReceive = computed(() => isSent.value && !revisionPending.value && !isReceived.value && !isCastroFallas.value)
