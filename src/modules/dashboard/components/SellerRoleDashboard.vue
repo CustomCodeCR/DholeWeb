@@ -144,14 +144,27 @@ function statusLabel(status: SellerCommercialStatus) {
   return labels[status]
 }
 
+function hasOpenPricingModification(rate: RateDto): boolean {
+  // Older API deployments do not yet return pricingModificationActive.
+  // For them, use the same open work items that Pricing shows in its queue.
+  if (typeof rate.pricingModificationActive === 'boolean') return rate.pricingModificationActive
+  return requests.value.some((request) =>
+    request.rateId === rate.id && request.kind === 'Modification' && request.status === 'Open')
+}
+
 function sellerStatusLabel(rate: RateDto) {
-  if (rate.revisionPending) return 'En modificación por Pricing'
+  if (rate.revisionPending) {
+    return hasOpenPricingModification(rate)
+      ? 'En modificación por Pricing'
+      : 'Última revisión enviada · Actualización pendiente'
+  }
   return commercialStatus(rate) === 'Sent' && rate.sellerReceivedAtUtc
     ? 'Recibida · Esperando cliente'
     : statusLabel(commercialStatus(rate))
 }
 
 function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (rate.revisionPending) return 'warning'
   const status = commercialStatus(rate)
   if (status === 'AcceptedByClient') return 'success'
   if (status === 'RejectedByClient' || status === 'Cancelled' || status === 'Expired') return 'danger'
@@ -539,6 +552,7 @@ async function load() {
     ])
     allRequests.value = unwrapListResponse<SellerRateRequestDto>(requestResponse)
     rates.value = unwrapListResponse<RateDto>(rateResponse)
+    lastSellerRateRefreshAt = Date.now()
     if (props.adminPreview && props.enableSellerActions) {
       // La API de supervisión no incluye los datos de recepción ni acredita
       // titularidad. La API personal resuelve ambas cosas en el servidor.
@@ -565,8 +579,40 @@ async function load() {
   }
 }
 
-// Poll only the lightweight request list: new statuses appear without refreshing the
-// entire commercial dashboard or requiring the seller to reload the page.
+// Keep the seller's published-revision projection synchronized when Pricing
+// completes a request or asynchronously finishes PDF/email delivery.
+let lastSellerRateRefreshAt = 0
+let sellerRatesRefreshing = false
+async function refreshSellerRateStatuses(force = false) {
+  if (loading.value || sellerRatesRefreshing || (!force && Date.now() - lastSellerRateRefreshAt < 20_000)) return
+  sellerRatesRefreshing = true
+  try {
+    const rateResponse = await callEndpoint<unknown>({
+      method: 'GET',
+      path: props.adminPreview ? '/api/pricing/seller-rates/dashboard' : '/api/pricing/seller-rates',
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+    })
+    rates.value = unwrapListResponse<RateDto>(rateResponse)
+    if (props.adminPreview && props.enableSellerActions) {
+      const ownRateResponse = await callEndpoint<unknown>({
+        method: 'GET',
+        path: '/api/pricing/seller-rates',
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      })
+      ownRates.value = unwrapListResponse<RateDto>(ownRateResponse)
+    } else {
+      ownRates.value = props.adminPreview ? [] : rates.value
+    }
+    lastSellerRateRefreshAt = Date.now()
+  } catch {
+    // A transient network error must not remove already-authorized rates.
+  } finally {
+    sellerRatesRefreshing = false
+  }
+}
+
+// Poll request work status every 5s; reconcile the rate projection at most
+// every 20s, plus immediately after a request changes status.
 let requestStatusTimer: number | undefined
 let requestStatusRefreshing = false
 async function refreshRequestStatuses() {
@@ -578,7 +624,13 @@ async function refreshRequestStatuses() {
       path: props.adminPreview ? '/api/pricing/rate-requests/dashboard' : '/api/pricing/rate-requests/mine',
       headers: { Accept: 'application/json' },
     })
-    allRequests.value = unwrapListResponse<SellerRateRequestDto>(response)
+    const latest = unwrapListResponse<SellerRateRequestDto>(response)
+    const previous = new Map(allRequests.value.map((request) =>
+      [request.id, `${request.status}|${request.preparedRevisionNumber ?? ''}|${request.completedAtUtc ?? ''}`]))
+    const changed = latest.length !== allRequests.value.length || latest.some((request) =>
+      previous.get(request.id) !== `${request.status}|${request.preparedRevisionNumber ?? ''}|${request.completedAtUtc ?? ''}`)
+    allRequests.value = latest
+    await refreshSellerRateStatuses(changed)
   } catch {
     // Transient network failures must not clear the last confirmed status.
   } finally {
@@ -590,7 +642,8 @@ function refreshWhenVisible() {
 }
 function handleWorkStatusNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
-  if (notification?.notificationType === 'pricing.rate-request.work-status.changed')
+  if (notification?.notificationType === 'pricing.rate-request.work-status.changed'
+    || notification?.notificationType === 'pricing.requested-rate.completed')
     void refreshRequestStatuses()
 }
 onMounted(() => {
