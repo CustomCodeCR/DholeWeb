@@ -2,8 +2,14 @@
 
 ## [1.15.0] - 2026-11-09
 
-- Cotizaciones y solicitudes: selección de cuentas o prospectos CRM con ejecutivo asignado y persistencia de identificadores estables.
-- CRM Cotizaciones e Historial: consulta de QUO por ID y conciliación explícita de cotizaciones históricas sin alterar datos financieros.
+- Cotizaciones Pricing: cuentas y prospectos CRM y vendedor asignado automáticamente.
+- CRM Cotizaciones e Historial: conciliación manual de QUO previas sin alterar importes ni estados.
+
+## [1.14.4] - 2026-11-09
+
+- PATCH QUO-00000-000269: mostrar el estado real Open (Abierta) de Pricing en el panel y detalle comercial incluso cuando el snapshot de la última cotización enviada tenga estado Sent. Filtros, contadores e indicadores comerciales comparten el estado actual.
+- La API separa currentRateStatus de status del snapshot; no publica borradores, cargos ni importes internos. Las acciones permanecen bloqueadas mientras revisionPending sea true.
+- Regression tests para cotización abierta, solicitud de modificación abierta, aprobación y compatibilidad con APIs anteriores. Release DH-20261109-QUO269-SELLER-STATUS-053 con DholePricingService 1.7.2 y ecosistema 1.14.4 (develop).
 
 ## [1.14.3] - 2026-11-09
 
