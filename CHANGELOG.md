@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.8] - 2026-11-08 (Dhole realtime 1.13.15 coordination)
+
+- PATCH synchronization with 17-repository realtime release. F2/F6 read-only AOF evidence and F10 production branch retention correction remain in DholeSystem.
+- SignalR frontend stays gated/off until formal security and recovery acceptance; no develop/master merge or deploy.
+
+
 ## [1.13.7] - 2026-11-08 (F9 staging candidate)
 
 - Alineación PATCH de release 1.13.14. Se conserva recuperación REST y autorización; pruebas funcionales reales de staging se ejecutarán tras desplegar a staging, sin activar flags de producción.
