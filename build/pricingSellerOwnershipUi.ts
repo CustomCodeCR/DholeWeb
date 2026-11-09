@@ -10,6 +10,17 @@ function replaceOne(source: string, anchor: string, replacement: string, label: 
 }
 
 function patchWizard(source: string) {
+  // The CRM selector is authoritative for both the client and its assigned seller.
+  // Keep the request context but do not override the CRM seller with the logged-in user.
+  if (source.includes('<PricingCrmClientSelect')) {
+    if (source.includes('requestContext: {')) return source
+    return replaceOne(
+      source,
+      `            supportDocuments: supportDocuments.value,\n            sellerContext: {`,
+      `            supportDocuments: supportDocuments.value,\n            requestContext: {\n              executiveName: form.executiveName || null,\n              equipmentType: shipmentModeForApi.value === 'Lcl' ? 'LCL' : displayValue(equipment) || form.equipmentType || form.equipmentSize || null,\n              equipmentQuantity: Math.max(1, Number(form.equipmentQuantity || 1)),\n              modality: form.modality || shipmentModeForApi.value || null,\n              incotermName: displayValue(incoterm) || null,\n            },\n            sellerContext: {`,
+      'CRM seller request context',
+    )
+  }
   let code = source
 
   if (!code.includes("import { useAuthStore } from '@/core/stores/authStore'")) {
