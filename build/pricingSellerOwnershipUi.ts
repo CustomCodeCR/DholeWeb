@@ -41,8 +41,8 @@ function patchWizard(source: string) {
 
   code = replaceOne(
     code,
-    `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  if (props.sellerRequestMode) {`,
-    `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {`,
+    `async function saveOpenRequest() {\n  if (props.sellerRequestMode) {`,
+    `async function saveOpenRequest() {\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {`,
     'seller executive save enforcement',
   )
 
@@ -53,14 +53,12 @@ function patchWizard(source: string) {
     'seller request context',
   )
 
-  if (!code.includes('<PricingCrmClientSelect')) {
-    code = replaceOne(
-      code,
-      `              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
-      `              <DhInput v-if="sellerRequestMode" :model-value="sellerExecutiveLabel" label="Ejecutivo comercial" placeholder="Vendedor autenticado" disabled />\n              <DhSelect v-else-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
-      'seller executive field',
-    )
-  }
+  code = replaceOne(
+    code,
+    `              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
+    `              <DhInput v-if="sellerRequestMode" :model-value="sellerExecutiveLabel" label="Ejecutivo comercial" placeholder="Vendedor autenticado" disabled />\n              <DhSelect v-else-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
+    'seller executive field',
+  )
 
   return code
 }
