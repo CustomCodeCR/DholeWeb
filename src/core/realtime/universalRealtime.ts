@@ -13,7 +13,7 @@ import {
 export const UNIVERSAL_REALTIME_ENABLED =
   import.meta.env.VITE_DHOLE_REALTIME_ENABLED === 'true'
   && import.meta.env.VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT === 'true'
-  && import.meta.env.VITE_DHOLE_REALTIME_RELEASE === 'rt-notificationshub-20261109-01'
+  && import.meta.env.VITE_DHOLE_REALTIME_RELEASE === 'rt-20261107-01'
 
 let onNotification: ((notification: unknown) => void) | null = null
 export function setUniversalRealtimeNotificationHandler(
