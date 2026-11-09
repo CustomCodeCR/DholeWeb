@@ -862,6 +862,7 @@ export interface RateDto extends Record<string, unknown> {
   sellerReceivedBy?: string | null
   revisionPending?: boolean
   pricingModificationActive?: boolean
+  currentRateStatus?: RateStatus
   pendingReapproval?: boolean
   reapprovalReason?: string | null
   includes?: string | null
