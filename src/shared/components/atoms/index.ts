@@ -11,10 +11,10 @@ export { default as DhAvatar } from './DhAvatar.vue'
 export { default as DhTooltip } from './DhTooltip.vue'
 export { default as DhSpinner } from './DhSpinner.vue'
 export { default as DhEmptyState } from './DhEmptyState.vue'
-export { default as DhPasswordInput } from './DhPasswordInput.vue'
 export { default as DhSkeleton } from './DhSkeleton.vue'
-export { default as DhColorPicker } from './DhColorPicker.vue'
+export { default as DhPasswordInput } from './DhPasswordInput.vue'
 export { default as DhRange } from './DhRange.vue'
+export { default as DhColorPicker } from './DhColorPicker.vue'
 
 export type { DhSelectOption } from './DhSelect.vue'
 

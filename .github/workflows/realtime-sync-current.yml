@@ -1,0 +1,147 @@
+name: Sync realtime candidate with develop and master
+on:
+  push:
+    branches: [feature/rt-notificationshub-20261109-01]
+    paths: [.github/workflows/realtime-sync-current.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: realtime-branch-sync-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Incorporate latest develop and master into the candidate only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Dhole Realtime Branch Sync'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin develop master
+          mkdir -p /tmp/web-realtime-patches
+          for path in src/App.vue src/modules/agent/views/AgentExecutionDetailView.vue src/modules/crm/views/CrmRecordDetailView.vue src/modules/pricing/views/PricingRateReadOnlyView.vue src/shared/components/layouts/MainLayout.vue; do
+            key="${path//\//_}"
+            git diff origin/develop...HEAD -- "$path" > "/tmp/web-realtime-patches/$key.patch"
+          done
+          for target in develop master; do
+            if git merge-base --is-ancestor "origin/$target" HEAD; then
+              echo "$target already included"
+              continue
+            fi
+            git merge --no-commit --no-ff "origin/$target" || true
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            if [ -n "$conflicts" ]; then
+              printf '%s\n' "$conflicts"
+              # Version metadata is already bumped for the release candidate;
+              # preserve candidate's higher SemVer. Never discard business code.
+              for path in version.json Directory.Build.targets; do
+                if printf '%s\n' "$conflicts" | grep -Fxq "$path"; then
+                  git checkout --ours -- "$path"
+                  git add "$path"
+                fi
+              done
+              if printf '%s\n' "$conflicts" | grep -Fxq CHANGELOG.md; then
+                python3 - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+          ours = subprocess.check_output(["git","show",":2:CHANGELOG.md"],text=True)
+          theirs = subprocess.check_output(["git","show",":3:CHANGELOG.md"],text=True)
+          def parts(text):
+              headers = list(re.finditer(r"(?m)^## [^\n]+\n",text))
+              return [(match.group().strip(),text[match.start():(headers[i+1].start() if i+1<len(headers) else len(text))]) for i,match in enumerate(headers)]
+          ours_parts = parts(ours)
+          theirs_parts = parts(theirs)
+          merged = {heading:body for heading,body in ours_parts}
+          for heading,body in theirs_parts:
+              if heading not in merged:
+                  merged[heading] = body
+              elif body.strip() not in merged[heading]:
+                  merged[heading] += "\n### Notas conservadas de master\n\n" + body.split("\n",1)[1]
+          output = "# Changelog\n\n" + "\n".join(merged.values()).rstrip()+"\n"
+          Path("CHANGELOG.md").write_text(output)
+          PY
+                git add CHANGELOG.md
+              fi
+              # Live master wins overlapping business changes; independent
+              # candidate code remains. Reapply F4 view hooks explicitly below.
+              while IFS= read -r path; do
+                [ -n "$path" ] || continue
+                case "$path" in
+                  CHANGELOG.md|version.json|Directory.Build.targets|.github/workflows/*) continue ;;
+                esac
+                if [[ "$path" == package.json || "$path" == package-lock.json ]]; then
+                  git checkout --theirs -- "$path"
+                elif git cat-file -e ":1:$path" 2>/dev/null; then
+                  tmp="$(mktemp -d)"
+                  git show ":1:$path" > "$tmp/base"
+                  git show ":2:$path" > "$tmp/ours"
+                  git show ":3:$path" > "$tmp/theirs"
+                  git merge-file -p --theirs "$tmp/ours" "$tmp/base" "$tmp/theirs" > "$path" || true
+                  rm -rf "$tmp"
+                else
+                  git checkout --theirs -- "$path"
+                fi
+                git add "$path"
+              done <<< "$conflicts"
+              git restore --source=HEAD --staged --worktree -- .github/workflows
+              python3 - <<'PY'
+          import json
+          from pathlib import Path
+          pkg_path = Path('package.json')
+          lock_path = Path('package-lock.json')
+          pkg=json.loads(pkg_path.read_text())
+          lock=json.loads(lock_path.read_text())
+          pkg['version']='1.14.0'
+          lock['version']='1.14.0'
+          lock['packages']['']['version']='1.14.0'
+          pkg.setdefault('scripts',{})['test:realtime-f4'] = 'node --test tests/realtimeF4Manager.test.ts tests/realtimeResourceBinding.test.mjs'
+          pkg_path.write_text(json.dumps(pkg,indent=2)+'\n')
+          lock_path.write_text(json.dumps(lock,indent=2)+'\n')
+          PY
+              git add package.json package-lock.json
+              # If master displaced a view's F4 hook, replay the existing
+              # candidate patch with git's three-way safety instead of
+              # blindly replacing master business screens.
+              if ! grep -q "startUniversalRealtime" "src/App.vue"; then
+                key="src_App.vue"
+                git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
+              fi
+              if ! grep -q "useResourceRealtime" "src/modules/agent/views/AgentExecutionDetailView.vue"; then
+                key="src_modules_agent_views_AgentExecutionDetailView.vue"
+                git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
+              fi
+              if ! grep -q "useResourceRealtime" "src/modules/crm/views/CrmRecordDetailView.vue"; then
+                key="src_modules_crm_views_CrmRecordDetailView.vue"
+                git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
+              fi
+              if ! grep -q "useResourceRealtime" "src/modules/pricing/views/PricingRateReadOnlyView.vue"; then
+                key="src_modules_pricing_views_PricingRateReadOnlyView.vue"
+                git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
+              fi
+              if ! grep -q "DholeRealtimeStatus" "src/shared/components/layouts/MainLayout.vue"; then
+                key="src_shared_components_layouts_MainLayout.vue"
+                git apply --3way --index "/tmp/web-realtime-patches/$key.patch"
+              fi
+              python3 -m json.tool src/core/i18n/en.json >/dev/null
+              unresolved="$(git diff --name-only --diff-filter=U)"
+              if [ -n "$unresolved" ]; then
+                echo "::error::Code conflicts with $target: $unresolved. Nothing pushed."
+                exit 1
+              fi
+            fi
+            git commit -m "sync(realtime): incorporate latest $target into NotificationsHub candidate"
+          done
+          grep -q 'startUniversalRealtime' src/App.vue
+          grep -q 'useResourceRealtime' src/modules/crm/views/CrmRecordDetailView.vue
+          grep -q 'DholeRealtimeStatus' src/shared/components/layouts/MainLayout.vue
+          node scripts/versioning.mjs check
+          git diff HEAD^..HEAD --check
+          git push origin HEAD:feature/rt-notificationshub-20261109-01
+# 2026-11-09: re-sync latest develop and master into release candidate.

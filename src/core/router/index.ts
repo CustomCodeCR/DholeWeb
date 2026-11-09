@@ -84,13 +84,8 @@ export const router = createRouter({
           path: 'dynamics',
           name: 'dynamics-connections',
           component: () => import('@/modules/dynamics/views/DynamicsView.vue'),
-          meta: {
-            tabTitle: 'Dynamics 365',
-            closable: true,
-            requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'],
-          },
+          meta: { tabTitle: 'Dynamics 365', closable: true, requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'] },
         },
-
         {
           path: 'home',
           name: 'dashboard',
@@ -707,6 +702,165 @@ export const router = createRouter({
             tabTitleKey: 'routes.agentProfileEdit',
             closable: true,
             requiredScope: 'agent.providers.manage',
+          },
+        },
+        {
+          path: 'agents/generations',
+          name: 'agent-generation-orchestrator',
+          component: () => import('@/modules/agent/views/AgentGenerationOrchestratorView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentGenerations',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
+          },
+        },
+        {
+          path: 'agents/maersk',
+          name: 'agent-maersk-operations',
+          component: () => import('@/modules/agent/views/MaerskOperationsView.vue'),
+          meta: {
+            tabTitleKey: 'maerskOperations.title',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
+          },
+        },
+        {
+          path: 'agents/executions',
+          name: 'agent-executions',
+          component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentExecutions',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentExecutions,
+          },
+        },
+        {
+          path: 'agents/executions/:id',
+          name: 'agent-execution-detail',
+          component: () => import('@/modules/agent/views/AgentExecutionDetailView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentExecutionDetail',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentExecutions,
+          },
+        },
+        {
+          path: 'agents/advanced',
+          name: 'agent-advanced-settings',
+          component: () => import('@/modules/agent/views/AgentAdvancedSettingsView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentAdvanced',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentBrowserProfiles,
+              VIEW_SCOPES.agentSchedules,
+            ],
+          },
+        },
+
+        // Legacy technical routes remain available for bookmarks and advanced configuration.
+        {
+          path: 'agents/providers',
+          name: 'agent-providers',
+          component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
+          meta: { tabTitleKey: 'routes.agentProviders', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+        },
+        {
+          path: 'agents/definitions',
+          name: 'agent-definitions',
+          component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
+          meta: { tabTitleKey: 'routes.agentDefinitions', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+        },
+        {
+          path: 'agents/credentials',
+          name: 'agent-credentials',
+          component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
+          meta: { tabTitleKey: 'routes.agentCredentials', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+        },
+        {
+          path: 'agents/browser-profiles',
+          name: 'agent-browser-profiles',
+          component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
+          meta: { tabTitleKey: 'routes.agentBrowserProfiles', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
+        },
+        {
+          path: 'agents/schedules',
+          name: 'agent-schedules',
+          component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
+          meta: { tabTitleKey: 'routes.agentSchedules', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
+        },
+
+        {
+          path: 'agents',
+          redirect: '/agents/profiles',
+          meta: {
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentBrowserProfiles,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
+        },
+        {
+          path: 'agents/profiles',
+          name: 'agent-profiles',
+          component: () => import('@/modules/agent/views/AgentProfilesView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentProfiles',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
+        },
+        {
+          path: 'agents/profiles/new',
+          name: 'agent-profile-new',
+          component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentProfileNew',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+            ],
+          },
+        },
+        {
+          path: 'agents/profiles/:id',
+          name: 'agent-profile-detail',
+          component: () => import('@/modules/agent/views/AgentProfileDetailView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentProfileDetail',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
+        },
+        {
+          path: 'agents/profiles/:id/edit',
+          name: 'agent-profile-edit',
+          component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentProfileEdit',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentCredentials,
+            ],
           },
         },
         {

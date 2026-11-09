@@ -24,8 +24,6 @@ import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
-import { fetchClient } from '@/core/api/fetchConfig'
-import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -61,6 +59,7 @@ import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pric
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
+import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
 import { requiresMaritimeCarrier } from '@/modules/pricing/utils/pricingCarrierRequirement'
 import { EmailExtractionService } from '@/core/services/emailExtractionService'
 import { StorageService } from '@/core/services/storageService'
@@ -85,7 +84,7 @@ import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTa
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
-import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
+import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { pricingCurrencyValue } from '@/modules/pricing/utils/pricingCurrencyValue'
 import { haulageAssociation as identifyHaulage } from '@/modules/pricing/utils/pricingHaulageCosts'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
@@ -474,18 +473,6 @@ const nearestPortMapMarkers = computed(() => nearestPortRecommendations.value.fl
     selected: false,
   }]
 }))
-// CRM refs must exist before Vite's seller plugins register watchers at setup.
-interface PricingCrmClient {
-  kind?:'account' | 'lead'; id:string; displayName:string; legalName:string; taxId?:string|null
-  executiveUserId:string; executiveName:string; isCastroFallasExecutive:boolean
-}
-interface AuthorizedSeller { userId: string; displayName?: string | null; userName?: string | null; isCurrent?: boolean }
-const authorizedSellers = ref<AuthorizedSeller[]>([])
-const requestSellerUserId = ref('')
-const sellerOptionsError = ref('')
-const chosenCrmClient = ref<PricingCrmClient|null>(null)
-const crmCustomerError = ref('')
-
 const supportEntityId = ref(crypto.randomUUID())
 const supportDocuments = ref<SupportDocument[]>([])
 const uploadingSupportKey = ref('')
@@ -967,8 +954,7 @@ const commercialRateTypeLabel = computed(() =>
 )
 const canUpdateRateStatus = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canApproveLowMargin = computed(() => authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
-// Legacy imports sometimes store a display placeholder instead of a real IDTRA.
-// Treat those values as pending, while keeping backend authorization authoritative.
+// Pending legacy display labels are not actual IDTRA identifiers.
 function isIdtraPending(value: string | null | undefined): boolean {
   const normalized = String(value ?? '').trim().toLowerCase()
   return !normalized || /^(pendiente(?: de asignar)?|sin idtra|sin asignar|no asignado|n\/a)$/.test(normalized)
@@ -1649,7 +1635,7 @@ function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto)
   if (!service || !crcImportContext.value || !visibleSections.value.includes('destination_charges')) return
   if (lines.some((line) => isCrcCustomsLine(line, service.id))) return
 
-  // No inventar precio: se debe completar el importe antes de guardar.
+  // No inventar un precio: el rubro faltante exige un importe antes de guardar.
   const chargeCurrency = crcCurrency.value ?? currency
   lines.push({
     key: 'service:customs-cr',
@@ -1876,50 +1862,8 @@ const warehouseOptions = computed(() => catalogs.warehouses.map((item) => {
     ].filter(Boolean).join(' '),
   }
 }))
-async function loadAuthorizedRequestSellers(){
-  if(!props.sellerRequestMode)return
-  try{
-    const result = await fetchClient<{viewerUserId:string;sellers:AuthorizedSeller[]}>(
-      '/api/pricing/seller-visibility/me/options',{method:'GET'})
-    authorizedSellers.value=result.sellers || []
-    // The chosen CRM account determines the sales representative; never preselect
-    // a seller and accidentally hide other authorized portfolios.
-    requestSellerUserId.value=''
-    sellerOptionsError.value=authorizedSellers.value.length?'':'No tenés vendedores autorizados para solicitar tarifas.'
-  }catch{
-    sellerOptionsError.value='No se pudieron consultar los vendedores autorizados. Actualizá la pantalla.'
-  }
-}
-function useCrmClient(account:PricingCrmClient|null){
-  if(account && props.sellerRequestMode &&
-      !authorizedSellers.value.some(s=>s.userId===account.executiveUserId)){
-    chosenCrmClient.value=null
-    form.clientId=''
-    form.clientName=''
-    form.executiveId=''
-    form.executiveName=''
-    requestSellerUserId.value=''
-    crmCustomerError.value='Este cliente no corresponde a un vendedor que puedas gestionar.'
-    return
-  }
-  chosenCrmClient.value=account
-  if(props.sellerRequestMode)requestSellerUserId.value=account?.executiveUserId ?? ''
-  form.clientId=account?.id ?? ''
-  form.clientName=account?.displayName ?? ''
-  form.executiveId=account?.executiveUserId ?? ''
-  form.executiveName=account?.executiveName ?? ''
-  crmCustomerError.value=''
-}
-function validateSelectedCrmCustomer(){
-  if(isEditing.value || props.rateRequestId || props.modificationRequestId || props.sellerEditRequestId)return true
-  if(chosenCrmClient.value?.id===form.clientId && form.clientId &&
-      (!props.sellerRequestMode || Boolean(requestSellerUserId.value &&
-        chosenCrmClient.value.executiveUserId===requestSellerUserId.value)))
-    return true
-  crmCustomerError.value='Seleccioná una cuenta o prospecto activo del CRM que corresponda al vendedor autorizado.'
-  step.value=3
-  return false
-}
+const clientOptions = computed(() => catalogs.clients.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
+const salesExecutiveOptions = computed(() => catalogs.salesExecutives.map((item) => ({ value: item.id, label: item.label || displayValue(item) })))
 
 const shipmentModeForApi = computed<ShipmentMode>(() => {
   const value = form.shipmentMode.toUpperCase().replace(/[\s_-]+/g, '')
@@ -2009,10 +1953,6 @@ const crcCurrency = computed(() =>
   catalogs.currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === 'CRC') ?? null,
 )
 
-// Se usa como moneda disponible para operaciones que la requieren; no bloquea las líneas.
-const usdCurrency = computed(() => catalogs.currencies.find(
-  (item) => String(item.code || displayValue(item)).trim().toUpperCase() === 'USD',
-) ?? null)
 const lineCurrencyOptions = computed(() => {
   const options = catalogs.currencies
     .filter((item) => ['USD', 'CRC'].includes(String(item.code || displayValue(item)).trim().toUpperCase()))
@@ -2622,8 +2562,7 @@ const canNext = computed(() => {
       form.incotermId &&
       form.serviceIds.length &&
       form.loadDate &&
-      (isEditing.value || Boolean(form.clientId && chosenCrmClient.value?.id===form.clientId)) &&
-      (!props.sellerRequestMode || Boolean(requestSellerUserId.value && form.executiveId===requestSellerUserId.value)) &&
+      (!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim())) &&
       exwLocationReady.value &&
       fcaLocationReady.value &&
       inlandServiceLocationsReady.value &&
@@ -2657,8 +2596,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   if (step.value === 1) add(!form.modality, 'modality', 'Modalidad')
   if (step.value === 2) add(!form.shipmentMode, 'shipmentMode', 'Tipo de embarque')
   if (step.value === 3) {
-    add(!isEditing.value && (!form.clientId || chosenCrmClient.value?.id!==form.clientId), 'client', 'Cuenta o prospecto CRM')
-    add(props.sellerRequestMode && !requestSellerUserId.value, 'client', 'Vendedor autorizado')
+    add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
     add(maritimePodRequired.value && !String(form.podId ?? '').trim(), 'podId', 'POD (destino final)')
@@ -2842,6 +2780,8 @@ function sectionForManual(section: RateSection): CostDetailType {
 }
 
 function defaultChargeBasis(type: CostDetailType): ChargeBasis {
+  // Air LCL freight is billed by weight (KG), never by maritime chargeable CBM.
+  if (type === 'Freight' && form.modality === 'Air' && shipmentModeForApi.value === 'Lcl') return 'PerKg'
   if (type === 'Documentation') return 'PerDocument'
   if (type === 'Freight' || type === 'InlandTransport') {
     if (shipmentModeForApi.value === 'Fcl') return 'PerContainer'
@@ -4495,7 +4435,6 @@ async function hydrateExistingRate() {
     form.validTo = String(rate.validTo).slice(0,10)
     form.selectedImportRateId = rate.sourceImportFclRateId ?? ''
     form.manualRate = !rate.sourceImportFclRateId
-    form.clientId = rate.clientAccountId ?? rate.clientLeadId ?? ''
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
@@ -4615,6 +4554,16 @@ async function hydrateExistingRate() {
     for (const line of rateLines.value) {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
     }
+    // Two different catalog CostIds can represent the same Release.
+    // Keep a single identical line; edit/save removes the extra persisted Id.
+    const uniqueReleaseLines = props.viewOnly ? rateLines.value : dedupeEquivalentReleaseLines(rateLines.value)
+    if (uniqueReleaseLines.length !== rateLines.value.length) {
+      toastStore.warning(
+        'Release duplicado en la tarifa',
+        'Se muestra un solo Release. Edite y guarde la tarifa para corregir también los detalles y totales almacenados.',
+      )
+    }
+    rateLines.value = uniqueReleaseLines
     mergeConfiguredOptionalCostsIntoRateLines()
     if (!props.viewOnly) {
       const serviceCurrency = selectedCurrency.value ?? catalogs.currencies[0]
@@ -4789,7 +4738,7 @@ async function downloadCurrentQuote() {
     downloadingQuote.value = true
     await PricingService.downloadRateDocument(
       editingRate.value.id,
-      editingRate.value.rateName || editingRate.value.rateCode,
+      rateDisplayName(editingRate.value),
       { format: 'pdf' },
     )
   } catch (error) {
@@ -5187,7 +5136,7 @@ async function saveOpenRequest() {
     toastStore.warning('Guardado agrupado pendiente', 'Pricing todavía no puede crear todas las sub-QUO en una transacción. Los POE continúan seleccionados.')
     return
   }
-  if (!validateSelectedCrmCustomer() || !validateWizardReferences()) return
+  if (!validateWizardReferences()) return
   const origin = selectedOrigin.value
   const poe = selectedDestination.value
   const equipment = selectedEquipment.value
@@ -5248,12 +5197,6 @@ async function saveOpenRequest() {
       currencyName: displayValue(currency),
       currencyCode: currency.code,
       clientName: form.clientName.trim() || null,
-      clientAccountId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind !== 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientAccountId ?? null),
-      clientLeadId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientLeadId ?? null),
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -5306,7 +5249,8 @@ async function saveOpenRequest() {
       }],
     })
     if (props.rateRequestId) {
-      // An unfinished draft must not be completed or emailed automatically.
+      // An unfinished draft may be associated with its request, but must NOT
+      // be marked completed or emailed until Pricing saves the final quote.
       await RateRequestLeaseService.attachRate(props.rateRequestId, rateId)
     }
     // CreateRate puede devolver la solicitud ya Open cuando el usuario tiene
@@ -5381,8 +5325,7 @@ async function saveRate() {
     toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
     return
   }
-
-  if (!validateSelectedCrmCustomer() || !validateRequiredFields() || !validateWizardReferences()) return
+  if (!validateRequiredFields() || !validateWizardReferences()) return
   // Los POL sin matriz propia utilizan la tarifa Guangzhou más alta,
   // pero la recolecta Wuhan → Shanghai siempre debe ser real y editable en Pantalla 7.
   // Mantener el marcador en notes también protege revisiones de tarifas ya guardadas.
@@ -5509,6 +5452,8 @@ async function saveRate() {
   // Todas las líneas que se muestran como incluidas deben viajar en el POST.
   // Las líneas generadas por matrices/reglas antiguas pueden no traer CurrencyId;
   // en ese caso heredan la moneda válida del encabezado. Costo/venta en cero son válidos.
+  // One FCL freight per equipment/basis. The generic screen-6 freight cannot
+  // coexist with the equipment-specific freight from the selected bundle.
   rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
   const normalizedIncludedLines = includedLines.value.map((line) => {
     if (line.currencyId) return line
@@ -5537,7 +5482,7 @@ async function saveRate() {
 
   const details: CreateRateDetailRequest[] = normalizedIncludedLines.map((line) => ({
     costId: line.costId ?? null,
-    name: line.name,
+    name: form.modality === 'Air' && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name,
     costDetailType: line.costDetailType,
     costType: line.costType,
     chargeBasis: effectiveChargeBasisForLine(line),
@@ -5707,12 +5652,6 @@ async function saveRate() {
       currencyName: displayValue(currency),
       currencyCode: currency!.code,
       clientName: form.clientName.trim() || null,
-      clientAccountId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind !== 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientAccountId ?? null),
-      clientLeadId: chosenCrmClient.value
-        ? (chosenCrmClient.value.kind === 'lead' ? form.clientId : null)
-        : (editingRate.value?.clientLeadId ?? null),
       executiveName: form.executiveName.trim() || null,
       idtraNumber: wizardNormalizedIdtra.value || null,
       otherReferences: form.otherReferences.trim(),
@@ -6243,6 +6182,27 @@ watch(
 )
 
 watch(
+  () => form.clientId,
+  (clientId) => {
+    const client = findById(catalogs.clients, clientId)
+    if (!client) return
+    form.clientName = displayValue(client) || client.label
+    const assignedExecutiveId = metadata(client)?.salesExecutiveId
+    if (assignedExecutiveId && catalogs.salesExecutives.some((item) => item.id === assignedExecutiveId)) {
+      form.executiveId = assignedExecutiveId
+    }
+  },
+)
+
+watch(
+  () => form.executiveId,
+  (executiveId) => {
+    const executive = findById(catalogs.salesExecutives, executiveId)
+    if (executive) form.executiveName = displayValue(executive) || executive.label
+  },
+)
+
+watch(
   () => [form.modality, shipmentModeForApi.value] as const,
   ([modality, shipmentMode]) => {
     if (modality === 'Maritime' && shipmentMode === 'Fcl') return
@@ -6276,6 +6236,8 @@ watch(
   () => form.destinationId,
   () => {
     if (switchingPoeRoute.value || hydratingExistingRate.value) return
+    // POD is selected independently of POE. Never overwrite a manually
+    // selected POD when switching between destinations or loading a draft.
     if (form.podId && catalogs.pod.some((item) => item.id === form.podId)) return
     const equivalent = findEquivalent(catalogs.pod, selectedDestination.value)
     if (equivalent && !form.podId) form.podId = equivalent.id
@@ -6396,7 +6358,7 @@ watch(() => props.rateId, async (nextRateId, previousRateId) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadCatalogs(),loadAuthorizedRequestSellers()])
+  await loadCatalogs()
   if (props.rateId) await hydrateExistingRate()
   else await loadHaciendaExchangeRate(true)
 })
@@ -6422,7 +6384,7 @@ onMounted(async () => {
             <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
             <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
           </div>
-          <p class="mt-3 text-lg font-black">{{ editingRate.rateName }}</p>
+          <p class="mt-3 text-lg font-black">{{ rateDisplayName(editingRate) }}</p>
           <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
           <p v-if="editingRate.otherReferences?.trim()" class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text-muted)]">
             <span class="font-black text-[var(--dh-text)]">Otras referencias (solo Dhole):</span> {{ editingRate.otherReferences }}
@@ -6698,26 +6660,12 @@ onMounted(async () => {
 
           <div class="crystal-soft space-y-5 p-4 md:p-5">
             <div class="grid gap-4">
-              <div v-if="!isEditing" class="space-y-2">
-                <PricingCrmClientSelect :model-value="form.clientId"
-                  :mode="sellerRequestMode ? 'request' : 'create'"
-                  :seller-user-id="''"
-                  :disabled="sellerRequestMode && !!sellerOptionsError"
-                  :error="crmCustomerError || fieldError('client')"
-                  @selected="useCrmClient"
-                  @update:model-value="form.clientId=$event" />
-              </div>
-              <div v-else class="rounded-xl border border-[var(--dh-border)] p-3">
-                <p class="text-xs font-black text-[var(--dh-text-muted)]">Cuenta o prospecto de la tarifa existente</p>
-                <p class="mt-1 font-bold">{{ form.clientName || 'No indicado' }} <span class="text-xs text-[var(--dh-text-muted)]">{{ editingRate?.clientLeadId ? '· Prospecto original' : '· Cuenta' }}</span></p>
-              </div>
-              <div class="rounded-xl border border-[var(--dh-border)] p-3">
-                <p v-if="sellerRequestMode && sellerOptionsError" class="mb-2 text-xs font-bold text-red-500">{{sellerOptionsError}}</p>
-                <p class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Vendedor asignado al cliente</p>
-                <p class="mt-1 text-sm font-bold">{{form.executiveName || 'Seleccioná un cliente del CRM'}}</p>
-              </div>
+              <DhSelect v-if="clientOptions.length" v-model="form.clientId" data-required-field="client" :error="fieldError('client')" label="Cliente" placeholder="Seleccione cliente" :options="clientOptions" />
+              <DhInput v-else v-model="form.clientName" data-required-field="client" :error="fieldError('client')" label="Nombre del cliente" placeholder="Escriba el nombre del cliente" autocomplete="off" />
+              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />
+              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />
             </div>
-            <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">Los clientes y sus vendedores se consultan en CRM. No se pueden ingresar nombres de cliente manualmente.</p>
+            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">Clientes y ejecutivos usan catálogos temporales de Config para evitar duplicar el futuro módulo Comercial.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">

@@ -108,26 +108,6 @@ router.addRoute({
   meta: { public: true },
 })
 
-// Marketing is registered additively so the validated pricing/auth router remains identical
-// to the known-good baseline. This keeps the CMS isolated from the operational route tree.
-router.addRoute({
-  path: '/marketing',
-  component: () => import('@/shared/components/layouts/MainLayout.vue'),
-  meta: { requiresAuth: true },
-  children: [
-    {
-      path: '',
-      name: 'marketing',
-      component: () => import('@/modules/marketing/views/MarketingView.vue'),
-      meta: {
-        tabTitleKey: 'sidebar.marketingContent',
-        closable: true,
-        requiredScope: VIEW_SCOPES.marketing,
-      },
-    },
-  ],
-})
-
 // Dedicated operational route used by direct links and workspace tabs.
 router.addRoute({
   path: '/ai/operations',

@@ -34,15 +34,15 @@ function patchWizard(source: string) {
     code = replaceOne(
       code,
       'const stepTitles = [',
-      "const sellerExecutiveLabel = computed(() => {\n  const name = String(authStore.displayName || authStore.userDisplayName || '').trim()\n  const username = String(authStore.username || authStore.email?.split('@')[0] || '').trim()\n  if (name && username) return name.toLowerCase() === username.toLowerCase() ? name : name + ' - ' + username\n  return name || username\n})\n\nwatch(\n  () => [props.sellerRequestMode, sellerExecutiveLabel.value] as const,\n  ([sellerMode, label]) => {\n    if (!sellerMode || !label || Boolean(chosenCrmClient.value)) return\n    form.executiveId = ''\n    form.executiveName = label\n  },\n  { immediate: true },\n)\n" + 'const stepTitles = [',
+      "const sellerExecutiveLabel = computed(() => {\n  const name = String(authStore.displayName || authStore.userDisplayName || '').trim()\n  const username = String(authStore.username || authStore.email?.split('@')[0] || '').trim()\n  if (name && username) return name.toLowerCase() === username.toLowerCase() ? name : name + ' - ' + username\n  return name || username\n})\n\nwatch(\n  () => [props.sellerRequestMode, sellerExecutiveLabel.value] as const,\n  ([sellerMode, label]) => {\n    if (!sellerMode || !label) return\n    form.executiveId = ''\n    form.executiveName = label\n  },\n  { immediate: true },\n)\n" + 'const stepTitles = [',
       'seller executive computed state',
     )
   }
 
   code = replaceOne(
     code,
-    `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  if (props.sellerRequestMode) {`,
-    `async function saveOpenRequest() {\n  if (!validateSelectedCrmCustomer()) return\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {`,
+    `async function saveOpenRequest() {\n  if (props.sellerRequestMode) {`,
+    `async function saveOpenRequest() {\n  if (props.sellerRequestMode && sellerExecutiveLabel.value) {\n    form.executiveId = ''\n    form.executiveName = sellerExecutiveLabel.value\n  }\n\n  if (props.sellerRequestMode) {`,
     'seller executive save enforcement',
   )
 
@@ -53,14 +53,12 @@ function patchWizard(source: string) {
     'seller request context',
   )
 
-  if (!code.includes('<PricingCrmClientSelect')) {
-    code = replaceOne(
-      code,
-      `              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
-      `              <DhInput v-if="sellerRequestMode" :model-value="sellerExecutiveLabel" label="Ejecutivo comercial" placeholder="Vendedor autenticado" disabled />\n              <DhSelect v-else-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
-      'seller executive field',
-    )
-  }
+  code = replaceOne(
+    code,
+    `              <DhSelect v-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
+    `              <DhInput v-if="sellerRequestMode" :model-value="sellerExecutiveLabel" label="Ejecutivo comercial" placeholder="Vendedor autenticado" disabled />\n              <DhSelect v-else-if="salesExecutiveOptions.length" v-model="form.executiveId" label="Ejecutivo comercial" placeholder="Seleccione ejecutivo" :options="salesExecutiveOptions" />\n              <DhInput v-else v-model="form.executiveName" label="Ejecutivo comercial" placeholder="Escriba el nombre del ejecutivo" autocomplete="off" />`,
+    'seller executive field',
+  )
 
   return code
 }

@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.12.18",
+  "version": "1.14.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -32,7 +32,8 @@
     "test:ai-operations": "node --test tests/aiQueueCompletedReview.test.mjs",
     "test:multi-quo": "node --test tests/pricingQuoteAlternatives.test.ts tests/pricingFclFreightDeduplication.test.ts tests/pricingRateDisplayDedup.test.ts tests/pricingCommercialTermLines.test.ts",
     "test:pricing-multi-poe": "node --test tests/pricingMultiPoeSelection.test.ts",
-    "test:pricing-multi-carriers": "node --test tests/pricingMultiCarrierOptions.test.ts"
+    "test:pricing-multi-carriers": "node --test tests/pricingMultiCarrierOptions.test.ts",
+    "test:realtime-f4": "node --test tests/realtimeF4Manager.test.ts tests/realtimeResourceBinding.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

@@ -101,53 +101,24 @@ const quoteRouteTotal = ref(0)
 const quoteRoutePage = ref(1)
 const quoteRouteLoading = ref(false)
 const quoteRouteError = ref('')
-const accountPricingQuotes = ref<CrmRow[]>([])
-const accountPricingTotal = ref(0)
-const accountPricingPage = ref(1)
-const accountPricingLoading = ref(false)
-const accountPricingError = ref('')
-const legacyOpen = ref(false)
-const legacyBusy = ref(false)
-const legacyLoading = ref(false)
-const legacyCandidates = ref<CrmRow[]>([])
-const legacySelected = ref<string[]>([])
-const legacyPage = ref(1)
-const legacyTotal = ref(0)
-const legacyError = ref('')
-const legacySuccess = ref('')
 const routeHistoryPage = ref(1)
 const routeHistoryTotal = ref(0)
 const routeHistoryError = ref('')
 const routeCaptureOpen = ref(false)
 const routeSourceKind = ref<'MEETING' | 'QUOTE'>('MEETING')
 const routeSourceId = ref('')
-const routePolCodes = ref<string[]>([])
-const routePoeCodes = ref<string[]>([])
-const routePodCodes = ref<string[]>([])
-const routeCaptureError = ref('')
+const routePol = ref('')
+const routePoe = ref('')
+const routePod = ref('')
 const routeService = ref('')
 const routeNotes = ref('')
-// Same multi-select combination model as the account's commercial analysis.
-const routeEvidenceCombinations = computed(() =>
-  routePolCodes.value.flatMap(pol =>
-    (routePoeCodes.value.length ? routePoeCodes.value : [null]).flatMap(poe =>
-      routePodCodes.value.map(pod => ({ polCode: pol, poeCode: poe, podCode: pod })))))
-const routeEvidenceHasOverlap = computed(() =>
-  routeEvidenceCombinations.value.some(route =>
-    [route.polCode, route.poeCode, route.podCode]
-      .filter((value): value is string => Boolean(value))
-      .some((value, index, values) =>
-        values.findIndex(x => x.toUpperCase() === value.toUpperCase()) !== index)))
-const routeEvidenceReady = computed(() => Boolean(
-  routeSourceId.value && routePolCodes.value.length && routePodCodes.value.length &&
-  routeEvidenceCombinations.value.length <= 24 && !routeEvidenceHasOverlap.value))
 const sourceMeetings = computed(() => overview.value.activities.filter(a =>
   ['VISIT','MEETING'].includes(String(a.type)) && String(a.status) === 'Completed'))
 const sourceList = computed(() => routeSourceKind.value === 'MEETING'
   ? sourceMeetings.value.map(a => ({
       value: rowId(a.id), label: date(a.occurredAt ?? a.scheduledStartAt) + ' · ' + text(a.subject),
     }))
-  : overview.value.quotes.map(q => ({
+  : recentQuotes.value.map(q => ({
       value: rowId(q.pricingQuoteId), label: text(q.quoteNumberSnapshot) + ' · ' + text(q.shipmentModeSnapshot),
     })))
 const routesCapturedFromMeetings = computed(() =>
@@ -244,7 +215,7 @@ function collectRouteCodes(group: RouteCatalog): string[] {
   const values = rows.flatMap(row => [row[key], ...fallbacks.map(fallback => row[fallback])])
   values.push(...(group === 'pol' ? originCodes.value : group === 'poe' ? poeCodes.value : podCodes.value))
   values.push(group === 'pol' ? originCode.value : group === 'poe' ? poeCode.value : podCode.value)
-  values.push(...(group === 'pol' ? routePolCodes.value : group === 'poe' ? routePoeCodes.value : routePodCodes.value))
+  values.push(group === 'pol' ? routePol.value : group === 'poe' ? routePoe.value : routePod.value)
   return [...new Set(values.map(value => String(value ?? '').trim()).filter(Boolean))]
 }
 async function loadRouteCatalogLabels() {
@@ -362,7 +333,7 @@ watch(routeModalityCode, () => {
 watch(originCode, () => { poeCode.value = ''; podCode.value = '' })
 watch(poeCode, () => { podCode.value = '' })
 watch([overview, popularRoutes, routeHistory, quoteRouteSnapshots,
-  originCode, poeCode, podCode, routePolCodes, routePoeCodes, routePodCodes],
+  originCode, poeCode, podCode, routePol, routePoe, routePod],
   () => { void loadRouteCatalogLabels() })
 function selectRouteModality(mode: string) {
   if (mode === 'MARITIME' || mode === 'LAND' || mode === 'AIR')
@@ -392,93 +363,13 @@ function message(e: unknown) {
 function text(value: unknown) { return typeof value === 'string' && value.trim() ? value : '—' }
 function rowId(value: unknown) { return typeof value === 'string' ? value : '' }
 function quoteLink(quote: CrmRow) {
-  return '/pricing/rates/' + encodeURIComponent(rowId(quote.pricingQuoteId)) + '/wizard?mode=view'
+  return '/pricing/rates?rateId=' + encodeURIComponent(rowId(quote.pricingQuoteId))
 }
 const activityCount = computed(() => overview.value.activities.length)
 const pendingCount = computed(() => overview.value.followups.filter(x =>
   String(x.status ?? '').toLowerCase() === 'pending').length)
 const activeRoutes = computed(() => overview.value.routes.filter(x => x.isActive !== false))
-const recentQuotes = computed<CrmRow[]>(() => {
-  const byId = new Map<string, CrmRow>()
-  // Confirmed IDs take precedence; possible legacy matches are visible as
-  // read-only previews until a CRM editor explicitly verifies the identity.
-  const previewQuotes: CrmRow[] = legacyCandidates.value.map(candidate => ({
-    ...candidate, pendingReconciliation: true,
-  }))
-  for (const q of [...accountPricingQuotes.value, ...overview.value.quotes, ...previewQuotes]) {
-    const id = rowId(q.pricingQuoteId)
-    if (id && !byId.has(id)) byId.set(id, q)
-  }
-  return [...byId.values()].sort((a, b) =>
-    String(b.linkedAt ?? '').localeCompare(String(a.linkedAt ?? '')))
-})
-const isOpportunityLinkedQuote = (quote: CrmRow) =>
-  overview.value.quotes.some(q => rowId(q.pricingQuoteId) === rowId(quote.pricingQuoteId))
-const allQuoteRouteSnapshots = computed<CrmRow[]>(() => {
-  const byId = new Map<string, CrmRow>()
-  for (const q of recentQuotes.value) {
-    const id = rowId(q.pricingQuoteId)
-    if (id && q.available) byId.set(id, {
-      ...q, id, quoteNumber: q.quoteNumberSnapshot, shipmentMode: q.shipmentModeSnapshot,
-    })
-  }
-  for (const q of quoteRouteSnapshots.value) {
-    const id = rowId(q.pricingQuoteId)
-    if (id && q.available && !byId.has(id)) byId.set(id, { ...q, id })
-  }
-  return [...byId.values()].sort((a, b) =>
-    String(b.linkedAt ?? '').localeCompare(String(a.linkedAt ?? '')))
-})
-const frequentPricingRoutes = computed(() => {
-  const counts = new Map<string, { pol: string; poe: string; pod: string; count: number; pending: number }>()
-  for (const q of allQuoteRouteSnapshots.value) {
-    const pol = String(q.polName ?? '').trim()
-    const poe = String(q.poeName ?? '').trim()
-    const pod = String(q.podName ?? '').trim()
-    if (!pol || (!pod && !poe)) continue
-    const key = [pol, poe, pod].join('|').toLowerCase()
-    const match = counts.get(key)
-    if (match) {
-      match.count += 1
-      if (q.pendingReconciliation) match.pending += 1
-    } else counts.set(key, {pol, poe, pod, count: 1, pending: q.pendingReconciliation ? 1 : 0})
-  }
-  return [...counts.values()].sort((a, b) => b.count - a.count)
-})
-// Show real quotations as sourced commercial evidence, not as manually-created
-// analysis records. Rates with an unresolved legacy match stay visibly pending.
-const quotationModeSummary = computed(() => {
-  const counts = new Map<string, { mode: string; count: number; pending: number }>()
-  for (const quote of recentQuotes.value) {
-    const mode = text(quote.shipmentModeSnapshot)
-    const existing = counts.get(mode) ?? { mode, count: 0, pending: 0 }
-    existing.count += 1
-    if (quote.pendingReconciliation) existing.pending += 1
-    counts.set(mode, existing)
-  }
-  return [...counts.values()].sort((a, b) => b.count - a.count)
-})
-// Preserve the common CRM row shape across documented and Pricing-only routes.
-// Without the explicit type, Vue's template checker infers a narrower object
-// and rejects dynamic route fields (sourceKind, polName, observedAt, etc.).
-const routeTimeline = computed<CrmRow[]>(() => {
-  const documented: CrmRow[] = routeHistory.value.map(record => ({ ...record, pricingPreview: false }))
-  const documentedQuotes = new Set(documented
-    .filter(record => record.sourceKind === 'QUOTE')
-    .map(record => rowId(record.sourceId)))
-  const quotes: CrmRow[] = allQuoteRouteSnapshots.value
-    .filter(quote => !documentedQuotes.has(rowId(quote.pricingQuoteId)))
-    .map(quote => ({
-      ...quote,
-      id: 'pricing:' + rowId(quote.pricingQuoteId),
-      pricingPreview: true,
-      sourceKind: 'QUOTE_PRICING',
-      sourceId: quote.pricingQuoteId,
-      observedAt: quote.linkedAt,
-    }))
-  return [...documented, ...quotes].sort((a, b) =>
-    String(b.observedAt ?? '').localeCompare(String(a.observedAt ?? '')))
-})
+const recentQuotes = computed(() => overview.value.quotes)
 const visibleTimeline = computed(() => {
   const activities = overview.value.activities.map(x => ({
     id: rowId(x.id), kind: text(x.type), subject: text(x.subject),
@@ -490,16 +381,7 @@ const visibleTimeline = computed(() => {
     time: String(x.dueAt ?? ''), status: text(x.status),
     href: '/crm/followups/' + encodeURIComponent(rowId(x.id)),
   }))
-  // A quote is part of the account's commercial timeline, but its createdAt
-  // must never be represented as the date of a later status transition.
-  const quotations = recentQuotes.value.map(q => ({
-    id: rowId(q.pricingQuoteId), kind: q.pendingReconciliation ? 'COTIZACIÓN POR VERIFICAR' : 'COTIZACIÓN',
-    subject: 'Cotización ' + text(q.quoteNumberSnapshot),
-    time: String(q.linkedAt ?? ''),
-    status: text(q.commercialStatusSnapshot), href: quoteLink(q),
-  }))
-  return [...activities, ...followups, ...quotations]
-    .sort((a, b) => b.time.localeCompare(a.time))
+  return [...activities, ...followups].sort((a, b) => b.time.localeCompare(a.time))
 })
 async function get<T>(endpoint: string): Promise<T> { return crmRequest<T>(endpoint) }
 function accountAuditFields(entry: AccountAuditEntry): AccountChange[] {
@@ -701,11 +583,6 @@ async function load() {
         })
         .catch(() => {if (generation === requestGeneration) countryName.value = ''}))
     if (has('crm.analysis.read')) jobs.push(loadRouteHistory(generation))
-    if (has('crm.account.read') || has('crm.account.read-all')) {
-      jobs.push(loadQuotedRoutes(generation))
-      jobs.push(loadAccountPricingQuotes(generation))
-      jobs.push(loadLegacyCandidates(false, generation))
-    }
     await Promise.all(jobs)
   } catch (cause) { if (generation === requestGeneration) error.value = message(cause) }
   finally { if (generation === requestGeneration) loading.value = false }
@@ -727,17 +604,6 @@ watch(() => props.account.id, () => {
   quoteRouteSnapshots.value = []
   quoteRouteTotal.value = 0
   quoteRoutePage.value = 1
-  accountPricingQuotes.value = []
-  accountPricingTotal.value = 0
-  accountPricingPage.value = 1
-  accountPricingError.value = ''
-  legacyCandidates.value = []
-  legacyTotal.value = 0
-  legacyPage.value = 1
-  legacySelected.value = []
-  legacySuccess.value = ''
-  legacyError.value = ''
-  legacyOpen.value = false
   countryName.value = ''
   businessProfile.value = null
   businessProfileError.value = ''
@@ -764,78 +630,8 @@ async function loadRouteHistory(generation = requestGeneration) {
     }
   }
 }
-async function loadAccountPricingQuotes(generation = requestGeneration, append = false) {
-  if (!has('crm.account.read') && !has('crm.account.read-all')) return
-  accountPricingLoading.value = true
-  try {
-    const page = append ? accountPricingPage.value + 1 : 1
-    const result = await get<{ items: CrmRow[]; total: number }>(
-      crmPath('accounts', rowId(props.account.id), 'pricing-quotations') +
-      '?page=' + page + '&pageSize=100')
-    if (generation !== requestGeneration) return
-    accountPricingQuotes.value = append
-      ? [...accountPricingQuotes.value, ...(result.items ?? [])]
-      : (result.items ?? [])
-    accountPricingPage.value = page
-    accountPricingTotal.value = result.total ?? 0
-    accountPricingError.value = ''
-  } catch (cause) {
-    if (generation === requestGeneration) {
-      accountPricingError.value = message(cause)
-      if (!append) { accountPricingQuotes.value = []; accountPricingTotal.value = 0 }
-    }
-  } finally {
-    if (generation === requestGeneration) accountPricingLoading.value = false
-  }
-}
-async function loadLegacyCandidates(append = false, generation = requestGeneration) {
-  legacyLoading.value = true
-  legacyError.value = ''
-  try {
-    const page = append ? legacyPage.value + 1 : 1
-    const response = await get<{ items: CrmRow[]; total: number }>(
-      crmPath('accounts', rowId(props.account.id), 'pricing-quotation-candidates') +
-      '?page=' + page + '&pageSize=100')
-    if (generation !== requestGeneration) return
-    const existingIds = new Set(legacyCandidates.value.map(x => rowId(x.pricingQuoteId)))
-    legacyCandidates.value = append
-      ? [...legacyCandidates.value, ...(response.items ?? []).filter(x => !existingIds.has(rowId(x.pricingQuoteId)))]
-      : (response.items ?? [])
-    legacyTotal.value = response.total ?? 0
-    legacyPage.value = page
-  } catch (cause) {
-    if (generation === requestGeneration) {
-      legacyError.value = message(cause)
-      if (!append) { legacyCandidates.value = []; legacyTotal.value = 0 }
-    }
-  } finally {
-    if (generation === requestGeneration) legacyLoading.value = false
-  }
-}
-async function openLegacyCandidates() {
-  legacyOpen.value = true
-  legacySelected.value = []
-  legacyPage.value = 1
-  if (!legacyCandidates.value.length) await loadLegacyCandidates()
-}
-async function reconcileLegacyQuotes() {
-  if (legacyBusy.value || !legacySelected.value.length) return
-  legacyBusy.value = true
-  legacyError.value = ''
-  try {
-    const result = await crmRequest<{ linked: number; total: number }>(
-      crmPath('accounts', rowId(props.account.id), 'pricing-quotations/reconcile'),
-      'POST', { quoteIds: legacySelected.value }, crmUuid())
-    legacySuccess.value = 'Se vincularon ' + result.total + ' cotizaciones históricas con esta cuenta.'
-    legacySelected.value = []
-    legacyOpen.value = false
-    await load()
-  } catch (cause) {
-    legacyError.value = message(cause)
-  } finally { legacyBusy.value = false }
-}
 async function loadQuotedRoutes(generation = requestGeneration) {
-  if (!has('crm.account.read') && !has('crm.account.read-all')) return
+  if (!has('crm.quote.read')) return
   quoteRouteLoading.value = true
   try {
     const result = await get<{ items: CrmRow[], total: number }>(
@@ -855,7 +651,7 @@ async function loadQuotedRoutes(generation = requestGeneration) {
 }
 watch(activeTab, tab => {
   if (tab === 'changes') void loadAccountChanges()
-  if (tab === 'history' && (has('crm.account.read') || has('crm.account.read-all'))) void loadQuotedRoutes()
+  if (tab === 'history' && has('crm.quote.read')) void loadQuotedRoutes()
 })
 function changeQuoteRoutePage(delta: number) {
   quoteRoutePage.value += delta
@@ -865,47 +661,35 @@ function changeQuoteRoutePage(delta: number) {
 function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING', sourceId = '') {
   routeSourceKind.value = kind
   routeSourceId.value = sourceId
-  routePolCodes.value = []
-  routePoeCodes.value = []
-  routePodCodes.value = []
-  routeCaptureError.value = ''
+  routePol.value = ''
+  routePoe.value = ''
+  routePod.value = ''
   routeService.value = ''
   routeNotes.value = ''
   routeCaptureOpen.value = true
   activeTab.value = 'history'
 }
 async function saveRouteEvidence() {
-  if (busy.value) return
-  routeCaptureError.value = ''
-  if (!routeEvidenceReady.value) {
-    routeCaptureError.value = routeEvidenceCombinations.value.length > 24
-      ? 'Podés documentar hasta 24 combinaciones en un mismo guardado.'
-      : routeEvidenceHasOverlap.value
-        ? 'En cada ruta, POL, POE y POD deben ser ubicaciones diferentes.'
-        : 'Seleccioná el registro de origen, uno o más POL y uno o más POD.'
-    return
-  }
+  if (busy.value || !routeSourceId.value || !routePol.value || !routePod.value) return
   busy.value = true
   error.value = ''
   saved.value = ''
   try {
-    const result = await crmRequest<{ created: number; alreadyExisting: number; total: number }>(
-      crmPath('accounts', rowId(props.account.id), 'route-history/bulk'), 'POST', {
-        sourceKind: routeSourceKind.value,
-        sourceId: routeSourceId.value,
-        routes: routeEvidenceCombinations.value,
-        serviceCode: routeService.value || null,
-        notes: routeNotes.value.trim() || null,
-      }, crmUuid())
+    await crmRequest(crmPath('accounts', rowId(props.account.id), 'route-history'), 'POST', {
+      sourceKind: routeSourceKind.value,
+      sourceId: routeSourceId.value,
+      polCode: routePol.value,
+      poeCode: routePoe.value || null,
+      podCode: routePod.value,
+      serviceCode: routeService.value || null,
+      notes: routeNotes.value.trim() || null,
+    }, crmUuid())
     routeCaptureOpen.value = false
     routeHistoryPage.value = 1
     await loadRouteHistory()
-    saved.value = result.created + ' rutas documentadas' +
-      (result.alreadyExisting ? ' · ' + result.alreadyExisting + ' ya registradas' : '') +
-      ' con su reunión o cotización de origen.'
-  } catch (cause) {
-    routeCaptureError.value = message(cause)
-  } finally { busy.value = false }
+    saved.value = 'Ruta incorporada al historial con su reunión o cotización de origen.'
+  } catch (cause) { error.value = message(cause) }
+  finally { busy.value = false }
 }
 function changeRouteHistoryPage(delta: number) {
   routeHistoryPage.value += delta
@@ -1051,9 +835,9 @@ async function saveRoute() {
         </div>
       </div>
       <div class="flex flex-wrap gap-2 px-4 pb-3 text-[11px] sm:px-5">
-        <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ accountPricingError ? '—' : recentQuotes.length }} {{ locale === 'en' ? 'quotes' : 'cotizaciones' }}</span>
-        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal + allQuoteRouteSnapshots.length }} registros de rutas</button>
-        <span class="hub-header-meta">{{ activeRoutes.length + frequentPricingRoutes.length }} rutas conocidas</span>
+        <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'linked quotes' : 'tarifas vinculadas' }}</span>
+        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal }} rutas con historial</button>
+        <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
 
@@ -1075,36 +859,6 @@ async function saveRoute() {
     <div v-if="activeTab === 'summary'" id="crm-account-summary" role="tabpanel"
       class="grid items-start gap-3 xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]">
       <div class="min-w-0 space-y-3">
-        <section class="hub-panel">
-          <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="hub-panel-heading mb-0"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas del cliente</h2>
-            <button type="button" class="hub-text-link" @click="activeTab='history';loadQuotedRoutes()">Ver historial completo</button>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div class="hub-mini-stat"><span>Documentadas</span><strong>{{ routeHistoryTotal }}</strong></div>
-            <div class="hub-mini-stat"><span>Rutas de Pricing</span><strong>{{ accountPricingError ? '—' : frequentPricingRoutes.length }}</strong></div>
-            <div class="hub-mini-stat"><span>Cotizaciones</span><strong>{{ accountPricingError ? '—' : recentQuotes.length }}</strong></div>
-          </div>
-          <p v-if="routeHistoryError" class="mt-3 text-xs text-amber-600">{{ routeHistoryError }}</p>
-          <div v-if="frequentPricingRoutes.length" class="mt-3 divide-y divide-[var(--dh-border)]">
-            <div v-for="r in frequentPricingRoutes.slice(0,3)" :key="[r.pol,r.poe,r.pod].join('|')" class="py-3">
-              <p class="text-xs font-extrabold">{{ r.pol }} → {{ r.poe ? r.poe + (r.pod ? ' → ' : '') : '' }}{{ r.pod }}</p>
-              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ r.count }} cotizaciones de Pricing<span v-if="r.pending"> · {{ r.pending }} por vincular</span></p>
-            </div>
-          </div>
-          <div v-if="popularRoutes.length" class="mt-3 divide-y divide-[var(--dh-border)]">
-            <div v-for="(r, idx) in popularRoutes.slice(0,3)" :key="idx" class="py-3">
-              <p class="text-xs font-extrabold">{{ routeDisplay(r.polCode, 'pol') }} → {{ r.poeCode ? routeDisplay(r.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(r.podCode, 'pod') }}</p>
-              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ r.meetingCount }} reuniones · {{ r.quoteCount }} cotizaciones · Última referencia: {{ date(r.lastSeenAt) }}</p>
-            </div>
-          </div>
-          <p v-else-if="!frequentPricingRoutes.length" class="hub-empty mt-3">No hay rutas documentadas todavía. El historial se crea a partir de reuniones completadas y cotizaciones vinculadas.</p>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <button type="button" class="hub-outline-button hub-small" @click="activeTab='history';loadQuotedRoutes()"><FileText class="h-3.5 w-3.5" />Ver rutas de cotizaciones</button>
-            <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button"
-              class="hub-outline-button hub-small" @click="activeTab='history';openRouteEvidence('MEETING')"><Plus class="h-3.5 w-3.5" />Ruta de reunión</button>
-          </div>
-        </section>
         <section class="hub-panel">
           <h2 class="hub-panel-heading"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" />Datos de la cuenta</h2>
           <dl class="divide-y divide-[var(--dh-border)]">
@@ -1190,11 +944,7 @@ async function saveRoute() {
             <p class="text-xs font-extrabold">{{ routeDisplay(route.polCode, 'pol') }} → <span v-if="route.poeCode">{{ routeDisplay(route.poeCode, 'poe') }} → </span>{{ routeDisplay(route.podCode, 'pod') }}</p>
             <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ route.occurrences }} registros · {{ route.meetingCount }} reuniones · {{ route.quoteCount }} cotizaciones</p>
           </div>
-          <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length && !frequentPricingRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
-          <div v-for="route in frequentPricingRoutes.slice(0,4)" :key="[route.pol,route.poe,route.pod].join('|')" class="hub-list-item">
-            <p class="text-xs font-semibold">{{ route.pol }} → {{ route.poe ? route.poe + (route.pod ? ' → ' : '') : '' }}{{ route.pod }}</p>
-            <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ route.count }} cotizaciones de Pricing<span v-if="route.pending"> · {{ route.pending }} pendientes de vincular</span></p>
-          </div>
+          <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
           <div v-for="route in activeRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
             <p class="text-xs font-semibold">{{ routeDisplay(route.polCode || route.preferredOriginCode, 'pol') }} →
               {{ routeDisplay(route.poeCode || route.preferredDestinationCode, 'poe') }} <span v-if="route.podCode">→ {{ routeDisplay(route.podCode, 'pod') }}</span></p>
@@ -1210,16 +960,13 @@ async function saveRoute() {
             <h2 class="hub-panel-heading mb-0"><FileText class="h-4 w-4 text-[var(--dh-primary)]" />Historial de tarifas</h2>
             <button type="button" class="hub-text-link" @click="activeTab='quotes'">Ver todas</button>
           </div>
-          <p class="mt-2 text-[11px] text-[var(--dh-text-muted)]">Cotizaciones de Pricing asociadas a esta cuenta.</p>
-          <p v-if="legacyLoading" class="text-xs text-[var(--dh-text-muted)]">Buscando cotizaciones anteriores en Pricing…</p>
-          <p v-if="legacyError" role="alert" class="text-xs text-amber-600">No se pudo recuperar el historial anterior: {{ legacyError }}</p>
-          <p v-if="!recentQuotes.length && !legacyLoading && !legacyError && !accountPricingError" class="hub-empty">No se identificaron cotizaciones; revisá el historial de Pricing o la vinculación de esta cuenta.</p>
-          <p v-if="legacyTotal" class="mt-2 text-xs font-bold text-amber-600">{{ legacyTotal }} cotizaciones históricas coinciden con la razón social y requieren confirmar el vínculo.</p>
+          <p class="mt-2 text-[11px] text-[var(--dh-text-muted)]">Cotizaciones vinculadas a las oportunidades de esta cuenta.</p>
+          <p v-if="!recentQuotes.length" class="hub-empty">Todavía no hay cotizaciones vinculadas.</p>
           <div v-for="quote in recentQuotes.slice(0,5)" :key="rowId(quote.pricingQuoteId)"
             class="flex min-w-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 last:border-0">
             <div class="min-w-0">
               <RouterLink :to="quoteLink(quote)" class="block truncate text-xs font-bold text-[var(--dh-primary)] hover:underline">{{ text(quote.quoteNumberSnapshot) }}</RouterLink>
-              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(quote.shipmentModeSnapshot) }} · {{ text(quote.commercialStatusSnapshot) }}<span v-if="quote.pendingReconciliation"> · Pendiente de vincular</span></p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(quote.shipmentModeSnapshot) }} · {{ text(quote.commercialStatusSnapshot) }}</p>
             </div>
             <span class="shrink-0 text-[10px] text-[var(--dh-text-muted)]">{{ date(quote.linkedAt) }}</span>
           </div>
@@ -1299,7 +1046,7 @@ async function saveRoute() {
       <section class="hub-panel">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div><h2 class="font-extrabold">{{ locale === 'en' ? 'Usual services and routes' : 'Servicios y rutas habituales' }}</h2>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas registradas y rutas obtenidas de cotizaciones</p></div>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas según modalidad y frecuencia</p></div>
           <button v-if="has('crm.analysis.manage')" type="button"
             class="inline-flex items-center gap-2 rounded-xl bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-bold text-white"
             @click="openNewRoute"><Plus class="h-4 w-4" />Añadir ruta</button>
@@ -1365,13 +1112,7 @@ async function saveRoute() {
             </div>
           </form>
         </DhDrawer>
-        <p v-if="!overview.routes.length && !overview.analysisRoutes.length && !frequentPricingRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
-        <h3 v-if="frequentPricingRoutes.length" class="mb-2 text-xs font-extrabold uppercase tracking-wider text-[var(--dh-text-muted)]">Rutas detectadas en cotizaciones</h3>
-        <div v-for="r in frequentPricingRoutes" :key="[r.pol,r.poe,r.pod].join('|')"
-          class="grid gap-2 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_auto]">
-          <p class="font-bold">{{ r.pol }} → {{ r.poe ? r.poe + (r.pod ? ' → ' : '') : '' }}{{ r.pod }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">{{ r.count }} {{ r.count === 1 ? 'cotización' : 'cotizaciones' }} · Pricing<span v-if="r.pending"> · {{ r.pending }} por vincular</span></p>
-        </div>
+        <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
         <div v-for="r in overview.routes" :key="r.id" class="grid gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto]">
           <div class="font-bold">{{ routeDisplay(r.polCode || r.preferredOriginCode, 'pol') }} → {{ routeDisplay(r.poeCode || r.preferredDestinationCode, 'poe') }}<span v-if="r.podCode"> → {{ routeDisplay(r.podCode, 'pod') }}</span></div>
           <div>{{ modeName(r.modalityCode) }} · {{ frequencyDisplay(r.frequency) }}</div>
@@ -1384,16 +1125,7 @@ async function saveRoute() {
       </section>
       <section class="hub-panel">
         <h2 class="mb-3 font-extrabold">Análisis comercial ({{ overview.analyses.length }})</h2>
-        <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis comerciales registrados manualmente.</p>
-        <div v-if="quotationModeSummary.length" class="mt-4 border-t border-[var(--dh-border)] pt-4">
-          <h3 class="text-xs font-extrabold uppercase tracking-wider text-[var(--dh-text-muted)]">Actividad real según cotizaciones ({{ recentQuotes.length }})</h3>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Resumen calculado a partir de QUO existentes en Pricing; no reemplaza un análisis comercial elaborado por el vendedor.</p>
-          <div v-for="entry in quotationModeSummary" :key="entry.mode" class="flex items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0">
-            <span class="font-semibold">{{ entry.mode }}</span>
-            <span>{{ entry.count }} {{ entry.count === 1 ? 'cotización' : 'cotizaciones' }}<span v-if="entry.pending" class="ml-1 text-amber-600">({{ entry.pending }} por verificar)</span></span>
-          </div>
-          <div class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ frequentPricingRoutes.length }} rutas identificadas en cotizaciones.</div>
-        </div>
+        <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis registrados.</p>
         <button v-for="a in overview.analyses" :key="a.id" class="flex w-full items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-left text-sm last:border-0 hover:text-[var(--dh-primary)]"
           @click="router.push('/crm/analyses/' + encodeURIComponent(rowId(a.id)))">
           <span>{{ marketDisplay(a.marketCode) }} · {{ a.customsNationalizationRequired ? 'Incluye aduanas' : 'Sin aduanas' }}</span>
@@ -1544,7 +1276,7 @@ async function saveRoute() {
           <div>
             <h2 class="flex items-center gap-2 text-base font-extrabold"><Route class="h-5 w-5 text-[var(--dh-primary)]" />Historial de rutas del cliente</h2>
             <p class="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--dh-text-muted)]">
-              Se muestran las rutas existentes en Pricing y los registros documentados en CRM.
+              Cada ruta confirma su origen: una reunión completada o una cotización ya vinculada al CRM.
               No se inventan POL, POE o POD a partir del nombre del cliente o de la modalidad.
             </p>
           </div>
@@ -1554,12 +1286,12 @@ async function saveRoute() {
           </button>
         </div>
         <div class="mt-4 grid gap-3 sm:grid-cols-3">
-          <div class="hub-mini-stat"><span>Rutas documentadas en CRM</span><strong>{{ routeHistoryTotal }}</strong></div>
+          <div class="hub-mini-stat"><span>Rutas verificadas</span><strong>{{ routeHistoryTotal }}</strong></div>
           <div class="hub-mini-stat"><span>Reuniones en esta página</span><strong>{{ routesCapturedFromMeetings }}</strong></div>
-          <div class="hub-mini-stat"><span>Rutas de cotizaciones</span><strong>{{ allQuoteRouteSnapshots.length }}</strong></div>
+          <div class="hub-mini-stat"><span>Cotizaciones en esta página</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
         </div>
       </div>
-      <div v-if="has('crm.account.read') || has('crm.account.read-all')" class="hub-panel">
+      <div v-if="has('crm.quote.read')" class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 class="hub-panel-heading mb-0"><FileText class="h-4 w-4 text-[var(--dh-primary)]" />Rutas de cotizaciones (Pricing)</h3>
@@ -1569,10 +1301,9 @@ async function saveRoute() {
         </div>
         <p v-if="quoteRouteLoading" class="py-2 text-xs text-[var(--dh-text-muted)]">Consultando rutas autorizadas de Pricing…</p>
         <p v-if="quoteRouteError" role="alert" class="py-2 text-xs text-amber-600">{{ quoteRouteError }}</p>
-        <p v-if="accountPricingError" role="alert" class="py-2 text-xs text-amber-600">{{ accountPricingError }}</p>
-        <p v-if="!quoteRouteLoading && !accountPricingLoading && !allQuoteRouteSnapshots.length && !quoteRouteError && !accountPricingError" class="hub-empty">No hay rutas de cotizaciones disponibles para esta cuenta.</p>
-        <ol v-if="allQuoteRouteSnapshots.length" class="divide-y divide-[var(--dh-border)]">
-          <li v-for="q in allQuoteRouteSnapshots" :key="rowId(q.pricingQuoteId)" class="flex flex-wrap items-center justify-between gap-3 py-3">
+        <p v-if="!quoteRouteLoading && !quoteRouteSnapshots.length && !quoteRouteError" class="hub-empty">No hay cotizaciones vinculadas visibles para consultar.</p>
+        <ol v-if="quoteRouteSnapshots.length" class="divide-y divide-[var(--dh-border)]">
+          <li v-for="q in quoteRouteSnapshots" :key="rowId(q.pricingQuoteId)" class="flex flex-wrap items-center justify-between gap-3 py-3">
             <div class="min-w-0">
               <p class="text-xs font-extrabold text-[var(--dh-primary)]">{{ text(q.quoteNumber) }} <span class="font-medium text-[var(--dh-text-muted)]">· {{ text(q.shipmentMode) }}</span></p>
               <p v-if="q.available" class="mt-1 text-sm font-bold">
@@ -1580,14 +1311,14 @@ async function saveRoute() {
               </p>
               <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Ruta no disponible para el usuario o sin puertos confirmados en Pricing.</p>
               <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">
-                {{ q.pendingReconciliation ? 'Creada (por verificar)' : 'Vinculada' }}: {{ date(q.linkedAt) }}
+                Vinculada: {{ date(q.linkedAt) }}
                 <span v-if="q.revisionNumber"> · Revisión {{ q.revisionNumber }}</span>
                 <span v-if="q.revisionPending"> · Última revisión enviada (nueva edición en Pricing)</span>
               </p>
             </div>
             <div class="flex flex-wrap gap-2">
               <RouterLink :to="quoteLink({ id: rowId(q.pricingQuoteId), pricingQuoteId: q.pricingQuoteId })" class="hub-outline-button hub-small">Abrir tarifa</RouterLink>
-              <button v-if="has('crm.analysis.manage') && isOpportunityLinkedQuote(q)" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE',rowId(q.pricingQuoteId))">Documentar ruta</button>
+              <button v-if="has('crm.analysis.manage')" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE',rowId(q.pricingQuoteId))">Documentar ruta</button>
             </div>
           </li>
         </ol>
@@ -1597,20 +1328,11 @@ async function saveRoute() {
           <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage * 8 >= quoteRouteTotal || quoteRouteLoading" @click="changeQuoteRoutePage(1)">Siguiente</button>
         </div>
       </div>
-      <div v-if="frequentPricingRoutes.length" class="hub-panel">
-        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas frecuentes de las cotizaciones de Pricing</h3>
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div v-for="r in frequentPricingRoutes.slice(0,12)" :key="[r.pol,r.poe,r.pod].join('|')" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-            <p class="text-sm font-extrabold">{{ r.pol }} → {{ r.poe ? r.poe + (r.pod ? ' → ' : '') : '' }}{{ r.pod }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ r.count }} cotizaciones<span v-if="r.pending"> · {{ r.pending }} pendientes de vincular</span></p>
-          </div>
-        </div>
-      </div>
       <div v-if="popularRoutes.length" class="hub-panel">
         <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más utilizadas (registros documentados)</h3>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div v-for="(r, idx) in popularRoutes" :key="idx" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-            <p class="text-sm font-extrabold">{{ text(r.polCode) }} → {{ r.poeCode ? text(r.poeCode) + ' → ' : '' }}{{ text(r.podCode) }}</p>
+            <p class="text-sm font-extrabold">{{ routeDisplay(r.polCode, 'pol') }} → {{ r.poeCode ? routeDisplay(r.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(r.podCode, 'pod') }}</p>
             <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--dh-text-muted)]">
               <span>{{ r.occurrences }} registros</span><span>{{ r.meetingCount }} reuniones</span><span>{{ r.quoteCount }} cotizaciones</span>
             </div>
@@ -1620,11 +1342,11 @@ async function saveRoute() {
       </div>
       <div class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 class="hub-panel-heading mb-0">Cronología de rutas · {{ routeTimeline.length }} en esta vista</h3>
+          <h3 class="hub-panel-heading mb-0">Cronología de rutas · {{ routeHistoryTotal }} registros</h3>
           <button type="button" class="hub-outline-button hub-small" @click="loadRouteHistory()"><RefreshCw class="h-3.5 w-3.5" />Actualizar</button>
         </div>
         <p v-if="routeHistoryError" role="alert" class="mb-3 rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ routeHistoryError }}</p>
-        <div v-if="!routeTimeline.length && !routeHistoryError && !legacyLoading" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
+        <div v-if="!routeHistory.length && !routeHistoryError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
           <Route class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
           <p class="mt-3 text-sm font-extrabold">Todavía no hay rutas con origen documentado</p>
           <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">
@@ -1633,11 +1355,10 @@ async function saveRoute() {
           <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="activeTab='agenda';newActivity('VISIT')">Programar una visita</button>
         </div>
         <ol v-else class="divide-y divide-[var(--dh-border)]">
-          <li v-for="record in routeTimeline" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
             <div class="min-w-0">
-              <p v-if="record.pricingPreview" class="text-sm font-extrabold">{{ text(record.polName) }} → {{ record.poeName ? text(record.poeName) + ' → ' : '' }}{{ text(record.podName) }}</p>
-              <p v-else class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.pricingPreview ? (record.pendingReconciliation ? 'QUO histórica por verificar' : 'Ruta de cotización de Pricing') : record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización documentada' }} · {{ date(record.observedAt) }}<span v-if="!record.pricingPreview"> · {{ serviceDisplay(record.serviceCode) }}</span></p>
+              <p class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ serviceDisplay(record.serviceCode) }}</p>
               <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
             </div>
             <RouterLink :to="record.sourceKind === 'MEETING' ? returnToAccount('/crm/activities/' + encodeURIComponent(rowId(record.sourceId))) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
@@ -1669,94 +1390,45 @@ async function saveRoute() {
             {{ routeSourceKind === 'MEETING' ? 'No hay reuniones completadas visibles en el historial reciente. Abrí Actividades para registrar o completar una visita.' : 'No hay cotizaciones vinculadas a las oportunidades de este cliente.' }}
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
-            <CrmMultiCatalogPicker v-model="routePolCodes" label="POL / Orígenes *"
-              :catalog-group-slugs="['pol']" placeholder="Seleccionar uno o más orígenes"
-              empty-hint="Seleccioná al menos un POL para documentar la ruta."
-              @resolved-label="acceptRouteLabel('pol', $event)" />
-            <CrmMultiCatalogPicker v-model="routePoeCodes" label="POE / Puertos intermedios"
-              :catalog-group-slugs="['poe']" placeholder="Seleccionar uno o más puertos (opcional)"
-              empty-hint="Opcional: sin POE se documenta una ruta directa POL → POD."
-              @resolved-label="acceptRouteLabel('poe', $event)" />
-            <CrmMultiCatalogPicker v-model="routePodCodes" label="POD / Destinos *"
-              :catalog-group-slugs="['pod']" placeholder="Seleccionar uno o más destinos"
-              empty-hint="Seleccioná al menos un POD para documentar la ruta."
-              @resolved-label="acceptRouteLabel('pod', $event)" />
+            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" @resolved-label="acceptRouteLabel('pol', $event)" />
+            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" @resolved-label="acceptRouteLabel('poe', $event)" />
+            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" @resolved-label="acceptRouteLabel('pod', $event)" />
             <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
           </div>
-          <p v-if="routeEvidenceCombinations.length" class="rounded-xl bg-[var(--dh-shell)] p-3 text-xs font-semibold">
-            {{ routeEvidenceCombinations.length }} {{ routeEvidenceCombinations.length === 1 ? 'ruta' : 'rutas' }} para documentar.
-            Se guardará cada combinación de POL, POE (si aplica) y POD con el origen seleccionado.
-          </p>
-          <p v-if="routeEvidenceCombinations.length > 24" class="text-xs text-amber-600">
-            Máximo 24 combinaciones por guardado. Quitá algunas ubicaciones.
-          </p>
-          <p v-if="routeEvidenceHasOverlap" class="text-xs text-amber-600">
-            POL, POE y POD no pueden repetirse dentro de una misma ruta.
-          </p>
-          <p v-if="routeCaptureError" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ routeCaptureError }}</p>
           <label class="block space-y-1.5 text-xs font-bold">Observaciones de la ruta
             <textarea v-model="routeNotes" maxlength="2000" rows="3" class="crm-input w-full" placeholder="Información confirmada durante la reunión o cotización"></textarea>
           </label>
           <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
             <button type="button" class="hub-outline-button" @click="routeCaptureOpen=false">Cancelar</button>
-            <button type="submit" class="crm-action" :disabled="busy || !routeEvidenceReady">
-              {{ busy ? 'Guardando…' : 'Documentar ' + routeEvidenceCombinations.length + (routeEvidenceCombinations.length === 1 ? ' ruta' : ' rutas') }}
-            </button>
+            <button type="submit" class="crm-action" :disabled="busy || !routeSourceId || !routePol || !routePod">Guardar ruta con origen</button>
           </div>
         </form>
       </DhDrawer>
     </section>
 
     <section v-else-if="activeTab === 'quotes'" id="crm-account-quotes" role="tabpanel" class="hub-panel">
-      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran cotizaciones de Pricing asociadas por el identificador de este cliente y vínculos históricos de CRM. Pricing conserva el estado oficial.</p>
-        </div>
-        <button v-if="has('crm.account.update')" class="hub-outline-button" type="button" @click="openLegacyCandidates">
-          <FileText class="h-4 w-4" />Vincular cotizaciones anteriores
-        </button>
+      <div class="mb-4">
+        <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo se muestran cotizaciones vinculadas a oportunidades de esta cuenta. Pricing conserva el cálculo y el estado oficial.</p>
       </div>
       <CrmAccountQuotesDashboard :account-id="rowId(account.id)" />
-      <p v-if="legacySuccess" role="status" class="mb-3 rounded-lg border border-[var(--dh-border)] p-3 text-xs font-bold">{{ legacySuccess }}</p>
-      <p v-if="legacyLoading" role="status" class="mb-3 text-xs text-[var(--dh-text-muted)]">Buscando cotizaciones antiguas para esta razón social…</p>
-      <p v-if="legacyTotal" class="mb-3 rounded-xl border border-amber-500/30 p-3 text-xs">
-        Se encontraron <strong>{{ legacyTotal }} cotizaciones antiguas</strong> que coinciden con la razón social.
-        Se pueden consultar, pero aún no están vinculadas a esta cuenta por ID.
-        <button v-if="has('crm.account.update')" type="button" class="hub-text-link ml-2" @click="openLegacyCandidates">Revisar y vincular</button>
-      </p>
-      <p v-if="legacyError" role="alert" class="mb-3 text-xs text-amber-600">No se pudo buscar el historial anterior: {{ legacyError }}</p>
-      <p v-if="!recentQuotes.length && accountPricingLoading" role="status" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Consultando cotizaciones de Pricing…</p>
-      <p v-else-if="!recentQuotes.length && !accountPricingError && !legacyLoading && !legacyError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones identificadas para esta cuenta.</p>
-      <div v-else class="overflow-x-auto"><table class="w-full min-w-[740px] text-left text-sm">
-        <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Cotización</th><th class="px-3 py-3">Modalidad</th><th class="px-3 py-3">Origen</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3">Vinculada</th><th class="px-3 py-3">Acción</th></tr></thead>
+      <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones vinculadas a esta cuenta todavía.</p>
+      <div v-else class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm">
+        <thead class="border-b border-[var(--dh-border)] text-xs uppercase text-[var(--dh-text-muted)]"><tr><th class="px-3 py-3">Cotización</th><th class="px-3 py-3">Modalidad</th><th class="px-3 py-3">Estado</th><th class="px-3 py-3">Vinculada</th><th class="px-3 py-3">Acción</th></tr></thead>
         <tbody><tr v-for="q in recentQuotes" :key="rowId(q.pricingQuoteId)" class="border-b border-[var(--dh-border)] last:border-0">
           <td class="px-3 py-3 font-bold">{{ text(q.quoteNumberSnapshot) }}</td>
           <td class="px-3 py-3">{{ text(q.shipmentModeSnapshot) }}</td>
-          <td class="px-3 py-3">{{ q.pendingReconciliation ? 'Coincidencia histórica · por verificar' : q.clientLeadId ? 'Prospecto convertido' : isOpportunityLinkedQuote(q) && !accountPricingQuotes.some(x => x.pricingQuoteId === q.pricingQuoteId) ? 'Vínculo histórico CRM' : 'Cuenta' }}</td>
           <td class="px-3 py-3">{{ text(q.commercialStatusSnapshot) }}</td>
-          <td class="px-3 py-3">{{ q.pendingReconciliation ? 'Sin vincular' : date(q.linkedAt) }}</td>
+          <td class="px-3 py-3">{{ date(q.linkedAt) }}</td>
           <td class="px-3 py-3">
             <div class="flex flex-wrap items-center gap-3">
               <RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
-              <button v-if="q.pendingReconciliation && has('crm.account.update')" class="hub-text-link" type="button" @click="openLegacyCandidates">Vincular</button>
-              <button v-if="has('crm.analysis.manage') && has('crm.analysis.read') && isOpportunityLinkedQuote(q)" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE', rowId(q.pricingQuoteId))">Registrar ruta</button>
+              <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE', rowId(q.pricingQuoteId))">Registrar ruta</button>
             </div>
           </td>
         </tr></tbody>
       </table></div>
-      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Las coincidencias históricas se muestran para consulta, separadas de las cotizaciones vinculadas. Verificá la QUO antes de asociarla permanentemente al cliente.</p>
-      <p v-if="accountPricingError" role="alert" class="mt-3 text-xs text-amber-600">Error de consulta de Pricing: {{ accountPricingError }}</p>
-      <div v-if="legacyTotal > legacyCandidates.length" class="mt-3 text-right">
-        <button class="hub-outline-button hub-small" type="button" :disabled="legacyLoading" @click="loadLegacyCandidates(true)">
-          Cargar más coincidencias ({{ legacyCandidates.length }} de {{ legacyTotal }})
-        </button>
-      </div>
-      <div v-if="accountPricingTotal > accountPricingQuotes.length" class="mt-3 text-right">
-        <button type="button" class="hub-outline-button hub-small" :disabled="accountPricingLoading" @click="loadAccountPricingQuotes(requestGeneration, true)">
-          {{ accountPricingLoading ? 'Cargando…' : 'Cargar más (' + accountPricingQuotes.length + ' de ' + accountPricingTotal + ')' }}
-        </button>
-      </div>
+      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Se muestran hasta 100 vínculos. Las tarifas de Pricing sin vínculo CRM no se incluyen en esta versión.</p>
       <div v-if="overview.opportunities.length" class="mt-6 border-t border-[var(--dh-border)] pt-4">
         <h3 class="mb-2 font-bold">Oportunidades asociadas ({{ overview.opportunities.length }})</h3>
         <div v-for="o in overview.opportunities" :key="o.id" class="flex justify-between gap-3 border-b border-[var(--dh-border)] py-2 text-sm last:border-0">
@@ -1849,36 +1521,6 @@ async function saveRoute() {
         </div>
       </section>
     </div>
-    <DhDrawer :open="legacyOpen" title="Recuperar historial de cotizaciones" size="xl" @close="legacyOpen=false">
-      <div class="space-y-4 p-2">
-        <p class="text-sm text-[var(--dh-text-muted)]">Cotizaciones anteriores sin ID de cliente, encontradas por coincidencia exacta con la razón social registrada. Revisá los números QUO y rutas antes de confirmar. No se modifica el precio, estado ni contenido de las cotizaciones.</p>
-        <p v-if="legacyError" role="alert" class="rounded-lg border border-red-500/30 p-3 text-xs text-red-500">{{ legacyError }}</p>
-        <p v-if="legacyLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando cotizaciones anteriores…</p>
-        <p v-else-if="!legacyCandidates.length && !legacyError" class="hub-empty">No hay cotizaciones anteriores pendientes de vincular con esta razón social.</p>
-        <div v-if="legacyCandidates.length" class="space-y-2">
-          <label v-for="q in legacyCandidates" :key="rowId(q.pricingQuoteId)" class="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3">
-            <input v-model="legacySelected" type="checkbox" :value="rowId(q.pricingQuoteId)" class="mt-1 h-4 w-4 accent-[var(--dh-primary)]" />
-            <span class="min-w-0 flex-1">
-              <span class="block text-sm font-extrabold">{{ text(q.quoteNumberSnapshot) }}</span>
-              <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ text(q.clientName) }} · {{ text(q.shipmentModeSnapshot) }}</span>
-              <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">Ruta: {{ text(q.polName) }} → {{ q.poeName ? text(q.poeName) + ' → ' : '' }}{{ text(q.podName) }}</span>
-            </span>
-            <RouterLink :to="quoteLink(q)" class="hub-text-link" @click.stop>Abrir tarifa</RouterLink>
-          </label>
-        </div>
-        <div v-if="legacyCandidates.length" class="flex flex-wrap items-center justify-between gap-2">
-          <span class="text-xs text-[var(--dh-text-muted)]">{{ legacySelected.length }} seleccionadas · {{ legacyTotal }} pendientes</span>
-          <button v-if="legacyTotal > legacyCandidates.length" type="button" class="hub-outline-button hub-small"
-            :disabled="legacyLoading" @click="loadLegacyCandidates(true)">Cargar más</button>
-        </div>
-        <div class="flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
-          <button type="button" class="hub-outline-button" @click="legacyOpen=false">Cancelar</button>
-          <button type="button" class="crm-action" :disabled="legacyBusy || !legacySelected.length" @click="reconcileLegacyQuotes">
-            {{ legacyBusy ? 'Vinculando…' : 'Confirmar y vincular (' + legacySelected.length + ')' }}
-          </button>
-        </div>
-      </div>
-    </DhDrawer>
     <DhDrawer :open="profileOpen" title="Datos empresariales" size="xl" @close="profileOpen=false">
       <form class="space-y-4 p-2" @submit.prevent="saveProfile">
         <p class="text-xs text-[var(--dh-text-muted)]">Información corporativa del cliente. Los contactos personales, direcciones, crédito y rutas se administran como registros separados.</p>

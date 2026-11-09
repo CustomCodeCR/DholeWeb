@@ -1,0 +1,30 @@
+name: NotificationsHub Web pilot - compile candidate only
+on:
+  push:
+    branches: [feature/rt-notificationshub-20261109-01]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - name: Check Web SemVer
+        run: pnpm run version:check
+      - name: Type-check Vue/TypeScript
+        run: pnpm run type-check
+      - name: Verify F4/F7 realtime manager contracts
+        run: pnpm run test:realtime-f4
+      - name: Compile Web with staging pilot only
+        env:
+          VITE_API_URL: https://dhole-api.customcodecr.com
+          VITE_DHOLE_REALTIME_ENABLED: "true"
+          VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT: "true"
+          VITE_DHOLE_REALTIME_RELEASE: rt-20261107-01
+        run: pnpm run build

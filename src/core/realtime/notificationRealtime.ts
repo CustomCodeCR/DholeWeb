@@ -1,5 +1,9 @@
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore, type ToastType } from '@/core/stores/toastStore'
+import {
+  UNIVERSAL_REALTIME_ENABLED,
+  setUniversalRealtimeNotificationHandler,
+} from '@/core/realtime/universalRealtime'
 
 export interface SystemNotificationPush {
   notificationId: string
@@ -355,11 +359,24 @@ async function connect() {
 }
 
 export async function startNotificationRealtime() {
+  if (UNIVERSAL_REALTIME_ENABLED) {
+    // One SignalR connection for both notificationReceived and resourceChanged.
+    setUniversalRealtimeNotificationHandler(value => {
+      const notification = value as Partial<SystemNotificationPush> | null
+      if (notification?.notificationId && notification?.userId)
+        handleNotification(notification as SystemNotificationPush)
+    })
+    return
+  }
   stopped = false
   await connect()
 }
 
 export async function stopNotificationRealtime() {
+  if (UNIVERSAL_REALTIME_ENABLED) {
+    setUniversalRealtimeNotificationHandler(null)
+    return
+  }
   stopped = true
   reconnectAttempt = 0
   if (reconnectTimer !== null) {

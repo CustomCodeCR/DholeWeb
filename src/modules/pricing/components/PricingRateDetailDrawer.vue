@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   CheckCircle2,
   Copy,
@@ -51,6 +51,8 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 const current = ref<RateDto>(props.rate)
+// F4 REST invalidations update read-only details, not the separately opened edit form.
+watch(() => props.rate, value => { current.value = value })
 const displayCurrent = computed(() => catalogs.resolveRateLabels(current.value))
 const currentDisplayName = computed(() => rateDisplayName(displayCurrent.value))
 

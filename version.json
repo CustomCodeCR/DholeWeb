@@ -2,7 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.12.18",
-  "ecosystemVersion": "1.12.18",
-  "releaseId": "DH-20261109-PRICING-FCL-PANAMA-ALLIN-049"
+  "version": "1.14.0",
+  "ecosystemVersion": "1.14.0",
+  "releaseId": "rt-20261107-01",
+  "releaseStatus": "candidate-notificationshub-staging-not-deployed"
 }

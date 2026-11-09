@@ -229,6 +229,11 @@ export const useAgentStore = defineStore('agent', () => {
     }
   }
 
+  function forgetExecution(id: string) {
+    executions.value = executions.value.filter((item) => item.id !== id)
+    if (selectedExecution.value?.id === id) selectedExecution.value = null
+  }
+
   return {
     providers,
     definitions,
@@ -278,5 +283,6 @@ export const useAgentStore = defineStore('agent', () => {
     loadDashboard,
     refreshAll,
     upsertExecution,
+    forgetExecution,
   }
 })

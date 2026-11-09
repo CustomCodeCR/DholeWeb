@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Dhole Realtime F4 — Vue browser acceptance fixture</title>
+</head>
+<body>
+<div id="fixture-root"></div>
+<script type="module">
+import { createApp, defineComponent, h, nextTick, ref } from 'vue'
+import { RealtimeManager } from '/src/core/realtime/realtimeManager.ts'
+import { useResourceRealtime } from '/src/core/realtime/useResourceRealtime.ts'
+
+// This fixture runs only through Vite's test route. Production builds contain
+// no import/reference to it. All credentials and REST endpoints are fake.
+const id = '12345678-1111-4111-8111-111111111111'
+const user = new URLSearchParams(location.search).get('user') || 'A'
+const RS = '\u001e'
+let online = true
+let visible = true
+let socketCreated = 0
+let activeSockets = 0
+let mountCount = 0
+let unmountCount = 0
+let restReads = 0
+let restWrites = 0
+let leakedWindowDocumentListeners = 0
+const seenListeners = new Map()
+
+const add = EventTarget.prototype.addEventListener
+const remove = EventTarget.prototype.removeEventListener
+EventTarget.prototype.addEventListener = function (...args) {
+  if (this === window || this === document) {
+    const key = this === window ? 'window:' : 'document:'
+    const type = key + String(args[0])
+    const n = seenListeners.get(type) || 0
+    seenListeners.set(type, n + 1)
+    leakedWindowDocumentListeners++
+  }
+  return add.apply(this, args)
+}
+EventTarget.prototype.removeEventListener = function (...args) {
+  if (this === window || this === document) {
+    const key = this === window ? 'window:' : 'document:'
+    const type = key + String(args[0])
+    if ((seenListeners.get(type) || 0) > 0) {
+      seenListeners.set(type, seenListeners.get(type) - 1)
+      leakedWindowDocumentListeners--
+    }
+  }
+  return remove.apply(this, args)
+}
+
+class FakeSocket {
+  readyState = 0
+  onopen = null
+  onmessage = null
+  onerror = null
+  onclose = null
+  frames = []
+  constructor(url) {
+    this.url = url
+    this.closed = false
+    socketCreated++
+    activeSockets++
+    queueMicrotask(() => {
+      if (this.closed) return
+      this.readyState = 1
+      this.onopen?.({})
+    })
+  }
+  send(frame) {
+    this.frames.push(frame)
+    if (frame.includes('"protocol":"json"')) queueMicrotask(() =>
+      this.onmessage?.({ data: '{}' + RS }))
+  }
+  close() {
+    if (this.closed) return
+    this.closed = true
+    activeSockets--
+    this.readyState = 3
+    this.onclose?.({})
+  }
+  emit(kind, version, eventId = crypto.randomUUID()) {
+    const event = {
+      eventId,
+      eventType: kind === 'crm.account' ? 'crm.account.updated.v1' : 'pricing.rate.updated.v1',
+      aggregateType: kind === 'crm.account' ? 'account' : 'rate',
+      aggregateId: id,
+      aggregateVersion: version,
+      occurredAtUtc: new Date().toISOString(),
+    }
+    this.onmessage?.({ data: JSON.stringify({
+      type: 1, target: 'resourceChanged', arguments: [event],
+    }) + RS })
+    return eventId
+  }
+}
+let socket = null
+const manager = new RealtimeManager({
+  baseUrl: location.origin,
+  fetch: async url => {
+    if (String(url).includes('/negotiate')) return Response.json({
+      connectionId: 'f4-browser', connectionToken: 'f4-browser-connection',
+    })
+    if (String(url).includes('/ticket')) return Response.json({
+      ticket: 'abcdefghijklmnopqrstuvwxyz0123456789-_ABCde',
+    })
+    throw Error('Unexpected transport HTTP request')
+  },
+  createSocket: url => {
+    socket = new FakeSocket(url)
+    return socket
+  },
+  online: () => online,
+  pageVisible: () => visible,
+  schedule: (callback, delay) => setTimeout(callback, delay),
+  cancel: timer => clearTimeout(timer),
+  random: () => 0.5,
+})
+
+const transport = {
+  subscribe: observer => manager.subscribe(observer),
+  resume: (kind, id) => manager.resume(kind, id),
+}
+const active = new Map()
+let sequence = 0
+
+function mount(kind) {
+  const key = 'view-' + ++sequence
+  const container = document.createElement('div')
+  container.setAttribute('data-mount', key)
+  document.getElementById('fixture-root').append(container)
+  let current = null
+  let isDirty = null
+  let conflict = null
+  let denied = false
+  const component = defineComponent({
+    name: 'F4RealVueResourceView',
+    setup() {
+      const resourceId = ref(id)
+      current = ref({ version: 0, label: 'not-loaded' })
+      isDirty = ref(false)
+      const binding = useResourceRealtime({
+        kind,
+        id: resourceId,
+        transport,
+        dirty: () => isDirty.value,
+        fetchSnapshot: async resourceId => {
+          restReads++
+          const response = await fetch(
+            '/api/f4-rest/' + encodeURIComponent(kind) + '/' + encodeURIComponent(resourceId),
+            { method: 'GET', headers: { 'X-F4-User': user }, cache: 'no-store' },
+          )
+          if (!response.ok) throw Object.assign(new Error('REST access denied'), {
+            status: response.status,
+          })
+          const snapshot = await response.json()
+          return { value: snapshot, version: snapshot.version }
+        },
+        applySnapshot: snapshot => { current.value = snapshot.value },
+        onDenied: () => {
+          denied = true
+          current.value = { version: 0, label: 'denied' }
+        },
+        onError: error => { throw new Error('F4 REST error: ' + String(error)) },
+      })
+      conflict = binding.conflict
+      return () => h('article', { 'data-resource': kind },
+        [
+          h('span', { 'data-version': kind }, String(current.value.version)),
+          h('span', { 'data-label': kind }, String(current.value.label)),
+          h('span', { 'data-conflict': kind }, String(binding.conflict.value)),
+        ])
+    },
+  })
+  const app = createApp(component)
+  app.mount(container)
+  mountCount++
+  const entry = {
+    kind,
+    key,
+    setDirty: value => { isDirty.value = value },
+    dirty: () => isDirty.value,
+    conflict: () => conflict.value,
+    version: () => current.value.version,
+    denied: () => denied,
+    unmount() {
+      app.unmount()
+      container.remove()
+      active.delete(key)
+      unmountCount++
+    },
+  }
+  active.set(key, entry)
+  return key
+}
+async function settled() {
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 20))
+  await nextTick()
+}
+async function start() {
+  await manager.start(
+    user === 'A' ? 'aaaaaaaa-1111-4111-8111-111111111111'
+      : user === 'B' ? 'bbbbbbbb-2222-4222-8222-222222222222'
+      : 'cccccccc-3333-4333-8333-333333333333',
+    async () => 'ci-only-fake-token',
+  )
+  await settled()
+}
+function emit(kind, version) {
+  if (!socket) throw new Error('Socket not connected')
+  return socket.emit(kind, version)
+}
+async function cycles(count) {
+  const startListeners = leakedWindowDocumentListeners
+  const baselineSockets = activeSockets
+  for (let i = 0; i < count; i++) {
+    const key = mount('crm.account')
+    await settled()
+    active.get(key).unmount()
+    await nextTick()
+    if (manager.activeWatchers !== 0)
+      throw new Error('Leaked Vue subscription at cycle ' + i)
+  }
+  return {
+    mounts: mountCount,
+    unmounts: unmountCount,
+    watcherCount: manager.activeWatchers,
+    activeSockets,
+    baselineSockets,
+    totalSockets: socketCreated,
+    leakedListeners: leakedWindowDocumentListeners - startListeners,
+    restReads,
+    restWrites,
+  }
+}
+window.F4 = {
+  start, mount, cycles, emit, settled,
+  unmount: key => active.get(key)?.unmount(),
+  setDirty: (key, value) => active.get(key)?.setDirty(value),
+  version: key => active.get(key)?.version(),
+  conflict: key => active.get(key)?.conflict(),
+  denied: key => active.get(key)?.denied(),
+  resume: kind => manager.resume(kind, id),
+  network: value => { online = value; manager.networkChanged() },
+  visible: value => { visible = value; manager.visibilityChanged() },
+  stats: () => ({
+    mountCount, unmountCount, restReads, restWrites, activeSockets, socketCreated,
+    watcherCount: manager.activeWatchers, status: manager.status,
+    listeners: leakedWindowDocumentListeners,
+  }),
+  close: () => {
+    for (const entry of [...active.values()]) entry.unmount()
+    manager.stop()
+  },
+}
+window.F4Ready = true
+</script>
+</body>
+</html>

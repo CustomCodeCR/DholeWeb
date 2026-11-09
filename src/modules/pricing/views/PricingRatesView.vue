@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
 import { Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhMultiSelect } from '@/shared/components/atoms'
 import { DhCrudToolbar, DhPagination } from '@/shared/components/molecules'
@@ -27,6 +26,7 @@ import {
   formatDate,
   formatMoney,
   marginTone,
+  landEquipmentSummary,
   rateDisplayName,
   routeLabel,
   statusTone,
@@ -65,7 +65,6 @@ function acceptedRateMissingIdtra(rate: RateDto): boolean {
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
 const authStore = useAuthStore()
 const modalStore = useModalStore()
 const toastStore = useToastStore()
@@ -77,10 +76,20 @@ function containerSummary(rate: RateDto) {
   if (rate.shipmentMode === 'Lcl' || rate.shipmentMode === 'Ltl') {
     return `${rate.shipmentMode.toUpperCase()} · ${Number(rate.chargeableQuantity || 0).toFixed(3)} CBM`
   }
-  if (rate.shipmentMode === 'Ftl') return `${rate.containerQuantity} × FTL`
+  if (rate.shipmentMode === 'Ftl') return landEquipmentSummary(rate)
   const allocations = rate.containers?.filter((item) => item.quantity > 0) ?? []
   if (allocations.length === 0) return `${rate.containerQuantity} × ${rate.containerTypeName}`
   return allocations.map((item) => `${item.quantity} × ${item.containerTypeName}`).join(' + ')
+}
+
+function operationProvider(rate: RateDto) {
+  if (rate.shipmentMode === 'Ftl') return 'TIGSA'
+  return rate.carrierName || 'Sin naviera'
+}
+
+function operationAgent(rate: RateDto) {
+  if (rate.shipmentMode === 'Ftl' || rate.shipmentMode === 'Ltl') return 'Grupo Castro Fallas'
+  return rate.agentName || '—'
 }
 
 function canonicalRateCurrency(code?: string | null, name?: string | null) {
@@ -780,6 +789,7 @@ onMounted(async () => {
       </template>
     </DhPageHeader>
 
+
     <section class="dh-glass dh-liquid rounded-[24px] p-3 sm:rounded-[32px] sm:p-5">
       <DhCrudToolbar
         v-model:search="filters.search"
@@ -943,7 +953,7 @@ onMounted(async () => {
             v-if="loading"
             class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
           >
-            {{ t('common.loading') }}
+            Cargando...
           </div>
 
           <div
@@ -956,7 +966,7 @@ onMounted(async () => {
             v-else-if="rows.length === 0"
             class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-10 text-center text-sm font-semibold text-[var(--dh-text-muted)]"
           >
-            {{ t('pricing.rates.noMatch') }}
+            No hay tarifas que coincidan con los filtros.
           </div>
 
           <article
@@ -980,14 +990,14 @@ onMounted(async () => {
                     {{ visibleQuoteNumber(row) }}
                   </span>
                   <span data-rate-client class="block w-full min-w-0 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
-                    {{ row.clientName || t('pricing.rates.noClient') }}
+                    {{ row.clientName || 'Sin cliente' }}
                   </span>
                 </div>
                 <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                   <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                   <DhBadge v-if="row.groupAlternativeCount && row.groupAlternativeCount > 1" :label="`${row.groupAlternativeCount} alternativas`" variant="neutral" />
                   <DhBadge
-                    :label="isMasterTariff(row) ? t('pricing.rates.masterTariff') : row.rateType === 'Tariff' ? t('pricing.rates.tariff') : t('pricing.rates.spot')"
+                    :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
                     :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                   />
                   <span data-mobile-rate-status class="inline-flex">
@@ -1008,14 +1018,14 @@ onMounted(async () => {
 
             <div class="mt-3 grid grid-cols-2 gap-2">
               <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
-                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.operation') }}</p>
-                <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ row.carrierName || t('pricing.rates.noCarrier') }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Operación</p>
+                <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ operationProvider(row) }}</p>
                 <p class="mt-1 break-words text-xs font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
-                <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.agentLabel') }}: {{ row.agentName || '—' }}</p>
+                <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">Agente: {{ operationAgent(row) }}</p>
               </div>
 
               <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
-                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.quotedBy') }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Cotizado por</p>
                 <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ creatorDisplayName(row) }}</p>
                 <p
                   v-if="creatorUserName(row) && creatorUserName(row).toLowerCase() !== creatorDisplayName(row).toLowerCase()"
@@ -1028,11 +1038,11 @@ onMounted(async () => {
 
             <div class="mt-2 grid grid-cols-2 gap-2">
               <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
-                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.reviewedBy') }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Revisado por</p>
                 <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ reviewerDisplayName(row) }}</p>
               </div>
               <div class="min-w-0 rounded-xl bg-black/[0.035] p-2.5 dark:bg-white/[0.04]">
-                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.lastModifiedBy') }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Última modificación por</p>
                 <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">{{ lastModifierDisplayName(row) }}</p>
               </div>
             </div>
@@ -1046,20 +1056,20 @@ onMounted(async () => {
 
             <div class="mt-2 grid grid-cols-2 gap-2">
               <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
-                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Costo</p>
                 <p class="mt-1 whitespace-nowrap text-sm font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
               </div>
               <div class="min-w-0 rounded-xl border border-[var(--dh-border)] p-2.5">
-                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.columns.validity') }}</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Vigencia</p>
                 <p class="mt-1 text-sm font-black">{{ formatDate(row.validFrom) }}</p>
-                <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.until') }} {{ formatDate(row.validTo) }}</p>
+                <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">hasta {{ formatDate(row.validTo) }}</p>
               </div>
             </div>
 
             <div class="mt-2 rounded-xl border border-[var(--dh-border)] p-2.5">
               <div class="flex min-w-0 items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">{{ t('pricing.rates.saleUtility') }}</p>
+                  <p class="text-[10px] font-black uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Venta / Utilidad</p>
                   <p class="mt-1 break-words text-sm font-black text-[var(--dh-primary)]">
                     {{ formatMoney(row.totalSaleUsd, 'USD') }}
                     <span class="text-[var(--dh-text-soft)]"> / {{ formatMoney(row.totalUtilityUsd, 'USD') }}</span>
@@ -1071,7 +1081,7 @@ onMounted(async () => {
                   :variant="marginTone(Number(row.marginPercentage || 0))"
                 />
               </div>
-              <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
+              <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ row.freeDays }} días libres</p>
             </div>
 
             <button
@@ -1085,8 +1095,8 @@ onMounted(async () => {
               <button
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
-                :title="t('pricing.rates.viewInWizard')"
-                :aria-label="t('pricing.rates.viewInWizard')"
+                title="Ver en wizard"
+                aria-label="Ver en wizard"
                 @click="openDetail(row)"
               >
                 <Eye class="h-4 w-4" />
@@ -1095,8 +1105,8 @@ onMounted(async () => {
                 v-if="canUpdateRate(row)"
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
-                :title="t('pricing.rates.updateRate')"
-                :aria-label="t('pricing.rates.updateRate')"
+                title="Actualizar tarifa"
+                aria-label="Actualizar tarifa"
                 @click="openEdit(row)"
               >
                 <Edit3 class="h-4 w-4" />
@@ -1105,8 +1115,8 @@ onMounted(async () => {
                 v-if="canCreate"
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
-                :title="t('pricing.rates.duplicateRate')"
-                :aria-label="t('pricing.rates.duplicateRate')"
+                title="Duplicar tarifa"
+                aria-label="Duplicar tarifa"
                 @click="duplicate(row)"
               >
                 <Copy class="h-4 w-4" />
@@ -1135,26 +1145,26 @@ onMounted(async () => {
             <thead class="bg-black/[0.035] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)] dark:bg-white/[0.05]">
               <tr>
                 <th class="px-3 py-3"></th>
-                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.rate') }}</th>
-                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.operation') }}</th>
-                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.quotedBy') }}</th>
-                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.reviewedBy') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap">Tarifa</th>
+                <th class="px-3 py-3 whitespace-nowrap">Operación</th>
+                <th class="px-3 py-3 whitespace-nowrap">Cotizado por</th>
+                <th class="px-3 py-3 whitespace-nowrap">Revisado por</th>
                 <th class="px-3 py-3 whitespace-nowrap">Motivo de modificación</th>
-                <th class="px-3 py-3 whitespace-nowrap text-right">{{ t('pricing.rates.columns.commercial') }}</th>
-                <th class="px-3 py-3 whitespace-nowrap">{{ t('pricing.rates.columns.validity') }}</th>
-                <th class="px-3 py-3 whitespace-nowrap text-center">{{ t('pricing.rates.columns.status') }}</th>
-                <th class="px-3 py-3 whitespace-nowrap text-right">{{ t('pricing.rates.columns.actions') }}</th>
+                <th class="px-3 py-3 whitespace-nowrap text-right">Resumen comercial</th>
+                <th class="px-3 py-3 whitespace-nowrap">Vigencia</th>
+                <th class="px-3 py-3 whitespace-nowrap text-center">Estado</th>
+                <th class="px-3 py-3 whitespace-nowrap text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('common.loading') }}</td>
+                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">Cargando...</td>
               </tr>
               <tr v-else-if="loadError">
                 <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No se pudieron cargar las tarifas. Intente nuevamente desde Actualizar.</td>
               </tr>
               <tr v-else-if="rows.length === 0">
-                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.noMatch') }}</td>
+                <td colspan="10" class="px-5 py-12 text-center font-semibold text-[var(--dh-text-muted)]">No hay tarifas que coincidan con los filtros.</td>
               </tr>
               <tr
                 v-for="row in rows"
@@ -1177,14 +1187,14 @@ onMounted(async () => {
                         {{ visibleQuoteNumber(row) }}
                       </span>
                       <span data-rate-client class="block w-full min-w-0 break-words text-base font-black leading-snug text-[var(--dh-text)] sm:text-lg">
-                        {{ row.clientName || t('pricing.rates.noClient') }}
+                        {{ row.clientName || 'Sin cliente' }}
                       </span>
                     </div>
                     <div class="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
                       <DhBadge :label="`REV ${row.revisionNumber || 1}`" variant="primary" />
                   <DhBadge v-if="row.groupAlternativeCount && row.groupAlternativeCount > 1" :label="`${row.groupAlternativeCount} alternativas`" variant="neutral" />
                       <DhBadge
-                        :label="isMasterTariff(row) ? t('pricing.rates.masterTariff') : row.rateType === 'Tariff' ? t('pricing.rates.tariff') : t('pricing.rates.spot')"
+                        :label="isMasterTariff(row) ? 'TARIFARIO · MAESTRO' : row.rateType === 'Tariff' ? 'TARIFA' : 'SPOT'"
                         :variant="row.rateType === 'Spot' ? 'warning' : isMasterTariff(row) ? 'neutral' : 'success'"
                       />
                     </div>
@@ -1200,9 +1210,9 @@ onMounted(async () => {
                 </td>
 
                 <td class="px-3 py-4 align-top">
-                  <p class="break-words font-black text-[var(--dh-text)]">{{ row.carrierName || t('pricing.rates.noCarrier') }}</p>
+                  <p class="break-words font-black text-[var(--dh-text)]">{{ operationProvider(row) }}</p>
                   <p class="mt-1 break-words text-xs font-bold text-[var(--dh-text-soft)]">{{ containerSummary(row) }}</p>
-                  <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.agentLabel') }}: {{ row.agentName || '—' }}</p>
+                  <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">Agente: {{ operationAgent(row) }}</p>
                 </td>
 
                 <td class="px-3 py-4 align-top">
@@ -1218,7 +1228,7 @@ onMounted(async () => {
                 <td class="px-3 py-4 align-top">
                   <p class="break-words font-black text-[var(--dh-text)]">{{ reviewerDisplayName(row) }}</p>
                   <p class="mt-1 break-words text-[11px] font-semibold text-[var(--dh-text-muted)]">
-                    {{ t('pricing.rates.columns.lastModifiedBy') }}: {{ lastModifierDisplayName(row) }}
+                    Última modificación por: {{ lastModifierDisplayName(row) }}
                   </p>
                 </td>
 
@@ -1230,9 +1240,9 @@ onMounted(async () => {
                 </td>
 
                 <td class="px-3 py-4 text-right align-top">
-                  <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.totalCost') }}</p>
+                  <p class="text-[11px] font-semibold text-[var(--dh-text-muted)]">Costo</p>
                   <p class="whitespace-nowrap font-black">{{ formatMoney(row.totalCostUsd, 'USD') }}</p>
-                  <p class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.saleUtility') }}</p>
+                  <p class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">Venta / Utilidad</p>
                   <p class="whitespace-nowrap font-black text-[var(--dh-primary)]">
                     {{ formatMoney(row.totalSaleUsd, 'USD') }}
                     <span class="text-[var(--dh-text-soft)]"> / {{ formatMoney(row.totalUtilityUsd, 'USD') }}</span>
@@ -1244,8 +1254,8 @@ onMounted(async () => {
 
                 <td class="px-3 py-4 align-top">
                   <p class="whitespace-nowrap font-black">{{ formatDate(row.validFrom) }}</p>
-                  <p class="whitespace-nowrap text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ t('pricing.rates.until') }} {{ formatDate(row.validTo) }}</p>
-                  <p class="mt-1 whitespace-nowrap text-[11px] font-bold text-[var(--dh-text-soft)]">{{ t('pricing.rates.freeDaysValue', { count: row.freeDays }) }}</p>
+                  <p class="whitespace-nowrap text-[11px] font-semibold text-[var(--dh-text-muted)]">hasta {{ formatDate(row.validTo) }}</p>
+                  <p class="mt-1 whitespace-nowrap text-[11px] font-bold text-[var(--dh-text-soft)]">{{ row.freeDays }} días libres</p>
                 </td>
 
                 <td class="px-3 py-4 text-center align-top">
@@ -1259,7 +1269,7 @@ onMounted(async () => {
                     <button
                       type="button"
                       class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
-                      :title="t('pricing.rates.viewInWizard')"
+                      title="Ver en wizard"
                       @click="openDetail(row)"
                     >
                       <Eye class="h-4 w-4" />
@@ -1275,7 +1285,7 @@ onMounted(async () => {
                       v-if="canUpdateRate(row)"
                       type="button"
                       class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
-                      :title="t('pricing.rates.updateRate')"
+                      title="Actualizar tarifa"
                       @click="openEdit(row)"
                     >
                       <Edit3 class="h-4 w-4" />
@@ -1284,7 +1294,7 @@ onMounted(async () => {
                       v-if="canCreate"
                       type="button"
                       class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl hover:bg-black/5 dark:hover:bg-white/10"
-                      :title="t('pricing.rates.duplicateRate')"
+                      title="Duplicar tarifa"
                       @click="duplicate(row)"
                     >
                       <Copy class="h-4 w-4" />

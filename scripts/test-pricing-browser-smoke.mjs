@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 
@@ -75,6 +76,16 @@ try {
   if (status !== 'ready') {
     const html = (await cdp.call('Runtime.evaluate', {expression: 'document.documentElement.outerHTML.slice(0, 2000)', returnByValue: true})).result?.value
     console.error('Browser HTML:', html)
+    // Preserve the failing minified expression: Firefox/Chrome shorten the
+    // original variable to one letter, so the literal bundle column matters.
+    const position = error.match(/(PricingAlternativeWizardCrystal-[^/:]+\.js):(\d+):(\d+)/)
+    if (position) {
+      const code = readFileSync('dist-smoke/assets/' + position[1], 'utf8')
+      const line = code.split('\n')[Number(position[2]) - 1] ?? ''
+      const col = Number(position[3]) - 1
+      console.error('Offending production expression:', line.slice(Math.max(0, col - 1300), col + 1400))
+      console.error('G initializers:', [...code.matchAll(/\bG=[^,;]{1,110}/g)].slice(0, 12).map((m) => m[0]))
+    }
     console.error('Chrome exceptions:', cdp.exceptions.slice(-8))
     console.error('Vite stderr:', viteLog.slice(-1000))
   }

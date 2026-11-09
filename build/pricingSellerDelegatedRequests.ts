@@ -62,10 +62,7 @@ async function loadSellerRequestOwnerOptions() {
     const savedSelection = props.sellerEditRequestId
       ? sellerRequestOwnerOptions.value.find((option) => option.value === sellerRequestOwnerId.value)
       : undefined
-    const selected = savedSelection ??
-      sellerRequestOwnerOptions.value.find(option => option.value === requestSellerUserId.value) ??
-      sellerRequestOwnerOptions.value.find(option => option.value === visibility.viewerUserId) ??
-      sellerRequestOwnerOptions.value[0]
+    const selected = savedSelection ?? sellerRequestOwnerOptions.value[0]
     sellerRequestOwnerId.value = selected?.value ?? ''
     form.executiveId = selected?.value ?? ''
     form.executiveName = selected?.label ?? ''
@@ -78,15 +75,6 @@ async function loadSellerRequestOwnerOptions() {
   }
 }
 
-// Keep the CRM customer scope and the seller request owner as the same user.
-watch(requestSellerUserId, id => {
-  if (props.sellerRequestMode && id && id !== sellerRequestOwnerId.value)
-    sellerRequestOwnerId.value = id
-})
-watch(sellerRequestOwnerId, id => {
-  if (props.sellerRequestMode && id && id !== requestSellerUserId.value)
-    requestSellerUserId.value = id
-})
 onMounted(async () => {
   if (props.sellerRequestMode) await loadSellerRequestOwnerOptions()
 })`,

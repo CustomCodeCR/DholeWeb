@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useResourceRealtime } from '@/core/realtime/useResourceRealtime'
 import { AlertTriangle, RefreshCw } from 'lucide-vue-next'
 import { DhButton } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
@@ -11,6 +12,25 @@ const props = defineProps<{ rateId: string }>()
 const rate = ref<RateDto | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
+const liveRateId = computed(() => props.rateId)
+useResourceRealtime<RateDto>({
+  kind: 'pricing.rate',
+  id: liveRateId,
+  visible: () => document.visibilityState === 'visible',
+  // Editing takes place in a separately managed form drawer; never modify that draft.
+  fetchSnapshot: async (rateId) => {
+    const snapshot = await PricingService.getRate(rateId)
+    // F6.02: Pricing's commercial revision is NOT a monotonic version for
+    // every status/field mutation. Never suppress an authorized invalidation
+    // merely because its revision did not change; REST remains authoritative.
+    return { value: snapshot, version: null }
+  },
+  applySnapshot: ({ value }) => { if (value.id === props.rateId) rate.value = value },
+  onDenied: () => {
+    rate.value = null
+    errorMessage.value = 'Ya no tenés permiso para consultar esta tarifa.'
+  },
+})
 
 async function loadRate() {
   if (!props.rateId) return

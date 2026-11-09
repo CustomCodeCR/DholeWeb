@@ -48,13 +48,6 @@
   --blur-xl: var(--dh-blur);
   --blur-2xl: var(--dh-blur-strong);
   --blur-3xl: var(--dh-blur-strong);
-
-  --dh-scrollbar-size: 10px;
-  --dh-scrollbar-radius: 999px;
-  --dh-scrollbar-track: rgb(3 2 2 / 0.055);
-  --dh-scrollbar-thumb: rgb(var(--dh-primary-rgb) / 0.50);
-  --dh-scrollbar-thumb-hover: rgb(var(--dh-primary-rgb) / 0.68);
-  --dh-scrollbar-thumb-active: rgb(var(--dh-primary-rgb) / 0.84);
 }
 
 .dark {

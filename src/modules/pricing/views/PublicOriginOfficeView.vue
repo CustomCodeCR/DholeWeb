@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Building2, Clock3, Mail, MapPin, Phone, Navigation } from 'lucide-vue-next'
+import { isPublicColoaderOrigin } from '../utils/publicOriginContactPolicy'
+import {
+  canUsePublicDirectoryFallback,
+  findPublicDirectoryOffice,
+  getPublicColoaderContacts,
+} from '../utils/publicOriginDirectory'
 
 interface OfficeContact {
   name: string
@@ -67,10 +73,11 @@ const polLocator = computed(() => polValue.value || polCode.value)
 const polDisplay = computed(() => office.value?.polValue || polValue.value || office.value?.polCode || polCode.value)
 const agentCode = computed(() => String(route.query.agentCode ?? '').trim())
 const agentName = computed(() => String(route.query.agent ?? '').trim())
-// Legacy maritime own LCL PDFs carry GCF as their commercial source; the
-// contact agent in origin is RS. Preserve the other shipment modes.
+// Legacy PDFs for maritime own LCL were published with GCF as the agent.
+// The consolidated rate stays sourced from GCF, but its origin contacts are RS.
 const legacyOwnLclLink = computed(() =>
-  String(route.query.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
+  findPublicDirectoryOffice(polLocator.value)?.region === 'china'
+  && String(route.query.shipmentMode ?? '').trim().toLowerCase() === 'lcl'
   && String(route.query.modality ?? '').trim().toLowerCase() !== 'air'
   && (
     agentCode.value.toUpperCase() === 'GCF'
@@ -79,7 +86,54 @@ const legacyOwnLclLink = computed(() =>
 )
 const originAgentCode = computed(() => legacyOwnLclLink.value ? 'RS' : agentCode.value)
 const originAgentName = computed(() => legacyOwnLclLink.value ? 'RS' : agentName.value)
-const agentDisplay = computed(() => office.value?.agent || office.value?.agentCode || originAgentName.value || originAgentCode.value || 'Oficina de origen')
+
+// Only explicitly confirmed coloaders get the company coordination cards.
+// Own consolidations use the original warehouse/agent contacts from Config.
+const isColoader = computed(() => isPublicColoaderOrigin(route.query))
+const visibleContacts = computed<OfficeContact[]>(() => {
+  if (!isColoader.value) return office.value?.contacts ?? []
+  return getPublicColoaderContacts(polLocator.value).map((contact, index) => ({
+    ...contact,
+    phone: '',
+    isPrimary: index === 0,
+    modalities: [],
+    shipmentModes: [],
+    routes: [],
+  }))
+})
+
+function applyDirectoryFallback(): boolean {
+  if (isColoader.value || !canUsePublicDirectoryFallback(
+    polLocator.value, originAgentCode.value, originAgentName.value,
+  )) return false
+  const entry = findPublicDirectoryOffice(polLocator.value)
+  if (!entry) return false
+  office.value = {
+    id: 'directory:' + (entry.code || entry.locator),
+    name: entry.locator,
+    code: entry.code || '',
+    polId: null,
+    polValue: entry.locator,
+    polCode: entry.code || '',
+    address: entry.address,
+    city: entry.locator.split(',')[0] ?? '',
+    country: entry.locator.split(',').at(-1)?.trim() ?? '',
+    latitude: null,
+    longitude: null,
+    contacts: entry.contacts.map((contact, index) => ({
+      ...contact,
+      role: 'Contacto del WHS',
+      isPrimary: index === 0,
+      modalities: [],
+      shipmentModes: [],
+      routes: [],
+    })),
+    photos: [],
+    message: 'Información del directorio WHS proporcionado por Grupo Castro Fallas.',
+    schedule: entry.schedule,
+  }
+  return true
+}
 
 const coordinates = computed(() => {
   if (office.value?.gcfOnly) return ''
@@ -155,8 +209,15 @@ async function load() {
   office.value = null
   revokePhotoObjectUrls()
 
+  // Coloaders use the verified @grupocastrofallas.com regional mailboxes.
+  // The office/photographs of RS or WWL must not be attributed to a coloader.
+  if (isColoader.value) {
+    loading.value = false
+    return
+  }
+
   if (!polLocator.value || !apiBaseUrl) {
-    failed.value = true
+    failed.value = !applyDirectoryFallback()
     loading.value = false
     return
   }
@@ -193,13 +254,19 @@ async function load() {
       photos: Array.isArray(resolved.photos) ? resolved.photos : [],
     }
 
-    if (!office.value.gcfOnly && office.value.photos.length) loadPublicPhotos(office.value.photos)
+    if (office.value.photos.length) loadPublicPhotos(office.value.photos)
   } catch {
-    failed.value = true
+    failed.value = !applyDirectoryFallback()
   } finally {
     loading.value = false
   }
 }
+
+watch(() => [
+  route.query.pol, route.query.polCode, route.query.agentCode, route.query.agent,
+  route.query.shipmentMode, route.query.modality, route.query.sourceKind,
+  route.query.lclSource, route.query.sourceType, route.query.route,
+], () => void load())
 
 onMounted(load)
 onBeforeUnmount(revokePhotoObjectUrls)
@@ -213,23 +280,23 @@ onBeforeUnmount(revokePhotoObjectUrls)
         <div class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-black uppercase tracking-[.2em] text-red-700">Grupo Castro Fallas</p>
-            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Datos de contacto en origen: {{ agentDisplay }}</h1>
-            <p v-if="office?.gcfOnly" class="mt-2 text-sm font-semibold text-slate-500">Contacto GCF para la coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
-            <p v-else class="mt-2 text-sm font-semibold text-slate-500">Información pública de coordinación correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
+            <h1 class="mt-2 text-2xl font-black sm:text-3xl">Datos de contacto en origen</h1>
+            <p v-if="isColoader" class="mt-2 text-sm font-semibold text-slate-500">Coordinación de cargas consolidadas para el POL {{ polDisplay || 'seleccionado' }}.</p>
+            <p v-else class="mt-2 text-sm font-semibold text-slate-500">Oficina {{ office?.name || 'por confirmar' }} correspondiente al POL {{ polDisplay || 'seleccionado' }}.</p>
           </div>
           <Building2 class="h-12 w-12 text-red-700" />
         </div>
       </header>
 
-      <div v-if="loading" class="rounded-3xl bg-white p-8 text-center font-bold shadow-sm ring-1 ring-slate-200">Cargando datos de la oficina…</div>
-      <div v-else-if="failed || !office" class="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+      <div v-if="!isColoader && loading" class="rounded-3xl bg-white p-8 text-center font-bold shadow-sm ring-1 ring-slate-200">Cargando datos de la oficina…</div>
+      <div v-else-if="!isColoader && (failed || !office)" class="rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
         <p class="text-lg font-black">No encontramos una oficina activa para este POL.</p>
         <p class="mt-2 text-sm text-slate-500">Contacte a Grupo Castro Fallas para confirmar los datos de coordinación.</p>
       </div>
 
       <template v-else>
-        <section :class="office.gcfOnly ? 'mx-auto max-w-2xl' : 'grid gap-4 md:grid-cols-2'">
-          <article v-if="!office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section class="grid gap-4" :class="isColoader ? 'md:grid-cols-1' : 'md:grid-cols-2'">
+          <article v-if="!isColoader && office" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Oficina de origen</p>
             <h2 class="mt-2 text-2xl font-black">{{ office.name }}</h2>
             <div class="mt-5 space-y-3 text-sm">
@@ -241,8 +308,8 @@ onBeforeUnmount(revokePhotoObjectUrls)
 
           <article class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
             <p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Contactos</p>
-            <div v-if="office.contacts.length" class="mt-3 space-y-4">
-              <div v-for="(contact, index) in office.contacts" :key="`${contact.email}-${index}`" class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+            <div v-if="visibleContacts.length" class="mt-3 space-y-4">
+              <div v-for="(contact, index) in visibleContacts" :key="`${contact.email}-${index}`" class="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
                 <div class="flex items-center justify-between gap-2"><strong>{{ contact.name || 'Contacto de oficina' }}</strong><span v-if="contact.isPrimary" class="rounded-full bg-red-100 px-2 py-1 text-[10px] font-black uppercase text-red-800">Principal</span></div>
                 <p v-if="contact.role" class="mt-1 text-xs font-semibold text-slate-500">{{ contact.role }}</p>
                 <a v-if="contact.phone" :href="`tel:${contact.phone}`" class="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700 hover:text-red-700"><Phone class="h-4 w-4" />{{ contact.phone }}</a>
@@ -253,7 +320,7 @@ onBeforeUnmount(revokePhotoObjectUrls)
           </article>
         </section>
 
-        <section v-if="!office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <section v-if="!isColoader && office && !office.gcfOnly" class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div class="mb-4"><p class="text-xs font-black uppercase tracking-[.16em] text-slate-500">Fotografías</p><h2 class="mt-1 text-xl font-black">Referencia de la oficina / WHS</h2></div>
           <div v-if="office.photos.length" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <figure v-for="photo in office.photos" :key="photo.storageId" class="overflow-hidden rounded-2xl bg-slate-100 ring-1 ring-slate-200">

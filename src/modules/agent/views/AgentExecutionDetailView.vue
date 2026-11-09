@@ -21,6 +21,7 @@ import { useAgentFormatting } from '@/modules/agent/composables/useAgentFormatti
 import { useAgentPermissions } from '@/modules/agent/composables/useAgentPermissions'
 import { useAgentPolling } from '@/modules/agent/composables/useAgentPolling'
 import { useAgentStore } from '@/modules/agent/stores/agentStore'
+import { useResourceRealtime } from '@/core/realtime/useResourceRealtime'
 
 type ExecutionTab = 'summary' | 'tasks' | 'result' | 'activity' | 'prompt' | 'captures' | 'errors'
 
@@ -45,6 +46,7 @@ const cancelling = ref(false)
 const activeTab = ref<ExecutionTab>('summary')
 
 const executionId = computed(() => String(route.params.id ?? ''))
+let permissionEpoch = 0
 const tabs: DhTabItem[] = [
   { key: 'summary', label: 'Resumen' },
   { key: 'tasks', label: 'Tareas' },
@@ -60,6 +62,39 @@ const polling = useAgentPolling({
   refresh: () => refresh(false),
   intervalMs: 5000,
 })
+
+/** F6.12: read-only Agent execution detail follows the universal Hub.
+ * A SignalR message is only an invalidation; owner REST remains authoritative.
+ * Existing polling stays as the offline/disabled-feature fallback.
+ */
+useResourceRealtime<AgentExecutionDto>({
+  kind: 'agent.execution',
+  id: executionId,
+  fetchSnapshot: async (id) => ({
+    value: await AgentService.executions.get(id),
+    version: null, // Agent DTO does not expose a global aggregate revision.
+  }),
+  applySnapshot: (snapshot) => {
+    execution.value = snapshot.value
+    store.upsertExecution(snapshot.value)
+    polling.sync()
+    if (['Completed', 'PartiallyCompleted'].includes(snapshot.value.status)) {
+      void loadStoredResult()
+    }
+  },
+  onDenied: () => {
+    // Purge previously visible privileged details when owner REST revokes access.
+    permissionEpoch++
+    store.forgetExecution(executionId.value)
+    execution.value = null
+    storedResult.value = null
+    promptSnapshot.value = null
+    promptLoaded.value = false
+    promptUnavailable.value = false
+    polling.stop()
+  },
+})
+
 
 const canCancel = computed(
   () =>
@@ -107,10 +142,16 @@ async function loadPromptSnapshot(force = false) {
   try {
     promptLoading.value = true
     promptUnavailable.value = false
-    promptSnapshot.value = await AgentService.executions.getPrompt(executionId.value)
+    const requestId = executionId.value
+    const epoch = permissionEpoch
+    const value = await AgentService.executions.getPrompt(requestId)
+    if (epoch === permissionEpoch && execution.value?.id === requestId)
+      promptSnapshot.value = value
   } catch {
-    promptSnapshot.value = null
-    promptUnavailable.value = true
+    if (execution.value?.id === executionId.value) {
+      promptSnapshot.value = null
+      promptUnavailable.value = true
+    }
   } finally {
     promptLoaded.value = true
     promptLoading.value = false
@@ -122,9 +163,13 @@ async function loadStoredResult() {
 
   try {
     resultLoading.value = true
-    storedResult.value = await AgentService.executions.getResult(executionId.value)
+    const requestId = executionId.value
+    const epoch = permissionEpoch
+    const value = await AgentService.executions.getResult(requestId)
+    if (epoch === permissionEpoch && execution.value?.id === requestId)
+      storedResult.value = value
   } catch {
-    storedResult.value = null
+    if (execution.value?.id === executionId.value) storedResult.value = null
   } finally {
     resultLoading.value = false
   }
@@ -135,10 +180,13 @@ async function refresh(showToast = false) {
 
   try {
     loading.value = true
+    const requestId = executionId.value
+    const epoch = permissionEpoch
     const [row] = await Promise.all([
-      AgentService.executions.get(executionId.value),
+      AgentService.executions.get(requestId),
       loadReferenceData(),
     ])
+    if (epoch !== permissionEpoch || executionId.value !== requestId) return
     execution.value = row
     store.upsertExecution(row)
     polling.sync()
