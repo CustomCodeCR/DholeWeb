@@ -206,7 +206,7 @@ function shouldBrowseAllPanamaRates() {
   // combination Panamá POE + POD outside Panamá is still multimodal.
   code = code.replace(
     /const multimodalAllInPresentation = computed\(\(\) => \{[\s\S]*?\n\}\)\nconst selectedPod =/,
-    `const multimodalAllInPresentation = computed(() => isMultimodalViaPanama(selectedDestination.value))\nconst selectedPod =`,
+    `const multimodalAllInPresentation = computed(() => shouldUseFclPanamaCostaRicaAllIn({\n  modality: form.modality,\n  shipmentMode: shipmentModeForApi.value,\n  poe: selectedDestination.value,\n  pod: findById(catalogs.pod, form.podId),\n}))\nconst selectedPod =`,
   )
 
   // ALL IN is exclusive to multimodal. Do not rewrite the wizard UI/state to
