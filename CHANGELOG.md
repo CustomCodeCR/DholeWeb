@@ -8,10 +8,12 @@
 
 
 
+
 ## [1.13.8] - 2026-11-08 (Dhole realtime 1.13.15 coordination)
 
 - PATCH synchronization with 17-repository realtime release. F2/F6 read-only AOF evidence and F10 production branch retention correction remain in DholeSystem.
 - SignalR frontend stays gated/off until formal security and recovery acceptance; no develop/master merge or deploy.
+
 
 
 
@@ -23,9 +25,11 @@
 
 
 
+
 ## [1.13.6] - 2026-11-08 (candidato F3)
 
 - Versionado PATCH 1.13.6 / ecosistema 1.13.13 sincronizado para integrar el ensayo TLS/WSS automático del Gateway en el release coordinado. Sin cambios en comportamiento frontend, flags no activados.
+
 
 
 
@@ -37,9 +41,11 @@
 
 
 
+
 ## [1.13.4] - 2026-11-08 (candidato F9, sin publicación)
 
 - Coordina la versión global `1.13.11` de Dhole Realtime tras las correcciones de CI de Config, Reports y Gateway. PATCH Web `1.13.3` → `1.13.4` en package.json, package-lock.json y version.json; sin cambios de UI, precios, rutas ni flags.
+
 
 
 
@@ -51,9 +57,11 @@
 
 
 
+
 ## [1.13.2] - 2026-11-08
 
 - Reconcile current develop fixes into the isolated realtime candidate while preserving realtime security changes.
+
 
 
 
@@ -64,6 +72,7 @@
 - F6.12 (candidato, sin release): vista AgentExecutionDetail enlazada al Hub universal por `agent.execution`, con GET REST autoritativo, polling fallback, rechazo de respuestas stale tras revocación y limpieza de caché Pinia. CI Vue/Agent/regresiones #42507658702 PASS.
 
 - F6/F7 (candidato): soporte de los 21 recursos con ACL del Gateway, reconciliación REST aun con pistas de versión fuera de orden y purga de vistas autorizadas al logout/expiración; pruebas de contingencia C01/C02/C03/C06/C07/C09/C10/C12 agregadas, **sin sustituir chaos real de staging**.
+
 
 
 
@@ -79,6 +88,7 @@
 
 
 
+
 ## [1.12.16] - 2026-11-08
 
 - Hotfix DH-20261108-PRICING-RATE-SELECTION-047: preserva `selectedFclBundlesByOption` y su restauración por POE/naviera fuera del bloque que `pricingWizardMixedCarrierExpiry` reemplaza, evitando `ReferenceError` al elegir tarifas FCL.
@@ -88,11 +98,13 @@
 
 
 
+
 ## [1.12.15] - 2026-11-08
 
 - Release `DH-20261108-PRICING-SETUP-TDZ-046`: soluciona la referencia anticipada de `form` causada por el watcher de fecha que un plugin introducía antes de `const form = reactive(...)` en el asistente de Pricing. Esta era la segunda excepción `Cannot access 'G' before initialization` que bloqueaba el renderizado en master.
 - La nueva validación de CI monta el asistente con Chrome sobre el JavaScript de producción minificado y evita merges que entreguen una pantalla negra aunque `vite build` compile.
 - Mantiene íntegros los RateId, cotizaciones existentes, contratos REST y correcciones de FCL. Release coordinado con DholePricingService 1.5.17 y validación en staging antes de producción.
+
 
 
 
@@ -105,12 +117,14 @@
 
 
 
+
 ## [1.12.13] - 2026-11-08
 
 - Hotfix `DH-20261108-PRICING-RENDER-GUARD-044`: elimina un computed de cobertura FCL que dependía de bundles durante la inicialización, evitando referencias adelantadas y fallos de renderizado en Crear tarifa.
 - Los badges FCL obtienen ofertas únicas del arreglo filtrado por contenedor y el total de registros importados se calcula independientemente y con protección ante datos incompletos. Se conserva la selección y deduplicación de RateId reales.
 - Regresión automatizada para impedir `.reduce` directo sobre la propiedad de cobertura no inicializada y verificar la pantalla recuperable `PricingWizardBoundary` en staging.
 - Release coordinado con DholePricingService 1.5.15. Requiere compilación, pruebas y verificación en staging antes de integración a producción.
+
 
 
 
@@ -123,12 +137,14 @@
 
 
 
+
 ## [1.12.11] - 2026-11-08
 
 - FCL Pantalla 5: el contador de contenedores muestra **ofertas comerciales únicas** y separa la cantidad de registros de importación; el resultado de filtros cuenta únicamente las tarjetas realmente presentadas.
 - La deduplicación ya no elimina tarifas con diferencias de flete oceánico, costo total, cargos de origen/destino, recargos, tiempo de tránsito, comentarios, mercancía, perfil de importación ni fuente tarifaria. Los duplicados verdaderos con vigencias superpuestas se agrupan sin borrar sus IDs.
 - La selección se verifica por el RateId real del equipo, naviera y POE; la clave de tarjeta es estable entre ordenamientos. Pantalla 5 distingue «Tarifa elegida» de «Naviera agregada, elija tarifa» y conserva la selección cuando la fuente queda agrupada.
 - Incluye pruebas con 108 registros y variantes comerciales que deben permanecer visibles. Release `DH-20261108-FCL-OFFER-COVERAGE-042` coordinado con Pricing 1.5.13; no cambia contratos REST ni registros persistidos.
+
 
 
 
@@ -141,12 +157,14 @@
 
 
 
+
 ## [1.12.9] - 2026-11-08
 
 - Evita que Pantalla 5 FCL quede en negro durante la carga de muchas tarifas: elimina las consultas paralelas innecesarias a /source para los 36 lotes asociados a 110 registros de importación. Los correos fuente se consultan al abrir el modal correspondiente.
 - Añade recuperación no destructiva si falla la agrupación visual de ofertas FCL: el usuario puede seguir viendo y seleccionando tarjetas individuales, conservando todos los RateId y detalles comerciales.
 - Protege la selección visual cuando se reciben ofertas parcialmente hidratadas.
 - Nuevas pruebas de regresión para la carga de tarifas sin peticiones masivas y el fallback de Pantalla 5. Release `DH-20261108-FCL-BLANK-SCREEN-040`. DholePricingService 1.5.11 mantiene el contrato API.
+
 
 
 
@@ -160,12 +178,14 @@
 
 
 
+
 ## [1.12.7] - 2026-11-08
 
 - Pantalla 5 FCL: agrupa en una sola tarjeta las ofertas visualmente iguales con vigencia superpuesta incluso cuando sus fuentes tienen comentarios, tránsito o metadatos distintos.
 - Conserva todas las alternativas y los ID originales seleccionables en una sección colapsable, sin repetir tarjetas principales ni borrar tarifas importadas.
 - Respeta diferencias de ruta, naviera, agente, moneda, equipo, costo, días libres y vigencia no superpuesta. Pruebas de regresión MAERSK Caldera 04/05 noviembre.
 - Release coordinado `DH-20261108-FCL-VISUAL-GROUPS-038`, CI y staging antes de integrar a master.
+
 
 
 
@@ -179,12 +199,14 @@
 
 
 
+
 ## [1.12.5] - 2026-11-08
 
 - Pantalla 5 FCL: consolida las tarjetas equivalentes que tienen los mismos identificadores de naviera, agente, moneda y puertos aunque la importación utilice nombres o alias distintos.
 - Corrige MAERSK Caldera con fechas 04-13 y 05-13 de noviembre; conserva una sola opción con la vigencia más amplia y el ID auténtico de origen.
 - Mantiene separadas las rutas, agentes, monedas, precios, días libres, condiciones comerciales y vigencias no superpuestas; no borra tarifas importadas.
 - Release coordinado `DH-20261108-FCL-VISIBLE-DEDUP-036`; validar CI/staging antes de promover a master; producción sin autorizar.
+
 
 
 
@@ -198,12 +220,14 @@
 
 
 
+
 ## [1.12.3] - 2026-11-08
 
 - Agenda CRM: mantiene los botones Guardar/Cancelar visibles en un pie de modal fijo, aunque haya muchos campos y se desplace el formulario.
 - Explica que programar una actividad no activa recordatorios hasta guardarla y muestra los errores de validación junto al botón.
 - Corrige el mensaje de confirmación para diferenciar el guardado y encolado de la entrega efectiva de avisos.
 - Incluye regresiones de la interfaz de calendario y conserva la compatibilidad con otros modales.
+
 
 
 
@@ -217,6 +241,7 @@
 
 
 
+
 ## [1.12.1] - 2026-11-08
 
 - Finaliza la sub-QUO seleccionada con el número comercial sin sufijo y redirige enlaces de alternativas históricas a la cotización definitiva.
@@ -226,11 +251,13 @@
 
 
 
+
 ## [1.12.0] - 2026-11-07
 
 - Agenda CRM: configura repetición diaria, semanal, quincenal o cada 30 días de visitas, llamadas y reuniones.
 - Configura recordatorios periódicos de 5 minutos a un día mientras la actividad siga pendiente, además de recordatorios antes y al inicio.
 - Muestra frecuencias guardadas en el detalle e incorpora prueba de regresión del contrato.
+
 
 
 
@@ -244,10 +271,12 @@
 
 
 
+
 ## [1.11.4] - 2026-11-07
 
 - Pantalla 8 en visualización/edición de MultiQUO muestra acordeones independientes con datos guardados: subQUO, POE, naviera, haulage, flete, rubros, costos y totales; se ocultan los resúmenes de la única tarifa y los controles de creación.
 - Release `DH-20261107-MULTIQUO-SAVED-ACCORDIONS-029`. Pruebas de compilación/CI y staging previas a la promoción coordinada.
+
 
 
 
@@ -258,6 +287,7 @@
 
 
 
+
 ## [1.11.2] - 2026-11-07
 
 - Corrige selección automática del Inland configurado según POE/naviera Merchant o Carrier sin reintroducir precios cero del borrador; muestra advertencia si no existe precio válido. Monedas por Value y resumen comercial de ancho completo.
@@ -265,10 +295,12 @@
 
 
 
+
 ## [1.11.1] - 2026-11-07 (pendiente de CI/staging)
 
 - Recupera todos los POE, navieras, Merchant/Carrier y las líneas persistidas al visualizar una multiQUO FCL; pantalla 8 ocupa todo el ancho y pantalla 9 presenta acordeones individuales de cada subQUO. Corrige saltos de línea comerciales.
 - Release DH-20261107-MULTIQUO-PERSISTED-PDF-026; sin autorización de despliegue a producción.
+
 
 
 
@@ -283,11 +315,13 @@
 
 
 
+
 ## [1.10.1] - 2026-11-07
 
 - Corrige selección visual de tarifas FCL y agrega navegación sticky entre POE y navieras.
 - Añade Merchant/Carrier Haulage en pantalla 7 por alternativa y rediseña pantalla 8 con acordeones y desglose comercial por subtarifa.
 - Restringe las sub-QUO multi-POE a FCL; continúa pendiente el guardado transaccional.
+
 
 
 ## [1.10.0] - 2026-11-07
@@ -301,6 +335,7 @@
 
 
 
+
 ## [1.9.0] - 2026-11-07
 
 - Rediseña pantalla 5 como selección secuencial por cada POE: tarifas preaprobadas y preautorizadas primero, y navieras sin tarifa en un panel manual opcional.
@@ -308,6 +343,7 @@
 - Las pantallas 6 y 7 recorren cada combinación POE–naviera una a una, preservando flete, agente, costos, moneda y fuente de cada opción; al completar todas pasa a pantalla 8.
 - Agrega navegación anterior/siguiente por opción, recuperación de tarifas vigentes para POE nuevos y pruebas del recorrido Caldera → Balboa → Moín.
 - Conserva el bloqueo de persistencia agrupada: el endpoint transaccional de tarifa principal y sub-QUO en Pricing aún es requisito antes de habilitar creación y despliegue.
+
 
 
 
@@ -319,6 +355,7 @@
 - Reorganiza las pantallas 6 y 7 con identificación de la ruta activa, contador de alternativas y navegación anterior/siguiente; indica dónde ingresar flete y cargos independientes.
 - Mantiene la compatibilidad de modalidades existentes y bloquea guardados comerciales parciales de grupos mientras Pricing no admita el endpoint transaccional.
 - Agrega pruebas de selección manual, aislamiento y navegación; release DH-20261107-MANUAL-CARRIER-WIZARD-021.
+
 
 
 
@@ -335,6 +372,7 @@
 
 
 
+
 ## [1.6.0] - 2026-11-07
 
 - Permite seleccionar y quitar múltiples POE desde la pantalla 3 mediante un selector con búsqueda y chips.
@@ -342,6 +380,7 @@
 - Protege el guardado: no se crea una única tarifa silenciosamente cuando el usuario seleccionó múltiples POE; la persistencia de sub-QUO agrupadas sigue pendiente de API transaccional en Pricing.
 - Mantiene el flujo de selección simple para modificaciones y solicitudes del vendedor, con pruebas de regresión.
 - Release coordinado DH-20261107-MULTI-POE-SELECTOR-019.
+
 
 
 
@@ -355,10 +394,12 @@
 
 
 
+
 ## [1.4.0] - 2026-11-06
 
 - Añade ruta y comentarios de la naviera en pantalla 6, conserva ambos datos al editar y los envía al PDF de la cotización.
 - Release coordinado DH-20261106-CARRIER-ROUTE-COMMENTS-017 con Pricing y Reports; mantiene separadas las rutas comercial y de la naviera.
+
 
 
 
@@ -372,11 +413,13 @@
 
 
 
+
 ## [1.3.6] - 2026-11-06
 
 - Coloca el nombre del cliente debajo de la QUO, en una línea propia con todo el ancho disponible, tanto en escritorio como en móvil.
 - Evita que los nombres se compriman letra por letra en la lista de tarifas; añade una prueba de regresión del diseño.
 - Incrementa DholeWeb a 1.3.6 (PATCH) y registra el release global Dhole 1.3.13 (DH-20261106-PRICING-QUO-CLIENT-015).
+
 
 
 
@@ -389,11 +432,13 @@
 
 
 
+
 ## [1.3.4] - 2026-11-06
 
 - Separa Guardar tarifa de Enviar revisión al vendedor sin crear revisiones duplicadas.
 - Valida la existencia de la función de envío después de las transformaciones del wizard y antes de compilar Vue; incorpora regresiones en CI.
 - Renueva los recursos del frontend con versión PATCH para evitar un paquete JavaScript obsoleto.
+
 
 
 
@@ -403,6 +448,7 @@
 - Prevents the wizard from treating a backend auto-closed request as a successful send, and avoids duplicate quote revisions.
 - Requires the operator to choose a cancellation reason and transmits explicit seller-modification cancellation intent.
 - Adds regression checks for explicit completion, cancellation, and request dashboard refresh.
+
 
 
 
@@ -417,12 +463,14 @@
 
 
 
+
 ## [1.3.1] - 2026-11-06
 
 - Elimina la traducción por IA, su botón, eventos y dependencias de contenido.
 - Completa traducciones ES/EN en navegación, dashboards, reportes y solicitudes de Pricing; formatos de fechas según idioma activo.
 - Corrige responsive en celulares: barra de navegación, pestañas, formularios, tablas, modales y drawers; evita que el resumen fijo tape las acciones.
 - Incorpora pruebas de regresión de idioma y diseño móvil en CI.
+
 
 
 
@@ -434,10 +482,12 @@
 
 
 
+
 ## [1.2.4] - 2026-11-05
 
 - Actualiza DholeWeb SemVer 1.2.4 y manifiesto al release global Dhole 1.3.1.
 - Verifica versión real del bundle sin número fijo y mantiene despliegue automático master/develop.
+
 
 
 
@@ -449,11 +499,13 @@
 
 
 
+
 ## [1.2.2] - 2026-11-05
 
 - Corregir el error `if is already defined` que impedia iniciar el workflow de produccion.
 - Restaurar la ejecucion del despliegue al integrar cambios en master, conservando la opcion de lanzamiento manual.
 - Agregar una prueba de regresion para validar los disparadores y evitar condiciones duplicadas en el job.
+
 
 
 
@@ -466,10 +518,12 @@
 
 
 
+
 ## [1.2.0] - 2026-11-05
 
 - Add universal version governance, GitHub Actions release gate and permanent Codex policy.
 - Synchronize DholeWeb version with the ecosystem release batch.
+
 
 
 
@@ -481,17 +535,20 @@
 
 
 
+
 ## [1.0.0] - 2026-11-04
 
 - Inicio del versionamiento formal de Dhole Web bajo MAJOR.MINOR.PATCH.
 - Información de versión y compilación visible en el sistema.
 - Scripts para validación, actualización y registro de futuras versiones.
 
+
 ## [1.12.18] - 2026-11-09
 
 - ALL IN solo cuando la alternativa FCL es marítima/multimodal, su POE está en Panamá y el POD final en Costa Rica; Caldera, Moín y otros destinos mantienen desglose. La decisión se calcula para cada alternativa al crear MultiQUO y se visualiza por subtarifa en pantalla 8.
 - Release coordinado DH-20261109-PRICING-FCL-PANAMA-ALLIN-049; DholeWeb 1.12.18 / DholePricingService 1.5.20.
 - Pruebas unitarias y de regresión más validación de staging antes de master.
+
 
 
 ## [1.12.17] - 2026-11-09
