@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.14.3",
-  "ecosystemVersion": "1.14.3",
-  "releaseId": "DH-20261109-SELLER-PRICING-STATUS-052",
-  "releaseStatus": "candidate-seller-pricing-status-staging-validation"
+  "version": "1.14.4",
+  "ecosystemVersion": "1.14.4",
+  "releaseId": "DH-20261109-QUO269-SELLER-STATUS-053",
+  "releaseStatus": "develop-quo269-current-status-validation-pending"
 }
