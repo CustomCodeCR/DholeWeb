@@ -270,3 +270,17 @@ test('saved MultiQUO suppresses the single-rate summary and transient draft-only
   assert.match(parity, /const linesTable = `\s*<section v-if="showSingleRoutePreview"/)
   assert.match(step8, /Las alternativas son independientes; sus montos no se suman/)
 })
+
+test('manual FCL alternatives keep saved freight and comments per POE/carrier', () => {
+  const plugin = readFileSync(new URL('../build/pricingWizardManualOceanFreight.ts', import.meta.url), 'utf8')
+  const validation = readFileSync(new URL('../build/pricingWizardManualFreightFinalUx.ts', import.meta.url), 'utf8')
+  assert.ok(wizard.includes('manualFreight: {'))
+  assert.ok(wizard.includes('comment: manualOceanFreightComment.value'))
+  assert.ok(wizard.includes('savedId: manualOceanFreightSavedId.value'))
+  assert.ok(wizard.includes('restoreManualOceanFreightOption(draft, poeId)'))
+  assert.ok(wizard.includes('restoreManualOceanFreightOption(selectedDraft, destinationId)'))
+  assert.ok(plugin.includes('? form.destinationId'))
+  assert.ok(plugin.includes('data-manual-ocean-poe-from-route'))
+  assert.ok(plugin.includes('if (multiCarrierSelectionMode.value) rememberCurrentCarrierDraft()'))
+  assert.ok(validation.includes('selectedManualOceanFreightPoe.value'))
+})
