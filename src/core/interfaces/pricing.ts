@@ -854,6 +854,8 @@ export interface RateDto extends Record<string, unknown> {
   idtraNumber?: string | null
   otherReferences?: string | null
   quoNumber?: string | null
+  groupQuoteNumber?: string | null
+  groupAlternativeCount?: number
   sellerReceivedAtUtc?: string | null
   sellerReceivedBy?: string | null
   revisionPending?: boolean
@@ -1165,6 +1167,7 @@ export interface BrowseRatesQuery extends Record<string, unknown> {
   rateType?: RateType | null
   tariffMasterOnly?: boolean | null
   excludeTariffMasters?: boolean | null
+  groupQuotes?: boolean | null
   agentId?: string | null
   carrierId?: string | null
   polId?: string | null
