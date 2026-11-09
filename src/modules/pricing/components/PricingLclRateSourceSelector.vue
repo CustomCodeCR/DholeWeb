@@ -886,7 +886,7 @@ onMounted(load)
           <div><p class="font-black">{{ row.name }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ row.matrixVersion }} · {{ row.booking || 'Sin booking' }}</p><DhBadge v-if="isHistoricalOwn(row)" class="mt-1" :label="historicalOwnUnavailable(row) ? 'Cerrado · seleccionado en esta tarifa' : 'Seleccionado en esta tarifa aceptada'" :variant="historicalOwnUnavailable(row) ? 'warning' : 'neutral'" /></div>
         </template>
         <template #cell-route="{ row }">
-          <div><p class="font-bold">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'Panamá' }} / Centroamérica</p><p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p><DhBadge v-if="!isHistoricalOwn(row) && ownDepartureExpired(row)" class="mt-1" label="ETD vencida · Solo consulta" variant="warning" /></div>
+          <div><p class="font-bold">{{ row.polName || row.polCode }} → {{ row.poeName || row.poeCode || 'Panamá' }} / Centroamérica</p><p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ row.carrierName || row.carrierCode || 'Naviera pendiente' }} · ETD {{ row.etd || '—' }}</p></div>
         </template>
         <template #cell-capacity="{ row }">
           <div class="space-y-0.5 text-right">
