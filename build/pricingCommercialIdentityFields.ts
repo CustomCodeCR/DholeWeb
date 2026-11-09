@@ -18,6 +18,23 @@ function replacePattern(source: string, pattern: RegExp, replacement: string, la
 }
 
 function patchWizard(source: string) {
+  // The CRM picker supplies both the client identity and its commercial owner.
+  // Legacy Auth/Config selectors must not overwrite those values.
+  if (source.includes('<PricingCrmClientSelect')) {
+    let code = source
+    code = replaceOne(
+      code,
+      'async function saveRate() {',
+      `async function saveRate() {
+  if (!form.clientId || !form.crmClientKind || !form.clientName.trim() || !form.executiveName.trim()) {
+    step.value = 3
+    toastStore.error('Seleccione una cuenta o prospecto válido en CRM con ejecutivo comercial asignado.')
+    return
+  }`,
+      'CRM identity validation',
+    )
+    return code
+  }
   let code = source
 
   code = replaceOne(
