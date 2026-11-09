@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.21] - 2026-11-09
+
+- PATCH Ventas/Pricing: una revisión pendiente de publicación no implica trabajo abierto en Pricing. El badge solo muestra «En modificación por Pricing» con una solicitud realmente abierta; en los demás casos identifica la actualización pendiente.
+- Sin exposición de borradores ni desbloqueo indebido de acciones; refresco periódico de tarifas y solicitudes. Regresión automatizada añadida.
+- Release DH-20261109-SELLER-PRICING-STATUS-052 (master candidate); DholePricingService 1.5.21 y ecosistema 1.12.21.
+
 ## [1.12.20] - 2026-11-09
 
 - PATCH Pricing: mostrar inventario LCL del POE si no hay salidas compatibles y vigentes; ETD vencidas y otros POL son solo consulta, nunca cotizables.
