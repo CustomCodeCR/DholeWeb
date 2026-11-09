@@ -480,6 +480,14 @@ function ownConsolidationSupportsPoe(row: OwnLclConsolidationDto) {
   return isBalboaOwnLclPoe(row.poeCode, row.poeName)
 }
 
+// Inventario de consulta: las rutas incompatibles y ETD vencidas nunca se seleccionan.
+const eligibleOwnCount = computed(() => ownRows.value.filter((row) =>
+  !isHistoricalOwn(row) && ownPoeEligible.value
+  && row.isActive !== false && normalize(row.status) !== 'closed'
+  && !ownDepartureExpired(row) && ownConsolidationSupportsPoe(row)
+  && ownConsolidationSupportsPol(row),
+).length)
+
 const filteredOwn = computed(() => {
   // Los consolidados propios actuales son marítimos (China/Miami). Nunca deben
   // aparecer dentro de una cotización aérea aunque la ciudad del APT coincida.
@@ -491,7 +499,7 @@ const filteredOwn = computed(() => {
     if (isHistoricalOwn(row)) return true
     if (!ownPoeEligible.value) return false
     if (row.isActive === false || normalize(row.status) === 'closed') return false
-    if (ownDepartureExpired(row)) return false
+    if (ownDepartureExpired(row) && !showAllOwnConsolidations.value) return false
     if (!ownConsolidationSupportsPoe(row)) return false
     // El listado completo conserva las salidas vigentes Shanghai/Yantian para comparación.
     // Filtrar por POL solo cuando el usuario lo solicita explícitamente.
@@ -544,6 +552,8 @@ async function load() {
       ? [...own, ...(historicalRow ? [historicalRow] : [])].map((row) => ({ ...row }))
       : []
     coloaderRows.value = coloaders.map((row) => ({ ...row }))
+    // Si hay inventario pero ninguna salida elegible, mostrarlo solo como consulta.
+    showAllOwnConsolidations.value = ownRows.value.length > 0 && eligibleOwnCount.value === 0
     if (!ownPoeEligible.value && !historicalId) tab.value = 'Coloader'
     if (isAir.value || (!filteredOwn.value.length && filteredColoaders.value.length)) tab.value = 'Coloader'
     else if (historicalOwnId.value && filteredOwn.value.some(isHistoricalOwn)) tab.value = 'Own'
@@ -861,12 +871,13 @@ onMounted(load)
     </div>
 
     <div v-if="tab === 'Own' && (ownPoeEligible || historicalOwnId)" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] px-3 py-2">
-      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Salidas con ETD vigente; se respeta el POE. La capacidad es informativa.' : unlistedShanghaiOrigin ? 'POL de China sin tarifa directa: Shanghai como referencia y recolecta editable en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
+      <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ showAllOwnConsolidations ? 'Inventario del POE, incluidas salidas vencidas u otros POL. Solo las rutas compatibles con ETD vigente se pueden seleccionar.' : unlistedShanghaiOrigin ? 'POL de China sin tarifa directa: Shanghai como referencia y recolecta editable en Pantalla 7.' : 'Salidas vigentes compatibles con el POL seleccionado.' }}</p>
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-input)]" @click="showAllOwnConsolidations = !showAllOwnConsolidations">
-        {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas' }}
+        {{ showAllOwnConsolidations ? 'Solo mi ruta' : 'Ver todas las salidas (consulta)' }}
       </button>
     </div>
     <div v-if="error" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">{{ error }}</div>
+    <div v-if="!loading && ownPoeEligible && ownRows.length && eligibleOwnCount === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">No hay salidas vigentes compatibles con {{ props.polName || props.polCode || 'el POL seleccionado' }} para la fecha de carga. Se muestran otras salidas del POE solo para consulta: revise el puerto físico y el ETD antes de cotizar.</div>
     <div v-if="tab === 'Own' && filteredOwn.some((row) => !isHistoricalOwn(row) && (ownHasInsufficientCapacity(row) || ownSelectionBlockReason(row)))" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700 dark:text-amber-300">Puede cotizar un consolidado aunque su capacidad sea insuficiente. La cotización no reserva ni confirma espacio: verifique disponibilidad antes de gestionar el embarque. Las salidas de otro POL quedan solo para consulta.</div>
 
     <div v-if="tab === 'Own'">
