@@ -13,9 +13,22 @@ function patchWizard(source: string) {
   // The CRM selector is authoritative for both the client and its assigned seller.
   // Keep the request context but do not override the CRM seller with the logged-in user.
   if (source.includes('<PricingCrmClientSelect')) {
-    if (source.includes('requestContext: {')) return source
+    let crmSource = source
+    // The FCL compatibility transformer anchors its state ahead of this
+    // computed field; keep the anchor without changing the CRM owner.
+    if (!crmSource.includes('const sellerExecutiveLabel = computed(() => {')) {
+      crmSource = replaceOne(crmSource, 'const stepTitles = [',
+        `const sellerExecutiveLabel = computed(() => {
+  const display = String(authStore.displayName || authStore.userDisplayName || '').trim()
+  return display || String(authStore.username || authStore.email?.split('@')[0] || '').trim()
+})
+void sellerExecutiveLabel
+
+const stepTitles = [`, 'seller label anchor for FCL compatibility')
+    }
+    if (crmSource.includes('requestContext: {')) return crmSource
     return replaceOne(
-      source,
+      crmSource,
       `            supportDocuments: supportDocuments.value,\n            sellerContext: {`,
       `            supportDocuments: supportDocuments.value,\n            requestContext: {\n              executiveName: form.executiveName || null,\n              equipmentType: shipmentModeForApi.value === 'Lcl' ? 'LCL' : displayValue(equipment) || form.equipmentType || form.equipmentSize || null,\n              equipmentQuantity: Math.max(1, Number(form.equipmentQuantity || 1)),\n              modality: form.modality || shipmentModeForApi.value || null,\n              incotermName: displayValue(incoterm) || null,\n            },\n            sellerContext: {`,
       'CRM seller request context',
