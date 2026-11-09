@@ -35,7 +35,7 @@ async function submit() {
   try {
     form.saving = true
 
-    await callEndpoint<unknown>(
+    const result = await callEndpoint<{ openingNotificationDeferred?: boolean }>(
       {
         method: 'PATCH',
         path: `/api/pricing/seller-rates/${props.rate.id}/status`,
@@ -54,7 +54,9 @@ async function submit() {
     toastStore.success(
       isAccept.value ? 'Tarifa aceptada por el cliente' : 'Tarifa no aceptada por el cliente',
       isAccept.value
-        ? 'La aceptación quedó registrada y las observaciones se incluirán en el aviso de apertura de trámite cuando corresponda. El IDTRA podrá agregarse posteriormente.'
+        ? result?.openingNotificationDeferred
+          ? 'Aceptación registrada sobre la última revisión enviada. La notificación con PDF para Apertura queda pendiente de validación por Pricing; no se enviará el borrador.'
+          : 'La aceptación quedó registrada y las observaciones se incluirán en el aviso de apertura de trámite cuando corresponda. El IDTRA podrá agregarse posteriormente.'
         : 'El motivo de rechazo quedó registrado para seguimiento.',
     )
 
@@ -95,6 +97,9 @@ async function submit() {
         <div class="min-w-0">
           <p class="text-sm font-black text-[var(--dh-text)]">
             {{ isAccept ? 'Confirmar aceptación del cliente' : 'Registrar rechazo del cliente' }}
+          </p>
+          <p v-if="rate.revisionPending && rate.currentRateStatus === 'Open'" class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
+            La decisión se registra sobre la última revisión enviada, no sobre el borrador que todavía no ha sido publicado.
           </p>
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
             {{ isAccept
