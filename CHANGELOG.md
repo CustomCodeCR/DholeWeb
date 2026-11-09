@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.15.0] - 2026-11-09
+
+- Backport CRM: cuentas/prospectos como cliente, ejecutivo asignado y conciliación de QUO históricas.
+
 ## [1.12.22] - 2026-11-09
 
 - PATCH QUO-00000-000269: mostrar el estado real Open (Abierta) de Pricing en el panel y detalle comercial incluso cuando el snapshot de la última cotización enviada tenga estado Sent. Filtros, contadores e indicadores comerciales comparten el estado actual.
