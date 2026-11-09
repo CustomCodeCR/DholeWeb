@@ -254,6 +254,14 @@ const catalogs = reactive({
   salesExecutives: [] as CatalogItemSelectDto[],
 })
 
+// Manual-ocean refs must exist in source for vue-tsc; the Vite plugin only
+// injects the manual freight helper and template, not duplicate state.
+const savingManualOceanFreight = ref(false)
+const manualOceanFreightComment = ref('')
+const manualOceanFreightSavedId = ref('')
+const manualOceanFreightPoeId = ref('')
+const savedManualOceanFreightFingerprint = ref('')
+
 const form = reactive({
   rateType: 'Spot' as RateType,
   modality: '' as Modality | '',
