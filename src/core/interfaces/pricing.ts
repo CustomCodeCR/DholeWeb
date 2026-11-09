@@ -851,9 +851,9 @@ export interface RateDto extends Record<string, unknown> {
   freeDays: number
   validFrom: string
   validTo: string
-  clientName?: string | null
   clientAccountId?: string | null
   clientLeadId?: string | null
+  clientName?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
   otherReferences?: string | null
@@ -1025,9 +1025,9 @@ export interface CreateRateRequest extends Record<string, unknown> {
   validFrom: string
   validTo: string
   containerQuantity: number
-  clientName?: string | null
   clientAccountId?: string | null
   clientLeadId?: string | null
+  clientName?: string | null
   executiveName?: string | null
   idtraNumber?: string | null
   otherReferences?: string | null

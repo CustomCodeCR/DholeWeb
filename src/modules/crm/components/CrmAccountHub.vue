@@ -15,6 +15,7 @@ import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
 import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
+import CrmLegacyQuoteManager from './CrmLegacyQuoteManager.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhPagination } from '@/shared/components/molecules'
@@ -1307,6 +1308,7 @@ async function saveRoute() {
           <div class="hub-mini-stat"><span>Cotizaciones en esta página</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
         </div>
       </div>
+      <CrmLegacyQuoteManager v-if="has('crm.quote.read')" :account-id="rowId(account.id)" :client-name="String(account.legalName || account.displayName || '')" view="history" />
       <div v-if="has('crm.quote.read')" class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -1425,6 +1427,7 @@ async function saveRoute() {
         <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo se muestran cotizaciones vinculadas a oportunidades de esta cuenta. Pricing conserva el cálculo y el estado oficial.</p>
       </div>
+      <CrmLegacyQuoteManager :account-id="rowId(account.id)" :client-name="String(account.legalName || account.displayName || '')" view="quotes" />
       <CrmAccountQuotesDashboard :account-id="rowId(account.id)" />
       <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones vinculadas a esta cuenta todavía.</p>
       <div v-else class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm">
