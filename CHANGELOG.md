@@ -1,3 +1,8 @@
+## [1.19.4] - 2026-11-10
+
+- PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: permite registrar actividades comerciales pasadas conservando fecha y hora originales, completas cuando ya finalizaron, sin recordatorios retroactivos. Las minutas, participantes, acuerdos y compromisos posteriores se conservan. No altera la validación de fechas futuras de seguimientos.
+- Compatible con releases existentes 1.19.2 y 1.19.3, CRM 1.9.1 y DholeSystem 1.19.4; CI y staging requeridos.
+
 ## [1.19.3] - 2026-11-10
 
 - DH-20261110-CRM-LEAD-TABBED-DETAIL-073: ficha de Prospectos con pestañas similares a Cuentas; resumen, análisis comercial y rutas, cotizaciones, agenda y conversión, mostrando solo una sección a la vez.

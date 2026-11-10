@@ -1,0 +1,34 @@
+{
+  "releaseId": "DH-20261110-CRM-HISTORICAL-ACTIVITIES-075",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.19.4",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.19.3",
+      "next": "1.19.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.9.0",
+      "next": "1.9.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.19.2",
+      "next": "1.19.4"
+    }
+  ],
+  "scope": [
+    "Date input accepts historic activity time without changing it to tomorrow.",
+    "Backdated completed activities persist OccurredAt and have no retro reminders.",
+    "Future followup and commitment limits stay in place."
+  ],
+  "schemaMigration": false,
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "production": "not deployed"
+}
