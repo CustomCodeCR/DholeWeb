@@ -669,7 +669,7 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
         <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
           <div v-if="section !== 'settings'" class="flex min-w-[210px] flex-1 items-center gap-2 rounded-lg border border-[var(--dh-border)] bg-[var(--dh-input)] px-3">
             <Search class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" />
-            <input v-model="search" type="search" :aria-label="t('common.search')" :placeholder="section === 'accounts' ? 'Buscar cliente o razón social…' : t('common.search')"
+            <input v-model="search" type="search" :aria-label="section === 'accounts' ? 'Buscar cuentas por nombre, razón social o cédula' : t('common.search')" :placeholder="section === 'accounts' ? 'Buscar por nombre, razón social o cédula…' : t('common.search')"
               class="min-w-0 w-full bg-transparent py-2.5 text-sm text-[var(--dh-text)] outline-none"
               @keyup.enter="page=1;load()" />
           </div>
