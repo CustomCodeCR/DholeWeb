@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
-import { crmPath, crmRequest } from '../services/crmApi'
+import { fetchClient } from '@/core/api/fetchConfig'
 
 interface QuoteDashboard {
   total: number
@@ -15,7 +15,7 @@ interface QuoteDashboard {
   linkedOnly: boolean
   truncated?: boolean
 }
-const props = defineProps<{ accountId: string }>()
+const props = defineProps<{ accountId: string; refreshKey?: number }>()
 const stats = ref<QuoteDashboard | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -118,8 +118,11 @@ async function loadDashboard() {
   if (!props.accountId) return
   loading.value = true
   try {
-    const result = await crmRequest<QuoteDashboard>(
-      crmPath('accounts', props.accountId, 'quote-dashboard'))
+    // Count the authoritative Pricing RateHeaders linked by CRM account ID.
+    // CRM's opportunity-only dashboard omits manually migrated historical QUOs.
+    const result = await fetchClient<QuoteDashboard>(
+      '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId) + '/dashboard',
+      { method: 'GET' })
     if (requestId !== generation) return
     stats.value = result
   } catch (cause) {
@@ -129,7 +132,7 @@ async function loadDashboard() {
     if (requestId === generation) loading.value = false
   }
 }
-watch(() => props.accountId, () => { void loadDashboard() }, { immediate: true })
+watch(() => [props.accountId, props.refreshKey], () => { void loadDashboard() }, { immediate: true })
 watch(stats, async () => {
   await nextTick()
   renderCharts()
@@ -143,7 +146,7 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
       <div>
         <h3 class="text-sm font-extrabold">Indicadores de cotizaciones del cliente</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Estados comerciales por cuenta. Se considera cada cotización una sola vez.
+          Estados oficiales de Pricing para todas las QUO vinculadas por ID a esta cuenta, incluidas las históricas.
         </p>
       </div>
       <button type="button" class="hub-outline-button hub-small"
@@ -193,9 +196,7 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
         {{ stats.pendingSync }} cotización(es) con actualización de estado pendiente desde Pricing.
       </p>
       <p class="text-xs text-[var(--dh-text-muted)]">
-        {{ stats.linkedOnly
-          ? 'Datos de cotizaciones vinculadas a oportunidades del CRM y su último estado sincronizado.'
-          : 'Datos de cotizaciones asociadas por ID a esta cuenta, consultadas directamente a Pricing.' }}
+        Datos de cotizaciones asociadas directamente por ID a esta cuenta, consultadas en tiempo real a Pricing.
         No se atribuyen tarifas por coincidencia de nombre. “Enviadas” incluye pendientes de respuesta,
         solicitadas por el cliente y vencidas. “Aprobadas” significa aceptadas por el cliente.
       </p>

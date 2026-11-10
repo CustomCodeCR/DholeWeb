@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.1] - 2026-11-10
+
+- PATCH DH-20261110-CRM-QUO-LIVE-057: indicadores y rutas CRM se consultan directamente en las QUO de Pricing vinculadas por ID de cuenta; se eliminan ceros causados por registros de oportunidades CRM no relacionados.
+- Selección masiva segura de QUO pendientes por página o por resultados filtrados (hasta 1000), revisión y confirmación explícita, refresco de historial e indicadores tras vincular.
+- Coordinado con DholePricingService 1.9.3, DholeSystem 1.17.1. Sin alterar importes ni estados.
+
 ## [1.17.0] - 2026-11-09 (candidate: realtime crítico Auth/Notifications)
 
 - MINOR: recibir authSecurityChanged en la conexión universal existente, finalizar inmediatamente la sesión afectada, limpiar estado y navegar a login; los cambios de permisos disparan reconciliación con Auth. Prueba del transporte compartido.
