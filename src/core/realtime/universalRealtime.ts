@@ -4,6 +4,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import {
   RealtimeManager,
   type RealtimeObserver,
+  type RealtimeKind,
   type RealtimeStatus,
 } from './realtimeManager'
 
@@ -71,6 +72,43 @@ function startCollectionInvalidations() {
   )
 }
 
+const MODULE_TOPICS = [
+  { domain: 'crm', id: '00000000-0000-4000-8000-000000000051', path: '/api/crm' },
+  { domain: 'pricing', id: '00000000-0000-4000-8000-000000000052', path: '/api/pricing' },
+  { domain: 'auth', id: '00000000-0000-4000-8000-000000000053', path: '/api/auth' },
+  { domain: 'config', id: '00000000-0000-4000-8000-000000000054', path: '/api/config' },
+  { domain: 'srm', id: '00000000-0000-4000-8000-000000000055', path: '/api/config/srm' },
+  { domain: 'audit', id: '00000000-0000-4000-8000-000000000056', path: '/api/auditlogs' },
+  { domain: 'storage', id: '00000000-0000-4000-8000-000000000057', path: '/api/v1/storage' },
+  { domain: 'extraction', id: '00000000-0000-4000-8000-000000000058', path: '/api/data-extraction' },
+  { domain: 'reports', id: '00000000-0000-4000-8000-000000000059', path: '/api/reports' },
+  { domain: 'dynamics', id: '00000000-0000-4000-8000-000000000060', path: '/api/dynamics-connector' },
+  { domain: 'ai', id: '00000000-0000-4000-8000-000000000061', path: '/api/ai' },
+  { domain: 'agent', id: '00000000-0000-4000-8000-000000000062', path: '/api/agents' },
+  { domain: 'content', id: '00000000-0000-4000-8000-000000000063', path: '/api/content' },
+] as const
+
+let stopModuleObservers: Array<() => void> = []
+function startModuleInvalidations() {
+  if (stopModuleObservers.length) return
+  // The Hub rechecks the original record's owner REST ACL before forwarding
+  // any module event to this authenticated client. Only a minimal hint is sent.
+  stopModuleObservers = MODULE_TOPICS.map(({ domain, id, path }) =>
+    universalRealtimeManager.subscribe({
+      kind: `module.${domain}` as RealtimeKind,
+      id,
+      fetchSnapshot: async () => ({ value: true, version: null }),
+      applySnapshot: (_snapshot, reason) => {
+        if (reason === 'initial') return
+        // Existing screen data is always reloaded using its own authorized REST.
+        window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+          detail: { endpoint: path, method: 'SIGNALR', reason, occurredAt: new Date().toISOString() },
+        }))
+      },
+    }),
+  )
+}
+
 let onNotification: ((notification: unknown) => void) | null = null
 export function setUniversalRealtimeNotificationHandler(
   callback: ((notification: unknown) => void) | null,
@@ -128,6 +166,7 @@ export async function startUniversalRealtime() {
   )
   startCatalogInvalidations()
   startCollectionInvalidations()
+  startModuleInvalidations()
 }
 
 export function refreshUniversalRealtimeCredentials() {
@@ -149,6 +188,8 @@ export function stopUniversalRealtime() {
   stopCatalogObserver = null
   for (const dispose of stopCollectionObservers) dispose()
   stopCollectionObservers = []
+  for (const dispose of stopModuleObservers) dispose()
+  stopModuleObservers = []
   universalRealtimeManager.stop()
   removeLifecycleListeners()
 }
