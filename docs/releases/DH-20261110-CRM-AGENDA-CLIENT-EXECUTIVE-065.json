@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.17.10",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.17.9",
+      "next": "1.17.10"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.17.9",
+      "next": "1.17.10",
+      "changes": "manifest only"
+    }
+  ],
+  "scope": [
+    "Show client and commercial executive in CRM agenda listing.",
+    "Resolve authorized account, lead and owner names via existing CRM calendar labels API.",
+    "Preserve account-search release 1.17.9 and historical records."
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not authorized"
+  },
+  "rollback": "Revert UI patch; no schema changes."
+}
