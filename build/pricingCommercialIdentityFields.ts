@@ -28,7 +28,7 @@ function patchWizard(source: string) {
       code,
       'async function saveRate() {',
       `const allowLegacyUnlinkedCrmWork = computed(() =>
-  !form.clientId && !form.crmClientKind
+  !form.crmClientKind
     && Boolean(form.clientName.trim()) && Boolean(form.executiveName.trim())
     && Boolean(
       props.sellerEditRequestId ||
@@ -72,6 +72,12 @@ async function saveRate() {
                 </div>
                 <PricingCrmClientSelect v-model="form.clientId" data-required-field="client" :mode="sellerRequestMode ? 'request' : 'create'" :initial-name="form.clientName" :legacy-optional="allowLegacyUnlinkedCrmWork" :error="fieldError('client')" @selected="setCrmClient" />`,
       'legacy request CRM picker',
+    )
+    // Old Config client IDs and executive catalog IDs are not CRM/Auth IDs.
+    // Do not accidentally send one as the modern executiveUserId.
+    code = code.replaceAll(
+      'executiveUserId: form.executiveId || null,',
+      'executiveUserId: allowLegacyUnlinkedCrmWork.value ? null : form.executiveId || null,',
     )
     code = replaceOne(
       code,
