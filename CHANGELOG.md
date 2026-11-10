@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.8] - 2026-11-10
+
+- PATCH DH-20261110-CRM-QUO-STATUS-061: sincronización de versión entre develop y master para conservar la traducción de los estados comerciales de QUO en CRM tras los releases 1.17.6 y 1.17.7 de selección múltiple de POE.
+- Se mantienen las pruebas de CRM y los cambios de solicitudes FCL; sin cambios adicionales en el contrato API ni en datos.
+
 ## [1.17.7] - 2026-11-10
 
 - FIX DH-20261110-PRICING-SELLER-MULTI-POE-063: corregir la referencia de plantilla a sellerModificationRateId, que se inyecta durante las transformaciones Vite pero no forma parte de los props visibles a vue-tsc. La validación de tipo del selector FCL múltiple para Ventas se realiza mediante una propiedad calculada tipada, sin exponer selección múltiple durante modificaciones de una tarifa existente.
