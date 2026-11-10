@@ -373,7 +373,7 @@ test('Accounts hide raw property dump, clean drawer footer and include house sel
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
   const picker = read('src/modules/crm/components/CrmExecutivePicker.vue')
-  assert.ok(detail.includes('<dl v-else-if="section !== \'accounts\'"'))
+  assert.ok(detail.includes('<dl v-else-if="section !== \'accounts\' && section !== \'leads\'"'))
   assert.ok(detail.includes('assignToCastroFallas: selectedExecutive.value ==='))
   assert.ok(detail.includes("record.value?.isCastroFallasExecutive === true"))
   assert.ok(workspace.includes("body.assignToCastroFallas = true"))
