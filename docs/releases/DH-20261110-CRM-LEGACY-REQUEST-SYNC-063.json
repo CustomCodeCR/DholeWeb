@@ -1,0 +1,26 @@
+{
+  "releaseId": "DH-20261110-CRM-LEGACY-REQUEST-SYNC-063",
+  "date": "2026-11-10",
+  "ecosystemVersion": "1.17.7",
+  "components": {
+    "DholePricingService": {
+      "from": "1.9.5",
+      "to": "1.9.6"
+    },
+    "DholeWeb": {
+      "from": "1.17.6",
+      "to": "1.17.7"
+    }
+  },
+  "scope": [
+    "Linked QUO client/executive synchronization also applies to related seller requests.",
+    "Historical unlinked seller requests remain workable pending CRM association.",
+    "New seller requests still require valid CRM identity."
+  ],
+  "validation": {
+    "ci": "Pending GitHub CI",
+    "staging": "Required after develop merge",
+    "production": "Requires explicit authorization"
+  },
+  "rollback": "Revert coordinated release; original request payload and commercial terms remain unchanged."
+}
