@@ -408,7 +408,7 @@ test('F6: resource revocation immediately clears only the denied account without
 })
 
 
-test('F6 coverage: all 22 supported resource kinds trigger owner REST refresh and scoped revocation', async () => {
+test('F6 coverage: all 27 supported resource kinds trigger owner REST refresh and scoped revocation', async () => {
   const host = new FakeHost()
   await host.start()
   const applied = new Map<string, number>()
@@ -420,7 +420,7 @@ test('F6 coverage: all 22 supported resource kinds trigger owner REST refresh an
     onDenied: () => denied.set(kind, (denied.get(kind) ?? 0) + 1),
   }))
   await settle()
-  assert.equal(REALTIME_RESOURCE_KINDS.length, 22)
+  assert.equal(REALTIME_RESOURCE_KINDS.length, 27)
   for (const kind of REALTIME_RESOURCE_KINDS) {
     assert.equal(applied.get(kind), 1, kind + ' initial REST')
     host.latestSocket().emitEvent({
