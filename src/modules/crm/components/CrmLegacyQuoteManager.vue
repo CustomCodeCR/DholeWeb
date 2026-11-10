@@ -43,6 +43,7 @@ const catalogLoading = ref(false)
 const selected = ref<string[]>([])
 const confirmed = ref(false)
 const busy = ref(false)
+const selectionLoading = ref(false)
 const error = ref('')
 const success = ref('')
 let linkedRequestGeneration = 0
@@ -78,9 +79,11 @@ const linkedColumns = [
   { key: 'linkedAt', label: 'Fecha' },
   { key: 'actions', label: 'Acciones' },
 ]
-const ready = computed(() => selected.value.length > 0 && confirmed.value && !busy.value &&
-  selected.value.every(id => catalog.value.some(quote =>
-    quote.pricingQuoteId === id && !quote.clientAccountId && !quote.clientLeadId)))
+const pageSelectable = computed(() => catalog.value.filter(canSelect).map(quote => quote.pricingQuoteId))
+const allPageSelected = computed(() => pageSelectable.value.length > 0 &&
+  pageSelectable.value.every(id => selected.value.includes(id)))
+const ready = computed(() => selected.value.length > 0 && selected.value.length <= 1000 &&
+  confirmed.value && !busy.value && !selectionLoading.value)
 const canSelect = (quote: Quote) => !quote.clientAccountId && !quote.clientLeadId
 const quoteUrl = (quote: Quote) => '/pricing/rates?rateId=' + encodeURIComponent(quote.pricingQuoteId)
 function formatDate(value?: string | null) {
@@ -95,6 +98,45 @@ function clearSelection() {
 function toggle(id: string, checked: boolean) {
   selected.value = checked ? [...new Set([...selected.value, id])] : selected.value.filter(value => value !== id)
   confirmed.value = false
+}
+function selectCurrentPage() {
+  const ids = pageSelectable.value
+  selected.value = allPageSelected.value
+    ? selected.value.filter(id => !ids.includes(id))
+    : [...new Set([...selected.value, ...ids])]
+  confirmed.value = false
+}
+// "Seleccionar todos" spans every page of the current search. Require a specific
+// filter: otherwise this operation could attach other companies' historical quotes.
+async function selectAllMatching() {
+  const query = appliedSearch.value.trim()
+  if (!query || catalogTotal.value < 1 || catalogTotal.value > 1000 ||
+      busy.value || selectionLoading.value) return
+  selectionLoading.value = true
+  error.value = ''
+  confirmed.value = false
+  const expectedAccount = props.accountId
+  try {
+    const result: Quote[] = []
+    for (let page = 1; page <= Math.ceil(catalogTotal.value / 100); page++) {
+      const params = new URLSearchParams({ q: query, linkStatus: 'unlinked',
+        page: String(page), pageSize: '100' })
+      const data = await fetchClient<Page<Quote>>(base + '/crm-legacy-catalog?' + params, { method: 'GET' })
+      if (props.accountId !== expectedAccount || appliedSearch.value !== query)
+        throw new Error('Cambió la cuenta o búsqueda. Vuelva a seleccionar las QUO.')
+      if (data.total > 1000 || data.total !== catalogTotal.value)
+        throw new Error('Cambió la lista de pendientes. Actualice antes de seleccionarlas.')
+      result.push(...(data.items || []).filter(canSelect))
+    }
+    if (result.length !== catalogTotal.value)
+      throw new Error('Algunas QUO ya se vincularon. Actualice la lista antes de continuar.')
+    selected.value = [...new Set(result.map(quote => quote.pricingQuoteId))]
+  } catch (cause) {
+    clearSelection()
+    error.value = cause instanceof Error ? cause.message : 'No se pudieron seleccionar todas las QUO.'
+  } finally {
+    selectionLoading.value = false
+  }
 }
 
 async function refresh() {
@@ -120,7 +162,6 @@ async function refresh() {
 async function searchLegacy() {
   const generation = ++catalogRequestGeneration
   catalogLoading.value = true
-  clearSelection()
   error.value = ''
   try {
     const params = new URLSearchParams({
@@ -149,6 +190,7 @@ async function searchLegacy() {
   }
 }
 function applyCatalogFilters() {
+  clearSelection()
   appliedSearch.value = catalogSearch.value.trim()
   catalogPage.value = 1
   void searchLegacy()
@@ -265,12 +307,27 @@ watch(() => [props.accountId, props.clientName], () => {
       </label>
       <button type="button" class="hub-outline-button" :disabled="catalogLoading" @click="applyCatalogFilters">Buscar</button>
     </div>
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <button type="button" class="hub-outline-button hub-small" :disabled="!pageSelectable.length || catalogLoading || busy || selectionLoading"
+        @click="selectCurrentPage">
+        {{ allPageSelected ? 'Deseleccionar página' : 'Seleccionar toda la página (' + pageSelectable.length + ')' }}
+      </button>
+      <button type="button" class="hub-outline-button hub-small"
+        :disabled="!appliedSearch.trim() || catalogTotal < 1 || catalogTotal > 1000 || catalogLoading || busy || selectionLoading"
+        @click="selectAllMatching">
+        {{ selectionLoading ? 'Seleccionando…' : 'Seleccionar todos los resultados (' + catalogTotal + ')' }}
+      </button>
+      <button v-if="selected.length" type="button" class="hub-text-link" :disabled="busy || selectionLoading"
+        @click="clearSelection">Limpiar selección ({{ selected.length }})</button>
+      <p class="text-[var(--dh-text-muted)]">Para seleccionar entre varias páginas, busque primero el cliente o identificación.
+        Solo se seleccionan QUO sin vincular (máximo 1000 por operación).</p>
+    </div>
 
     <DhDataTable :columns="catalogColumns" :rows="catalogRows" :loading="catalogLoading"
       empty-text="No quedan QUO pendientes con esta búsqueda. Las ya vinculadas están en el historial de su cuenta CRM.">
       <template #cell-select="{ row }">
         <input type="checkbox" :aria-label="'Seleccionar ' + row.quoteNumberSnapshot"
-          :checked="selected.includes(row.pricingQuoteId)" :disabled="!canSelect(row) || busy"
+          :checked="selected.includes(row.pricingQuoteId)" :disabled="!canSelect(row) || busy || selectionLoading"
           @change="toggle(row.pricingQuoteId, ($event.target as HTMLInputElement).checked)" />
       </template>
       <template #cell-quoteNumberSnapshot="{ row }">
@@ -285,7 +342,7 @@ watch(() => [props.accountId, props.clientName], () => {
       <template #cell-createdAtUtc="{ row }">{{ formatDate(row.createdAtUtc) }}</template>
       <template #cell-actions="{ row }">
         <button v-if="canSelect(row)" type="button" class="hub-outline-button hub-small"
-          :disabled="busy" @click="toggle(row.pricingQuoteId, !selected.includes(row.pricingQuoteId))">
+          :disabled="busy || selectionLoading" @click="toggle(row.pricingQuoteId, !selected.includes(row.pricingQuoteId))">
           {{ selected.includes(row.pricingQuoteId) ? 'Quitar' : 'Seleccionar' }}
         </button>
         <RouterLink v-else :to="quoteUrl(row)" class="hub-text-link">Abrir</RouterLink>
@@ -298,6 +355,7 @@ watch(() => [props.accountId, props.clientName], () => {
 
     <div v-if="selected.length" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <p class="text-sm font-bold">{{ selected.length }} QUO seleccionada(s) para {{ clientName }}</p>
+      <p class="text-xs text-[var(--dh-text-muted)]">Revise que todas las cotizaciones seleccionadas pertenezcan a este cliente antes de vincularlas; la selección masiva no comprueba nombres automáticamente.</p>
       <label class="flex items-start gap-2 text-xs">
         <input v-model="confirmed" type="checkbox" class="mt-0.5" />
         <span>Confirmo que revisé cada QUO seleccionada, su cliente histórico y su ruta, y que todas corresponden a esta cuenta CRM. Esta acción no modifica valores comerciales ni reasigna cotizaciones de otras cuentas.</span>
