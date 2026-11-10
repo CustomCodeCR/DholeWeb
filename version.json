@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.17.16",
-  "ecosystemVersion": "1.17.16",
-  "releaseId": "DH-20261110-CRM-PROSPECT-SELLER-072",
+  "version": "1.17.17",
+  "ecosystemVersion": "1.17.17",
+  "releaseId": "DH-20261110-CRM-LEAD-TABBED-DETAIL-073",
   "releaseStatus": "candidate-master-ci-pending",
-  "businessReleaseId": "DH-20261110-CRM-PROSPECT-SELLER-072"
+  "businessReleaseId": "DH-20261110-CRM-LEAD-TABBED-DETAIL-073"
 }

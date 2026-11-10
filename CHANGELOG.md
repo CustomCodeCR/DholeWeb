@@ -1,3 +1,8 @@
+## [1.17.17] - 2026-11-10
+
+- DH-20261110-CRM-LEAD-TABBED-DETAIL-073: ficha de prospectos con pestañas como Cuentas (Prospecto, Análisis comercial y rutas, Cotizaciones, Agenda y seguimientos, Convertir a cuenta), una sección visible a la vez; conserva permisos y los enlaces directos de conversión.
+- Panel comercial reutilizado en modos análisis/cotizaciones para evitar solicitudes y formularios fuera de la pestaña activa; sin cambios en CRM API, Auth ni migraciones. Ecosistema Dhole 1.17.17.
+
 ## [1.17.16] - 2026-11-10
 
 - DH-20261110-CRM-PROSPECT-SELLER-072: en la lista y detalle de Prospectos se muestra el vendedor asignado, con nombres obtenidos de Auth vía CRM y permisos por registro. Administrador puede crear y reasignar prospectos a vendedores activos con crm.lead.assign y auth.users.view.
