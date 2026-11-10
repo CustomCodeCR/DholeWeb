@@ -1,3 +1,9 @@
+## [1.18.2] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072: el guardado de modificaciones de tarifas vinculadas al CRM recupera por ID la cuenta y el ejecutivo comercial vigentes aunque se abra directamente en Pantalla 5 LCL, sin depender del selector de la Pantalla 3.
+- Se conserva el cambio explícito de cuenta, Castro Fallas y las QUO históricas sin vinculación. Se bloquea un vendedor inexistente o inactivo; sin cambios REST, SignalR ni migraciones. Prueba de regresión y CI/staging pendientes.
+- DholeWeb y DholeSystem 1.18.2, resto de servicios sin cambios. Sin autorización de despliegue a producción.
+
 ## [1.18.1] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ADMIN-CALENDAR-NAV-071: muestra las entradas de Actividades y Seguimientos en la navegación CRM a administradores Auth incluso cuando no tienen scopes individuales de vendedor. La lectura global y los permisos sobre minutas, participantes, acuerdos e historial siguen protegidos por la API CRM del release 1.18.0.
