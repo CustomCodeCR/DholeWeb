@@ -75,7 +75,7 @@ test('Dhole CRM account shows full-width three-column workspace and timeline', (
     'xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]',
     'Escala de tiempo', 'Contactos relacionados', 'Historial de tarifas',
     'Ficha comercial', '<CrmCatalogPicker', '<DhDrawer :open="routeEditor"',
-    '<DhDrawer :open="Boolean(editor)"', 'var(--dh-card)', 'var(--dh-border)',
+    'Nueva actividad', 'var(--dh-card)', 'var(--dh-border)',
   ]) assert.ok(hub.includes(marker), 'Missing CRM UI element: ' + marker)
   assert.ok(detail.includes('max-w-[1750px]'))
   assert.ok(detail.includes('@change-executive="openExecutiveDrawer"'))
