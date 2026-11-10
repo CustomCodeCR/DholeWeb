@@ -1,0 +1,33 @@
+{
+  "releaseId": "DH-20261110-CRM-HISTORICAL-ACTIVITIES-075",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.19.2",
+  "components": [
+    {
+      "name": "DholeWeb",
+      "previous": "1.19.1",
+      "next": "1.19.2"
+    },
+    {
+      "name": "DholeCRMService",
+      "previous": "1.9.0",
+      "next": "1.9.1"
+    },
+    {
+      "name": "DholeSystem",
+      "previous": "1.19.1",
+      "next": "1.19.2"
+    }
+  ],
+  "features": [
+    "Allow past dates in activity create modal, without changing user input.",
+    "Mark already-finished activities completed and show appropriate notification state.",
+    "Keep followups and future commitments validated."
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "migration": false
+}
