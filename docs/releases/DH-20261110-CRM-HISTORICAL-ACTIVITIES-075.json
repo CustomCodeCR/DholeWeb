@@ -1,0 +1,34 @@
+{
+  "releaseId": "DH-20261110-CRM-HISTORICAL-ACTIVITIES-075",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.17.19",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.17.18",
+      "next": "1.17.19"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.4.5",
+      "next": "1.4.6"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.17.14",
+      "next": "1.17.19"
+    }
+  ],
+  "scope": [
+    "Allow old activity start and finish timestamps",
+    "Automatically mark already-finished historical activity as completed",
+    "Do not send outdated activity reminders"
+  ],
+  "schemaMigration": false,
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "production": "not deployed"
+}
