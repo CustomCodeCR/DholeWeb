@@ -1,3 +1,8 @@
+## [1.17.19] - 2026-11-10
+
+- PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: actividades comerciales con fecha pasada, sin desplazar el inicio al futuro. Si terminaron, se registran completadas a la hora histórica original y sin recordatorios retroactivos. Mantiene minutas, participantes, acuerdos y fechas futuras de seguimientos y compromisos.
+- Preserva los releases anteriores de master hasta 1.17.18. CRM 1.4.6, DholeSystem 1.17.19, CI/staging pendientes.
+
 ## [1.17.18] - 2026-11-10
 
 - DH-20261110-CRM-LEAD-TABBED-DETAIL-073: evita que el panel genérico de otros módulos vuelva a mostrar los campos del prospecto bajo las pestañas Análisis, Cotizaciones, Agenda o Conversión. Mantiene una sola pestaña visible por vez.
