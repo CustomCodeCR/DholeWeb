@@ -227,7 +227,7 @@ async function syncLinkedClient() {
   error.value = ''
   success.value = ''
   try {
-    const result = await fetchClient<{ updated: number; total: number }>(
+    const result = await fetchClient<{ updated: number; total: number; requestsUpdated: number }>(
       base + '/crm-account/' + encodeURIComponent(props.accountId) + '/sync-client', {
         method: 'POST',
         body: {
@@ -237,7 +237,7 @@ async function syncLinkedClient() {
         },
       })
     await reloadAll()
-    success.value = `Datos del CRM sincronizados en ${result.total} QUO vinculada(s); ${result.updated} actualizada(s).`
+    success.value = `Datos del CRM sincronizados en ${result.total} QUO vinculada(s); ${result.updated} tarifa(s) y ${result.requestsUpdated ?? 0} solicitud(es) actualizada(s).`
     emit('changed')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No fue posible actualizar el cliente en las tarifas.'
@@ -251,7 +251,7 @@ async function reconcile() {
   error.value = ''
   success.value = ''
   try {
-    const result = await fetchClient<{ linked: number; total: number }>(
+    const result = await fetchClient<{ linked: number; total: number; requestsUpdated: number }>(
       base + '/crm-legacy-reconcile', {
         method: 'POST',
         body: {
@@ -266,7 +266,7 @@ async function reconcile() {
     quotesPage.value = 1
     catalogPage.value = 1
     await reloadAll()
-    success.value = `${result.linked} QUO vinculada(s) a ${props.clientName}. Ya no aparecen entre las pendientes; la tarifa muestra ahora el cliente CRM y el ejecutivo asignado.`
+    success.value = `${result.linked} QUO vinculada(s) a ${props.clientName}. Ya no aparecen entre las pendientes; la tarifa y ${result.requestsUpdated ?? 0} solicitud(es) relacionada(s) muestran el cliente CRM y ejecutivo asignados.`
     emit('changed')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudieron vincular las cotizaciones.'
