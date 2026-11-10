@@ -26,9 +26,9 @@ function patchWizard(source: string) {
       code,
       'async function saveRate() {',
       `async function saveRate() {
-  if (!form.clientId || !form.crmClientKind || !form.clientName.trim() || !form.executiveName.trim()) {
+  if (!form.clientId || !form.crmClientKind || !form.clientName.trim() || !form.executiveName.trim() || (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId)) {
     step.value = 3
-    toastStore.error('Seleccione una cuenta o prospecto válido en CRM con ejecutivo comercial asignado.')
+    toastStore.error('La cuenta o prospecto seleccionado no tiene un ejecutivo comercial válido. Asigne un vendedor en CRM y seleccione la cuenta nuevamente.')
     return
   }`,
       'CRM identity validation',
