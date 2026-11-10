@@ -46,8 +46,10 @@ function patchWizard(source: string) {
     && sellerModificationSource.value
     && !sellerModificationSource.value.form.clientId
     && form.clientName.trim() && form.executiveName.trim())
+  const historicUnlinkedOpenSellerEdit = Boolean(props.sellerEditRequestId && !form.clientId
+    && form.clientName.trim() && form.executiveName.trim())
   if (props.sellerRequestMode && !historicUnlinkedSellerModification
-    && (!form.clientId || !form.crmClientKind || !form.clientName.trim()
+    && !historicUnlinkedOpenSellerEdit && (!form.clientId || !form.crmClientKind || !form.clientName.trim()
       || !form.executiveName.trim()
       || (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId))) {
     step.value = 3
