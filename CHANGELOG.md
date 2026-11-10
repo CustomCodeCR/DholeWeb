@@ -1,3 +1,8 @@
+## [1.17.10] - 2026-11-10
+
+- PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos presenta Cliente y Ejecutivo comercial en actividades y seguimientos, con nombres autorizados de cuentas, prospectos y responsables desde el endpoint ya existente `calendar/labels`, en lotes de 100.
+- Se conserva búsqueda por cédula de 1.17.9, permisos CRM, paginación, filtros y registros históricos. Incluye tests de resolución de ejecutivo y respaldo para vínculos antiguos; sin cambios en backend ni SignalR.
+
 ## [1.17.9] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ACCOUNT-SEARCH-064: la búsqueda en CRM > Cuentas permite localizar por nombre comercial, razón social y cédula/identificación fiscal. El backend filtra antes de paginar; se mantienen roles y filtros.
