@@ -163,6 +163,136 @@ const addressLocation = ref(emptyAddressLocation())
 const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
+
+interface AgendaLabels {
+  accounts: Record<string, string>
+  leads: Record<string, string>
+  owners: Record<string, string>
+}
+interface AgendaParent {
+  activityId: string | null
+  activitySubject?: string
+}
+const agendaLabels = ref<AgendaLabels>({ accounts: {}, leads: {}, owners: {} })
+const agendaContactName = ref('')
+const agendaOpportunityName = ref('')
+const agendaNotes = ref<CrmRow[]>([])
+const agendaCommitments = ref<CrmRow[]>([])
+const agendaParent = ref<AgendaParent | null>(null)
+const agendaDetailsWarning = ref('')
+let agendaDetailsGeneration = 0
+function agendaClientName(): string {
+  const item = record.value
+  if (!item) return '—'
+  const account = String(item.accountId ?? '')
+  const lead = String(item.leadId ?? '')
+  if (account) return agendaLabels.value.accounts[account] || String(item.accountName ?? 'Cliente vinculado (nombre no disponible)')
+  if (lead) return agendaLabels.value.leads[lead] || String(item.leadName ?? 'Prospecto vinculado (nombre no disponible)')
+  return 'Sin cliente vinculado'
+}
+function agendaOwnerName(): string {
+  const item = record.value
+  const owner = String(section.value === 'followups' ? item?.assignedUserId ?? '' : item?.ownerUserId ?? '')
+  return agendaLabels.value.owners[owner] ||
+    (owner && owner === String(auth.userId ?? '') ? 'Mi usuario' : owner ? 'Responsable vinculado (nombre no disponible)' : 'Sin asignar')
+}
+function agendaCadence(value: unknown, unit: 'días' | 'minutos'): string {
+  const amount = Number(value ?? 0)
+  return Number.isFinite(amount) && amount > 0
+    ? amount + ' ' + (unit === 'días' && amount === 1 ? 'día' : unit === 'minutos' && amount === 1 ? 'minuto' : unit)
+    : 'No se repite'
+}
+const agendaFields = computed(() => {
+  const item = record.value
+  if (!item || (section.value !== 'activities' && section.value !== 'followups')) return []
+  const activity = section.value === 'activities'
+  const fields: [string, string][] = [
+    ['Cliente', agendaClientName()],
+    ['Ejecutivo comercial', agendaOwnerName()],
+    ['Tipo de gestión', activity ? agendaLabel(item.type, 'type') : 'Seguimiento'],
+    ['Estado', agendaLabel(item.status)],
+    ['Inicio programado', agendaDate(activity ? item.scheduledStartAt : item.dueAt)],
+  ]
+  if (activity) {
+    fields.push(
+      ['Finalización', agendaDate(item.scheduledEndAt)],
+      ['Contacto', item.contactId ? agendaContactName.value || 'Contacto vinculado (nombre no disponible)' : 'Sin contacto seleccionado'],
+      ['Ubicación', String(item.locationText || 'No especificada')],
+    )
+  }
+  if (item.opportunityId) fields.push(['Oportunidad', agendaOpportunityName.value || 'Oportunidad vinculada'])
+  fields.push(
+    ['Notificar por', agendaLabel(item.reminderChannelStrategy || 'BOTH', 'channel')],
+    ['Avisar antes', String(item.reminderLeadMinutes ?? 60) + ' minutos'],
+  )
+  if (activity) {
+    fields.push(
+      ['Repetir actividad', agendaCadence(item.repeatEveryDays, 'días')],
+      ['Repetir recordatorios', agendaCadence(item.reminderRepeatMinutes, 'minutos')],
+      ['Finalización real', agendaDate(item.occurredAt)],
+    )
+  }
+  fields.push(
+    ['Resultado', String(item.outcome || 'Pendiente de completar')],
+    ['Creada', agendaDate(item.createdAt)],
+  )
+  return fields
+})
+async function loadAgendaDetails(item: CrmRow, resource: string) {
+  const generation = ++agendaDetailsGeneration
+  agendaLabels.value = { accounts: {}, leads: {}, owners: {} }
+  agendaContactName.value = ''
+  agendaOpportunityName.value = ''
+  agendaNotes.value = []
+  agendaCommitments.value = []
+  agendaParent.value = null
+  agendaDetailsWarning.value = ''
+  if (resource !== 'activities' && resource !== 'followups') return
+  const accountId = String(item.accountId ?? '')
+  const leadId = String(item.leadId ?? '')
+  const ownerId = String(resource === 'activities' ? item.ownerUserId ?? '' : item.assignedUserId ?? '')
+  const query = new URLSearchParams()
+  if (accountId) query.set('accountIds', accountId)
+  if (leadId) query.set('leadIds', leadId)
+  if (ownerId) query.set('ownerIds', ownerId)
+  const emptyLabels: AgendaLabels = { accounts: {}, leads: {}, owners: {} }
+  const labelRequest = query.size
+    ? crmRequest<AgendaLabels>(crmPath('calendar/labels') + '?' + query.toString())
+    : Promise.resolve(emptyLabels)
+  const contactRequest = resource === 'activities' && item.contactId && can('crm.contact.read')
+    ? crmRequest<CrmRow>(crmPath('contacts', String(item.contactId)))
+    : Promise.resolve(null)
+  const opportunityRequest = item.opportunityId && can('crm.opportunity.read')
+    ? crmRequest<CrmRow>(crmPath('opportunities', String(item.opportunityId)))
+    : Promise.resolve(null)
+  const noteRequest = resource === 'activities'
+    ? crmRequest<CrmRow[]>(crmPath('activities', String(item.id), 'notes'))
+    : Promise.resolve([])
+  const commitmentsRequest = resource === 'activities'
+    ? crmRequest<CrmRow[]>(crmPath('activities', String(item.id), 'commitments'))
+    : Promise.resolve([])
+  const parentRequest = resource === 'followups'
+    ? crmRequest<AgendaParent>(crmPath('followups', String(item.id), 'parent-activity'))
+    : Promise.resolve(null)
+  const results = await Promise.allSettled([
+    labelRequest, contactRequest, opportunityRequest, noteRequest, commitmentsRequest, parentRequest,
+  ])
+  if (generation !== agendaDetailsGeneration) return
+  if (results[0]?.status === 'fulfilled')
+    agendaLabels.value = results[0].value as AgendaLabels
+  const contact = results[1]?.status === 'fulfilled' ? results[1].value as CrmRow | null : null
+  if (contact) agendaContactName.value = String(contact.name ?? contact.fullName ?? contact.displayName ?? '')
+  const opportunity = results[2]?.status === 'fulfilled' ? results[2].value as CrmRow | null : null
+  if (opportunity) agendaOpportunityName.value = String(opportunity.title ?? opportunity.name ?? '')
+  if (results[3]?.status === 'fulfilled') agendaNotes.value = results[3].value as CrmRow[]
+  if (results[4]?.status === 'fulfilled') agendaCommitments.value = results[4].value as CrmRow[]
+  if (results[5]?.status === 'fulfilled') agendaParent.value = results[5].value as AgendaParent | null
+  if (results[0]?.status === 'rejected' ||
+      (resource === 'activities' && (results[3]?.status === 'rejected' || results[4]?.status === 'rejected')) ||
+      (resource === 'followups' && results[5]?.status === 'rejected'))
+    agendaDetailsWarning.value = 'Algunos datos vinculados no pudieron cargarse. Actualizá para volver a consultarlos.'
+}
+
 const agendaEditable = computed(() => section.value === 'activities'
   ? record.value?.status === 'Scheduled'
   : ['Pending','Overdue'].includes(String(record.value?.status ?? '')))
@@ -270,6 +400,7 @@ async function load() {
       const pipelineId = String(record.value?.pipelineId ?? '')
       if (pipelineId) stages.value = await crmRequest<CrmRow[]>(crmPath('pipelines', pipelineId, 'stages'))
     }
+    if (record.value) await loadAgendaDetails(record.value, section.value)
     if (record.value && (section.value === 'activities' || section.value === 'followups')) {
       drafts.status = String(record.value.status ?? '')
       drafts.date = fromUtc(section.value === 'activities' ? record.value.scheduledStartAt : record.value.dueAt)
@@ -829,18 +960,18 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
         </dl>
         <dl v-else-if="section === 'activities' || section === 'followups'" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div v-for="[label,value] in [
-            ['Tipo de gestión', section === 'activities' ? agendaLabel(record.type,'type') : 'Seguimiento'],
-            ['Estado',agendaLabel(record.status)],
-            ['Inicio programado',agendaDate(section === 'activities' ? record.scheduledStartAt : record.dueAt)],
-            ['Finalización',section === 'activities' ? agendaDate(record.scheduledEndAt) : '—'],
-            ['Ubicación',section === 'activities' ? (record.locationText || 'No especificada') : '—'],
-            ['Notificar por',agendaLabel(record.reminderChannelStrategy || 'BOTH','channel')],
-            ['Avisar antes',(record.reminderLeadMinutes ?? 60) + ' minutos'],
-            ['Resultado',record.outcome || 'Pendiente de completar']
-          ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3.5">
+          <div v-for="[label,value] in agendaFields" :key="label"
+            class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3.5">
             <dt class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ label }}</dt>
-            <dd class="mt-1 break-words text-sm font-semibold">{{ value }}</dd>
+            <dd class="mt-1 break-words text-sm font-semibold">
+              <RouterLink v-if="label === 'Cliente' && record.accountId && (can('crm.account.read') || can('crm.account.read-all'))"
+                :to="'/crm/accounts/' + encodeURIComponent(String(record.accountId))"
+                class="text-[var(--dh-primary)] hover:underline">{{ value }}</RouterLink>
+              <RouterLink v-else-if="label === 'Cliente' && record.leadId && (can('crm.lead.read') || can('crm.lead.read-all'))"
+                :to="'/crm/leads/' + encodeURIComponent(String(record.leadId))"
+                class="text-[var(--dh-primary)] hover:underline">{{ value }}</RouterLink>
+              <span v-else>{{ value }}</span>
+            </dd>
           </div>
         </dl>
         <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -855,6 +986,53 @@ onMounted(() => { if (crmEnabled()) void load() })
         </dl>
       </section>
 
+
+      <section v-if="section === 'activities' || section === 'followups'"
+        class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
+        <div>
+          <h2 class="text-base font-bold">{{ section === 'activities' ? 'Minuta, acuerdos y compromisos' : 'Actividad principal y compromiso' }}</h2>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Información registrada en esta gestión, conservada en el historial del CRM.</p>
+        </div>
+        <p v-if="agendaDetailsWarning" role="alert" class="text-sm text-amber-600">{{ agendaDetailsWarning }}</p>
+        <template v-if="section === 'activities'">
+          <div v-if="agendaNotes.length" class="space-y-3">
+            <article v-for="note in agendaNotes" :key="String(note.id)"
+              class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+              <p class="whitespace-pre-wrap break-words text-sm leading-relaxed">{{ note.noteText ?? 'Sin contenido' }}</p>
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ agendaDate(note.createdAt) }}</p>
+            </article>
+          </div>
+          <p v-else class="text-sm text-[var(--dh-text-muted)]">Todavía no se han registrado minutas, acuerdos u observaciones.</p>
+          <div class="space-y-2">
+            <h3 class="text-sm font-bold">Compromisos vinculados ({{ agendaCommitments.length }})</h3>
+            <div v-for="commitment in agendaCommitments" :key="String(commitment.id)"
+              class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <input type="checkbox" :checked="commitment.status === 'Completed'" disabled
+                class="mt-1 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" aria-label="Compromiso completado" />
+              <div class="min-w-0 flex-1">
+                <RouterLink :to="'/crm/followups/' + encodeURIComponent(String(commitment.id))"
+                  class="text-sm font-semibold text-[var(--dh-primary)] hover:underline">
+                  {{ commitment.subject || 'Compromiso sin título' }}
+                </RouterLink>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  {{ agendaLabel(commitment.status) }} · Vence: {{ agendaDate(commitment.dueAt) }}
+                </p>
+              </div>
+            </div>
+            <p v-if="!agendaCommitments.length" class="text-sm text-[var(--dh-text-muted)]">No hay compromisos con fecha vinculados a esta actividad.</p>
+          </div>
+        </template>
+        <template v-else>
+          <div v-if="agendaParent?.activityId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>
+            <RouterLink :to="'/crm/activities/' + encodeURIComponent(String(agendaParent.activityId))"
+              class="text-sm font-bold text-[var(--dh-primary)] hover:underline">
+              {{ agendaParent.activitySubject || 'Ver actividad principal' }}
+            </RouterLink>
+          </div>
+          <p v-else class="text-sm text-[var(--dh-text-muted)]">Seguimiento independiente o sin actividad principal accesible.</p>
+        </template>
+      </section>
       <section v-if="section === 'leads' && (can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage'))"
         class="crm-panel space-y-3 p-4">
         <h2 class="text-base font-extrabold">Agenda y seguimiento del prospecto</h2>
