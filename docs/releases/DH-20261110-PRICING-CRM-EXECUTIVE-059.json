@@ -1,0 +1,35 @@
+{
+  "releaseId": "DH-20261110-PRICING-CRM-EXECUTIVE-059",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.17.3",
+  "date": "2026-11-10",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "from": "1.17.2",
+      "to": "1.17.3"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "from": "1.9.4",
+      "to": "1.9.5"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "from": "1.17.2",
+      "to": "1.17.3"
+    }
+  ],
+  "functionalChanges": [
+    "Send CRM-assigned Auth executiveUserId on rate creation and update, including SPOT and tariff.",
+    "Validate missing executive Auth ID before write; preserve Castro Fallas special owner and server-side authorization.",
+    "No database schema, business price, quote or REST contract changes."
+  ],
+  "tests": [
+    "Regression of two wizard POST/PUT payloads and TypeScript rate request contracts.",
+    "CI type-check, build, pricing tests and staging with CRM-assigned executive."
+  ],
+  "staging": "Pending develop CI and runtime tests.",
+  "production": "Not authorized; master promotion requires passing staging and separate express production approval.",
+  "rollback": "Revert the coordinated release; no schema change."
+}
