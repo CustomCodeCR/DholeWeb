@@ -1,3 +1,8 @@
+## [1.18.1] - 2026-11-10
+
+- PATCH DH-20261110-CRM-ADMIN-CALENDAR-NAV-071: muestra las entradas de Actividades y Seguimientos en la navegación CRM a administradores Auth incluso cuando no tienen scopes individuales de vendedor. La lectura global y los permisos sobre minutas, participantes, acuerdos e historial siguen protegidos por la API CRM del release 1.18.0.
+- Conserva el aislamiento para usuarios normales y los permisos de escritura; DholeSystem 1.18.1, sin cambios de esquema ni SignalR. CI y staging pendientes.
+
 ## [1.18.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-ADMIN-CALENDAR-069: todos los administradores verificados en Auth pueden consultar todas las agendas CRM y buscar responsables, incluidos los que no tienen citas en el período. Seguimientos históricos muestran título, política, fecha e historial y minutas asociadas cuando existen.

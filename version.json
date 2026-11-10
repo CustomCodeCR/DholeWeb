@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.18.0",
-  "ecosystemVersion": "1.18.0",
-  "releaseId": "DH-20261110-CRM-ADMIN-CALENDAR-069",
+  "version": "1.18.1",
+  "ecosystemVersion": "1.18.1",
+  "releaseId": "DH-20261110-CRM-ADMIN-CALENDAR-NAV-071",
   "releaseStatus": "candidate-develop-ci-staging-pending",
-  "businessReleaseId": "DH-20261110-CRM-ADMIN-CALENDAR-069"
+  "businessReleaseId": "DH-20261110-CRM-ADMIN-CALENDAR-NAV-071"
 }
