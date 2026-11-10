@@ -22,6 +22,7 @@ import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignI
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import {
   formatDate,
   formatMoney,
@@ -749,6 +750,10 @@ watch(
   },
 )
 
+useRealtimeListRefresh({
+  prefixes: ['/api/pricing'],
+  refresh: load,
+})
 onMounted(async () => {
   if (!isSellerUser.value) void loadExecutiveOptions()
   try {
