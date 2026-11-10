@@ -42,6 +42,35 @@ function startCatalogInvalidations() {
   })
 }
 
+const LIST_SUBSCRIPTIONS = [
+  { kind: 'pricing.cost-list', id: '00000000-0000-4000-8000-000000000043', endpoint: '/api/pricing/costs' },
+  { kind: 'pricing.rate-list', id: '00000000-0000-4000-8000-000000000044', endpoint: '/api/pricing/rates' },
+  { kind: 'crm.accountlist', id: '00000000-0000-4000-8000-000000000045', endpoint: '/api/crm/accounts' },
+  { kind: 'crm.leadlist', id: '00000000-0000-4000-8000-000000000046', endpoint: '/api/crm/leads' },
+] as const
+
+let stopCollectionObservers: Array<() => void> = []
+function startCollectionInvalidations() {
+  if (stopCollectionObservers.length) return
+  stopCollectionObservers = LIST_SUBSCRIPTIONS.map(({ kind, id, endpoint }) =>
+    universalRealtimeManager.subscribe({
+      kind,
+      id,
+      fetchSnapshot: async () => {
+        // Use the same owner ACL as the actual collection REST. Never accept
+        // a notification as permission to read a customer's or cost data.
+        await callEndpoint<unknown>({ method: 'GET', path: endpoint + '/realtime-access' })
+        return { value: true, version: null }
+      },
+      applySnapshot: (_snapshot, reason) => {
+        window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+          detail: { endpoint, method: 'SIGNALR', reason, occurredAt: new Date().toISOString() },
+        }))
+      },
+    }),
+  )
+}
+
 let onNotification: ((notification: unknown) => void) | null = null
 export function setUniversalRealtimeNotificationHandler(
   callback: ((notification: unknown) => void) | null,
@@ -98,6 +127,7 @@ export async function startUniversalRealtime() {
     },
   )
   startCatalogInvalidations()
+  startCollectionInvalidations()
 }
 
 export function refreshUniversalRealtimeCredentials() {
@@ -117,6 +147,8 @@ export function refreshUniversalRealtimeCredentials() {
 export function stopUniversalRealtime() {
   stopCatalogObserver?.()
   stopCatalogObserver = null
+  for (const dispose of stopCollectionObservers) dispose()
+  stopCollectionObservers = []
   universalRealtimeManager.stop()
   removeLifecycleListeners()
 }
