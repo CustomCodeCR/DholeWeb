@@ -60,6 +60,20 @@ const services = ref<PricingCatalogItem[]>([])
 const loading = ref(false)
 const loaded = ref(false)
 let activeLoad: Promise<void> | null = null
+let catalogRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let catalogRefreshInstalled = false
+function installCatalogRefresh() {
+  if (catalogRefreshInstalled || typeof window === 'undefined') return
+  catalogRefreshInstalled = true
+  window.addEventListener('dhole:catalog:changed', () => {
+    if (!loaded.value && !activeLoad) return
+    if (catalogRefreshTimer) clearTimeout(catalogRefreshTimer)
+    catalogRefreshTimer = setTimeout(() => {
+      catalogRefreshTimer = null
+      void loadAll(true).catch(() => { /* retry via REST on reconnect */ })
+    }, 200)
+  })
+}
 
 const legacyKindSlugs: Record<string, string> = {
   DV: 'dry-van',
@@ -414,6 +428,7 @@ function findBestMatch(
 }
 
 export function usePricingCatalogs() {
+  installCatalogRefresh()
   function resolveRateLabels(rate: RateDto): RateDto {
     const label = (
       items: PricingCatalogItem[],

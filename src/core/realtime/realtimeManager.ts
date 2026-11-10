@@ -8,8 +8,10 @@ export type RealtimeStatus =
   | 'degraded' | 'offline' | 'unauthorized'
 /** F6: resource kinds must match the Gateway's resource-scoped REST ACL allowlist. */
 export const REALTIME_RESOURCE_KINDS = [
-  'crm.account', 'pricing.rate',
-  'auth.user', 'config.catalog-group', 'config.catalog-item', 'srm.supplier',
+  'crm.account', 'crm.lead', 'crm.accountlist', 'crm.leadlist',
+  'pricing.rate', 'pricing.cost-list', 'pricing.rate-list',
+  'module.crm', 'module.pricing', 'module.auth', 'module.config', 'module.srm', 'module.audit', 'module.storage', 'module.extraction', 'module.reports', 'module.dynamics', 'module.ai', 'module.agent', 'module.content',
+  'auth.user', 'config.catalog-group', 'config.catalog-item', 'config.catalog-list', 'srm.supplier',
   'audit.event', 'storage.file',
   'extraction.execution', 'extraction.emailjob', 'extraction.airequest',
   'reports.template', 'dynamics.job', 'ai.execution', 'ai.emailjob',

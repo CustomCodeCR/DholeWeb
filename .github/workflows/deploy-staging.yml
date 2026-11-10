@@ -36,7 +36,7 @@ jobs:
           # github.com. No debe abortar el deploy por un único fallo de resolución.
           cloned=0
           for attempt in 1 2 3 4 5; do
-            if git clone --depth 1 --branch master https://github.com/CustomCodeCR/DholeSystem.git .dhole-system; then
+            if git clone --depth 1 --branch develop https://github.com/CustomCodeCR/DholeSystem.git .dhole-system; then
               cloned=1
               break
             fi
@@ -98,7 +98,7 @@ jobs:
           VITE_API_URL="$(read_env VITE_API_URL)"
           VITE_APP_NAME="$(read_env VITE_APP_NAME)"
           VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
-          VITE_DHOLE_REALTIME_ENABLED="$(read_env DHOLE_REALTIME_NOTIFICATIONS_ENABLED)"
+          VITE_DHOLE_REALTIME_ENABLED="true" # staging-only catalog pilot; prod build unchanged
           VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_ENABLED"
           VITE_DHOLE_REALTIME_RELEASE="rt-20261107-01"
           # A standard develop deployment does not opt in unless staging

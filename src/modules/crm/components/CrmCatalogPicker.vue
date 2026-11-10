@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronDown, Check, Search, X } from 'lucide-vue-next'
 import { DhInput } from '@/shared/components/atoms'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -117,7 +117,13 @@ watch(() => props.modelValue, value => {
     selectedLabel.value = found ? labelFor(found) : ''
   }
 })
-onBeforeUnmount(() => { generation++; if (searchTimer) clearTimeout(searchTimer) })
+function onCatalogChanged() { void reload() }
+onMounted(() => window.addEventListener('dhole:catalog:changed', onCatalogChanged))
+onBeforeUnmount(() => {
+  window.removeEventListener('dhole:catalog:changed', onCatalogChanged)
+  generation++
+  if (searchTimer) clearTimeout(searchTimer)
+})
 </script>
 
 <template>

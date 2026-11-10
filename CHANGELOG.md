@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.2] - 2026-11-09
+
+- PATCH: subscribe once per browser to authenticated Config catalog-list invalidations on NotificationsHub. Pricing shared ports, agents and container catalogs and CRM single/multi catalog pickers reload REST options on cross-user changes, preserving user selections and drafts.
+- Start/stop realtime on login/logout, preserve one socket, activate browser pilot only in staging. No production/master changes; global version 1.15.2.
+
+
 ## [1.15.1] - 2026-11-09
 
 - PATCH: aceptar/rechazar cotizaciones Abiertas en Ventas cuando exista una revisión comercial enviada y no queden modificaciones abiertas. La interfaz de dashboard y detalle mantiene protegida cualquier revisión no publicada.

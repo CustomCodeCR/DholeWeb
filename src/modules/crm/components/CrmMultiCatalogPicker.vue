@@ -134,9 +134,14 @@ watch(() => [props.catalogGroupSlugs.join('|'), props.routeMode, props.routeRole
   options.value = []
   query.value = ''
 })
-onMounted(() => document.addEventListener('pointerdown', outsidePointer, true))
+function onCatalogChanged() { if (open.value) void reload() }
+onMounted(() => {
+  document.addEventListener('pointerdown', outsidePointer, true)
+  window.addEventListener('dhole:catalog:changed', onCatalogChanged)
+})
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', outsidePointer, true)
+  window.removeEventListener('dhole:catalog:changed', onCatalogChanged)
   if (searchTimer) clearTimeout(searchTimer)
   generation++
 })
