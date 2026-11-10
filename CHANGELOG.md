@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.9] - 2026-11-10
+
+- PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-064: Agenda y seguimientos ahora presenta Cliente y Ejecutivo comercial en actividades y seguimientos, resolviendo nombres de cuentas, prospectos y responsables mediante el endpoint autorizado del calendario de CRM en lotes de 100.
+- Se respetan permisos y filas visibles, paginación y estados existentes; nuevos tests validan la selección de ejecutivo y las referencias históricas. DholeWeb 1.17.9, DholeSystem 1.17.9 (solo coordinación de versión).
+
 ## [1.17.8] - 2026-11-10
 
 - PATCH DH-20261110-CRM-QUO-STATUS-061: sincronización de versión entre develop y master para conservar la traducción de los estados comerciales de QUO en CRM tras los releases 1.17.6 y 1.17.7 de selección múltiple de POE.
