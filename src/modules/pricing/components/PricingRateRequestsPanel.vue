@@ -23,6 +23,8 @@ type RequestPayload = {
   modification?: { sourceRevisionNumber?: number; quote?: string; items?: ModificationItem[]; changes?: ModificationItem[]; notes?: string }
   form?: Record<string, unknown>
   requestContext?: Record<string, unknown>
+  selectedPoeIds?: string[]
+  selectedPoeNames?: string[]
 }
 
 interface RateRequestDto {
@@ -171,6 +173,8 @@ function incotermLabel(request: RateRequestDto) {
 }
 
 function poeLabel(request: RateRequestDto) {
+  const selectedPoeNames = request.payload?.selectedPoeNames?.filter(name => Boolean(name?.trim())) ?? []
+  if (selectedPoeNames.length > 1) return selectedPoeNames.join(' / ')
   return request.poeName?.trim()
     || stringValue(request, 'poeName')
     || request.destinationName?.trim()
