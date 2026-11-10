@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.17.12] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-CRM-REQUEST-IDENTITY-067: solicitudes normales, edición y modificaciones de QUO recuperan el ejecutivo comercial vigente desde el CRM por ID, conservan executiveUserId al enviar y no reemplazan al vendedor con el usuario conectado. Se respetan cuentas Castro Fallas, permisos CRM, delegación y cotizaciones históricas sin vincular. Prueba de regresión pricingCrmRequestCommercialOwner; Pricing 1.9.10 y CRM 1.7.5 en develop / 1.4.2 en master.
+
 ## [1.17.11] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ACTIVITY-FULL-DETAIL-066: el detalle CRM de actividades y seguimientos muestra cliente, ejecutivo, contacto, fechas, ubicación, recordatorios, repeticiones, minuta, involucrados y observaciones; vincula compromisos con su actividad principal y muestra estado de finalización. Consulta nombres y relaciones con permisos, sin alterar datos históricos.
