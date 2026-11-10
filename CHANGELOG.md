@@ -1,3 +1,8 @@
+## [1.17.18] - 2026-11-10
+
+- PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: el formulario CRM acepta fechas pasadas para registrar actividades realizadas, conserva las horas elegidas y muestra claramente que no se enviarán recordatorios retroactivos. Las reuniones/visitas históricas se guardan completadas con su minuta y acuerdos; seguimientos y compromisos con vencimiento siguen requiriendo fechas futuras.
+- Coordinado con DholeCRMService 1.4.6 y DholeSystem 1.17.18; pruebas y staging pendientes.
+
 ## [1.17.17] - 2026-11-10
 
 - DH-20261110-CRM-LEAD-TABBED-DETAIL-073: ficha de prospectos con pestañas como Cuentas (Prospecto, Análisis comercial y rutas, Cotizaciones, Agenda y seguimientos, Convertir a cuenta), una sección visible a la vez; conserva permisos y los enlaces directos de conversión.
