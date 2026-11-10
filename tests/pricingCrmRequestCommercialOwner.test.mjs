@@ -32,7 +32,7 @@ test('Multimodal requests retain their CRM seller and historical unlinked quotes
 
 test('Pricing modification reloads the CRM owner by ID before save, even when screen 3 is unmounted', () => {
   assert.match(identity, /async function refreshModificationCrmOwner\(\)/)
-  assert.match(identity, /props\.modificationRequestId \|\| !editingRate\.value/)
+  assert.match(identity, /props\.modificationRequestId && editingRate\.value/)
   assert.match(identity, /selectedClientId: clientId/)
   assert.match(identity, /item\.id\.toLowerCase\(\) === clientId\.toLowerCase\(\)/)
   assert.match(identity, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
@@ -44,6 +44,16 @@ test('Existing modifications reject an unavailable seller and retain unlinked le
   assert.match(identity, /executiveId === '00000000-0000-0000-0000-000000000000'/)
   assert.match(identity, /executiveName\.toLowerCase\(\) === 'vendedor no disponible'/)
   assert.match(identity, /!editingRate\.value\.clientLeadId && !form\.clientId/)
-  assert.match(identity, /La cuenta vinculada no tiene un vendedor activo en CRM/)
+  assert.match(identity, /La cuenta o prospecto vinculado no tiene un vendedor activo en CRM/)
   assert.match(identity, /No se pudo consultar CRM para validar el ejecutivo comercial/)
+})
+
+test('Solicitudes normales y de modificación recuperan también el ejecutivo de prospectos CRM por ID', () => {
+  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode\) return true/)
+  assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
+  assert.match(identity, /async function saveOpenRequest\(\) \{\s*if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
+  assert.match(identity, /form\.crmClientKind = client\.kind/)
+  assert.match(identity, /form\.executiveId = castroFallas \? '' : executiveId/)
+  assert.match(identity, /La cuenta o prospecto vinculado no está disponible en CRM/)
+  assert.match(identity, /La cuenta o prospecto vinculado no tiene un vendedor activo en CRM/)
 })
