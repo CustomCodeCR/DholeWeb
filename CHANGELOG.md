@@ -1,3 +1,8 @@
+## [1.17.14] - 2026-11-10
+
+- PATCH DH-20261110-CRM-ACTIVITY-FULL-DETAIL-068: muestra información completa de actividades y seguimientos (cliente, ejecutivo, contacto, fechas, recordatorios, minuta, acuerdos, compromisos y actividad principal). Integra los cambios verificados en staging de DholeWeb 1.17.11 sin revertir el release 1.17.12 de identidad CRM/Pricing.
+- Coordinado con DholeCRMService 1.4.3 y DholeSystem 1.17.14; endpoints de lectura autorizados, sin migraciones ni cambios de SignalR.
+
 ## [1.17.12] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-REQUEST-IDENTITY-067: solicitudes normales, edición y modificaciones de QUO recuperan el ejecutivo comercial vigente desde el CRM por ID, conservan executiveUserId al enviar y no reemplazan al vendedor con el usuario conectado. Se respetan cuentas Castro Fallas, permisos CRM, delegación y cotizaciones históricas sin vincular. Prueba de regresión pricingCrmRequestCommercialOwner; Pricing 1.9.10 y CRM 1.7.5 en develop / 1.4.2 en master.
