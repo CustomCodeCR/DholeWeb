@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.3] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-CRM-EXECUTIVE-059: Pricing envía el executiveUserId de Auth asociado a la cuenta o prospecto CRM junto con su nombre al crear y actualizar SPOT/tarifarios. Evita el error «Debe seleccionar un ejecutivo comercial» cuando el vendedor ya aparece asignado en pantalla 3.
+- Valida las asignaciones incompletas antes del POST sin sustituir el vendedor CRM, preserva Castro Fallas, compatibilidad REST y precios. Coordinado con DholePricingService 1.9.5 y ecosistema 1.17.3.
+
 ## [1.17.2] - 2026-11-10
 
 - PATCH DH-20261110-CRM-QUO-SUPERADMIN-058: la sección de vinculación de QUO históricas se presenta en un acordeón cerrado por defecto, carga datos solo al abrirse y aparece exclusivamente a SuperAdmin, SuperAdministrador, SuperUsuario y SuperUser.
