@@ -1,3 +1,9 @@
+## [1.17.17] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-MASTER-073: backport de la corrección DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072 ya integrada en develop, sin incorporar funcionalidades ajenas. Al guardar una solicitud de modificación de QUO LCL desde la pantalla 5, recuperar la cuenta/prospecto CRM y el ejecutivo comercial vigente mediante su ID antes de validar el guardado.
+- Mantiene asignaciones de Castro Fallas, actualiza datos de un cliente cambiado, bloquea vendedores ausentes/inactivos y conserva compatibilidad con QUO históricas sin vinculación. Sin cambios de contrato REST, SignalR o migraciones. CI y revisión staging requeridas.
+- Coordinado con DholeSystem 1.17.17; no modifica DholePricingService ni CRM.
+
 ## [1.17.16] - 2026-11-10
 
 - DH-20261110-CRM-PROSPECT-SELLER-072: en la lista y detalle de Prospectos se muestra el vendedor asignado, con nombres obtenidos de Auth vía CRM y permisos por registro. Administrador puede crear y reasignar prospectos a vendedores activos con crm.lead.assign y auth.users.view.
