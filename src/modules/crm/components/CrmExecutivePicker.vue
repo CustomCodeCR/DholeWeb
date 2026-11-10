@@ -5,7 +5,7 @@ import { DhButton, DhInput } from '@/shared/components/atoms'
 import { UsersService } from '@/core/services/usersService'
 import type { UserDto } from '@/core/interfaces/users'
 
-const props = defineProps<{ modelValue: string; label?: string }>()
+const props = defineProps<{ modelValue: string; label?: string; allowInstitutional?: boolean }>()
 // Pricing already represents the institutional seller with this sentinel.
 // The CRM API never receives it as a user GUID: it receives assignToCastroFallas=true.
 const CASTRO_FALLAS_SELLER = '__castro_fallas__'
@@ -36,7 +36,7 @@ const options = computed(() => users.value.map(user => ({
   value: user.id, label: user.displayName + (user.email ? ' · ' + user.email : ''),
 })))
 const selectedAllowed = computed(() =>
-  props.modelValue === CASTRO_FALLAS_SELLER ||
+  (props.allowInstitutional !== false && props.modelValue === CASTRO_FALLAS_SELLER) ||
   options.value.some(x => x.value === props.modelValue))
 watch(selectedAllowed, eligible => emit('eligibility', eligible), { immediate: true })
 
@@ -88,11 +88,13 @@ async function searchUsers() {
     if (request !== requestVersion) return
     users.value = []
     if (props.modelValue !== CASTRO_FALLAS_SELLER) emit('update:modelValue', '')
-    error.value = 'No se pudo consultar el personal comercial de Auth. Castro Fallas sigue disponible.'
+    error.value = props.allowInstitutional === false
+      ? 'No se pudo consultar el personal comercial de Auth.'
+      : 'No se pudo consultar el personal comercial de Auth. Castro Fallas sigue disponible.'
   } finally { if (request === requestVersion) loading.value = false }
 }
-const showHouseSeller = computed(() => !query.value.trim() ||
-  normalize('Castro Fallas').includes(normalize(query.value)))
+const showHouseSeller = computed(() => props.allowInstitutional !== false &&
+  (!query.value.trim() || normalize('Castro Fallas').includes(normalize(query.value))))
 void searchUsers()
 </script>
 

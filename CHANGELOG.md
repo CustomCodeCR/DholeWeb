@@ -1,7 +1,18 @@
 ## [1.19.0] - 2026-11-10
 
-- MINOR DH-20261110-CRM-AGENDA-RECONCILED-070: integra agenda CRM con contactos de la cuenta, minuta ampliable, asignación de vendedores autorizados y compromisos reversibles vinculados a la actividad principal.
-- Reconciliado con CRM-ADMIN-CALENDAR-069 y CRM-ADMIN-CALENDAR-NAV; versiones coordinadas CRM 1.9.0 y System 1.19.0; CI y staging pendientes.
+- MINOR DH-20261110-CRM-AGENDA-RECONCILED-070: agenda CRM con contactos vinculados, minuta ampliable, vendedores autorizados y compromisos reversibles con referencia a la actividad principal.
+- Compatibilidad con actualizaciones previas de CRM y Web. CRM 1.9.0, System 1.19.0. CI y staging pendientes.
+
+## [1.18.3] - 2026-11-10
+
+- DH-20261110-CRM-PROSPECT-SELLER-072: se muestra el vendedor asignado en lista y ficha de Prospectos; administradores pueden crear o reasignar prospectos a vendedores activos mediante scopes CRM/Auth, sin exponer datos de otros usuarios.
+- Respeta cambios recientes en Pricing y la selección de vendedor institucional solo para cuentas. Ecosistema Dhole 1.18.3.
+
+## [1.18.2] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072: el guardado de modificaciones de tarifas vinculadas al CRM recupera por ID la cuenta y el ejecutivo comercial vigentes aunque se abra directamente en Pantalla 5 LCL, sin depender del selector de la Pantalla 3.
+- Se conserva el cambio explícito de cuenta, Castro Fallas y las QUO históricas sin vinculación. Se bloquea un vendedor inexistente o inactivo; sin cambios REST, SignalR ni migraciones. Prueba de regresión y CI/staging pendientes.
+- DholeWeb y DholeSystem 1.18.2, resto de servicios sin cambios. Sin autorización de despliegue a producción.
 
 ## [1.18.1] - 2026-11-10
 
