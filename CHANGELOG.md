@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.1] - 2026-11-10
+
+- PATCH DH-20261110-CRM-QUO-LIVE-057: indicadores y rutas CRM se consultan directamente en las QUO de Pricing vinculadas por ID de cuenta; se eliminan ceros causados por registros de oportunidades CRM no relacionados.
+- Selección masiva segura de QUO pendientes por página o por resultados filtrados (hasta 1000), revisión y confirmación explícita, refresco de historial e indicadores tras vincular.
+- Coordinado con DholePricingService 1.9.3, DholeSystem 1.17.1. Sin alterar importes ni estados.
+
 ## [1.16.1] - 2026-11-09
 
 - PATCH DH-20261109-CRM-QUO-LINK-SYNC-056: migración CRM presenta únicamente QUO sin vínculo, elimina del listado las que se vinculan y refleja nombre y ejecutivo CRM en las tarifas Pricing.
