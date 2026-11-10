@@ -62,8 +62,8 @@ function applyHacienda(result: HaciendaResult) {
 
 function applyLeadHacienda(result: HaciendaResult) {
   if (String(form.taxId ?? '').replace(/[\s-]/g, '') !== result.identification.replace(/[\s-]/g, '')) return
-  form.companyName = result.name
-  if (!String(form.name ?? '').trim()) form.name = result.name
+  form.companyName = upperAccountName(result.name)
+  if (!String(form.name ?? '').trim()) form.name = upperAccountName(result.name)
 }
 
 const columns = computed<DhTableColumn<CrmRow>[]>(() => {
@@ -559,6 +559,10 @@ async function save() {
       return
     }
   }
+  if (section.value === 'leads') {
+    form.name = upperAccountName(form.name).trim()
+    form.companyName = upperAccountName(form.companyName).trim()
+  }
   if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
@@ -996,7 +1000,7 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
           <div v-if="section !== 'accounts'" class="grid gap-4 sm:grid-cols-2">
             <div v-for="f in model.fields" :key="f.key" :class="f.type === 'textarea' && 'sm:col-span-2'">
               <DhSelect v-if="f.type === 'select'" :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label" :options="f.options ?? []" placeholder=""
-                :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
+                :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = section === 'leads' && ['name', 'companyName'].includes(f.key) ? upperAccountName($event) : $event" />
               <DhTextarea v-else-if="f.type === 'textarea'" :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label" :rows="4"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
               <div v-else-if="f.type === 'checkbox'" :data-required-field="f.key" :class="isInvalid(f.key) ? '!border-red-500 ring-2 ring-red-500/20' : ''" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
