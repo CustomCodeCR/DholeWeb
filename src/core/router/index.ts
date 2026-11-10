@@ -6,6 +6,7 @@ import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { i18n } from '@/core/i18n'
 import { crmEnabled } from '@/modules/crm/services/crmApi'
+import { hasCrmCalendarAdministratorRole } from '@/modules/crm/model/crmCalendarAdministrator'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
 
 declare module 'vue-router' {
@@ -17,6 +18,7 @@ declare module 'vue-router' {
     closable?: boolean
     requiredScope?: string
     requiredAnyScopes?: string[]
+    calendarAdministratorAccess?: boolean
     requiredAllScopes?: string[]
     requiredRole?: string
     crmSection?: string
@@ -160,25 +162,25 @@ export const router = createRouter({
           path: 'crm/activities',
           name: 'crm-activities',
           component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
         },
         {
           path: 'crm/activities/:id',
           name: 'crm-activities-detail',
           component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
-          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
         },
         {
           path: 'crm/followups',
           name: 'crm-followups',
           component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
         },
         {
           path: 'crm/followups/:id',
           name: 'crm-followups-detail',
           component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
-          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
         },
         {
           path: 'crm/analyses',
@@ -917,7 +919,9 @@ router.beforeEach(async (to) => {
   if (
     !isPublic &&
     requiredAnyScopes.length > 0 &&
-    !requiredAnyScopes.some((scope) => authStore.hasScope(scope))
+    !requiredAnyScopes.some((scope) => authStore.hasScope(scope)) &&
+    !(to.meta.calendarAdministratorAccess &&
+      hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))
   ) {
     return '/home'
   }
