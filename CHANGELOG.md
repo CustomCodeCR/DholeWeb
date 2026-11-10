@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.16.1] - 2026-11-09
+
+- PATCH DH-20261109-CRM-QUO-LINK-SYNC-056: migración CRM presenta únicamente QUO sin vínculo, elimina del listado las que se vinculan y refleja nombre y ejecutivo CRM en las tarifas Pricing.
+- Reconciliación manual de datos en QUO previamente vinculadas, refresco de cotizaciones y rutas sin cambiar cifras ni estados. Pricing 1.9.2, ecosistema 1.16.2.
+
 ## [1.16.0] - 2026-11-09
 
 - MINOR: Todas las QUO históricas se muestran en el CRM mediante DhDataTable y DhPagination; búsqueda por código, cliente y ruta, selección y vinculación manual por ID a la cuenta actual.
