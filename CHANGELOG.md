@@ -1,3 +1,8 @@
+## [1.19.2] - 2026-11-10
+
+- PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: el formulario CRM acepta fechas pasadas para registrar actividades realizadas, conserva las horas elegidas y muestra claramente que no se enviarán recordatorios retroactivos. Las reuniones/visitas históricas se guardan completadas con su minuta y acuerdos; seguimientos y compromisos con vencimiento siguen requiriendo fechas futuras.
+- Coordinado con DholeCRMService 1.9.1 y DholeSystem 1.19.2; pruebas y staging pendientes.
+
 ## [1.19.1] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-LEAD-REQUESTS-074: las solicitudes de tarifas de vendedores, ediciones y solicitudes de modificación vinculadas a cuentas o prospectos CRM consultan el ejecutivo vigente por ID antes de guardar. Elimina los falsos errores de ejecutivo vacío en prospectos después de recuperar solicitudes históricas, sin depender de que la pantalla 3 esté montada.
