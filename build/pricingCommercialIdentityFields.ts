@@ -40,22 +40,24 @@ function patchWizard(source: string) {
   isCastroFallasExecutive: boolean
 }
 
-// The CRM picker from screen 3 is unmounted when a modification resumes in
-// screens 5-9. Recover the real assigned seller by client ID before saving.
+// An existing modification may resume after screen 3; an older seller request
+// can also carry a prospect without an executive ID. Reconcile both from CRM
+// before POST/PUT instead of relying on the previous QUO/request snapshot.
 async function refreshModificationCrmOwner(): Promise<boolean> {
-  if (!props.modificationRequestId || !editingRate.value) return true
-  const clientId = String(form.clientId || editingRate.value.clientAccountId
-    || editingRate.value.clientLeadId || '').trim()
-  if (!clientId) return true // Historical quotations never linked to CRM.
+  const pricingModification = Boolean(props.modificationRequestId && editingRate.value)
+  if (!pricingModification && !props.sellerRequestMode) return true
+  const clientId = String(form.clientId || (pricingModification
+    ? editingRate.value?.clientAccountId || editingRate.value?.clientLeadId : '') || '').trim()
+  if (!clientId) return true // Historical quotations/requests never linked to CRM.
   try {
-    const params = new URLSearchParams({ mode: 'create', selectedClientId: clientId, pageSize: '1' })
+    const params = new URLSearchParams({ mode: props.sellerRequestMode ? 'request' : 'create', selectedClientId: clientId, pageSize: '1' })
     const response = await crmRequest<{ items: ModificationCrmClientOption[] }>(
       crmPath('pricing-client-options') + '?' + params.toString(),
     )
     const client = response.items?.find(item => item.id.toLowerCase() === clientId.toLowerCase())
     if (!client || !client.kind || !client.displayName?.trim()) {
       step.value = 3
-      toastStore.error('La cuenta vinculada no está disponible en CRM. Verifique los permisos o seleccione una cuenta vigente.')
+      toastStore.error('La cuenta o prospecto vinculado no está disponible en CRM. Verifique los permisos o seleccione un registro vigente.')
       return false
     }
     const castroFallas = client.isCastroFallasExecutive
@@ -65,7 +67,7 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
       || executiveId === '00000000-0000-0000-0000-000000000000'
       || !executiveName || executiveName.toLowerCase() === 'vendedor no disponible')) {
       step.value = 3
-      toastStore.error('La cuenta vinculada no tiene un vendedor activo en CRM. Asigne uno antes de guardar.')
+      toastStore.error('La cuenta o prospecto vinculado no tiene un vendedor activo en CRM. Asigne uno antes de guardar.')
       return false
     }
     // Respect a client changed in the modification; never restore the old owner.
@@ -99,7 +101,8 @@ async function saveRate() {
       code,
       'async function saveOpenRequest() {',
       `async function saveOpenRequest() {
-  // New seller requests require a CRM account with an assigned commercial owner.
+  if (!(await refreshModificationCrmOwner())) return
+  // New seller requests require a CRM account or prospect with an assigned commercial owner.
   // Historical unlinked quotations may still request amendments until CRM migration.
   const historicUnlinkedSellerModification = Boolean(props.sellerModificationRateId
     && sellerModificationSource.value
