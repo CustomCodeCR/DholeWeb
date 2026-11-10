@@ -63,6 +63,7 @@ export interface RealtimeRuntime {
   random: () => number
   onState?: (status: RealtimeStatus) => void
   onNotificationReceived?: (notification: unknown) => void
+  onAuthSecurityChanged?: (event: unknown) => void
 }
 interface Watcher {
   key: string
@@ -568,6 +569,13 @@ export class RealtimeManager {
       const values = message.arguments
       if (Array.isArray(values) && values.length === 1)
         this.runtime.onNotificationReceived?.(values[0])
+      return
+    }
+    if (message.type === 1 &&
+        String(message.target ?? '').toLowerCase() === 'authsecuritychanged') {
+      const values = message.arguments
+      if (Array.isArray(values) && values.length === 1)
+        this.runtime.onAuthSecurityChanged?.(values[0])
       return
     }
     if (message.type === 7) {
