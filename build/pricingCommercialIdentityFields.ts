@@ -22,16 +22,63 @@ function patchWizard(source: string) {
   // Legacy Auth/Config selectors must not overwrite those values.
   if (source.includes('<PricingCrmClientSelect')) {
     let code = source
+    // Only persisted pre-CRM items may temporarily retain their historic identity.
+    // Newly created requests/quotes always require an explicit CRM selection.
     code = replaceOne(
       code,
       'async function saveRate() {',
-      `async function saveRate() {
-  if (!form.clientId || !form.crmClientKind || !form.clientName.trim() || !form.executiveName.trim() || (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId)) {
+      `const allowLegacyUnlinkedCrmWork = computed(() =>
+  !form.clientId && !form.crmClientKind
+    && Boolean(form.clientName.trim()) && Boolean(form.executiveName.trim())
+    && Boolean(
+      props.sellerEditRequestId ||
+      props.rateRequestId ||
+      props.modificationRequestId ||
+      (props.rateId && editingRate.value &&
+        !editingRate.value.clientAccountId && !editingRate.value.clientLeadId)
+    ),
+)
+
+async function saveRate() {
+  if (!allowLegacyUnlinkedCrmWork.value &&
+      (!form.clientId || !form.crmClientKind || !form.clientName.trim() ||
+       !form.executiveName.trim() ||
+       (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId))) {
     step.value = 3
     toastStore.error('La cuenta o prospecto seleccionado no tiene un ejecutivo comercial válido. Asigne un vendedor en CRM y seleccione la cuenta nuevamente.')
     return
   }`,
-      'CRM identity validation',
+      'CRM identity validation with historical compatibility',
+    )
+    code = replaceOne(
+      code,
+      'async function saveOpenRequest() {',
+      `async function saveOpenRequest() {
+  if (!props.sellerEditRequestId &&
+      (!form.clientId || !form.crmClientKind || !form.clientName.trim() ||
+       !form.executiveName.trim() ||
+       (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId))) {
+    step.value = 3
+    toastStore.error('Seleccione una cuenta o prospecto válido del CRM para solicitudes nuevas.')
+    return
+  }`,
+      'new seller request CRM validation',
+    )
+    code = replaceOne(
+      code,
+      '<PricingCrmClientSelect v-model="form.clientId" data-required-field="client" :mode="sellerRequestMode ? \'request\' : \'create\'" :initial-name="form.clientName" :error="fieldError(\'client\')" @selected="setCrmClient" />',
+      `<div v-if="allowLegacyUnlinkedCrmWork" class="rounded-xl border border-amber-500/30 px-3 py-2 text-xs">
+                  <strong>Solicitud histórica sin vincular.</strong> Puede continuar trabajando con {{ form.clientName }} y vincular la cuenta CRM posteriormente.
+                </div>
+                <PricingCrmClientSelect v-model="form.clientId" data-required-field="client" :mode="sellerRequestMode ? 'request' : 'create'" :initial-name="form.clientName" :legacy-optional="allowLegacyUnlinkedCrmWork" :error="fieldError('client')" @selected="setCrmClient" />`,
+      'legacy request CRM picker',
+    )
+    code = code.replace(
+      '(!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim()))',
+      '(!props.sellerRequestMode || Boolean(form.clientId || (props.sellerEditRequestId && form.clientName.trim())))',
+    ).replace(
+      "props.sellerRequestMode && !form.clientId && !form.clientName.trim()",
+      "props.sellerRequestMode && !form.clientId && !(props.sellerEditRequestId && form.clientName.trim())",
     )
     return code
   }
