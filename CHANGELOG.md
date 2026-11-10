@@ -1,3 +1,8 @@
+## [1.18.3] - 2026-11-10
+
+- DH-20261110-CRM-PROSPECT-SELLER-072: se muestra el vendedor asignado en lista y ficha de Prospectos; administradores pueden crear o reasignar prospectos a vendedores activos mediante scopes CRM/Auth, sin exponer datos de otros usuarios.
+- Respeta cambios recientes en Pricing y la selección de vendedor institucional solo para cuentas. Ecosistema Dhole 1.18.3.
+
 ## [1.18.2] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072: el guardado de modificaciones de tarifas vinculadas al CRM recupera por ID la cuenta y el ejecutivo comercial vigentes aunque se abra directamente en Pantalla 5 LCL, sin depender del selector de la Pantalla 3.

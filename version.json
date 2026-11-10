@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.18.2",
-  "ecosystemVersion": "1.18.2",
-  "releaseId": "DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072",
-  "releaseStatus": "candidate-intermediate-ci-pending",
-  "businessReleaseId": "DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072"
+  "version": "1.18.3",
+  "ecosystemVersion": "1.18.3",
+  "releaseId": "DH-20261110-CRM-PROSPECT-SELLER-072",
+  "releaseStatus": "candidate-develop-ci-pending",
+  "businessReleaseId": "DH-20261110-CRM-PROSPECT-SELLER-072"
 }
