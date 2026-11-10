@@ -1,3 +1,8 @@
+## [1.19.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-RECONCILED-070: agenda comercial con botón Nueva actividad, contactos de cuenta, minuta, vendedor autorizado y compromisos reversibles vinculados a actividad principal.
+- Promoción selectiva del release probado en develop: CRM 1.9.0, System 1.19.0; se preservan cambios exclusivos de master fuera de estos componentes. Validación de master y staging pendiente.
+
 ## [1.17.16] - 2026-11-10
 
 - DH-20261110-CRM-PROSPECT-SELLER-072: en la lista y detalle de Prospectos se muestra el vendedor asignado, con nombres obtenidos de Auth vía CRM y permisos por registro. Administrador puede crear y reasignar prospectos a vendedores activos con crm.lead.assign y auth.users.view.

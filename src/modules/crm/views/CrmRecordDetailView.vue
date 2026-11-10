@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useResourceRealtime } from '@/core/realtime/useResourceRealtime'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -23,6 +24,7 @@ import { creditCoverageLabel } from '../model/crmCreditCoverage'
 import { StorageService } from '@/core/services/storageService'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
+import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 import { useI18n } from 'vue-i18n'
 import { crmEnabled, crmError, crmGet, crmPath, crmRequest,
   crmUuid, toUtc, fromUtc, type CrmRow } from '../services/crmApi'
@@ -34,6 +36,7 @@ const { t } = useI18n()
 const section = computed(() => String(route.meta.crmSection ?? 'accounts'))
 const id = computed(() => String(route.params.id ?? ''))
 const record = ref<CrmRow | null>(null)
+const originActivity = ref<CrmRow | null>(null)
 const error = ref('')
 const success = ref('')
 const loading = ref(false)
@@ -63,6 +66,36 @@ const showAdvancedAccountManagement = ref(false)
 const showExecutiveDrawer = ref(false)
 const showAccountEditor = ref(false)
 const accountEditingDirty = ref(false)
+
+// F4 candidate: only accounts are subscribed. No other CRM resource receives
+// a generic broadcast until its owner authorization and F6 adapter are ready.
+const liveAccountId = computed(() => section.value === 'accounts' ? id.value : '')
+const realtimeAccount = useResourceRealtime<CrmRow>({
+  kind: 'crm.account',
+  id: liveAccountId,
+  visible: () => document.visibilityState === 'visible',
+  dirty: () => accountEditingDirty.value || showAccountEditor.value ||
+    showRelationForm.value || saving.value || documentBusy.value,
+  fetchSnapshot: async (accountId) => {
+    const snapshot = await crmGet('accounts', accountId)
+    const rawVersion = Number(snapshot.rowVersion)
+    return { value: snapshot, version: Number.isSafeInteger(rawVersion) ? rawVersion : null }
+  },
+  applySnapshot: ({ value }) => {
+    if (section.value !== 'accounts' || value.id !== id.value) return
+    record.value = value
+    if (relation.value && !showRelationForm.value) void loadRelation()
+  },
+  onDenied: () => {
+    // Scope/ownership revoked: do not keep presenting previously authorized CRM data.
+    record.value = null
+    relationRows.value = []
+    showAccountEditor.value = false
+    accountEditingDirty.value = false
+    error.value = 'Ya no tenés permiso para consultar esta cuenta.'
+  },
+  onError: () => { /* existing REST view remains usable */ },
+})
 const discardOpen = ref(false)
 let discardAction: (() => void) | null = null
 let navigationDecision: ((allowed: boolean) => void) | null = null
@@ -135,6 +168,7 @@ const addressLocation = ref(emptyAddressLocation())
 const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
+const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))
 
 interface AgendaLabels {
   accounts: Record<string, string>
@@ -144,6 +178,17 @@ interface AgendaLabels {
 interface AgendaParent {
   activityId: string | null
   activitySubject?: string
+  sourceType?: 'POLICY' | 'ACTIVITY' | 'MANUAL' | 'UNAVAILABLE'
+  policyOccurrenceAt?: string | null
+  policy?: {
+    frequencyDays: number
+    timezoneId: string
+    channelStrategy: string
+    reminderLeadMinutes: number
+    enabled: boolean
+    pausedUntil?: string | null
+    nextDueAt?: string | null
+  } | null
 }
 const agendaLabels = ref<AgendaLabels>({ accounts: {}, leads: {}, owners: {} })
 const agendaContactName = ref('')
@@ -151,6 +196,16 @@ const agendaOpportunityName = ref('')
 const agendaNotes = ref<CrmRow[]>([])
 const agendaCommitments = ref<CrmRow[]>([])
 const agendaParent = ref<AgendaParent | null>(null)
+const agendaLinkedActivityNotes = ref<CrmRow[]>([])
+const agendaFollowupTitle = computed(() => {
+  const item = record.value
+  const saved = String(item?.subject ?? '').trim()
+  const periodical = Boolean(item?.policyId) || agendaParent.value?.sourceType === 'POLICY'
+  const title = saved || (periodical ? 'Seguimiento periódico' : 'Seguimiento comercial')
+  const client = agendaClientName()
+  return periodical && client && client !== 'Sin cliente vinculado' && !client.includes('no disponible')
+    ? title + ' · ' + client : title
+})
 const agendaDetailsWarning = ref('')
 let agendaDetailsGeneration = 0
 function agendaClientName(): string {
@@ -194,8 +249,8 @@ const agendaFields = computed(() => {
   }
   if (item.opportunityId) fields.push(['Oportunidad', agendaOpportunityName.value || 'Oportunidad vinculada'])
   fields.push(
-    ['Notificar por', agendaLabel(item.reminderChannelStrategy || 'BOTH', 'channel')],
-    ['Avisar antes', String(item.reminderLeadMinutes ?? 60) + ' minutos'],
+    ['Notificar por', agendaLabel(item.reminderChannelStrategy ?? (activity ? 'BOTH' : agendaParent.value?.policy?.channelStrategy ?? 'BOTH'), 'channel')],
+    ['Avisar antes', String(item.reminderLeadMinutes ?? (activity ? 60 : agendaParent.value?.policy?.reminderLeadMinutes ?? 60)) + ' minutos'],
   )
   if (activity) {
     fields.push(
@@ -203,6 +258,23 @@ const agendaFields = computed(() => {
       ['Repetir recordatorios', agendaCadence(item.reminderRepeatMinutes, 'minutos')],
       ['Finalización real', agendaDate(item.occurredAt)],
     )
+  }
+  if (!activity) {
+    if (item.policyId || agendaParent.value?.sourceType === 'POLICY') {
+      fields.push(
+        ['Origen', 'Seguimiento automático de la política del cliente'],
+        ['Fecha programada por la política', agendaDate(item.policyOccurrenceAt ?? agendaParent.value?.policyOccurrenceAt)],
+      )
+      const policy = agendaParent.value?.policy
+      if (policy) fields.push(
+        ['Frecuencia de la política actual', policy.frequencyDays === 1 ? 'Cada día' : 'Cada ' + policy.frequencyDays + ' días'],
+        ['Zona horaria de la política', policy.timezoneId],
+        ['Próxima fecha programada', agendaDate(policy.nextDueAt)],
+        ['Política', policy.enabled ? 'Activa' : 'Desactivada'],
+      )
+    } else {
+      fields.push(['Origen', agendaParent.value?.activityId ? 'Compromiso de actividad comercial' : 'Seguimiento individual'])
+    }
   }
   fields.push(
     ['Resultado', String(item.outcome || 'Pendiente de completar')],
@@ -218,6 +290,7 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
   agendaNotes.value = []
   agendaCommitments.value = []
   agendaParent.value = null
+  agendaLinkedActivityNotes.value = []
   agendaDetailsWarning.value = ''
   if (resource !== 'activities' && resource !== 'followups') return
   const accountId = String(item.accountId ?? '')
@@ -231,7 +304,7 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
   const labelRequest = query.size
     ? crmRequest<AgendaLabels>(crmPath('calendar/labels') + '?' + query.toString())
     : Promise.resolve(emptyLabels)
-  const contactRequest = resource === 'activities' && item.contactId && can('crm.contact.read')
+  const contactRequest = resource === 'activities' && item.contactId && (can('crm.contact.read') || calendarAdmin.value)
     ? crmRequest<CrmRow>(crmPath('contacts', String(item.contactId)))
     : Promise.resolve(null)
   const opportunityRequest = item.opportunityId && can('crm.opportunity.read')
@@ -263,6 +336,15 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
       (resource === 'activities' && (results[3]?.status === 'rejected' || results[4]?.status === 'rejected')) ||
       (resource === 'followups' && results[5]?.status === 'rejected'))
     agendaDetailsWarning.value = 'Algunos datos vinculados no pudieron cargarse. Actualizá para volver a consultarlos.'
+  if (resource === 'followups' && agendaParent.value?.activityId) {
+    try {
+      const notes = await crmRequest<CrmRow[]>(crmPath('activities', agendaParent.value.activityId, 'notes'))
+      if (generation === agendaDetailsGeneration) agendaLinkedActivityNotes.value = notes
+    } catch {
+      if (generation === agendaDetailsGeneration)
+        agendaDetailsWarning.value = 'No se pudo consultar la minuta de la actividad principal. Revisá tus permisos.'
+    }
+  }
 }
 
 const agendaEditable = computed(() => section.value === 'activities'
@@ -317,7 +399,7 @@ function permitted(tab: string) {
   if (tab === 'credit-profiles') return can('crm.credit.read')
   if (tab === 'credit-contracts') return can('crm.contract.read')
   if (tab === 'contacts' || tab === 'participants') return can('crm.contact.read') || section.value !== 'accounts'
-  if (tab === 'followup-policy') return can('crm.followup.manage')
+  if (tab === 'followup-policy') return can('crm.followup.manage') || calendarAdmin.value
   if (tab === 'business-activities') return can('crm.account.read') || can('crm.account.read-all')
   if (tab === 'trade-profiles') return can('crm.analysis.read')
   if (tab === 'quotes' || tab === 'rate-requests') return can('crm.quote.read')
@@ -360,6 +442,12 @@ async function load() {
       if (!record.value) throw new Error('Pipeline no encontrado')
     } else {
       record.value = await crmGet(section.value, id.value)
+    }
+    originActivity.value = null
+    if (section.value === 'followups' && record.value) {
+      try {
+        originActivity.value = await crmRequest<CrmRow | null>(crmPath('followups', id.value, 'origin'))
+      } catch { /* Existing unlinked followups remain usable. */ }
     }
     if (section.value === 'leads') {
       void loadLeadExecutive()
@@ -870,11 +958,25 @@ watch(() => [route.query.edit, section.value], ([edit]) => {
 }, { immediate: true })
 watch(relation, () => { showRelationForm.value = false; if (relation.value) void loadRelation() })
 watch(success, value => { if (value) showRelationForm.value = false })
+watch([accountEditingDirty, showAccountEditor, showRelationForm, saving], () => {
+  if (!accountEditingDirty.value && !showAccountEditor.value &&
+      !showRelationForm.value && !saving.value)
+    realtimeAccount.reconcileAfterEditorClose()
+})
 onMounted(() => { if (crmEnabled()) void load() })
 </script>
 
 <template>
   <main class="mx-auto w-full text-[var(--dh-text)]" :class="section === 'accounts' ? 'max-w-[1750px] space-y-3 p-2 sm:p-4' : 'max-w-6xl space-y-5 p-3 sm:p-6'" data-crm-detail>
+    <div
+      v-if="realtimeAccount.conflict.value"
+      class="rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-[var(--dh-text)]"
+      role="status"
+      data-realtime-unsaved-conflict
+    >
+      Esta cuenta cambió en el servidor. Tus cambios sin guardar se conservaron.
+      Guardá o descartá la edición para volver a sincronizar; no se reemplazó el formulario.
+    </div>
     <DhModal :open="discardOpen" title="Cambios sin guardar" size="sm" @close="cancelDiscard">
       <p class="text-sm text-[var(--dh-text-muted)]">Hay cambios en la ficha sin guardar. Si salís, los cambios no se conservarán.</p>
       <div class="mt-5 flex justify-end gap-2">
@@ -896,7 +998,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       <CrmArchiveAction v-if="record && ['accounts','leads','contacts','activities','followups'].includes(section)"
         :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
         :record-id="id" :row-version="Number(record.rowVersion)"
-        :record-name="String(record.displayName || record.name || record.subject || 'Registro')"
+        :record-name="section === 'followups' ? agendaFollowupTitle : String(record.displayName || record.name || record.subject || 'Registro')"
         @archived="router.push('/crm/' + (section === 'activities' ? 'followups' : section))" />
     </div>
     <p v-if="error" role="alert" class="crm-error">{{ error }}</p>
@@ -910,7 +1012,7 @@ onMounted(() => { if (crmEnabled()) void load() })
     <template v-if="record">
       <section :class="section === 'accounts' ? 'space-y-0' : 'crm-panel space-y-3 p-4 sm:p-5'">
         <DhPageHeader v-if="section !== 'accounts'" :icon="BriefcaseBusiness"
-          :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
+          :title="section === 'followups' ? agendaFollowupTitle : String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? 'Actividad comercial')"
           :subtitle="section === 'activities' ? 'Actividad comercial' : section === 'followups' ? 'Seguimiento comercial' : t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
         <DhDrawer :open="showExecutiveDrawer" :title="section === 'leads' ? 'Asignar vendedor al prospecto' : 'Asignar ejecutivo comercial'" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
@@ -960,7 +1062,18 @@ onMounted(() => { if (crmEnabled()) void load() })
             </dd>
           </div>
         </dl>
-        <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div v-if="section === 'followups' && originActivity"
+          class="mt-4 rounded-xl border border-[var(--dh-primary)]/40 bg-[var(--dh-shell)] p-4">
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>
+          <RouterLink :to="'/crm/activities/'+encodeURIComponent(String(originActivity.id))"
+            class="mt-1 block text-sm font-bold text-[var(--dh-primary)] hover:underline">
+            {{ originActivity.subject }}
+          </RouterLink>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            {{ agendaLabel(originActivity.type,'type') }} · {{ agendaDate(originActivity.scheduledStartAt) }}
+          </p>
+        </div>
+        <dl v-else-if="section !== 'accounts' && section !== 'activities' && section !== 'followups'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">
@@ -1017,7 +1130,23 @@ onMounted(() => { if (crmEnabled()) void load() })
               {{ agendaParent.activitySubject || 'Ver actividad principal' }}
             </RouterLink>
           </div>
-          <p v-else class="text-sm text-[var(--dh-text-muted)]">Seguimiento independiente o sin actividad principal accesible.</p>
+          <div v-if="record.policyId" class="space-y-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+            <h3 class="text-sm font-bold">Seguimiento periódico del cliente</h3>
+            <p class="text-sm">Este seguimiento fue creado automáticamente por la política de seguimiento de la cuenta.</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">Su fecha original y las opciones de aviso aparecen arriba. La frecuencia y la próxima fecha corresponden a la configuración actual de la política, que puede haber cambiado desde la creación.</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">La política no registra por sí misma una minuta o acuerdos. Esos datos solo aparecen cuando fueron guardados en una actividad comercial.</p>
+          </div>
+          <div v-if="agendaParent?.activityId && agendaLinkedActivityNotes.length" class="space-y-2">
+            <h3 class="text-sm font-bold">Minuta y observaciones de la actividad principal</h3>
+            <article v-for="note in agendaLinkedActivityNotes" :key="String(note.id)"
+              class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+              <p class="whitespace-pre-wrap break-words text-sm">{{ note.noteText ?? 'Sin contenido' }}</p>
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ agendaDate(note.createdAt) }}</p>
+            </article>
+          </div>
+          <p v-if="!record.policyId && !agendaParent?.activityId" class="text-sm text-[var(--dh-text-muted)]">
+            No hay una actividad principal vinculada a este seguimiento.
+          </p>
         </template>
       </section>
       <section v-if="section === 'leads' && (can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage'))"
@@ -1149,7 +1278,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
       <CrmActivityCollaboration v-if="section === 'activities'" :activity-id="id"
         :account-id="record.accountId ? String(record.accountId) : null"
-        :can-manage="can('crm.activity.update')" />
+        :can-manage="can('crm.activity.update')" :parent-subject="String(record.subject || '')" />
       <nav v-if="section !== 'accounts' && section !== 'activities'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
           :aria-pressed="relation===tab" @click="relation=tab">
@@ -1249,6 +1378,18 @@ onMounted(() => { if (crmEnabled()) void load() })
               <div><dt class="text-[var(--dh-text-muted)]">Vencimiento</dt><dd class="mt-1 font-semibold">{{ item.expiryDate ? contractDate(item.expiryDate) : 'Sin definir' }}</dd></div>
             </dl>
             <p v-if="item.paymentTerms" class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ item.paymentTerms }}</p>
+          </template>
+          <template v-else-if="section === 'followups' && relation === 'history'">
+            <p class="font-bold">{{ ({Created:'Creado',Overdue:'Vencido',Rescheduled:'Reprogramado',Completed:'Completado',Cancelled:'Cancelado',Archived:'Archivado'} as Record<string,string>)[String(item.action ?? '')] ?? String(item.action || 'Cambio de estado') }}</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ agendaDate(item.createdAt) }}</p>
+            <p v-if="item.reason" class="mt-2 whitespace-pre-wrap break-words text-sm">
+              {{ item.reason === 'Policy scheduler' ? 'Generado automáticamente por la política de seguimiento del cliente.' :
+                 item.reason === 'Past due; execution was not assumed' ? 'La fecha venció sin que se registrara su finalización.' : item.reason }}
+            </p>
+            <p v-if="item.previousDueAt || item.newDueAt" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+              {{ item.previousDueAt ? 'Anterior: ' + agendaDate(item.previousDueAt) : '' }}
+              {{ item.newDueAt ? ' · Fecha: ' + agendaDate(item.newDueAt) : '' }}
+            </p>
           </template>
           <template v-else>
             <p class="font-bold">{{ item.name ?? item.activityCode ?? item.quoteNumberSnapshot ?? item.serviceCode ?? item.status ?? item.addressText ?? 'Registro' }}</p>
