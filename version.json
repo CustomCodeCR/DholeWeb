@@ -2,8 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.17.8",
-  "ecosystemVersion": "1.17.8",
-  "releaseId": "DH-20261110-CRM-QUO-STATUS-061",
-  "releaseStatus": "candidate-master-merge-pending"
+  "version": "1.17.9",
+  "ecosystemVersion": "1.17.9",
+  "releaseId": "DH-20261110-CRM-ACCOUNT-SEARCH-064",
+  "releaseStatus": "candidate-master-staging-pending",
+  "businessReleaseId": "DH-20261110-CRM-ACCOUNT-SEARCH-064"
 }
