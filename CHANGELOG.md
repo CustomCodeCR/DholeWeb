@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.5] - 2026-11-10
+
+- PATCH DH-20261110-CRM-ACCOUNT-SEARCH-061: la búsqueda de Cuentas y clientes indica nombre comercial, razón social y cédula. El CRM consulta la búsqueda completa en el backend antes de paginar y mantiene filtros y permisos.
+- Coordinado con DholeCRMService (1.7.3) y DholeSystem 1.17.5; candidato de staging, sin despliegue de producción.
+
 ## [1.17.4] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-LAND-TRANSIT-060: mostrar «Días de tránsito para la entrega» en la pantalla 6 de tarifas terrestres FTL/LTL, incluso cuando no está seleccionado transporte internacional.
