@@ -1,3 +1,9 @@
+## [1.18.1] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-070: las solicitudes de modificación de tarifas con cliente CRM vinculado recuperan la cuenta y el ejecutivo comercial vigente por ID al guardar, incluso al continuar directamente desde Pantalla 5 LCL sin montar el selector de Pantalla 3.
+- No se sustituye al comercial por el usuario conectado; se admite Castro Fallas, se bloquean responsables inactivos o inaccesibles y se mantienen las QUO históricas sin vinculación. Sin cambios REST, SignalR ni base de datos. Pruebas de regresión y CI/staging pendientes; sin despliegue a producción.
+- Coordinado con DholeSystem 1.18.1; los demás servicios conservan sus versiones.
+
 ## [1.18.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-ADMIN-CALENDAR-069: todos los administradores verificados en Auth pueden consultar todas las agendas CRM y buscar responsables, incluidos los que no tienen citas en el período. Seguimientos históricos muestran título, política, fecha e historial y minutas asociadas cuando existen.
