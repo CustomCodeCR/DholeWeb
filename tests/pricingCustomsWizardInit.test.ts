@@ -40,3 +40,19 @@ test('CFR through DDP skip tariff selection and never require a freight line', (
   assert.ok(!plugin.includes("line.section !== 'international_freight'"),
     'agent and document charges must not be removed solely by their section')
 })
+
+test('land delivery transit stays visible, is not reset and persists without freight', () => {
+  const plugin = readFileSync(new URL('../build/pricingCustomsOnlyWizard.ts', import.meta.url), 'utf8')
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+
+  assert.ok(wizard.includes('v-model.number="form.transitDays"'), 'reuse the persisted transit model')
+  assert.ok(plugin.includes('Días de tránsito para la entrega'), 'label delivery transit on step 6')
+  assert.ok(plugin.includes("(hasInternationalTransportService || form.modality === 'Land')"),
+    'do not hide delivery transit when international freight is not selected')
+  assert.equal(plugin.split("if (form.modality !== 'Land') form.transitDays = 0").length - 1, 2,
+    'both no-freight transitions must preserve land transit')
+  assert.ok(plugin.includes("transitTime: (hasInternationalTransportService.value || form.modality === 'Land')"),
+    'keep the transit time in the saved land rate')
+  assert.ok(plugin.includes("hasInternationalTransportService || form.modality === \\'Land\\'"),
+    'show persisted transit in the rate summary')
+})
