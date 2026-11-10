@@ -1,3 +1,8 @@
+## [1.17.20] - 2026-11-10
+
+- PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: permite guardar actividades con fechas pasadas, marcando como completadas las ya finalizadas y evitando recordatorios retroactivos. Preserva minuta, acuerdos y todos los cambios existentes de master hasta 1.17.19.
+- Coordinado con CRM 1.4.6 y System 1.17.20. CI/staging requeridos.
+
 ## [1.17.19] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-PROSPECT-REQUESTS-MASTER-076: hotfix aislado de Pricing para resolver la cuenta o prospecto CRM y su ejecutivo comercial vigente por ID al enviar solicitudes normales, editar solicitudes del vendedor, solicitar modificaciones desde Ventas y guardar modificaciones LCL desde pantalla 5 sin montar el selector de pantalla 3. Incluye las correcciones equivalentes de develop 1.19.1 y 1.19.2 sin importar cambios ajenos.
