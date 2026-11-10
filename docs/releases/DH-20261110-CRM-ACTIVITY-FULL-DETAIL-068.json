@@ -1,0 +1,33 @@
+{
+  "releaseId": "DH-20261110-CRM-ACTIVITY-FULL-DETAIL-068",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.17.14",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.17.12",
+      "next": "1.17.14"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.4.2",
+      "next": "1.4.3"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.17.12",
+      "next": "1.17.14"
+    }
+  ],
+  "scope": [
+    "Promote complete CRM agenda and followup details from validated develop.",
+    "Preserve concurrent master identity and Pricing fixes."
+  ],
+  "validation": {
+    "developCI": "passed",
+    "developDeploy": "successful",
+    "masterCI": "pending"
+  },
+  "rollback": "Revert master CRM activity detail patch; no schema migration."
+}
