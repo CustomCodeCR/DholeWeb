@@ -1,9 +1,14 @@
+# Changelog
+
+## [1.17.10] - 2026-11-10
+
+- PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos muestra Cliente y Ejecutivo comercial; nombres resueltos del CRM con `calendar/labels`, lotes autorizados de hasta 100 y fallback para registros históricos.
+- Mantiene las búsquedas por cédula del release 1.17.9, permisos, paginación y contratos REST. Añade pruebas de regresión.
+
 ## [1.17.9] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ACCOUNT-SEARCH-064: la búsqueda en CRM > Cuentas permite localizar por nombre comercial, razón social y cédula/identificación fiscal. El backend filtra antes de paginar; se mantienen roles y filtros.
 - Añade regresión de UI para búsqueda por identidad, conserva contratos REST y SignalR, y se coordina con DholeCRMService 1.7.3 en develop / 1.4.1 en master; pendiente de CI y staging, sin producción autorizada.
-
-# Changelog
 
 ## [1.17.8] - 2026-11-10
 
