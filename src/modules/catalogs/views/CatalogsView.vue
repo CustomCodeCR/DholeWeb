@@ -21,6 +21,7 @@ import CatalogGroupFormDrawer from '@/modules/catalogs/components/CatalogGroupFo
 import CatalogGroupDetailDrawer from '@/modules/catalogs/components/CatalogGroupDetailDrawer.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 
 const route = useRoute()
 const toastStore = useToastStore()
@@ -165,6 +166,10 @@ useViewShortcuts({
   refresh: loadCatalogGroups,
 })
 
+useRealtimeListRefresh({
+  prefixes: ['/api/config'],
+  refresh: loadCatalogGroups,
+})
 onMounted(loadCatalogGroups)
 </script>
 
