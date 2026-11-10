@@ -387,6 +387,21 @@ const pendingCount = computed(() => overview.value.followups.filter(x =>
   String(x.status ?? '').toLowerCase() === 'pending').length)
 const activeRoutes = computed(() => overview.value.routes.filter(x => x.isActive !== false))
 const recentQuotes = computed(() => pricingQuotes.value)
+const pricingPopularRoutes = computed(() => {
+  const routes = new Map<string, { polName: string; poeName: string; podName: string; count: number }>()
+  for (const q of pricingQuotes.value) {
+    const polName = String(q.polName || '').trim()
+    const poeName = String(q.poeName || '').trim()
+    const podName = String(q.podName || '').trim()
+    if (!polName || !(podName || poeName)) continue
+    const key = [polName, poeName, podName].map(x => x.toLocaleUpperCase('es')).join('|')
+    const existing = routes.get(key)
+    if (existing) existing.count++
+    else routes.set(key, { polName, poeName, podName, count: 1 })
+  }
+  return [...routes.values()].sort((a, b) => b.count - a.count).slice(0, 10)
+})
+
 const hasOpportunityQuote = (id: string) => overview.value.quotes.some(q => rowId(q.pricingQuoteId) === id)
 const visibleTimeline = computed(() => {
   const activities = overview.value.activities.map(x => ({
@@ -1017,11 +1032,16 @@ async function saveRoute() {
             <h3 class="hub-section-heading mb-0 border-0">Rutas frecuentes · POL / POE / POD</h3>
             <button type="button" class="hub-text-link" @click="activeTab='history'">Ver historial de reuniones y cotizaciones</button>
           </div>
+          <p v-if="pricingPopularRoutes.length" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">Rutas de QUO vinculadas en Pricing (últimas {{ recentQuotes.length }} consultadas)</p>
+          <div v-for="route in pricingPopularRoutes.slice(0,3)" :key="route.polName + route.poeName + route.podName" class="hub-list-item">
+            <p class="text-xs font-extrabold">{{ route.polName }} → {{ route.poeName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
+            <p class="text-[11px] text-[var(--dh-text-muted)]">{{ route.count }} QUO · origen Pricing</p>
+          </div>
           <div v-for="route in popularRoutes.slice(0,3)" :key="String(route.polCode)+String(route.podCode)+String(route.poeCode)" class="hub-list-item">
             <p class="text-xs font-extrabold">{{ routeDisplay(route.polCode, 'pol') }} → <span v-if="route.poeCode">{{ routeDisplay(route.poeCode, 'poe') }} → </span>{{ routeDisplay(route.podCode, 'pod') }}</p>
             <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ route.occurrences }} registros · {{ route.meetingCount }} reuniones · {{ route.quoteCount }} cotizaciones</p>
           </div>
-          <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
+          <p v-if="!activeRoutes.length && !overview.analysisRoutes.length && !popularRoutes.length && !pricingPopularRoutes.length" class="hub-empty">Todavía no hay rutas documentadas. Podés registrarlas a partir de reuniones y cotizaciones vinculadas.</p>
           <div v-for="route in activeRoutes.slice(0,4)" :key="route.id" class="hub-list-item">
             <p class="text-xs font-semibold">{{ routeDisplay(route.polCode || route.preferredOriginCode, 'pol') }} →
               {{ routeDisplay(route.poeCode || route.preferredDestinationCode, 'poe') }} <span v-if="route.podCode">→ {{ routeDisplay(route.podCode, 'pod') }}</span></p>
@@ -1400,6 +1420,16 @@ async function saveRoute() {
           <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage <= 1 || quoteRouteLoading" @click="changeQuoteRoutePage(-1)">Anterior</button>
           <span>{{ quoteRoutePage }} · {{ quoteRouteTotal }} tarifas vinculadas</span>
           <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage * 8 >= quoteRouteTotal || quoteRouteLoading" @click="changeQuoteRoutePage(1)">Siguiente</button>
+        </div>
+      </div>
+      <div v-if="pricingPopularRoutes.length" class="hub-panel">
+        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más cotizadas (Pricing)</h3>
+        <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Rutas presentes en las últimas {{ recentQuotes.length }} QUO autorizadas de esta cuenta; no son rutas documentadas de reuniones.</p>
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="route in pricingPopularRoutes" :key="route.polName + route.poeName + route.podName" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <p class="text-sm font-extrabold">{{ route.polName }} → {{ route.poeName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ route.count }} cotizaciones vinculadas</p>
+          </div>
         </div>
       </div>
       <div v-if="popularRoutes.length" class="hub-panel">
