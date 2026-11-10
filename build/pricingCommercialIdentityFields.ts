@@ -24,10 +24,69 @@ function patchWizard(source: string) {
     let code = source
     code = replaceOne(
       code,
+      "import { PricingService } from '@/core/services/pricingService'",
+      "import { PricingService } from '@/core/services/pricingService'\nimport { crmPath, crmRequest } from '@/modules/crm/services/crmApi'",
+      'CRM lookup for pricing modifications',
+    )
+    code = replaceOne(
+      code,
       'async function saveRate() {',
-      `async function saveRate() {
+      `interface ModificationCrmClientOption {
+  id: string
+  kind: 'account' | 'lead'
+  displayName: string
+  executiveUserId: string
+  executiveName: string
+  isCastroFallasExecutive: boolean
+}
+
+// The CRM picker from screen 3 is unmounted when a modification resumes in
+// screens 5-9. Recover the real assigned seller by client ID before saving.
+async function refreshModificationCrmOwner(): Promise<boolean> {
+  if (!props.modificationRequestId || !editingRate.value) return true
+  const clientId = String(form.clientId || editingRate.value.clientAccountId
+    || editingRate.value.clientLeadId || '').trim()
+  if (!clientId) return true // Historical quotations never linked to CRM.
+  try {
+    const params = new URLSearchParams({ mode: 'create', selectedClientId: clientId, pageSize: '1' })
+    const response = await crmRequest<{ items: ModificationCrmClientOption[] }>(
+      crmPath('pricing-client-options') + '?' + params.toString(),
+    )
+    const client = response.items?.find(item => item.id.toLowerCase() === clientId.toLowerCase())
+    if (!client || !client.kind || !client.displayName?.trim()) {
+      step.value = 3
+      toastStore.error('La cuenta vinculada no está disponible en CRM. Verifique los permisos o seleccione una cuenta vigente.')
+      return false
+    }
+    const castroFallas = client.isCastroFallasExecutive
+    const executiveId = String(client.executiveUserId ?? '').trim()
+    const executiveName = castroFallas ? 'Castro Fallas' : String(client.executiveName ?? '').trim()
+    if (!castroFallas && (!executiveId
+      || executiveId === '00000000-0000-0000-0000-000000000000'
+      || !executiveName || executiveName.toLowerCase() === 'vendedor no disponible')) {
+      step.value = 3
+      toastStore.error('La cuenta vinculada no tiene un vendedor activo en CRM. Asigne uno antes de guardar.')
+      return false
+    }
+    // Respect a client changed in the modification; never restore the old owner.
+    form.clientId = client.id
+    form.crmClientKind = client.kind
+    form.clientName = client.displayName
+    form.executiveId = castroFallas ? '' : executiveId
+    form.executiveName = executiveName
+    return true
+  } catch (error) {
+    console.error('[Pricing] No se pudo verificar el vendedor CRM de la modificación.', error)
+    step.value = 3
+    toastStore.error('No se pudo consultar CRM para validar el ejecutivo comercial. Reintente el guardado.')
+    return false
+  }
+}
+
+async function saveRate() {
+  if (!(await refreshModificationCrmOwner())) return
   const historicUnlinkedModification = Boolean(props.modificationRequestId && editingRate.value
-    && !editingRate.value.clientAccountId && !editingRate.value.clientLeadId
+    && !editingRate.value.clientAccountId && !editingRate.value.clientLeadId && !form.clientId
     && form.clientName.trim() && form.executiveName.trim())
   if (!historicUnlinkedModification && (!form.clientId || !form.crmClientKind || !form.clientName.trim() || !form.executiveName.trim() || (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId))) {
     step.value = 3
