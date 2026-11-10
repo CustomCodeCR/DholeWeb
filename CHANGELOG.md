@@ -1,3 +1,9 @@
+## [1.19.1] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-CRM-LEAD-REQUESTS-074: las solicitudes de tarifas de vendedores, ediciones y solicitudes de modificación vinculadas a cuentas o prospectos CRM consultan el ejecutivo vigente por ID antes de guardar. Elimina los falsos errores de ejecutivo vacío en prospectos después de recuperar solicitudes históricas, sin depender de que la pantalla 3 esté montada.
+- Mantiene visibilidad y permisos CRM, excepción Castro Fallas y compatibilidad con QUO sin vínculo, respetando el cliente cambiado y sin sustituir al vendedor por el usuario conectado. Incluye prueba de regresión; sin cambiar REST, SignalR, ni migrar datos.
+- Coordinación con DholeSystem 1.19.1 y backport master DholeWeb/System 1.17.17; staging y CI pendientes, sin despliegue producción hasta validación.
+
 ## [1.19.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-AGENDA-RECONCILED-070: agenda CRM con contactos vinculados, minuta ampliable, vendedores autorizados y compromisos reversibles con referencia a la actividad principal.
