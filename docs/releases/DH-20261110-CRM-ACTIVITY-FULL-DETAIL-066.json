@@ -1,0 +1,34 @@
+{
+  "releaseId": "DH-20261110-CRM-ACTIVITY-FULL-DETAIL-066",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.17.11",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.17.10",
+      "next": "1.17.11"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.7.3",
+      "next": "1.7.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.17.10",
+      "next": "1.17.11"
+    }
+  ],
+  "scope": [
+    "Show complete saved activity details and linked CRM names.",
+    "Render meeting notes and generated agreements with completion state.",
+    "Associate secondary followup with its originating activity using authorized read-only APIs."
+  ],
+  "validation": {
+    "CI": "pending",
+    "staging": "pending",
+    "production": "not deployed"
+  },
+  "rollback": "Revert Web, CRM and System release; no schema migration."
+}
