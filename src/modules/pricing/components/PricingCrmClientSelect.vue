@@ -24,9 +24,10 @@ const props = withDefaults(defineProps<{
   mode: 'request' | 'create'
   sellerUserId?: string
   initialName?: string
+  legacyOptional?: boolean
   disabled?: boolean
   error?: string
-}>(), {sellerUserId:'',initialName:'',disabled:false,error:''})
+}>(), {sellerUserId:'',initialName:'',legacyOptional:false,disabled:false,error:''})
 const emit = defineEmits<{
   'update:modelValue': [id:string]
   selected: [client:PricingCrmClient|null]
@@ -128,7 +129,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="relative min-w-0">
     <label class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-      Cuenta o prospecto CRM *
+      {{ legacyOptional ? 'Vincular cuenta o prospecto CRM (opcional para histórico)' : 'Cuenta o prospecto CRM *' }}
     </label>
     <div class="relative">
       <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-primary)]"/>
