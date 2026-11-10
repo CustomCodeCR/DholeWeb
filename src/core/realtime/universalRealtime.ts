@@ -109,6 +109,51 @@ function startModuleInvalidations() {
   )
 }
 
+interface AuthSecuritySignal {
+  userId?: unknown
+  targetSessionId?: unknown
+  action?: unknown
+  eventId?: unknown
+}
+
+let authSecurityRefreshInFlight = false
+function handleAuthSecuritySignal(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return
+  const event = raw as AuthSecuritySignal
+  const auth = useAuthStore()
+  if (typeof event.userId !== 'string' || !auth.userId ||
+      event.userId.toLowerCase() !== auth.userId.toLowerCase() ||
+      !auth.isAuthenticated) return
+
+  if (event.action === 'forceLogout') {
+    // A session-only revoke must never eject other valid sessions.
+    if (event.targetSessionId != null &&
+        (typeof event.targetSessionId !== 'string' || !auth.sessionId ||
+         event.targetSessionId.toLowerCase() !== auth.sessionId.toLowerCase()))
+      return
+    auth.logout()
+    stopUniversalRealtime()
+    // Hard navigation discards private Vue snapshots from every mounted view.
+    window.location.replace('/login?reason=session-ended')
+    return
+  }
+  if (event.action !== 'refreshPermissions' || event.targetSessionId != null ||
+      authSecurityRefreshInFlight) return
+  authSecurityRefreshInFlight = true
+  void auth.refreshSession().then(ok => {
+    if (!ok) {
+      stopUniversalRealtime()
+      window.location.replace('/login?reason=session-ended')
+      return
+    }
+    refreshUniversalRealtimeCredentials()
+    window.dispatchEvent(new CustomEvent('dhole:auth:permissions-changed'))
+    window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+      detail: { endpoint: '/api/auth', method: 'SIGNALR', reason: 'permissions' },
+    }))
+  }).finally(() => { authSecurityRefreshInFlight = false })
+}
+
 let onNotification: ((notification: unknown) => void) | null = null
 export function setUniversalRealtimeNotificationHandler(
   callback: ((notification: unknown) => void) | null,
@@ -127,6 +172,7 @@ export const universalRealtimeManager = new RealtimeManager({
   random: () => Math.random(),
   onState: status => { universalRealtimeStatus.value = status },
   onNotificationReceived: value => onNotification?.(value),
+  onAuthSecurityChanged: handleAuthSecuritySignal,
 })
 
 let listenersInstalled = false
