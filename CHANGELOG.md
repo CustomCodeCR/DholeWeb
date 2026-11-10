@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.2] - 2026-11-10
+
+- PATCH DH-20261110-CRM-QUO-SUPERADMIN-058: la sección de vinculación de QUO históricas se presenta en un acordeón cerrado por defecto, carga datos solo al abrirse y aparece exclusivamente a SuperAdmin, SuperAdministrador, SuperUsuario y SuperUser.
+- Las cotizaciones, rutas e indicadores ordinarios del cliente siguen disponibles sin el panel administrativo. Protección complementaria en Pricing 1.9.4, ecosistema 1.17.2.
+
 ## [1.17.1] - 2026-11-10
 
 - PATCH DH-20261110-CRM-QUO-LIVE-057: indicadores y rutas CRM se consultan directamente en las QUO de Pricing vinculadas por ID de cuenta; se eliminan ceros causados por registros de oportunidades CRM no relacionados.
