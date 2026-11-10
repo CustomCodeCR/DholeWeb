@@ -9,7 +9,7 @@ export type RealtimeStatus =
 /** F6: resource kinds must match the Gateway's resource-scoped REST ACL allowlist. */
 export const REALTIME_RESOURCE_KINDS = [
   'crm.account', 'pricing.rate',
-  'auth.user', 'config.catalog-group', 'config.catalog-item', 'srm.supplier',
+  'auth.user', 'config.catalog-group', 'config.catalog-item', 'config.catalog-list', 'srm.supplier',
   'audit.event', 'storage.file',
   'extraction.execution', 'extraction.emailjob', 'extraction.airequest',
   'reports.template', 'dynamics.job', 'ai.execution', 'ai.emailjob',

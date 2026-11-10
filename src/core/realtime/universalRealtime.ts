@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { callEndpoint } from '@/core/api/callEndpoint'
 import { useAuthStore } from '@/core/stores/authStore'
 import {
   RealtimeManager,
@@ -14,6 +15,32 @@ export const UNIVERSAL_REALTIME_ENABLED =
   import.meta.env.VITE_DHOLE_REALTIME_ENABLED === 'true'
   && import.meta.env.VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT === 'true'
   && import.meta.env.VITE_DHOLE_REALTIME_RELEASE === 'rt-20261107-01'
+
+const CATALOG_LIST_ID = '00000000-0000-4000-8000-000000000042'
+let stopCatalogObserver: (() => void) | null = null
+
+function startCatalogInvalidations() {
+  if (stopCatalogObserver) return
+  stopCatalogObserver = universalRealtimeManager.subscribe({
+    kind: 'config.catalog-list',
+    id: CATALOG_LIST_ID,
+    // Authenticated owner REST check remains mandatory for every invalidation.
+    fetchSnapshot: async () => {
+      await callEndpoint<unknown>({ method: 'GET', path: '/api/config/catalog-items/realtime-access' })
+      return { value: true, version: null }
+    },
+    applySnapshot: (_snapshot, reason) => {
+      window.dispatchEvent(new CustomEvent('dhole:catalog:changed', { detail: { reason } }))
+      window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+        detail: {
+          endpoint: '/api/config/catalog-items/select',
+          method: 'SIGNALR',
+          occurredAt: new Date().toISOString(),
+        },
+      }))
+    },
+  })
+}
 
 let onNotification: ((notification: unknown) => void) | null = null
 export function setUniversalRealtimeNotificationHandler(
@@ -70,6 +97,7 @@ export async function startUniversalRealtime() {
       return auth.accessToken
     },
   )
+  startCatalogInvalidations()
 }
 
 export function refreshUniversalRealtimeCredentials() {
@@ -87,6 +115,8 @@ export function refreshUniversalRealtimeCredentials() {
 }
 
 export function stopUniversalRealtime() {
+  stopCatalogObserver?.()
+  stopCatalogObserver = null
   universalRealtimeManager.stop()
   removeLifecycleListeners()
 }
