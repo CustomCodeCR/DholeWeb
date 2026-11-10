@@ -10,6 +10,7 @@ export type RealtimeStatus =
 export const REALTIME_RESOURCE_KINDS = [
   'crm.account', 'crm.lead', 'crm.accountlist', 'crm.leadlist',
   'pricing.rate', 'pricing.cost-list', 'pricing.rate-list',
+  'module.crm', 'module.pricing', 'module.auth', 'module.config', 'module.srm', 'module.audit', 'module.storage', 'module.extraction', 'module.reports', 'module.dynamics', 'module.ai', 'module.agent', 'module.content',
   'auth.user', 'config.catalog-group', 'config.catalog-item', 'config.catalog-list', 'srm.supplier',
   'audit.event', 'storage.file',
   'extraction.execution', 'extraction.emailjob', 'extraction.airequest',
