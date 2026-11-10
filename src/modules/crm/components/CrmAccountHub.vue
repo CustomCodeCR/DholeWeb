@@ -1034,7 +1034,7 @@ async function saveRoute() {
           </div>
           <p v-if="pricingPopularRoutes.length" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">Rutas de QUO vinculadas en Pricing (últimas {{ recentQuotes.length }} consultadas)</p>
           <div v-for="route in pricingPopularRoutes.slice(0,3)" :key="route.polName + route.poeName + route.podName" class="hub-list-item">
-            <p class="text-xs font-extrabold">{{ route.polName }} → {{ route.poeName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
+            <p class="text-xs font-extrabold">{{ route.polName }} → {{ route.poeName && route.podName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
             <p class="text-[11px] text-[var(--dh-text-muted)]">{{ route.count }} QUO · origen Pricing</p>
           </div>
           <div v-for="route in popularRoutes.slice(0,3)" :key="String(route.polCode)+String(route.podCode)+String(route.poeCode)" class="hub-list-item">
@@ -1427,7 +1427,7 @@ async function saveRoute() {
         <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Rutas presentes en las últimas {{ recentQuotes.length }} QUO autorizadas de esta cuenta; no son rutas documentadas de reuniones.</p>
         <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <div v-for="route in pricingPopularRoutes" :key="route.polName + route.poeName + route.podName" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-            <p class="text-sm font-extrabold">{{ route.polName }} → {{ route.poeName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
+            <p class="text-sm font-extrabold">{{ route.polName }} → {{ route.poeName && route.podName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ route.count }} cotizaciones vinculadas</p>
           </div>
         </div>
