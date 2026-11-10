@@ -168,6 +168,29 @@ const addressLocation = ref(emptyAddressLocation())
 const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
+
+type LeadTab = 'summary' | 'analysis' | 'quotes' | 'agenda' | 'conversion'
+const leadTab = ref<LeadTab>('summary')
+const leadTabs = computed(() => [
+  { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
+  ...(can('crm.analysis.read') ? [{ key: 'analysis' as const, label: 'Análisis comercial y rutas', icon: Route }] : []),
+  ...(can('crm.quote.read') && (can('crm.opportunity.read') || can('crm.opportunity.read-all'))
+    ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
+  ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
+    ? [{ key: 'agenda' as const, label: 'Agenda y seguimientos', icon: CalendarClock }] : []),
+  ...(can('crm.lead.convert') && can('crm.account.create')
+    ? [{ key: 'conversion' as const, label: 'Convertir a cuenta', icon: UsersRound }] : []),
+])
+function showLeadTab(tab: LeadTab) {
+  if (section.value !== 'leads' || !leadTabs.value.some(item => item.key === tab)) return
+  leadTab.value = tab
+  const hash = tab === 'conversion' ? '#crm-lead-conversion' : ''
+  if (route.hash === '#crm-lead-conversion' || hash) {
+    if (route.hash !== hash) void router.replace({ path: route.path, query: route.query, hash })
+  }
+}
+
+
 const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))
 
 interface AgendaLabels {
@@ -952,7 +975,13 @@ onBeforeRouteLeave(() => {
   discardAction = null
   return new Promise<boolean>(resolve => { navigationDecision = resolve })
 })
-watch([id, section], () => { void load() })
+watch([id, section], () => {
+  leadTab.value = section.value === 'leads' && route.hash === '#crm-lead-conversion' ? 'conversion' : 'summary'
+  void load()
+})
+watch(() => route.hash, hash => {
+  if (section.value === 'leads' && hash === '#crm-lead-conversion') leadTab.value = 'conversion'
+}, { immediate: true })
 watch(() => [route.query.edit, section.value], ([edit]) => {
   showAccountEditor.value = section.value === 'accounts' && edit === '1' && can('crm.account.update')
 }, { immediate: true })
@@ -988,7 +1017,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       <DhButton :label="section !== 'accounts' && route.query.fromAccount ? 'Volver a la cuenta' : t('crm.back')" :icon="ArrowLeft" variant="secondary" @click="back" />
       <a v-if="record && section === 'leads' && !record.convertedAccountId &&
             can('crm.lead.convert') && can('crm.account.create')"
-          href="#crm-lead-conversion"
+          href="#crm-lead-conversion" @click.prevent="showLeadTab('conversion')"
           class="inline-flex items-center rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-sm font-bold text-white">
           Convertir a cuenta
         </a>
@@ -1029,6 +1058,16 @@ onMounted(() => { if (crmEnabled()) void load() })
             </div>
           </form>
         </DhDrawer>
+        <nav v-if="section === 'leads'" role="tablist" aria-label="Secciones del prospecto"
+          class="crm-lead-tabs sticky z-20 flex max-w-full flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4"
+          data-crm-lead-tabs>
+          <button v-for="tab in leadTabs" :key="tab.key" type="button" role="tab"
+            :aria-selected="leadTab === tab.key" :aria-controls="'crm-lead-panel-' + tab.key"
+            class="crm-lead-tab" :class="leadTab === tab.key && 'crm-lead-tab-active'"
+            @click="showLeadTab(tab.key)">
+            <component :is="tab.icon" class="h-3.5 w-3.5" />{{ tab.label }}
+          </button>
+        </nav>
         <CrmAccountHub v-if="section === 'accounts'" :account="record"
           :editing="showAccountEditor && can('crm.account.update')"
           @change-executive="openExecutiveDrawer" @edit-account="toggleAccountEditing"
@@ -1037,7 +1076,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           :account="record" :open="true" @close="leaveAccountEditing"
           @dirty-change="accountEditingDirty=$event"
           @saved="load" @manage-related="openRelatedManagement" />
-        <dl v-else-if="section === 'leads'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <dl v-else-if="section === 'leads' && leadTab === 'summary'" id="crm-lead-panel-summary" role="tabpanel" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div v-for="[label,value] in [
             ['Prospecto',record.name],['Empresa',record.companyName],['Vendedor asignado',leadExecutiveName],['Identificación fiscal',record.taxId],
             ['Correo',record.contactEmail],['Teléfono',record.phone],['Estado',record.qualificationStatus],
@@ -1073,7 +1112,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             {{ agendaLabel(originActivity.type,'type') }} · {{ agendaDate(originActivity.scheduledStartAt) }}
           </p>
         </div>
-        <dl v-else-if="section !== 'accounts' && section !== 'activities' && section !== 'followups'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <dl v-else-if="section !== 'accounts' && section !== 'leads' && section !== 'activities' && section !== 'followups'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">
@@ -1086,7 +1125,14 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
 
 
-      <CrmLeadCommercialPanel v-if="section === 'leads'" :lead="record" />
+      <div v-if="section === 'leads' && leadTab === 'analysis'"
+        id="crm-lead-panel-analysis" role="tabpanel" class="min-w-0">
+        <CrmLeadCommercialPanel :lead="record" view="analysis" />
+      </div>
+      <div v-if="section === 'leads' && leadTab === 'quotes'"
+        id="crm-lead-panel-quotes" role="tabpanel" class="min-w-0">
+        <CrmLeadCommercialPanel :lead="record" view="quotes" />
+      </div>
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
         <div>
@@ -1149,15 +1195,15 @@ onMounted(() => { if (crmEnabled()) void load() })
           </p>
         </template>
       </section>
-      <section v-if="section === 'leads' && (can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage'))"
-        class="crm-panel space-y-3 p-4">
+      <section v-if="section === 'leads' && leadTab === 'agenda' && (can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage'))"
+        id="crm-lead-panel-agenda" role="tabpanel" class="crm-panel space-y-3 p-4">
         <h2 class="text-base font-extrabold">Agenda y seguimiento del prospecto</h2>
         <p class="text-xs text-[var(--dh-text-muted)]">Programá visitas, llamadas, reuniones y seguimientos. Se asocian a este prospecto y se muestran en el calendario comercial, sin volver a ingresar la cédula.</p>
         <CrmSalesCalendar :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
       </section>
-      <section id="crm-lead-conversion" v-if="section === 'leads' && can('crm.lead.convert') && can('crm.account.create')"
-        class="crm-panel scroll-mt-32 space-y-3 p-4">
-        <h2 class="font-bold">Convertir prospecto en cuenta</h2>
+      <section id="crm-lead-panel-conversion" v-if="section === 'leads' && leadTab === 'conversion' && can('crm.lead.convert') && can('crm.account.create')"
+        role="tabpanel" data-crm-lead-conversion class="crm-panel scroll-mt-32 space-y-3 p-4">
+        <h2 id="crm-lead-conversion" class="font-bold scroll-mt-32">Convertir prospecto en cuenta</h2>
         <template v-if="record.convertedAccountId">
           <p class="text-sm text-[var(--dh-text-muted)]">Este prospecto ya fue convertido.</p>
           <DhButton label="Ver cuenta creada" @click="router.push('/crm/accounts/'+encodeURIComponent(String(record.convertedAccountId)))" />
@@ -1641,6 +1687,12 @@ onMounted(() => { if (crmEnabled()) void load() })
 </template>
 
 <style scoped>
+.crm-lead-tabs{top:84px;backdrop-filter:blur(18px)}
+@media(min-width:768px){.crm-lead-tabs{top:144px}}
+.crm-lead-tab{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;padding:.75rem 1rem;border:1px solid var(--dh-border);border-radius:.7rem;font-size:.8rem;font-weight:800;color:var(--dh-text);background:var(--dh-shell);transition:background .15s,color .15s}
+.crm-lead-tab:hover,.crm-lead-tab:focus-visible{color:var(--dh-text);background:var(--dh-primary-light,transparent);outline-offset:-2px}
+.crm-lead-tab-active{color:white;background:var(--dh-primary);border-color:var(--dh-primary);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
 .crm-panel{border:1px solid var(--dh-border);border-radius:1.25rem;background:var(--dh-card)}
 .crm-action{border:1px solid var(--dh-border);border-radius:.75rem;padding:.6rem .95rem;font-weight:700;min-height:42px;color:var(--dh-text)}
 .crm-action:disabled{opacity:.5}.crm-action[aria-pressed=true]{background:var(--dh-primary);color:#fff}

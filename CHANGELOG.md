@@ -1,3 +1,8 @@
+## [1.19.3] - 2026-11-10
+
+- DH-20261110-CRM-LEAD-TABBED-DETAIL-073: ficha de Prospectos con pestañas similares a Cuentas; resumen, análisis comercial y rutas, cotizaciones, agenda y conversión, mostrando solo una sección a la vez.
+- Respeta permisos, deep links de conversión y los cambios vigentes de Agenda/Realtime de develop. Ecosistema Dhole 1.19.3.
+
 ## [1.19.2] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-SELLER-MODIFICATION-075: completa la revalidación del ejecutivo comercial de prospectos CRM en el flujo independiente de solicitudes de modificación realizadas por vendedores (`submitSellerModification`). Complementa el guardado de solicitudes normales, ediciones y modificaciones de Pricing introducido en 1.19.1.
