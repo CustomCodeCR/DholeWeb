@@ -1,3 +1,8 @@
+## [1.19.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-RECONCILED-070: agenda CRM con contactos vinculados, minuta ampliable, vendedores autorizados y compromisos reversibles con referencia a la actividad principal.
+- Compatibilidad con actualizaciones previas de CRM y Web. CRM 1.9.0, System 1.19.0. CI y staging pendientes.
+
 ## [1.18.3] - 2026-11-10
 
 - DH-20261110-CRM-PROSPECT-SELLER-072: se muestra el vendedor asignado en lista y ficha de Prospectos; administradores pueden crear o reasignar prospectos a vendedores activos mediante scopes CRM/Auth, sin exponer datos de otros usuarios.

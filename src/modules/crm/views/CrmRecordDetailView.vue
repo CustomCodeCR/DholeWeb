@@ -36,6 +36,7 @@ const { t } = useI18n()
 const section = computed(() => String(route.meta.crmSection ?? 'accounts'))
 const id = computed(() => String(route.params.id ?? ''))
 const record = ref<CrmRow | null>(null)
+const originActivity = ref<CrmRow | null>(null)
 const error = ref('')
 const success = ref('')
 const loading = ref(false)
@@ -441,6 +442,12 @@ async function load() {
       if (!record.value) throw new Error('Pipeline no encontrado')
     } else {
       record.value = await crmGet(section.value, id.value)
+    }
+    originActivity.value = null
+    if (section.value === 'followups' && record.value) {
+      try {
+        originActivity.value = await crmRequest<CrmRow | null>(crmPath('followups', id.value, 'origin'))
+      } catch { /* Existing unlinked followups remain usable. */ }
     }
     if (section.value === 'leads') {
       void loadLeadExecutive()
@@ -1055,7 +1062,18 @@ onMounted(() => { if (crmEnabled()) void load() })
             </dd>
           </div>
         </dl>
-        <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div v-if="section === 'followups' && originActivity"
+          class="mt-4 rounded-xl border border-[var(--dh-primary)]/40 bg-[var(--dh-shell)] p-4">
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>
+          <RouterLink :to="'/crm/activities/'+encodeURIComponent(String(originActivity.id))"
+            class="mt-1 block text-sm font-bold text-[var(--dh-primary)] hover:underline">
+            {{ originActivity.subject }}
+          </RouterLink>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+            {{ agendaLabel(originActivity.type,'type') }} · {{ agendaDate(originActivity.scheduledStartAt) }}
+          </p>
+        </div>
+        <dl v-else-if="section !== 'accounts' && section !== 'activities' && section !== 'followups'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">
@@ -1260,7 +1278,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
       <CrmActivityCollaboration v-if="section === 'activities'" :activity-id="id"
         :account-id="record.accountId ? String(record.accountId) : null"
-        :can-manage="can('crm.activity.update')" />
+        :can-manage="can('crm.activity.update')" :parent-subject="String(record.subject || '')" />
       <nav v-if="section !== 'accounts' && section !== 'activities'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
           :aria-pressed="relation===tab" @click="relation=tab">
