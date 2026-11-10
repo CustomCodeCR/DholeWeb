@@ -29,3 +29,21 @@ test('Multimodal requests retain their CRM seller and historical unlinked quotes
   assert.match(identity, /historicUnlinkedModification/)
   assert.match(identity, /historicUnlinkedSellerModification/)
 })
+
+test('Pricing modification reloads the CRM owner by ID before save, even when screen 3 is unmounted', () => {
+  assert.match(identity, /async function refreshModificationCrmOwner\(\)/)
+  assert.match(identity, /props\.modificationRequestId \|\| !editingRate\.value/)
+  assert.match(identity, /selectedClientId: clientId/)
+  assert.match(identity, /client\.id\.toLowerCase\(\) === clientId\.toLowerCase\(\)/)
+  assert.match(identity, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
+  assert.match(identity, /form\.executiveId = castroFallas \? '' : executiveId/)
+  assert.match(identity, /form\.crmClientKind = client\.kind/)
+})
+
+test('Existing modifications reject an unavailable seller and retain unlinked legacy compatibility', () => {
+  assert.match(identity, /executiveId === '00000000-0000-0000-0000-000000000000'/)
+  assert.match(identity, /executiveName\.toLowerCase\(\) === 'vendedor no disponible'/)
+  assert.match(identity, /!editingRate\.value\.clientLeadId && !form\.clientId/)
+  assert.match(identity, /La cuenta vinculada no tiene un vendedor activo en CRM/)
+  assert.match(identity, /No se pudo consultar CRM para validar el ejecutivo comercial/)
+})
