@@ -34,7 +34,7 @@ test('Pricing modification reloads the CRM owner by ID before save, even when sc
   assert.match(identity, /async function refreshModificationCrmOwner\(\)/)
   assert.match(identity, /props\.modificationRequestId \|\| !editingRate\.value/)
   assert.match(identity, /selectedClientId: clientId/)
-  assert.match(identity, /client\.id\.toLowerCase\(\) === clientId\.toLowerCase\(\)/)
+  assert.match(identity, /item\.id\.toLowerCase\(\) === clientId\.toLowerCase\(\)/)
   assert.match(identity, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
   assert.match(identity, /form\.executiveId = castroFallas \? '' : executiveId/)
   assert.match(identity, /form\.crmClientKind = client\.kind/)
