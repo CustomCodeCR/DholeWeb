@@ -998,7 +998,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             </dd>
           </div>
         </dl>
-        <dl v-else-if="section !== 'accounts'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <dl v-else-if="section !== 'accounts' && section !== 'leads'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[key, value] in Object.entries(record).filter(([key]) =>
             !['id','rowVersion','createdByUserId','updatedByUserId'].includes(key) &&
             !key.toLowerCase().includes('hash') && !key.toLowerCase().includes('payload'))" :key="key">

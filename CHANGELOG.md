@@ -1,3 +1,7 @@
+## [1.17.18] - 2026-11-10
+
+- DH-20261110-CRM-LEAD-TABBED-DETAIL-073: evita que el panel genérico de otros módulos vuelva a mostrar los campos del prospecto bajo las pestañas Análisis, Cotizaciones, Agenda o Conversión. Mantiene una sola pestaña visible por vez.
+
 ## [1.17.17] - 2026-11-10
 
 - DH-20261110-CRM-LEAD-TABBED-DETAIL-073: ficha de prospectos con pestañas como Cuentas (Prospecto, Análisis comercial y rutas, Cotizaciones, Agenda y seguimientos, Convertir a cuenta), una sección visible a la vez; conserva permisos y los enlaces directos de conversión.
