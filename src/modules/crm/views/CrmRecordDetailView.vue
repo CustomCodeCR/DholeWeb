@@ -22,6 +22,7 @@ import { creditCoverageLabel } from '../model/crmCreditCoverage'
 import { StorageService } from '@/core/services/storageService'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
+import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 import { useI18n } from 'vue-i18n'
 import { crmEnabled, crmError, crmGet, crmPath, crmRequest,
   crmUuid, toUtc, fromUtc, type CrmRow } from '../services/crmApi'
@@ -132,6 +133,7 @@ const addressLocation = ref(emptyAddressLocation())
 const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
+const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))
 
 interface AgendaLabels {
   accounts: Record<string, string>
@@ -267,7 +269,7 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
   const labelRequest = query.size
     ? crmRequest<AgendaLabels>(crmPath('calendar/labels') + '?' + query.toString())
     : Promise.resolve(emptyLabels)
-  const contactRequest = resource === 'activities' && item.contactId && can('crm.contact.read')
+  const contactRequest = resource === 'activities' && item.contactId && (can('crm.contact.read') || calendarAdmin.value)
     ? crmRequest<CrmRow>(crmPath('contacts', String(item.contactId)))
     : Promise.resolve(null)
   const opportunityRequest = item.opportunityId && can('crm.opportunity.read')
@@ -362,7 +364,7 @@ function permitted(tab: string) {
   if (tab === 'credit-profiles') return can('crm.credit.read')
   if (tab === 'credit-contracts') return can('crm.contract.read')
   if (tab === 'contacts' || tab === 'participants') return can('crm.contact.read') || section.value !== 'accounts'
-  if (tab === 'followup-policy') return can('crm.followup.manage')
+  if (tab === 'followup-policy') return can('crm.followup.manage') || calendarAdmin.value
   if (tab === 'business-activities') return can('crm.account.read') || can('crm.account.read-all')
   if (tab === 'trade-profiles') return can('crm.analysis.read')
   if (tab === 'quotes' || tab === 'rate-requests') return can('crm.quote.read')
