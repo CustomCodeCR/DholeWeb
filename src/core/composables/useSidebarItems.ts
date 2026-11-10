@@ -30,6 +30,7 @@ import {
 import { useAuthStore } from '@/core/stores/authStore'
 import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { crmEnabled } from '@/modules/crm/services/crmApi'
+import { hasCrmCalendarAdministratorRole } from '@/modules/crm/model/crmCalendarAdministrator'
 
 export interface SidebarItem {
   labelKey: string
@@ -389,7 +390,9 @@ function mapItem(
     return null
   }
 
-  if (item.requiredAnyScopes?.length && !item.requiredAnyScopes.some((scope) => authStore.hasScope(scope))) {
+  if (item.requiredAnyScopes?.length && !item.requiredAnyScopes.some((scope) => authStore.hasScope(scope)) &&
+      !(['crm-root','crm-followups'].includes(item.name ?? '') &&
+        hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))) {
     return null
   }
 
