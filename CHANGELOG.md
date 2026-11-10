@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.17.6] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-SELLER-MULTI-POE-062: Ventas puede seleccionar varios destinos POE marítimos FCL al solicitar tarifas. Se guardan todos en la solicitud, se recuperan al editar, duplicar y continuar en Pricing, y se muestran en la bandeja de solicitudes; las solicitudes anteriores conservan compatibilidad. Se mantiene la limitación de un POE para LCL, terrestre, aéreo y modificaciones de tarifas existentes.
+
 ## [1.17.5] - 2026-11-10
 
 - PATCH DH-20261110-CRM-QUO-STATUS-061: los estados de cotizaciones vinculadas en el historial y resumen de CRM y en las tablas de vinculación histórica se presentan con traducciones comerciales (Aceptada, No aceptada, Enviada, Vencida, Abierta, Cancelada, etc.) en vez de los nombres técnicos del enum.
