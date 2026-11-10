@@ -1,3 +1,8 @@
+## [1.17.19] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-CRM-PROSPECT-REQUESTS-MASTER-076: hotfix aislado de Pricing para resolver la cuenta o prospecto CRM y su ejecutivo comercial vigente por ID al enviar solicitudes normales, editar solicitudes del vendedor, solicitar modificaciones desde Ventas y guardar modificaciones LCL desde pantalla 5 sin montar el selector de pantalla 3. Incluye las correcciones equivalentes de develop 1.19.1 y 1.19.2 sin importar cambios ajenos.
+- Conservar cambios voluntarios de cliente, permisos CRM, vendedor Castro Fallas y QUO históricas no vinculadas; rechazar vendedores sin asignación vigente. Incluye regresiones y mantiene REST/SignalR. DholeWeb y DholeSystem 1.17.19; otros servicios sin cambios. CI y staging requeridos.
+
 ## [1.17.18] - 2026-11-10
 
 - DH-20261110-CRM-LEAD-TABBED-DETAIL-073: evita que el panel genérico de otros módulos vuelva a mostrar los campos del prospecto bajo las pestañas Análisis, Cotizaciones, Agenda o Conversión. Mantiene una sola pestaña visible por vez.
