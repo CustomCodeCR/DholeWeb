@@ -54,6 +54,7 @@ import { useLocale } from '@/core/stores/locale'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
 import { crmEnabled } from '@/modules/crm/services/crmApi'
+import { hasCrmCalendarAdministratorRole } from '@/modules/crm/model/crmCalendarAdministrator'
 import { searchGlobalRecords, type GlobalSearchRecord } from '@/core/services/globalSearchService'
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'dhole.sidebar.collapsed'
@@ -339,7 +340,8 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   // Use effective session scopes for the actual rendered CRM sidebar.
   // Customer-specific analyses, followups and credit remain inside account detail.
-  if (crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) {
+  if ((crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) ||
+      (crmEnabled() && hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))) {
     const crmChildren: SidebarItem[] = []
     if (canView('crm.account.read') || canView('crm.account.read-all'))
       crmChildren.push({ label: t('crm.nav.accounts'), path: '/crm/accounts', icon: Users })
@@ -347,7 +349,8 @@ const sidebarItems = computed<SidebarItem[]>(() => {
       crmChildren.push({ label: t('crm.nav.contacts'), path: '/crm/contacts', icon: Users })
     if (canView('crm.lead.read') || canView('crm.lead.read-all'))
       crmChildren.push({ label: t('crm.nav.leads'), path: '/crm/leads', icon: Users })
-    if (canView('crm.followup.manage') || canView('crm.task.manage'))
+    if (canView('crm.followup.manage') || canView('crm.task.manage') ||
+        hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))
       crmChildren.push({ label: t('crm.nav.followups'), path: '/crm/followups', icon: CalendarClock })
     if (crmChildren.length > 0)
       items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
