@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261110-CRM-ACCOUNT-SEARCH-064",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.17.9",
+  "status": "candidate-ci-staging-pending",
+  "productionDeploymentAuthorized": false,
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.17.8",
+      "to": "1.17.9"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "component": "DholeCRMService",
+      "from": "1.7.2",
+      "to": "1.7.3"
+    }
+  ],
+  "scope": [
+    "CRM account name/legal-name/tax-id search",
+    "Legacy tax ID fallback without migrations",
+    "Permission-scoped SQL pagination"
+  ],
+  "checks": [
+    "Typecheck and frontend regression test",
+    "CRM dotnet build and tests",
+    "Coordinated staging verification"
+  ],
+  "target": "develop"
+}
