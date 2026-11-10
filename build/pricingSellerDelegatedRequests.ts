@@ -64,8 +64,11 @@ async function loadSellerRequestOwnerOptions() {
       : undefined
     const selected = savedSelection ?? sellerRequestOwnerOptions.value[0]
     sellerRequestOwnerId.value = selected?.value ?? ''
-    form.executiveId = selected?.value ?? ''
-    form.executiveName = selected?.label ?? ''
+    // The delegated request owner is independent from the CRM account's executive.
+    if (!form.clientId) {
+      form.executiveId = selected?.value ?? ''
+      form.executiveName = selected?.label ?? ''
+    }
   } catch (error) {
     sellerRequestOwnerId.value = ''
     sellerRequestOwnerOptions.value = []
