@@ -1,3 +1,8 @@
+## [1.18.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ADMIN-CALENDAR-069: todos los administradores consultan agendas de todos los usuarios, con directorio Auth y detalles de seguimientos automáticos, sus políticas y el historial. El seguimiento sin título no muestra UUID. Mantiene escritura y permisos previos sin ampliarlos.
+- Auth 1.3.0, CRM 1.5.0, Web/System 1.18.0. Integración coordinada, CI y staging pendientes.
+
 ## [1.17.14] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ACTIVITY-FULL-DETAIL-068: muestra información completa de actividades y seguimientos (cliente, ejecutivo, contacto, fechas, recordatorios, minuta, acuerdos, compromisos y actividad principal). Integra los cambios verificados en staging de DholeWeb 1.17.11 sin revertir el release 1.17.12 de identidad CRM/Pricing.
