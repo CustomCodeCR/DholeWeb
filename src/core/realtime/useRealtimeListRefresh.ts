@@ -46,8 +46,9 @@ export function useRealtimeListRefresh(options: RealtimeListRefreshOptions): voi
     const detail = (raw as CustomEvent<RealtimeMutationDetail>).detail
     if (detail?.method !== 'SIGNALR' || typeof detail.endpoint !== 'string')
       return
+    const endpoint = detail.endpoint
     if (!options.prefixes.some(path =>
-      detail.endpoint === path || detail.endpoint.startsWith(path + '/')))
+      endpoint === path || endpoint.startsWith(path + '/')))
       return
     queueRefresh()
   }
