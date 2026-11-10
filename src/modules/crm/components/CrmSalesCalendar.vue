@@ -476,7 +476,9 @@ async function fetchAll(resource: string, from: string, to: string): Promise<{ i
   for (let page = 1; page <= 10; page++) {
     const response = await crmList(resource, { from, to, page, pageSize: 100,
       accountId: props.accountId || undefined,
-      leadId: props.leadId || undefined })
+      leadId: props.leadId || undefined,
+      ownerId: !scopedRecord.value && isManagerCalendar.value && ownerFilter.value
+        ? ownerFilter.value : undefined })
     total = response.total
     all.push(...response.items)
     if (all.length >= total || !response.items.length) break
@@ -568,6 +570,7 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
 }
 
 watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
+watch(ownerFilter, () => { if (isManagerCalendar.value) void load() })
 async function create() {
   const data = editor.value
   if (saving.value) return
