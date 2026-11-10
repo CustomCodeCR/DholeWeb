@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.19.3",
-  "ecosystemVersion": "1.19.3",
-  "releaseId": "DH-20261110-CRM-LEAD-TABBED-DETAIL-073",
-  "releaseStatus": "candidate-develop-ci-pending",
-  "businessReleaseId": "DH-20261110-CRM-LEAD-TABBED-DETAIL-073"
+  "version": "1.19.4",
+  "ecosystemVersion": "1.19.4",
+  "releaseId": "DH-20261110-CRM-HISTORICAL-ACTIVITIES-075",
+  "releaseStatus": "candidate-develop-ci-staging-pending",
+  "businessReleaseId": "DH-20261110-CRM-HISTORICAL-ACTIVITIES-075"
 }
