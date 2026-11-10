@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.0] - 2026-11-09
+
+- MINOR: Todas las QUO históricas se muestran en el CRM mediante DhDataTable y DhPagination; búsqueda por código, cliente y ruta, selección y vinculación manual por ID a la cuenta actual.
+- Identidades de otros clientes y prospectos permanecen protegidas. Cotizaciones ya vinculadas se muestran en solo lectura; no cambian cifras, revisiones ni estados.
+- Release DH-20261109-CRM-LEGACY-QUO-CATALOG-055 con Pricing 1.9.0, ecosistema 1.16.0; staging y controles CI obligatorios antes de producción.
+
 ## [1.15.0] - 2026-11-09
 
 - Backport CRM: cuentas/prospectos como cliente, ejecutivo asignado y conciliación de QUO históricas.
