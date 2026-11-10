@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.16.1] - 2026-11-09
+
+- PATCH DH-20261109-CRM-QUO-LINK-SYNC-056: la bandeja de vinculación CRM ahora lista solamente las QUO sin cuenta o prospecto. Tras vincular desaparecen de pendientes y el cliente y ejecutivo CRM se reflejan en Pricing.
+- Acción para sincronizar datos CRM en tarifas previamente vinculadas; refresca listado de cliente y rutas, mantiene permisos, importes y estados. Pricing 1.9.2, ecosistema 1.16.2.
+
 ## [1.16.0] - 2026-11-09
 
 - MINOR: el CRM muestra todas las QUO históricas en DhDataTable con búsqueda y paginación del servidor, vinculación manual confirmada por cuenta y estado visible para cotizaciones previamente asociadas.
