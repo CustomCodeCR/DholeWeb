@@ -705,3 +705,21 @@ test('F4: connected SignalR still reconciles via REST when a change event is mis
   host.manager.stop()
   assert.equal(host.clock.callbacks.size, 0)
 })
+
+
+test('Auth security events reuse the existing socket, without subscribing to other users', async () => {
+  const host = new FakeHost()
+  const received: unknown[] = []
+  host.runtime.onAuthSecurityChanged = event => received.push(event)
+  await host.start()
+  const event = {
+    userId: USER_A, targetSessionId: ID, action: 'forceLogout',
+    eventId: crypto.randomUUID(), occurredAtUtc: new Date().toISOString(),
+  }
+  host.latestSocket().onmessage?.({ data: JSON.stringify({
+    type: 1, target: 'authSecurityChanged', arguments: [event],
+  }) + RS } as MessageEvent)
+  assert.deepEqual(received, [event])
+  assert.equal(host.sockets.length, 1)
+  host.manager.stop()
+})
