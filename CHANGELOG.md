@@ -1,6 +1,6 @@
 ## [1.17.17] - 2026-11-10
 
-- PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-MASTER-073: backport de la corrección DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072 ya integrada en develop, sin incorporar funcionalidades ajenas. Al guardar modificaciones LCL desde la pantalla 5 o enviar/editar solicitudes normales de vendedores, recuperar por ID la cuenta o prospecto CRM y su ejecutivo vigente antes de validar. Incluye formularios históricos de prospectos sin el ID de ejecutivo hidratado.
+- PATCH DH-20261110-PRICING-MODIFICATION-CRM-OWNER-MASTER-073: backport de la corrección DH-20261110-PRICING-MODIFICATION-CRM-OWNER-072 ya integrada en develop, sin incorporar funcionalidades ajenas. Al guardar modificaciones LCL desde la pantalla 5, enviar/editar solicitudes normales o solicitar modificaciones de QUO desde Ventas, recuperar por ID la cuenta o prospecto CRM y su ejecutivo vigente antes de validar. Incluye formularios históricos de prospectos sin el ID de ejecutivo hidratado.
 - Mantiene asignaciones de Castro Fallas, actualiza datos de un cliente cambiado, bloquea vendedores ausentes/inactivos y conserva compatibilidad con QUO históricas sin vinculación. Sin cambios de contrato REST, SignalR o migraciones. CI y revisión staging requeridas.
 - Coordinado con DholeSystem 1.17.17; no modifica DholePricingService ni CRM.
 
