@@ -558,5 +558,5 @@ test('CRM create activity keeps save and notification activation visible in moda
   assert.match(calendar, /<template #footer>/)
   assert.match(calendar, /form="crm-agenda-create-form"/)
   assert.match(calendar, /Guardar actividad y activar avisos/)
-  assert.match(calendar, /Los avisos se activan solamente al guardar/)
+  assert.match(calendar, /Los avisos de actividades futuras se activan al guardar/)
 })
