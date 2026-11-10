@@ -21,6 +21,8 @@ import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
 import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
+import { crmAgendaClientName, crmAgendaExecutiveName, crmAgendaIdentityIds,
+  type CrmAgendaIdentityLabels } from '../model/crmAgendaIdentity'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
@@ -102,6 +104,8 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
   ]
   if (section.value === 'followups') return [
     { key: '_crmTitle', label: 'Actividad o seguimiento' },
+    { key: '_crmClient', label: 'Cliente' },
+    { key: '_crmExecutive', label: 'Ejecutivo comercial' },
     { key: '_crmChannel', label: 'Tipo' },
     { key: '_crmDue', label: 'Próxima gestión' },
     { key: '_crmStatus', label: 'Estado' },
@@ -139,6 +143,13 @@ const tableRows = computed(() => (section.value === 'finance' || section.value =
   _crmTitle: section.value === 'followups'
     ? String(item.subject || (item._crmResource === 'followups' ? 'Seguimiento comercial' : 'Actividad comercial'))
     : String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
+  _crmClient: section.value !== 'followups' ? '—'
+    : agendaIdentityLoading.value && Boolean(item.accountId || item.leadId)
+      ? 'Consultando…' : crmAgendaClientName(item, agendaIdentityLabels.value),
+  _crmExecutive: section.value !== 'followups' ? '—'
+    : agendaIdentityLoading.value && Boolean(item._crmResource === 'followups'
+      ? item.assignedUserId : item.ownerUserId)
+      ? 'Consultando…' : crmAgendaExecutiveName(item, agendaIdentityLabels.value, String(auth.userId ?? '')),
   _crmDescription: String(item[model.value?.secondary ?? 'paymentTerms'] ?? '—'),
   _crmStatus: section.value === 'followups'
     ? ({Scheduled:'Programada',Pending:'Pendiente',Overdue:'Vencida',Completed:'Completada',Cancelled:'Cancelada'} as Record<string,string>)[String(item.status)] || String(item.status ?? '—')
@@ -181,6 +192,9 @@ const agendaStatusFilter = ref('')
 const agendaSourceFilter = ref('')
 const agendaTruncated = ref(false)
 const agendaView = ref<'list' | 'calendar'>('list')
+const agendaIdentityLabels = ref<CrmAgendaIdentityLabels>({ accounts: {}, leads: {}, owners: {} })
+const agendaIdentityLoading = ref(false)
+let agendaIdentityGeneration = 0
 const agendaUpcoming = computed(() => rows.value.filter(item => ['Scheduled','Pending','Overdue'].includes(String(item.status))).length)
 const agendaCompleted = computed(() => rows.value.filter(item => String(item.status)==='Completed').length)
 const showForm = ref(false)
@@ -418,6 +432,34 @@ async function loadStages() {
     pipelineStages.value = await crmRequest<CrmRow[]>(crmPath('pipelines', selected.id, 'stages'))
   }
 }
+async function loadAgendaIdentityLabels(records: CrmRow[]) {
+  const generation = ++agendaIdentityGeneration
+  const ids = crmAgendaIdentityIds(records)
+  const count = Math.max(Math.ceil(ids.accounts.length / 100), Math.ceil(ids.leads.length / 100),
+    Math.ceil(ids.owners.length / 100))
+  agendaIdentityLabels.value = { accounts: {}, leads: {}, owners: {} }
+  agendaIdentityLoading.value = count > 0
+  if (!count) return
+  const replies = await Promise.allSettled(Array.from({ length: count }, async (_, index) => {
+    const start = index * 100
+    const params = new URLSearchParams({
+      accountIds: ids.accounts.slice(start, start + 100).join(','),
+      leadIds: ids.leads.slice(start, start + 100).join(','),
+      ownerIds: ids.owners.slice(start, start + 100).join(','),
+    })
+    return crmRequest<CrmAgendaIdentityLabels>(crmPath('calendar/labels') + '?' + params.toString())
+  }))
+  if (generation !== agendaIdentityGeneration || section.value !== 'followups') return
+  const labels: CrmAgendaIdentityLabels = { accounts: {}, leads: {}, owners: {} }
+  for (const result of replies) {
+    if (result.status !== 'fulfilled') continue
+    Object.assign(labels.accounts, result.value.accounts ?? {})
+    Object.assign(labels.leads, result.value.leads ?? {})
+    Object.assign(labels.owners, result.value.owners ?? {})
+  }
+  agendaIdentityLabels.value = labels
+  agendaIdentityLoading.value = false
+}
 async function load() {
   error.value = ''; success.value = ''
   if (!allowed.value) return
@@ -461,6 +503,7 @@ async function load() {
       total.value = filtered.length
       page.value = Math.min(page.value, Math.max(1, Math.ceil(total.value / pageSize.value)))
       rows.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
+      void loadAgendaIdentityLabels(rows.value)
       if (failures.length) error.value = 'No se pudieron consultar todos los registros de la agenda (' + failures.join(', ') + ').'
     }
     else if (section.value === 'dashboard') await loadDashboard()
@@ -797,6 +840,12 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
           @row-click="details($event)">
           <template #cell-_crmTitle="{ value }">
             <span class="font-bold text-[var(--dh-text)]">{{ value }}</span>
+          </template>
+          <template #cell-_crmClient="{ value }">
+            <span class="text-sm font-semibold text-[var(--dh-text)]">{{ value }}</span>
+          </template>
+          <template #cell-_crmExecutive="{ value }">
+            <span class="text-sm text-[var(--dh-text)]">{{ value }}</span>
           </template>
           <template #cell-_crmChannel="{ value }">
             <span class="text-sm font-medium">{{ value }}</span>
