@@ -75,7 +75,7 @@ test('Dhole CRM account shows full-width three-column workspace and timeline', (
     'xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]',
     'Escala de tiempo', 'Contactos relacionados', 'Historial de tarifas',
     'Ficha comercial', '<CrmCatalogPicker', '<DhDrawer :open="routeEditor"',
-    '<DhDrawer :open="Boolean(editor)"', 'var(--dh-card)', 'var(--dh-border)',
+    '<CrmAccountEditor', 'var(--dh-card)', 'var(--dh-border)',
   ]) assert.ok(hub.includes(marker), 'Missing CRM UI element: ' + marker)
   assert.ok(detail.includes('max-w-[1750px]'))
   assert.ok(detail.includes('@change-executive="openExecutiveDrawer"'))
@@ -368,12 +368,12 @@ test('CRM credit coverage uses real approved/pending profiles, never changes app
   assert.ok(hub.includes('<CrmCreditCoverageManager'))
 })
 
-test('Accounts hide raw property dump, clean drawer footer and include house seller', () => {
+test('Accounts hide raw property dump, use inline editor and include house seller', () => {
   const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   const workspace = read('src/modules/crm/views/CrmWorkspaceView.vue')
   const picker = read('src/modules/crm/components/CrmExecutivePicker.vue')
-  assert.ok(detail.includes('<dl v-else-if="section !== \'accounts\'"'))
+  assert.ok(detail.includes('<dl v-else-if="section !== \'accounts\' && section !== \'activities\' && section !== \'followups\'"'))
   assert.ok(detail.includes('assignToCastroFallas: selectedExecutive.value ==='))
   assert.ok(detail.includes("record.value?.isCastroFallasExecutive === true"))
   assert.ok(workspace.includes("body.assignToCastroFallas = true"))
