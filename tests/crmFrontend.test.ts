@@ -215,7 +215,8 @@ test('CRM business profile remains editable from full account not onboarding', (
 
 test('CRM reads linked quote ports from Pricing without faking missing routes', () => {
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
-  assert.ok(hub.includes("'quote-route-snapshots'"))
+  assert.ok(hub.includes("'/api/pricing/rates/crm-account/'"))
+  assert.ok(!hub.includes("'quote-route-snapshots'"))
   assert.ok(hub.includes("quoteRouteSnapshots"))
   assert.ok(hub.includes("routeSourceKind"))
   assert.ok(hub.includes("q.polName"))
