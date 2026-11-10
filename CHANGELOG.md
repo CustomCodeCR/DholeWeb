@@ -1,3 +1,8 @@
+## [1.17.15] - 2026-11-10
+
+- DH-20261110-CRM-PROSPECT-ROUTES-QUOTES-069: nombres de prospectos en UPPER CASE desde API y UI, análisis comercial con rutas y cotizaciones vinculadas mediante oportunidades de CRM y Pricing.
+- Release Dhole 1.17.15, sin migraciones de datos.
+
 ## [1.17.14] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ACTIVITY-FULL-DETAIL-068: muestra información completa de actividades y seguimientos (cliente, ejecutivo, contacto, fechas, recordatorios, minuta, acuerdos, compromisos y actividad principal). Integra los cambios verificados en staging de DholeWeb 1.17.11 sin revertir el release 1.17.12 de identidad CRM/Pricing.
