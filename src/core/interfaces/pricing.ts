@@ -853,7 +853,6 @@ export interface RateDto extends Record<string, unknown> {
   clientLeadId?: string | null
   clientName?: string | null
   executiveName?: string | null
-  executiveUserId?: string | null
   idtraNumber?: string | null
   otherReferences?: string | null
   quoNumber?: string | null
@@ -1028,6 +1027,7 @@ export interface CreateRateRequest extends Record<string, unknown> {
   clientLeadId?: string | null
   clientName?: string | null
   executiveName?: string | null
+  executiveUserId?: string | null
   idtraNumber?: string | null
   otherReferences?: string | null
   quoNumber?: string | null
