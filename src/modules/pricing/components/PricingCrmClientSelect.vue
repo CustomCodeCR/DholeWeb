@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 
@@ -111,7 +111,19 @@ watch(() => [props.modelValue, props.initialName] as const, ([id, label]) => {
   if (id && current.value?.id !== id) query.value = label
   else if (!id && !current.value) query.value = ''
 })
-onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
+function onCrmCollectionChanged(event: Event) {
+  const detail = (event as CustomEvent<{ endpoint?: string }>).detail
+  if (!detail?.endpoint?.startsWith('/api/crm/accounts') &&
+      !detail?.endpoint?.startsWith('/api/crm/leads')) return
+  // Refresh only visible choices, never reset an already selected client.
+  if (open.value) void load()
+}
+onMounted(() => window.addEventListener('dhole:data:changed', onCrmCollectionChanged))
+onBeforeUnmount(() => {
+  window.removeEventListener('dhole:data:changed', onCrmCollectionChanged)
+  ++requestId
+  if (searchTimer) clearTimeout(searchTimer)
+})
 </script>
 <template>
   <div class="relative min-w-0">
