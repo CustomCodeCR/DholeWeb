@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -9,7 +9,7 @@ import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat
 import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
 import { phoneWithCountryPrefix } from '../utils/crmPhone'
 import CrmPhoneInput from './CrmPhoneInput.vue'
-import { crmPath, crmRequest, crmUuid, toUtc, type CrmRow } from '../services/crmApi'
+import { crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
@@ -72,6 +72,11 @@ function onLegacyQuoteLinksToggle(event: Event) {
 }
 const lang = computed(() => locale.value === 'en' ? 'en-US' : 'es-CR')
 const activeTab = ref<Section>('summary')
+const calendarRef = ref<InstanceType<typeof CrmSalesCalendar> | null>(null)
+function openCalendarActivity() {
+  activeTab.value = 'agenda'
+  void nextTick(() => calendarRef.value?.openCreation())
+}
 function returnToAccount(path: string): string {
   return path + (path.includes('?') ? '&' : '?') + 'fromAccount=' + encodeURIComponent(String(props.account.id))
 }
@@ -325,11 +330,6 @@ const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
 const saved = ref('')
-const editor = ref<'CALL' | 'VISIT' | 'FOLLOWUP' | null>(null)
-const subject = ref('')
-const scheduled = ref('')
-const location = ref('')
-const channel = ref('PHONE')
 const routeEditor = ref(false)
 const routeFormError = ref('')
 const routeCreateKey = ref(crmUuid())
@@ -817,44 +817,6 @@ async function saveProfile() {
   finally { profileSaving.value = false }
 }
 
-function newActivity(type: 'CALL' | 'VISIT' | 'FOLLOWUP') {
-  editor.value = type
-  subject.value = ''
-  scheduled.value = ''
-  location.value = ''
-  channel.value = type === 'VISIT' ? 'VISIT' : 'PHONE'
-  error.value = ''
-}
-async function saveActivity() {
-  if (!editor.value || !scheduled.value || busy.value || !auth.userId) return
-  const when = toUtc(scheduled.value)
-  if (!when || Number.isNaN(new Date(when).getTime())) return
-  if (editor.value !== 'FOLLOWUP' && !subject.value.trim()) return
-  busy.value = true
-  error.value = ''
-  saved.value = ''
-  try {
-    if (editor.value === 'FOLLOWUP') {
-      await crmRequest(crmPath('followups'), 'POST', {
-        accountId: props.account.id, leadId: null, opportunityId: null,
-        assignedUserId: auth.userId, channel: channel.value, dueAt: when,
-      }, crmUuid())
-    } else {
-      await crmRequest(crmPath('activities'), 'POST', {
-        accountId: props.account.id, leadId: null, opportunityId: null,
-        contactId: null, ownerUserId: auth.userId,
-        type: editor.value, subject: subject.value.trim(),
-        scheduledStartAt: when, scheduledEndAt: null, occurredAt: null,
-        locationText: location.value.trim() || null,
-      }, crmUuid())
-    }
-    editor.value = null
-    saved.value = locale.value === 'en' ? 'Activity saved.' : 'Actividad registrada.'
-    await load()
-    activeTab.value = 'agenda'
-  } catch (cause) {error.value = message(cause)}
-  finally {busy.value = false}
-}
 async function saveRoute() {
   if (!routeEditor.value || busy.value) return
   routeFormError.value = ''
@@ -1086,9 +1048,7 @@ async function saveRoute() {
             <button type="button" class="hub-text-link" @click="activeTab='agenda'">Ver agenda</button>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
-            <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('CALL')"><Phone class="h-3.5 w-3.5" />Llamada</button>
-            <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('VISIT')"><Plus class="h-3.5 w-3.5" />Visita</button>
-            <button v-if="has('crm.task.manage') || has('crm.followup.manage')" type="button" class="hub-outline-button hub-small" @click="activeTab='agenda';newActivity('FOLLOWUP')"><CalendarClock class="h-3.5 w-3.5" />Seguimiento</button>
+            <button v-if="has('crm.activity.create')" type="button" class="hub-outline-button hub-small" @click="openCalendarActivity"><Plus class="h-3.5 w-3.5" />Nueva actividad</button>
           </div>
           <div class="mt-3">
             <p v-if="!visibleTimeline.length" class="hub-empty">Aún no se han registrado llamadas, visitas o seguimientos.</p>
@@ -1478,7 +1438,7 @@ async function saveRoute() {
           <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">
             Registrá una visita, marcala como completada y vinculá su ruta. También podés documentar las rutas de cotizaciones ya enlazadas.
           </p>
-          <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="activeTab='agenda';newActivity('VISIT')">Programar una visita</button>
+          <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="openCalendarActivity()">Programar una visita</button>
         </div>
         <ol v-else class="divide-y divide-[var(--dh-border)]">
           <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -1578,34 +1538,15 @@ async function saveRoute() {
     </section>
 
     <section v-else-if="activeTab === 'agenda'" id="crm-account-agenda" role="tabpanel" class="space-y-4">
-      <CrmSalesCalendar :account-id="String(account.id)" :account-name="String(account.displayName || account.legalName)" @changed="load" />
+      <CrmSalesCalendar ref="calendarRef" :account-id="String(account.id)" :account-name="String(account.displayName || account.legalName)" @changed="load" />
       <div class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div><h2 class="font-extrabold">Actividad comercial y seguimientos</h2>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Visitas, llamadas, tareas y recordatorios en una sola línea de tiempo.</p></div>
         <div class="flex flex-wrap gap-2">
-          <button v-if="has('crm.activity.create')" class="crm-action inline-flex items-center gap-1" @click="newActivity('CALL')"><Phone class="h-4 w-4" />Llamada</button>
-          <button v-if="has('crm.activity.create')" class="crm-action inline-flex items-center gap-1" @click="newActivity('VISIT')"><Plus class="h-4 w-4" />Visita</button>
-          <button v-if="has('crm.task.manage') || has('crm.followup.manage')" class="rounded-xl border border-[var(--dh-border)] px-3 py-2 text-xs font-bold" @click="newActivity('FOLLOWUP')">Seguimiento</button>
+          <button v-if="has('crm.activity.create')" type="button" class="crm-action inline-flex items-center gap-1" @click="openCalendarActivity"><Plus class="h-4 w-4" />Nueva actividad</button>
         </div>
       </div>
-      <DhDrawer :open="Boolean(editor)" :title="editor === 'CALL' ? 'Registrar llamada' : editor === 'VISIT' ? 'Programar visita' : 'Nuevo seguimiento'" size="md" @close="editor=null">
-        <form class="grid gap-3 p-2 sm:grid-cols-2" @submit.prevent="saveActivity">
-        <h3 class="font-extrabold sm:col-span-2">{{ editor === 'CALL' ? 'Registrar llamada' : editor === 'VISIT' ? 'Programar visita' : 'Nuevo seguimiento' }}</h3>
-        <label v-if="editor !== 'FOLLOWUP'" class="text-xs font-bold">Asunto *
-          <input v-model.trim="subject" required maxlength="250" class="crm-input mt-2 w-full" placeholder="Motivo de contacto" /></label>
-        <label class="text-xs font-bold">Fecha y hora *
-          <input v-model="scheduled" required type="datetime-local" class="crm-input mt-2 w-full" /></label>
-        <label v-if="editor === 'VISIT'" class="text-xs font-bold">Lugar
-          <input v-model.trim="location" maxlength="200" class="crm-input mt-2 w-full" /></label>
-        <label v-if="editor === 'FOLLOWUP'" class="text-xs font-bold">Medio
-          <select v-model="channel" class="crm-input mt-2 w-full"><option value="PHONE">Teléfono</option><option value="VISIT">Visita</option><option value="EMAIL">Correo</option><option value="SYSTEM">Notificación</option></select></label>
-        <div class="flex gap-2 sm:col-span-2">
-          <button class="crm-action" :disabled="busy || !scheduled || (editor !== 'FOLLOWUP' && !subject)">Guardar</button>
-          <button type="button" class="rounded-xl border border-[var(--dh-border)] px-3 py-2 text-sm" @click="editor=null">Cancelar</button>
-        </div>
-        </form>
-      </DhDrawer>
       <div v-if="!visibleTimeline.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay actividades ni seguimientos registrados.</div>
       <ol v-else class="space-y-0">
         <li v-for="entry in visibleTimeline" :key="entry.kind + entry.id" class="relative ml-2 border-l border-[var(--dh-border)] py-4 pl-6">
