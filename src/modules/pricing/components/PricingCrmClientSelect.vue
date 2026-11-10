@@ -40,6 +40,36 @@ const loading = ref(false)
 const failure = ref('')
 const open = ref(false)
 let requestId = 0
+let linkedClientLookupId = 0
+
+// Old QUOs populate only the CRM client ID and display name. Recover the
+// authoritative seller from CRM instead of trusting the historical snapshot.
+async function hydrateLinkedClient(id: string) {
+  if (!id || current.value?.id === id) return
+  const seq = ++linkedClientLookupId
+  try {
+    const params = new URLSearchParams({
+      mode: props.mode,
+      selectedClientId: id,
+      pageSize: '1',
+      ...(props.sellerUserId ? { sellerUserId: props.sellerUserId } : {}),
+    })
+    const result = await crmRequest<ClientPage>(crmPath('pricing-client-options') + '?' + params)
+    if (seq !== linkedClientLookupId || props.modelValue !== id) return
+    const client = result.items.find(item => item.id.toLowerCase() === id.toLowerCase())
+    if (!client) {
+      failure.value = 'La cuenta vinculada no está disponible en CRM. Revise sus permisos o seleccione una cuenta vigente.'
+      return
+    }
+    current.value = client
+    query.value = client.displayName
+    failure.value = ''
+    emit('selected', client)
+  } catch (cause) {
+    if (seq === linkedClientLookupId && props.modelValue === id)
+      failure.value = 'No se pudo verificar el ejecutivo de la cuenta en CRM: ' + crmError(cause)
+  }
+}
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 const canLoadMore = computed(() => items.value.length < total.value)
 async function load(reset=true) {
@@ -107,11 +137,20 @@ watch(()=>[props.mode,props.sellerUserId] as const,()=>{
   current.value=null
   void load()
 },{immediate:true})
+watch(() => [props.modelValue, props.mode, props.sellerUserId] as const, ([id]) => {
+  ++linkedClientLookupId
+  if (!id) {
+    current.value = null
+    query.value = ''
+    return
+  }
+  if (current.value?.id !== id) void hydrateLinkedClient(id)
+}, { immediate: true })
 watch(() => [props.modelValue, props.initialName] as const, ([id, label]) => {
   if (id && current.value?.id !== id) query.value = label
   else if (!id && !current.value) query.value = ''
 })
-onBeforeUnmount(()=>{++requestId;if(searchTimer)clearTimeout(searchTimer)})
+onBeforeUnmount(()=>{++requestId;++linkedClientLookupId;if(searchTimer)clearTimeout(searchTimer)})
 </script>
 <template>
   <div class="relative min-w-0">
