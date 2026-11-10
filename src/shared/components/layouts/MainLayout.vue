@@ -347,8 +347,8 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   // Use effective session scopes for the actual rendered CRM sidebar.
   // Customer-specific analyses, followups and credit remain inside account detail.
-  if (crmEnabled() && (CRM_WORKSPACE_SCOPES.some(scope => canView(scope)) ||
-      hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))) {
+  if ((crmEnabled() && CRM_WORKSPACE_SCOPES.some(scope => canView(scope))) ||
+      (crmEnabled() && hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))) {
     const crmChildren: SidebarItem[] = []
     if (canView('crm.account.read') || canView('crm.account.read-all'))
       crmChildren.push({ label: t('crm.nav.accounts'), path: '/crm/accounts', icon: Users })
