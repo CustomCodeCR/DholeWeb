@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.8] - 2026-11-10
+
+- PATCH DH-20261110-CRM-QUO-STATUS-061: el historial y resumen de QUO del CRM, así como los listados de vinculación histórica, muestran etiquetas comerciales traducidas en lugar de nombres de enum. Se admiten español/inglés y estados plurales heredados sin alterar el estado persistido.
+- Resolución coordinada del conflicto con releases 1.17.6 y 1.17.7 (solicitudes múltiples POE de vendedores), preservándolos. Ecosistema 1.17.8; DholeWeb y DholeSystem 1.17.8.
+
 ## [1.17.7] - 2026-11-10
 
 - FIX DH-20261110-PRICING-SELLER-MULTI-POE-063: corregir la referencia de plantilla a sellerModificationRateId, que se inyecta durante las transformaciones Vite pero no forma parte de los props visibles a vue-tsc. La validación de tipo del selector FCL múltiple para Ventas se realiza mediante una propiedad calculada tipada, sin exponer selección múltiple durante modificaciones de una tarifa existente.

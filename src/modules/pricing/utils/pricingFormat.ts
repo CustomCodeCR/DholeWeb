@@ -46,6 +46,57 @@ export function marginTone(margin: number) {
   return 'danger' as const
 }
 
+
+/**
+ * Client-facing labels for the Pricing commercial status snapshot, shared by
+ * Pricing and CRM. Keep enum values unchanged in the API and database.
+ */
+const commercialQuoteStatusLabels: Record<string, readonly [string, string]> = {
+  PendingApproval: ['Pendiente de aprobación', 'Pending approval'],
+  ApprovedByManagement: ['Aprobada por gerencia', 'Approved by management'],
+  RejectedByManagement: ['Rechazada por gerencia', 'Rejected by management'],
+  Open: ['Abierta', 'Open'],
+  Sent: ['Enviada', 'Sent'],
+  RequestedByClient: ['Solicitada por cliente', 'Requested by client'],
+  AcceptedByClient: ['Aceptada', 'Accepted'],
+  PendingReapproval: ['Aprobada pendiente de re-aprobación', 'Pending reapproval'],
+  RejectedByClient: ['No aceptada', 'Not accepted'],
+  Closed: ['No aceptada', 'Not accepted'],
+  Cancelled: ['Cancelada', 'Cancelled'],
+  Expired: ['Vencida', 'Expired'],
+  Created: ['Creada', 'Created'],
+  Pending: ['Pendiente', 'Pending'],
+  Draft: ['Borrador', 'Draft'],
+  Rejected: ['Rechazada', 'Rejected'],
+}
+
+const commercialQuoteStatusAliases: Record<string, string> = {
+  Abierta: 'Open',
+  Abiertas: 'Open',
+  Enviada: 'Sent',
+  Enviadas: 'Sent',
+  Aceptada: 'AcceptedByClient',
+  Aceptadas: 'AcceptedByClient',
+  'No aceptada': 'RejectedByClient',
+  'No aceptadas': 'RejectedByClient',
+  Rechazada: 'RejectedByClient',
+  Rechazadas: 'RejectedByClient',
+  Vencida: 'Expired',
+  Vencidas: 'Expired',
+  Cancelada: 'Cancelled',
+  Canceladas: 'Cancelled',
+}
+
+/** Resolve legacy Pricing enum names or already-localized aggregate labels. */
+export function commercialRateStatusLabel(value: unknown, locale = 'es'): string {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (!raw) return '—'
+  const key = commercialQuoteStatusAliases[raw] ?? raw
+  const labels = commercialQuoteStatusLabels[key]
+  if (!labels) return raw
+  return locale.toLowerCase().startsWith('en') ? labels[1] : labels[0]
+}
+
 export function statusTone(status: RateStatus | string) {
   if (
     status === 'Open' ||
