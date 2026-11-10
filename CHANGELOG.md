@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.17.7] - 2026-11-10
+
+- PATCH DH-20261110-CRM-LEGACY-REQUEST-SYNC-063: solicitudes asociadas a QUO históricas vinculadas actualizan la identidad visible de cliente y ejecutivo al sincronizar la cuenta CRM.
+- Los vendedores pueden editar y Pricing continuar solicitudes anteriores a la migración del CRM sin vinculación obligatoria inmediata; las solicitudes nuevas siguen requiriendo identidad CRM válida.
+- Se conserva el formulario histórico, montos, rutas y estados. Coordinado con DholePricingService 1.9.6.
+
 ## [1.17.6] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-SELLER-MULTI-POE-062: Ventas puede seleccionar varios destinos POE marítimos FCL al solicitar tarifas. Se guardan todos en la solicitud, se recuperan al editar, duplicar y continuar en Pricing, y se muestran en la bandeja de solicitudes; las solicitudes anteriores conservan compatibilidad. Se mantiene la limitación de un POE para LCL, terrestre, aéreo y modificaciones de tarifas existentes.
