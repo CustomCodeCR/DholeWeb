@@ -5,6 +5,7 @@ import test from 'node:test'
 const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 const picker = source('src/modules/pricing/components/PricingCrmClientSelect.vue')
 const identity = source('build/pricingCommercialIdentityFields.ts')
+const modification = source('build/pricingSellerModificationWizard.ts')
 const delegated = source('build/pricingSellerDelegatedRequests.ts')
 const multimodal = source('build/pricingSellerMultimodalStep3Fix.ts')
 const compatibility = source('build/pricingRequirements20260908PreCompat.ts')
@@ -56,4 +57,11 @@ test('Solicitudes normales y de modificación recuperan también el ejecutivo de
   assert.match(identity, /form\.executiveId = castroFallas \? '' : executiveId/)
   assert.match(identity, /La cuenta o prospecto vinculado no está disponible en CRM/)
   assert.match(identity, /La cuenta o prospecto vinculado no tiene un vendedor activo en CRM/)
+})
+
+test('Las solicitudes de modificación de vendedores con prospecto revalidan el ejecutivo CRM antes del POST', () => {
+  assert.match(modification, /async function submitSellerModification\(\)/)
+  assert.match(modification, /if \(!source \|\| saving\.value\) return\s+\/\/ Seller amendments/)
+  assert.match(modification, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
+  assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
 })
