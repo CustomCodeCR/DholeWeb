@@ -1,17 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { MessageSquareText, Plus, UsersRound, RefreshCw } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
+import { useAuthStore } from '@/core/stores/authStore'
 
 const props = defineProps<{
   activityId: string
   accountId?: string | null
   canManage: boolean
+  parentSubject?: string
 }>()
 
-type ParticipantType = 'name' | 'contact'
+const auth = useAuthStore()
+const canCompleteCommitments = computed(() => props.canManage &&
+  (auth.hasScope('crm.followup.manage') || auth.hasScope('crm.task.manage')))
+const commitments = ref<CrmRow[]>([])
+const updatingCommitmentId = ref('')
 const notes = ref<CrmRow[]>([])
 const participants = ref<CrmRow[]>([])
 const contacts = ref<CrmRow[]>([])
@@ -74,7 +80,6 @@ const noteHasDueErrors = computed(() => noteCommitments.value.some(item =>
   !Number.isFinite(new Date(item.dueLocal).getTime()) ||
   new Date(item.dueLocal).getTime() <= Date.now()))
 const showParticipantForm = ref(false)
-const participantType = ref<ParticipantType>('name')
 const participantName = ref('')
 const contactId = ref('')
 const role = ref('ATTENDEE')
@@ -113,12 +118,14 @@ async function load() {
     props.accountId
       ? crmRequest<CrmRow[]>(crmPath('accounts',props.accountId,'contacts'))
       : Promise.resolve([] as CrmRow[]),
+    crmRequest<CrmRow[]>(crmPath('activities',props.activityId,'commitments')),
   ]
   const results = await Promise.allSettled(calls)
   if (request !== generation) return
   if (results[0]?.status === 'fulfilled') notes.value = results[0].value
   if (results[1]?.status === 'fulfilled') participants.value = results[1].value
   if (results[2]?.status === 'fulfilled') contacts.value = results[2].value.map(row => row.contact ? row.contact as CrmRow : row)
+  if (results[3]?.status === 'fulfilled') commitments.value = results[3].value
   if (results.some(x => x.status === 'rejected'))
     error.value = 'No se pudo consultar toda la información. Revisá tus permisos y actualizá.'
   loading.value = false
@@ -128,7 +135,7 @@ async function addParticipant() {
   if (saving.value || !props.canManage || !props.activityId) return
   error.value = ''
   message.value = ''
-  const byContact = participantType.value === 'contact' && !!props.accountId
+  const byContact = !!props.accountId
   if (byContact ? !contactId.value : !participantName.value.trim()) {
     error.value = 'Seleccioná un contacto o ingresá el nombre del participante.'
     return
@@ -151,6 +158,23 @@ async function addParticipant() {
   } catch (cause) {
     error.value = crmError(cause)
   } finally { saving.value = false }
+}
+async function toggleCommitment(item: CrmRow) {
+  if (!canCompleteCommitments.value || updatingCommitmentId.value) return
+  updatingCommitmentId.value = String(item.id)
+  error.value = ''
+  message.value = ''
+  try {
+    const completed = item.status === 'Completed'
+    await crmRequest(crmPath('followups', String(item.id), completed ? 'reopen' : 'complete'), 'POST',
+      completed
+        ? { expectedVersion: item.rowVersion, reason: 'Reapertura del compromiso desde la actividad principal' }
+        : { expectedVersion: item.rowVersion, outcome: 'Compromiso cumplido', nextFollowupAt: null },
+      crmUuid())
+    message.value = completed ? 'Compromiso reabierto.' : 'Compromiso completado.'
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { updatingCommitmentId.value = '' }
 }
 async function addNote() {
   if (saving.value || !props.canManage || !note.value.trim()) return
@@ -207,10 +231,9 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
         </div>
         <form v-if="showParticipantForm && canManage" class="mt-4 space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4"
           @submit.prevent="addParticipant">
-          <DhSelect v-if="accountId && contacts.length" v-model="participantType" label="Participante"
-            :options="[{value:'name',label:'Ingresar nombre'},{value:'contact',label:'Contacto de la cuenta'}]" />
-          <DhSelect v-if="participantType === 'contact' && accountId && contacts.length" v-model="contactId"
-            label="Contacto" :options="contactChoices" />
+          <DhSelect v-if="accountId && contacts.length" v-model="contactId"
+            label="Contacto de la cuenta" :options="contactChoices" />
+          <p v-else-if="accountId" class="text-xs text-amber-600">Agregá contactos a esta cuenta para seleccionarlos.</p>
           <DhInput v-else v-model="participantName" label="Nombre del participante" placeholder="Nombre y apellidos" />
           <DhSelect v-model="role" label="Participación"
             :options="[{value:'ORGANIZER',label:'Organizador'},{value:'RESPONSIBLE',label:'Responsable'},{value:'ATTENDEE',label:'Asistente'},{value:'GUEST',label:'Invitado'}]" />
@@ -242,7 +265,11 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
           <span class="rounded-full bg-[var(--dh-shell)] px-2 py-0.5 text-xs">{{ notes.length }}</span>
         </div>
         <form v-if="canManage" class="mt-4 space-y-3" @submit.prevent="addNote">
-          <DhTextarea v-model="note" label="Nueva observación o acuerdos" placeholder="Ej. Acuerdos: entregar contenedor el 10 de noviembre" />
+          <label class="block space-y-2 text-sm font-semibold">Minuta y observaciones
+            <textarea v-model="note" rows="10" maxlength="20000"
+              class="w-full min-h-52 resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm text-[var(--dh-text)]"
+              placeholder="Redactá la minuta de la reunión, acuerdos y notas de seguimiento." />
+          </label>
           <div v-if="noteCommitments.length" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
             <p class="text-sm font-bold">Registrar acuerdos como compromisos</p>
             <p class="text-xs text-[var(--dh-text-muted)]">
@@ -293,5 +320,24 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
         </ol>
       </article>
     </div>
+    <article class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+      <h3 class="text-base font-bold">Compromisos derivados de esta actividad</h3>
+      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Actividad principal: {{ parentSubject || activityId }}.</p>
+      <p v-if="!commitments.length" class="mt-3 text-sm text-[var(--dh-text-muted)]">No hay compromisos vinculados todavía.</p>
+      <ul v-else class="mt-3 space-y-2">
+        <li v-for="item in commitments" :key="item.id" class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+          <input type="checkbox" class="mt-1 h-4 w-4 accent-[var(--dh-primary)]"
+            :aria-label="'Marcar compromiso '+item.subject" :checked="item.status === 'Completed'"
+            :disabled="!canCompleteCommitments || !!updatingCommitmentId || item.status === 'Cancelled'"
+            @change="toggleCommitment(item)" />
+          <div class="min-w-0 flex-1">
+            <RouterLink :to="'/crm/followups/'+encodeURIComponent(String(item.id))" class="text-sm font-bold hover:text-[var(--dh-primary)]">{{ item.subject }}</RouterLink>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              {{ formattedDate(item.dueAt) }} · {{ item.status === 'Completed' ? 'Completado' : item.status === 'Overdue' ? 'Vencido' : item.status === 'Cancelled' ? 'Cancelado' : 'Pendiente' }}
+            </p>
+          </div>
+        </li>
+      </ul>
+    </article>
   </section>
 </template>
