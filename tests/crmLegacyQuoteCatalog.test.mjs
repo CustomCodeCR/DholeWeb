@@ -24,7 +24,8 @@ test('the unlinked list uses Dhole table and server pagination', () => {
 })
 test('confirmed link persists the current CRM account display name and executive', () => {
   assert.match(source, /const canSelect = \(quote: Quote\) => !quote\.clientAccountId && !quote\.clientLeadId/)
-  assert.match(source, /selected\.value\.length > 0 && confirmed\.value/)
+  assert.match(source, /selected\\.value\\.length > 0/)
+  assert.match(source, /confirmed\\.value && !busy\\.value/)
   assert.match(source, /clientName: props\.clientName/)
   assert.match(source, /executiveName: props\.executiveName \|\| null/)
   assert.match(source, /confirmedForAccount: true/)
