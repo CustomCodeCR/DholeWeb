@@ -24,7 +24,7 @@ test('Month drag and week/day half-hour drops persist via optimistic concurrency
 test('Calendar is scoped to the originating customer and tabs are visible', () => {
   assert.ok(calendar.includes('accountId: props.accountId || undefined'))
   assert.ok(calendar.includes("query: props.accountId ? { fromAccount: props.accountId }"))
-  assert.ok(hub.includes('<CrmSalesCalendar :account-id="String(account.id)"'))
+  assert.ok(hub.includes('<CrmSalesCalendar ref="calendarRef" :account-id="String(account.id)"'))
   assert.ok(hub.includes('hub-sticky-tabs sticky'))
   assert.ok(hub.includes('flex-wrap gap-2 rounded-xl'))
   assert.ok(hub.includes('returnToAccount(entry.href)'))

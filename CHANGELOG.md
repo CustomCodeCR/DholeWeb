@@ -1,3 +1,8 @@
+## [1.18.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-COLLABORATION-066: agenda única Nueva actividad, contactos desde la cuenta, minuta ampliada, vendedores autorizados y compromisos con checklist reversible y actividad principal.
+- Cambio coordinado con CRM y DholeSystem, migración retrocompatible, sin modificar NotificationsHub ni framework. Validación CI y staging pendiente; ningún despliegue productivo autorizado.
+
 ## [1.17.10] - 2026-11-10
 
 - PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos presenta Cliente y Ejecutivo comercial en actividades y seguimientos, con nombres autorizados de cuentas, prospectos y responsables desde el endpoint ya existente `calendar/labels`, en lotes de 100.
