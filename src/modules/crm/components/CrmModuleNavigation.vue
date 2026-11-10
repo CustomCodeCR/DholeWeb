@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CRM_WORKSPACE_SCOPES } from '@/core/auth/scopes'
+import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -21,7 +22,9 @@ const entries = [
   { path: '/crm/settings', key: 'settings', scopes: ['crm.settings.manage'] },
 ]
 const visible = computed(() => entries.filter(item =>
-  item.scopes.some(scope => auth.hasScope(scope))))
+  item.scopes.some(scope => auth.hasScope(scope)) ||
+  (['/crm/activities', '/crm/followups'].includes(item.path) &&
+    hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))))
 function active(path: string) {
   return path === '/crm' ? route.path === '/crm' :
     route.path === path || route.path.startsWith(path + '/')
