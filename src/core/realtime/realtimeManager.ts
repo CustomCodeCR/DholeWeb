@@ -266,7 +266,9 @@ export class RealtimeManager {
     if (!this.stopped && this.runtime.pageVisible()) {
       void this.reconcile(watcher, 'initial')
       if (first && this.state === 'connected') this.invoke('Subscribe', key)
-      if (this.state !== 'connected') this.schedulePoll()
+      // A healthy websocket can silently lose a stream event or subscription.
+      // Periodic REST reconciliation must run even while it remains connected.
+      this.schedulePoll()
     }
     return () => {
       const existing = this.watchers.get(key)
@@ -407,6 +409,7 @@ export class RealtimeManager {
         this.changeState('connected')
         for (const key of this.watchers.keys()) this.invoke('Subscribe', key)
         await this.reconcileAll('reconnect')
+        this.schedulePoll()
       } catch (error) {
         if (this.stopped || epoch !== this.generation) return
         this.cancelTimer('handshake')
