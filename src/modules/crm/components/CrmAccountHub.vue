@@ -61,6 +61,14 @@ const router = useRouter()
 const auth = useAuthStore()
 const { locale } = useI18n()
 const has = (scope: string) => auth.hasScope(scope)
+// This is a UI gate; Pricing enforces the same superadministrator restriction.
+const canManageHistoricalQuoteLinks = computed(() =>
+  ['SuperAdmin', 'SuperAdministrador', 'SuperUsuario', 'SuperUser']
+    .some(role => auth.hasRole(role)))
+const legacyQuoteLinksExpanded = ref(false)
+function onLegacyQuoteLinksToggle(event: Event) {
+  legacyQuoteLinksExpanded.value = (event.target as HTMLDetailsElement).open
+}
 const lang = computed(() => locale.value === 'en' ? 'en-US' : 'es-CR')
 const activeTab = ref<Section>('summary')
 function returnToAccount(path: string): string {
@@ -1384,7 +1392,20 @@ async function saveRoute() {
           <div class="hub-mini-stat"><span>Cotizaciones documentadas CRM</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
         </div>
       </div>
-      <CrmLegacyQuoteManager v-if="has('crm.quote.read')" :account-id="rowId(account.id)" :client-name="String(account.legalName || account.displayName || '')" :executive-name="assignedSellerName" view="history" @changed="handleQuoteLinked" />
+      <details v-if="canManageHistoricalQuoteLinks" :open="legacyQuoteLinksExpanded"
+        class="hub-panel" @toggle="onLegacyQuoteLinksToggle">
+        <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-primary)]">
+          Vinculación de QUO históricas · Superadministración
+        </summary>
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+          Herramienta administrativa para asignar cotizaciones antiguas a este cliente. Expandir solo cuando se necesite.
+        </p>
+        <div v-if="legacyQuoteLinksExpanded" class="mt-4">
+          <CrmLegacyQuoteManager :account-id="rowId(account.id)"
+            :client-name="String(account.legalName || account.displayName || '')"
+            :executive-name="assignedSellerName" view="history" @changed="handleQuoteLinked" />
+        </div>
+      </details>
       <div v-if="has('crm.quote.read')" class="hub-panel">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -1513,7 +1534,20 @@ async function saveRoute() {
         <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran todas las QUO vinculadas directamente por ID a esta cuenta en Pricing, aunque no tengan oportunidad CRM.</p>
       </div>
-      <CrmLegacyQuoteManager :account-id="rowId(account.id)" :client-name="String(account.legalName || account.displayName || '')" :executive-name="assignedSellerName" view="quotes" @changed="handleQuoteLinked" />
+      <details v-if="canManageHistoricalQuoteLinks" :open="legacyQuoteLinksExpanded"
+        class="hub-panel" @toggle="onLegacyQuoteLinksToggle">
+        <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-primary)]">
+          Vinculación de QUO históricas · Superadministración
+        </summary>
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+          Herramienta administrativa para asignar cotizaciones antiguas a este cliente. Expandir solo cuando se necesite.
+        </p>
+        <div v-if="legacyQuoteLinksExpanded" class="mt-4">
+          <CrmLegacyQuoteManager :account-id="rowId(account.id)"
+            :client-name="String(account.legalName || account.displayName || '')"
+            :executive-name="assignedSellerName" view="quotes" @changed="handleQuoteLinked" />
+        </div>
+      </details>
       <CrmAccountQuotesDashboard :account-id="rowId(account.id)" :refresh-key="quoteRefreshKey" />
       <p v-if="pricingQuoteError" role="alert" class="text-xs text-amber-600">No se pudieron consultar las QUO vinculadas en Pricing: {{ pricingQuoteError }}</p>
       <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones vinculadas a esta cuenta todavía.</p>
