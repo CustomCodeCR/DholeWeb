@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0] - 2026-11-09 (candidate: realtime crítico Auth/Notifications)
+
+- MINOR: recibir authSecurityChanged en la conexión universal existente, finalizar inmediatamente la sesión afectada, limpiar estado y navegar a login; los cambios de permisos disparan reconciliación con Auth. Prueba del transporte compartido.
+- Ecosistema candidato 1.17.0, release `DH-20261109-RT-CRITICAL-056`. Sin merge a develop/master, despliegue o certificación WSS multiusuario. CI y staging pendientes.
+
+
+
 ## [1.16.1] - 2026-11-09
 
 - PATCH DH-20261109-CRM-QUO-LINK-SYNC-056: la bandeja de vinculación CRM ahora lista solamente las QUO sin cuenta o prospecto. Tras vincular desaparecen de pendientes y el cliente y ejecutivo CRM se reflejan en Pricing.

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { Bell, BellRing, Clock3, Eye, Plus, RefreshCw, Send, XCircle } from 'lucide-vue-next'
 import { NotificationsService } from '@/core/services/notificationsService'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -166,6 +167,11 @@ function badgeVariant(statusValue: string) {
   return 'primary'
 }
 
+useRealtimeListRefresh({
+  prefixes: ['/api/notifications/messages'],
+  refresh: load,
+  isEditing: () => createOpen.value || creating.value,
+})
 onMounted(async () => { await Promise.all([load(), loadTemplates()]) })
 </script>
 

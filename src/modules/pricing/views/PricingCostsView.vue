@@ -30,6 +30,7 @@ import PricingCostFormDrawer from '@/modules/pricing/components/PricingCostFormD
 import PricingMultiSelect from '@/modules/pricing/components/PricingMultiSelect.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { readCostPricingRules } from '@/modules/pricing/utils/pricingCostRules'
 
@@ -447,6 +448,10 @@ useViewShortcuts({
     if (canCreate.value) openForm()
   },
   save: load,
+  refresh: load,
+})
+useRealtimeListRefresh({
+  prefixes: ['/api/pricing'],
   refresh: load,
 })
 onMounted(async () => {

@@ -204,6 +204,15 @@ function handleNotification(notification: SystemNotificationPush) {
   }
 
   window.dispatchEvent(new CustomEvent('dhole:notification:received', { detail: notification }))
+  // Update visible notification history from authenticated REST, not from
+  // the untrusted toast payload. This does not replace the persistent inbox.
+  window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+    detail: {
+      endpoint: '/api/notifications/messages',
+      method: 'SIGNALR',
+      occurredAt: notification.occurredAtUtc,
+    },
+  }))
 }
 
 function processFrame(frame: string) {
