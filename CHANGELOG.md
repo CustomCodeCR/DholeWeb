@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-COLLABORATION-066: agenda CRM unificada con Nueva actividad, contactos vinculados de la cuenta, minuta ampliada y agenda de cualquier vendedor para usuarios con autorización de lectura global y directorio.
+- Compromisos derivados de acuerdos: checkbox reversible con registro de auditoría, enlace a actividad principal y compatibilidad con compromisos históricos del CRM.
+- API DholeCRMService y migración coordinada; se mantienen rutas REST, infraestructura realtime, recordatorios, edición y permisos. Cambios pendientes de CI y validación en staging; no se autoriza despliegue productivo.
+
 ## [1.17.10] - 2026-11-10
 
 - PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos muestra Cliente y Ejecutivo comercial; nombres resueltos del CRM con `calendar/labels`, lotes autorizados de hasta 100 y fallback para registros históricos.
