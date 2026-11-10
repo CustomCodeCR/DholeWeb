@@ -1,3 +1,8 @@
+## [1.19.2] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-CRM-SELLER-MODIFICATION-075: completa la revalidación del ejecutivo comercial de prospectos CRM en el flujo independiente de solicitudes de modificación realizadas por vendedores (`submitSellerModification`). Complementa el guardado de solicitudes normales, ediciones y modificaciones de Pricing introducido en 1.19.1.
+- Respeta autorización CRM por registro y no sustituye al vendedor por el usuario actual. Añade regresión; sin cambios REST, datos ni SignalR. Release coordinado DholeWeb/DholeSystem 1.19.2; staging y CI antes de promoción master.
+
 ## [1.19.1] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-LEAD-REQUESTS-074: las solicitudes de tarifas de vendedores, ediciones y solicitudes de modificación vinculadas a cuentas o prospectos CRM consultan el ejecutivo vigente por ID antes de guardar. Elimina los falsos errores de ejecutivo vacío en prospectos después de recuperar solicitudes históricas, sin depender de que la pantalla 3 esté montada.
