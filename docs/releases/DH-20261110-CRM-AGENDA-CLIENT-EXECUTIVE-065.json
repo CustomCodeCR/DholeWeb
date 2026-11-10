@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.17.10",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.17.9",
+      "next": "1.17.10"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.17.9",
+      "next": "1.17.10",
+      "changes": "manifest metadata only"
+    }
+  ],
+  "scope": [
+    "Agenda: show authorized linked CRM client/prospect and commercial executive names.",
+    "Activities use ownerUserId, followups use assignedUserId; retain safe historical fallbacks.",
+    "Preserve the tax ID account search release 1.17.9 and all REST and realtime contracts."
+  ],
+  "validation": {
+    "CI": "pending PR checks",
+    "staging": "previous develop validations approved; live staging verification pending",
+    "production": "master merge explicitly requested by user"
+  },
+  "rollback": "Revert the frontend release; no schema migration."
+}
