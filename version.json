@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.17.4",
-  "ecosystemVersion": "1.17.4",
-  "releaseId": "DH-20261110-PRICING-LAND-TRANSIT-060",
+  "version": "1.17.5",
+  "ecosystemVersion": "1.17.5",
+  "releaseId": "DH-20261110-CRM-QUO-STATUS-061",
   "releaseStatus": "candidate-master-staging-pending"
 }
