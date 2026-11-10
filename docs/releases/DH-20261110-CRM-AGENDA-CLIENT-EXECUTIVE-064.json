@@ -1,0 +1,32 @@
+{
+  "releaseId": "DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-064",
+  "date": "2026-11-10",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.17.9",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.17.8",
+      "next": "1.17.9"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.17.5",
+      "next": "1.17.9",
+      "changes": "release metadata only"
+    }
+  ],
+  "scope": [
+    "Show CRM linked account or lead name in agenda rows.",
+    "Show ownerUserId for activities and assignedUserId for followups as commercial executive.",
+    "Resolve authorized labels through existing calendar/labels endpoint in page-scoped batches; handle missing labels and out-of-order responses.",
+    "Preserve CRM REST contracts, permissions and historical records."
+  ],
+  "validation": {
+    "unit": "tests/crmAgendaIdentity.test.ts",
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not deployed without explicit approval"
+  },
+  "rollback": "Revert Web and System release commits; no backend or schema change."
+}
