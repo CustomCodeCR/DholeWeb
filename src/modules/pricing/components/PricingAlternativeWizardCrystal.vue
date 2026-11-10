@@ -6706,7 +6706,7 @@ onMounted(async () => {
                 :options="originOptions"
               />
               <PricingLocationSearchSelect
-                v-if="!isEditing && !sellerRequestMode && form.modality === 'Maritime' && shipmentModeForApi === 'Fcl'"
+                v-if="!isEditing && (!sellerRequestMode || !sellerModificationRateId) && form.modality === 'Maritime' && shipmentModeForApi === 'Fcl'"
                 :model-value="form.destinationId"
                 :model-values="selectedPoeIds"
                 multiple
@@ -6739,13 +6739,13 @@ onMounted(async () => {
                 :options="podOptions"
               />
 
-              <div v-if="!isEditing && !sellerRequestMode && form.modality === 'Maritime' && shipmentModeForApi === 'Fcl'" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
+              <div v-if="!isEditing && (!sellerRequestMode || !sellerModificationRateId) && form.modality === 'Maritime' && shipmentModeForApi === 'Fcl'" class="md:col-span-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5 md:p-4">
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-3">
                     <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><Waypoints class="h-5 w-5" /></span>
                     <div>
                       <h3 class="text-sm font-black text-[var(--dh-text)]">Destinos de la cotización</h3>
-                      <p class="mt-0.5 text-xs font-medium text-[var(--dh-text-muted)]">Agregue todos los POE. Cada uno tendrá sus navieras, fletes y costos separados.</p>
+                      <p class="mt-0.5 text-xs font-medium text-[var(--dh-text-muted)]">{{ sellerRequestMode ? 'Agregue todos los POE que Pricing debe cotizar. Cada destino se trabajará por separado.' : 'Agregue todos los POE. Cada uno tendrá sus navieras, fletes y costos separados.' }}</p>
                     </div>
                   </div>
                   <span class="rounded-full border border-[var(--dh-border)] px-3 py-1 text-xs font-black text-[var(--dh-text)]">
