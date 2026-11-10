@@ -649,3 +649,42 @@ for (const dirty of [false, true]) {
     host.manager.stop()
   })
 }
+
+test('catalog and CRM/Pricing list changes refresh a second connected user without new sockets', async () => {
+  const hostA = new FakeHost()
+  const hostB = new FakeHost()
+  await Promise.all([hostA.start(), hostB.start(USER_B)])
+  const collections = [
+    ['config.catalog-list', '00000000-0000-4000-8000-000000000042'],
+    ['pricing.cost-list', '00000000-0000-4000-8000-000000000043'],
+    ['pricing.rate-list', '00000000-0000-4000-8000-000000000044'],
+    ['crm.accountlist', '00000000-0000-4000-8000-000000000045'],
+    ['crm.leadlist', '00000000-0000-4000-8000-000000000046'],
+  ] as const
+  const notifications: string[] = []
+  const dispose = collections.map(([kind, id]) => hostB.manager.subscribe({
+    kind, id,
+    fetchSnapshot: async () => ({ value: kind, version: null }),
+    applySnapshot: (_snapshot, reason) => notifications.push(kind + ':' + reason),
+  }))
+  await settle()
+  assert.equal(hostB.sockets.length, 1)
+  for (const [kind, id] of collections) {
+    hostB.latestSocket().emitEvent({
+      eventId: crypto.randomUUID(),
+      eventType: kind + '.changed.v1',
+      aggregateType: kind.slice(kind.indexOf('.') + 1),
+      aggregateId: id,
+      aggregateVersion: 10,
+      occurredAtUtc: new Date().toISOString(),
+    })
+  }
+  await settle()
+  for (const [kind] of collections)
+    assert.ok(notifications.includes(kind + ':event'), kind + ' never refreshed')
+  assert.equal(hostB.sockets.length, 1, 'collection topics must multiplex one hub socket')
+  assert.equal(hostA.sockets.length, 1)
+  dispose.forEach(fn => fn())
+  hostA.manager.stop()
+  hostB.manager.stop()
+})
