@@ -48,6 +48,13 @@ const sellerMultimodalSellerStep3 = computed(() =>
 // form.executiveName. A selected salesperson can already be visible while that
 // mirrored string is still empty (e.g. after draft hydration or impersonation).
 function syncSellerMultimodalExecutiveSelection() {
+  // The CRM account/lead is the source of truth for its commercial owner.
+  // Seller delegation only decides who submits/receives the request.
+  if (form.clientId) {
+    const name = String(form.executiveName || '').trim()
+    return Boolean(name && (form.executiveId
+      || name.toLowerCase() === 'castro fallas'))
+  }
   const options = sellerRequestOwnerOptions.value
   const byOwnerId = options.find((option) => option.value === sellerRequestOwnerId.value)
   const byFormId = options.find((option) => option.value === form.executiveId)
