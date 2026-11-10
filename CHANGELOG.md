@@ -1,3 +1,8 @@
+## [1.18.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ADMIN-CALENDAR-069: los administradores ven las agendas de todos los usuarios, con búsqueda por Auth, detalles completos y seguimientos automáticos con asunto en lugar de UUID, política y origen. Conserva permisos de modificación y los cambios previos de solicitudes.
+- Auth 1.6.0, CRM 1.8.0, Web/System 1.18.0; CI y staging pendientes.
+
 # Changelog
 
 ## [1.17.12] - 2026-11-10
