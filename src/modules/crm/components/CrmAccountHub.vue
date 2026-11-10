@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { fetchClient } from '@/core/api/fetchConfig'
+import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat'
 import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
 import { phoneWithCountryPrefix } from '../utils/crmPhone'
 import CrmPhoneInput from './CrmPhoneInput.vue'
@@ -1071,7 +1072,7 @@ async function saveRoute() {
             class="flex min-w-0 items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 last:border-0">
             <div class="min-w-0">
               <RouterLink :to="quoteLink(quote)" class="block truncate text-xs font-bold text-[var(--dh-primary)] hover:underline">{{ text(quote.quoteNumberSnapshot) }}</RouterLink>
-              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(quote.shipmentModeSnapshot) }} · {{ text(quote.commercialStatusSnapshot) }}</p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">{{ text(quote.shipmentModeSnapshot) }} · {{ commercialRateStatusLabel(quote.commercialStatusSnapshot, locale) }}</p>
             </div>
             <span class="shrink-0 text-[10px] text-[var(--dh-text-muted)]">{{ date(quote.linkedAt) }}</span>
           </div>
@@ -1556,7 +1557,7 @@ async function saveRoute() {
         <tbody><tr v-for="q in recentQuotes" :key="rowId(q.pricingQuoteId)" class="border-b border-[var(--dh-border)] last:border-0">
           <td class="px-3 py-3 font-bold">{{ text(q.quoteNumberSnapshot) }}</td>
           <td class="px-3 py-3">{{ text(q.shipmentModeSnapshot) }}</td>
-          <td class="px-3 py-3">{{ text(q.commercialStatusSnapshot) }}</td>
+          <td class="px-3 py-3">{{ commercialRateStatusLabel(q.commercialStatusSnapshot, locale) }}</td>
           <td class="px-3 py-3">{{ date(q.linkedAt) }}</td>
           <td class="px-3 py-3">
             <div class="flex flex-wrap items-center gap-3">
