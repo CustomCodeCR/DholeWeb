@@ -1,0 +1,21 @@
+{
+  "releaseId": "DH-20261110-CRM-ADMIN-CALENDAR-069",
+  "date": "2026-11-10",
+  "kind": "MINOR",
+  "ecosystemVersion": "1.18.0",
+  "component": "DholeWeb",
+  "previous": "1.17.13",
+  "next": "1.18.0",
+  "Auth": "1.6.0",
+  "CRM": "1.8.0",
+  "scope": [
+    "Administrator view all users calendars and search Auth directory.",
+    "Policy generated followups show persisted detail and human-readable title.",
+    "Retains prospect routes and quotes release 1.17.13."
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not deployed"
+  }
+}
