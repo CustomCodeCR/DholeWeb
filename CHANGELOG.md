@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.5] - 2026-11-10
+
+- PATCH DH-20261110-CRM-QUO-STATUS-061: los estados de cotizaciones vinculadas en el historial y resumen de CRM y en las tablas de vinculación histórica se presentan con traducciones comerciales (Aceptada, No aceptada, Enviada, Vencida, Abierta, Cancelada, etc.) en vez de los nombres técnicos del enum.
+- Añadir etiquetas localizadas ES/EN y normalización de estados plurales heredados (Enviadas, Vencidas). No cambia el estado persistido en Pricing, las métricas ni las autorizaciones. Ecosistema 1.17.5; DholeSystem 1.17.4.
+
 ## [1.17.4] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-LAND-TRANSIT-060: mostrar «Días de tránsito para la entrega» en la pantalla 6 de tarifas terrestres FTL/LTL, incluso cuando no está seleccionado transporte internacional.
