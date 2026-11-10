@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.16.0] - 2026-11-09
+
+- MINOR: el CRM muestra todas las QUO históricas en DhDataTable con búsqueda y paginación del servidor, vinculación manual confirmada por cuenta y estado visible para cotizaciones previamente asociadas.
+- Integración coordinada con DholePricingService 1.9.0, sin alterar montos ni estados. Release DH-20261109-CRM-LEGACY-QUO-CATALOG-055.
+
 ## [1.15.3] - 2026-11-09
 
 - PATCH: keep a bounded REST reconciliation timer for each active realtime observer even while NotificationsHub WebSocket reports connected. Previously a successful connection disabled polling indefinitely, allowing silently lost catalog/CRM/Pricing events to leave selects stale.
