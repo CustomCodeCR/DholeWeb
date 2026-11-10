@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { fetchClient } from '@/core/api/fetchConfig'
+import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat'
 import { DhDataTable, DhPagination } from '@/shared/components/molecules'
 
 type Quote = Record<string, unknown> & {
@@ -27,6 +29,7 @@ const props = withDefaults(defineProps<{
 }>(), { view: 'quotes' })
 const emit = defineEmits<{ changed: [] }>()
 const base = '/api/pricing/rates'
+const { locale } = useI18n()
 
 const quotes = ref<Quote[]>([])
 const quotesPage = ref(1)
@@ -340,6 +343,7 @@ watch(() => [props.accountId, props.clientName], () => {
         <span class="text-xs">{{ row.polName || 'Sin POL' }} → {{ row.podName || row.poeName || 'Sin destino' }}</span>
       </template>
       <template #cell-createdAtUtc="{ row }">{{ formatDate(row.createdAtUtc) }}</template>
+      <template #cell-commercialStatusSnapshot="{ row }">{{ commercialRateStatusLabel(row.commercialStatusSnapshot, locale) }}</template>
       <template #cell-actions="{ row }">
         <button v-if="canSelect(row)" type="button" class="hub-outline-button hub-small"
           :disabled="busy || selectionLoading" @click="toggle(row.pricingQuoteId, !selected.includes(row.pricingQuoteId))">
@@ -379,6 +383,7 @@ watch(() => [props.accountId, props.clientName], () => {
             <RouterLink class="hub-text-link font-bold" :to="quoteUrl(row)">{{ row.quoteNumberSnapshot }}</RouterLink>
           </template>
           <template #cell-linkedAt="{ row }">{{ formatDate(row.linkedAt) }}</template>
+          <template #cell-commercialStatusSnapshot="{ row }">{{ commercialRateStatusLabel(row.commercialStatusSnapshot, locale) }}</template>
           <template #cell-actions="{ row }">
             <RouterLink class="hub-text-link" :to="quoteUrl(row)">Abrir</RouterLink>
           </template>
