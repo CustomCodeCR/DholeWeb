@@ -24,6 +24,7 @@ import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 
 const route = useRoute()
 const router = useRouter()
@@ -573,6 +574,12 @@ const financeAllowed = computed(() =>
   financeTab.value === 'credit' ? can('crm.credit.read') : can('crm.contract.read'))
 watch([section, financeTab, pipelineId], () => { page.value = 1; showForm.value = false; void load() })
 watch(selectedAccount, () => { if (section.value === 'finance') { page.value = 1; void load() } })
+useRealtimeListRefresh({
+  prefixes: ['/api/crm'],
+  refresh: refreshWorkspace,
+  // Reconcile after the form closes; never replace unfinished local edits.
+  isEditing: () => showForm.value || saving.value,
+})
 onMounted(() => {
   if (allowed.value) {
     void load()
