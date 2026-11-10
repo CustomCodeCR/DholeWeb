@@ -5,6 +5,7 @@ import test from 'node:test'
 const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 const picker = source('src/modules/pricing/components/PricingCrmClientSelect.vue')
 const identity = source('build/pricingCommercialIdentityFields.ts')
+const modification = source('build/pricingSellerModificationWizard.ts')
 const delegated = source('build/pricingSellerDelegatedRequests.ts')
 const multimodal = source('build/pricingSellerMultimodalStep3Fix.ts')
 const compatibility = source('build/pricingRequirements20260908PreCompat.ts')
@@ -28,4 +29,39 @@ test('Multimodal requests retain their CRM seller and historical unlinked quotes
   assert.match(multimodal, /name\.toLowerCase\(\) === 'castro fallas'/)
   assert.match(identity, /historicUnlinkedModification/)
   assert.match(identity, /historicUnlinkedSellerModification/)
+})
+
+test('Pricing modification reloads the CRM owner by ID before save, even when screen 3 is unmounted', () => {
+  assert.match(identity, /async function refreshModificationCrmOwner\(\)/)
+  assert.match(identity, /props\.modificationRequestId && editingRate\.value/)
+  assert.match(identity, /selectedClientId: clientId/)
+  assert.match(identity, /item\.id\.toLowerCase\(\) === clientId\.toLowerCase\(\)/)
+  assert.match(identity, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
+  assert.match(identity, /form\.executiveId = castroFallas \? '' : executiveId/)
+  assert.match(identity, /form\.crmClientKind = client\.kind/)
+})
+
+test('Existing modifications reject an unavailable seller and retain unlinked legacy compatibility', () => {
+  assert.match(identity, /executiveId === '00000000-0000-0000-0000-000000000000'/)
+  assert.match(identity, /executiveName\.toLowerCase\(\) === 'vendedor no disponible'/)
+  assert.match(identity, /!editingRate\.value\.clientLeadId && !form\.clientId/)
+  assert.match(identity, /La cuenta o prospecto vinculado no tiene un vendedor activo en CRM/)
+  assert.match(identity, /No se pudo consultar CRM para validar el ejecutivo comercial/)
+})
+
+test('Solicitudes normales y de modificación recuperan también el ejecutivo de prospectos CRM por ID', () => {
+  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode\) return true/)
+  assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
+  assert.match(identity, /async function saveOpenRequest\(\) \{\s*if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
+  assert.match(identity, /form\.crmClientKind = client\.kind/)
+  assert.match(identity, /form\.executiveId = castroFallas \? '' : executiveId/)
+  assert.match(identity, /La cuenta o prospecto vinculado no está disponible en CRM/)
+  assert.match(identity, /La cuenta o prospecto vinculado no tiene un vendedor activo en CRM/)
+})
+
+test('Las solicitudes de modificación de vendedores con prospecto revalidan el ejecutivo CRM antes del POST', () => {
+  assert.match(modification, /async function submitSellerModification\(\)/)
+  assert.match(modification, /if \(!source \|\| saving\.value\) return\s+\/\/ Seller amendments/)
+  assert.match(modification, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
+  assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
 })
