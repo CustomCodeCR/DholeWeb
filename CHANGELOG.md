@@ -1,3 +1,8 @@
+## [1.18.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ADMIN-CALENDAR-069: todos los administradores activos consultan agendas de todos los usuarios y su historial, y pueden filtrar por empleados activos de Auth. Seguimientos automáticos e históricos sin asunto tienen títulos legibles y muestran origen/política sin inventar minutas.
+- Conserva Web 1.17.15 con las rutas comerciales de prospectos. Auth 1.3.0, CRM 1.5.0, Web/System 1.18.0; CI/staging pendientes.
+
 ## [1.17.15] - 2026-11-10
 
 - DH-20261110-CRM-PROSPECT-ROUTES-QUOTES-069: nombres de prospectos en UPPER CASE desde API y UI, análisis comercial con rutas y cotizaciones vinculadas mediante oportunidades de CRM y Pricing.
