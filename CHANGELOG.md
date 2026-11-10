@@ -1,3 +1,8 @@
+## [1.17.16] - 2026-11-10
+
+- DH-20261110-CRM-PROSPECT-SELLER-072: en la lista y detalle de Prospectos se muestra el vendedor asignado, con nombres obtenidos de Auth vía CRM y permisos por registro. Administrador puede crear y reasignar prospectos a vendedores activos con crm.lead.assign y auth.users.view.
+- Reutiliza selector comercial sin vendedor institucional para prospectos; vendedor sin permiso sigue asignándose a sí mismo. Ecosistema Dhole 1.17.16.
+
 ## [1.17.15] - 2026-11-10
 
 - DH-20261110-CRM-PROSPECT-ROUTES-QUOTES-069: nombres de prospectos en UPPER CASE desde API y UI, análisis comercial con rutas y cotizaciones vinculadas mediante oportunidades de CRM y Pricing.

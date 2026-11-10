@@ -67,6 +67,8 @@ const discardOpen = ref(false)
 let discardAction: (() => void) | null = null
 let navigationDecision: ((allowed: boolean) => void) | null = null
 const selectedExecutive = ref('')
+const leadExecutiveName = ref('Consultando vendedor…')
+let leadExecutiveGeneration = 0
 const leadTaxTypeLoading = ref(false)
 const leadTaxTypeMessage = ref('')
 const executiveReason = ref('')
@@ -360,6 +362,7 @@ async function load() {
       record.value = await crmGet(section.value, id.value)
     }
     if (section.value === 'leads') {
+      void loadLeadExecutive()
       // Do not ask for a tax ID again: this is the fiscal identity saved with the lead.
       // Hacienda's identificationType was not stored on the original prospect model.
       // Refresh it on demand using the existing ID and country, without changing the lead.
@@ -472,25 +475,48 @@ function openRelatedManagement() {
   }
   manage()
 }
+async function loadLeadExecutive() {
+  const leadId = String(record.value?.id ?? '')
+  if (section.value !== 'leads' || !leadId) return
+  const generation = ++leadExecutiveGeneration
+  leadExecutiveName.value = 'Consultando vendedor…'
+  try {
+    const data = await crmRequest<{ sellers: Record<string, string> }>(
+      crmPath('leads', 'assigned-executives') + '?ids=' + encodeURIComponent(leadId))
+    if (generation !== leadExecutiveGeneration || String(record.value?.id ?? '') !== leadId) return
+    leadExecutiveName.value = data.sellers?.[leadId] ?? 'Vendedor no disponible'
+  } catch {
+    if (generation === leadExecutiveGeneration) leadExecutiveName.value = 'No se pudo consultar'
+  }
+}
 function openExecutiveDrawer() {
-  selectedExecutive.value = record.value?.isCastroFallasExecutive === true
-    ? '__castro_fallas__'
-    : String(record.value?.executiveUserId ?? '')
+  selectedExecutive.value = section.value === 'leads' ? ''
+    : record.value?.isCastroFallasExecutive === true
+      ? '__castro_fallas__'
+      : String(record.value?.executiveUserId ?? '')
   executiveReason.value = ''
   showExecutiveDrawer.value = true
 }
 async function reassignExecutive() {
-  if (section.value !== 'accounts' || !record.value || !can('crm.account.assign') ||
-      !selectedExecutive.value || saving.value) return
+  if (!record.value || !selectedExecutive.value || saving.value) return
+  if (section.value === 'accounts' && !can('crm.account.assign')) return
+  if (section.value === 'leads' && (!can('crm.lead.assign') || record.value.convertedAccountId)) return
+  if (!['accounts', 'leads'].includes(section.value)) return
   saving.value = true
-  error.value = ''
+  error.value = ''; success.value = ''
   try {
-    await crmRequest(crmPath('accounts', id.value, 'assign'), 'POST', {
-      expectedVersion: version(),
-      executiveUserId: selectedExecutive.value === '__castro_fallas__' ? null : selectedExecutive.value,
-      assignToCastroFallas: selectedExecutive.value === '__castro_fallas__',
-      reason: executiveReason.value.trim() || null,
-    }, crmUuid())
+    if (section.value === 'leads') {
+      await crmRequest(crmPath('leads', id.value, 'assign'), 'POST', {
+        expectedVersion: version(), executiveUserId: selectedExecutive.value,
+      }, crmUuid())
+    } else {
+      await crmRequest(crmPath('accounts', id.value, 'assign'), 'POST', {
+        expectedVersion: version(),
+        executiveUserId: selectedExecutive.value === '__castro_fallas__' ? null : selectedExecutive.value,
+        assignToCastroFallas: selectedExecutive.value === '__castro_fallas__',
+        reason: executiveReason.value.trim() || null,
+      }, crmUuid())
+    }
     showExecutiveDrawer.value = false
     await load()
     success.value = t('crm.saved')
@@ -864,6 +890,9 @@ onMounted(() => { if (crmEnabled()) void load() })
           class="inline-flex items-center rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-sm font-bold text-white">
           Convertir a cuenta
         </a>
+      <DhButton v-if="record && section === 'leads' && !record.convertedAccountId &&
+            can('crm.lead.assign') && can('auth.users.view')"
+        label="Asignar vendedor" variant="secondary" @click="openExecutiveDrawer" />
       <CrmArchiveAction v-if="record && ['accounts','leads','contacts','activities','followups'].includes(section)"
         :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
         :record-id="id" :row-version="Number(record.rowVersion)"
@@ -883,11 +912,12 @@ onMounted(() => { if (crmEnabled()) void load() })
         <DhPageHeader v-if="section !== 'accounts'" :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
           :subtitle="section === 'activities' ? 'Actividad comercial' : section === 'followups' ? 'Seguimiento comercial' : t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
-        <DhDrawer :open="showExecutiveDrawer" title="Asignar ejecutivo comercial" size="md" @close="showExecutiveDrawer=false">
+        <DhDrawer :open="showExecutiveDrawer" :title="section === 'leads' ? 'Asignar vendedor al prospecto' : 'Asignar ejecutivo comercial'" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
             <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo"
+              :allow-institutional="section === 'accounts'"
               @update:model-value="selectedExecutive=$event" />
-            <label class="block text-xs font-bold text-[var(--dh-text-muted)]">
+            <label v-if="section === 'accounts'" class="block text-xs font-bold text-[var(--dh-text-muted)]">
               Motivo de reasignación
               <input v-model.trim="executiveReason" class="crm-input mt-2" maxlength="1000" />
             </label>
@@ -907,7 +937,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           @saved="load" @manage-related="openRelatedManagement" />
         <dl v-else-if="section === 'leads'" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div v-for="[label,value] in [
-            ['Prospecto',record.name],['Empresa',record.companyName],['Identificación fiscal',record.taxId],
+            ['Prospecto',record.name],['Empresa',record.companyName],['Vendedor asignado',leadExecutiveName],['Identificación fiscal',record.taxId],
             ['Correo',record.contactEmail],['Teléfono',record.phone],['Estado',record.qualificationStatus],
             ['Origen',record.sourceCode],['Relación comercial',record.relationshipTypeCode]
           ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] p-3">

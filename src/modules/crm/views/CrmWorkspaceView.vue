@@ -82,6 +82,7 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
   if (section.value === 'leads') return [
     { key: '_crmTitle', label: 'Cliente potencial' },
     { key: '_crmDescription', label: 'Empresa' },
+    { key: '_crmSeller', label: 'Vendedor asignado' },
     { key: '_crmEmail', label: 'Correo' },
     { key: '_crmPhone', label: 'Teléfono' },
     { key: '_crmStatus', label: 'Calificación' },
@@ -155,7 +156,7 @@ const tableRows = computed(() => (section.value === 'finance' || section.value =
     : String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
   _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
-  _crmSeller: section.value === 'accounts'
+  _crmSeller: section.value === 'accounts' || section.value === 'leads'
     ? (sellerNames.value[String(item.id)] ?? 'Consultando vendedor…') : '—',
   _crmCategory: accountCategoryLabel(item),
   _crmType: item.customerTypeCode === 'credit' ? 'Crédito' : item.customerTypeCode === 'cash' ? 'Contado' : '—',
@@ -291,6 +292,23 @@ async function loadAccountSellers(accounts: CrmRow[]) {
     sellerNames.value = updated
   }
 }
+async function loadLeadSellers(leads: CrmRow[]) {
+  const generation = ++sellerRequestGeneration
+  const ids = leads.map(lead => String(lead.id ?? '')).filter(Boolean)
+  sellerNames.value = Object.fromEntries(ids.map(id => [id, 'Consultando vendedor…']))
+  if (!ids.length) return
+  try {
+    // Lookup is scoped by CRM so no Auth directory permission is needed to view names.
+    const response = await crmRequest<{ sellers: Record<string, string> }>(
+      crmPath('leads', 'assigned-executives') + '?ids=' + encodeURIComponent(ids.join(',')))
+    if (generation !== sellerRequestGeneration || section.value !== 'leads') return
+    sellerNames.value = Object.fromEntries(ids.map(id =>
+      [id, response.sellers?.[id] ?? 'Vendedor no disponible']))
+  } catch {
+    if (generation !== sellerRequestGeneration || section.value !== 'leads') return
+    sellerNames.value = Object.fromEntries(ids.map(id => [id, 'No se pudo consultar']))
+  }
+}
 const countryLabels = ref<Record<string, string>>({})
 const accountCountryLabels = ref<Record<string, string>>({})
 const accountIdentificationOptions = computed(() => {
@@ -333,6 +351,7 @@ function beginCreate() {
   Object.assign(form, crmDefaults(section.value))
   if (section.value === 'followups') form.assignedUserId = auth.userId ?? ''
   if (section.value === 'accounts') { form.executiveUserId = auth.userId ?? ''; accountFormTab.value = 'identity' }
+  if (section.value === 'leads') form.executiveUserId = ''
   showForm.value = true
 }
 function beginEdit(item: CrmRow) {
@@ -524,6 +543,7 @@ async function load() {
       rows.value = response.items
       total.value = response.total
       if (section.value === 'accounts') void loadAccountSellers(response.items)
+      if (section.value === 'leads') void loadLeadSellers(response.items)
       if (section.value === 'opportunities') await loadStages()
     }
   } catch (e) { error.value = crmError(e); rows.value = [] }
@@ -1022,6 +1042,15 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
               <DhInput v-else :data-required-field="f.key" :error="fieldError(f.key)" :label="f.label + (f.required ? ' *' : '')"
                 :type="f.type === 'email' ? 'email' : f.type === 'number' ? 'number' : f.type === 'datetime-local' ? 'datetime-local' : 'text'"
                 :model-value="String(form[f.key] ?? '')" @update:model-value="form[f.key] = $event" />
+            </div>
+            <div v-if="section === 'leads' && !edited" class="sm:col-span-2">
+              <CrmExecutivePicker v-if="can('crm.lead.assign') && can('auth.users.view')"
+                :model-value="String(form.executiveUserId ?? '')" label="Asignar prospecto a un vendedor"
+                :allow-institutional="false"
+                @update:model-value="form.executiveUserId = $event" />
+              <p v-if="can('crm.lead.assign')" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                Si no seleccionás otro vendedor, el prospecto se asigna a tu usuario.
+              </p>
             </div>
             <div v-if="section === 'leads'" class="sm:col-span-2">
               <CrmHaciendaLookup :country-id="String(form.countryId ?? '')"
