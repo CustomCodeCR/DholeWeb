@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.17.10] - 2026-11-10
+
+- PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos muestra Cliente y Ejecutivo comercial para actividades/seguimientos. Obtiene los nombres desde el resolver autorizado del calendario CRM en lotes de hasta 100; muestra etiquetas de respaldo cuando faltan vínculos históricos.
+- Misma corrección validada en develop; versión sincronizada con la línea global 1.17.10 sin incorporar cambios ajenos de las ramas divergentes. Incluye pruebas de regresión; producción pendiente de aprobación explícita.
+
 ## [1.17.8] - 2026-11-10
 
 - PATCH DH-20261110-CRM-QUO-STATUS-061: el historial y resumen de QUO del CRM, así como los listados de vinculación histórica, muestran etiquetas comerciales traducidas en lugar de nombres de enum. Se admiten español/inglés y estados plurales heredados sin alterar el estado persistido.
