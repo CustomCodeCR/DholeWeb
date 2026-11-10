@@ -73,6 +73,12 @@ async function saveRate() {
                 <PricingCrmClientSelect v-model="form.clientId" data-required-field="client" :mode="sellerRequestMode ? 'request' : 'create'" :initial-name="form.clientName" :legacy-optional="allowLegacyUnlinkedCrmWork" :error="fieldError('client')" @selected="setCrmClient" />`,
       'legacy request CRM picker',
     )
+    code = replaceOne(
+      code,
+      'rateId = await PricingService.createRate(createPayload)',
+      'rateId = await PricingService.createRate(props.rateRequestId && allowLegacyUnlinkedCrmWork.value ? { ...createPayload, legacyRateRequestId: props.rateRequestId } : createPayload)',
+      'server-verifiable historical rate request identity',
+    )
     code = code.replace(
       '(!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim()))',
       '(!props.sellerRequestMode || Boolean(form.clientId || (props.sellerEditRequestId && form.clientName.trim())))',
