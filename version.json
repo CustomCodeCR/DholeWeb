@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.15.2",
-  "ecosystemVersion": "1.15.2",
+  "version": "1.15.3",
+  "ecosystemVersion": "1.15.4",
   "releaseId": "rt-20261107-01",
-  "releaseStatus": "staging-catalog-list-realtime-pilot"
+  "releaseStatus": "staging-connected-ws-rest-reconcile-candidate"
 }

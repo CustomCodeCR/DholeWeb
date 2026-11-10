@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.3] - 2026-11-09
+
+- PATCH: keep a bounded REST reconciliation timer for each active realtime observer even while NotificationsHub WebSocket reports connected. Previously a successful connection disabled polling indefinitely, allowing silently lost catalog/CRM/Pricing events to leave selects stale.
+- Add regression that a connected WebSocket without resourceChanged still refreshes authorized owner REST snapshots and cancels timers on unsubscribe/logout. SignalR remains the immediate delivery channel. Staging only; global 1.15.4.
+
+
 ## [1.15.2] - 2026-11-09
 
 - PATCH: subscribe once per browser to authenticated Config catalog-list invalidations on NotificationsHub. Pricing shared ports, agents and container catalogs and CRM single/multi catalog pickers reload REST options on cross-user changes, preserving user selections and drafts.

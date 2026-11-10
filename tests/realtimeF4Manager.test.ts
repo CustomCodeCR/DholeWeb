@@ -688,3 +688,20 @@ test('catalog and CRM/Pricing list changes refresh a second connected user witho
   hostA.manager.stop()
   hostB.manager.stop()
 })
+
+test('F4: connected SignalR still reconciles via REST when a change event is missed', async () => {
+  const host = new FakeHost()
+  await host.start()
+  const { unsubscribe, hooks } = host.bind()
+  await settle()
+  assert.equal(host.manager.status, 'connected')
+  const before = host.restFetches
+  host.restVersion = 9 // Simulate changed Config owner data with a dropped stream event.
+  assert.ok(host.clock.callbacks.size > 0, 'Connected subscriptions must maintain a fallback poll')
+  await host.clock.advanceNext()
+  assert.equal(host.restFetches, before + 1)
+  assert.equal(hooks.applied?.at(-1), 9)
+  unsubscribe()
+  host.manager.stop()
+  assert.equal(host.clock.callbacks.size, 0)
+})
