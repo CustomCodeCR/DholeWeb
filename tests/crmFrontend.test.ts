@@ -75,9 +75,10 @@ test('Dhole CRM account shows full-width three-column workspace and timeline', (
     'xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]',
     'Escala de tiempo', 'Contactos relacionados', 'Historial de tarifas',
     'Ficha comercial', '<CrmCatalogPicker', '<DhDrawer :open="routeEditor"',
-    '<CrmAccountEditor', 'var(--dh-card)', 'var(--dh-border)',
+    '<CrmSalesCalendar', 'var(--dh-card)', 'var(--dh-border)',
   ]) assert.ok(hub.includes(marker), 'Missing CRM UI element: ' + marker)
   assert.ok(detail.includes('max-w-[1750px]'))
+  assert.ok(detail.includes('<CrmAccountEditor'), 'Account editing must be rendered inline in the detail view')
   assert.ok(detail.includes('@change-executive="openExecutiveDrawer"'))
   assert.ok(!hub.includes('<form v-if="routeEditor"'))
   assert.ok(!hub.includes('<form v-if="editor"'))
