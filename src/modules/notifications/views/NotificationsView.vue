@@ -167,6 +167,11 @@ function badgeVariant(statusValue: string) {
   return 'primary'
 }
 
+useRealtimeListRefresh({
+  prefixes: ['/api/notifications/messages'],
+  refresh: load,
+  isEditing: () => createOpen.value || creating.value,
+})
 onMounted(async () => { await Promise.all([load(), loadTemplates()]) })
 </script>
 
