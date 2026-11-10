@@ -1,3 +1,8 @@
+## [1.17.11] - 2026-11-10
+
+- PATCH DH-20261110-CRM-ACTIVITY-FULL-DETAIL-066: el detalle CRM de actividades y seguimientos muestra cliente, ejecutivo, contacto, fechas, ubicación, recordatorios, repeticiones, minuta, involucrados y observaciones; vincula compromisos con su actividad principal y muestra estado de finalización. Consulta nombres y relaciones con permisos, sin alterar datos históricos.
+- Coordina DholeCRMService develop 1.7.4 / master 1.4.2 y DholeSystem 1.17.11. Nuevos endpoints REST de solo lectura, sin migraciones ni cambios en SignalR. Integración sujeta a CI y comprobación en staging.
+
 ## [1.17.10] - 2026-11-10
 
 - PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos presenta Cliente y Ejecutivo comercial en actividades y seguimientos, con nombres autorizados de cuentas, prospectos y responsables desde el endpoint ya existente `calendar/labels`, en lotes de 100.
