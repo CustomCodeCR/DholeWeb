@@ -254,6 +254,9 @@ async function hydrateSellerModificationSource() {
 async function submitSellerModification() {
   const source = sellerModificationSource.value
   if (!source || saving.value) return
+  // Seller amendments use a different submit path than saveOpenRequest.
+  // Revalidate the linked CRM account or prospect before persisting the change.
+  if (!(await refreshModificationCrmOwner())) return
   if (!inlandServiceLocationsReady.value) {
     step.value = 3
     toastStore.error('Ubicación de transporte requerida',
