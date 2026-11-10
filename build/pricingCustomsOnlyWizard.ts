@@ -11,12 +11,17 @@ function replaceRequired(code: string, before: string, after: string, label: str
 }
 
 function hideFreightInput(tag: string): string {
+  // Delivery transit is applicable to land quotations even when the
+  // international freight service is not selected (e.g. destination delivery).
+  const visibility = tag.includes('v-model.number="form.transitDays"')
+    ? "(hasInternationalTransportService || form.modality === 'Land')"
+    : 'hasInternationalTransportService'
   const conditional = /\bv-(?:else-)?if="([^"]+)"/
   if (conditional.test(tag)) {
     return tag.replace(conditional, (_match, expression: string) =>
-      'v-if="hasInternationalTransportService && (' + expression + ')"')
+      'v-if="' + visibility + ' && (' + expression + ')"')
   }
-  return tag.replace('<DhInput', '<DhInput v-if="hasInternationalTransportService"')
+  return tag.replace('<DhInput', '<DhInput v-if="' + visibility + '"')
 }
 
 function patchWizard(source: string): string {
@@ -50,7 +55,7 @@ function patchWizard(source: string): string {
     '    form.freightCost = 0',
     '    form.freightSale = 0',
     '    form.freeDays = 0',
-    '    form.transitDays = 0',
+    "    if (form.modality !== 'Land') form.transitDays = 0",
     '  }',
     '  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6',
     '  if (!hasInternationalTransportService.value && step.value === 7) {',
@@ -159,7 +164,7 @@ function patchWizard(source: string): string {
       '    form.freightCost = 0',
       '    form.freightSale = 0',
       '    form.freeDays = 0',
-      '    form.transitDays = 0',
+      "    if (form.modality !== 'Land') form.transitDays = 0",
       '    step.value = 6',
       '    return',
       '  }',
@@ -256,6 +261,14 @@ function patchWizard(source: string): string {
   if (freightInputs < 3) {
     throw new Error('[pricingCustomsOnlyWizard] Missing freight, free days or transit controls')
   }
+  // Label the same persisted field with its land-delivery meaning.
+  const transitControl = /<DhInput\b[^>]*v-model\.number="form\.transitDays"[^>]*\/>/
+  if (!transitControl.test(six) || !six.includes('label="Días de tránsito"')) {
+    throw new Error('[pricingCustomsOnlyWizard] Missing delivery transit field')
+  }
+  six = six.replace(transitControl, (tag) => tag
+    .replace('label="Días de tránsito"', `:label="form.modality === 'Land' ? 'Días de tránsito para la entrega' : 'Días de tránsito'"`)
+    .replace('type="number" min="0"', 'type="number" min="0" step="1"'))
   six = six.replace(
     'v-else-if="form.modality !== \'Land\'"',
     'v-else-if="hasInternationalTransportService && form.modality !== \'Land\'"',
@@ -297,9 +310,11 @@ function patchWizard(source: string): string {
     "freeDays: (form.modality === 'Land' || shipmentModeForApi.value === 'Lcl') ? 0 : number(form.freeDays),",
     "freeDays: (!hasInternationalTransportService.value || form.modality === 'Land' || shipmentModeForApi.value === 'Lcl') ? 0 : number(form.freeDays),",
   )
-  code = code.replace(
-    'transitTime: form.transitDays > 0 ?',
-    'transitTime: hasInternationalTransportService.value && form.transitDays > 0 ?',
+  code = replaceRequired(
+    code,
+    'transitTime: number(form.transitDays) > 0 ?',
+    "transitTime: (hasInternationalTransportService.value || form.modality === 'Land') && number(form.transitDays) > 0 ?",
+    'land delivery transit persistence',
   )
   code = code.replace(
     'v-if="editingRate.shipmentMode !== \'Lcl\'"',
@@ -307,7 +322,7 @@ function patchWizard(source: string): string {
   )
   code = code.replace(
     '<p class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || \'Por confirmar\' }}</p>',
-    '<p v-if="hasInternationalTransportService" class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || \'Por confirmar\' }}</p>',
+    '<p v-if="hasInternationalTransportService || form.modality === \'Land\'" class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || \'Por confirmar\' }}</p>',
   )
   return code
 }
