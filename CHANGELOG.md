@@ -1,3 +1,8 @@
+## [1.17.13] - 2026-11-10
+
+- DH-20261110-CRM-PROSPECT-ROUTES-QUOTES-069: nombres de prospectos en UPPER CASE desde API y UI, análisis comercial con rutas y cotizaciones vinculadas mediante oportunidades de CRM y Pricing.
+- Release Dhole 1.17.13, sin migraciones de datos.
+
 # Changelog
 
 ## [1.17.12] - 2026-11-10
