@@ -22,6 +22,7 @@ type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 const props = withDefaults(defineProps<{
   accountId: string
   clientName: string
+  executiveName?: string
   view?: 'quotes' | 'history'
 }>(), { view: 'quotes' })
 const emit = defineEmits<{ changed: [] }>()
@@ -38,7 +39,6 @@ const catalogPage = ref(1)
 const catalogPageSize = ref(10)
 const catalogSearch = ref('')
 const appliedSearch = ref('')
-const linkStatus = ref<'all' | 'unlinked' | 'linked'>('all')
 const catalogLoading = ref(false)
 const selected = ref<string[]>([])
 const confirmed = ref(false)
@@ -67,11 +67,12 @@ const catalogColumns = [
   { key: 'shipmentModeSnapshot', label: 'Modalidad' },
   { key: 'createdAtUtc', label: 'Fecha' },
   { key: 'commercialStatusSnapshot', label: 'Estado' },
-  { key: 'linkState', label: 'Vinculación' },
   { key: 'actions', label: 'Acciones' },
 ]
 const linkedColumns = [
   { key: 'quoteNumberSnapshot', label: 'QUO' },
+  { key: 'clientName', label: 'Cliente CRM' },
+  { key: 'executiveName', label: 'Ejecutivo' },
   { key: 'shipmentModeSnapshot', label: 'Modalidad' },
   { key: 'commercialStatusSnapshot', label: 'Estado' },
   { key: 'linkedAt', label: 'Fecha' },
@@ -81,8 +82,6 @@ const ready = computed(() => selected.value.length > 0 && confirmed.value && !bu
   selected.value.every(id => catalog.value.some(quote =>
     quote.pricingQuoteId === id && !quote.clientAccountId && !quote.clientLeadId)))
 const canSelect = (quote: Quote) => !quote.clientAccountId && !quote.clientLeadId
-const linkedToThisAccount = (quote: Quote) =>
-  quote.clientAccountId?.toLowerCase() === props.accountId.toLowerCase()
 const quoteUrl = (quote: Quote) => '/pricing/rates?rateId=' + encodeURIComponent(quote.pricingQuoteId)
 function formatDate(value?: string | null) {
   if (!value) return '—'
@@ -126,7 +125,7 @@ async function searchLegacy() {
   try {
     const params = new URLSearchParams({
       q: appliedSearch.value,
-      linkStatus: linkStatus.value,
+      linkStatus: 'unlinked',
       page: String(catalogPage.value),
       pageSize: String(catalogPageSize.value),
     })
@@ -134,6 +133,12 @@ async function searchLegacy() {
     if (generation !== catalogRequestGeneration) return
     catalog.value = result.items || []
     catalogTotal.value = result.total || 0
+    // Reconcile can empty the last page. Move to the actual last page rather
+    // than leaving a blank view when there are still older pending quotations.
+    if (!catalog.value.length && catalogPage.value > 1 && catalogTotal.value > 0) {
+      catalogPage.value = Math.max(1, Math.ceil(catalogTotal.value / catalogPageSize.value))
+      void searchLegacy()
+    }
   } catch (cause) {
     if (generation !== catalogRequestGeneration) return
     catalog.value = []
@@ -171,6 +176,30 @@ function changeLinkedPageSize(pageSize: number) {
 async function reloadAll() {
   await Promise.all([refresh(), searchLegacy()])
 }
+async function syncLinkedClient() {
+  if (busy.value || !props.accountId || !props.clientName.trim()) return
+  busy.value = true
+  error.value = ''
+  success.value = ''
+  try {
+    const result = await fetchClient<{ updated: number; total: number }>(
+      base + '/crm-account/' + encodeURIComponent(props.accountId) + '/sync-client', {
+        method: 'POST',
+        body: {
+          clientName: props.clientName,
+          executiveName: props.executiveName || null,
+          confirmedForAccount: true,
+        },
+      })
+    await reloadAll()
+    success.value = `Datos del CRM sincronizados en ${result.total} QUO vinculada(s); ${result.updated} actualizada(s).`
+    emit('changed')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No fue posible actualizar el cliente en las tarifas.'
+  } finally {
+    busy.value = false
+  }
+}
 async function reconcile() {
   if (!ready.value) return
   busy.value = true
@@ -182,15 +211,17 @@ async function reconcile() {
         method: 'POST',
         body: {
           accountId: props.accountId,
-          clientName: '',
+          clientName: props.clientName,
+          executiveName: props.executiveName || null,
           rateIds: [...selected.value],
           confirmedForAccount: true,
         },
       })
     clearSelection()
     quotesPage.value = 1
+    catalogPage.value = 1
     await reloadAll()
-    success.value = `${result.linked} cotización(es) vinculada(s) a ${props.clientName}. Se conservaron importes, fechas, revisiones y estado comercial.`
+    success.value = `${result.linked} QUO vinculada(s) a ${props.clientName}. Ya no aparecen entre las pendientes; la tarifa muestra ahora el cliente CRM y el ejecutivo asignado.`
     emit('changed')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudieron vincular las cotizaciones.'
@@ -203,7 +234,6 @@ watch(() => [props.accountId, props.clientName], () => {
   catalogPage.value = 1
   catalogSearch.value = ''
   appliedSearch.value = ''
-  linkStatus.value = 'all'
   clearSelection()
   success.value = ''
   void reloadAll()
@@ -216,8 +246,8 @@ watch(() => [props.accountId, props.clientName], () => {
       <div>
         <h3 class="text-base font-extrabold">Historial de cotizaciones Pricing</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Todas las QUO creadas hasta la fecha, incluidas las ya vinculadas. Seleccione las que pertenecen a
-          <strong>{{ clientName }}</strong> para completar su identidad CRM; no se modifican importes ni estados.
+          Cotizaciones históricas que aún no tienen cuenta o prospecto CRM. Seleccione las que pertenecen a
+          <strong>{{ clientName }}</strong>; al vincularlas dejarán esta lista y aparecerán en el historial del cliente y en Pricing con sus datos CRM.
         </p>
       </div>
       <button type="button" class="hub-outline-button hub-small" :disabled="catalogLoading || linkedLoading || busy" @click="reloadAll">
@@ -228,23 +258,16 @@ watch(() => [props.accountId, props.clientName], () => {
     <p v-if="error" role="alert" class="text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="text-sm text-[var(--dh-primary)]">{{ success }}</p>
 
-    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
       <label class="block min-w-0 text-xs font-bold">Buscar QUO, cliente histórico o ruta
         <input v-model="catalogSearch" class="crm-input mt-1 w-full" maxlength="200"
           placeholder="Número de QUO, cliente, POL, POE o POD..." @keyup.enter.prevent="applyCatalogFilters" />
-      </label>
-      <label class="block text-xs font-bold">Vinculación
-        <select v-model="linkStatus" class="crm-input mt-1 w-full" @change="applyCatalogFilters">
-          <option value="all">Todas las QUO</option>
-          <option value="unlinked">Sin vincular</option>
-          <option value="linked">Ya vinculadas</option>
-        </select>
       </label>
       <button type="button" class="hub-outline-button" :disabled="catalogLoading" @click="applyCatalogFilters">Buscar</button>
     </div>
 
     <DhDataTable :columns="catalogColumns" :rows="catalogRows" :loading="catalogLoading"
-      empty-text="No se encontraron QUO con estos filtros.">
+      empty-text="No quedan QUO pendientes con esta búsqueda. Las ya vinculadas están en el historial de su cuenta CRM.">
       <template #cell-select="{ row }">
         <input type="checkbox" :aria-label="'Seleccionar ' + row.quoteNumberSnapshot"
           :checked="selected.includes(row.pricingQuoteId)" :disabled="!canSelect(row) || busy"
@@ -260,13 +283,6 @@ watch(() => [props.accountId, props.clientName], () => {
         <span class="text-xs">{{ row.polName || 'Sin POL' }} → {{ row.podName || row.poeName || 'Sin destino' }}</span>
       </template>
       <template #cell-createdAtUtc="{ row }">{{ formatDate(row.createdAtUtc) }}</template>
-      <template #cell-linkState="{ row }">
-        <span v-if="linkedToThisAccount(row)" class="text-xs font-bold text-[var(--dh-primary)]">Esta cuenta</span>
-        <span v-else-if="row.clientAccountId || row.clientLeadId" class="text-xs text-[var(--dh-text-muted)]">
-          {{ row.clientLeadId ? 'Prospecto CRM' : 'Otra cuenta CRM' }}
-        </span>
-        <span v-else class="text-xs">Sin vincular</span>
-      </template>
       <template #cell-actions="{ row }">
         <button v-if="canSelect(row)" type="button" class="hub-outline-button hub-small"
           :disabled="busy" @click="toggle(row.pricingQuoteId, !selected.includes(row.pricingQuoteId))">
@@ -293,9 +309,12 @@ watch(() => [props.accountId, props.clientName], () => {
 
     <details class="border-t border-[var(--dh-border)] pt-3">
       <summary class="cursor-pointer text-sm font-bold">
-        Cotizaciones ya vinculadas a esta cuenta ({{ quotesTotal }})
+        Cotizaciones vinculadas a esta cuenta ({{ quotesTotal }})
       </summary>
       <div class="mt-3 space-y-3">
+        <button type="button" class="hub-outline-button hub-small" :disabled="busy || linkedLoading || !quotesTotal || !clientName.trim()" @click="syncLinkedClient">
+          Sincronizar cliente y ejecutivo CRM en tarifas existentes
+        </button>
         <DhDataTable :columns="linkedColumns" :rows="linkedRows" :loading="linkedLoading"
           empty-text="Esta cuenta todavía no tiene cotizaciones vinculadas.">
           <template #cell-quoteNumberSnapshot="{ row }">
