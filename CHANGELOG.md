@@ -1,3 +1,8 @@
+## [1.19.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-RECONCILED-070: integra agenda CRM con contactos de la cuenta, minuta ampliable, asignación de vendedores autorizados y compromisos reversibles vinculados a la actividad principal.
+- Reconciliado con CRM-ADMIN-CALENDAR-069 y CRM-ADMIN-CALENDAR-NAV; versiones coordinadas CRM 1.9.0 y System 1.19.0; CI y staging pendientes.
+
 ## [1.18.1] - 2026-11-10
 
 - PATCH DH-20261110-CRM-ADMIN-CALENDAR-NAV-071: muestra las entradas de Actividades y Seguimientos en la navegación CRM a administradores Auth incluso cuando no tienen scopes individuales de vendedor. La lectura global y los permisos sobre minutas, participantes, acuerdos e historial siguen protegidos por la API CRM del release 1.18.0.
