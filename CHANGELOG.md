@@ -1,3 +1,7 @@
+## [1.17.12] - 2026-11-10
+
+- PATCH DH-20261110-PRICING-CRM-REQUEST-IDENTITY-067: solicitudes normales, edición y modificaciones de QUO recuperan el ejecutivo comercial vigente desde el CRM por ID, conservan executiveUserId al enviar y no reemplazan al vendedor con el usuario conectado. Se respetan cuentas Castro Fallas, permisos CRM, delegación y cotizaciones históricas sin vincular. Prueba de regresión pricingCrmRequestCommercialOwner; Pricing 1.9.10 y CRM 1.7.5 en develop / 1.4.2 en master.
+
 ## [1.17.10] - 2026-11-10
 
 - PATCH DH-20261110-CRM-AGENDA-CLIENT-EXECUTIVE-065: Agenda y seguimientos presenta Cliente y Ejecutivo comercial en actividades y seguimientos, con nombres autorizados de cuentas, prospectos y responsables desde el endpoint ya existente `calendar/labels`, en lotes de 100.
