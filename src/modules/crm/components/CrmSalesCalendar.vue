@@ -533,6 +533,11 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
 }
 
 watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
+const historicalActivityDraft = computed(() =>
+  editor.value.type !== 'FOLLOWUP' &&
+  Number.isFinite(new Date(editor.value.end).getTime()) &&
+  new Date(editor.value.end).getTime() <= Date.now()
+)
 async function create() {
   const data = editor.value
   if (saving.value) return
@@ -549,7 +554,7 @@ async function create() {
   let adjustedStart = false
   // The initially suggested "now" must not expire while filling a long form.
   // Never silently override a date chosen manually by the seller.
-  if (!userEditedStart.value && Number.isFinite(start.getTime()) &&
+  if (data.type === 'FOLLOWUP' && !userEditedStart.value && Number.isFinite(start.getTime()) &&
       start.getTime() < Date.now()) {
     const duration=Number.isFinite(end.getTime()) && end > start
       ? end.getTime() - start.getTime() : 60 * 60000
@@ -559,6 +564,8 @@ async function create() {
     data.end = localInput(end)
     adjustedStart = true
   }
+  const historicalActivity = data.type !== 'FOLLOWUP' &&
+    Number.isFinite(end.getTime()) && end.getTime() <= Date.now()
   const commitmentDue = data.nextCommitment.trim() ? new Date(data.commitmentDue) : null
   if (data.type !== 'FOLLOWUP' && agreementDrafts.value.some(item =>
       !item.title.trim() || !item.dueLocal ||
@@ -572,9 +579,12 @@ async function create() {
        commitmentDue.getTime() <= end.getTime())) {
     error.value = 'Indicá una fecha límite posterior a la actividad para el compromiso.'; return
   }
-  if (!Number.isFinite(start.getTime()) || start.getTime() < Date.now() - 60000 ||
+  if (!Number.isFinite(start.getTime()) ||
+    (data.type === 'FOLLOWUP' && start.getTime() < Date.now() - 60000) ||
     (data.type !== 'FOLLOWUP' && (!Number.isFinite(end.getTime()) || end <= start))) {
-    error.value = 'Ingresá fechas futuras válidas; la hora de finalización debe ser posterior al inicio.'; return
+    error.value = data.type === 'FOLLOWUP'
+      ? 'El seguimiento necesita una fecha futura válida.'
+      : 'Ingresá fechas válidas: la finalización debe ser posterior al inicio.'; return
   }
   saving.value = true
   error.value = ''
@@ -592,7 +602,8 @@ async function create() {
       await crmRequest(crmPath('activities'), 'POST', {
         ...common, contactId: data.contactId || null, ownerUserId: data.ownerId || auth.userId,
         type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
-        scheduledEndAt: end.toISOString(), occurredAt: null,
+        scheduledEndAt: end.toISOString(),
+        occurredAt: historicalActivity ? end.toISOString() : null,
         repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
         locationText: data.location.trim() || null,
         involved: data.involved.trim() || null, agreements: data.agreements.trim() || null,
@@ -606,9 +617,11 @@ async function create() {
     creationOpen.value = false
     selected.value = start
     notice.value = (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
-      'Actividad guardada; avisos del sistema y correo encolados. Se programaron ' +
-      (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
-      ' compromisos en el calendario del cliente y del vendedor.'
+      (historicalActivity
+        ? 'Actividad histórica registrada como completada, con su fecha original y sin avisos retroactivos. '
+        : 'Actividad guardada; los avisos aplicables fueron programados. ') +
+      'Se registraron ' + (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
+      ' compromisos con fecha futura.'
     emit('changed')
     await load()
   } catch (cause) { error.value = crmError(cause) }
@@ -911,7 +924,7 @@ function openEvent(item: CalendarEvent) {
     </DhModal>
     <DhModal :open="creationOpen" title="Programar visita, llamada o seguimiento" size="lg" @close="creationOpen=false">
       <div class="space-y-4">
-      <p class="text-xs text-[var(--dh-text-muted)]">El vendedor recibirá avisos por sistema y correo. Si no atiende el compromiso, se informará a jmesen después del vencimiento.</p>
+      <p class="text-xs text-[var(--dh-text-muted)]">Podés registrar actividades con fecha pasada, actual o futura. Las actividades ya finalizadas se guardan como completadas y no generan avisos retroactivos. Las futuras mantienen sus recordatorios.</p>
       <div v-if="activityTypesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando tipos de actividades en Config…</div>
       <div v-if="activityTypesError" role="alert" class="rounded-xl border border-amber-500/40 p-3 text-xs text-amber-600">
         {{ activityTypesError }}
@@ -976,6 +989,7 @@ function openEvent(item: CalendarEvent) {
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
         </label>
+        <p v-if="historicalActivityDraft" class="sm:col-span-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs">Esta actividad ya ocurrió: se guardará como completada, conservando la fecha ingresada y sin crear recordatorios atrasados.</p>
         <label v-if="editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
           <input v-model="editor.end" type="datetime-local" class="calendar-input" required />
         </label>
@@ -1050,7 +1064,7 @@ function openEvent(item: CalendarEvent) {
           </p>
         </template>
         <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
-          Los avisos se activan solamente al guardar. Si ya pasó la hora del recordatorio anticipado,
+          Los avisos de actividades futuras se activan al guardar. Si ya pasó la hora del recordatorio anticipado,
           se enviará al procesarse la actividad guardada, siempre que el inicio no haya vencido.
         </p>
       </form>
@@ -1062,7 +1076,7 @@ function openEvent(item: CalendarEvent) {
             <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
             <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary"
               :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
-              {{ saving?'Guardando…':'Guardar actividad y activar avisos' }}
+              {{ saving ? 'Guardando…' : historicalActivityDraft ? 'Registrar actividad realizada' : 'Guardar actividad y activar avisos' }}
             </button>
           </div>
         </div>
