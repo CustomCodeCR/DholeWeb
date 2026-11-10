@@ -44,3 +44,11 @@ test('link changes refresh quote history, routes and KPI independently', () => {
   assert.match(account, /void loadQuotedRoutes\(\)/)
   assert.match(manager, /emit\('changed'\)/)
 })
+
+test('popular routes are aggregated only from authorized Pricing account quotations', () => {
+  assert.match(account, /const pricingPopularRoutes = computed/)
+  assert.match(account, /pricingQuotes\.value/)
+  assert.match(account, /route\.count/)
+  assert.match(account, /Rutas más cotizadas \(Pricing\)/)
+  assert.match(account, /quoteRouteTotal/)
+})
