@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.17.6",
-  "ecosystemVersion": "1.17.6",
-  "releaseId": "DH-20261110-PRICING-SELLER-MULTI-POE-062",
+  "version": "1.17.7",
+  "ecosystemVersion": "1.17.7",
+  "releaseId": "DH-20261110-CRM-LEGACY-REQUEST-SYNC-063",
   "releaseStatus": "candidate-develop-staging-pending",
   "businessReleaseId": "DH-20261109-RT-CRITICAL-056"
 }
