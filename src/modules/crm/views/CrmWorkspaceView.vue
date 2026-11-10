@@ -24,6 +24,7 @@ import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import { crmAgendaClientName, crmAgendaExecutiveName, crmAgendaIdentityIds,
   type CrmAgendaIdentityLabels } from '../model/crmAgendaIdentity'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
@@ -141,7 +142,7 @@ const tableRows = computed(() => (section.value === 'finance' || section.value =
   _crmResource: item._crmResource,
   _crmConvertedAccountId: item.convertedAccountId,
   _crmTitle: section.value === 'followups'
-    ? String(item.subject || (item._crmResource === 'followups' ? 'Seguimiento comercial' : 'Actividad comercial'))
+    ? String(item.subject || (item._crmResource === 'followups' ? (item.policyId ? 'Seguimiento periódico' : 'Seguimiento comercial') : 'Actividad comercial'))
     : String(item[model.value?.primary ?? 'contractNumber'] ?? item.contractNumber ?? item.id),
   _crmClient: section.value !== 'followups' ? '—'
     : agendaIdentityLoading.value && Boolean(item.accountId || item.leadId)
@@ -178,7 +179,10 @@ const tableRows = computed(() => (section.value === 'finance' || section.value =
   })(),
 })))
 const can = (scope: string) => auth.hasScope(scope)
-const allowed = computed(() => crmEnabled() && crmSectionScope[section.value].some(can))
+const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))
+const allowed = computed(() => crmEnabled() &&
+  (crmSectionScope[section.value].some(can) ||
+   (calendarAdmin.value && ['activities','followups'].includes(section.value))))
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -469,8 +473,8 @@ async function load() {
       // Calendar and list must expose the same two backend resources.
       // Each endpoint enforces its own scope and per-user record visibility.
       const resources = [
-        ...(can('crm.activity.read') || can('crm.activity.read-all') ? ['activities'] : []),
-        ...(can('crm.task.manage') || can('crm.followup.manage') ? ['followups'] : []),
+        ...(calendarAdmin.value || can('crm.activity.read') || can('crm.activity.read-all') ? ['activities'] : []),
+        ...(calendarAdmin.value || can('crm.task.manage') || can('crm.followup.manage') ? ['followups'] : []),
       ]
       const settled = await Promise.allSettled(resources.map(async resource => {
         const found: CrmRow[] = []
