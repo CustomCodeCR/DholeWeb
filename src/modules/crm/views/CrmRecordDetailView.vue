@@ -9,6 +9,7 @@ import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
+import CrmLeadCommercialPanel from '../components/CrmLeadCommercialPanel.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
@@ -987,6 +988,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
 
 
+      <CrmLeadCommercialPanel v-if="section === 'leads'" :lead="record" />
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
         <div>
