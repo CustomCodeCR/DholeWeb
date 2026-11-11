@@ -1,3 +1,9 @@
+## [1.33.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-ACCOUNT-QUOTE-DELIVERY-093: «Configurar envío de cotizaciones» guarda por cuenta una preferencia reutilizable en todas las cotizaciones futuras, sin elegir QUO específica. El destinatario es el vendedor o un contacto elegido con copia al vendedor.
+- CRM almacena configuración y valida contactos; Pricing resuelve la preferencia antes de cada envío. REST y realtime existentes se conservan; tests de regresión incluidos.
+- Ecosistema 1.33.0; CI/staging pendientes antes de producción.
+
 ## [1.32.4] - 2026-11-11
 
 - PATCH DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095: utiliza la clave pública Geoapify suministrada directamente en el componente del mapa de visitas CRM, sin requerir variables `.env` ni argumentos de compilación Docker; conserva autocompletado, puntos, coordenadas y API REST.
