@@ -1596,10 +1596,7 @@ async function saveRoute() {
           <td class="px-3 py-3">
             <div class="flex flex-wrap items-center gap-3">
               <RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
-              <button v-if="canSendAccountQuote && ['Open', 'ApprovedByManagement', 'RequestedByClient'].includes(String(q.commercialStatusSnapshot))"
-                type="button" class="hub-text-link" @click="openQuoteDelivery(q)">
-                Enviar cotización
-              </button>
+
               <button v-if="has('crm.analysis.manage') && has('crm.analysis.read') && hasOpportunityQuote(rowId(q.pricingQuoteId))" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE', rowId(q.pricingQuoteId))">Registrar ruta</button>
             </div>
           </td>
