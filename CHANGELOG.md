@@ -1,3 +1,8 @@
+## [1.24.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ACCOUNT-CATEGORY-SCOPE-082: Restringe la asignación de categoría por scope en clientes y conversión de prospectos, conservando el CRM y las cotizaciones vigentes.
+- CI y staging pendientes; no se autorizó despliegue a producción.
+
 ## [1.23.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-LEAD-QUO-PARITY-082: Prospectos consulta QUO reales e indicadores de Pricing por ClientLeadId, integra rutas cotizadas al análisis comercial y ofrece la vinculación histórica confirmada solo a superadministradores.
