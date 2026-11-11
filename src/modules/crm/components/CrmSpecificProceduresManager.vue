@@ -5,6 +5,7 @@ import { ChevronDown, ClipboardList, Pencil, Plus, RefreshCw, Search, Trash2, Us
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { StorageService } from '@/core/services/storageService'
 import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
+import CrmFileDropzone from './CrmFileDropzone.vue'
 
 type Procedure = {
   id: string
@@ -31,29 +32,6 @@ const editingId = ref<string | null>(null)
 const draft = reactive({ name: '', detail: '', assignedTeam: '' })
 const pendingDocuments = ref<File[]>([])
 const canAttach = computed(() => canEdit.value && auth.hasScope('storage.files.create'))
-
-function queueDocuments(event: Event) {
-  const input = event.target as HTMLInputElement
-  const incoming = Array.from(input.files ?? [])
-  input.value = ''
-  if (!incoming.length) return
-  if (incoming.some(file => file.size === 0 || file.size > 100 * 1024 * 1024)) {
-    error.value = 'Los documentos no pueden estar vacíos ni superar 100 MB por archivo.'
-    return
-  }
-  const current = pendingDocuments.value
-  const unique = incoming.filter(file => !current.some(existing =>
-    existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified))
-  if (current.length + unique.length > 10) {
-    error.value = 'Podés seleccionar hasta 10 documentos por guardado.'
-    return
-  }
-  pendingDocuments.value = [...current, ...unique]
-  error.value = ''
-}
-function dropPendingDocument(index: number) {
-  pendingDocuments.value = pendingDocuments.value.filter((_, i) => i !== index)
-}
 
 const endpoint = () => crmPath('accounts', props.accountId, 'specific-procedures')
 const shown = computed(() => {
@@ -251,21 +229,14 @@ function teamLabels(value: string | null): string[] {
           placeholder="Describa instrucciones, responsables, excepciones y pasos a seguir..."
           class="min-h-40 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-3 text-sm leading-relaxed text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
       </label>
-      <div class="space-y-2 rounded-xl border border-dashed border-[var(--dh-border)] p-3">
-        <label class="block text-xs font-bold">Documentos del procedimiento</label>
-        <input v-if="canAttach" type="file" multiple :disabled="saving" class="block w-full text-xs"
-          aria-label="Seleccionar documentos del procedimiento" @change="queueDocuments" />
+      <div class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+        <CrmFileDropzone v-model="pendingDocuments" :disabled="saving || !canAttach"
+          label="Documentos del procedimiento" />
         <p class="text-[11px] text-[var(--dh-text-muted)]">
-          {{ canAttach ? 'Se cargarán al guardar. Máximo 10 archivos por vez y 100 MB por archivo.' : 'Se requiere el permiso storage.files.create para adjuntar archivos.' }}
+          {{ canAttach
+            ? 'Los documentos se subirán al guardar el procedimiento. Podés adjuntar todos los que necesités.'
+            : 'Se requieren permisos de edición y storage.files.create para adjuntar archivos.' }}
         </p>
-        <ul v-if="pendingDocuments.length" class="space-y-1">
-          <li v-for="(file, index) in pendingDocuments" :key="file.name + file.lastModified"
-            class="flex items-center justify-between gap-2 text-xs">
-            <span class="min-w-0 break-all">{{ file.name }}</span>
-            <button type="button" :disabled="saving" class="shrink-0 text-red-500"
-              :aria-label="'Quitar ' + file.name" @click="dropPendingDocument(index)">Quitar</button>
-          </li>
-        </ul>
       </div>
       <div class="flex flex-wrap justify-end gap-2">
         <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-xs font-bold" @click="closeEditor">Cancelar</button>
