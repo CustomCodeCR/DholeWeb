@@ -25,3 +25,20 @@ test('conversion deep links open the conversion tab', () => {
   assert.match(detail, /@click.prevent="showLeadTab\('conversion'\)"/)
   assert.match(detail, /id="crm-lead-conversion"/)
 })
+
+test('prospect quote indicators are derived from all linked CRM quotation pages', () => {
+  const dashboard = readFileSync('src/modules/crm/components/CrmAccountQuotesDashboard.vue', 'utf8')
+  assert.match(commercial, /<CrmAccountQuotesDashboard :lead-id="String\(lead.id\)"/)
+  assert.match(dashboard, /crmPath\('leads', leadId, 'quotes'\)/)
+  assert.match(dashboard, /for \(let page = 1; page <= limit \/ pageSize; page\+\+\)/)
+  assert.match(dashboard, /commercialStatusSnapshot/)
+  assert.match(dashboard, /'\/api\/pricing\/rates\/crm-account\/\'/)
+  assert.match(dashboard, /props.leadId/)
+})
+test('prospect route history includes all registered analyses without name-based attribution', () => {
+  assert.match(detail, /view="history"/)
+  assert.match(commercial, /data-crm-lead-route-history/)
+  assert.match(commercial, /Promise.all\(list.map\(async analysis/)
+  assert.match(commercial, /crmPath\('analyses', String\(analysis.id\), 'routes'\)/)
+  assert.match(commercial, /props.view !== 'history' && canReadAnalyses/)
+})
