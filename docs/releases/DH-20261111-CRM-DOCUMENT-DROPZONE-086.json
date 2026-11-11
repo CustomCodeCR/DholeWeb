@@ -11,7 +11,7 @@
     },
     {
       "repository": "CustomCodeCR/DholeWeb",
-      "previous": "1.27.0",
+      "previous": "1.27.1",
       "next": "1.28.0"
     }
   ],

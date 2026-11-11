@@ -1,7 +1,7 @@
 ## [1.28.0] - 2026-11-11
 
-- MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop y carga acumulativa sin límite fijo de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos, con visualización y descarga de adjuntos almacenados.
-- Máximo 100 MB por archivo; sin duplicados al reintentar guardados. Web 1.28.0, CRM 1.16.0, ecosistema 1.28.0. CI/staging pendientes; producción no autorizada.
+- MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop y carga múltiple sin límite fijo de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos; visor de PDF, imágenes y texto, con descarga de otros formatos.
+- Máximo 100 MB por archivo y reintentos sin duplicados. Conserva la versión 1.27.1 de acuerdos. CRM 1.16.0 y ecosistema Dhole 1.28.0; CI/staging pendientes, producción no autorizada.
 
 ## [1.27.1] - 2026-11-11
 
