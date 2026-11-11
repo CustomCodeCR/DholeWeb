@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore, type ToastType } from '@/core/stores/toastStore'
+import { shouldShowRealtimeDuplicateProspectAlert } from '@/modules/crm/model/crmDuplicateProspect'
 import {
   UNIVERSAL_REALTIME_ENABLED,
   setUniversalRealtimeNotificationHandler,
@@ -193,6 +194,15 @@ function handleNotification(notification: SystemNotificationPush) {
         },
       }),
     )
+  } else if (notification.notificationType === 'crm.lead.duplicate.v1') {
+    if (shouldShowRealtimeDuplicateProspectAlert(notification.entityId)) {
+      useToastStore().show({
+        title: notification.subject || 'Prospecto ya registrado',
+        message: notification.body || undefined,
+        type: 'warning',
+        duration: 8_000,
+      })
+    }
   } else {
     const toast = useToastStore()
     toast.show({

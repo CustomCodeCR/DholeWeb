@@ -1,3 +1,8 @@
+## [1.25.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-LEAD-DUPLICATE-083: Muestra alerta de prospecto duplicado con el nombre del vendedor, conserva los datos ingresados y evita avisos emergentes duplicados por SignalR.
+- Ecosistema Dhole 1.25.0; validaciones CI y staging pendientes. Sin despliegue de producción aprobado.
+
 ## [1.24.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-ACCOUNT-CATEGORY-SCOPE-082: Restringe la asignación de categoría por scope en clientes y conversión de prospectos, conservando el CRM y las cotizaciones vigentes.
