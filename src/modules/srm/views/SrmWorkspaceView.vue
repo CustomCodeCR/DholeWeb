@@ -11,7 +11,7 @@ import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoverageP
 import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
-import { supplierSaveIssue, type SupplierSaveSection } from '../utils/srmSupplierSave'
+import { supplierSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
@@ -415,6 +415,7 @@ async function saveSupplier() {
   }
   saving.value = true
   error.value = ''
+  let mutationAccepted = false
   try {
     const retained = editing.value ? metadata(editing.value) : {}
     const previousTypes = editing.value ? rawSupplierCategories(editing.value) : []
@@ -457,30 +458,79 @@ async function saveSupplier() {
       countryId: selectedCountries[0] || null,
       countryIds: selectedCountries,
     })
+    let createdId = ''
     if (editing.value) {
       await SrmApi.updateSupplier(editing.value.id, {
         name: supplierName.value.trim(), description: supplierDescription.value.trim() || null,
         value: supplierName.value.trim(), metadataJson, sortOrder: editing.value.sortOrder,
       })
     } else {
-      await SrmApi.create('suppliers', {
+      createdId = await SrmApi.create('suppliers', {
         name: supplierName.value.trim(), description: supplierDescription.value.trim() || null,
         value: supplierName.value.trim(), metadataJson, sortOrder: suppliers.value.length + 1,
       })
     }
+    mutationAccepted = true
+    // A positive HTTP status does not prove the credit values were persisted.
+    // Read them back before closing, so incomplete updates never look successful.
+    const confirmed = await SrmApi.list('suppliers')
     const editingId = editing.value?.id
+    const saved = confirmed.find(item => editingId ? item.id === editingId
+      : (createdId && item.id === createdId) || item.name === supplierName.value.trim())
+    if (!saved) {
+      await reportSupplierSaveIssue(en.value
+        ? 'The service responded, but the supplier could not be found after saving. Refresh the directory before trying again.'
+        : 'El servicio respondió, pero no se encontró el proveedor después de guardar. Actualizá el directorio antes de volver a intentar.',
+        'server')
+      return
+    }
+    if (creditEnabled.value && !supplierPersistedCreditMatches(saved.metadataJson, {
+      days: Number(creditDays.value),
+      limit: Number(creditLimit.value),
+      currency: creditCurrency.value,
+      monthlyFinancingPct: Number(monthlyFinancing.value),
+      lateInterestMonthlyPct: Number(lateInterest.value),
+      includedServices: creditIncluded.value,
+      excludedServices: creditExcluded.value,
+    })) {
+      await reportSupplierSaveIssue(en.value
+        ? 'The service responded, but the supplier credit terms were not saved. Your changes are still in the form; refresh the directory before retrying.'
+        : 'El servicio respondió, pero no guardó las condiciones de crédito. Los datos siguen en el formulario; actualizá el directorio antes de reintentar.',
+        'credit')
+      return
+    }
+    // Check the saved contact data as well; credits and contacts share one metadata document.
+    const persistedContacts = supplierContacts(saved as Supplier)
+    if (filledContacts.length && (persistedContacts.length !== filledContacts.length ||
+        filledContacts.some((contact, index) =>
+          persistedContacts[index]?.name !== contact.name ||
+          persistedContacts[index]?.email !== contact.email ||
+          persistedContacts[index]?.phone !== contact.phone))) {
+      await reportSupplierSaveIssue(en.value
+        ? 'The service responded, but not all supplier contacts were saved. Check the directory before trying again.'
+        : 'El servicio respondió, pero no guardó todos los contactos. Revisá el directorio antes de reintentar.',
+        'contacts')
+      return
+    }
+    suppliers.value = confirmed.map(item => ({ ...item, category: supplierCategory(item) }))
+    if (selected.value) selected.value = suppliers.value.find(item => item.id === selected.value?.id) || null
     const savedAction = editing.value ? (en.value ? 'Supplier updated' : 'Proveedor actualizado')
       : (en.value ? 'Supplier created' : 'Proveedor creado')
     closeForm()
     toastStore.success(savedAction)
     success.value = t('crm.saved')
-    await load()
     if (editingId) {
       selected.value = suppliers.value.find(item => item.id === editingId) || selected.value
       detailsVisible.value = Boolean(selected.value)
     }
+    // Secondary data are optional; failures must not mask successful persistence.
+    void load()
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : t('srm.loadError')
+    const detail = cause instanceof Error ? cause.message : t('srm.loadError')
+    const message = mutationAccepted
+      ? (en.value ? 'The request was accepted but verification failed. Refresh before retrying. ' :
+        'La solicitud fue recibida, pero no se pudo verificar. Actualizá antes de reintentar. ') + detail
+      : detail
     await reportSupplierSaveIssue(message, 'server')
   } finally { saving.value = false }
 }
