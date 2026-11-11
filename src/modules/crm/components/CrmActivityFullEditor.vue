@@ -53,6 +53,10 @@ function reset() {
     remove: false,
   }))
 }
+function toggleEditing() {
+  if (editing.value) editing.value = false
+  else startEditing()
+}
 function startEditing() {
   reset()
   error.value = ''
@@ -149,7 +153,7 @@ watch(() => props.activity.rowVersion, () => {
       </div>
       <DhButton :label="editing ? 'Cerrar edición' : 'Editar actividad completa'"
         size="sm" variant="secondary" :disabled="saving"
-        @click="editing = !editing; if (editing) startEditing()" />
+        @click="toggleEditing" />
     </div>
     <form v-if="editing" class="mt-4 space-y-5" @submit.prevent="save">
       <p v-if="error" role="alert" class="rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
