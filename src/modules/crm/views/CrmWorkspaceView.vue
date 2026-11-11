@@ -20,6 +20,8 @@ import { identificationOptionsForCountry, normalizeIdentificationType } from '..
 import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
+import { crmDuplicateProspectAlert } from '../model/crmDuplicateProspect'
+import { useToastStore } from '@/core/stores/toastStore'
 import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import { crmAgendaClientName, crmAgendaExecutiveName, crmAgendaIdentityIds,
   type CrmAgendaIdentityLabels } from '../model/crmAgendaIdentity'
@@ -32,6 +34,7 @@ import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const toastStore = useToastStore()
 const { t, locale } = useI18n()
 const section = computed(() => String(route.meta.crmSection || 'dashboard') as CrmSection)
 const model = computed(() => CRM_MODULES[section.value])
@@ -636,7 +639,17 @@ async function save() {
       await load()
       success.value = t('crm.saved')
     }
-  } catch (e) { error.value = crmError(e) }
+  } catch (e) {
+    const duplicate = section.value === 'leads' && !edited.value
+      ? crmDuplicateProspectAlert(e) : null
+    if (duplicate) {
+      error.value = duplicate.message
+      // Visible immediately; the form and entered data remain intact.
+      toastStore.warning(duplicate.title, duplicate.message)
+    } else {
+      error.value = crmError(e)
+    }
+  }
   finally { saving.value = false }
 }
 async function changeStage(item: CrmRow, stageId: string) {
