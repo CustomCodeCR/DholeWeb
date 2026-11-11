@@ -59,6 +59,7 @@ export type RateStatus =
   | 'Closed'
   | 'Cancelled'
   | 'Expired'
+  | 'QUOVinculada'
 
 export interface CostIncotermDto {
   id: string
@@ -903,6 +904,7 @@ export interface RateDto extends Record<string, unknown> {
   marginPercentage: number
   requiredApproval: boolean
   status: RateStatus
+  linkedAcceptedRateId?: string | null
   createdByUserId?: string | null
   createdByUserName?: string | null
   createdByDisplayName?: string | null
@@ -1102,7 +1104,7 @@ export interface GenerateRateDocumentRequest extends Record<string, unknown> {
 export interface SetRateStatusRequest extends Record<string, unknown> {
   status: Extract<
     RateStatus,
-    'Open' | 'Sent' | 'RequestedByClient' | 'AcceptedByClient' | 'RejectedByClient' | 'Closed' | 'Cancelled'
+    'Open' | 'Sent' | 'RequestedByClient' | 'AcceptedByClient' | 'RejectedByClient' | 'Closed' | 'Cancelled' | 'QUOVinculada'
   >
   reason?: string | null
   idtraNumber?: string | null
@@ -1110,6 +1112,7 @@ export interface SetRateStatusRequest extends Record<string, unknown> {
   observations?: string | null
   deliveryTarget?: 'seller' | 'client' | null
   contactId?: string | null
+  linkedAcceptedRateId?: string | null
 }
 
 export interface DeleteBatchRequest extends Record<string, unknown> {
