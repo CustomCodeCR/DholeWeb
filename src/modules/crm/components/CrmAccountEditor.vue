@@ -80,6 +80,15 @@ const profileVersion = ref<number | null>(null)
 const relatedContacts = ref<CrmRow[]>([])
 const relatedAddresses = ref<CrmRow[]>([])
 const editingContactId = ref('')
+const creatingContact = ref(false)
+function beginNewContact() {
+  Object.assign(contactDraft, { firstName: '', lastName: '', jobTitle: '',
+    email: '', phone: '', countryId: accountDraft.countryId || String(props.account.countryId ?? '') })
+  editingContactId.value = ''
+  creatingContact.value = true
+  relatedError.value = ''
+  relatedSuccess.value = ''
+}
 const editingAddressId = ref('')
 const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
 const addressDraft = reactive({
@@ -103,6 +112,7 @@ const relatedError = ref('')
 const relatedSuccess = ref('')
 
 function beginContactEdit(contact: CrmRow) {
+  creatingContact.value = false
   editingContactId.value = String(contact.id)
   // Don't infer compound surnames from a legacy full name.
   Object.assign(contactDraft, { firstName: String(contact.firstName ?? ''),
@@ -125,26 +135,36 @@ function beginAddressEdit(address: CrmRow) {
     postalCode: String(address.postalCode ?? ''),
   })
   creatingAddress.value = false
+  creatingContact.value = false
   editingContactId.value = ''
   relatedError.value = ''
 }
 async function saveContact() {
   const previous = relatedContacts.value.find(c => String(c.id) === editingContactId.value)
-  if (!previous || !can('crm.contact.update') || relationSaving.value) return
+  if ((!previous && !creatingContact.value) || relationSaving.value ||
+      (previous ? !can('crm.contact.update') : !can('crm.contact.create'))) return
   if (!contactDraft.firstName.trim() || !contactDraft.lastName.trim()) {
     relatedError.value = 'Nombre(s) y apellido(s) del contacto son obligatorios.'; return
   }
   relationSaving.value = true
   relatedError.value = ''
   try {
-    const updated = await crmPatch<CrmRow>('contacts', String(previous.id), {
-      ...contactDraft, countryId: contactDraft.countryId || null,
+    const payload = {
+      ...contactDraft, countryId: contactDraft.countryId || props.account.countryId || null,
       name: [contactDraft.firstName.trim(), contactDraft.lastName.trim()].join(' '),
-      expectedVersion: previous.rowVersion,
-    })
-    relatedContacts.value = relatedContacts.value.map(c => c.id === updated.id ? updated : c)
+    }
+    const updated = previous
+      ? await crmPatch<CrmRow>('contacts', String(previous.id), {
+          ...payload, expectedVersion: previous.rowVersion,
+        })
+      : await crmRequest<CrmRow>(crmPath('accounts', String(props.account.id), 'contacts'),
+          'POST', { ...payload, relationRole: 'CONTACT', isPrimary: false })
+    relatedContacts.value = previous
+      ? relatedContacts.value.map(c => c.id === updated.id ? updated : c)
+      : [...relatedContacts.value, updated]
     editingContactId.value = ''
-    relatedSuccess.value = 'Contacto actualizado.'
+    creatingContact.value = false
+    relatedSuccess.value = previous ? 'Contacto actualizado.' : 'Contacto creado y vinculado a esta cuenta.'
     emit('saved')
   } catch (cause) { relatedError.value = crmError(cause) }
   finally { relationSaving.value = false }
@@ -207,6 +227,7 @@ async function load() {
     relatedContacts.value = []
     relatedAddresses.value = []
     editingContactId.value = ''
+    creatingContact.value = false
     editingAddressId.value = ''
     creatingAddress.value = false
     relatedError.value = ''
@@ -372,11 +393,25 @@ async function save() {
           </div>
         </section>
         </section>
-        <section v-if="can('crm.contact.read')" v-show="activeEditorSection==='contacts'" id="crm-edit-contacts" class="crm-editor-section">
+        <section v-if="can('crm.contact.read') || can('crm.contact.create')" v-show="activeEditorSection==='contacts'" id="crm-edit-contacts" class="crm-editor-section">
           <div class="crm-editor-heading"><UserRound class="h-5 w-5" /><div>
             <h3>Contactos vinculados</h3><p>Editá los contactos sin salir de esta cuenta.</p>
           </div></div>
-          <p v-if="!relatedContacts.length" class="text-sm text-[var(--dh-text-muted)]">No hay contactos registrados.</p>
+          <button v-if="can('crm.contact.create')" type="button" class="crm-editor-secondary mb-3"
+            @click="beginNewContact">Agregar contacto</button>
+          <div v-if="creatingContact" class="mb-4 grid gap-3 rounded-xl border border-[var(--dh-border)] p-3 md:grid-cols-2">
+            <DhInput v-model="contactDraft.firstName" label="Nombre(s) *" />
+            <DhInput v-model="contactDraft.lastName" label="Apellido(s) *" />
+            <DhInput v-model="contactDraft.jobTitle" label="Puesto" />
+            <DhInput v-model="contactDraft.email" label="Correo electrónico" type="email" />
+            <CrmPhoneInput v-model="contactDraft.phone" :country-id="contactDraft.countryId" label="Teléfono" />
+            <CrmCatalogPicker v-model="contactDraft.countryId" label="País" catalog-group-slug="countries" value-kind="id" />
+            <div class="flex gap-2 md:col-span-2">
+              <button type="button" class="crm-editor-secondary" @click="creatingContact=false">Cancelar</button>
+              <button type="button" class="crm-editor-primary" :disabled="relationSaving" @click="saveContact">Crear contacto</button>
+            </div>
+          </div>
+          <p v-if="!relatedContacts.length && !creatingContact" class="text-sm text-[var(--dh-text-muted)]">No hay contactos registrados.</p>
           <div v-for="contact in relatedContacts" :key="String(contact.id)"
             class="mb-3 rounded-xl border border-[var(--dh-border)] p-3">
             <div class="flex items-center justify-between gap-2">

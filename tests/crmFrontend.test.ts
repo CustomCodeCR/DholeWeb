@@ -290,7 +290,9 @@ test('CRM account is one form and Hacienda applies the current identification on
   assert.ok(lookup.includes('version !== lookupVersion'))
   assert.ok(menu.includes('crmChildren'))
   assert.ok(work.includes('CrmRelationshipPicker'))
-  assert.ok(work.includes("Dos secciones para crear la cuenta"))
+  assert.ok(work.includes("Contactos y direcciones opcionales"))
+  assert.ok(work.includes('id="crm-account-section-contacts"'))
+  assert.ok(work.includes('id="crm-account-section-addresses"'))
 })
 
 test('Sales assignment only offers eligible Auth roles and the Castro Fallas account', () => {

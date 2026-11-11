@@ -10,6 +10,8 @@ import CrmRelationshipPicker from '../components/CrmRelationshipPicker.vue'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmHaciendaLookup, { type HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmPhoneInput from '../components/CrmPhoneInput.vue'
+import CrmAddressLocationFields from '../components/CrmAddressLocationFields.vue'
+import { emptyAddressLocation, type CrmAddressLocation } from '../model/crmAddressLocation'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -271,7 +273,30 @@ function refreshWorkspace() {
   void load()
   if (section.value === 'accounts') void loadAccountFilterOptions()
 }
-const accountFormTab = ref<'identity' | 'commercial'>('identity')
+type AccountFormTab = 'identity' | 'commercial' | 'contacts' | 'addresses'
+type OptionalContact = {
+  key: string; firstName: string; lastName: string; jobTitle: string
+  email: string; phone: string; countryId: string; isPrimary: boolean
+}
+type OptionalAddress = CrmAddressLocation & {
+  key: string; addressType: string; addressText: string; location: string
+}
+const accountFormTab = ref<AccountFormTab>('identity')
+const optionalContacts = ref<OptionalContact[]>([])
+const optionalAddresses = ref<OptionalAddress[]>([])
+function addAccountContact() {
+  optionalContacts.value.push({ key: crmUuid(), firstName: '', lastName: '',
+    jobTitle: '', email: '', phone: '', countryId: '', isPrimary: false })
+  accountFormTab.value = 'contacts'
+}
+function addAccountAddress() {
+  optionalAddresses.value.push({ key: crmUuid(), addressType: 'WORK',
+    addressText: '', location: '', ...emptyAddressLocation() })
+  accountFormTab.value = 'addresses'
+}
+function setAccountPrimaryContact(key: string, value: boolean) {
+  for (const contact of optionalContacts.value) contact.isPrimary = value && contact.key === key
+}
 const sellerNames = ref<Record<string, string>>({})
 let sellerRequestGeneration = 0
 async function loadAccountSellers(accounts: CrmRow[]) {
@@ -347,6 +372,8 @@ async function loadCountryLabels() {
 const accountSections = [
   { key: 'identity', label: 'Identificación' },
   { key: 'commercial', label: 'Perfil comercial' },
+  { key: 'contacts', label: 'Contactos (opcional)' },
+  { key: 'addresses', label: 'Direcciones (opcional)' },
 ] as const
 function focusAccountSection(key: typeof accountFormTab.value) {
   accountFormTab.value = key
@@ -366,6 +393,8 @@ function beginCreate() {
     form.executiveUserId = auth.userId ?? ''
     if (!can('crm.account.category.manage')) form.categoryCode = accountCategoryDefault(form.categoryType)
     accountFormTab.value = 'identity'
+    optionalContacts.value = []
+    optionalAddresses.value = []
   }
   if (section.value === 'leads') form.executiveUserId = ''
   showForm.value = true
@@ -597,10 +626,35 @@ async function save() {
     form.name = upperAccountName(form.name).trim()
     form.companyName = upperAccountName(form.companyName).trim()
   }
+  if (section.value === 'accounts' && !edited.value) {
+    if (optionalContacts.value.some(item => !item.firstName.trim() || !item.lastName.trim())) {
+      focusAccountSection('contacts')
+      error.value = 'Completá los nombres y apellidos de cada contacto agregado, o eliminá el registro opcional.'
+      return
+    }
+    if (optionalAddresses.value.some(item => !item.addressText.trim())) {
+      focusAccountSection('addresses')
+      error.value = 'Completá la dirección exacta de cada dirección agregada, o eliminá el registro opcional.'
+      return
+    }
+  }
   if (!validateRequiredFields()) return
   error.value = ''; saving.value = true
   try {
     let body = crmPayload(section.value, form, edited.value ?? undefined)
+    if (section.value === 'accounts' && !edited.value) {
+      // Nested records are persisted atomically with the new account by CRM.
+      body = { ...body,
+        contacts: optionalContacts.value.map(({ key: _key, ...contact }) => ({
+          ...contact, countryId: contact.countryId || form.countryId || null,
+          relationRole: 'CONTACT',
+        })),
+        addresses: optionalAddresses.value.map(({ key: _key, ...address }) => ({
+          ...address, countryId: address.countryId || form.countryId || null,
+          contactId: null,
+        })),
+      }
+    }
     if (section.value === 'accounts' && !edited.value && !can('crm.account.category.manage')) {
       body.categoryCode = accountCategoryDefault(form.categoryType)
     }
@@ -991,10 +1045,10 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                   <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ficha de cuenta comercial</p>
                   <h2 class="mt-1 text-base font-extrabold">{{ edited ? 'Editar datos de la cuenta' : 'Nueva cuenta · Registrar cliente' }}</h2>
                 </div>
-                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Dos secciones para crear la cuenta; completá el resto en su ficha' }}</span>
+                <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Contactos y direcciones opcionales, sin salir del registro' }}</span>
               </div>
               <div class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3" aria-label="Ir a sección">
-                <button v-for="item in accountSections" :key="item.key" type="button"
+                <button v-for="item in accountSections" v-show="item.key==='identity' || item.key==='commercial' || (item.key==='contacts' && can('crm.contact.create')) || (item.key==='addresses' && can('crm.account.update'))" :key="item.key" type="button"
                   class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-xs font-bold hover:text-[var(--dh-primary)]"
                   @click="focusAccountSection(item.key)">{{ item.label }}</button>
               </div>
@@ -1047,8 +1101,60 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                 </div>
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
               </div>
+              <section v-if="!edited && can('crm.contact.create')" id="crm-account-section-contacts"
+                class="mt-6 scroll-mt-20 border-t border-[var(--dh-border)] pt-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div><h3 class="text-sm font-extrabold">Contactos (opcional)</h3>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Podés crear uno o varios contactos ahora o agregarlos después desde la ficha.</p></div>
+                  <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
+                    @click="addAccountContact">+ Agregar contacto</button>
+                </div>
+                <div v-for="(contact, index) in optionalContacts" :key="contact.key"
+                  class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <h4 class="text-xs font-extrabold">Contacto {{ index + 1 }}</h4>
+                    <button type="button" class="text-xs font-bold text-red-500" @click="optionalContacts.splice(index,1)">Quitar</button>
+                  </div>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <DhInput v-model="contact.firstName" label="Nombre(s) *" />
+                    <DhInput v-model="contact.lastName" label="Apellido(s) *" />
+                    <DhInput v-model="contact.jobTitle" label="Puesto" />
+                    <DhInput v-model="contact.email" type="email" label="Correo electrónico" />
+                    <CrmPhoneInput v-model="contact.phone" label="Teléfono" :country-id="contact.countryId || String(form.countryId ?? '')" />
+                    <CrmCatalogPicker v-model="contact.countryId" label="País del contacto (opcional)" catalog-group-slug="countries" value-kind="id" />
+                    <div class="md:col-span-2"><DhSwitch :model-value="contact.isPrimary"
+                      label="Contacto principal" @update:model-value="setAccountPrimaryContact(contact.key, $event)" /></div>
+                  </div>
+                </div>
+              </section>
+              <section v-if="!edited && can('crm.account.update')" id="crm-account-section-addresses"
+                class="mt-6 scroll-mt-20 border-t border-[var(--dh-border)] pt-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div><h3 class="text-sm font-extrabold">Direcciones (opcional)</h3>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Registrá las direcciones de la cuenta ahora o posteriormente.</p></div>
+                  <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
+                    @click="addAccountAddress">+ Agregar dirección</button>
+                </div>
+                <div v-for="(address, index) in optionalAddresses" :key="address.key"
+                  class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                  <div class="mb-3 flex items-center justify-between gap-3">
+                    <h4 class="text-xs font-extrabold">Dirección {{ index + 1 }}</h4>
+                    <button type="button" class="text-xs font-bold text-red-500" @click="optionalAddresses.splice(index,1)">Quitar</button>
+                  </div>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <DhSelect v-model="address.addressType" label="Tipo de dirección"
+                      :options="[{label:'Trabajo',value:'WORK'},{label:'Facturación',value:'BILLING'},{label:'Otra',value:'OTHER'}]" />
+                    <DhInput v-model="address.location" label="Referencia adicional" />
+                    <div class="md:col-span-2">
+                      <CrmAddressLocationFields :model-value="address" :default-country-id="String(form.countryId ?? '')"
+                        @update:model-value="Object.assign(address, $event)" />
+                    </div>
+                    <div class="md:col-span-2"><DhTextarea v-model="address.addressText" label="Dirección exacta *" :rows="3" /></div>
+                  </div>
+                </div>
+              </section>
               <p class="mt-5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 text-xs text-[var(--dh-text-muted)]">
-                Guardá la cuenta para abrir su ficha. Allí podrás agregar el logo, contactos, direcciones, información comercial, rutas, crédito y observaciones sin llenar un formulario interminable.
+                Solo los datos básicos de la cuenta son obligatorios. Contactos y direcciones agregados aquí se guardarán vinculados a la nueva cuenta. Podés completar el resto desde la ficha.
               </p>
             </div>
           </template>
