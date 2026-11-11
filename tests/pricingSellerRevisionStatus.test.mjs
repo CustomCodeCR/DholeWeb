@@ -36,3 +36,13 @@ test('seller dashboard reconciles published rates after queue transitions and de
   assert.match(dashboard, /pricing\.requested-rate\.completed/)
   assert.match(dashboard, /sellerRatesRefreshing = false/)
 })
+
+test('expired quotes enable seller decisions without unlocking unpublished drafts', () => {
+  assert.match(dashboard, /\['Sent', 'RequestedByClient', 'Expired'\][.]includes\(rate[.]status\)/)
+  assert.match(detail, /const canRespondToRate = computed/)
+  assert.match(detail, /\['Sent', 'RequestedByClient', 'Expired'\][.]includes\(rate[.]value[.]status\)/)
+  assert.match(detail, /if \(!rate[.]value \|\| !canRespondToRate[.]value\) return/)
+  assert.match(dashboard, /if \(!canRespondToRate\(rate\)\) return/)
+  const modal = source('src/modules/dashboard/components/SellerRateDecisionModal.vue')
+  assert.match(modal, /props[.]rate[.]status === 'Expired'/)
+})
