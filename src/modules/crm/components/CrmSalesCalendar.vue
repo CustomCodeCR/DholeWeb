@@ -719,7 +719,7 @@ async function create() {
     }
     if (attachedDocuments.value.length && pendingDocumentRecord.value) {
       const target = pendingDocumentRecord.value
-      const access = await crmRequest<{ canUpload: boolean }>(crmPath('documents', target.kind, target.id, 'access'))
+      const access = await crmRequest<{ canUpload: boolean }>(crmPath('documents/' + target.kind, target.id, 'access'))
       if (!access.canUpload || !can('storage.files.create'))
         throw new Error('La actividad se guardó, pero no tenés permisos para adjuntar los documentos.')
       for (const file of [...attachedDocuments.value]) {
