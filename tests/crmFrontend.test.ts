@@ -184,6 +184,21 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   // Preserve develop sidebar separators while CRM uses its own account navigation.
 })
 
+test('Pricing quotations populate commercial analysis without an independent routes tab', () => {
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  const commercial = hub.indexOf('id="crm-account-commercial"')
+  const quotedRoutes = hub.indexOf('Rutas de cotizaciones y actividad comercial')
+  const changes = hub.indexOf('id="crm-account-changes"')
+  assert.ok(commercial >= 0 && quotedRoutes > commercial && quotedRoutes < changes)
+  assert.doesNotMatch(hub, /key: 'history' as const/)
+  assert.match(hub, /tab === 'commercial' && has\('crm.quote.read'\)/)
+  assert.match(hub, /\/api\/pricing\/rates\/crm-account\//)
+  assert.match(hub, /q\.quoteNumberSnapshot/)
+  assert.match(hub, /v-for="q in quoteRouteSnapshots"/)
+  assert.match(hub, /v-for="record in routeHistory"/)
+  assert.match(hub, /CrmLegacyQuoteManager/)
+})
+
 test('CRM route history is sourced from completed meetings or linked quotes', () => {
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   const sidebar = read('src/shared/components/organisms/DhSidebar.vue')
@@ -239,7 +254,7 @@ test('CRM landing shows authorized live counts and direct customer activity link
 test('Account sheet mirrors Dynamics groupings without inventing persistence for missing fields', () => {
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   const sheet = read('src/modules/crm/components/CrmDynamicsAccountSheet.vue')
-  for (const tab of ["'profile'", "'contacts'", "'finance'", "'quotes'", "'history'", "'agenda'"]) {
+  for (const tab of ["'profile'", "'contacts'", "'commercial'", "'finance'", "'quotes'", "'agenda'"]) {
     assert.ok(hub.includes(tab), 'Missing customer tab: ' + tab)
   }
   for (const label of [
