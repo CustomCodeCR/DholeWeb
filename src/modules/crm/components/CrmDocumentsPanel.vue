@@ -41,7 +41,7 @@ async function refresh() {
   loading.value = true
   try {
     const access = await crmRequest<{ canUpload: boolean }>(
-      crmPath('documents', props.kind, props.recordId, 'access'))
+      crmPath('documents/' + props.kind, props.recordId, 'access'))
     recordMayUpload.value = access.canUpload === true
     if (!canView.value) {
       error.value = 'Para consultar los documentos necesitás el permiso storage.files.view.'
@@ -59,7 +59,7 @@ async function upload() {
   try {
     // Recheck authorization at save time, not only when the panel was opened.
     const access = await crmRequest<{ canUpload: boolean }>(
-      crmPath('documents', props.kind, props.recordId, 'access'))
+      crmPath('documents/' + props.kind, props.recordId, 'access'))
     if (!access.canUpload) throw new Error('No tenés autorización para adjuntar documentos a este registro.')
     for (const file of [...selectedFiles.value]) {
       if (file.size > 100 * 1024 * 1024)
