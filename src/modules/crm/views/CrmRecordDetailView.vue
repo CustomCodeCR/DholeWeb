@@ -118,7 +118,7 @@ const canAddRelation = computed(() => {
 })
 const drafts = reactive({
   note: '', reason: '', outcome: 'Completed', date: '',
-  taxIdTypeCode: '', conversionCustomerType: 'cash', conversionCategoryType: 'CUSTOMER', conversionCategoryCode: 'A',
+  taxIdTypeCode: '', conversionCustomerType: 'cash', conversionCategoryType: 'CUSTOMER', conversionCategoryCode: 'D',
   stageId: '', status: '', contactName: '', contactEmail: '',
   quoteId: '', pricingRequestId: '', priority: 'Green', shipmentMode: 'Fcl',
   originName: '', destinationName: '', payload: '{}', serviceCode: '', volume: '1',
@@ -631,7 +631,8 @@ async function convertLead() {
       taxIdTypeCode: drafts.taxIdTypeCode.trim() || null,
       customerTypeCode: drafts.conversionCustomerType,
       categoryType: drafts.conversionCategoryType,
-      categoryCode: drafts.conversionCategoryCode,
+      categoryCode: can('crm.account.category.manage') ? drafts.conversionCategoryCode :
+        (drafts.conversionCategoryType === 'NVOCC' ? 'B' : drafts.conversionCategoryType === 'LITTLE' ? 'A' : 'D'),
     }, crmUuid())
     if (!conversion.accountId) {
       error.value = 'El prospecto figura como convertido, pero CRM no devolvió la cuenta vinculada. Revisá el registro antes de repetir la conversión.'
@@ -1151,8 +1152,10 @@ onMounted(() => { if (crmEnabled()) void load() })
             :options="[{value:'cash',label:'Contado'},{value:'credit',label:'Crédito'}]" />
           <DhSelect label="Tipo de cuenta" v-model="drafts.conversionCategoryType"
             :options="[{value:'CUSTOMER',label:'Cliente'},{value:'NVOCC',label:'Agente / NVOCC'},{value:'LITTLE',label:'Cargas Little'}]"
-            @update:model-value="drafts.conversionCategoryCode='A'" />
-          <DhSelect label="Categoría" v-model="drafts.conversionCategoryCode"
+            @update:model-value="drafts.conversionCategoryCode=can('crm.account.category.manage') ? 'A' : (drafts.conversionCategoryType==='NVOCC'?'B':drafts.conversionCategoryType==='LITTLE'?'A':'D')" />
+          <DhSelect label="Categoría" :disabled="!can('crm.account.category.manage')"
+            :model-value="can('crm.account.category.manage') ? drafts.conversionCategoryCode : (drafts.conversionCategoryType==='NVOCC'?'B':drafts.conversionCategoryType==='LITTLE'?'A':'D')"
+            @update:model-value="drafts.conversionCategoryCode=String($event)"
             :options="(drafts.conversionCategoryType==='LITTLE'?['A']:drafts.conversionCategoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({value,label:drafts.conversionCategoryType==='LITTLE'?'Cargas Little':'Cliente '+value}))" />
           <DhTextarea v-model="drafts.reason" label="Observaciones de conversión" />
           <div class="sm:col-span-2 flex justify-end">
