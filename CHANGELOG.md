@@ -1,3 +1,8 @@
+## [1.20.1] - 2026-11-10
+
+- PATCH DH-20261110-CRM-SELLERS-COMMITMENTS-078: solo Vendedores activos en selector de responsables, filtros de agenda y leyenda; casilla de compromisos habilitada para responsables autorizados mediante crm.activity.update.
+- Versión global 1.20.1; compatibilidad REST/realtime. CI y staging pendientes.
+
 ## [1.20.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: todos los compromisos enlazados a una actividad principal se pueden marcar completados desde el detalle, con autorización de tareas/seguimientos, control de versión optimista y actualización del estado. Conserva el flujo unificado «Nueva actividad», la minuta, contactos, permisos y directorio seguro de la versión 1.19.5.
