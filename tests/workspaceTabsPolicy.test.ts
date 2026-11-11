@@ -57,8 +57,8 @@ test('related pricing/editor routes reuse a workspace slot, unrelated modules do
 })
 
 
-test('CRM accounts and contacts each share a single workspace across list and details', () => {
-  for (const module of ['accounts', 'contacts']) {
+test('CRM accounts, contacts and leads each share a single workspace across list and details', () => {
+  for (const module of ['accounts', 'contacts', 'leads']) {
     const list = '/crm/' + module
     const first = list + '/11111111-1111-4111-8111-111111111111'
     const second = list + '/22222222-2222-4222-8222-222222222222'
@@ -98,4 +98,44 @@ test('restoring old CRM tabs consolidates duplicates and keeps the previously ac
   assert.ok(restored.some(tab => tab.key === '/pricing/rates'))
   assert.equal(restored.some(tab => tab.key === '/crm/accounts/b'), false)
   assert.equal(restored.length, 3)
+})
+
+
+test('CRM prospects reuse a tab across the list, records, and query states', () => {
+  const tabs = [{ path: '/crm/leads' }, { path: '/crm/accounts/a' }]
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/leads/lead-a'), 0)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/leads/lead-b?edit=1'), 0)
+  assert.equal(workspaceTabGroup('/crm/leads/lead-a/history'), null)
+  assert.notEqual(workspaceTabGroup('/crm/leads/lead-a'), workspaceTabGroup('/crm/accounts/a'))
+})
+
+test('CRM agenda unifies activity and followup lists and details in one workspace tab', () => {
+  const relatedPaths = [
+    '/crm/followups', '/crm/activities', '/crm/followups/followup-a',
+    '/crm/activities/activity-a', '/crm/activities/activity-b?edit=1',
+  ]
+  for (const path of relatedPaths) {
+    assert.equal(workspaceTabGroup(path), 'crm-agenda')
+  }
+  const tabs = [{ path: '/crm/leads/lead-a' }, { path: '/crm/followups' }, { path: '/pricing/rates' }]
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/activities/activity-a'), 1)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/followups/followup-a'), 1)
+  assert.equal(reusableWorkspaceTabIndex(tabs, '/crm/activities'), 1)
+  assert.equal(workspaceTabGroup('/crm/activities/activity-a/history'), null)
+  assert.notEqual(workspaceTabGroup('/crm/activities/activity-a'), workspaceTabGroup('/crm/leads/lead-a'))
+})
+
+test('restored CRM prospect and agenda tabs remove duplicates and keep the active detail', () => {
+  const saved = [
+    { key: '/crm/leads', path: '/crm/leads' },
+    { key: '/crm/followups', path: '/crm/followups' },
+    { key: '/crm/leads/lead-a', path: '/crm/leads/lead-a' },
+    { key: '/crm/activities/activity-b', path: '/crm/activities/activity-b' },
+    { key: '/crm/activities/activity-c', path: '/crm/activities/activity-c' },
+  ]
+  const restored = deduplicateWorkspaceTabs(saved, '/crm/activities/activity-b')
+  assert.equal(restored.length, 2)
+  assert.ok(restored.some(tab => tab.key === '/crm/activities/activity-b'))
+  assert.equal(restored.filter(tab => workspaceTabGroup(tab.path) === 'crm-leads').length, 1)
+  assert.equal(restored.filter(tab => workspaceTabGroup(tab.path) === 'crm-agenda').length, 1)
 })
