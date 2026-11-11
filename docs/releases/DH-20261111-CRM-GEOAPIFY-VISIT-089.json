@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261111-CRM-GEOAPIFY-VISIT-089",
+  "date": "2026-11-11",
+  "type": "MINOR",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.32.4",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.18.0",
+      "next": "1.19.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.30.0",
+      "next": "1.32.4"
+    }
+  ],
+  "changes": [
+    "Visitas con Geoapify: búsqueda de lugares y direcciones, mapa interactivo y marcador",
+    "Coordenadas persistidas en DholeCRMService mediante REST; consultas y edición en Web",
+    "Compatibilidad con actividades anteriores y arquitectura realtime de Dhole"
+  ],
+  "releaseBranch": "feature/geoapify-direct-key-20261111-master",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}

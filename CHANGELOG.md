@@ -1,3 +1,8 @@
+## [1.32.4] - 2026-11-11
+
+- PATCH DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095: integra el mapa de visitas CRM (Geoapify) en master y utiliza la clave pública directamente en el selector, sin configurar archivos `.env`, Docker ni variables del pipeline. Permite buscar direcciones y negocios, colocar el punto y guardar latitud/longitud.
+- Compatible con DholeCRMService 1.19.0. Aplicar restricciones de HTTP referrers en Geoapify. Ecosistema Dhole 1.32.4; CI/staging pendientes.
+
 ## [1.32.2] - 2026-11-11
 
 - PATCH DH-20261111-PRICING-SELLER-REQUEST-HISTORY-093: la QUO muestra solicitud original de Ventas y todas las modificaciones históricas con vendedor, fecha, estado, revisión de origen, diferencias y adjuntos en componentes independientes. Visible con pricing.rate.view sin alterar la revisión comercial actual.
