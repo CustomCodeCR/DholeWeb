@@ -762,7 +762,7 @@ function openRouteEvidence(kind: 'MEETING' | 'QUOTE' = 'MEETING', sourceId = '')
   routeService.value = ''
   routeNotes.value = ''
   routeCaptureOpen.value = true
-  activeTab.value = 'history'
+  activeTab.value = 'commercial'
 }
 async function saveRouteEvidence() {
   if (busy.value || !routeSourceId.value || !routePol.value || !routePod.value) return
