@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261111-CRM-QUOTE-DELIVERY-089",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.31.0",
+  "createdAt": "2026-11-11",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.30.0",
+      "to": "1.31.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "from": "1.10.1",
+      "to": "1.11.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "from": "1.29.2",
+      "to": "1.31.0"
+    }
+  ],
+  "changes": [
+    "Acción Enviar cotización desde la pestaña Cotizaciones de una cuenta",
+    "Selector vendedor/cliente y lista de contactos activos con correo",
+    "Validación final de contacto y copia al vendedor asignado desde CRM"
+  ],
+  "validation": "CI y staging pendientes",
+  "productionDeploymentAuthorized": false
+}
