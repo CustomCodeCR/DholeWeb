@@ -404,37 +404,26 @@ function rowId(value: unknown) { return typeof value === 'string' ? value : '' }
 function quoteLink(quote: CrmRow) {
   return '/pricing/rates?rateId=' + encodeURIComponent(rowId(quote.pricingQuoteId))
 }
-const quoteToSend = ref<CrmRow | null>(null)
 const quoteDeliveryOpen = ref(false)
 const quoteDeliveryAnchor = ref<HTMLElement | null>(null)
 const quoteSendNotice = ref('')
-const canSendAccountQuote = computed(() =>
-  has('crm.quote.read') && (has('crm.account.update') || has('pricing.rate.update')))
-const sendableQuotes = computed(() => pricingQuotes.value.filter(quote =>
-  ['Open', 'ApprovedByManagement', 'RequestedByClient']
-    .includes(String(quote.commercialStatusSnapshot ?? ''))))
-function openQuoteDelivery(quote: CrmRow | null = null) {
+const canConfigureQuoteDelivery = computed(() => has('crm.account.update'))
+function openQuoteDelivery() {
   quoteSendNotice.value = ''
-  quoteToSend.value = quote
   quoteDeliveryOpen.value = true
-  void loadPricingQuotes()
   void nextTick(() => quoteDeliveryAnchor.value?.scrollIntoView({
     behavior: 'smooth', block: 'start',
   }))
 }
 function closeQuoteDelivery() {
   quoteDeliveryOpen.value = false
-  quoteToSend.value = null
 }
-function quoteSent() {
-  closeQuoteDelivery()
-  quoteSendNotice.value = 'La cotización se preparó para su envío con el PDF adjunto.'
-  quoteRefreshKey.value++
-  void loadPricingQuotes()
+function quotePreferenceSaved() {
+  quoteSendNotice.value = 'Preferencia guardada para todas las cotizaciones futuras de esta cuenta.'
 }
-function openQuoteRelatedTab(tab: 'quotes' | 'contacts') {
+function openQuoteContacts() {
   closeQuoteDelivery()
-  activeTab.value = tab
+  activeTab.value = 'contacts'
 }
 watch(() => props.account.id, () => {
   closeQuoteDelivery()
@@ -930,7 +919,7 @@ async function saveRoute() {
           <button v-if="!editing" type="button" class="hub-primary-button"
             :aria-expanded="quoteDeliveryOpen" aria-controls="crm-account-quote-delivery"
             @click="quoteDeliveryOpen ? closeQuoteDelivery() : openQuoteDelivery()">
-            <Truck class="h-4 w-4" />{{ quoteDeliveryOpen ? 'Cerrar envío' : 'Enviar cotización' }}
+            <Truck class="h-4 w-4" />{{ quoteDeliveryOpen ? 'Cerrar configuración' : 'Configurar envío de cotizaciones' }}
           </button>
           <button v-if="!editing && has('crm.account.assign') && has('auth.users.view')" type="button"
             class="hub-outline-button hub-small" @click="emit('change-executive')"><UsersRound class="h-4 w-4" />Asignar vendedor</button>
@@ -980,12 +969,11 @@ async function saveRoute() {
     <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'Loading account data…' : 'Cargando datos de la cuenta…' }}</p>
     <p v-if="quoteSendNotice" role="status" class="rounded-xl border border-[var(--dh-primary)]/25 p-3 text-sm font-bold text-[var(--dh-primary)]">{{ quoteSendNotice }}</p>
     <div v-if="quoteDeliveryOpen" ref="quoteDeliveryAnchor" class="scroll-mt-28">
-      <CrmQuoteDeliveryPanel :quote="quoteToSend" :quotes="sendableQuotes"
-        :contacts="contacts" :seller-name="displaySeller" :authorized="canSendAccountQuote"
-        :quotes-loading="pricingQuotesLoading" :quotes-error="pricingQuoteError"
-        @sent="quoteSent" @cancel="closeQuoteDelivery"
-        @open-contacts="openQuoteRelatedTab('contacts')"
-        @open-quotes="openQuoteRelatedTab('quotes')" />
+      <CrmQuoteDeliveryPanel :account-id="rowId(account.id)"
+        :contacts="contacts" :seller-name="displaySeller"
+        :authorized="canConfigureQuoteDelivery"
+        @saved="quotePreferenceSaved" @cancel="closeQuoteDelivery"
+        @open-contacts="openQuoteContacts" />
     </div>
 
     <div v-if="activeTab === 'documents'" id="crm-account-documents" role="tabpanel">
@@ -1608,10 +1596,6 @@ async function saveRoute() {
           <td class="px-3 py-3">
             <div class="flex flex-wrap items-center gap-3">
               <RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
-              <button v-if="canSendAccountQuote && ['Open', 'ApprovedByManagement', 'RequestedByClient'].includes(String(q.commercialStatusSnapshot))"
-                type="button" class="hub-text-link" @click="openQuoteDelivery(q)">
-                Enviar cotización
-              </button>
               <button v-if="has('crm.analysis.manage') && has('crm.analysis.read') && hasOpportunityQuote(rowId(q.pricingQuoteId))" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE', rowId(q.pricingQuoteId))">Registrar ruta</button>
             </div>
           </td>

@@ -1,3 +1,8 @@
+## [1.36.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-QUOTE-MULTI-CONTACTS-102: versión de master actualizada tras release concurrente. Elimina selector de cotización y usa DhMultiSelect para configurar varios contactos por cuenta para todas las cotizaciones futuras.
+- Mantiene la última versión de Web master, envío idempotente desde Pricing y compatibilidad con CRM y realtime existentes. Ecosistema 1.36.0. CI/staging pendientes y producción no autorizada.
+
 ## [1.35.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-VISIT-LOCATIONS-096: muestra ubicaciones registradas de clientes y prospectos en el mapa de visitas, autocompletado y búsqueda directa alternativa de Geoapify con botón Buscar, selección de marcador y detalle del error HTTP.
