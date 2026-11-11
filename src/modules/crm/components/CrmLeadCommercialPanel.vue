@@ -247,7 +247,7 @@ function quotePageChange(delta: number) {
 </script>
 
 <template>
-  <section v-if="props.view !== 'quotes' && canReadAnalyses" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-analyses>
+  <section v-if="props.view !== 'quotes' && props.view !== 'history' && canReadAnalyses" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-analyses>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-extrabold">Análisis comercial del prospecto</h2>
