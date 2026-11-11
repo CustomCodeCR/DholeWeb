@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261110-CRM-LEAD-PARITY-079",
+  "kind": "PATCH",
+  "date": "2026-11-10",
+  "ecosystemVersion": "1.20.1",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.20.0",
+      "version": "1.20.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.20.0",
+      "version": "1.20.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "version": "1.9.2",
+      "unchanged": true
+    }
+  ],
+  "changes": [
+    "Prospect account-parity tabs, profile and linked-quote dashboard from CRM snapshots",
+    "Lead commercial analysis route history, no name-based attribution",
+    "Account real-time Pricing dashboard unchanged"
+  ],
+  "ci": "pending",
+  "staging": "pending",
+  "productionDeploymentAuthorized": false
+}
