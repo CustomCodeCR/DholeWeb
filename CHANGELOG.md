@@ -1,3 +1,8 @@
+## [1.33.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-ACCOUNT-FUTURE-QUOTE-DELIVERY-093: destinatarios configurables por cuenta para todas las próximas QUO, aplicados después de seleccionar alternativa definitiva. La UI no envía ninguna cotización al guardar. La copia corresponde al vendedor asignado.
+- CI/staging obligatorios; global 1.33.0.
+
 ## [1.32.4] - 2026-11-11
 
 - PATCH DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095: utiliza la clave pública Geoapify suministrada directamente en el componente del mapa de visitas CRM, sin requerir variables `.env` ni argumentos de compilación Docker; conserva autocompletado, puntos, coordenadas y API REST.
