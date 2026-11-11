@@ -11,8 +11,8 @@ const calendar = readFileSync('src/modules/crm/components/CrmSalesCalendar.vue',
 test('CRM documents reuse Storage and bind to the exact entity record', () => {
   assert.match(storage, /getFilesByEntity\(sourceService: string, entityType: string, entityId: string\)/)
   assert.match(storage, /\/api\/v1\/storage\/files\/by-entity/)
-  assert.match(component, /crmPath\('documents\/' \+ props\.kind, props\.recordId, 'access'\)/)
-  assert.match(component, /'DholeCRMService', entityType\.value, props\.recordId/)
+  assert.match(component, /crmPath\('documents\/' \+ kind, recordId, 'access'\)/)
+  assert.match(component, /'DholeCRMService', 'crm\.' \+ kind, recordId/)
   assert.match(component, /entityId: props\.recordId/)
   assert.match(component, /storage\.files\.create/)
   assert.match(component, /storage\.files\.view/)
