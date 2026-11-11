@@ -1,3 +1,8 @@
+## [1.20.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: todos los compromisos enlazados a una actividad principal se pueden marcar completados desde el detalle, con autorización de tareas/seguimientos, control de versión optimista y actualización del estado. Conserva el flujo unificado «Nueva actividad», la minuta, contactos, permisos y directorio seguro de la versión 1.19.5.
+- Release coordinado con DholeSystem 1.20.0. CI y pruebas staging pendientes; sin migraciones ni cambios de SignalR.
+
 ## [1.19.5] - 2026-11-10
 
 - PATCH DH-20261110-CRM-GLOBAL-AGENDAS-076: muestra todas las agendas a superadministradores y a quienes poseen ambos scopes crm.account.read-all y crm.lead.read-all. Corrige selector de responsables con directorio interno CRM autorizado, sin exigir auth.users.view; permite crear actividades para otros vendedores activos. Conserva filtros por cliente y permisos de escritura.
