@@ -5290,6 +5290,14 @@ async function retrySavedModificationDelivery() {
       headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
     })
     const request = unwrapApiResponse<{ status: string; rateId?: string | null }>(response as never)
+    if (request.status === 'Completed' && request.rateId?.toLowerCase() === rateId.toLowerCase()) {
+      pendingModificationDelivery.value = false
+      savedModificationRevision.value = null
+      toastStore.success('Modificación completada', 'La solicitud ya no aparece en las pendientes; el envío continúa por separado.')
+      window.dispatchEvent(new CustomEvent('dhole:pricing:rate-request-completed', { detail: { requestId, rateId } }))
+      await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
+      return
+    }
     if (request.rateId?.toLowerCase() !== rateId.toLowerCase()
       || request.status !== 'Open') {
       throw new Error('La solicitud ya no está abierta o no pertenece a esta QUO.')
@@ -5863,6 +5871,19 @@ async function saveRate() {
           headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
         })
         const savedRequest = unwrapApiResponse<{ status: string; rateId?: string | null }>(updatedRequest as never)
+        if (savedRequest.status === 'Completed' && savedRequest.rateId?.toLowerCase() === rateId.toLowerCase()) {
+          pendingModificationDelivery.value = false
+          savedModificationRevision.value = null
+          toastStore.success(
+            'Modificación completada',
+            'La QUO fue actualizada y la solicitud se retiró del dashboard. El envío se reintentará automáticamente si es necesario.',
+          )
+          window.dispatchEvent(new CustomEvent('dhole:pricing:rate-request-completed', {
+            detail: { requestId: props.modificationRequestId, rateId },
+          }))
+          await router.replace({ name: 'pricing-rate-wizard', params: { rateId }, query: { mode: 'view' } })
+          return
+        }
         if (savedRequest.status !== 'Open' || savedRequest.rateId?.toLowerCase() !== rateId.toLowerCase()) {
           toastStore.warning(
             'Revisión guardada; solicitud cerrada externamente',
