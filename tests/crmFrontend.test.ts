@@ -603,12 +603,12 @@ test('CRM activities use DhMultiSelect for linked account contacts in creation a
   assert.ok(collaboration.includes("crmPath('activities',props.activityId,'participants')"))
 })
 
-test('CRM seller selector does not show arbitrary non-sales users', () => {
+test('CRM responsible selector uses effective permissions instead of named roles', () => {
   const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
   assert.ok(calendar.includes('currentUserCanOwnAgenda'))
-  assert.ok(calendar.includes("'Vendedor Supervisor'"))
-  assert.ok(calendar.includes("'Vendedor Jefe'"))
-  assert.ok(calendar.includes("'SuperUsuario'"))
+  assert.ok(calendar.includes("['crm.activity.read', 'crm.activity.read-all', 'crm.followup.manage']"))
+  assert.ok(!calendar.includes("['Vendedor', 'Vendedores', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']"))
   assert.ok(calendar.includes('sellerDirectory.value.map(user => user.id)'))
-  assert.ok(calendar.includes('No hay vendedores o superusuarios habilitados'))
+  assert.ok(calendar.includes('<label class="calendar-label">Responsable'))
+  assert.ok(calendar.includes('No hay responsables activos con los scopes requeridos'))
 })

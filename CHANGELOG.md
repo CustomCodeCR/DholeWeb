@@ -1,3 +1,8 @@
+## [1.28.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-RESPONSIBLES-SCOPES-086: cambia Vendedor responsable por Responsable e incluye usuarios activos con los scopes efectivos crm.activity.read, crm.activity.read-all o crm.followup.manage; se elimina el filtro basado en roles y se actualizan las pruebas.
+- Ecosistema Dhole 1.28.1, compatible con APIs REST y SignalR. CI/staging pendientes; despliegue productivo no autorizado.
+
 ## [1.28.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop y carga acumulativa sin límite fijo de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos, con visualización y descarga de adjuntos almacenados.

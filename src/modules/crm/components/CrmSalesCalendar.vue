@@ -73,7 +73,7 @@ function sellerColor(userId: string): string {
 }
 function ownerName(event: CalendarEvent): string {
   return calendarLabels.value.owners[event.ownerId] ||
-    (event.ownerId === auth.userId ? 'Mi agenda' : 'Vendedor asignado')
+    (event.ownerId === auth.userId ? 'Mi agenda' : 'Responsable asignado')
 }
 function clientName(event: CalendarEvent): string {
   return calendarLabels.value.accounts[event.accountId] ||
@@ -112,7 +112,7 @@ watch(calendarDirectory, users => {
   for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
   calendarLabels.value = { ...calendarLabels.value, owners }
 })
-// The Auth directory contains only active users with Vendedor role.
+// Auth returns only active internal users holding an eligible effective CRM scope.
 const ownerChoices = computed(() => calendarDirectory.value.map(user => user.id)
   .sort((a,b) => (calendarDirectory.value.find(u => u.id === a)?.displayName || a)
     .localeCompare(calendarDirectory.value.find(u => u.id === b)?.displayName || b)))
@@ -143,13 +143,13 @@ const contactChoices = computed(() => contactRows.value.map(contact => ({
   label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
 })).filter(option => option.value && option.value !== 'undefined'))
 const currentUserCanOwnAgenda = computed(() =>
-  ['Vendedor', 'Vendedores', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']
-    .some(role => auth.hasRole(role)))
+  ['crm.activity.read', 'crm.activity.read-all', 'crm.followup.manage']
+    .some(scope => can(scope)))
 const sellerDirectory = calendarDirectory
 const sellerLoading = calendarDirectoryLoading
 const sellerError = calendarDirectoryError
 const canAssignOtherSellers = computed(() =>
-  can('crm.activity.create') && (can('crm.activity.read-all') || hasBothGlobalCrmScopes.value))
+  (can('crm.activity.create') || can('crm.followup.manage')) && (can('crm.activity.read-all') || hasBothGlobalCrmScopes.value))
 async function loadSellerDirectory() {
   if (canAssignOtherSellers.value && !sellerDirectory.value.length) await loadCalendarDirectory()
 }
@@ -404,7 +404,7 @@ function assigneeLabel(id: string) {
   const user = sellerDirectory.value.find(x => x.id === id)
   return user?.displayName || user?.userName ||
     (id === auth.userId ? 'Mi agenda' :
-      id === selectedAccount.value?.executiveUserId ? 'Vendedor de la cuenta' :
+      id === selectedAccount.value?.executiveUserId ? 'Responsable de la cuenta' :
       calendarLabels.value.owners[id] || id)
 }
 function labelFor(event: CalendarEvent) {
@@ -643,7 +643,7 @@ async function create() {
   if (canAssignOtherSellers.value
     ? !eligibleSeller(data.ownerId)
     : !assignees.value.includes(data.ownerId)) {
-    error.value = 'Seleccioná un usuario activo con rol Vendedor o SuperUsuario antes de guardar.'
+    error.value = 'Seleccioná un responsable activo con crm.activity.read, crm.activity.read-all o crm.followup.manage antes de guardar.'
     return
   }
   if (activityTypesLoading.value) { error.value = 'Consultando los tipos de actividad de Config…'; return }
@@ -875,14 +875,14 @@ function openEvent(item: CalendarEvent) {
               @keyup.enter.prevent="loadCalendarDirectory" />
           </label>
           <button type="button" class="calendar-btn" :disabled="calendarDirectoryLoading"
-            @click="loadCalendarDirectory">{{ calendarDirectoryLoading ? 'Buscando…' : 'Buscar vendedores' }}</button>
+            @click="loadCalendarDirectory">{{ calendarDirectoryLoading ? 'Buscando…' : 'Buscar responsables' }}</button>
           <p v-if="calendarDirectoryError" role="alert" class="w-full text-xs text-amber-600">{{ calendarDirectoryError }}</p>
         </div>
         <label class="calendar-label">Filtrar por vendedor
           <select v-model="ownerFilter" class="calendar-input">
             <option value="">Todos los vendedores</option>
             <option v-for="ownerId in ownerChoices" :key="ownerId" :value="ownerId">
-              {{ calendarDirectory.find(u => u.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
+              {{ calendarDirectory.find(u => u.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Responsable asignado') }}
             </option>
           </select>
         </label>
@@ -897,7 +897,7 @@ function openEvent(item: CalendarEvent) {
         <span v-for="ownerId in eventOwnerChoices" :key="ownerId"
           class="inline-flex items-center gap-2 text-xs text-[var(--dh-text-muted)]">
           <span class="h-2.5 w-2.5 rounded-full" :style="{backgroundColor:sellerColor(ownerId)}"></span>
-          {{ calendarDirectory.find(u => u.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
+          {{ calendarDirectory.find(u => u.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Responsable asignado') }}
         </span>
       </div>
     </div>
@@ -1033,7 +1033,7 @@ function openEvent(item: CalendarEvent) {
       <div class="flex justify-between gap-3">
         <div><h3 class="font-extrabold">{{ active.subject }}</h3>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(effectiveStatus(active)) }} · {{ active.at.toLocaleString('es-CR') }}</p>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cliente: {{ clientName(active) }} · Vendedor: {{ ownerName(active) }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cliente: {{ clientName(active) }} · Responsable: {{ ownerName(active) }}</p>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
             Recordatorios: 24 horas y 1 hora antes, {{ active.reminderLeadMinutes ?? 60 }} minutos antes y al inicio.
             {{ active.reminderRepeatMinutes ? reminderRepeatLabel(active.reminderRepeatMinutes) + ' mientras esté pendiente.' : 'Cada 24 horas si vence.' }}
@@ -1115,16 +1115,16 @@ function openEvent(item: CalendarEvent) {
           :options="contactChoices" placeholder="Seleccionar contactos"
           search-placeholder="Buscar contactos de esta cuenta..."
           empty-text="No hay contactos disponibles en esta cuenta." />
-        <label class="calendar-label">Vendedor responsable
+        <label class="calendar-label">Responsable
           <select v-model="editor.ownerId" class="calendar-input" required>
             <option v-for="owner in assignees" :key="owner" :value="owner">
               {{ assigneeLabel(owner) }}
             </option>
           </select>
         </label>
-        <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando vendedores disponibles…</p>
+        <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando responsables disponibles…</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
-        <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay vendedores o superusuarios habilitados para asignar esta actividad.</p>
+        <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay responsables activos con los scopes requeridos para esta actividad.</p>
         <label class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
