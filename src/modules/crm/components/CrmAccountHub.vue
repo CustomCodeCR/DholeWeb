@@ -27,7 +27,7 @@ import {
   ArrowRight, ChevronDown, History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet, XCircle,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'finance'
+type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'changes' | 'agenda' | 'finance'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
   id: string
@@ -88,7 +88,6 @@ const tabs = computed(() => [
   { key: 'benefits' as const, label: locale.value === 'en' ? 'Preferred rates' : 'Tarifas preferenciales', icon: Wallet },
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
-  { key: 'history' as const, label: locale.value === 'en' ? 'Route history' : 'Historial de rutas', icon: Route },
   { key: 'changes' as const, label: locale.value === 'en' ? 'Change history' : 'Historial de cambios', icon: History },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
   ...(has('crm.credit.read') || has('crm.contract.read')
@@ -747,7 +746,7 @@ async function loadQuotedRoutes() {
 }
 watch(activeTab, tab => {
   if (tab === 'changes') void loadAccountChanges()
-  if (tab === 'history' && has('crm.quote.read')) void loadQuotedRoutes()
+  if (tab === 'commercial' && has('crm.quote.read')) void loadQuotedRoutes()
 })
 function changeQuoteRoutePage(delta: number) {
   quoteRoutePage.value += delta
@@ -783,7 +782,7 @@ async function saveRouteEvidence() {
     routeCaptureOpen.value = false
     routeHistoryPage.value = 1
     await loadRouteHistory()
-    saved.value = 'Ruta incorporada al historial con su reunión o cotización de origen.'
+    saved.value = 'Ruta documentada en análisis comercial con su reunión o cotización de origen.'
   } catch (cause) { error.value = message(cause) }
   finally { busy.value = false }
 }
@@ -899,7 +898,7 @@ async function saveRoute() {
       </div>
       <div class="flex flex-wrap gap-2 px-4 pb-3 text-[11px] sm:px-5">
         <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'linked quotes' : 'tarifas vinculadas' }}</span>
-        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='history'"><Route class="h-3.5 w-3.5" />{{ routeHistoryTotal }} rutas con historial</button>
+        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='commercial'"><Route class="h-3.5 w-3.5" />{{ quoteRouteTotal }} rutas en cotizaciones</button>
         <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
@@ -1001,7 +1000,7 @@ async function saveRoute() {
           </dl>
           <div class="mt-4 flex items-center justify-between gap-2">
             <h3 class="hub-section-heading mb-0 border-0">Rutas frecuentes · POL / POE / POD</h3>
-            <button type="button" class="hub-text-link" @click="activeTab='history'">Ver historial de reuniones y cotizaciones</button>
+            <button type="button" class="hub-text-link" @click="activeTab='commercial'">Ver rutas y cotizaciones</button>
           </div>
           <p v-if="pricingPopularRoutes.length" class="mt-3 text-[11px] font-bold text-[var(--dh-text-muted)]">Rutas de QUO vinculadas en Pricing (últimas {{ recentQuotes.length }} consultadas)</p>
           <div v-for="route in pricingPopularRoutes.slice(0,3)" :key="route.polName + route.poeName + route.podName" class="hub-list-item">
@@ -1111,7 +1110,8 @@ async function saveRoute() {
           @update:page="contactsPage = $event" @update:page-size="contactsPageSize = $event; contactsPage = 1" />
     </section>
 
-    <div v-else-if="activeTab === 'commercial'" id="crm-account-commercial" role="tabpanel" class="grid items-start gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(255px,.76fr)]">
+    <div v-else-if="activeTab === 'commercial'" id="crm-account-commercial" role="tabpanel" class="space-y-4">
+      <div class="grid items-start gap-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(255px,.76fr)]">
       <section class="hub-panel">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div><h2 class="font-extrabold">{{ locale === 'en' ? 'Usual services and routes' : 'Servicios y rutas habituales' }}</h2>
@@ -1193,8 +1193,9 @@ async function saveRoute() {
         </div>
       </section>
       <section class="hub-panel">
-        <h2 class="mb-3 font-extrabold">Análisis comercial ({{ overview.analyses.length }})</h2>
-        <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis registrados.</p>
+        <h2 class="mb-3 font-extrabold">Análisis registrados ({{ overview.analyses.length }})</h2>
+        <p class="mb-3 text-xs text-[var(--dh-text-muted)]">{{ pricingQuoteTotal }} cotizaciones vinculadas alimentan automáticamente las rutas comerciales desde Pricing.</p>
+        <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis manuales registrados. Las rutas de cotizaciones vinculadas aparecen en esta misma pestaña.</p>
         <button v-for="a in overview.analyses" :key="a.id" class="flex w-full items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-left text-sm last:border-0 hover:text-[var(--dh-primary)]"
           @click="router.push('/crm/analyses/' + encodeURIComponent(rowId(a.id)))">
           <span>{{ marketDisplay(a.marketCode) }} · {{ a.customsNationalizationRequired ? 'Incluye aduanas' : 'Sin aduanas' }}</span>
@@ -1212,6 +1213,164 @@ async function saveRoute() {
         </ol>
         <button type="button" class="hub-text-link mt-3" @click="activeTab='agenda'">Abrir seguimientos</button>
       </aside>
+      </div>
+      <section class="space-y-3" aria-label="Rutas y cotizaciones del análisis comercial">
+      <div class="hub-panel">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="flex items-center gap-2 text-base font-extrabold"><Route class="h-5 w-5 text-[var(--dh-primary)]" />Rutas de cotizaciones y actividad comercial</h2>
+            <p class="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--dh-text-muted)]">
+              Las rutas de QUO vinculadas se consultan automáticamente desde Pricing; las rutas registradas manualmente conservan su evidencia de origen.
+              No se inventan POL, POE o POD a partir del nombre del cliente o de la modalidad.
+            </p>
+          </div>
+          <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button"
+            class="crm-action inline-flex items-center gap-2" @click="openRouteEvidence('MEETING')">
+            <Plus class="h-4 w-4" />Documentar una ruta
+          </button>
+        </div>
+        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+          <div class="hub-mini-stat"><span>Rutas documentadas CRM</span><strong>{{ routeHistoryTotal }}</strong></div>
+          <div class="hub-mini-stat"><span>Rutas procedentes de cotizaciones</span><strong>{{ quoteRouteTotal }}</strong></div>
+          <div class="hub-mini-stat"><span>Rutas vinculadas con evidencia CRM</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
+        </div>
+      </div>
+      <details v-if="canManageHistoricalQuoteLinks" :open="legacyQuoteLinksExpanded"
+        class="hub-panel" @toggle="onLegacyQuoteLinksToggle">
+        <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-primary)]">
+          Vinculación de QUO históricas · Superadministración
+        </summary>
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+          Herramienta administrativa para asignar cotizaciones antiguas a este cliente. Expandir solo cuando se necesite.
+        </p>
+        <div v-if="legacyQuoteLinksExpanded" class="mt-4">
+          <CrmLegacyQuoteManager :account-id="rowId(account.id)"
+            :client-name="String(account.legalName || account.displayName || '')"
+            :executive-name="assignedSellerName" view="history" @changed="handleQuoteLinked" />
+        </div>
+      </details>
+      <div v-if="has('crm.quote.read')" class="hub-panel">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="hub-panel-heading mb-0"><FileText class="h-4 w-4 text-[var(--dh-primary)]" />Rutas de cotizaciones (Pricing)</h3>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Consulta directa y autorizada de la última cotización comercial publicada; no requiere volver a introducir los puertos.</p>
+          </div>
+          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRouteLoading" @click="loadQuotedRoutes()">Actualizar</button>
+        </div>
+        <p v-if="quoteRouteLoading" class="py-2 text-xs text-[var(--dh-text-muted)]">Consultando rutas autorizadas de Pricing…</p>
+        <p v-if="quoteRouteError" role="alert" class="py-2 text-xs text-amber-600">{{ quoteRouteError }}</p>
+        <p v-if="!quoteRouteLoading && !quoteRouteSnapshots.length && !quoteRouteError" class="hub-empty">No hay cotizaciones vinculadas visibles para consultar.</p>
+        <ol v-if="quoteRouteSnapshots.length" class="divide-y divide-[var(--dh-border)]">
+          <li v-for="q in quoteRouteSnapshots" :key="rowId(q.pricingQuoteId)" class="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <p class="text-xs font-extrabold text-[var(--dh-primary)]">{{ text(q.quoteNumber) }} <span class="font-medium text-[var(--dh-text-muted)]">· {{ text(q.shipmentMode) }}</span></p>
+              <p v-if="q.available" class="mt-1 text-sm font-bold">
+                {{ text(q.polName) }} → {{ q.poeName ? text(q.poeName) + ' → ' : '' }}{{ text(q.podName) }}
+              </p>
+              <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Ruta no disponible para el usuario o sin puertos confirmados en Pricing.</p>
+              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">
+                Fecha de la QUO: {{ date(q.linkedAt) }}
+                <span v-if="q.revisionNumber"> · Revisión {{ q.revisionNumber }}</span>
+                <span v-if="q.revisionPending"> · Última revisión enviada (nueva edición en Pricing)</span>
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <RouterLink :to="quoteLink({ id: rowId(q.pricingQuoteId), pricingQuoteId: q.pricingQuoteId })" class="hub-outline-button hub-small">Abrir tarifa</RouterLink>
+              <button v-if="has('crm.analysis.manage') && hasOpportunityQuote(rowId(q.pricingQuoteId))" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE',rowId(q.pricingQuoteId))">Documentar ruta</button>
+            </div>
+          </li>
+        </ol>
+        <div v-if="quoteRouteTotal > 8" class="mt-3 flex items-center justify-end gap-3 text-xs">
+          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage <= 1 || quoteRouteLoading" @click="changeQuoteRoutePage(-1)">Anterior</button>
+          <span>{{ quoteRoutePage }} · {{ quoteRouteTotal }} tarifas vinculadas</span>
+          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage * 8 >= quoteRouteTotal || quoteRouteLoading" @click="changeQuoteRoutePage(1)">Siguiente</button>
+        </div>
+      </div>
+      <div v-if="pricingPopularRoutes.length" class="hub-panel">
+        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más cotizadas (Pricing)</h3>
+        <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Rutas presentes en las últimas {{ recentQuotes.length }} QUO autorizadas de esta cuenta; no son rutas documentadas de reuniones.</p>
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="route in pricingPopularRoutes" :key="route.polName + route.poeName + route.podName" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <p class="text-sm font-extrabold">{{ route.polName }} → {{ route.poeName && route.podName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ route.count }} cotizaciones vinculadas</p>
+          </div>
+        </div>
+      </div>
+      <div v-if="popularRoutes.length" class="hub-panel">
+        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más utilizadas (registros documentados)</h3>
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div v-for="(r, idx) in popularRoutes" :key="idx" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <p class="text-sm font-extrabold">{{ routeDisplay(r.polCode, 'pol') }} → {{ r.poeCode ? routeDisplay(r.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(r.podCode, 'pod') }}</p>
+            <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--dh-text-muted)]">
+              <span>{{ r.occurrences }} registros</span><span>{{ r.meetingCount }} reuniones</span><span>{{ r.quoteCount }} cotizaciones</span>
+            </div>
+            <time class="mt-2 block text-[11px] text-[var(--dh-text-muted)]">Último registro: {{ date(r.lastSeenAt) }}</time>
+          </div>
+        </div>
+      </div>
+      <div class="hub-panel">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 class="hub-panel-heading mb-0">Registros documentados · {{ routeHistoryTotal }} registros</h3>
+          <button type="button" class="hub-outline-button hub-small" @click="loadRouteHistory()"><RefreshCw class="h-3.5 w-3.5" />Actualizar</button>
+        </div>
+        <p v-if="routeHistoryError" role="alert" class="mb-3 rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ routeHistoryError }}</p>
+        <div v-if="!routeHistory.length && !routeHistoryError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
+          <Route class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
+          <p class="mt-3 text-sm font-extrabold">Todavía no hay rutas con origen documentado</p>
+          <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">
+            Registrá una visita, marcala como completada y vinculá su ruta. También podés documentar las rutas de cotizaciones ya enlazadas.
+          </p>
+          <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="openCalendarActivity()">Programar una visita</button>
+        </div>
+        <ol v-else class="divide-y divide-[var(--dh-border)]">
+          <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ serviceDisplay(record.serviceCode) }}</p>
+              <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
+            </div>
+            <RouterLink :to="record.sourceKind === 'MEETING' ? returnToAccount('/crm/activities/' + encodeURIComponent(rowId(record.sourceId))) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
+              class="hub-outline-button hub-small">{{ record.sourceKind === 'MEETING' ? 'Abrir reunión' : 'Abrir cotización' }}</RouterLink>
+          </li>
+        </ol>
+        <DhPagination v-if="routeHistoryTotal > 0" :page="routeHistoryPage" :page-size="routeHistoryPageSize"
+          :total="routeHistoryTotal" @update:page="changeRouteHistoryPage"
+          @update:page-size="changeRouteHistoryPageSize" />
+      </div>
+      <DhDrawer :open="routeCaptureOpen" title="Documentar ruta de cliente" size="lg" @close="routeCaptureOpen=false">
+        <form class="space-y-4 p-2" @submit.prevent="saveRouteEvidence">
+          <p class="text-xs text-[var(--dh-text-muted)]">La ruta quedará respaldada por la reunión completada o la cotización vinculada que seleccionés.</p>
+          <label class="block space-y-1.5 text-xs font-bold">Origen del registro *
+            <select v-model="routeSourceKind" class="crm-input w-full" @change="routeSourceId=''">
+              <option value="MEETING">Reunión completada</option>
+              <option value="QUOTE">Cotización vinculada</option>
+            </select>
+          </label>
+          <label class="block space-y-1.5 text-xs font-bold">Registro de origen *
+            <select v-model="routeSourceId" required class="crm-input w-full">
+              <option value="">Seleccionar origen</option>
+              <option v-for="option in sourceList" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <p v-if="!sourceList.length" class="text-xs text-amber-600">
+            {{ routeSourceKind === 'MEETING' ? 'No hay reuniones completadas visibles en el historial reciente. Abrí Actividades para registrar o completar una visita.' : 'No hay cotizaciones vinculadas a las oportunidades de este cliente.' }}
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" @resolved-label="acceptRouteLabel('pol', $event)" />
+            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" @resolved-label="acceptRouteLabel('poe', $event)" />
+            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" @resolved-label="acceptRouteLabel('pod', $event)" />
+            <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
+          </div>
+          <label class="block space-y-1.5 text-xs font-bold">Observaciones de la ruta
+            <textarea v-model="routeNotes" maxlength="2000" rows="3" class="crm-input w-full" placeholder="Información confirmada durante la reunión o cotización"></textarea>
+          </label>
+          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
+            <button type="button" class="hub-outline-button" @click="routeCaptureOpen=false">Cancelar</button>
+            <button type="submit" class="crm-action" :disabled="busy || !routeSourceId || !routePol || !routePod">Guardar ruta con origen</button>
+          </div>
+        </form>
+      </DhDrawer>
+    </section>
     </div>
 
     <section v-else-if="activeTab === 'changes'" id="crm-account-changes" role="tabpanel" class="hub-panel">
@@ -1330,164 +1489,6 @@ async function saveRoute() {
           :total="accountChangesTotal" :class="accountChangesLoading ? 'pointer-events-none opacity-60' : ''"
           @update:page="changeAccountChangesPage" @update:page-size="changeAccountChangesPageSize" />
       </div>
-    </section>
-
-    <section v-else-if="activeTab === 'history'" id="crm-account-history" role="tabpanel" class="space-y-3">
-      <div class="hub-panel">
-        <div class="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 class="flex items-center gap-2 text-base font-extrabold"><Route class="h-5 w-5 text-[var(--dh-primary)]" />Historial de rutas del cliente</h2>
-            <p class="mt-2 max-w-2xl text-xs leading-relaxed text-[var(--dh-text-muted)]">
-              Cada ruta confirma su origen: una reunión completada o una cotización ya vinculada al CRM.
-              No se inventan POL, POE o POD a partir del nombre del cliente o de la modalidad.
-            </p>
-          </div>
-          <button v-if="has('crm.analysis.manage') && has('crm.analysis.read')" type="button"
-            class="crm-action inline-flex items-center gap-2" @click="openRouteEvidence('MEETING')">
-            <Plus class="h-4 w-4" />Documentar una ruta
-          </button>
-        </div>
-        <div class="mt-4 grid gap-3 sm:grid-cols-3">
-          <div class="hub-mini-stat"><span>Rutas documentadas CRM</span><strong>{{ routeHistoryTotal }}</strong></div>
-          <div class="hub-mini-stat"><span>Rutas en QUO de Pricing</span><strong>{{ quoteRouteTotal }}</strong></div>
-          <div class="hub-mini-stat"><span>Cotizaciones documentadas CRM</span><strong>{{ routesCapturedFromQuotes }}</strong></div>
-        </div>
-      </div>
-      <details v-if="canManageHistoricalQuoteLinks" :open="legacyQuoteLinksExpanded"
-        class="hub-panel" @toggle="onLegacyQuoteLinksToggle">
-        <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-primary)]">
-          Vinculación de QUO históricas · Superadministración
-        </summary>
-        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-          Herramienta administrativa para asignar cotizaciones antiguas a este cliente. Expandir solo cuando se necesite.
-        </p>
-        <div v-if="legacyQuoteLinksExpanded" class="mt-4">
-          <CrmLegacyQuoteManager :account-id="rowId(account.id)"
-            :client-name="String(account.legalName || account.displayName || '')"
-            :executive-name="assignedSellerName" view="history" @changed="handleQuoteLinked" />
-        </div>
-      </details>
-      <div v-if="has('crm.quote.read')" class="hub-panel">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 class="hub-panel-heading mb-0"><FileText class="h-4 w-4 text-[var(--dh-primary)]" />Rutas de cotizaciones (Pricing)</h3>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Consulta directa y autorizada de la última cotización comercial publicada; no requiere volver a introducir los puertos.</p>
-          </div>
-          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRouteLoading" @click="loadQuotedRoutes()">Actualizar</button>
-        </div>
-        <p v-if="quoteRouteLoading" class="py-2 text-xs text-[var(--dh-text-muted)]">Consultando rutas autorizadas de Pricing…</p>
-        <p v-if="quoteRouteError" role="alert" class="py-2 text-xs text-amber-600">{{ quoteRouteError }}</p>
-        <p v-if="!quoteRouteLoading && !quoteRouteSnapshots.length && !quoteRouteError" class="hub-empty">No hay cotizaciones vinculadas visibles para consultar.</p>
-        <ol v-if="quoteRouteSnapshots.length" class="divide-y divide-[var(--dh-border)]">
-          <li v-for="q in quoteRouteSnapshots" :key="rowId(q.pricingQuoteId)" class="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div class="min-w-0">
-              <p class="text-xs font-extrabold text-[var(--dh-primary)]">{{ text(q.quoteNumber) }} <span class="font-medium text-[var(--dh-text-muted)]">· {{ text(q.shipmentMode) }}</span></p>
-              <p v-if="q.available" class="mt-1 text-sm font-bold">
-                {{ text(q.polName) }} → {{ q.poeName ? text(q.poeName) + ' → ' : '' }}{{ text(q.podName) }}
-              </p>
-              <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Ruta no disponible para el usuario o sin puertos confirmados en Pricing.</p>
-              <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">
-                Fecha de la QUO: {{ date(q.linkedAt) }}
-                <span v-if="q.revisionNumber"> · Revisión {{ q.revisionNumber }}</span>
-                <span v-if="q.revisionPending"> · Última revisión enviada (nueva edición en Pricing)</span>
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <RouterLink :to="quoteLink({ id: rowId(q.pricingQuoteId), pricingQuoteId: q.pricingQuoteId })" class="hub-outline-button hub-small">Abrir tarifa</RouterLink>
-              <button v-if="has('crm.analysis.manage') && hasOpportunityQuote(rowId(q.pricingQuoteId))" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE',rowId(q.pricingQuoteId))">Documentar ruta</button>
-            </div>
-          </li>
-        </ol>
-        <div v-if="quoteRouteTotal > 8" class="mt-3 flex items-center justify-end gap-3 text-xs">
-          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage <= 1 || quoteRouteLoading" @click="changeQuoteRoutePage(-1)">Anterior</button>
-          <span>{{ quoteRoutePage }} · {{ quoteRouteTotal }} tarifas vinculadas</span>
-          <button type="button" class="hub-outline-button hub-small" :disabled="quoteRoutePage * 8 >= quoteRouteTotal || quoteRouteLoading" @click="changeQuoteRoutePage(1)">Siguiente</button>
-        </div>
-      </div>
-      <div v-if="pricingPopularRoutes.length" class="hub-panel">
-        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más cotizadas (Pricing)</h3>
-        <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Rutas presentes en las últimas {{ recentQuotes.length }} QUO autorizadas de esta cuenta; no son rutas documentadas de reuniones.</p>
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div v-for="route in pricingPopularRoutes" :key="route.polName + route.poeName + route.podName" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-            <p class="text-sm font-extrabold">{{ route.polName }} → {{ route.poeName && route.podName ? route.poeName + ' → ' : '' }}{{ route.podName || route.poeName }}</p>
-            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ route.count }} cotizaciones vinculadas</p>
-          </div>
-        </div>
-      </div>
-      <div v-if="popularRoutes.length" class="hub-panel">
-        <h3 class="hub-panel-heading"><Route class="h-4 w-4 text-[var(--dh-primary)]" />Rutas más utilizadas (registros documentados)</h3>
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <div v-for="(r, idx) in popularRoutes" :key="idx" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-            <p class="text-sm font-extrabold">{{ routeDisplay(r.polCode, 'pol') }} → {{ r.poeCode ? routeDisplay(r.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(r.podCode, 'pod') }}</p>
-            <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-[var(--dh-text-muted)]">
-              <span>{{ r.occurrences }} registros</span><span>{{ r.meetingCount }} reuniones</span><span>{{ r.quoteCount }} cotizaciones</span>
-            </div>
-            <time class="mt-2 block text-[11px] text-[var(--dh-text-muted)]">Último registro: {{ date(r.lastSeenAt) }}</time>
-          </div>
-        </div>
-      </div>
-      <div class="hub-panel">
-        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 class="hub-panel-heading mb-0">Cronología de rutas · {{ routeHistoryTotal }} registros</h3>
-          <button type="button" class="hub-outline-button hub-small" @click="loadRouteHistory()"><RefreshCw class="h-3.5 w-3.5" />Actualizar</button>
-        </div>
-        <p v-if="routeHistoryError" role="alert" class="mb-3 rounded-lg border border-red-500/40 p-3 text-xs text-red-500">{{ routeHistoryError }}</p>
-        <div v-if="!routeHistory.length && !routeHistoryError" class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center">
-          <Route class="mx-auto h-7 w-7 text-[var(--dh-primary)]" />
-          <p class="mt-3 text-sm font-extrabold">Todavía no hay rutas con origen documentado</p>
-          <p class="mx-auto mt-2 max-w-md text-xs text-[var(--dh-text-muted)]">
-            Registrá una visita, marcala como completada y vinculá su ruta. También podés documentar las rutas de cotizaciones ya enlazadas.
-          </p>
-          <button v-if="has('crm.activity.create')" type="button" class="hub-text-link mt-4" @click="openCalendarActivity()">Programar una visita</button>
-        </div>
-        <ol v-else class="divide-y divide-[var(--dh-border)]">
-          <li v-for="record in routeHistory" :key="record.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div class="min-w-0">
-              <p class="text-sm font-extrabold">{{ routeDisplay(record.polCode, 'pol') }} → {{ record.poeCode ? routeDisplay(record.poeCode, 'poe') + ' → ' : '' }}{{ routeDisplay(record.podCode, 'pod') }}</p>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.sourceKind === 'MEETING' ? 'Reunión registrada' : 'Cotización vinculada' }} · {{ date(record.observedAt) }} · {{ serviceDisplay(record.serviceCode) }}</p>
-              <p v-if="record.notes" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ record.notes }}</p>
-            </div>
-            <RouterLink :to="record.sourceKind === 'MEETING' ? returnToAccount('/crm/activities/' + encodeURIComponent(rowId(record.sourceId))) : quoteLink({ pricingQuoteId: record.sourceId, id: rowId(record.id) })"
-              class="hub-outline-button hub-small">{{ record.sourceKind === 'MEETING' ? 'Abrir reunión' : 'Abrir cotización' }}</RouterLink>
-          </li>
-        </ol>
-        <DhPagination v-if="routeHistoryTotal > 0" :page="routeHistoryPage" :page-size="routeHistoryPageSize"
-          :total="routeHistoryTotal" @update:page="changeRouteHistoryPage"
-          @update:page-size="changeRouteHistoryPageSize" />
-      </div>
-      <DhDrawer :open="routeCaptureOpen" title="Documentar ruta de cliente" size="lg" @close="routeCaptureOpen=false">
-        <form class="space-y-4 p-2" @submit.prevent="saveRouteEvidence">
-          <p class="text-xs text-[var(--dh-text-muted)]">La ruta quedará respaldada por la reunión completada o la cotización vinculada que seleccionés.</p>
-          <label class="block space-y-1.5 text-xs font-bold">Origen del historial *
-            <select v-model="routeSourceKind" class="crm-input w-full" @change="routeSourceId=''">
-              <option value="MEETING">Reunión completada</option>
-              <option value="QUOTE">Cotización vinculada</option>
-            </select>
-          </label>
-          <label class="block space-y-1.5 text-xs font-bold">Registro de origen *
-            <select v-model="routeSourceId" required class="crm-input w-full">
-              <option value="">Seleccionar origen</option>
-              <option v-for="option in sourceList" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-          <p v-if="!sourceList.length" class="text-xs text-amber-600">
-            {{ routeSourceKind === 'MEETING' ? 'No hay reuniones completadas visibles en el historial reciente. Abrí Actividades para registrar o completar una visita.' : 'No hay cotizaciones vinculadas a las oportunidades de este cliente.' }}
-          </p>
-          <div class="grid gap-3 sm:grid-cols-2">
-            <CrmCatalogPicker v-model="routePol" label="POL / Origen *" catalog-group-slug="pol" value-kind="code" @resolved-label="acceptRouteLabel('pol', $event)" />
-            <CrmCatalogPicker v-model="routePoe" label="POE / Puerto intermedio" catalog-group-slug="poe" value-kind="code" @resolved-label="acceptRouteLabel('poe', $event)" />
-            <CrmCatalogPicker v-model="routePod" label="POD / Destino *" catalog-group-slug="pod" value-kind="code" @resolved-label="acceptRouteLabel('pod', $event)" />
-            <CrmCatalogPicker v-model="routeService" label="Servicio" catalog-group-slug="pricing-services" value-kind="code" />
-          </div>
-          <label class="block space-y-1.5 text-xs font-bold">Observaciones de la ruta
-            <textarea v-model="routeNotes" maxlength="2000" rows="3" class="crm-input w-full" placeholder="Información confirmada durante la reunión o cotización"></textarea>
-          </label>
-          <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
-            <button type="button" class="hub-outline-button" @click="routeCaptureOpen=false">Cancelar</button>
-            <button type="submit" class="crm-action" :disabled="busy || !routeSourceId || !routePol || !routePod">Guardar ruta con origen</button>
-          </div>
-        </form>
-      </DhDrawer>
     </section>
 
     <section v-else-if="activeTab === 'quotes'" id="crm-account-quotes" role="tabpanel" class="hub-panel">
