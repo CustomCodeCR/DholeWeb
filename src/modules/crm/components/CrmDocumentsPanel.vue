@@ -2,22 +2,27 @@
 import { computed, ref, watch } from 'vue'
 import { Download, FileText, Paperclip, RefreshCw, Upload } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
-import { StorageService } from '@/core/services/storageService'
+import { StorageService, storagePreviewKind } from '@/core/services/storageService'
 import type { StorageFileDto } from '@/core/interfaces/storage'
+import { useModalStore } from '@/core/stores/modalStore'
+import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import { crmPath, crmRequest, crmError } from '../services/crmApi'
+import CrmFileDropzone from './CrmFileDropzone.vue'
 
-type CrmDocumentKind = 'account' | 'lead' | 'contact' | 'activity' | 'followup'
+type CrmDocumentKind = 'account' | 'lead' | 'contact' | 'activity' | 'followup' | 'procedure'
 const props = defineProps<{ kind: CrmDocumentKind; recordId: string }>()
 const auth = useAuthStore()
+const modal = useModalStore()
 const files = ref<StorageFileDto[]>([])
 const selectedFiles = ref<File[]>([])
-const input = ref<HTMLInputElement | null>(null)
 const loading = ref(false)
 const uploading = ref(false)
+const uploadProgress = ref({ done: 0, total: 0 })
 const downloading = ref('')
 const error = ref('')
 const notice = ref('')
 const recordMayUpload = ref(false)
+let refreshSequence = 0
 const canView = computed(() => auth.hasScope('storage.files.view'))
 const canDownload = computed(() => auth.hasScope('storage.files.download'))
 const canUpload = computed(() => recordMayUpload.value && auth.hasScope('storage.files.create'))
@@ -28,11 +33,10 @@ function fileSize(bytes: number): string {
   return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB'
     : Math.max(1, Math.ceil(bytes / 1024)) + ' KB'
 }
-function selected(event: Event) {
-  const target = event.target as HTMLInputElement
-  selectedFiles.value = Array.from(target.files ?? [])
-}
 async function refresh() {
+  const sequence = ++refreshSequence
+  const recordId = props.recordId
+  const kind = props.kind
   files.value = []
   recordMayUpload.value = false
   notice.value = ''
@@ -41,19 +45,25 @@ async function refresh() {
   loading.value = true
   try {
     const access = await crmRequest<{ canUpload: boolean }>(
-      crmPath('documents/' + props.kind, props.recordId, 'access'))
+      crmPath('documents/' + kind, recordId, 'access'))
+    if (sequence !== refreshSequence) return
     recordMayUpload.value = access.canUpload === true
     if (!canView.value) {
       error.value = 'Para consultar los documentos necesitás el permiso storage.files.view.'
       return
     }
-    files.value = await StorageService.getFilesByEntity('DholeCRMService', entityType.value, props.recordId)
-  } catch (cause) { error.value = crmError(cause) }
-  finally { loading.value = false }
+    const found = await StorageService.getFilesByEntity('DholeCRMService', 'crm.' + kind, recordId)
+    if (sequence === refreshSequence) files.value = found
+  } catch (cause) {
+    if (sequence === refreshSequence) error.value = crmError(cause)
+  } finally {
+    if (sequence === refreshSequence) loading.value = false
+  }
 }
 async function upload() {
   if (!canUpload.value || !validRecord.value || uploading.value || !selectedFiles.value.length) return
   uploading.value = true
+  uploadProgress.value = { done: 0, total: selectedFiles.value.length }
   error.value = ''
   notice.value = ''
   try {
@@ -69,12 +79,31 @@ async function upload() {
         entityId: props.recordId,
       })
       selectedFiles.value = selectedFiles.value.filter(item => item !== file)
+      uploadProgress.value.done++
     }
-    if (input.value) input.value.value = ''
     await refresh()
     notice.value = 'Documentos adjuntados correctamente.'
   } catch (cause) { error.value = crmError(cause) }
   finally { uploading.value = false }
+}
+function canPreview(file: StorageFileDto): boolean {
+  const kind = storagePreviewKind({
+    id: file.id, fileName: file.originalFileName,
+    contentType: file.contentType, extension: file.extension,
+  })
+  return kind === 'pdf' || kind === 'image' || kind === 'text'
+}
+function preview(file: StorageFileDto) {
+  if (!canDownload.value || !canPreview(file)) return
+  modal.open({
+    title: file.originalFileName,
+    component: StorageFileViewer,
+    size: 'xl',
+    props: {
+      id: file.id, fileName: file.originalFileName,
+      contentType: file.contentType, extension: file.extension, sizeInBytes: file.sizeInBytes,
+    },
+  })
 }
 async function download(file: StorageFileDto) {
   if (!canDownload.value || downloading.value) return
@@ -111,6 +140,11 @@ watch(() => [props.kind, props.recordId], () => void refresh(), { immediate: tru
             {{ fileSize(file.sizeInBytes) }} · {{ new Date(file.createdAt).toLocaleDateString('es-CR') }}
           </p>
         </div>
+        <button v-if="canDownload && canPreview(file)" type="button"
+          class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
+          :disabled="Boolean(downloading)" @click="preview(file)">
+          Ver
+        </button>
         <button v-if="canDownload" type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
           :disabled="Boolean(downloading)" @click="download(file)">
           <Download class="mr-1 inline h-3.5 w-3.5" />Descargar
@@ -119,11 +153,10 @@ watch(() => [props.kind, props.recordId], () => void refresh(), { immediate: tru
     </ul>
     <p v-else-if="canView && !error" class="text-xs text-[var(--dh-text-muted)]">Todavía no hay documentos adjuntos.</p>
     <div v-if="canUpload" class="space-y-2 border-t border-[var(--dh-border)] pt-4">
-      <label class="block text-xs font-bold" :for="'crm-docs-' + props.kind + props.recordId">Adjuntar archivos</label>
-      <input :id="'crm-docs-' + props.kind + props.recordId" ref="input" type="file" multiple
-        class="block w-full rounded-lg border border-[var(--dh-border)] p-2 text-xs"
-        :disabled="uploading" @change="selected" />
-      <p class="text-[11px] text-[var(--dh-text-muted)]">Podés seleccionar varios archivos. Máximo 100 MB por archivo.</p>
+      <CrmFileDropzone v-model="selectedFiles" :disabled="uploading" label="Adjuntar documentos" />
+      <p v-if="uploading" role="status" class="text-xs text-[var(--dh-text-muted)]">
+        Subiendo {{ uploadProgress.done }} de {{ uploadProgress.total }} documentos…
+      </p>
       <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-xs font-bold text-white"
         :disabled="uploading || !selectedFiles.length" @click="upload">
         <Upload class="h-3.5 w-3.5" />{{ uploading ? 'Adjuntando…' : 'Guardar documentos' }}
