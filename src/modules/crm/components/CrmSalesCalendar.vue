@@ -48,6 +48,29 @@ const calendarLabels = ref<{
   accounts: Record<string, string>; leads: Record<string, string>; owners: Record<string, string>
 }>({ accounts: {}, leads: {}, owners: {} })
 const ownerFilter = ref('')
+const calendarDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const calendarDirectoryLoading = ref(false)
+const directoryError = ref('')
+const canAssignOtherSellers = computed(() => can('crm.activity.read-all') ||
+  can('crm.account.read-all') || can('crm.lead.read-all'))
+async function loadCalendarDirectory() {
+  if (!canAssignOtherSellers.value || calendarDirectoryLoading.value || calendarDirectory.value.length) return
+  calendarDirectoryLoading.value = true
+  directoryError.value = ''
+  try {
+    const users: Array<{ id: string; displayName: string; userName: string }> = []
+    for (let page = 1; page <= 50; page++) {
+      const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+        crmPath('calendar/users') + '?page=' + page + '&pageSize=100',
+      )
+      users.push(...(result.items ?? []))
+      if (!result.items?.length || users.length >= result.total) break
+    }
+    calendarDirectory.value = users
+  } catch { directoryError.value = 'No se pudo cargar el directorio de usuarios.' }
+  finally { calendarDirectoryLoading.value = false }
+}
+watch(canAssignOtherSellers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
 const clientFilter = ref('')
 const isManagerCalendar = computed(() => !scopedRecord.value &&
   (can('crm.activity.read-all') || can('crm.account.read-all') || can('crm.lead.read-all')))
@@ -92,6 +115,7 @@ function sellerEventStyle(event: CalendarEvent) {
 const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
+const selectedContactIds = ref<string[]>([])
 const subjectQuery = ref('')
 const subjectBusy = ref(false)
 const subjectError = ref('')
@@ -120,6 +144,7 @@ const editor = ref({
   end: '',
   location: '',
   involved: '',
+  minutes: '',
   agreements: '',
   nextCommitment: '',
   commitmentDue: '',
@@ -322,8 +347,16 @@ const assignees = computed(() => {
   const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
     ? String(selectedAccount.value?.executiveUserId ?? '')
     : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
-  return [...new Set([mine, seller].filter(Boolean))]
+  return [...new Set([mine, seller, ...(canAssignOtherSellers.value
+    ? calendarDirectory.value.map(x => x.id) : [])].filter(Boolean))]
 })
+function assigneeLabel(id: string): string {
+  const seller = calendarDirectory.value.find(x => x.id === id)
+  return seller?.displayName || seller?.userName ||
+    (id === auth.userId ? 'Mi agenda' :
+      id === selectedAccount.value?.executiveUserId ? 'Vendedor de la cuenta' :
+        calendarLabels.value.owners[id] || id)
+}
 function labelFor(event: CalendarEvent) {
   return eventTypes.find(type => type.value === event.type)?.label ?? event.type
 }
@@ -362,11 +395,13 @@ function openCreation(date?: Date) {
     type: 'VISIT', subject: 'Visita comercial', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
-    location: '', involved: '', agreements: '', nextCommitment: '', commitmentDue: '',
+    location: '', involved: '', minutes: '', agreements: '', nextCommitment: '', commitmentDue: '',
     reminderMinutes: 60, repeatEveryDays: 0, reminderRepeatMinutes: 0,
     channel: 'BOTH',
   }
   agreementDrafts.value = []
+  selectedContactIds.value = []
+  void loadCalendarDirectory()
   userEditedStart.value = false
   error.value = ''
   creationOpen.value = true
@@ -377,7 +412,7 @@ function openCreation(date?: Date) {
       if (!creationOpen.value || editor.value.accountId !== account.id) return
       accounts.value = [account]
       const assigned = String(account.executiveUserId ?? auth.userId ?? '')
-      if (can('crm.activity.read-all') && assigned) editor.value.ownerId = assigned
+      if (canAssignOtherSellers.value && assigned) editor.value.ownerId = assigned
     }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
   }
   if (!scopedRecord.value) {
@@ -388,6 +423,7 @@ function openCreation(date?: Date) {
     }).catch(() => { /* Keep the preselected prospect even if a refresh is denied. */ })
   }
 }
+defineExpose({ openCreation })
 watch(() => editor.value.start, value => {
   const when = new Date(value)
   if (Number.isFinite(when.getTime()))
@@ -413,6 +449,7 @@ async function searchLeads() {
 }
 async function loadContacts() {
   contactRows.value = []
+  selectedContactIds.value = []
   if (!editor.value.accountId || !can('crm.contact.read')) return
   try {
     const linked = await crmRequest<Array<CrmRow & { contact?: CrmRow }>>(
@@ -422,11 +459,12 @@ async function loadContacts() {
 }
 watch(() => editor.value.accountId, () => {
   editor.value.contactId = ''
+  selectedContactIds.value = []
   if (editor.value.accountId) {
     editor.value.leadId = ''
     const ownerId = selectedAccount.value?.isCastroFallasExecutive === true
       ? String(auth.userId ?? '') : String(selectedAccount.value?.executiveUserId ?? auth.userId ?? '')
-    editor.value.ownerId = (can('crm.activity.read-all') || can('crm.account.read-all'))
+    editor.value.ownerId = (canAssignOtherSellers.value)
       ? ownerId : String(auth.userId ?? '')
   }
   void loadContacts()
@@ -435,7 +473,7 @@ watch(() => editor.value.leadId, leadId => {
   if (leadId) {
     editor.value.accountId = ''; editor.value.contactId = ''
     const executiveId = String(selectedLead.value?.executiveUserId ?? auth.userId ?? '')
-    editor.value.ownerId = (can('crm.activity.read-all') || can('crm.lead.read-all'))
+    editor.value.ownerId = (canAssignOtherSellers.value)
       ? executiveId : String(auth.userId ?? '')
   }
 })
@@ -606,7 +644,11 @@ async function create() {
         occurredAt: historicalActivity ? end.toISOString() : null,
         repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
         locationText: data.location.trim() || null,
-        involved: data.involved.trim() || null, agreements: data.agreements.trim() || null,
+        involved: selectedContactIds.value.map(id => contactRows.value.find(x => String(x.id) === id)?.name)
+           .filter(Boolean).join(', ') || null,
+         minutes: data.minutes.trim() || null,
+         participantContactIds: selectedContactIds.value,
+         agreements: data.agreements.trim() || null,
         nextCommitment: data.nextCommitment.trim() || null,
         commitmentDueAt: commitmentDue?.toISOString() ?? null,
         agreementCommitments: agreementDrafts.value.map(item => ({
@@ -922,7 +964,7 @@ function openEvent(item: CalendarEvent) {
       </div>
       </div>
     </DhModal>
-    <DhModal :open="creationOpen" title="Programar visita, llamada o seguimiento" size="lg" @close="creationOpen=false">
+    <DhModal :open="creationOpen" title="Nueva actividad comercial" size="lg" @close="creationOpen=false">
       <div class="space-y-4">
       <p class="text-xs text-[var(--dh-text-muted)]">Podés registrar actividades con fecha pasada, actual o futura. Las actividades ya finalizadas se guardan como completadas y no generan avisos retroactivos. Las futuras mantienen sus recordatorios.</p>
       <div v-if="activityTypesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando tipos de actividades en Config…</div>
@@ -972,7 +1014,7 @@ function openEvent(item: CalendarEvent) {
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
           Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
         </div>
-        <label v-if="!scopedRecord && editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
+        <label v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto principal de la cuenta
           <select v-model="editor.contactId" class="calendar-input">
             <option value="">Sin contacto específico</option>
             <option v-for="contact in contactRows" :key="contact.id" :value="contact.id">{{ contact.name }}</option>
@@ -981,10 +1023,11 @@ function openEvent(item: CalendarEvent) {
         <label class="calendar-label">Vendedor responsable
           <select v-model="editor.ownerId" class="calendar-input" required>
             <option v-for="owner in assignees" :key="owner" :value="owner">
-              {{ owner===auth.userId?'Mi agenda':owner===selectedAccount?.executiveUserId?'Vendedor de la cuenta':owner }}
+              {{ assigneeLabel(owner) }}
             </option>
           </select>
         </label>
+        <p v-if="canAssignOtherSellers && directoryError" role="alert" class="text-xs text-amber-600 sm:col-span-2">{{ directoryError }}</p>
         <label class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
@@ -1023,8 +1066,21 @@ function openEvent(item: CalendarEvent) {
           </p>
         </div>
         <template v-if="editor.type!=='FOLLOWUP'">
-          <label class="calendar-label sm:col-span-2">Involucrados
-            <input v-model.trim="editor.involved" class="calendar-input" maxlength="1500" placeholder="Personas del cliente, equipos internos y responsables" />
+          <fieldset v-if="editor.accountId" class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+            <legend class="px-1 text-xs font-bold">Personas involucradas · contactos de la cuenta</legend>
+            <p v-if="!can('crm.contact.read')" class="text-xs text-[var(--dh-text-muted)]">Se necesita permiso de lectura de contactos para seleccionar participantes.</p>
+            <p v-else-if="!contactRows.length" class="text-xs text-[var(--dh-text-muted)]">La cuenta no tiene contactos disponibles.</p>
+            <div v-else class="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
+              <label v-for="contact in contactRows" :key="contact.id" class="flex items-center gap-2 text-xs">
+                <input v-model="selectedContactIds" type="checkbox" :value="String(contact.id)" class="accent-[var(--dh-primary)]" />
+                <span>{{ contact.name || contact.displayName }}</span>
+              </label>
+            </div>
+          </fieldset>
+          <label class="calendar-label sm:col-span-2">Minuta de la actividad
+            <textarea v-model="editor.minutes" rows="9" maxlength="20000"
+              class="calendar-input min-h-48 resize-y"
+              placeholder="Asistentes, temas tratados, decisiones y próximos pasos" />
           </label>
           <label class="calendar-label sm:col-span-2">Acuerdos alcanzados
             <textarea v-model.trim="editor.agreements" class="calendar-input min-h-24" maxlength="6000" placeholder="Resumen de acuerdos de la llamada, visita, correo o reunión" />
