@@ -1,3 +1,8 @@
+## [1.26.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos sugeridos de la lista, conservar íntegros los «Acuerdos alcanzados» y restaurar los compromisos antes de guardar, incluso con líneas repetidas.
+- Los compromisos omitidos no generan agenda, avisos ni seguimiento. Conserva REST/SignalR; versión global 1.26.1, CI/staging pendientes, sin autorización de producción.
+
 ## [1.26.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DOCUMENTS-084: documentos asociados por registro en Cuentas, Prospectos, Contactos, Actividades y Seguimientos; carga múltiple mediante Dhole Storage con validación de autorización por registro.
