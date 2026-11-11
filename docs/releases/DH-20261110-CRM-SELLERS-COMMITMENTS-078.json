@@ -1,0 +1,10 @@
+{
+  "releaseId": "DH-20261110-CRM-SELLERS-COMMITMENTS-078",
+  "releaseType": "PATCH",
+  "date": "2026-11-10",
+  "component": "DholeWeb",
+  "from": "1.20.0",
+  "to": "1.20.1",
+  "ecosystemVersion": "1.20.1",
+  "status": "candidate"
+}
