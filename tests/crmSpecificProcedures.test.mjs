@@ -36,5 +36,7 @@ test('procedure documents are bound to the saved procedure and can be retried sa
   assert.match(manager, /crmPath\('documents\/procedure', result\.id, 'access'\)/)
   assert.match(manager, /editingId\.value = result\.id/)
   assert.match(manager, /pendingDocuments\.value = failed/)
-  assert.match(manager, /multiple :disabled="saving"/)
+  assert.match(manager, /<CrmFileDropzone v-model="pendingDocuments"/)
+  assert.match(manager, /CrmDocumentsPanel kind="procedure"/)
+  assert.doesNotMatch(manager, /hasta 10 documentos|Máximo 10 archivos|multiple :disabled="saving"/)
 })
