@@ -1,3 +1,8 @@
+## [1.29.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-LEAD-INSTITUTIONAL-087: backport selectivo a master para mostrar Castro Fallas en vendedores de Prospectos al crear y reasignar, preservando vendedor institucional mediante bandera API sin GUID ficticio.
+- Respeta pantallas, cotizaciones, controles de Auth, REST y SignalR. Coordina CRM 1.17.0 y versión global 1.29.0. CI/staging pendientes, producción no autorizada.
+
 ## [1.28.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop y carga múltiple sin límite fijo de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos; visor de PDF, imágenes y texto, con descarga de otros formatos.
