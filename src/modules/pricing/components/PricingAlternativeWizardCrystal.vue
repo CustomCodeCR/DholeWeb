@@ -84,6 +84,7 @@ import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMar
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
+import PricingLinkAcceptedQuoteModal from '@/modules/pricing/components/PricingLinkAcceptedQuoteModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { pricingCurrencyValue } from '@/modules/pricing/utils/pricingCurrencyValue'
@@ -1007,6 +1008,20 @@ const canAcceptOrReject = computed(() => {
 
   return regularDecision || privilegedDecision
 })
+const canLinkAnotherQuote = computed(() =>
+  Boolean(editingRate.value && !isMasterTariff.value && !isDiscardedSavedAlternative.value)
+  && (canUpdateRateStatus.value || canApproveLowMargin.value)
+  && ['Open', 'Sent', 'RequestedByClient', 'Expired', 'RejectedByClient', 'Closed', 'QUOVinculada']
+    .includes(currentCommercialStatus.value),
+)
+// Al duplicar una FCL la tarifa aún no existe. El botón actúa sobre la QUO original.
+const linkedQuoteDuplicateSourceId = computed(() => {
+  const query = router.currentRoute.value.query
+  return !props.rateId && query.duplicateReview === '1' && typeof query.duplicateFrom === 'string'
+    ? query.duplicateFrom : ''
+})
+const canLinkDuplicateSource = computed(() => Boolean(linkedQuoteDuplicateSourceId.value)
+  && (canUpdateRateStatus.value || canApproveLowMargin.value))
 const canCancelAccepted = computed(() =>
   canUpdateRateStatus.value
   && !isMasterTariff.value
@@ -4610,6 +4625,7 @@ function commercialStatusLabel(status: string) {
     Closed: 'Cerrada',
     Cancelled: 'Cancelada',
     Expired: 'Vencida',
+    QUOVinculada: 'Cliente aceptó otra QUO',
   } as Record<string, string>)[status] ?? status
 }
 
@@ -4653,6 +4669,24 @@ function applyMasterTariff() {
           params: { rateId: appliedRateId },
           query: { mode: 'view' },
         })
+      },
+    },
+  })
+}
+
+function openLinkedQuoteModal(rateId: string) {
+  if (!rateId || (!canUpdateRateStatus.value && !canApproveLowMargin.value)) return
+  modalStore.open({
+    title: 'Cliente aceptó otra QUO',
+    component: PricingLinkAcceptedQuoteModal,
+    size: 'md',
+    props: {
+      rateId,
+      onLinked: async () => {
+        // Al duplicar FCL aún no existe la nueva QUO: mantener el borrador intacto.
+        if (props.rateId) {
+          await hydrateExistingRate()
+        }
       },
     },
   })
@@ -8205,8 +8239,16 @@ onMounted(async () => {
                   <DhButton size="sm" variant="secondary" :disabled="(!canMarkSent && !canResendPendingReapproval) || commercialStatusSaving" @click="markCurrentRateSent">{{ canResendPendingReapproval ? 'Reenviar al vendedor' : editingRate.pendingReapproval ? 'Enviar revisión' : 'Enviada' }}</DhButton>
                   <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
                   <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                  <DhButton size="sm" variant="secondary" :disabled="!canLinkAnotherQuote || commercialStatusSaving" @click="openLinkedQuoteModal(editingRate.id)">Cliente aceptó otra QUO</DhButton>
                 </template>
               </div>
+            </div>
+            <div v-if="editingRate.status === 'QUOVinculada' && editingRate.linkedAcceptedRateId" class="mt-3 rounded-xl border border-[var(--dh-border)] p-3 text-xs font-semibold">
+              QUO aceptada vinculada:
+              <router-link :to="{ name: 'pricing-rate-wizard', params: { rateId: editingRate.linkedAcceptedRateId }, query: { mode: 'view' } }" class="ml-1 font-black text-[var(--dh-primary)] underline">
+                {{ editingRate.linkedAcceptedRateId }}
+              </router-link>
+              <p class="mt-1 text-[var(--dh-text-muted)]">Esta tarifa no se contabiliza como vencida ni como no aceptada.</p>
             </div>
             <div v-if="canCancelAccepted" class="mt-3 flex flex-wrap justify-end">
               <DhButton size="sm" variant="danger" :disabled="commercialStatusSaving" @click="startAcceptedRateCancellation">Cancelar cotización</DhButton>
@@ -8438,6 +8480,9 @@ onMounted(async () => {
       <DhButton v-else-if="step === 8 && viewOnly && editingRate" @click="goToStep(9)">Vista completa <ChevronRight class="h-4 w-4" /></DhButton>
       <div v-else-if="step === 8" class="flex flex-wrap items-center justify-end gap-2">
         <p v-if="saveButtonFeedback" class="max-w-lg text-xs font-semibold text-[var(--dh-text)]" role="status" aria-live="polite" data-testid="pricing-save-feedback">{{ saveButtonFeedback }}</p>
+        <DhButton v-if="linkedQuoteDuplicateSourceId" variant="secondary" :disabled="!canLinkDuplicateSource || saving" @click="openLinkedQuoteModal(linkedQuoteDuplicateSourceId)">
+          Cliente aceptó otra QUO
+        </DhButton>
         <DhButton :disabled="saving || uploadingFinalBackups || saveButtonWorking" @click="handleSaveRateClick">
           <Check class="h-4 w-4" /> {{ saving ? 'Procesando…' : pendingModificationDelivery ? 'Enviar revisión al vendedor' : isEditing ? 'Guardar tarifa' : 'Crear tarifa' }}
         </DhButton>
