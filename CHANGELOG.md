@@ -1,3 +1,8 @@
+## [1.19.5] - 2026-11-10
+
+- PATCH DH-20261110-CRM-GLOBAL-AGENDAS-076: muestra todas las agendas a superadministradores y a quienes poseen ambos scopes crm.account.read-all y crm.lead.read-all. Corrige selector de responsables con directorio interno CRM autorizado, sin exigir auth.users.view; permite crear actividades para otros vendedores activos. Conserva filtros por cliente y permisos de escritura.
+- Requiere DholeAuthService y DholeCRMService del mismo release; CI y staging pendientes.
+
 ## [1.19.4] - 2026-11-10
 
 - PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: permite registrar actividades comerciales pasadas conservando fecha y hora originales, completas cuando ya finalizaron, sin recordatorios retroactivos. Las minutas, participantes, acuerdos y compromisos posteriores se conservan. No altera la validación de fechas futuras de seguimientos.
