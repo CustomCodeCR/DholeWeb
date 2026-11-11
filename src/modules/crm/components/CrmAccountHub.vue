@@ -1087,7 +1087,7 @@ async function saveRoute() {
       :credit="credit" :contracts="contracts" :can-read-contacts="has('crm.contact.read')"
       :can-read-credit="has('crm.credit.read')" :can-read-contracts="has('crm.contract.read')"
       :can-edit-profile="has('crm.account.update')"
-      @edit-profile="openProfileEditor" @open-tab="activeTab=$event" />
+      @edit-profile="openProfileEditor" @open-tab="activeTab=$event === 'history' ? 'commercial' : $event" />
 
     <CrmCommercialBenefitsManager v-else-if="activeTab === 'benefits'" id="crm-account-benefits" role="tabpanel"
       :account-id="String(account.id)" />
