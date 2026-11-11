@@ -184,13 +184,13 @@ test('Sidebar sections remain accessible and CRM groups preserve navigation with
   // Preserve develop sidebar separators while CRM uses its own account navigation.
 })
 
-test('Pricing quotations populate commercial analysis without an independent routes tab', () => {
+test('Pricing quotations and account route history remain accessible in the commercial hub', () => {
   const hub = read('src/modules/crm/components/CrmAccountHub.vue')
   const commercial = hub.indexOf('id="crm-account-commercial"')
   const quotedRoutes = hub.indexOf('Rutas de cotizaciones y actividad comercial')
   const changes = hub.indexOf('id="crm-account-changes"')
   assert.ok(commercial >= 0 && quotedRoutes > commercial && quotedRoutes < changes)
-  assert.doesNotMatch(hub, /key: 'history' as const/)
+  assert.match(hub, /key: 'history' as const/)
   assert.match(hub, /tab === 'commercial' && has\('crm.quote.read'\)/)
   assert.match(hub, /\/api\/pricing\/rates\/crm-account\//)
   assert.match(hub, /q\.quoteNumberSnapshot/)
