@@ -6,9 +6,6 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { UsersService } from '@/core/services/usersService'
-import { AUTH_SCOPES } from '@/core/auth/scopes'
-import type { UserDto } from '@/core/interfaces/users'
 import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 
@@ -43,6 +40,8 @@ const router = useRouter()
 const auth = useAuthStore()
 const can = (scope: string) => auth.hasScope(scope)
 const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))
+const hasBothGlobalCrmScopes = computed(() => can('crm.account.read-all') && can('crm.lead.read-all'))
+const canManageAcrossUsers = computed(() => calendarAdmin.value || can('crm.activity.read-all') || hasBothGlobalCrmScopes.value)
 const mode = ref<CalendarMode>('month')
 const selected = ref(new Date())
 const creationOpen = ref(false)
@@ -55,7 +54,7 @@ const calendarLabels = ref<{
 const ownerFilter = ref('')
 const clientFilter = ref('')
 const isManagerCalendar = computed(() => !scopedRecord.value &&
-  (calendarAdmin.value || can('crm.activity.read-all') || can('crm.account.read-all') || can('crm.lead.read-all')))
+  canManageAcrossUsers.value)
 const sellerPalette = ['#047857', '#2563eb', '#7c3aed', '#c2410c', '#b45309',
   '#0891b2', '#be185d', '#4f46e5', '#65a30d', '#0f766e']
 function sellerColor(userId: string): string {
@@ -82,21 +81,26 @@ const calendarDirectoryQuery = ref('')
 const calendarDirectoryLoading = ref(false)
 const calendarDirectoryError = ref('')
 async function loadCalendarDirectory() {
-  if (!calendarAdmin.value || calendarDirectoryLoading.value) return
+  if (!canManageAcrossUsers.value || calendarDirectoryLoading.value) return
   calendarDirectoryLoading.value = true
   calendarDirectoryError.value = ''
   try {
-    const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
-      crmPath('calendar/users') + '?page=1&pageSize=100&search=' + encodeURIComponent(calendarDirectoryQuery.value.trim()),
-    )
-    calendarDirectory.value = result.items ?? []
+    const users: Array<{ id: string; displayName: string; userName: string }> = []
+    for (let page = 1; page <= 50; page++) {
+      const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+        crmPath('calendar/users') + '?page=' + page + '&pageSize=100&search=' + encodeURIComponent(calendarDirectoryQuery.value.trim()),
+      )
+      users.push(...(result.items ?? []))
+      if (users.length >= result.total || !(result.items ?? []).length) break
+    }
+    calendarDirectory.value = users
   } catch {
     calendarDirectoryError.value = 'No se pudo consultar el directorio de usuarios de Auth.'
   } finally {
     calendarDirectoryLoading.value = false
   }
 }
-watch(calendarAdmin, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
+watch(canManageAcrossUsers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
 watch(calendarDirectory, users => {
   const owners = { ...calendarLabels.value.owners }
   for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
@@ -127,27 +131,13 @@ const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
 const selectedContactIds = ref<string[]>([])
-const sellerDirectory = ref<UserDto[]>([])
-const sellerLoading = ref(false)
-const sellerError = ref('')
-const canAssignOtherSellers = computed(() => can('crm.activity.read-all'))
+const sellerDirectory = calendarDirectory
+const sellerLoading = calendarDirectoryLoading
+const sellerError = calendarDirectoryError
+const canAssignOtherSellers = computed(() =>
+  can('crm.activity.create') && (can('crm.activity.read-all') || hasBothGlobalCrmScopes.value))
 async function loadSellerDirectory() {
-  if (!canAssignOtherSellers.value || !can(AUTH_SCOPES.users.view) || sellerLoading.value || sellerDirectory.value.length) return
-  sellerLoading.value = true
-  sellerError.value = ''
-  try {
-    const all: UserDto[] = []
-    for (let pageNumber = 1; pageNumber <= 50; pageNumber++) {
-      const response = await UsersService.browsePaged({ pageNumber, pageSize: 100, isActive: true })
-      all.push(...response.items.filter(x => x.isActive && !x.isLocked && x.userType === 'Internal'))
-      if (pageNumber * 100 >= (response.totalCount ?? response.items.length) || !response.items.length) break
-    }
-    sellerDirectory.value = all
-  } catch (cause) {
-    sellerError.value = 'No fue posible consultar los vendedores autorizados. Revisá el permiso de lectura de usuarios.'
-  } finally {
-    sellerLoading.value = false
-  }
+  if (canAssignOtherSellers.value && !sellerDirectory.value.length) await loadCalendarDirectory()
 }
 const subjectQuery = ref('')
 const subjectBusy = ref(false)
@@ -380,8 +370,8 @@ const assignees = computed(() => {
   const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
     ? String(selectedAccount.value?.executiveUserId ?? '')
     : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
-  return [...new Set([mine, seller,
-    ...(canAssignOtherSellers.value ? sellerDirectory.value.map(x => x.id) : [])
+  return [...new Set([mine,
+    ...(canAssignOtherSellers.value ? [seller, ...sellerDirectory.value.map(x => x.id)] : [])
   ].filter(Boolean))]
 })
 function assigneeLabel(id: string) {
@@ -446,7 +436,7 @@ function openCreation(date?: Date) {
       if (!creationOpen.value || editor.value.accountId !== account.id) return
       accounts.value = [account]
       const assigned = String(account.executiveUserId ?? auth.userId ?? '')
-      if ((calendarAdmin.value || can('crm.activity.read-all')) && can('crm.activity.create') && assigned) editor.value.ownerId = assigned
+      if (canAssignOtherSellers.value && assigned) editor.value.ownerId = assigned
     }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
   }
   if (!scopedRecord.value) {
@@ -497,7 +487,7 @@ watch(() => editor.value.accountId, () => {
     editor.value.leadId = ''
     const ownerId = selectedAccount.value?.isCastroFallasExecutive === true
       ? String(auth.userId ?? '') : String(selectedAccount.value?.executiveUserId ?? auth.userId ?? '')
-    editor.value.ownerId = (calendarAdmin.value || can('crm.activity.read-all') || can('crm.account.read-all'))
+    editor.value.ownerId = canAssignOtherSellers.value
       ? ownerId : String(auth.userId ?? '')
   }
   void loadContacts()
@@ -506,7 +496,7 @@ watch(() => editor.value.leadId, leadId => {
   if (leadId) {
     editor.value.accountId = ''; editor.value.contactId = ''
     const executiveId = String(selectedLead.value?.executiveUserId ?? auth.userId ?? '')
-    editor.value.ownerId = (calendarAdmin.value || can('crm.activity.read-all') || can('crm.lead.read-all'))
+    editor.value.ownerId = canAssignOtherSellers.value
       ? executiveId : String(auth.userId ?? '')
   }
 })
@@ -533,11 +523,11 @@ async function load() {
   const to = rangeEnd.value.toISOString()
   const tasks: Promise<{ items: CrmRow[]; truncated: boolean }>[] = []
   const sources: Source[] = []
-  if (calendarAdmin.value || can('crm.activity.read') || can('crm.activity.read-all')) {
+  if (canManageAcrossUsers.value || can('crm.activity.read')) {
     tasks.push(fetchAll('activities', from, to)); sources.push('activity')
   }
   if (can('crm.task.manage') || can('crm.followup.manage') ||
-      can('crm.activity.read') || can('crm.activity.read-all') || calendarAdmin.value) {
+      can('crm.activity.read') || canManageAcrossUsers.value) {
     tasks.push(fetchAll('followups', from, to)); sources.push('followup')
   }
   const results = await Promise.allSettled(tasks)

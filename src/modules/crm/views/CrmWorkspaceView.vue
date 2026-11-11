@@ -492,8 +492,8 @@ async function load() {
       // Calendar and list must expose the same two backend resources.
       // Each endpoint enforces its own scope and per-user record visibility.
       const resources = [
-        ...(calendarAdmin.value || can('crm.activity.read') || can('crm.activity.read-all') ? ['activities'] : []),
-        ...(calendarAdmin.value || can('crm.task.manage') || can('crm.followup.manage') ? ['followups'] : []),
+        ...(calendarAdmin.value || can('crm.activity.read') || can('crm.activity.read-all') || (can('crm.account.read-all') && can('crm.lead.read-all')) ? ['activities'] : []),
+        ...(calendarAdmin.value || can('crm.task.manage') || can('crm.followup.manage') || (can('crm.account.read-all') && can('crm.lead.read-all')) ? ['followups'] : []),
       ]
       const settled = await Promise.allSettled(resources.map(async resource => {
         const found: CrmRow[] = []

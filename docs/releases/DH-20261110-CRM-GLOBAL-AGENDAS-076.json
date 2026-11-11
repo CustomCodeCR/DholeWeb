@@ -1,0 +1,13 @@
+{
+  "releaseId": "DH-20261110-CRM-GLOBAL-AGENDAS-076",
+  "component": "DholeWeb",
+  "componentVersion": "1.19.5",
+  "ecosystemVersion": "1.19.5",
+  "releaseType": "PATCH",
+  "date": "2026-11-10",
+  "status": "candidate",
+  "changes": [
+    "Cross-user calendars by global subject scopes",
+    "Authorized active employee picker without auth.users.view"
+  ]
+}
