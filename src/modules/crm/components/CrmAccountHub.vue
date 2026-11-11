@@ -20,6 +20,7 @@ import CrmSpecificProceduresManager from './CrmSpecificProceduresManager.vue'
 import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmLegacyQuoteManager from './CrmLegacyQuoteManager.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
+import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhPagination } from '@/shared/components/molecules'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
@@ -29,7 +30,7 @@ import {
 } from 'lucide-vue-next'
 
 // The account route-history tab is a valid destination for sheet navigation.
-type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'finance'
+type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'finance' | 'documents'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
   id: string
@@ -93,6 +94,7 @@ const tabs = computed(() => [
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'changes' as const, label: locale.value === 'en' ? 'Change history' : 'Historial de cambios', icon: History },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
+  { key: 'documents' as const, label: locale.value === 'en' ? 'Documents' : 'Documentos', icon: FileText },
   ...(has('crm.credit.read') || has('crm.contract.read')
     ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & contracts' : 'Crédito y contratos', icon: Wallet }]
     : []),
@@ -921,6 +923,9 @@ async function saveRoute() {
     <p v-if="saved" role="status" class="text-sm text-emerald-500">{{ saved }}</p>
     <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'Loading account data…' : 'Cargando datos de la cuenta…' }}</p>
 
+    <div v-if="activeTab === 'documents'" id="crm-account-documents" role="tabpanel">
+      <CrmDocumentsPanel kind="account" :record-id="String(account.id)" />
+    </div>
     <div v-if="activeTab === 'summary'" id="crm-account-summary" role="tabpanel"
       class="grid items-start gap-3 xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]">
       <div class="min-w-0 space-y-3">
