@@ -604,3 +604,30 @@ test('CRM related agreement checkbox completes followups from parent activity', 
   assert.ok(detail.includes('@change="markCommitmentCompleted(commitment)"'))
   assert.ok(detail.includes('Actividad principal asociada'))
 })
+
+
+test('CRM activities use DhMultiSelect for linked account contacts in creation and detail', () => {
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  const collaboration = read('src/modules/crm/components/CrmActivityCollaboration.vue')
+  assert.ok(calendar.includes('import { DhMultiSelect }'))
+  assert.ok(calendar.includes('v-model="selectedContactIds"'))
+  assert.ok(calendar.includes(':options="contactChoices"'))
+  assert.ok(calendar.includes('participantContactIds: selectedContactIds.value'))
+  assert.ok(!calendar.includes('v-model="editor.contactId"'))
+  assert.ok(!calendar.includes('<label v-for="contact in contactRows"'))
+  assert.ok(collaboration.includes('DhMultiSelect'))
+  assert.ok(collaboration.includes('v-model="selectedContactIds"'))
+  assert.ok(collaboration.includes('const linkedContactIds'))
+  assert.ok(collaboration.includes('for (const id of (byContact ? ids : [null]))'))
+  assert.ok(collaboration.includes("crmPath('activities',props.activityId,'participants')"))
+})
+
+test('CRM seller selector does not show arbitrary non-sales users', () => {
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  assert.ok(calendar.includes('currentUserCanOwnAgenda'))
+  assert.ok(calendar.includes("'Vendedor Supervisor'"))
+  assert.ok(calendar.includes("'Vendedor Jefe'"))
+  assert.ok(calendar.includes("'SuperUsuario'"))
+  assert.ok(calendar.includes('sellerDirectory.value.map(user => user.id)'))
+  assert.ok(calendar.includes('No hay vendedores o superusuarios habilitados'))
+})

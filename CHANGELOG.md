@@ -1,3 +1,8 @@
+## [1.21.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-CONTACTS-SELLERS-078: reemplaza el selector de contacto individual y el listado de checkboxes por DhMultiSelect en la creación de actividades; permite añadir múltiples contactos vinculados desde el detalle de la actividad y evita duplicarlos.
+- El vendedor responsable se limita a usuarios con rol Vendedor (incluyendo Supervisor/Jefe) o SuperUsuario proporcionados por Auth. No se afectan acuerdos, minutas, avisos ni calendario en tiempo real.
+
 ## [1.20.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: unifica Nueva actividad en cuentas/prospectos, selector de participantes desde contactos, minuta redimensionable, asignación de vendedor en agendas con scopes globales y checkbox funcional para compromisos vinculados.
