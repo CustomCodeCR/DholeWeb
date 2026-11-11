@@ -1,7 +1,13 @@
-## [1.26.1] - 2026-11-11
+## [1.27.1] - 2026-11-11
 
-- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos sugeridos de la lista, conservar íntegros los «Acuerdos alcanzados» y restaurar los compromisos antes de guardar, incluso con líneas repetidas.
-- Los compromisos omitidos no generan agenda, avisos ni seguimiento. Conserva REST/SignalR; versión global 1.26.1, CI/staging pendientes, sin autorización de producción.
+- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos detectados en «Acuerdos alcanzados» y restaurarlos antes de guardar, sin borrar sus textos ni generar avisos para los excluidos; maneja repeticiones.
+- REST/SignalR y backend conservados. Versión global 1.27.1; CI/staging pendientes; producción no autorizada.
+
+## [1.27.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: cada procedimiento específico de una cuenta admite múltiples documentos enlazados a su ID por Dhole Storage, carga al crear o editar, reintento seguro sin duplicar procedimientos y consulta de adjuntos en la tarjeta desplegable.
+- Vista previa protegida de PDF, imágenes y texto con el visor existente; Word y Excel se descargan. La API CRM verifica visibilidad de la cuenta y permisos de edición antes de habilitar adjuntos del procedimiento.
+- Ecosistema Dhole 1.27.0; DholeCRMService 1.15.0. Mantiene contratos REST, SignalR y otros adjuntos CRM. CI y staging por verificar; producción no autorizada.
 
 ## [1.26.0] - 2026-11-11
 
