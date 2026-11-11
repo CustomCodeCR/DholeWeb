@@ -146,3 +146,20 @@ test('SRM credit retains historic terms, persists CRM-equivalent fields, and val
   assert.match(view, /supplierCreditTerms\(selected\)\.includedServices/)
   assert.match(view, /supplierCreditTerms\(selected\)\.excludedServices/)
 })
+
+test('SRM supplier contact phone follows the selected country', () => {
+  assert.ok(view.includes("import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'"))
+  assert.ok(view.includes('<CrmPhoneInput v-model="contact.phone"'))
+  assert.ok(view.includes(':country-id="contact.countryId || countryIds[0] ||'))
+  assert.ok(view.includes('v-model="contact.countryId"'))
+  assert.ok(view.includes('countryId: countryIds.value.includes(contact.countryId)'))
+})
+test('SRM save button triggers validation and create/update even with invalid HTML inputs', () => {
+  assert.ok(view.includes('novalidate @submit.prevent="saveSupplier"'))
+  assert.ok(view.includes('data-srm-save-button @click="saveSupplier"'))
+  assert.ok(view.includes('data-srm-save-error'))
+  assert.ok(view.includes('if (!supplierName.value.trim())'))
+  assert.ok(view.includes('if (!validSupplierType.value)'))
+  assert.ok(view.includes("SrmApi.create('suppliers'"))
+  assert.ok(view.includes('SrmApi.updateSupplier(editing.value.id'))
+})
