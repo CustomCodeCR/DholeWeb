@@ -27,6 +27,7 @@ import {
   ArrowRight, ChevronDown, History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet, XCircle,
 } from 'lucide-vue-next'
 
+// The account route-history tab is a valid destination for sheet navigation.
 type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'finance'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
