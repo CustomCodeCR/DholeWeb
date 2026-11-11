@@ -604,3 +604,19 @@ test('CRM related agreement checkbox completes followups from parent activity', 
   assert.ok(detail.includes('@change="markCommitmentCompleted(commitment)"'))
   assert.ok(detail.includes('Actividad principal asociada'))
 })
+
+test('CRM activity participants use DhMultiSelect and eligible sales roles', () => {
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  const participants = read('src/modules/crm/components/CrmActivityCollaboration.vue')
+  for (const source of [calendar, participants]) {
+    assert.ok(source.includes('DhMultiSelect'))
+    assert.ok(source.includes('selectedContactIds'))
+    assert.ok(source.includes('contactChoices'))
+  }
+  assert.ok(calendar.includes('participantContactIds: selectedContactIds.value'))
+  assert.ok(calendar.includes("['Vendedor', 'Vendedores', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']"))
+  assert.ok(calendar.includes('eligibleSeller(data.ownerId)'))
+  assert.ok(!calendar.includes('type="checkbox" :value="String(contact.id)"'))
+  assert.ok(participants.includes('for (const id of (byContact ? ids : [null]))'))
+  assert.ok(participants.includes('linkedContactIds'))
+})

@@ -1,3 +1,8 @@
+## [1.21.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-CONTACTS-ROLE-MULTISELECT-079: DhMultiSelect en creación de actividad y participantes del detalle; selección múltiple de contactos vinculados a la cuenta; solo vendedores y superusuarios elegibles para asignación.
+- Se mantienen API REST y realtime existentes. Validación por CI y staging antes de confirmar despliegue.
+
 ## [1.20.1] - 2026-11-10
 
 - PATCH DH-20261110-CRM-SELLERS-COMMITMENTS-078: solo vendedores activos en filtros y asignación de agenda, y casilla para completar compromisos vinculados con el scope crm.activity.update del responsable; sin permitir acciones sobre compromisos ajenos.
