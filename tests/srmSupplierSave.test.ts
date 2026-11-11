@@ -47,3 +47,11 @@ test('credit save is confirmed only when Config returns the persisted 120-day te
   assert.equal(supplierPersistedCreditMatches('{}', expected), false)
   assert.equal(supplierPersistedCreditMatches(null, expected), false)
 })
+
+test('SRM submit uses native submit with novalidate and a catch-all handler', async () => {
+  const { readFileSync } = await import('node:fs')
+  const source = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
+  assert.match(source, /novalidate @submit\.prevent="submitSupplierSafely"/)
+  assert.match(source, /<button type="submit"[^>]+data-srm-save-button/)
+  assert.match(source, /async function submitSupplierSafely\(\)/)
+})

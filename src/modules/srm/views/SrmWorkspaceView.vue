@@ -371,6 +371,17 @@ async function reportSupplierSaveIssue(message: string, section: SupplierSaveSec
     || document.querySelector('[data-srm-save-error]')
   anchor?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
+/** Catch unexpected form errors as well as API errors, including failures before any request. */
+async function submitSupplierSafely() {
+  try {
+    await saveSupplier()
+  } catch (cause) {
+    saving.value = false
+    const message = cause instanceof Error ? cause.message :
+      (en.value ? 'Unexpected error preparing the supplier form.' : 'Error inesperado al preparar el formulario del proveedor.')
+    await reportSupplierSaveIssue(message, 'server')
+  }
+}
 async function saveSupplier() {
   if (saving.value) return
   error.value = ''
@@ -842,7 +853,7 @@ onMounted(() => {
       </DhDrawer>
       <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
         size="xl" @close="closeForm">
-        <form class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="saveSupplier">
+        <form class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="submitSupplierSafely">
           <label class="text-sm font-semibold">{{ en ? 'Company name' : 'Nombre de empresa' }}
             <input v-model="supplierName" required maxlength="220" placeholder="Ej. Transportes Romo" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
@@ -950,8 +961,8 @@ onMounted(() => {
           <div class="md:col-span-2 space-y-3">
             <p v-if="error" role="alert" data-srm-save-error
               class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">{{ error }}</p>
-            <button type="button" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
-              data-srm-save-button @click="saveSupplier"
+            <button type="submit" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
+              data-srm-save-button
               class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
               {{ saving ? t('common.loading') : (editing ? (en ? 'Update supplier' : 'Actualizar proveedor') : (en ? 'Save supplier' : 'Guardar proveedor')) }}
             </button>
