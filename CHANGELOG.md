@@ -1,7 +1,12 @@
-## [1.26.1] - 2026-11-11
+## [1.27.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos detectados en «Acuerdos alcanzados» y restaurarlos antes de guardar, sin borrar sus textos ni generar avisos para los excluidos; maneja repeticiones.
-- REST/SignalR y backend conservados. Versión global 1.26.1; CI/staging pendientes; producción no autorizada.
+- REST/SignalR y backend conservados. Versión global 1.27.1; compilación y CRM CI aprobados, staging completado para el candidato develop; producción autorizada para el mismo parche.
+
+## [1.27.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: carga múltiple de adjuntos al crear/editar procedimientos de cuentas, vista previa protegida de PDF, imágenes y texto, descarga de documentos y reintento sin duplicar procedimientos.
+- Backport selectivo a master sobre la versión 1.26.0 con el CRM 1.15.0; aprobado en develop/staging. Mantiene otras funciones y contratos REST/SignalR.
 
 ## [1.26.0] - 2026-11-11
 
