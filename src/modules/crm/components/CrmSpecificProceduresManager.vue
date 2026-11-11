@@ -155,13 +155,13 @@ async function save() {
       }
       pendingDocuments.value = failed
       if (failed.length) {
-        error.value = failed.length + ' archivo(s) no se pudieron subir. El procedimiento ya se guardó; podés reintentar sin duplicarlo.'
         await load()
+        error.value = failed.length + ' archivo(s) no se pudieron subir. El procedimiento ya se guardó; podés reintentar sin duplicarlo.'
         return
       }
     }
     closeEditor()
-    success.value = 'Procedimiento y documentos guardados correctamente.'
+    success.value = 'Procedimiento guardado correctamente.'
     await load()
   } catch (cause) {
     error.value = crmError(cause)
