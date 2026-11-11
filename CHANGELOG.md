@@ -1,3 +1,9 @@
+## [1.37.1] - 2026-11-11
+
+- PATCH DH-20261111-PRICING-DUPLICATE-FCL-FREIGHT-105: corrige el guardado FCL al duplicar una tarifa y cambiar el contenedor y el flete marítimo. La pantalla 5 admite tarifa vigente o configuración manual válida cuando no existe una combinación preaprobada para los nuevos equipos; no exige RateId importado si existe un flete manual completo.
+- Verifica agente, naviera, moneda, importes y línea Freight por alternativa POE/naviera; limpia montos de flete de contenedores extra heredados para no reutilizar el flete original. Incluye regresiones de fuentes importadas/manuales y validaciones de guardado.
+- Versión DholeWeb 1.37.0 → 1.37.1; ecosistema 1.37.1. Conserva REST, realtime y eventos. CI y staging obligatorios; no se realiza despliegue manual a producción.
+
 ## [1.37.0] - 2026-11-11
 
 - MINOR DH-20261111-PRICING-QUO-LINKED-104: nuevo estado comercial QUOVinculada para cotizaciones cuya operación fue aceptada bajo otra QUO del mismo cliente. El vínculo a la QUO aceptada es obligatorio, persistente y validado en Pricing.
