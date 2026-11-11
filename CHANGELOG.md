@@ -1,3 +1,8 @@
+## [1.36.2] - 2026-11-11
+
+- PATCH DH-20261111-SRM-CREDIT-NUMERIC-104: corrige el error SRM «creditDays.trim is not a function» en proveedores con crédito. Los campos numéricos del formulario Vue (plazo, límite, financiamiento e interés moratorio) admiten números y texto durante la validación, conservando rango, precisión y cero permitido para porcentajes.
+- Agrega regresión con 120 días, límite USD 1.200.000 e intereses 0%, incluida validación de nulos, NaN y precisión. Mantiene API REST/SignalR existentes; CI y staging pendientes. No autorizado despliegue de producción.
+
 ## [1.36.1] - 2026-11-11
 
 - PATCH DH-20261111-SRM-CREDIT-PERSIST-103: los botones Guardar/Actualizar proveedor SRM utilizan submit nativo con novalidate y capturan cualquier error previo al API; luego verifican por lectura real que el crédito y contactos se almacenaron antes de confirmar éxito. Con datos inconsistentes mantiene el formulario abierto y explica el fallo.

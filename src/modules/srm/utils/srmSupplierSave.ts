@@ -4,14 +4,19 @@ type Contact = { name: string; email: string; phone: string; role: string; count
 export interface SupplierSaveDraft {
   contacts: Contact[]
   creditEnabled: boolean
-  creditDays: string
-  creditLimit: string
+  creditDays: string | number | null
+  creditLimit: string | number | null
   creditCurrency: string
-  monthlyFinancing: string
-  lateInterest: string
+  monthlyFinancing: string | number | null
+  lateInterest: string | number | null
   creditIncluded: string[]
   creditExcluded: string[]
   creditReviewAt: string
+}
+/** Vue converts v-model on type=number inputs to numbers at runtime. Never call .trim() on a number. */
+function creditNumberInput(value: string | number | null): { empty: boolean; numeric: number } {
+  const text = String(value ?? '').trim()
+  return { empty: !text, numeric: text ? Number(text) : Number.NaN }
 }
 function validCreditPrecision(value: number, places: number): boolean {
   const scaled = value * 10 ** places
@@ -35,21 +40,25 @@ export function supplierSaveIssue(draft: SupplierSaveDraft, en = false): Supplie
     }
   }
   if (!draft.creditEnabled) return null
-  const days = Number(draft.creditDays)
-  if (!draft.creditDays.trim() || !Number.isInteger(days) || days < 1 || days > 3650) return {
+  const daysInput = creditNumberInput(draft.creditDays)
+  const days = daysInput.numeric
+  if (daysInput.empty || !Number.isInteger(days) || days < 1 || days > 3650) return {
     section: 'credit', message: en ? 'Credit payment term must be from 1 to 3650 days.' : 'El plazo de crédito debe estar entre 1 y 3650 días.',
   }
-  const limit = Number(draft.creditLimit)
-  if (!draft.creditLimit.trim() || !Number.isFinite(limit) || limit <= 0 || !validCreditPrecision(limit, 2)) return {
+  const limitInput = creditNumberInput(draft.creditLimit)
+  const limit = limitInput.numeric
+  if (limitInput.empty || !Number.isFinite(limit) || limit <= 0 || !validCreditPrecision(limit, 2)) return {
     section: 'credit', message: en ? 'Credit limit must be positive with up to 2 decimal places.' : 'El límite de crédito debe ser positivo y tener máximo 2 decimales.',
   }
-  const monthly = Number(draft.monthlyFinancing)
-  const overdue = Number(draft.lateInterest)
-  if (!draft.monthlyFinancing.trim() || !Number.isFinite(monthly) ||
+  const monthlyInput = creditNumberInput(draft.monthlyFinancing)
+  const overdueInput = creditNumberInput(draft.lateInterest)
+  const monthly = monthlyInput.numeric
+  const overdue = overdueInput.numeric
+  if (monthlyInput.empty || !Number.isFinite(monthly) ||
       monthly < 0 || monthly > 100 || !validCreditPrecision(monthly, 4)) return {
     section: 'credit', message: en ? 'Monthly financing must be 0–100%, up to 4 decimals.' : 'El financiamiento mensual debe estar entre 0% y 100%, con máximo 4 decimales.',
   }
-  if (!draft.lateInterest.trim() || !Number.isFinite(overdue) ||
+  if (overdueInput.empty || !Number.isFinite(overdue) ||
       overdue < 0 || overdue > 100 || !validCreditPrecision(overdue, 4)) return {
     section: 'credit', message: en ? 'Monthly late interest must be 0–100%, up to 4 decimals.' : 'El interés moratorio mensual debe estar entre 0% y 100%, con máximo 4 decimales.',
   }
