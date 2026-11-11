@@ -3,6 +3,11 @@
 - MINOR DH-20261111-CRM-ACTIVITY-COMPLETE-EDIT-088: pantalla de edición integral en actividades CRM, incluso completadas: título, tipo, agenda, recordatorios, minutas, acuerdos y pendientes con casillas de completado y retiro reversible antes de guardar.
 - Integra la edición atómica del servicio CRM, revisa conflictos de versión y conserva los acuerdos retirados en el historial. Ecosistema Dhole 1.30.0; CI/staging pendientes; producción no autorizada.
 
+## [1.29.2] - 2026-11-11
+
+- PATCH DH-20261111-CRM-INSTITUTIONAL-SELLER-VISIBILITY-088: corrige la omisión del vendedor institucional Castro Fallas en los selectores de Cuentas y Prospectos. Vue convertía el prop Boolean opcional omitido en false; su valor por defecto ahora es true y ambos formularios y la reasignación lo activan explícitamente.
+- La opción institucional permanece fija sobre el listado desplazable de Auth y visible independientemente de la búsqueda y los resultados de vendedores; mantiene la bandera assignToCastroFallas, sin UUID ficticio. No altera contratos REST ni SignalR. Ecosistema Dhole 1.29.2; CI y staging pendientes.
+
 ## [1.29.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-RESPONSIBLES-SCOPES-086: renombra Vendedor responsable a Responsable. El selector incluye usuarios internos activos con scopes efectivos crm.activity.read, crm.activity.read-all o crm.followup.manage, incluso Asistente, sin filtros de rol; conserva la delegación autorizada.
