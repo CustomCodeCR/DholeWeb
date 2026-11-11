@@ -1,3 +1,8 @@
+## [1.23.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-LEAD-QUO-PARITY-082: Prospectos gana ficha, cotizaciones vinculadas directamente desde Pricing por ClientLeadId, indicadores de estado oficiales y rutas cotizadas en análisis comercial; vinculación de QUO históricas mediante acordeón exclusivo de superadministración con confirmación.
+- Preserva módulos de Cuentas, el release 1.22.0, tarifas vencidas 1.21.1 y multiselección de contactos 1.21.0. Coordina Pricing 1.10.0 y System 1.23.0; sin migraciones de esquema ni cambios incompatibles de SignalR.
+
 ## [1.22.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-ACCOUNT-PROCEDURES-080: pestaña «Procedimientos específicos» en Cuentas, múltiples procedimientos en acordeones, buscador, formulario y equipo asignado, edición y eliminación confirmada.
