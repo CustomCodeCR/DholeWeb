@@ -173,7 +173,12 @@ const agendaOpportunityName = ref('')
 const agendaNotes = ref<CrmRow[]>([])
 const agendaCommitments = ref<CrmRow[]>([])
 const commitmentSaving = ref('')
-const canCompleteCommitments = computed(() => can('crm.task.manage') || can('crm.followup.manage'))
+const canCompleteCommitments = computed(() =>
+  can('crm.task.manage') || can('crm.followup.manage') ||
+  (section.value === 'activities' && can('crm.activity.update') &&
+    (String(record.value?.ownerUserId ?? '') === String(auth.userId ?? '') ||
+      can('crm.activity.read-all') ||
+      (can('crm.account.read-all') && can('crm.lead.read-all')))))
 const agendaParent = ref<AgendaParent | null>(null)
 const agendaDetailsWarning = ref('')
 let agendaDetailsGeneration = 0

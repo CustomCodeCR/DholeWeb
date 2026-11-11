@@ -1,3 +1,8 @@
+## [1.20.1] - 2026-11-10
+
+- PATCH DH-20261110-CRM-SELLERS-COMMITMENTS-078: solo vendedores activos en filtros y asignación de agenda, y casilla para completar compromisos vinculados con el scope crm.activity.update del responsable; sin permitir acciones sobre compromisos ajenos.
+- Versión global 1.20.1; REST y SignalR conservados, CI y staging pendientes.
+
 ## [1.20.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: unifica Nueva actividad en cuentas/prospectos, selector de participantes desde contactos, minuta redimensionable, asignación de vendedor en agendas con scopes globales y checkbox funcional para compromisos vinculados.
