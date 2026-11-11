@@ -1,3 +1,9 @@
+## [1.33.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-ACCOUNT-QUOTE-DELIVERY-093: «Configurar envío de cotizaciones» guarda por cuenta una preferencia reutilizable en todas las cotizaciones futuras, sin elegir QUO específica. El destinatario es el vendedor o un contacto elegido con copia al vendedor.
+- CRM almacena configuración y valida contactos; Pricing resuelve la preferencia antes de cada envío. REST y realtime existentes se conservan; tests de regresión incluidos.
+- Ecosistema 1.33.0; CI/staging pendientes antes de producción.
+
 ## [1.32.2] - 2026-11-11
 
 - PATCH DH-20261111-PRICING-SELLER-REQUEST-HISTORY-093: la QUO muestra solicitud original de Ventas y todas las modificaciones históricas con vendedor, fecha, estado, revisión de origen, diferencias y adjuntos en componentes independientes. Visible con pricing.rate.view sin alterar la revisión comercial actual.
