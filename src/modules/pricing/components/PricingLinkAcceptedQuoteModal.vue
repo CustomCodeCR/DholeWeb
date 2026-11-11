@@ -33,10 +33,10 @@ const canEdit = computed(() =>
   || authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin),
 )
 const canLink = computed(() =>
-  Boolean(source.value && allowedStatuses.has(source.value.status)
-    && source.value.rateType !== 'Tariff' || source.value
-      && allowedStatuses.has(source.value.status)
-      && !String(source.value.clientName ?? '').toUpperCase().includes('TARIFARIO'))
+  Boolean(source.value
+    && allowedStatuses.has(source.value.status)
+    && !(source.value.rateType === 'Tariff'
+      && String(source.value.clientName ?? '').toLocaleUpperCase().includes('TARIFARIO')))
   && canEdit.value,
 )
 
