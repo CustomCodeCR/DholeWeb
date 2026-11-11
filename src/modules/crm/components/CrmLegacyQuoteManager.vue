@@ -383,7 +383,7 @@ watch(() => [props.accountId, props.leadId, props.clientName], () => {
 
     <details class="border-t border-[var(--dh-border)] pt-3">
       <summary class="cursor-pointer text-sm font-bold">
-        Cotizaciones vinculadas a {{ isLead ? 'este prospecto' : 'esta cuenta' }} ({{ quotesTotal }})
+        {{ isLead ? 'Cotizaciones vinculadas a este prospecto' : 'Cotizaciones vinculadas a esta cuenta' }} ({{ quotesTotal }})
       </summary>
       <div class="mt-3 space-y-3">
         <button v-if="!isLead" type="button" class="hub-outline-button hub-small" :disabled="busy || linkedLoading || !quotesTotal || !clientName.trim()" @click="syncLinkedClient">
