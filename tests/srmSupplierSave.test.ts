@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 import { supplierSaveIssue, srmMutationFailure, supplierPersistedCreditMatches } from '../src/modules/srm/utils/srmSupplierSave.ts'
 const contact = { name: 'Operaciones', email: 'contacto@ejemplo.com', phone: '+50688887777', role: 'Encargado', countryId: 'country-1' }
 const credit = {
@@ -54,4 +55,31 @@ test('SRM submit uses native submit with novalidate and a catch-all handler', as
   assert.match(source, /novalidate @submit\.prevent="submitSupplierSafely"/)
   assert.match(source, /<button type="submit"[^>]+data-srm-save-button/)
   assert.match(source, /async function submitSupplierSafely\(\)/)
+})
+
+// Regression: Vue converts <input type="number" v-model> values to numbers, even when refs start as strings.
+test('numeric v-model values save supplier credit without trim runtime exceptions', () => {
+  const numeric = {
+    ...credit,
+    creditDays: 120,
+    creditLimit: 1200000,
+    monthlyFinancing: 0,
+    lateInterest: 0,
+  }
+  assert.doesNotThrow(() => supplierSaveIssue(numeric))
+  assert.equal(supplierSaveIssue(numeric), null)
+  assert.equal(supplierSaveIssue({ ...numeric, creditDays: '120' }), null)
+  assert.equal(supplierSaveIssue({ ...numeric, creditDays: 0 })?.section, 'credit')
+  assert.equal(supplierSaveIssue({ ...numeric, creditDays: null })?.section, 'credit')
+  assert.equal(supplierSaveIssue({ ...numeric, creditLimit: 0 })?.section, 'credit')
+  assert.equal(supplierSaveIssue({ ...numeric, monthlyFinancing: 0.125, lateInterest: 0 }), null)
+  assert.equal(supplierSaveIssue({ ...numeric, monthlyFinancing: Number.POSITIVE_INFINITY })?.section, 'credit')
+  assert.equal(supplierSaveIssue({ ...numeric, lateInterest: Number.NaN })?.section, 'credit')
+  assert.equal(supplierSaveIssue({ ...numeric, creditLimit: 1200000.333 })?.section, 'credit')
+})
+test('numeric-credit validation cannot call trim on number model values', () => {
+  const source = readFileSync('src/modules/srm/utils/srmSupplierSave.ts', 'utf8')
+  for (const field of ['creditDays', 'creditLimit', 'monthlyFinancing', 'lateInterest']) {
+    assert.equal(source.includes(`draft.${field}.trim()`), false)
+  }
 })
