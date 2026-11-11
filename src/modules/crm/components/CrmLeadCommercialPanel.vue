@@ -3,25 +3,38 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
+import CrmLegacyQuoteManager from './CrmLegacyQuoteManager.vue'
+import { fetchClient } from '@/core/api/fetchConfig'
+import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmPage, type CrmRow } from '../services/crmApi'
 
-const props = defineProps<{ lead: CrmRow; view?: 'analysis' | 'quotes' }>()
+const props = defineProps<{ lead: CrmRow; view?: 'analysis' | 'quotes' | 'history' }>()
 const auth = useAuthStore()
 const { locale } = useI18n()
 const can = (scope: string) => auth.hasScope(scope)
 const canReadAnalyses = computed(() => can('crm.analysis.read'))
 const canManageAnalyses = computed(() => can('crm.analysis.manage'))
-const canReadQuotes = computed(() => can('crm.quote.read') && (can('crm.opportunity.read') || can('crm.opportunity.read-all')))
+const canReadQuotes = computed(() => can('crm.quote.read'))
+const canReadOpportunities = computed(() => can('crm.opportunity.read') || can('crm.opportunity.read-all'))
+const canManageHistoricalQuoteLinks = computed(() =>
+  ['SuperAdmin', 'SuperAdministrador', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)))
 const canLinkQuotes = computed(() => can('crm.quote.link') && can('crm.opportunity.update'))
 const canCreateOpportunity = computed(() => can('crm.opportunity.create'))
 
 const analyses = ref<CrmRow[]>([])
 const selectedAnalysisId = ref('')
 const analysisRoutes = ref<CrmRow[]>([])
+const historyRoutes = ref<Array<{ route: CrmRow; analysis: CrmRow }>>([])
+const historyLoading = ref(false)
 const quotes = ref<CrmRow[]>([])
+const quotedRoutes = ref<CrmRow[]>([])
+const quotedRoutesLoading = ref(false)
+const quotedRoutesTruncated = ref(false)
+const legacyQuoteLinksExpanded = ref(false)
 const quoteTotal = ref(0)
 const quotePage = ref(1)
+const quoteRefreshKey = ref(0)
 const opportunities = ref<CrmRow[]>([])
 const opportunityId = ref('')
 const busy = ref(false)
@@ -52,8 +65,27 @@ let opportunitiesGeneration = 0
 const chosenAnalysis = computed(() => analyses.value.find(x => String(x.id) === selectedAnalysisId.value))
 const selectedOpportunity = computed(() => opportunities.value.find(x => String(x.id) === opportunityId.value))
 const quotePages = computed(() => Math.max(1, Math.ceil(quoteTotal.value / 25)))
+const quoteRouteSummary = computed(() => {
+  const groups = new Map<string, { pol: string; poe: string; pod: string; count: number; quoteId: string }>()
+  for (const quote of quotedRoutes.value) {
+    const pol = String(quote.polName || '').trim()
+    const poe = String(quote.poeName || '').trim()
+    const pod = String(quote.podName || '').trim()
+    if (!pol && !poe && !pod) continue
+    const key = [pol.toUpperCase(), poe.toUpperCase(), pod.toUpperCase()].join('|')
+    const previous = groups.get(key)
+    if (previous) previous.count++
+    else groups.set(key, { pol, poe, pod, count: 1, quoteId: String(quote.pricingQuoteId || '') })
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count)
+})
+function refreshQuotesAfterLink() {
+  quotePage.value = 1
+  quoteRefreshKey.value++
+  void loadQuotes()
+  void loadQuotedRoutes()
+}
 const quoteLink = (id: unknown) => '/pricing/rates?rateId=' + encodeURIComponent(String(id || ''))
-const opportunityLink = (id: unknown) => '/crm/opportunities/' + encodeURIComponent(String(id || ''))
 
 async function loadAnalyses() {
   const generation = ++analysisGeneration
@@ -68,12 +100,30 @@ async function loadAnalyses() {
     analyses.value = result.items ?? []
     if (!analyses.value.some(x => String(x.id) === selectedAnalysisId.value))
       selectedAnalysisId.value = String(analyses.value[0]?.id ?? '')
-    if (selectedAnalysisId.value) await loadRoutes(selectedAnalysisId.value)
+    if (props.view === 'history') await loadHistoryRoutes(analyses.value, generation)
+    else if (selectedAnalysisId.value) await loadRoutes(selectedAnalysisId.value)
     else analysisRoutes.value = []
   } catch (cause) {
     if (generation === analysisGeneration) loadError.value = crmError(cause)
   } finally {
     if (generation === analysisGeneration) analysisLoading.value = false
+  }
+}
+async function loadHistoryRoutes(list: CrmRow[], generation: number) {
+  historyLoading.value = true
+  historyRoutes.value = []
+  try {
+    const results = await Promise.all(list.map(async analysis => ({
+      analysis,
+      routes: await crmRequest<CrmRow[]>(crmPath('analyses', String(analysis.id), 'routes')),
+    })))
+    if (generation !== analysisGeneration) return
+    historyRoutes.value = results.flatMap(({ analysis, routes }) =>
+      routes.map(route => ({ analysis, route })))
+  } catch (cause) {
+    if (generation === analysisGeneration) loadError.value = crmError(cause)
+  } finally {
+    if (generation === analysisGeneration) historyLoading.value = false
   }
 }
 async function loadRoutes(analysisId: string) {
@@ -95,9 +145,12 @@ async function loadQuotes() {
   quotesLoading.value = true
   quoteError.value = ''
   try {
-    const result = await crmRequest<CrmPage>(crmPath('leads', leadId, 'quotes') +
-      '?page=' + quotePage.value + '&pageSize=25')
-    if (generation !== quoteGeneration || leadId !== props.lead.id) return
+    // Pricing RateHeaders use ClientLeadId; CRM opportunity links alone omit
+    // historic QUO and quotations created without a CRM opportunity.
+    const result = await fetchClient<CrmPage>(
+      '/api/pricing/rates/crm-lead/' + encodeURIComponent(leadId) +
+      '?page=' + quotePage.value + '&pageSize=25', { method: 'GET' })
+    if (generation !== quoteGeneration || leadId !== String(props.lead.id)) return
     quotes.value = result.items ?? []
     quoteTotal.value = result.total ?? 0
   } catch (cause) {
@@ -106,10 +159,28 @@ async function loadQuotes() {
     if (generation === quoteGeneration) quotesLoading.value = false
   }
 }
+async function loadQuotedRoutes() {
+  const leadId = String(props.lead.id)
+  quotedRoutesLoading.value = true
+  quotedRoutes.value = []
+  quotedRoutesTruncated.value = false
+  try {
+    const result = await fetchClient<CrmPage>(
+      '/api/pricing/rates/crm-lead/' + encodeURIComponent(leadId) +
+      '?page=1&pageSize=100', { method: 'GET' })
+    if (leadId !== String(props.lead.id)) return
+    quotedRoutes.value = result.items ?? []
+    quotedRoutesTruncated.value = result.total > 100
+  } catch (cause) {
+    if (leadId === String(props.lead.id)) quoteError.value = crmError(cause)
+  } finally {
+    if (leadId === String(props.lead.id)) quotedRoutesLoading.value = false
+  }
+}
 async function loadOpportunities() {
   const generation = ++opportunitiesGeneration
   const leadId = String(props.lead.id)
-  if (!canReadQuotes.value) return
+  if (!canReadQuotes.value || !canReadOpportunities.value) return
   try {
     const list = await crmRequest<CrmRow[]>(crmPath('leads', leadId, 'opportunities'))
     if (generation !== opportunitiesGeneration || leadId !== props.lead.id) return
@@ -122,17 +193,18 @@ async function loadOpportunities() {
 }
 function resetAndLoad() {
   ++analysisGeneration; ++routesGeneration; ++quoteGeneration; ++opportunitiesGeneration
-  analyses.value = []; selectedAnalysisId.value = ''; analysisRoutes.value = []
+  analyses.value = []; selectedAnalysisId.value = ''; analysisRoutes.value = []; historyRoutes.value = []
   quotes.value = []; quoteTotal.value = 0; quotePage.value = 1
+  quotedRoutes.value = []; quotedRoutesTruncated.value = false
   opportunities.value = []; opportunityId.value = ''
   loadError.value = ''; quoteError.value = ''; error.value = ''; success.value = ''
   void Promise.all([
-    ...(props.view !== 'quotes' ? [loadAnalyses()] : []),
-    ...(props.view !== 'analysis' ? [loadQuotes(), loadOpportunities()] : []),
+    ...(props.view !== 'quotes' ? [loadAnalyses(), loadQuotedRoutes()] : []),
+    ...(props.view === 'quotes' ? [loadQuotes(), ...(canReadOpportunities.value ? [loadOpportunities()] : [])] : []),
   ])
 }
 watch(() => props.lead.id, resetAndLoad, { immediate: true })
-watch(selectedAnalysisId, value => { void loadRoutes(value) })
+watch(selectedAnalysisId, value => { if (props.view === 'analysis') void loadRoutes(value) })
 
 async function createAnalysis() {
   if (!canManageAnalyses.value || busy.value) return
@@ -210,7 +282,7 @@ async function linkQuote() {
     }, crmUuid())
     quoteId.value = ''; requestId.value = ''
     quotePage.value = 1
-    await loadQuotes()
+    refreshQuotesAfterLink()
     success.value = 'Cotización vinculada a la oportunidad de este prospecto.'
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -224,7 +296,7 @@ function quotePageChange(delta: number) {
 </script>
 
 <template>
-  <section v-if="props.view !== 'quotes' && canReadAnalyses" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-analyses>
+  <section v-if="props.view !== 'quotes' && props.view !== 'history' && canReadAnalyses" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-analyses>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-extrabold">Análisis comercial del prospecto</h2>
@@ -252,7 +324,22 @@ function quotePageChange(delta: number) {
       </label>
       <button class="crm-lead-action self-end" type="submit" :disabled="busy || !newMarket">Agregar análisis</button>
     </form>
-    <p v-if="!analyses.length && !analysisLoading" class="text-sm text-[var(--dh-text-muted)]">Sin análisis comercial registrado.</p>
+    <div v-if="canReadQuotes" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 space-y-3" data-crm-lead-pricing-analysis>
+      <h3 class="text-sm font-extrabold">Rutas cotizadas en Pricing</h3>
+      <p class="text-xs text-[var(--dh-text-muted)]">Estas rutas se alimentan automáticamente de QUO vinculadas por ID al prospecto, sin registro manual ni coincidencia de nombres.</p>
+      <p v-if="quotedRoutesLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando rutas de cotizaciones…</p>
+      <p v-else-if="!quoteRouteSummary.length" class="text-sm text-[var(--dh-text-muted)]">Sin rutas cotizadas vinculadas a este prospecto.</p>
+      <div v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <RouterLink v-for="route in quoteRouteSummary" :key="[route.pol,route.poe,route.pod].join('|')"
+          :to="quoteLink(route.quoteId)"
+          class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 hover:border-[var(--dh-primary)]">
+          <p class="text-sm font-bold">{{ route.pol || 'Origen pendiente' }} → {{ route.poe || 'Entrada pendiente' }} → {{ route.pod || 'Destino pendiente' }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ route.count }} QUO vinculada(s) · Abrir tarifa</p>
+        </RouterLink>
+      </div>
+      <p v-if="quotedRoutesTruncated" class="text-xs text-amber-600">Se muestran rutas de las últimas 100 QUO; consultá la pestaña Cotizaciones para revisar las demás.</p>
+    </div>
+    <p v-if="!analyses.length && !analysisLoading" class="text-sm text-[var(--dh-text-muted)]">Sin análisis comercial registrado manualmente.</p>
     <template v-if="analyses.length">
       <label class="crm-lead-field max-w-xl">Análisis registrado
         <select v-model="selectedAnalysisId" class="crm-lead-input">
@@ -288,22 +375,68 @@ function quotePageChange(delta: number) {
     </template>
   </section>
 
-  <section v-if="props.view !== 'analysis' && canReadQuotes" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-quotes>
+  <section v-if="props.view === 'history' && canReadAnalyses"
+    class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4"
+    data-crm-lead-route-history>
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 class="text-base font-extrabold">Historial de rutas del prospecto</h2>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas registradas en los análisis comerciales de este prospecto, sin confundirlas con trayectos de cotizaciones o visitas.</p>
+      </div>
+      <span class="text-xs text-[var(--dh-text-muted)]">{{ historyRoutes.length }} rutas registradas</span>
+    </div>
+    <p v-if="loadError" role="alert" class="text-sm text-red-500">{{ loadError }}</p>
+    <p v-if="analysisLoading || historyLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando rutas…</p>
+    <p v-if="!historyRoutes.length && !analysisLoading && !historyLoading" class="text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas documentadas en los análisis del prospecto.</p>
+    <div v-if="canReadQuotes" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+      <h3 class="text-sm font-bold">Historial de rutas en cotizaciones de Pricing</h3>
+      <p v-if="quotedRoutesLoading" class="text-xs text-[var(--dh-text-muted)]">Cargando QUO…</p>
+      <p v-else-if="!quotedRoutes.length" class="text-xs text-[var(--dh-text-muted)]">No hay rutas documentadas por cotizaciones.</p>
+      <div v-for="quote in quotedRoutes" :key="String(quote.pricingQuoteId)"
+        class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] py-2 last:border-0">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold">{{ String(quote.polName || 'Origen por definir') }} → {{ String(quote.poeName || 'Entrada por definir') }} → {{ String(quote.podName || 'Destino por definir') }}</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ String(quote.quoteNumberSnapshot || 'QUO') }} · {{ commercialRateStatusLabel(quote.commercialStatusSnapshot, locale) }}</p>
+        </div>
+        <RouterLink :to="quoteLink(quote.pricingQuoteId)" class="text-xs font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
+      </div>
+      <p v-if="quotedRoutesTruncated" class="text-xs text-amber-600">Se muestran hasta 100 QUO recientes; el historial completo está paginado en Cotizaciones.</p>
+    </div>
+    <div v-if="historyRoutes.length" class="grid gap-3 md:grid-cols-2">
+      <article v-for="item in historyRoutes" :key="String(item.analysis.id) + ':' + String(item.route.id)"
+        class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+        <p class="text-sm font-bold">
+          {{ String(item.route.polName || item.route.polCode || 'Origen por definir') }}
+          → {{ String(item.route.poeName || item.route.poeCode || 'Puerto de entrada por definir') }}
+          → {{ String(item.route.podName || item.route.podCode || 'Destino por definir') }}
+        </p>
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+          Mercado: {{ String(item.analysis.marketCode || 'No definido') }}
+          · {{ String(item.route.frequencyPerMonth ?? '—') }} movimientos/mes
+        </p>
+        <p v-if="item.route.notes" class="mt-2 whitespace-pre-wrap text-xs">{{ item.route.notes }}</p>
+      </article>
+    </div>
+  </section>
+
+  <section v-if="props.view !== 'analysis' && props.view !== 'history' && canReadQuotes" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-quotes>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-extrabold">Cotizaciones del prospecto</h2>
-        <p class="text-xs text-[var(--dh-text-muted)]">Cotizaciones de Pricing vinculadas a las oportunidades de este prospecto.</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">Todas las QUO asociadas directamente por ID a este prospecto en Pricing, incluso sin oportunidades CRM.</p>
       </div>
       <span class="text-xs text-[var(--dh-text-muted)]">{{ quoteTotal }} cotizaciones</span>
     </div>
+    <CrmAccountQuotesDashboard :lead-id="String(lead.id)" :refresh-key="quoteRefreshKey" />
     <p v-if="quoteError" role="alert" class="text-sm text-red-500">{{ quoteError }}</p>
     <p v-if="quotesLoading" class="text-xs text-[var(--dh-text-muted)]">Cargando cotizaciones…</p>
-    <p v-if="!quotes.length && !quotesLoading" class="text-sm text-[var(--dh-text-muted)]">Todavía no existen cotizaciones vinculadas.</p>
-    <div v-for="quote in quotes" :key="String(quote.id)" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3">
+    <p v-if="!quotes.length && !quotesLoading" class="text-sm text-[var(--dh-text-muted)]">No hay QUO vinculadas por ID. Si existen tarifas históricas sin asignar, un superadministrador puede vincularlas en la sección inferior.</p>
+    <div v-for="quote in quotes" :key="String(quote.pricingQuoteId)" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3">
       <div class="min-w-0">
         <RouterLink :to="quoteLink(quote.pricingQuoteId)" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">{{ String(quote.quoteNumberSnapshot || 'Cotización') }}</RouterLink>
         <p class="text-xs text-[var(--dh-text-muted)]">{{ commercialRateStatusLabel(quote.commercialStatusSnapshot, locale) }} · {{ quote.shipmentModeSnapshot }}</p>
-        <RouterLink :to="opportunityLink(quote.opportunityId)" class="text-xs text-[var(--dh-primary)] hover:underline">{{ String(quote.opportunityTitle || 'Ver oportunidad') }}</RouterLink>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ String(quote.polName || 'Origen por definir') }} → {{ String(quote.poeName || 'Entrada por definir') }} → {{ String(quote.podName || 'Destino por definir') }}</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ String(quote.clientName || lead.name || 'Prospecto') }} · Ejecutivo: {{ String(quote.executiveName || 'No disponible') }}</p>
       </div>
     </div>
     <div v-if="quoteTotal > 25" class="flex items-center justify-end gap-3 text-xs">
@@ -311,8 +444,17 @@ function quotePageChange(delta: number) {
       <span>{{ quotePage }} / {{ quotePages }}</span>
       <button type="button" class="crm-lead-action" :disabled="quotePage >= quotePages" @click="quotePageChange(1)">Siguiente</button>
     </div>
-    <div v-if="canLinkQuotes || canCreateOpportunity" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
-      <h3 class="text-sm font-bold">Gestionar cotizaciones</h3>
+    <details v-if="canManageHistoricalQuoteLinks" class="space-y-3 border-t border-[var(--dh-border)] pt-4"
+      :open="legacyQuoteLinksExpanded" @toggle="legacyQuoteLinksExpanded = ($event.target as HTMLDetailsElement).open">
+      <summary class="cursor-pointer text-sm font-bold text-[var(--dh-primary)]">Vincular QUO históricas · Superadministración</summary>
+      <CrmLegacyQuoteManager v-if="legacyQuoteLinksExpanded" :lead-id="String(lead.id)"
+        :client-name="String(lead.companyName || lead.name || '')"
+        :executive-name="String(lead.executiveName || '')" view="quotes"
+        @changed="refreshQuotesAfterLink" />
+    </details>
+    <div v-if="(canLinkQuotes || canCreateOpportunity) && canReadOpportunities" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
+      <h3 class="text-sm font-bold">Gestionar oportunidades CRM (opcional)</h3>
+      <p class="text-xs text-[var(--dh-text-muted)]">Las QUO se muestran desde Pricing sin necesidad de oportunidad. Esta sección solo crea vínculos adicionales para el seguimiento comercial.</p>
       <form v-if="canCreateOpportunity" class="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]" @submit.prevent="createOpportunity">
         <label class="crm-lead-field">Nueva oportunidad
           <input v-model="opportunityTitle" class="crm-lead-input" required maxlength="250" placeholder="Nombre de la oportunidad" />
