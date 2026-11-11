@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { fetchClient } from '@/core/api/fetchConfig'
-import { crmPath, crmRequest, type CrmPage, type CrmRow } from '../services/crmApi'
 
 interface QuoteDashboard {
   total: number
@@ -112,34 +111,6 @@ function renderCharts() {
   })
 }
 
-// Prospect snapshots come from CRM. Account totals continue using the authoritative Pricing endpoint.
-async function loadLeadDashboard(leadId: string, requestId: number): Promise<QuoteDashboard | null> {
-  const rows: CrmRow[] = []
-  const pageSize = 100
-  const limit = 5000
-  let total = 0
-  for (let page = 1; page <= limit / pageSize; page++) {
-    const response = await crmRequest<CrmPage>(
-      crmPath('leads', leadId, 'quotes') + '?page=' + page + '&pageSize=' + pageSize)
-    if (requestId !== generation) return null
-    const items = response.items ?? []
-    total = Number(response.total ?? rows.length + items.length)
-    rows.push(...items)
-    if (!items.length || rows.length >= total || rows.length >= limit) break
-  }
-  const counts = { sent: 0, approved: 0, rejected: 0, cancelled: 0, other: 0 }
-  for (const quote of rows) {
-    const status = String(quote.commercialStatusSnapshot ?? '').trim()
-    if (['Sent', 'RequestedByClient', 'Expired', 'Enviada', 'Vencida'].includes(status)) counts.sent++
-    else if (['AcceptedByClient', 'Aceptada'].includes(status)) counts.approved++
-    else if (['RejectedByClient', 'Closed', 'No aceptada'].includes(status)) counts.rejected++
-    else if (['Cancelled', 'Cancelada'].includes(status)) counts.cancelled++
-    else counts.other++
-  }
-  return { total, ...counts, pendingSync: 0, lastSyncAt: null, linkedOnly: true,
-    truncated: total > rows.length }
-}
-
 async function loadDashboard() {
   const requestId = ++generation
   stats.value = null
@@ -152,7 +123,9 @@ async function loadDashboard() {
     // CRM's opportunity-only dashboard omits manually migrated historical QUOs.
     let result: QuoteDashboard | null = null
     if (props.leadId) {
-      result = await loadLeadDashboard(props.leadId, requestId)
+      result = await fetchClient<QuoteDashboard>(
+        '/api/pricing/rates/crm-lead/' + encodeURIComponent(props.leadId) + '/dashboard',
+        { method: 'GET' })
     } else if (props.accountId) {
       result = await fetchClient<QuoteDashboard>(
         '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId) + '/dashboard',
@@ -181,7 +154,7 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
       <div>
         <h3 class="text-sm font-extrabold">Indicadores de cotizaciones {{ isLead ? 'del prospecto' : 'del cliente' }}</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          {{ isLead ? 'Estados guardados en CRM de las cotizaciones vinculadas a las oportunidades del prospecto.' : 'Estados oficiales de Pricing para todas las QUO vinculadas por ID a esta cuenta, incluidas las históricas.' }}
+          {{ isLead ? 'Estados oficiales de Pricing de todas las QUO vinculadas por ID al prospecto, aunque no tengan oportunidad CRM.' : 'Estados oficiales de Pricing para todas las QUO vinculadas por ID a esta cuenta, incluidas las históricas.' }}
         </p>
       </div>
       <button type="button" class="hub-outline-button hub-small"
@@ -232,7 +205,7 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
       </p>
       <p class="text-xs text-[var(--dh-text-muted)]">
         {{ isLead
-          ? 'Datos de las cotizaciones vinculadas por oportunidad a este prospecto, según el último estado guardado en CRM. No se atribuyen tarifas por coincidencia de nombre.'
+          ? 'Datos oficiales de Pricing de todas las QUO vinculadas directamente por ID a este prospecto. No se atribuyen tarifas por coincidencia de nombre.'
           : 'Datos de cotizaciones asociadas directamente por ID a esta cuenta, consultadas en tiempo real a Pricing. No se atribuyen tarifas por coincidencia de nombre.' }}
         “Enviadas” incluye pendientes de respuesta, solicitadas por el cliente y vencidas.
         “Aprobadas” significa aceptadas por el cliente.
