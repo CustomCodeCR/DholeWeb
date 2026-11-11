@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.32.1",
-  "ecosystemVersion": "1.32.1",
-  "releaseId": "DH-20261111-CRM-QUOTE-SEND-VISIBLE-092",
+  "version": "1.32.2",
+  "ecosystemVersion": "1.32.2",
+  "releaseId": "DH-20261111-PRICING-SELLER-REQUEST-HISTORY-093",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261111-CRM-QUOTE-SEND-VISIBLE-092"
+  "businessReleaseId": "DH-20261111-PRICING-SELLER-REQUEST-HISTORY-093"
 }
