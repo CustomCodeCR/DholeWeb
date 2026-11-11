@@ -7,7 +7,7 @@ const commercial = readFileSync('src/modules/crm/components/CrmLeadCommercialPan
 
 test('prospects show one role-authorized tab panel at a time like CRM accounts', () => {
   assert.match(detail, /role="tablist" aria-label="Secciones del prospecto"/)
-  for (const tab of ['summary', 'analysis', 'quotes', 'agenda', 'conversion']) {
+  for (const tab of ['summary', 'profile', 'analysis', 'quotes', 'history', 'agenda', 'conversion']) {
     assert.match(detail, new RegExp("leadTab === '" + tab + "'"))
     assert.match(detail, new RegExp("crm-lead-panel-" + tab))
   }
@@ -18,7 +18,7 @@ test('commercial analysis and quote panels are separately rendered and loaded', 
   assert.match(detail, /view="analysis"/)
   assert.match(detail, /view="quotes"/)
   assert.match(commercial, /props.view !== 'quotes' \? \[loadAnalyses\(\)\]/)
-  assert.match(commercial, /props.view !== 'analysis' \? \[loadQuotes\(\), loadOpportunities\(\)\]/)
+  assert.match(commercial, /props.view === 'quotes' \? \[loadQuotes\(\), loadOpportunities\(\)\]/)
 })
 test('conversion deep links open the conversion tab', () => {
   assert.match(detail, /route.hash === '#crm-lead-conversion'/)
