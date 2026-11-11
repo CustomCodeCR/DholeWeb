@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
 import { crmPath, crmRequest, type CrmRow } from '../services/crmApi'
 
 type DeliveryTarget = 'seller' | 'client'
 interface DeliveryPreference {
   deliveryTarget: DeliveryTarget
-  contactId: string | null
+  contactIds?: string[]
+  contactId?: string | null // Older CRM responses remain readable.
   rowVersion: number
   updatedAtUtc: string | null
 }
@@ -22,7 +24,7 @@ const emit = defineEmits<{
 }>()
 
 const destination = ref<DeliveryTarget>('seller')
-const selectedContactId = ref('')
+const selectedContactIds = ref<string[]>([])
 const rowVersion = ref(0)
 const updatedAtUtc = ref<string | null>(null)
 const loading = ref(false)
@@ -31,15 +33,24 @@ const loaded = ref(false)
 const error = ref('')
 const notice = ref('')
 let generation = 0
+
 const emailContacts = computed(() => props.contacts.filter(contact => {
   const email = String(contact.email ?? '').trim()
   return Boolean(contact.id) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    && String(contact.status ?? 'Active').toLowerCase() === 'active'
 }))
-const selectedContact = computed(() => emailContacts.value.find(
-  contact => String(contact.id) === selectedContactId.value))
+const contactOptions = computed(() => emailContacts.value.map(contact => ({
+  value: String(contact.id),
+  label: String(contact.name || contact.displayName || contact.email),
+  description: String(contact.email),
+})))
+const selectedContacts = computed(() => emailContacts.value.filter(contact =>
+  selectedContactIds.value.includes(String(contact.id))))
+const selectionValid = computed(() => selectedContactIds.value.length > 0 &&
+  selectedContactIds.value.length === selectedContacts.value.length)
 const canSave = computed(() => loaded.value && props.authorized &&
   !loading.value && !saving.value &&
-  (destination.value === 'seller' || Boolean(selectedContact.value)))
+  (destination.value === 'seller' || selectionValid.value))
 
 async function loadPreference() {
   const current = ++generation
@@ -52,7 +63,9 @@ async function loadPreference() {
       crmPath('accounts', props.accountId, 'quote-delivery-preference'))
     if (current !== generation) return
     destination.value = preference.deliveryTarget === 'client' ? 'client' : 'seller'
-    selectedContactId.value = preference.contactId || ''
+    selectedContactIds.value = Array.isArray(preference.contactIds)
+      ? [...new Set(preference.contactIds)]
+      : preference.contactId ? [preference.contactId] : []
     rowVersion.value = preference.rowVersion
     updatedAtUtc.value = preference.updatedAtUtc
     loaded.value = true
@@ -64,7 +77,6 @@ async function loadPreference() {
     if (current === generation) loading.value = false
   }
 }
-
 watch(() => props.accountId, () => { void loadPreference() }, { immediate: true })
 
 async function savePreference() {
@@ -74,22 +86,21 @@ async function savePreference() {
   notice.value = ''
   try {
     const saved = await crmRequest<DeliveryPreference>(
-      crmPath('accounts', props.accountId, 'quote-delivery-preference'),
-      'PUT',
-      {
+      crmPath('accounts', props.accountId, 'quote-delivery-preference'), 'PUT', {
         deliveryTarget: destination.value,
-        contactId: destination.value === 'client' ? selectedContactId.value : null,
+        contactIds: destination.value === 'client' ? selectedContactIds.value : [],
         expectedVersion: rowVersion.value,
       })
     destination.value = saved.deliveryTarget
-    selectedContactId.value = saved.contactId || ''
+    selectedContactIds.value = Array.isArray(saved.contactIds) ? saved.contactIds
+      : saved.contactId ? [saved.contactId] : []
     rowVersion.value = saved.rowVersion
     updatedAtUtc.value = saved.updatedAtUtc
-    notice.value = 'Preferencia guardada. Se aplicará a todas las cotizaciones futuras de esta cuenta.'
+    notice.value = 'Preferencia guardada para todas las cotizaciones futuras de esta cuenta.'
     emit('saved')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message :
-      'No se pudo guardar la preferencia. No se modificaron los destinatarios.'
+      'No se pudo guardar la configuración. No se cambiaron los destinatarios.'
   } finally {
     saving.value = false
   }
@@ -104,22 +115,21 @@ async function savePreference() {
       <div>
         <h3 class="text-base font-extrabold text-[var(--dh-text)]">Configurar envío de cotizaciones</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          La alternativa guardada se utilizará automáticamente en todas las próximas cotizaciones
-          vinculadas a esta cuenta. No envía ninguna cotización ahora.
+          Esta configuración se aplicará automáticamente a todas las próximas cotizaciones
+          vinculadas a esta cuenta. Guardarla no envía correos ahora.
         </p>
       </div>
       <button type="button" :disabled="saving" class="hub-outline-button hub-small"
         @click="emit('cancel')">Cerrar</button>
     </div>
 
-    <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">
-      Cargando preferencia actual…
-    </p>
+    <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">Cargando configuración…</p>
     <p v-if="!authorized" role="alert" class="text-xs text-amber-600">
       Necesitás permiso para actualizar esta cuenta.
     </p>
+
     <fieldset class="grid gap-3 sm:grid-cols-2" :disabled="loading || saving || !authorized">
-      <legend class="mb-2 text-xs font-bold">Destinatario de todas las cotizaciones futuras</legend>
+      <legend class="mb-2 text-xs font-bold">Destinatarios de todas las próximas cotizaciones</legend>
       <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--dh-border)] p-3">
         <input v-model="destination" type="radio" value="seller" class="mt-1 accent-[var(--dh-primary)]" />
         <span class="text-sm">
@@ -131,32 +141,28 @@ async function savePreference() {
         <input v-model="destination" type="radio" value="client" class="mt-1 accent-[var(--dh-primary)]" />
         <span class="text-sm">
           <strong class="block">Enviar al cliente</strong>
-          <span class="text-xs text-[var(--dh-text-muted)]">Con copia al vendedor asignado</span>
+          <span class="text-xs text-[var(--dh-text-muted)]">A todos los contactos seleccionados, con copia al vendedor</span>
         </span>
       </label>
     </fieldset>
 
     <div v-if="destination === 'client'" class="space-y-2">
-      <label for="crm-quote-delivery-contact" class="block text-xs font-bold">
-        Contacto que recibirá las próximas cotizaciones *
-      </label>
-      <select id="crm-quote-delivery-contact" v-model="selectedContactId"
-        :disabled="loading || saving || !authorized"
-        class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm text-[var(--dh-text)]">
-        <option value="">Seleccioná un contacto</option>
-        <option v-for="contact in emailContacts" :key="String(contact.id)"
-          :value="String(contact.id)">
-          {{ contact.name || contact.displayName }} · {{ contact.email }}
-        </option>
-      </select>
+      <DhMultiSelect v-model="selectedContactIds" :options="contactOptions"
+        label="Contactos que recibirán todas las próximas cotizaciones *"
+        placeholder="Seleccioná uno o varios contactos"
+        search-placeholder="Buscar contacto por nombre o correo"
+        empty-text="Esta cuenta no tiene contactos activos con correo válido"
+        :disabled="loading || saving || !authorized" />
       <p v-if="!emailContacts.length" class="text-xs text-amber-600">
         Esta cuenta no tiene contactos con correo válido.
-        <button type="button" class="hub-text-link" @click="emit('open-contacts')">
-          Agregar contacto
-        </button>
+        <button type="button" class="hub-text-link" @click="emit('open-contacts')">Agregar contacto</button>
       </p>
-      <p v-else class="text-xs text-[var(--dh-text-muted)]">
-        Para: {{ selectedContact?.email || 'Seleccioná un contacto' }} · CC: {{ sellerName }}
+      <p v-else-if="selectedContactIds.length && !selectionValid" role="alert" class="text-xs text-amber-600">
+        Hay contactos seleccionados que ya no están activos o no tienen correo válido.
+      </p>
+      <p v-if="selectedContacts.length" class="text-xs text-[var(--dh-text-muted)]">
+        Para: {{ selectedContacts.map(contact => String(contact.email)).join(', ') }}
+        · CC: {{ sellerName }}
       </p>
     </div>
 
@@ -168,7 +174,7 @@ async function savePreference() {
     <div class="flex justify-end">
       <button type="submit" :disabled="!canSave"
         class="rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50">
-        {{ saving ? 'Guardando…' : 'Guardar para todas las próximas cotizaciones' }}
+        {{ saving ? 'Guardando…' : 'Guardar configuración para próximas cotizaciones' }}
       </button>
     </div>
   </form>
