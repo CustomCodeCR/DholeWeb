@@ -43,7 +43,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     `import { useRouter } from 'vue-router'`,
-    `import { useRoute, useRouter } from 'vue-router'`,
+    `import { useRoute, useRouter } from 'vue-router'\nimport { validateDuplicatedFclFreight } from '@/modules/pricing/utils/pricingDuplicatedFclFreightValidation'`,
     'wizard route import',
   )
   code = replaceOne(
@@ -98,7 +98,7 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     hydrationStepAnchor,
-    `    if (refreshingDuplicatedRate.value && rate.shipmentMode === 'Fcl') {\n      // La tarifa fuente solo sirve para prellenar la configuración previa al flete.\n      // No se conserva ningún snapshot comercial de pantalla 5 en adelante.\n      form.selectedImportRateId = ''\n      form.manualRate = false\n      form.freightCost = 0\n      form.freightSale = 0\n      form.freeDays = 0\n      form.transitDays = 0\n      form.agentId = ''\n      form.carrierId = ''\n      rateLines.value = []\n      form.manualRate = false\n      step.value = 3\n      toastStore.info(\n        'Revise los datos de la tarifa duplicada',\n        creatingFromDuplicate.value\n          ? 'Se copiaron la ruta, el equipo y los datos de carga. Revise la pantalla 3 antes de continuar; el flete marítimo se seleccionará nuevamente en pantalla 5.'\n          : 'Revise la ruta, el equipo, el Incoterm y los servicios antes de continuar. El flete marítimo deberá seleccionarse nuevamente en pantalla 5.',\n      )\n    } else {\n${hydrationStepAnchor}\n    }`,
+    `    if (refreshingDuplicatedRate.value && rate.shipmentMode === 'Fcl') {\n      // La tarifa fuente solo sirve para prellenar la configuración previa al flete.\n      // No se conserva ningún snapshot comercial de pantalla 5 en adelante.\n      form.selectedImportRateId = ''\n      form.manualRate = false\n      form.freightCost = 0\n      form.freightSale = 0\n      form.freeDays = 0\n      form.transitDays = 0\n      form.agentId = ''\n      form.carrierId = ''\n      rateLines.value = []\n      // Extra container freight belongs to the previous quote, not the duplicate.\n      fclExtraContainers.value.forEach((row) => {\n        row.freightCostAmount = 0\n        row.freightSaleAmount = 0\n        row.freightTouched = false\n      })\n      form.manualRate = false\n      step.value = 3\n      toastStore.info(\n        'Revise los datos de la tarifa duplicada',\n        creatingFromDuplicate.value\n          ? 'Se copiaron la ruta, el equipo y los datos de carga. Revise la pantalla 3 antes de continuar; el flete marítimo se seleccionará nuevamente en pantalla 5.'\n          : 'Revise la ruta, el equipo, el Incoterm y los servicios antes de continuar. El flete marítimo deberá seleccionarse nuevamente en pantalla 5.',\n      )\n    } else {\n${hydrationStepAnchor}\n    }`,
     'wizard hydration navigation',
   )
 
@@ -128,18 +128,52 @@ function patchWizard(source: string) {
   )
   code = code.slice(0, chooseStart) + chooseBlock + code.slice(chooseEnd)
 
-  code = replaceOne(
-    code,
-    `function continueManual() {`,
-    `function continueManual() {\n  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl') {\n    toastStore.warning(\n      'Flete marítimo requerido',\n      'Una tarifa FCL duplicada debe seleccionar un flete marítimo vigente en pantalla 5; no se permite continuar con flete manual ni reutilizar el anterior.',\n    )\n    step.value = 5\n    return\n  }`,
-    'duplicate manual freight guard',
-  )
+  // A different container can have no compatible imported FCL tariff.
+  // Preserve continueManual(): manual freight is valid when fully priced.
 
   code = replaceOne(
     code,
     `async function saveRate() {`,
-    `async function saveRate() {\n  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl' && !form.selectedImportRateId) {\n    step.value = 5\n    toastStore.warning(\n      'Seleccione el nuevo flete marítimo',\n      'Antes de crear la nueva tarifa debe escoger un flete vigente en pantalla 5.',\n    )\n    return\n  }`,
-    'duplicate save freight guard',
+    `function hasNewDuplicatedFclFreight(): boolean {
+  const ready = (
+    fields: Pick<typeof form, 'selectedImportRateId' | 'manualRate' | 'agentId' | 'carrierId' | 'currencyId' | 'freightCost' | 'freightSale'>,
+    lines: RateLine[],
+  ) => validateDuplicatedFclFreight({
+    sourceRateId: fields.selectedImportRateId,
+    manual: fields.manualRate,
+    agentId: fields.agentId,
+    carrierId: fields.carrierId,
+    currencyId: fields.currencyId,
+    freightCost: fields.freightCost,
+    freightSale: fields.freightSale,
+    lines: lines.map((line) => ({
+      type: line.costDetailType,
+      included: line.included,
+      saleAmount: line.saleAmount,
+    })),
+  })
+
+  if (multiCarrierSelectionMode.value) {
+    // Persist the visible option before checking every selected POE/naviera.
+    rememberCurrentCarrierDraft()
+    return selectedCarrierRoutes.value.length > 0 && selectedCarrierRoutes.value.every((route) => {
+      const draft = optionDrafts.value[carrierRouteKey(route.poeId, route.carrierId)]
+      return Boolean(draft && ready(draft.fields, draft.lines))
+    })
+  }
+  return ready(form, rateLines.value)
+}
+
+async function saveRate() {
+  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl' && !hasNewDuplicatedFclFreight()) {
+    step.value = multiCarrierSelectionMode.value && !selectedCarrierRoutes.value.length ? 5 : 6
+    toastStore.warning(
+      'Complete el nuevo flete marítimo',
+      'Seleccione un flete vigente o configure uno manual con agente, naviera, moneda, costo, venta y su línea de flete para cada alternativa. No se reutilizará el anterior.',
+    )
+    return
+  }`,
+    'duplicate save freight validation',
   )
 
   code = replaceOne(
