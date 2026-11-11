@@ -1,3 +1,8 @@
+## [1.22.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ACCOUNT-PROCEDURES-080: pestaña «Procedimientos específicos» en cada cuenta con múltiples tarjetas desplegables, buscador, creación, edición y eliminación confirmada; campos nombre, detalle y equipo asignado.
+- Integra CRUD de CRM 1.11.0, permisos crm.account.update y control de concurrencia. Preserva el PATCH 1.21.1 de tarifas vencidas; CI y staging pendientes.
+
 ## [1.21.1] - 2026-11-10
 
 - PATCH DH-20261110-SELLER-EXPIRED-081: permite aceptar o rechazar tarifas vencidas en el dashboard y detalle del vendedor, incluso sobre la última revisión publicada sin modificaciones activas. Las solicitudes de modificación siguen disponibles.
