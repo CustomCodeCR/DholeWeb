@@ -150,11 +150,14 @@ async function loadDashboard() {
   try {
     // Count the authoritative Pricing RateHeaders linked by CRM account ID.
     // CRM's opportunity-only dashboard omits manually migrated historical QUOs.
-    const result = props.leadId
-      ? await loadLeadDashboard(props.leadId, requestId)
-      : await fetchClient<QuoteDashboard>(
-          '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId || '') + '/dashboard',
-          { method: 'GET' })
+    let result: QuoteDashboard | null = null
+    if (props.leadId) {
+      result = await loadLeadDashboard(props.leadId, requestId)
+    } else if (props.accountId) {
+      result = await fetchClient<QuoteDashboard>(
+        '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId) + '/dashboard',
+        { method: 'GET' })
+    }
     if (requestId !== generation) return
     stats.value = result
   } catch (cause) {
