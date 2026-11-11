@@ -78,6 +78,7 @@ jobs:
           VITE_API_URL="$(read_env VITE_API_URL)"
           VITE_APP_NAME="$(read_env VITE_APP_NAME)"
           VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
+          VITE_GEOAPIFY_API_KEY="$(read_env VITE_GEOAPIFY_API_KEY)"
           : "${VITE_API_URL:?VITE_API_URL is required}"
           : "${VITE_APP_NAME:?VITE_APP_NAME is required}"
           : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required}"
@@ -85,6 +86,7 @@ jobs:
             --build-arg VITE_API_URL="$VITE_API_URL" \
             --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
             --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+            --build-arg VITE_GEOAPIFY_API_KEY="$VITE_GEOAPIFY_API_KEY" \
             --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
             --build-arg VITE_RELEASE_CHANNEL="production" \
             -t dhole/web:latest -t "dhole/web:$SHA_TAG" .
