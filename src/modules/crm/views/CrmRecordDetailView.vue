@@ -172,6 +172,7 @@ const agendaContactName = ref('')
 const agendaOpportunityName = ref('')
 const agendaNotes = ref<CrmRow[]>([])
 const agendaCommitments = ref<CrmRow[]>([])
+const commitmentSaving = ref('')
 const agendaParent = ref<AgendaParent | null>(null)
 const agendaDetailsWarning = ref('')
 let agendaDetailsGeneration = 0
@@ -285,6 +286,23 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
       (resource === 'activities' && (results[3]?.status === 'rejected' || results[4]?.status === 'rejected')) ||
       (resource === 'followups' && results[5]?.status === 'rejected'))
     agendaDetailsWarning.value = 'Algunos datos vinculados no pudieron cargarse. Actualizá para volver a consultarlos.'
+}
+
+async function markCommitmentCompleted(commitment: CrmRow) {
+  if (!can('crm.task.manage') || commitmentSaving.value ||
+      commitment.status === 'Completed' || !record.value || section.value !== 'activities') return
+  commitmentSaving.value = String(commitment.id)
+  agendaDetailsWarning.value = ''
+  try {
+    await crmRequest(crmPath('followups', String(commitment.id), 'complete'), 'POST', {
+      expectedVersion: Number(commitment.rowVersion ?? 0),
+      outcome: 'Compromiso completado desde la actividad principal',
+      nextFollowupAt: null,
+    }, crmUuid())
+    await loadAgendaDetails(record.value, 'activities')
+  } catch (cause) {
+    agendaDetailsWarning.value = crmError(cause)
+  } finally { commitmentSaving.value = '' }
 }
 
 const agendaEditable = computed(() => section.value === 'activities'
@@ -1039,7 +1057,9 @@ onMounted(() => { if (crmEnabled()) void load() })
             <h3 class="text-sm font-bold">Compromisos vinculados ({{ agendaCommitments.length }})</h3>
             <div v-for="commitment in agendaCommitments" :key="String(commitment.id)"
               class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
-              <input type="checkbox" :checked="commitment.status === 'Completed'" disabled
+              <input type="checkbox" :checked="commitment.status === 'Completed'"
+                 :disabled="commitment.status === 'Completed' || !can('crm.task.manage') || Boolean(commitmentSaving)"
+                 @change="markCommitmentCompleted(commitment)"
                 class="mt-1 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" aria-label="Compromiso completado" />
               <div class="min-w-0 flex-1">
                 <RouterLink :to="'/crm/followups/' + encodeURIComponent(String(commitment.id))"
