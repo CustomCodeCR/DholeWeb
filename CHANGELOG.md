@@ -1,3 +1,8 @@
+## [1.22.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-LEAD-QUO-PARITY-080: vista de Prospectos alineada con Cuentas (Ficha, Análisis comercial, Cotizaciones, Historial de rutas, Seguimientos), todas las QUO por ClientLeadId desde Pricing sin depender de oportunidades CRM. Indicadores oficiales de Pricing y rutas automáticas vinculadas por ID.
+- Permite vincular QUO históricas sin asignar desde acordeón exclusivo de superadministradores con confirmación, sin reasignar cuotas de otras cuentas/prospectos; actualización coordinada con DholePricingService 1.10.0 y DholeSystem 1.22.0. Conserva CRM y sus permisos, SignalR/REST y los cambios de contactos de 1.21.0.
+
 ## [1.21.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-CONTACTS-SELLERS-078: DhMultiSelect único para contactos de actividad y añadido múltiple en participantes de su detalle, sin duplicados. Mantiene los cambios previos en prospectos de 1.20.2.
