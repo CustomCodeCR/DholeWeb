@@ -38,6 +38,9 @@ interface CalendarEvent {
 const router = useRouter()
 const auth = useAuthStore()
 const can = (scope: string) => auth.hasScope(scope)
+const hasBothGlobalCrmScopes = computed(() => can('crm.account.read-all') && can('crm.lead.read-all'))
+const canManageAcrossUsers = computed(() => can('crm.activity.read-all') || hasBothGlobalCrmScopes.value)
+const canAssignOtherSellers = computed(() => can('crm.activity.create') && canManageAcrossUsers.value)
 const mode = ref<CalendarMode>('month')
 const selected = ref(new Date())
 const creationOpen = ref(false)
@@ -47,10 +50,36 @@ const agreementDrafts = ref<CrmAgreementDraft[]>([])
 const calendarLabels = ref<{
   accounts: Record<string, string>; leads: Record<string, string>; owners: Record<string, string>
 }>({ accounts: {}, leads: {}, owners: {} })
+const calendarDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const directoryLoading = ref(false)
+const directoryError = ref('')
+async function loadCalendarDirectory() {
+  if (!canManageAcrossUsers.value || directoryLoading.value || calendarDirectory.value.length) return
+  directoryLoading.value = true
+  directoryError.value = ''
+  try {
+    const users: Array<{ id: string; displayName: string; userName: string }> = []
+    for (let page = 1; page <= 50; page++) {
+      const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+        crmPath('calendar/users') + '?page=' + page + '&pageSize=100',
+      )
+      users.push(...(result.items ?? []))
+      if (users.length >= result.total || !(result.items ?? []).length) break
+    }
+    calendarDirectory.value = users
+  } catch {
+    directoryError.value = 'No se pudo cargar el directorio de usuarios activos.'
+  } finally { directoryLoading.value = false }
+}
+watch(canManageAcrossUsers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
+watch(calendarDirectory, users => {
+  const owners = { ...calendarLabels.value.owners }
+  for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
+  calendarLabels.value = { ...calendarLabels.value, owners }
+})
 const ownerFilter = ref('')
 const clientFilter = ref('')
-const isManagerCalendar = computed(() => !scopedRecord.value &&
-  (can('crm.activity.read-all') || can('crm.account.read-all') || can('crm.lead.read-all')))
+const isManagerCalendar = computed(() => !scopedRecord.value && canManageAcrossUsers.value)
 const sellerPalette = ['#047857', '#2563eb', '#7c3aed', '#c2410c', '#b45309',
   '#0891b2', '#be185d', '#4f46e5', '#65a30d', '#0f766e']
 function sellerColor(userId: string): string {
@@ -72,7 +101,9 @@ function clientName(event: CalendarEvent): string {
 function clientKey(event: CalendarEvent): string {
   return event.accountId ? 'a:' + event.accountId : 'l:' + event.leadId
 }
-const ownerChoices = computed(() => [...new Set(rows.value.map(x => x.ownerId).filter(Boolean))]
+const ownerChoices = computed(() => [...new Set([
+  ...calendarDirectory.value.map(user => user.id), ...rows.value.map(x => x.ownerId)
+].filter(Boolean))]
   .sort((a,b) => (calendarLabels.value.owners[a] || a)
     .localeCompare(calendarLabels.value.owners[b] || b)))
 const clientChoices = computed(() => {
@@ -322,8 +353,14 @@ const assignees = computed(() => {
   const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
     ? String(selectedAccount.value?.executiveUserId ?? '')
     : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
-  return [...new Set([mine, seller].filter(Boolean))]
+  return [...new Set([mine, ...(canAssignOtherSellers.value ? [seller, ...calendarDirectory.value.map(u => u.id)] : [])].filter(Boolean))]
 })
+function assigneeLabel(id: string) {
+  const user = calendarDirectory.value.find(x => x.id === id)
+  return user?.displayName || user?.userName ||
+    (id === auth.userId ? 'Mi agenda' : calendarLabels.value.owners[id] ||
+      (id === selectedAccount.value?.executiveUserId ? 'Vendedor de la cuenta' : 'Usuario asignado'))
+}
 function labelFor(event: CalendarEvent) {
   return eventTypes.find(type => type.value === event.type)?.label ?? event.type
 }
@@ -371,13 +408,14 @@ function openCreation(date?: Date) {
   error.value = ''
   creationOpen.value = true
   void loadConfiguredActivityTypes()
+  void loadCalendarDirectory()
   // Account-local calendars must preselect the real assigned commercial seller.
   if (props.accountId && (can('crm.account.read') || can('crm.account.read-all'))) {
     void crmRequest<CrmRow>(crmPath('accounts', props.accountId)).then(account => {
       if (!creationOpen.value || editor.value.accountId !== account.id) return
       accounts.value = [account]
       const assigned = String(account.executiveUserId ?? auth.userId ?? '')
-      if (can('crm.activity.read-all') && assigned) editor.value.ownerId = assigned
+      if (canAssignOtherSellers.value && assigned) editor.value.ownerId = assigned
     }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
   }
   if (!scopedRecord.value) {
@@ -426,7 +464,7 @@ watch(() => editor.value.accountId, () => {
     editor.value.leadId = ''
     const ownerId = selectedAccount.value?.isCastroFallasExecutive === true
       ? String(auth.userId ?? '') : String(selectedAccount.value?.executiveUserId ?? auth.userId ?? '')
-    editor.value.ownerId = (can('crm.activity.read-all') || can('crm.account.read-all'))
+    editor.value.ownerId = canAssignOtherSellers.value
       ? ownerId : String(auth.userId ?? '')
   }
   void loadContacts()
@@ -435,7 +473,7 @@ watch(() => editor.value.leadId, leadId => {
   if (leadId) {
     editor.value.accountId = ''; editor.value.contactId = ''
     const executiveId = String(selectedLead.value?.executiveUserId ?? auth.userId ?? '')
-    editor.value.ownerId = (can('crm.activity.read-all') || can('crm.lead.read-all'))
+    editor.value.ownerId = canAssignOtherSellers.value
       ? executiveId : String(auth.userId ?? '')
   }
 })
@@ -460,11 +498,11 @@ async function load() {
   const to = rangeEnd.value.toISOString()
   const tasks: Promise<{ items: CrmRow[]; truncated: boolean }>[] = []
   const sources: Source[] = []
-  if (can('crm.activity.read') || can('crm.activity.read-all')) {
+  if (can('crm.activity.read') || canManageAcrossUsers.value) {
     tasks.push(fetchAll('activities', from, to)); sources.push('activity')
   }
   if (can('crm.task.manage') || can('crm.followup.manage') ||
-      can('crm.activity.read') || can('crm.activity.read-all')) {
+      can('crm.activity.read') || canManageAcrossUsers.value) {
     tasks.push(fetchAll('followups', from, to)); sources.push('followup')
   }
   const results = await Promise.allSettled(tasks)
@@ -981,10 +1019,12 @@ function openEvent(item: CalendarEvent) {
         <label class="calendar-label">Vendedor responsable
           <select v-model="editor.ownerId" class="calendar-input" required>
             <option v-for="owner in assignees" :key="owner" :value="owner">
-              {{ owner===auth.userId?'Mi agenda':owner===selectedAccount?.executiveUserId?'Vendedor de la cuenta':owner }}
+              {{ assigneeLabel(owner) }}
             </option>
           </select>
         </label>
+        <p v-if="canAssignOtherSellers && directoryLoading" role="status" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando vendedores disponibles…</p>
+        <p v-if="canAssignOtherSellers && directoryError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ directoryError }}</p>
         <label class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />

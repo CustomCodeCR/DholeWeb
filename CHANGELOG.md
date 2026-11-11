@@ -1,3 +1,8 @@
+## [1.19.5] - 2026-11-10
+
+- PATCH DH-20261110-CRM-GLOBAL-AGENDAS-076: la agenda muestra registros de todos los vendedores a usuarios con crm.activity.read-all o ambos scopes globales de clientes y prospectos; el selector permite elegir usuarios activos mediante un directorio CRM protegido, sin depender del permiso auth.users.view.
+- Versión global Dhole 1.19.5; requiere Auth/CRM del mismo release; CI y staging pendientes.
+
 ## [1.17.20] - 2026-11-10
 
 - PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: permite guardar actividades con fechas pasadas, marcando como completadas las ya finalizadas y evitando recordatorios retroactivos. Preserva minuta, acuerdos y todos los cambios existentes de master hasta 1.17.19.
