@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.36.1",
-  "ecosystemVersion": "1.36.1",
-  "releaseId": "DH-20261111-SRM-CREDIT-PERSIST-103",
+  "version": "1.36.2",
+  "ecosystemVersion": "1.36.2",
+  "releaseId": "DH-20261111-SRM-CREDIT-NUMERIC-104",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261111-SRM-CREDIT-PERSIST-103"
+  "businessReleaseId": "DH-20261111-SRM-CREDIT-NUMERIC-104"
 }
