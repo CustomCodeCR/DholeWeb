@@ -1,7 +1,7 @@
-## [1.31.0] - 2026-11-11
+## [1.32.0] - 2026-11-11
 
-- MINOR DH-20261111-CRM-GEOAPIFY-VISIT-089: selector de visitas CRM con mapa interactivo Geoapify, direcciones y negocios con autocompletado, selección del marcador al tocar el mapa y geocodificación inversa para conservar la dirección y coordenadas.
-- Mapa al crear, editar y consultar visitas; búsqueda manual si falta la API key. DholeCRMService 1.19.0 y ecosistema Dhole 1.31.0. CI y staging pendientes; despliegue productivo no autorizado.
+- MINOR DH-20261111-CRM-GEOAPIFY-VISIT-089: actividades VISIT con mapa Geoapify, autocompletado de direcciones y negocios, selección de punto y geocodificación inversa. Conserva coordenadas en creación, edición y visualización de visitas.
+- Coordinado con DholeCRMService 1.19.0 y preserva CRM Quote Delivery 1.31.0 ya integrado en develop. Ecosistema Dhole 1.32.0. CI y staging pendientes; sin autorización para despliegue productivo.
 
 ## [1.31.0] - 2026-11-11
 
