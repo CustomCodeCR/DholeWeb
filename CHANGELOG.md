@@ -1,3 +1,8 @@
+## [1.20.1] - 2026-11-10
+
+- PATCH DH-20261110-CRM-LEAD-PARITY-079: paridad visual de la ficha de Prospectos con Cuentas mediante pestañas Ficha prospecto e Historial de rutas. Indicadores y gráficos de cotizaciones basados en todos los snapshots vinculados por ID a las oportunidades del prospecto (máximo 5000, paginación y aviso de truncamiento), manteniendo para Cuentas los indicadores oficiales de Pricing sin alteraciones.
+- Requiere DholeSystem 1.20.1 para el manifiesto global. Sin migraciones, APIs nuevas ni alteraciones de permisos; CI y staging pendientes.
+
 ## [1.20.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: unifica Nueva actividad en cuentas/prospectos, selector de participantes desde contactos, minuta redimensionable, asignación de vendedor en agendas con scopes globales y checkbox funcional para compromisos vinculados.
