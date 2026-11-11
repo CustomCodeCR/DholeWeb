@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261111-PRICING-DUPLICATE-FCL-FREIGHT-105",
+  "date": "2026-11-11",
+  "changeType": "PATCH",
+  "ecosystemVersion": "1.37.1",
+  "components": [
+    {
+      "name": "DholeWeb",
+      "previousVersion": "1.37.0",
+      "version": "1.37.1",
+      "change": "Duplicated FCL freight source and per-POE/carrier manual validation"
+    }
+  ],
+  "repositories": [
+    "CustomCodeCR/DholeWeb"
+  ],
+  "branches": {
+    "working": [
+      "fix/20261111-duplicate-fcl-freight-develop",
+      "fix/20261111-duplicate-fcl-freight-master-current"
+    ],
+    "integration": [
+      "develop",
+      "master"
+    ]
+  },
+  "safety": {
+    "manualProductionDeployAuthorized": false,
+    "automaticDeploysRequireExistingProtection": true,
+    "restCompatible": true,
+    "realtimeCompatible": true
+  },
+  "validation": {
+    "required": [
+      "build",
+      "type-check",
+      "test:pricing-rate-update",
+      "version:check",
+      "staging"
+    ],
+    "status": "pending"
+  }
+}
