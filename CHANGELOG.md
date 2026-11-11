@@ -1,3 +1,8 @@
+## [1.27.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: carga múltiple de adjuntos al crear/editar procedimientos de cuentas, vista previa protegida de PDF, imágenes y texto, descarga de documentos y reintento sin duplicar procedimientos.
+- Backport selectivo a master sobre la versión 1.26.0 con el CRM 1.15.0; aprobado en develop/staging. Mantiene otras funciones y contratos REST/SignalR.
+
 ## [1.26.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DOCUMENTS-084: permite adjuntar, consultar y descargar documentos en cuentas, prospectos, contactos, actividades y seguimientos con Dhole Storage y validación de acceso por registro.
