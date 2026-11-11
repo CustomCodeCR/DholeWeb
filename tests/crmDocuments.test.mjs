@@ -35,3 +35,11 @@ test('agenda preserves created identity on file-upload retries', () => {
   assert.match(calendar, /StorageService\.uploadFile\(/)
   assert.match(calendar, /Adjuntos|Documentos adjuntos|Documentos/)
 })
+
+test('procedure documents can be previewed and the panel uses record-level access', () => {
+  assert.match(component, /'followup' \| 'procedure'/)
+  assert.match(component, /StorageFileViewer/)
+  assert.match(component, /storagePreviewKind/)
+  assert.match(component, /canPreview\(file\)/)
+  assert.match(component, /@click="preview\(file\)"/)
+})
