@@ -1,3 +1,8 @@
+## [1.22.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ACCOUNT-PROCEDURES-080: pestaña «Procedimientos específicos» en Cuentas, múltiples procedimientos en acordeones, buscador, formulario y equipo asignado, edición y eliminación confirmada.
+- Backport del release 080 aprobado en staging desde develop, conservando el fix de tarifas vencidas de master 1.21.1. CI y pruebas de producción requeridas.
+
 ## [1.21.1] - 2026-11-10
 
 - PATCH DH-20261110-SELLER-EXPIRED-081: habilita Aceptada/Rechazada sobre tarifas vencidas en detalle y dashboard del vendedor. Solicitar modificación de vencidas permanece operativo; no se habilitan revisiones no publicadas.

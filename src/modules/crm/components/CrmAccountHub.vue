@@ -16,6 +16,7 @@ import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
+import CrmSpecificProceduresManager from './CrmSpecificProceduresManager.vue'
 import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmLegacyQuoteManager from './CrmLegacyQuoteManager.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
@@ -23,11 +24,11 @@ import { DhDrawer } from '@/shared/components/organisms'
 import { DhPagination } from '@/shared/components/molecules'
 import { DhInput, DhTextarea } from '@/shared/components/atoms'
 import {
-  Activity, CalendarClock, CheckCircle2, Clock3, FileText, MapPin, Phone,
+  Activity, CalendarClock, CheckCircle2, ClipboardList, Clock3, FileText, MapPin, Phone,
   ArrowRight, ChevronDown, History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet, XCircle,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'profile' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'changes' | 'agenda' | 'finance'
+type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'changes' | 'agenda' | 'finance'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
   id: string
@@ -84,6 +85,7 @@ const compactRow = (label: string, value: unknown) => ({ label, value })
 const tabs = computed(() => [
   { key: 'summary' as const, label: locale.value === 'en' ? 'Customer' : 'Cliente', icon: UserRound },
   { key: 'profile' as const, label: locale.value === 'en' ? 'Account form' : 'Ficha cliente', icon: FileText },
+  { key: 'procedures' as const, label: locale.value === 'en' ? 'Specific procedures' : 'Procedimientos específicos', icon: ClipboardList },
   { key: 'commercial' as const, label: locale.value === 'en' ? 'Commercial analysis' : 'Análisis comercial', icon: Route },
   { key: 'benefits' as const, label: locale.value === 'en' ? 'Preferred rates' : 'Tarifas preferenciales', icon: Wallet },
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
@@ -1087,6 +1089,9 @@ async function saveRoute() {
       :can-read-credit="has('crm.credit.read')" :can-read-contracts="has('crm.contract.read')"
       :can-edit-profile="has('crm.account.update')"
       @edit-profile="openProfileEditor" @open-tab="activeTab=$event === 'history' ? 'changes' : $event" />
+
+    <CrmSpecificProceduresManager v-else-if="activeTab === 'procedures'" id="crm-account-procedures" role="tabpanel"
+      :account-id="String(account.id)" />
 
     <CrmCommercialBenefitsManager v-else-if="activeTab === 'benefits'" id="crm-account-benefits" role="tabpanel"
       :account-id="String(account.id)" />

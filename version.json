@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.21.1",
-  "ecosystemVersion": "1.21.1",
-  "releaseId": "DH-20261110-SELLER-EXPIRED-081",
-  "releaseStatus": "candidate-master-ci-staging-pending",
-  "businessReleaseId": "DH-20261110-SELLER-EXPIRED-081"
+  "version": "1.22.0",
+  "ecosystemVersion": "1.22.0",
+  "releaseId": "DH-20261110-CRM-ACCOUNT-PROCEDURES-080",
+  "releaseStatus": "candidate-master-ci-production-pending",
+  "businessReleaseId": "DH-20261110-CRM-ACCOUNT-PROCEDURES-080"
 }
