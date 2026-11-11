@@ -1,6 +1,7 @@
 export interface DuplicateProspectAlert {
   title: string
   message: string
+  existingProspectId?: string
 }
 
 /**
@@ -23,5 +24,20 @@ export function crmDuplicateProspectAlert(error: unknown): DuplicateProspectAler
   return {
     title: 'Prospecto ya registrado',
     message: `${name} ya existe en CRM y está asignado a ${seller}. No se creó otro prospecto.`,
+    existingProspectId: typeof data.existingProspectId === 'string'
+      ? data.existingProspectId : undefined,
   }
+}
+
+// Suppress a second SignalR popup for the exact same rejection in this tab.
+// Other sessions still receive the durable Notifications message.
+let lastShownId = ''
+let lastShownAt = 0
+export function rememberLocalDuplicateProspectAlert(id?: string) {
+  if (!id) return
+  lastShownId = id
+  lastShownAt = Date.now()
+}
+export function shouldShowRealtimeDuplicateProspectAlert(id?: string | null): boolean {
+  return !(id && id === lastShownId && Date.now() - lastShownAt < 60_000)
 }
