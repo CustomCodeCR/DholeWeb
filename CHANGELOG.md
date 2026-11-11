@@ -1,3 +1,9 @@
+## [1.32.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-QUOTE-SEND-VISIBLE-092: vuelve siempre visible «Enviar cotización» en el encabezado de cada cuenta CRM, incluso en Cliente y cuando todavía no hay QUO vinculadas. El panel muestra lista de cotizaciones enviables, opciones vendedor/cliente, contacto y CC vendedor asignado; informa cuando faltan tarifas o contactos.
+- Elimina el formulario oculto bajo la pestaña Cotizaciones y conserva la validación del backend/Outbox; protege con test de regresión la disponibilidad del botón y del selector sin QUO.
+- Web 1.32.0 → 1.32.1; ecosistema Dhole 1.32.1; staging y CI obligatorios antes de producción.
+
 ## [1.32.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-GEOAPIFY-VISIT-089: actividades VISIT con mapa Geoapify, autocompletado de direcciones y negocios, selección de punto y geocodificación inversa. Conserva coordenadas en creación, edición y visualización de visitas.
