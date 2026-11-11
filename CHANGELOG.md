@@ -1,3 +1,8 @@
+## [1.30.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-ACTIVITY-COMPLETE-EDIT-088: pantalla de edición integral en actividades CRM, incluso completadas: título, tipo, agenda, recordatorios, minutas, acuerdos y pendientes con casillas de completado y retiro reversible antes de guardar.
+- Integra la edición atómica del servicio CRM, revisa conflictos de versión y conserva los acuerdos retirados en el historial. Ecosistema Dhole 1.30.0; CI/staging pendientes; producción no autorizada.
+
 ## [1.29.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-RESPONSIBLES-SCOPES-086: renombra Vendedor responsable a Responsable. El selector incluye usuarios internos activos con scopes efectivos crm.activity.read, crm.activity.read-all o crm.followup.manage, incluso Asistente, sin filtros de rol; conserva la delegación autorizada.
