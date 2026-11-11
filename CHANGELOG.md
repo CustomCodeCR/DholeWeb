@@ -1,3 +1,9 @@
+## [1.37.2] - 2026-11-11
+
+- PATCH DH-20261111-PRICING-QUO-LINK-ACTION-106: muestra «Cliente aceptó otra QUO» en pantalla 9 del asistente Crystal usado para visualizar cotizaciones; el botón anterior existía únicamente en el asistente antiguo.
+- En pantalla 8 de duplicación FCL, permite vincular la QUO original sin guardar ni alterar el borrador de la nueva tarifa. Modal con búsqueda, selección y validación de QUO aceptada del mismo cliente; el estado interno sigue siendo QUOVinculada, sin afectar estadísticas de vencidas o no aceptadas.
+- Regresión ejecutable y compatibilidad REST/SignalR sin migración ni cambios en Pricing. Web 1.37.1 → 1.37.2; ecosistema 1.37.2; staging y CI requeridos antes de producción.
+
 ## [1.37.1] - 2026-11-11
 
 - PATCH DH-20261111-PRICING-DUPLICATE-FCL-FREIGHT-105: corrige el guardado FCL al duplicar una tarifa y cambiar el contenedor y el flete marítimo. La pantalla 5 admite tarifa vigente o configuración manual válida cuando no existe una combinación preaprobada para los nuevos equipos; no exige RateId importado si existe un flete manual completo.
