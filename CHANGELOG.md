@@ -1,3 +1,8 @@
+## [1.33.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-SUPPLIER-SAVE-PHONE-096: el botón de guardar/actualizar proveedor SRM ejecuta la acción, valida obligatorios explícitamente y muestra errores en el panel lateral.
+- Los contactos adoptan el prefijo telefónico del país elegido utilizando CrmPhoneInput (CRM); con varios países, permiten asignar país por contacto sin perder números históricos. Ecosistema 1.33.1. CI y staging pendientes; producción no autorizada.
+
 ## [1.33.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-ACCOUNT-QUOTE-DELIVERY-093: «Configurar envío de cotizaciones» guarda por cuenta una preferencia reutilizable en todas las cotizaciones futuras, sin elegir QUO específica. El destinatario es el vendedor o un contacto elegido con copia al vendedor.

@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261111-SRM-SUPPLIER-SAVE-PHONE-096",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.33.1",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.33.0",
+      "next": "1.33.1"
+    }
+  ],
+  "changes": [
+    "Guardar y actualizar proveedores SRM con validaciones visibles en el drawer",
+    "Asignar código internacional de teléfono según país por contacto y preservar valores existentes"
+  ],
+  "releaseBranch": "fix/srm-supplier-country-phone-save-096-develop",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
