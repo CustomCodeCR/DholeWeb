@@ -8,7 +8,7 @@ const props = withDefaults(defineProps<{ modelValue: VisitLocation; readonly?: b
 const emit = defineEmits<{ 'update:modelValue': [value: VisitLocation] }>()
 
 // Browser-exposed Geoapify keys must be restricted to allowed HTTP referrers in Geoapify.
-const apiKey = String(import.meta.env.VITE_GEOAPIFY_API_KEY ?? '').trim()
+const apiKey = '8710d7d3f6994e2ab06d4d28377f97d4'
 const searchText = ref(props.modelValue.address || '')
 const searchMode = ref<'address' | 'amenity'>('address')
 const suggestions = ref<Suggestion[]>([])
@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <div v-if="!apiKey" class="rounded-xl border border-amber-500/40 p-4 text-sm text-amber-600" role="alert">
-      El mapa Geoapify necesita configurar VITE_GEOAPIFY_API_KEY en el despliegue. La referencia escrita puede guardarse sin coordenadas.
+      No fue posible cargar Geoapify. Podés registrar la dirección manualmente.
     </div>
     <div v-else ref="mapRef" class="visit-map relative h-[345px] w-full overflow-hidden rounded-xl border border-[var(--dh-border)]"
       :class="{ 'cursor-grab': !readonly }" role="group" aria-label="Mapa interactivo de Geoapify"

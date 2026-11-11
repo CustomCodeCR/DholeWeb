@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.32.3",
-  "ecosystemVersion": "1.32.3",
-  "releaseId": "DH-20261111-PRICING-SELLER-SYNC-094",
+  "version": "1.32.4",
+  "ecosystemVersion": "1.32.4",
+  "releaseId": "DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261111-PRICING-SELLER-SYNC-094"
+  "businessReleaseId": "DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095"
 }
