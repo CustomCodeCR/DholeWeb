@@ -29,3 +29,14 @@ test('writes use account-scoped REST routes and optimistic concurrency', () => {
   assert.match(manager, /'DELETE'/)
   assert.match(manager, /Confirmar eliminación/)
 })
+
+test('procedure documents are bound to the saved procedure and can be retried safely', () => {
+  assert.match(manager, /CrmDocumentsPanel kind="procedure" :record-id="procedure.id"/)
+  assert.match(manager, /sourceService: 'DholeCRMService', entityType: 'crm.procedure'/)
+  assert.match(manager, /crmPath\('documents\/procedure', result\.id, 'access'\)/)
+  assert.match(manager, /editingId\.value = result\.id/)
+  assert.match(manager, /pendingDocuments\.value = failed/)
+  assert.match(manager, /<CrmFileDropzone v-model="pendingDocuments"/)
+  assert.match(manager, /CrmDocumentsPanel kind="procedure"/)
+  assert.doesNotMatch(manager, /hasta 10 documentos|Máximo 10 archivos|multiple :disabled="saving"/)
+})
