@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'l
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
+import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
@@ -38,9 +39,9 @@ interface CalendarEvent {
 const router = useRouter()
 const auth = useAuthStore()
 const can = (scope: string) => auth.hasScope(scope)
+const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => auth.hasRole(role)))
 const hasBothGlobalCrmScopes = computed(() => can('crm.account.read-all') && can('crm.lead.read-all'))
-const canManageAcrossUsers = computed(() => can('crm.activity.read-all') || hasBothGlobalCrmScopes.value)
-const canAssignOtherSellers = computed(() => can('crm.activity.create') && canManageAcrossUsers.value)
+const canManageAcrossUsers = computed(() => calendarAdmin.value || can('crm.activity.read-all') || hasBothGlobalCrmScopes.value)
 const mode = ref<CalendarMode>('month')
 const selected = ref(new Date())
 const creationOpen = ref(false)
@@ -50,36 +51,10 @@ const agreementDrafts = ref<CrmAgreementDraft[]>([])
 const calendarLabels = ref<{
   accounts: Record<string, string>; leads: Record<string, string>; owners: Record<string, string>
 }>({ accounts: {}, leads: {}, owners: {} })
-const calendarDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
-const directoryLoading = ref(false)
-const directoryError = ref('')
-async function loadCalendarDirectory() {
-  if (!canManageAcrossUsers.value || directoryLoading.value || calendarDirectory.value.length) return
-  directoryLoading.value = true
-  directoryError.value = ''
-  try {
-    const users: Array<{ id: string; displayName: string; userName: string }> = []
-    for (let page = 1; page <= 50; page++) {
-      const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
-        crmPath('calendar/users') + '?page=' + page + '&pageSize=100',
-      )
-      users.push(...(result.items ?? []))
-      if (users.length >= result.total || !(result.items ?? []).length) break
-    }
-    calendarDirectory.value = users
-  } catch {
-    directoryError.value = 'No se pudo cargar el directorio de usuarios activos.'
-  } finally { directoryLoading.value = false }
-}
-watch(canManageAcrossUsers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
-watch(calendarDirectory, users => {
-  const owners = { ...calendarLabels.value.owners }
-  for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
-  calendarLabels.value = { ...calendarLabels.value, owners }
-})
 const ownerFilter = ref('')
 const clientFilter = ref('')
-const isManagerCalendar = computed(() => !scopedRecord.value && canManageAcrossUsers.value)
+const isManagerCalendar = computed(() => !scopedRecord.value &&
+  canManageAcrossUsers.value)
 const sellerPalette = ['#047857', '#2563eb', '#7c3aed', '#c2410c', '#b45309',
   '#0891b2', '#be185d', '#4f46e5', '#65a30d', '#0f766e']
 function sellerColor(userId: string): string {
@@ -101,11 +76,43 @@ function clientName(event: CalendarEvent): string {
 function clientKey(event: CalendarEvent): string {
   return event.accountId ? 'a:' + event.accountId : 'l:' + event.leadId
 }
+const calendarDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const calendarDirectoryQuery = ref('')
+const calendarDirectoryLoading = ref(false)
+const calendarDirectoryError = ref('')
+async function loadCalendarDirectory() {
+  if (!canManageAcrossUsers.value || calendarDirectoryLoading.value) return
+  calendarDirectoryLoading.value = true
+  calendarDirectoryError.value = ''
+  try {
+    const users: Array<{ id: string; displayName: string; userName: string }> = []
+    for (let page = 1; page <= 50; page++) {
+      const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+        crmPath('calendar/users') + '?page=' + page + '&pageSize=100&search=' + encodeURIComponent(calendarDirectoryQuery.value.trim()),
+      )
+      users.push(...(result.items ?? []))
+      if (users.length >= result.total || !(result.items ?? []).length) break
+    }
+    calendarDirectory.value = users
+  } catch {
+    calendarDirectoryError.value = 'No se pudo consultar el directorio de usuarios de Auth.'
+  } finally {
+    calendarDirectoryLoading.value = false
+  }
+}
+watch(canManageAcrossUsers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
+watch(calendarDirectory, users => {
+  const owners = { ...calendarLabels.value.owners }
+  for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
+  calendarLabels.value = { ...calendarLabels.value, owners }
+})
 const ownerChoices = computed(() => [...new Set([
-  ...calendarDirectory.value.map(user => user.id), ...rows.value.map(x => x.ownerId)
+  ...calendarDirectory.value.map(user => user.id),
+  ...rows.value.map(x => x.ownerId),
 ].filter(Boolean))]
-  .sort((a,b) => (calendarLabels.value.owners[a] || a)
-    .localeCompare(calendarLabels.value.owners[b] || b)))
+  .sort((a,b) => (calendarDirectory.value.find(u => u.id === a)?.displayName || calendarLabels.value.owners[a] || a)
+    .localeCompare(calendarDirectory.value.find(u => u.id === b)?.displayName || calendarLabels.value.owners[b] || b)))
+const eventOwnerChoices = computed(() => [...new Set(rows.value.map(x => x.ownerId).filter(Boolean))])
 const clientChoices = computed(() => {
   const names = new Map<string, string>()
   for (const item of rows.value) names.set(clientKey(item), clientName(item))
@@ -123,6 +130,15 @@ function sellerEventStyle(event: CalendarEvent) {
 const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
+const selectedContactIds = ref<string[]>([])
+const sellerDirectory = calendarDirectory
+const sellerLoading = calendarDirectoryLoading
+const sellerError = calendarDirectoryError
+const canAssignOtherSellers = computed(() =>
+  can('crm.activity.create') && (can('crm.activity.read-all') || hasBothGlobalCrmScopes.value))
+async function loadSellerDirectory() {
+  if (canAssignOtherSellers.value && !sellerDirectory.value.length) await loadCalendarDirectory()
+}
 const subjectQuery = ref('')
 const subjectBusy = ref(false)
 const subjectError = ref('')
@@ -151,6 +167,7 @@ const editor = ref({
   end: '',
   location: '',
   involved: '',
+  minutes: '',
   agreements: '',
   nextCommitment: '',
   commitmentDue: '',
@@ -353,13 +370,16 @@ const assignees = computed(() => {
   const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
     ? String(selectedAccount.value?.executiveUserId ?? '')
     : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
-  return [...new Set([mine, ...(canAssignOtherSellers.value ? [seller, ...calendarDirectory.value.map(u => u.id)] : [])].filter(Boolean))]
+  return [...new Set([mine,
+    ...(canAssignOtherSellers.value ? [seller, ...sellerDirectory.value.map(x => x.id)] : [])
+  ].filter(Boolean))]
 })
 function assigneeLabel(id: string) {
-  const user = calendarDirectory.value.find(x => x.id === id)
+  const user = sellerDirectory.value.find(x => x.id === id)
   return user?.displayName || user?.userName ||
-    (id === auth.userId ? 'Mi agenda' : calendarLabels.value.owners[id] ||
-      (id === selectedAccount.value?.executiveUserId ? 'Vendedor de la cuenta' : 'Usuario asignado'))
+    (id === auth.userId ? 'Mi agenda' :
+      id === selectedAccount.value?.executiveUserId ? 'Vendedor de la cuenta' :
+      calendarLabels.value.owners[id] || id)
 }
 function labelFor(event: CalendarEvent) {
   return eventTypes.find(type => type.value === event.type)?.label ?? event.type
@@ -399,16 +419,17 @@ function openCreation(date?: Date) {
     type: 'VISIT', subject: 'Visita comercial', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
-    location: '', involved: '', agreements: '', nextCommitment: '', commitmentDue: '',
+    location: '', involved: '', minutes: '', agreements: '', nextCommitment: '', commitmentDue: '',
     reminderMinutes: 60, repeatEveryDays: 0, reminderRepeatMinutes: 0,
     channel: 'BOTH',
   }
   agreementDrafts.value = []
+  selectedContactIds.value = []
+  void loadSellerDirectory()
   userEditedStart.value = false
   error.value = ''
   creationOpen.value = true
   void loadConfiguredActivityTypes()
-  void loadCalendarDirectory()
   // Account-local calendars must preselect the real assigned commercial seller.
   if (props.accountId && (can('crm.account.read') || can('crm.account.read-all'))) {
     void crmRequest<CrmRow>(crmPath('accounts', props.accountId)).then(account => {
@@ -426,6 +447,7 @@ function openCreation(date?: Date) {
     }).catch(() => { /* Keep the preselected prospect even if a refresh is denied. */ })
   }
 }
+defineExpose({ openCreation })
 watch(() => editor.value.start, value => {
   const when = new Date(value)
   if (Number.isFinite(when.getTime()))
@@ -460,6 +482,7 @@ async function loadContacts() {
 }
 watch(() => editor.value.accountId, () => {
   editor.value.contactId = ''
+  selectedContactIds.value = []
   if (editor.value.accountId) {
     editor.value.leadId = ''
     const ownerId = selectedAccount.value?.isCastroFallasExecutive === true
@@ -483,7 +506,9 @@ async function fetchAll(resource: string, from: string, to: string): Promise<{ i
   for (let page = 1; page <= 10; page++) {
     const response = await crmList(resource, { from, to, page, pageSize: 100,
       accountId: props.accountId || undefined,
-      leadId: props.leadId || undefined })
+      leadId: props.leadId || undefined,
+      ownerId: !scopedRecord.value && isManagerCalendar.value && ownerFilter.value
+        ? ownerFilter.value : undefined })
     total = response.total
     all.push(...response.items)
     if (all.length >= total || !response.items.length) break
@@ -498,7 +523,7 @@ async function load() {
   const to = rangeEnd.value.toISOString()
   const tasks: Promise<{ items: CrmRow[]; truncated: boolean }>[] = []
   const sources: Source[] = []
-  if (can('crm.activity.read') || canManageAcrossUsers.value) {
+  if (canManageAcrossUsers.value || can('crm.activity.read')) {
     tasks.push(fetchAll('activities', from, to)); sources.push('activity')
   }
   if (can('crm.task.manage') || can('crm.followup.manage') ||
@@ -527,7 +552,7 @@ async function load() {
       if (!at) continue
       events.push({
         key: source + ':' + item.id, source, id: String(item.id),
-        subject: String(item.subject ?? (source === 'followup' ? 'Seguimiento comercial' : 'Actividad')),
+        subject: String(item.subject || (source === 'followup' ? (item.policyId ? 'Seguimiento periódico' : 'Seguimiento comercial') : 'Actividad')),
         type: source === 'followup' ? 'FOLLOWUP' : String(item.type ?? 'OTHER'),
         status: String(item.status ?? ''), at,
         endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt) : null,
@@ -575,6 +600,7 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
 }
 
 watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
+watch(ownerFilter, () => { if (isManagerCalendar.value) void load() })
 const historicalActivityDraft = computed(() =>
   editor.value.type !== 'FOLLOWUP' &&
   Number.isFinite(new Date(editor.value.end).getTime()) &&
@@ -648,7 +674,12 @@ async function create() {
         occurredAt: historicalActivity ? end.toISOString() : null,
         repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
         locationText: data.location.trim() || null,
-        involved: data.involved.trim() || null, agreements: data.agreements.trim() || null,
+        involved: selectedContactIds.value
+          .map(id => contactRows.value.find(x => String(x.id) === id)?.name)
+          .filter(Boolean).join(', ') || null,
+        minutes: data.minutes.trim() || null,
+        participantContactIds: selectedContactIds.value,
+        agreements: data.agreements.trim() || null,
         nextCommitment: data.nextCommitment.trim() || null,
         commitmentDueAt: commitmentDue?.toISOString() ?? null,
         agreementCommitments: agreementDrafts.value.map(item => ({
@@ -783,11 +814,21 @@ function openEvent(item: CalendarEvent) {
     <div v-if="isManagerCalendar" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
       <p class="mb-3 text-sm font-bold">Vista general de compromisos · Todos los clientes y vendedores autorizados</p>
       <div class="grid gap-3 sm:grid-cols-2">
+        <div v-if="calendarAdmin" class="sm:col-span-2 flex flex-wrap items-end gap-2">
+          <label class="calendar-label min-w-[220px] flex-1">Buscar usuario en Auth
+            <input v-model.trim="calendarDirectoryQuery" type="search" class="calendar-input"
+              placeholder="Nombre del usuario (incluye agendas sin actividades)"
+              @keyup.enter.prevent="loadCalendarDirectory" />
+          </label>
+          <button type="button" class="calendar-btn" :disabled="calendarDirectoryLoading"
+            @click="loadCalendarDirectory">{{ calendarDirectoryLoading ? 'Buscando…' : 'Buscar usuarios' }}</button>
+          <p v-if="calendarDirectoryError" role="alert" class="w-full text-xs text-amber-600">{{ calendarDirectoryError }}</p>
+        </div>
         <label class="calendar-label">Filtrar por vendedor
           <select v-model="ownerFilter" class="calendar-input">
             <option value="">Todos los vendedores</option>
             <option v-for="ownerId in ownerChoices" :key="ownerId" :value="ownerId">
-              {{ calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
+              {{ calendarDirectory.find(u => u.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
             </option>
           </select>
         </label>
@@ -799,10 +840,10 @@ function openEvent(item: CalendarEvent) {
         </label>
       </div>
       <div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-        <span v-for="ownerId in ownerChoices" :key="ownerId"
+        <span v-for="ownerId in eventOwnerChoices" :key="ownerId"
           class="inline-flex items-center gap-2 text-xs text-[var(--dh-text-muted)]">
           <span class="h-2.5 w-2.5 rounded-full" :style="{backgroundColor:sellerColor(ownerId)}"></span>
-          {{ calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
+          {{ calendarDirectory.find(u => u.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || (ownerId===auth.userId?'Mi agenda':'Vendedor asignado') }}
         </span>
       </div>
     </div>
@@ -964,7 +1005,7 @@ function openEvent(item: CalendarEvent) {
       </div>
       </div>
     </DhModal>
-    <DhModal :open="creationOpen" title="Programar visita, llamada o seguimiento" size="lg" @close="creationOpen=false">
+    <DhModal :open="creationOpen" title="Nueva actividad comercial" size="lg" @close="creationOpen=false">
       <div class="space-y-4">
       <p class="text-xs text-[var(--dh-text-muted)]">Podés registrar actividades con fecha pasada, actual o futura. Las actividades ya finalizadas se guardan como completadas y no generan avisos retroactivos. Las futuras mantienen sus recordatorios.</p>
       <div v-if="activityTypesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando tipos de actividades en Config…</div>
@@ -1014,7 +1055,7 @@ function openEvent(item: CalendarEvent) {
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
           Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
         </div>
-        <label v-if="!scopedRecord && editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto de la cuenta
+        <label v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto principal de la cuenta
           <select v-model="editor.contactId" class="calendar-input">
             <option value="">Sin contacto específico</option>
             <option v-for="contact in contactRows" :key="contact.id" :value="contact.id">{{ contact.name }}</option>
@@ -1027,8 +1068,8 @@ function openEvent(item: CalendarEvent) {
             </option>
           </select>
         </label>
-        <p v-if="canAssignOtherSellers && directoryLoading" role="status" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando vendedores disponibles…</p>
-        <p v-if="canAssignOtherSellers && directoryError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ directoryError }}</p>
+        <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando vendedores disponibles…</p>
+        <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
         <label class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
@@ -1067,8 +1108,21 @@ function openEvent(item: CalendarEvent) {
           </p>
         </div>
         <template v-if="editor.type!=='FOLLOWUP'">
-          <label class="calendar-label sm:col-span-2">Involucrados
-            <input v-model.trim="editor.involved" class="calendar-input" maxlength="1500" placeholder="Personas del cliente, equipos internos y responsables" />
+          <fieldset v-if="editor.accountId" class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+            <legend class="px-1 text-xs font-bold">Personas involucradas · contactos de la cuenta</legend>
+            <p v-if="!can('crm.contact.read')" class="text-xs text-[var(--dh-text-muted)]">Necesitás el permiso de lectura de contactos para seleccionar participantes.</p>
+            <p v-else-if="!contactRows.length" class="text-xs text-[var(--dh-text-muted)]">Esta cuenta todavía no tiene contactos disponibles.</p>
+            <div v-else class="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
+              <label v-for="contact in contactRows" :key="contact.id" class="flex items-center gap-2 text-xs">
+                <input v-model="selectedContactIds" type="checkbox" :value="String(contact.id)" class="accent-[var(--dh-primary)]" />
+                <span>{{ contact.name || contact.displayName }}</span>
+              </label>
+            </div>
+          </fieldset>
+          <label class="calendar-label sm:col-span-2">Minuta de la actividad
+            <textarea v-model="editor.minutes" rows="9" maxlength="20000"
+              class="calendar-input min-h-48 resize-y"
+              placeholder="Escribí la minuta completa: asistentes, temas tratados, decisiones y próximos pasos." />
           </label>
           <label class="calendar-label sm:col-span-2">Acuerdos alcanzados
             <textarea v-model.trim="editor.agreements" class="calendar-input min-h-24" maxlength="6000" placeholder="Resumen de acuerdos de la llamada, visita, correo o reunión" />
