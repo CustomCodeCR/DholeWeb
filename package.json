@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "test:crm": "node --test tests/crmProspectDetailTabs.test.mjs && node --test tests/crmProspectSellerAssignment.test.mjs && node --test tests/crmAccountIdentitySearch.test.mjs && node --test tests/crmFrontend.test.ts tests/crmAgenda.test.ts tests/crmPhone.test.ts tests/srmNavigation.test.ts tests/crmRouteCreditContractUi.test.ts tests/crmAddressLocations.test.ts tests/crmPagination.test.mjs tests/crmLegacyQuoteCatalog.test.mjs tests/crmPricingAccountLive.test.mjs tests/crmLegacyQuoteSuperAdminAccordion.test.mjs tests/crmQuoteStatusLocalization.test.mjs tests/crmAgendaIdentity.test.ts && node --test tests/crmActivityFullDetail.test.mjs && node --test tests/crmCalendarAdministrator.test.ts && node --test tests/crmAdminCalendarNavigation.test.mjs && node --test tests/crmHistoricalActivity.test.mjs && node --test tests/crmGlobalAgendaScopes.test.mjs && node --test tests/crmSellerOnlyCommitments.test.mjs && node --test tests/crmSpecificProcedures.test.mjs",
+    "test:crm": "node --test tests/crmProspectDetailTabs.test.mjs && node --test tests/crmProspectSellerAssignment.test.mjs && node --test tests/crmAccountIdentitySearch.test.mjs && node --test tests/crmFrontend.test.ts tests/crmAgenda.test.ts tests/crmPhone.test.ts tests/srmNavigation.test.ts tests/crmRouteCreditContractUi.test.ts tests/crmAddressLocations.test.ts tests/crmPagination.test.mjs tests/crmLegacyQuoteCatalog.test.mjs tests/crmPricingAccountLive.test.mjs tests/crmLegacyQuoteSuperAdminAccordion.test.mjs tests/crmQuoteStatusLocalization.test.mjs tests/crmAgendaIdentity.test.ts && node --test tests/crmActivityFullDetail.test.mjs && node --test tests/crmCalendarAdministrator.test.ts && node --test tests/crmAdminCalendarNavigation.test.mjs && node --test tests/crmHistoricalActivity.test.mjs && node --test tests/crmGlobalAgendaScopes.test.mjs && node --test tests/crmSellerOnlyCommitments.test.mjs && node --test tests/crmSpecificProcedures.test.mjs && node --test tests/crmAccountCategoryScope.test.mjs",
     "test:workspace-tabs": "node --test tests/workspaceTabsPolicy.test.ts tests/workspaceTabsOverflow.test.mjs tests/monitoringVersions.test.ts",
     "test:agent": "node --test tests/agentModule.test.ts tests/agentRouteForm.test.ts tests/maerskOperations.test.ts tests/maerskPhase7Acceptance.test.ts tests/standbyWebFlow.test.ts",
     "test:market-pricing": "node --test tests/marketAutoPricing.test.ts",
