@@ -342,12 +342,13 @@ async function save() {
             <DhSelect label="Condición de cliente" :model-value="accountDraft.customerTypeCode"
               :options="[{label:'Contado',value:'cash'},{label:'Crédito',value:'credit'}]"
               @update:model-value="accountDraft.customerTypeCode=String($event)" />
-            <DhSelect label="Tipo de cuenta" :model-value="accountDraft.categoryType"
+            <DhSelect label="Tipo de cuenta" :disabled="!can('crm.account.category.manage')" :model-value="accountDraft.categoryType"
               :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'},{label:'Cargas Little',value:'LITTLE'}]"
               @update:model-value="accountDraft.categoryType=String($event);accountDraft.categoryCode='A'" />
-            <DhSelect label="Categoría" :model-value="accountDraft.categoryCode"
+            <DhSelect label="Categoría" :disabled="!can('crm.account.category.manage')" :model-value="accountDraft.categoryCode"
               :options="(accountDraft.categoryType==='LITTLE'?['A']:accountDraft.categoryType==='NVOCC'?['A','B']:['A','B','C','D']).map(value=>({label:accountDraft.categoryType==='LITTLE'?'Cargas Little':'Categoría '+value,value}))"
               @update:model-value="accountDraft.categoryCode=String($event)" />
+            <p v-if="!can('crm.account.category.manage')" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">La clasificación solo puede modificarse con el permiso CRM · Clientes · Asignar categoría.</p>
             <DhInput v-model="accountDraft.sourceCode" label="Origen de la cuenta" />
             <CrmRelationshipPicker :model-value="accountDraft.relationshipTypeCode" label="Tipos de relación"
               @update:model-value="accountDraft.relationshipTypeCode=$event" />
