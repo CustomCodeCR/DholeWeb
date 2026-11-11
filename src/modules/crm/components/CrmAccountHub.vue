@@ -898,7 +898,7 @@ async function saveRoute() {
       </div>
       <div class="flex flex-wrap gap-2 px-4 pb-3 text-[11px] sm:px-5">
         <span class="hub-header-meta"><FileText class="h-3.5 w-3.5" />{{ recentQuotes.length }} {{ locale === 'en' ? 'linked quotes' : 'tarifas vinculadas' }}</span>
-        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='commercial'"><Route class="h-3.5 w-3.5" />{{ quoteRouteTotal }} rutas en cotizaciones</button>
+        <button type="button" class="hub-header-meta hover:text-[var(--dh-primary)]" @click="activeTab='commercial'"><Route class="h-3.5 w-3.5" />Ver rutas de QUO</button>
         <span class="hub-header-meta">{{ activeRoutes.length }} rutas habituales</span>
         <span class="hub-header-meta"><Activity class="h-3.5 w-3.5" />{{ activityCount }} actividades</span>
         <span class="hub-header-meta"><Clock3 class="h-3.5 w-3.5" />{{ pendingCount }} pendientes</span>
@@ -989,7 +989,7 @@ async function saveRoute() {
           </div>
           <div class="mt-3 grid grid-cols-2 gap-2">
             <div class="hub-mini-stat"><span>Rutas habituales CRM</span><strong>{{ activeRoutes.length }}</strong></div>
-            <div class="hub-mini-stat"><span>Análisis comercial</span><strong>{{ overview.analyses.length }}</strong></div>
+            <div class="hub-mini-stat"><span>Fuentes para análisis comercial</span><strong>{{ pricingQuoteTotal + overview.analyses.length }}</strong></div>
           </div>
           <h3 class="hub-section-heading mt-4">Mercados y operaciones</h3>
           <p v-if="!overview.analyses.length" class="hub-empty">Sin análisis comercial registrado.</p>
@@ -1181,7 +1181,7 @@ async function saveRoute() {
             </div>
           </form>
         </DhDrawer>
-        <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas comerciales registradas.</p>
+        <p v-if="!overview.routes.length && !overview.analysisRoutes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay rutas habituales configuradas. Las rutas de QUO se consultan automáticamente más abajo.</p>
         <div v-for="r in overview.routes" :key="r.id" class="grid gap-3 border-b border-[var(--dh-border)] py-3 text-sm last:border-0 md:grid-cols-[1fr_1fr_auto]">
           <div class="font-bold">{{ routeDisplay(r.polCode || r.preferredOriginCode, 'pol') }} → {{ routeDisplay(r.poeCode || r.preferredDestinationCode, 'poe') }}<span v-if="r.podCode"> → {{ routeDisplay(r.podCode, 'pod') }}</span></div>
           <div>{{ modeName(r.modalityCode) }} · {{ frequencyDisplay(r.frequency) }}</div>
@@ -1193,7 +1193,7 @@ async function saveRoute() {
         </div>
       </section>
       <section class="hub-panel">
-        <h2 class="mb-3 font-extrabold">Análisis registrados ({{ overview.analyses.length }})</h2>
+        <h2 class="mb-3 font-extrabold">Análisis manuales ({{ overview.analyses.length }})</h2>
         <p class="mb-3 text-xs text-[var(--dh-text-muted)]">{{ pricingQuoteTotal }} cotizaciones vinculadas alimentan automáticamente las rutas comerciales desde Pricing.</p>
         <p v-if="!overview.analyses.length" class="text-sm text-[var(--dh-text-muted)]">No hay análisis manuales registrados. Las rutas de cotizaciones vinculadas aparecen en esta misma pestaña.</p>
         <button v-for="a in overview.analyses" :key="a.id" class="flex w-full items-center justify-between gap-3 border-b border-[var(--dh-border)] py-3 text-left text-sm last:border-0 hover:text-[var(--dh-primary)]"
