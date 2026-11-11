@@ -1,7 +1,12 @@
 ## [1.26.0] - 2026-11-11
 
-- MINOR DH-20261111-CRM-DOCUMENTS-084: pestañas y paneles de documentos adjuntos para cuentas, prospectos, contactos y seguimientos; carga múltiple desde Nueva actividad, consulta y descarga con Dhole Storage.
-- Ecosistema 1.26.0; no se crean actividades duplicadas al reintentar adjuntos; validación CI y staging pendientes; sin despliegue a producción.
+- MINOR DH-20261111-CRM-DOCUMENTS-084: documentos asociados por registro en Cuentas, Prospectos, Contactos, Actividades y Seguimientos; carga múltiple mediante Dhole Storage con validación de autorización por registro.
+- Conserva mejoras de Workspace Tabs 1.25.1 de develop, REST/SignalR existentes y recuperación de carga sin duplicar actividad. Ecosistema 1.26.0; CI/staging pendientes; producción no autorizada.
+
+## [1.25.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-WORKSPACE-TABS-084: unifica las pestañas de Prospectos y Agenda/Seguimientos entre listas, actividades y fichas de detalle; evita duplicados al restaurar sesiones, conserva el registro activo y respeta los demás grupos.
+- Ecosistema Dhole 1.25.1, coordinado con DholeSystem. REST/SignalR sin cambios; CI y staging pendientes. Producción no autorizada.
 
 ## [1.25.0] - 2026-11-10
 

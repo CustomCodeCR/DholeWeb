@@ -14,6 +14,9 @@ export function workspaceTabGroup(path: string): string | null {
   // CRM list and detail routes share one slot per module.
   if (/^\/crm\/accounts(?:\/[^/]+)?$/.test(pathname)) return 'crm-accounts'
   if (/^\/crm\/contacts(?:\/[^/]+)?$/.test(pathname)) return 'crm-contacts'
+  if (/^\/crm\/leads(?:\/[^/]+)?$/.test(pathname)) return 'crm-leads'
+  // Agenda, activities and followups are one workspace flow, including their details.
+  if (/^\/crm\/(?:activities|followups)(?:\/[^/]+)?$/.test(pathname)) return 'crm-agenda'
   // Creation stays available as a fresh tab while the newly created QUO opens
   // in its own editor/detail tab. Other quote details still reuse one slot.
   if (pathname === '/pricing') return 'pricing-create'
