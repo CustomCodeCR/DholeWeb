@@ -1,3 +1,8 @@
+## [1.34.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-SUPPLIER-CREDIT-SAVE-101: corrige guardado SRM con contactos y crédito, con validación visible en el drawer, desplazamiento hasta la sección afectada y pruebas ejecutables.
+- Detecta fallos de aplicación en respuestas HTTP 200 para altas y modificaciones sin falsos mensajes de éxito. Versión DholeWeb 1.34.1. Staging y CI deben validarse; no se autoriza producción.
+
 ## [1.33.1] - 2026-11-11
 
 - PATCH DH-20261111-SRM-SUPPLIER-SAVE-PHONE-096: el botón de guardar/actualizar proveedor SRM ejecuta la acción, valida obligatorios explícitamente y muestra errores en el panel lateral.

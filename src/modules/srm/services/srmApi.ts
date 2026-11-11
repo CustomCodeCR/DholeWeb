@@ -1,6 +1,7 @@
 import { fetchClient } from '@/core/api/fetchConfig'
 import { unwrapApiResponse, unwrapListResponse, type ApiResponse } from '@/core/api/apiResponse'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
+import { srmMutationFailure } from '../utils/srmSupplierSave'
 
 // Fixed SRM routes are hosted by Config but authorize only their dedicated srm.* scopes.
 // Never expose generic catalog group/item administration to SRM-only users.
@@ -21,6 +22,12 @@ export interface SrmLegacyPartner {
 }
 const base = '/api/config/srm'
 
+/** Config can return a 200 response carrying an application-level failure. */
+function verifySrmMutation(response: unknown): void {
+  const message = srmMutationFailure(response)
+  if (message) throw new Error(message)
+}
+
 export const SrmApi = {
   // Config-owned classification catalog, read via SRM-only permissions.
   async listTypes(): Promise<CatalogItemDto[]> {
@@ -40,9 +47,11 @@ export const SrmApi = {
   },
   async create(collection: SrmCollection, body: SrmRecordInput): Promise<string> {
     const response = await fetchClient<string | ApiResponse<string>>(base + '/' + collection, { method: 'POST', body })
+    verifySrmMutation(response)
     return unwrapApiResponse<string>(response)
   },
   async updateSupplier(id: string, body: SrmRecordInput): Promise<void> {
-    await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'PUT', body })
+    const response = await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'PUT', body })
+    verifySrmMutation(response)
   },
 }

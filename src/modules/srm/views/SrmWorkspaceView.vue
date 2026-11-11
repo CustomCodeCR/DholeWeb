@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Building2, ChevronLeft, ChevronRight, Eye, FolderOpen, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
+import { useToastStore } from '@/core/stores/toastStore'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
@@ -10,12 +11,14 @@ import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoverageP
 import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
+import { supplierSaveIssue, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
 type Supplier = CatalogItemDto & { category: string }
 type SrmRecord = CatalogItemDto & { supplierId: string; score?: number; expiresAt?: string }
 const auth = useAuthStore()
+const toastStore = useToastStore()
 const { t, locale } = useI18n()
 const en = computed(() => locale.value === 'en')
 const canReadSection = computed(() => auth.hasScope('srm.supplier.read'))
@@ -25,6 +28,7 @@ const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
 const success = ref('')
+const saveErrorSection = ref<SupplierSaveSection | 'general' | 'server'>('general')
 const formVisible = ref(false)
 const detailsVisible = ref(false)
 const suppliers = ref<Supplier[]>([])
@@ -112,10 +116,6 @@ function creditReviewDateDisplay(utcDate: string): string {
   return Number.isFinite(parsed.getTime())
     ? parsed.toLocaleString(en.value ? 'en-US' : 'es-CR')
     : '—'
-}
-function validCreditPrecision(value: number, places: number): boolean {
-  const scaled = value * 10 ** places
-  return Math.abs(Math.round(scaled) - scaled) < 1e-6
 }
 type SupplierContact = { name: string; email: string; phone: string; role: string; countryId: string }
 const contacts = ref<SupplierContact[]>([])
@@ -362,24 +362,33 @@ function openDetails(item: Supplier) {
 }
 function closeDetails() { detailsVisible.value = false }
 function closeForm() { formVisible.value = false; resetForm() }
+async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
+  error.value = message
+  saveErrorSection.value = section
+  toastStore.warning(en.value ? 'Supplier not saved' : 'Proveedor sin guardar', message)
+  await nextTick()
+  const anchor = document.querySelector(`[data-srm-save-section="${section}"]`)
+    || document.querySelector('[data-srm-save-error]')
+  anchor?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 async function saveSupplier() {
   if (saving.value) return
   error.value = ''
   success.value = ''
   if (!(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) {
-    error.value = en.value ? 'You cannot save suppliers.' : 'No tenés permiso para guardar proveedores.'
+    await reportSupplierSaveIssue(en.value ? 'You cannot save suppliers.' : 'No tenés permiso para guardar proveedores.')
     return
   }
   if (!supplierName.value.trim()) {
-    error.value = en.value ? 'Enter a company name.' : 'Ingresá el nombre de la empresa.'
+    await reportSupplierSaveIssue(en.value ? 'Enter a company name.' : 'Ingresá el nombre de la empresa.')
     return
   }
   if (!validSupplierType.value) {
-    error.value = en.value ? 'Select at least one category.' : 'Seleccioná al menos una categoría.'
+    await reportSupplierSaveIssue(en.value ? 'Select at least one category.' : 'Seleccioná al menos una categoría.')
     return
   }
   if (!countryIds.value.length) {
-    error.value = en.value ? 'Select at least one country.' : 'Seleccioná al menos un país.'
+    await reportSupplierSaveIssue(en.value ? 'Select at least one country.' : 'Seleccioná al menos un país.')
     return
   }
   const filledContacts = contacts.value.map(contact => ({
@@ -388,51 +397,21 @@ async function saveSupplier() {
     countryId: countryIds.value.includes(contact.countryId)
       ? contact.countryId : countryIds.value[0] || '',
   })).filter(contact => contact.name || contact.email || contact.phone || contact.role)
-  if (filledContacts.some(contact => !contact.name)) {
-    error.value = en.value
-      ? 'Enter a name for every added contact, or remove the incomplete contact.'
-      : 'Ingresá el nombre de cada contacto agregado o eliminá el contacto incompleto.'
+  const issue = supplierSaveIssue({
+    contacts: filledContacts,
+    creditEnabled: creditEnabled.value,
+    creditDays: creditDays.value,
+    creditLimit: creditLimit.value,
+    creditCurrency: creditCurrency.value,
+    monthlyFinancing: monthlyFinancing.value,
+    lateInterest: lateInterest.value,
+    creditIncluded: creditIncluded.value,
+    creditExcluded: creditExcluded.value,
+    creditReviewAt: creditReviewAt.value,
+  }, en.value)
+  if (issue) {
+    await reportSupplierSaveIssue(issue.message, issue.section)
     return
-  }
-  if (filledContacts.some(contact => contact.email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email))) {
-    error.value = en.value
-      ? 'Enter a valid email for each supplier contact.'
-      : 'Ingresá un correo válido para cada contacto del proveedor.'
-    return
-  }
-  if (creditEnabled.value) {
-    const totalDays = Number(creditDays.value)
-    const limit = Number(creditLimit.value)
-    const monthly = Number(monthlyFinancing.value)
-    const overdue = Number(lateInterest.value)
-    if (!creditDays.value.trim() || !Number.isInteger(totalDays) ||
-        totalDays < 1 || totalDays > 3650 ||
-        !creditLimit.value.trim() || !Number.isFinite(limit) ||
-        limit <= 0 || !validCreditPrecision(limit, 2) ||
-        !monthlyFinancing.value.trim() || !Number.isFinite(monthly) ||
-        monthly < 0 || monthly > 100 || !validCreditPrecision(monthly, 4) ||
-        !lateInterest.value.trim() || !Number.isFinite(overdue) ||
-        overdue < 0 || overdue > 100 || !validCreditPrecision(overdue, 4)) {
-      error.value = en.value
-        ? 'Enter 1–3650 credit days, a positive limit (2 decimals), and monthly rates from 0–100% (4 decimals).'
-        : 'Ingresá entre 1 y 3650 días, un límite positivo (2 decimales) y tasas mensuales entre 0% y 100% (4 decimales).'
-      return
-    }
-    if (!/^[A-Z]{3}$/.test(creditCurrency.value.trim())) {
-      error.value = en.value ? 'Select a valid currency from Config.' : 'Seleccioná una moneda válida de Config.'
-      return
-    }
-    if (creditIncluded.value.some(code => creditExcluded.value.includes(code))) {
-      error.value = en.value
-        ? 'A service cannot be included and excluded simultaneously.'
-        : 'Un concepto no puede estar incluido y excluido del crédito simultáneamente.'
-      return
-    }
-    if (creditReviewAt.value && !Number.isFinite(new Date(creditReviewAt.value).getTime())) {
-      error.value = en.value ? 'Enter a valid review date.' : 'Ingresá una fecha válida de próxima revisión.'
-      return
-    }
   }
   saving.value = true
   error.value = ''
@@ -490,15 +469,20 @@ async function saveSupplier() {
       })
     }
     const editingId = editing.value?.id
+    const savedAction = editing.value ? (en.value ? 'Supplier updated' : 'Proveedor actualizado')
+      : (en.value ? 'Supplier created' : 'Proveedor creado')
     closeForm()
+    toastStore.success(savedAction)
     success.value = t('crm.saved')
     await load()
     if (editingId) {
       selected.value = suppliers.value.find(item => item.id === editingId) || selected.value
       detailsVisible.value = Boolean(selected.value)
     }
-  } catch (cause) { error.value = cause instanceof Error ? cause.message : t('srm.loadError') }
-  finally { saving.value = false }
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : t('srm.loadError')
+    await reportSupplierSaveIssue(message, 'server')
+  } finally { saving.value = false }
 }
 
 async function importLegacy(item: SrmLegacyPartner) {
@@ -824,7 +808,8 @@ onMounted(() => {
               :placeholder="en ? 'Select countries' : 'Seleccionar países'"
               :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
           </div>
-          <section class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+          <section data-srm-save-section="contacts" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+            <p v-if="error && saveErrorSection === 'contacts'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold">Contactos del proveedor <span class="font-medium text-[var(--dh-text-muted)]">(opcional)</span></h3>
               <button type="button" :disabled="contacts.length >= 30"
@@ -856,7 +841,8 @@ onMounted(() => {
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
           </section>
-          <section class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4">
+          <section data-srm-save-section="credit" class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4">
+            <p v-if="error && saveErrorSection === 'credit'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div>
               <h3 class="text-sm font-bold">{{ en ? 'Supplier credit terms' : 'Condiciones de crédito del proveedor' }}
                 <span class="font-medium text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span>
