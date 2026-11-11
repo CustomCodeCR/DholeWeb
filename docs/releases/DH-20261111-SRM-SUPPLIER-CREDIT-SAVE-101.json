@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261111-SRM-SUPPLIER-CREDIT-SAVE-101",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.34.1",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.34.0",
+      "next": "1.34.1"
+    }
+  ],
+  "changes": [
+    "Guardado SRM con contactos y crédito y errores visibles/foco por sección",
+    "Verificar fallos de negocio en respuestas exitosas HTTP para POST y PUT proveedores"
+  ],
+  "releaseBranch": "fix/srm-credit-contacts-save-101-develop",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
