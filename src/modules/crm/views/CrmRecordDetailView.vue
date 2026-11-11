@@ -1266,6 +1266,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
       <CrmActivityCollaboration v-if="section === 'activities'" :activity-id="id"
         :account-id="record.accountId ? String(record.accountId) : null"
+        :key="id + '-' + String(record.rowVersion ?? 0)"
         :can-manage="can('crm.activity.update')" />
       <nav v-if="section !== 'accounts' && section !== 'activities'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
