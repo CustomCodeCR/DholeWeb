@@ -518,6 +518,14 @@ async function loadContacts() {
     contactRows.value = linked.map(item => item.contact ?? item)
   } catch { contactRows.value = [] }
 }
+// Clear a previous client's saved point before querying the new entity.
+watch([() => editor.value.accountId, () => editor.value.leadId],
+  ([account, lead], [previousAccount, previousLead]) => {
+    if (account === previousAccount && lead === previousLead) return
+    editor.value.location = ''
+    editor.value.locationLatitude = null
+    editor.value.locationLongitude = null
+  })
 watch(() => editor.value.accountId, () => {
   editor.value.contactId = ''
   selectedContactIds.value = []
@@ -1146,6 +1154,7 @@ function openEvent(item: CalendarEvent) {
         </label>
         <div v-if="editor.type === 'VISIT'" class="sm:col-span-2">
           <CrmVisitMapPicker :model-value="{ address: editor.location, latitude: editor.locationLatitude, longitude: editor.locationLongitude }"
+            :account-id="editor.accountId" :lead-id="editor.leadId"
             @update:model-value="applyVisitLocation" />
         </div>
         <label v-else-if="editor.type!=='FOLLOWUP'" class="calendar-label">Lugar o enlace
