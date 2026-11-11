@@ -14,6 +14,7 @@ import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import CrmActivityFullEditor from '../components/CrmActivityFullEditor.vue'
+import CrmVisitMapPicker from '../components/CrmVisitMapPicker.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
@@ -1134,6 +1135,10 @@ onMounted(() => { if (crmEnabled()) void load() })
             </dd>
           </div>
         </dl>
+        <CrmVisitMapPicker v-if="section === 'activities' && String(record.type) === 'VISIT' &&
+          record.locationLatitude != null && record.locationLongitude != null"
+          class="mt-4" readonly
+          :model-value="{ address: String(record.locationText ?? ''), latitude: Number(record.locationLatitude), longitude: Number(record.locationLongitude) }" />
         <div v-if="section === 'followups' && originActivity"
           class="mt-4 rounded-xl border border-[var(--dh-primary)]/40 bg-[var(--dh-shell)] p-4">
           <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>

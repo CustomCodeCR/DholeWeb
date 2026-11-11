@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { DhButton } from '@/shared/components/atoms'
+import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc, type CrmRow } from '../services/crmApi'
 
 interface NoteDraft { id?: string; expectedVersion?: number; noteText: string }
@@ -20,6 +21,7 @@ const saving = ref(false)
 const error = ref('')
 const form = reactive({
   subject: '', type: 'OTHER', locationText: '',
+  locationLatitude: null as number | null, locationLongitude: null as number | null,
   scheduledStartAt: '', scheduledEndAt: '',
   reminderLeadMinutes: '60', reminderChannelStrategy: 'BOTH',
   repeatEveryDays: '0', reminderRepeatMinutes: '0',
@@ -32,6 +34,8 @@ function reset() {
   form.subject = String(activity.subject ?? '')
   form.type = String(activity.type ?? 'OTHER')
   form.locationText = String(activity.locationText ?? '')
+  form.locationLatitude = activity.locationLatitude == null ? null : Number(activity.locationLatitude)
+  form.locationLongitude = activity.locationLongitude == null ? null : Number(activity.locationLongitude)
   form.scheduledStartAt = fromUtc(activity.scheduledStartAt)
   form.scheduledEndAt = fromUtc(activity.scheduledEndAt)
   form.reminderLeadMinutes = String(activity.reminderLeadMinutes ?? 60)
@@ -52,6 +56,11 @@ function reset() {
     completed: String(item.status ?? '') === 'Completed',
     remove: false,
   }))
+}
+function applyVisitLocation(value: { address: string; latitude: number | null; longitude: number | null }) {
+  form.locationText = value.address
+  form.locationLatitude = value.latitude
+  form.locationLongitude = value.longitude
 }
 function toggleEditing() {
   if (editing.value) editing.value = false
@@ -105,6 +114,9 @@ async function save() {
         subject: form.subject.trim(),
         type: form.type,
         locationText: form.locationText.trim() || null,
+        locationLatitude: form.type === 'VISIT' ? form.locationLatitude : null,
+        locationLongitude: form.type === 'VISIT' ? form.locationLongitude : null,
+        updateVisitCoordinates: true,
         scheduledStartAt: toUtc(form.scheduledStartAt),
         scheduledEndAt: toUtc(form.scheduledEndAt),
         reminderLeadMinutes: Number(form.reminderLeadMinutes),
@@ -168,9 +180,13 @@ watch(() => props.activity.rowVersion, () => {
             <option value="OTHER">Otra actividad</option>
           </select>
         </label>
-        <label class="space-y-1 text-xs font-bold">Ubicación
+        <label v-if="form.type !== 'VISIT'" class="space-y-1 text-xs font-bold">Ubicación
           <input v-model.trim="form.locationText" class="crm-editor-input" maxlength="2000" />
         </label>
+        <div v-if="form.type === 'VISIT'" class="sm:col-span-2">
+          <CrmVisitMapPicker :model-value="{ address: form.locationText, latitude: form.locationLatitude, longitude: form.locationLongitude }"
+            @update:model-value="applyVisitLocation" />
+        </div>
         <label class="space-y-1 text-xs font-bold">Inicio programado
           <input v-model="form.scheduledStartAt" type="datetime-local" class="crm-editor-input" />
         </label>
