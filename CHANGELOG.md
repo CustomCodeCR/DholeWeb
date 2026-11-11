@@ -1,3 +1,8 @@
+## [1.20.2] - 2026-11-10
+
+- PATCH DH-20261110-CRM-LEAD-PARITY-079: incorpora a Prospectos pestañas Ficha e Historial de rutas, y gráficos de cotizaciones vinculadas mediante oportunidades por ID. Corrige el tipo de pestaña history del CRM, preserva el dashboard de Pricing para Cuentas y los cambios de vendedores/compromisos de 1.20.1.
+- Coordinado con DholeSystem 1.20.2. Sin migraciones ni cambios REST/SignalR; CI y staging pendientes.
+
 ## [1.20.1] - 2026-11-10
 
 - PATCH DH-20261110-CRM-SELLERS-COMMITMENTS-078: solo Vendedores activos en selector de responsables, filtros de agenda y leyenda; casilla de compromisos habilitada para responsables autorizados mediante crm.activity.update.
