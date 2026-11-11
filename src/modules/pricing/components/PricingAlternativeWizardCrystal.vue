@@ -6446,7 +6446,7 @@ onMounted(async () => {
         </div>
       </div>
       <PricingRateHistory v-if="editingRate" :rate-id="editingRate.id" />
-      <PricingLinkedSellerRequest v-if="authStore.hasScope('pricing.rate.update')" :rate-id="editingRate.id" />
+      <PricingLinkedSellerRequest v-if="editingRate && authStore.hasScope(PRICING_SCOPES.rates.view)" :rate-id="editingRate.id" />
       <details v-if="rateRevisions.length" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
         <summary class="cursor-pointer text-sm font-black">Historial de revisiones · {{ rateRevisions.length }} versión{{ rateRevisions.length === 1 ? '' : 'es' }} anterior{{ rateRevisions.length === 1 ? '' : 'es' }}</summary>
         <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
