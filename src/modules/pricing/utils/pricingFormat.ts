@@ -59,6 +59,7 @@ const commercialQuoteStatusLabels: Record<string, readonly [string, string]> = {
   Sent: ['Enviada', 'Sent'],
   RequestedByClient: ['Solicitada por cliente', 'Requested by client'],
   AcceptedByClient: ['Aceptada', 'Accepted'],
+  QUOVinculada: ['Cliente aceptó otra QUO', 'Client accepted another quote'],
   PendingReapproval: ['Aprobada pendiente de re-aprobación', 'Pending reapproval'],
   RejectedByClient: ['No aceptada', 'Not accepted'],
   Closed: ['No aceptada', 'Not accepted'],
@@ -77,6 +78,7 @@ const commercialQuoteStatusAliases: Record<string, string> = {
   Enviadas: 'Sent',
   Aceptada: 'AcceptedByClient',
   Aceptadas: 'AcceptedByClient',
+  'Cliente aceptó otra QUO': 'QUOVinculada',
   'No aceptada': 'RejectedByClient',
   'No aceptadas': 'RejectedByClient',
   Rechazada: 'RejectedByClient',
@@ -107,7 +109,7 @@ export function statusTone(status: RateStatus | string) {
     return 'success' as const
   if (status === 'Sent') return 'primary' as const
   if (status === 'RequestedByClient') return 'warning' as const
-  if (status === 'Closed') return 'neutral' as const
+  if (status === 'Closed' || status === 'QUOVinculada') return 'neutral' as const
   if (status === 'Cancelled') return 'danger' as const
   if (status === 'Pending' || status === 'PendingApproval') return 'warning' as const
   if (

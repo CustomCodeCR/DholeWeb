@@ -214,7 +214,16 @@ const editingRate = ref<RateDto | null>(null)
 const rateRevisions = ref<RateRevisionDto[]>([])
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
-const commercialAction = ref<'accept' | 'reject' | null>(null)
+const commercialAction = ref<'accept' | 'reject' | 'link' | null>(null)
+const linkedQuoteSearch = ref('')
+const linkedAcceptedRateId = ref('')
+const linkedQuoteCandidates = ref<RateDto[]>([])
+const linkedQuoteLoading = ref(false)
+const linkedAcceptedRate = ref<RateDto | null>(null)
+const linkedQuoteOptions = computed(() => linkedQuoteCandidates.value.map((rate) => ({
+  value: rate.id,
+  label: `${rate.quoNumber || rate.rateCode} · ${rate.clientName || 'Sin cliente'} · ${rate.rateCode}`,
+})))
 // Same CSV contract used by the acceptance and assignment modals.
 const wizardIdtraIdentifiers = computed(() => {
   const seen = new Set<string>()
@@ -473,6 +482,12 @@ const canAcceptOrReject = computed(() => {
 
   return regularDecision || privilegedDecision
 })
+const canLinkAnotherQuote = computed(() =>
+  !isMasterTariff.value
+  && (canUpdateRateStatus.value || canApproveLowMargin.value)
+  && ['Open', 'Sent', 'RequestedByClient', 'Expired', 'RejectedByClient', 'Closed', 'QUOVinculada']
+    .includes(currentCommercialStatus.value),
+)
 const canCancelAccepted = computed(() =>
   canUpdateRateStatus.value
   && !isMasterTariff.value
@@ -2949,6 +2964,10 @@ async function hydrateExistingRate() {
       PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
     ])
     editingRate.value = rate
+    // La relación persiste en Pricing y se vuelve a resolver después de recargar.
+    linkedAcceptedRate.value = rate.linkedAcceptedRateId
+      ? await PricingService.getRate(rate.linkedAcceptedRateId).catch(() => null)
+      : null
     rateRevisions.value = revisions
     await hydrateFinalBackupDocuments(rate.finalBackupStorageIds)
     allInPresentation.value = true
@@ -3074,6 +3093,7 @@ function commercialStatusLabel(status: string) {
     Closed: 'Cerrada',
     Cancelled: 'Cancelada',
     Expired: 'Vencida',
+    QUOVinculada: 'Cliente aceptó otra QUO',
   } as Record<string, string>)[status] ?? status
 }
 
@@ -3137,6 +3157,54 @@ function applyMasterTariff() {
   })
 }
 
+function isSameQuoteClient(source: RateDto, candidate: RateDto): boolean {
+  if (source.clientAccountId || candidate.clientAccountId)
+    return Boolean(source.clientAccountId && source.clientAccountId === candidate.clientAccountId)
+  if (source.clientLeadId || candidate.clientLeadId)
+    return Boolean(source.clientLeadId && source.clientLeadId === candidate.clientLeadId)
+  return Boolean(source.clientName?.trim() &&
+    source.clientName.trim().toLocaleUpperCase() === candidate.clientName?.trim().toLocaleUpperCase())
+}
+
+async function searchAcceptedLinkedQuotes() {
+  if (!editingRate.value || !canLinkAnotherQuote.value) return
+  const search = linkedQuoteSearch.value.trim()
+  if (!search) {
+    commercialActionError.value = 'Indique el número de la QUO aceptada para buscarla.'
+    return
+  }
+  linkedQuoteLoading.value = true
+  commercialActionError.value = ''
+  linkedQuoteCandidates.value = []
+  linkedAcceptedRateId.value = ''
+  try {
+    const result = await PricingService.browseRates({
+      statuses: ['AcceptedByClient'], search, pageNumber: 1, pageSize: 100,
+    })
+    linkedQuoteCandidates.value = result.items.filter((rate) =>
+      rate.status === 'AcceptedByClient'
+      && rate.id !== editingRate.value?.id
+      && isSameQuoteClient(editingRate.value!, rate),
+    )
+    if (!linkedQuoteCandidates.value.length)
+      commercialActionError.value = 'No se encontró una QUO aceptada de este mismo cliente. Revise el número.'
+  } catch (error) {
+    commercialActionError.value = 'No fue posible buscar las QUO aceptadas.'
+    toastStore.backendError(error, commercialActionError.value)
+  } finally {
+    linkedQuoteLoading.value = false
+  }
+}
+
+function startLinkedQuoteDecision() {
+  if (!canLinkAnotherQuote.value) return
+  commercialAction.value = 'link'
+  commercialActionError.value = ''
+  linkedQuoteSearch.value = linkedAcceptedRate.value?.quoNumber || linkedAcceptedRate.value?.rateCode || ''
+  linkedAcceptedRateId.value = editingRate.value?.linkedAcceptedRateId ?? ''
+  linkedQuoteCandidates.value = linkedAcceptedRate.value ? [linkedAcceptedRate.value] : []
+}
+
 function startCommercialDecision(action: 'accept' | 'reject') {
   if (!canAcceptOrReject.value) return
   commercialAction.value = action
@@ -3178,7 +3246,30 @@ function startAcceptedRateCancellation() {
 }
 
 async function submitCommercialDecision() {
-  if (!editingRate.value || !commercialAction.value || !canAcceptOrReject.value) return
+  if (!editingRate.value || !commercialAction.value) return
+  if (commercialAction.value === 'link') {
+    if (!canLinkAnotherQuote.value) return
+    if (!linkedAcceptedRateId.value || !linkedQuoteCandidates.value.some((rate) => rate.id === linkedAcceptedRateId.value)) {
+      commercialActionError.value = 'Seleccione una QUO aceptada para vincularla.'
+      return
+    }
+    try {
+      commercialStatusSaving.value = true
+      commercialActionError.value = ''
+      await PricingService.setRateStatus(editingRate.value.id, {
+        status: 'QUOVinculada', linkedAcceptedRateId: linkedAcceptedRateId.value,
+      })
+      toastStore.success('QUO vinculada', 'Esta tarifa no contará como vencida ni como no aceptada.')
+      await hydrateExistingRate()
+    } catch (error) {
+      commercialActionError.value = 'No se pudo vincular la QUO aceptada.'
+      toastStore.backendError(error, commercialActionError.value)
+    } finally {
+      commercialStatusSaving.value = false
+    }
+    return
+  }
+  if (!canAcceptOrReject.value) return
   if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {
     commercialActionError.value = 'El motivo de rechazo es obligatorio.'
     return
@@ -5349,6 +5440,7 @@ onMounted(async () => {
                   <DhButton size="sm" variant="secondary" :disabled="!canMarkSent || commercialStatusSaving" @click="markCurrentRateSent">Enviada</DhButton>
                   <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
                   <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
+                  <DhButton size="sm" variant="secondary" :disabled="!canLinkAnotherQuote || commercialStatusSaving" @click="startLinkedQuoteDecision">Cliente aceptó otra QUO</DhButton>
                 </template>
               </div>
             </div>
@@ -5402,6 +5494,32 @@ onMounted(async () => {
                 <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
                 <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving || commercialAcceptanceInvalid"
                   @click="submitCommercialDecision">Confirmar aceptación</DhButton>
+              </div>
+            </div>
+
+            <div v-if="editingRate.status === 'QUOVinculada'" class="mt-4 rounded-2xl border border-[var(--dh-border)] p-4">
+              <p class="text-xs font-black uppercase tracking-[0.12em]">QUO aceptada vinculada</p>
+              <router-link v-if="editingRate.linkedAcceptedRateId" :to="{ name: 'pricing-rate-wizard', params: { rateId: editingRate.linkedAcceptedRateId }, query: { mode: 'view' } }" class="mt-2 inline-block text-sm font-bold text-emerald-600 underline dark:text-emerald-300">
+                {{ linkedAcceptedRate?.quoNumber || linkedAcceptedRate?.rateCode || editingRate.linkedAcceptedRateId }}
+              </router-link>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Esta tarifa se contabiliza como QUO vinculada, no como vencida ni no aceptada.</p>
+            </div>
+
+            <div v-if="commercialAction === 'link'" class="mt-4 rounded-2xl border border-[var(--dh-border)] p-4">
+              <p class="text-sm font-black">Cliente aceptó otra QUO</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Busque y seleccione la cotización aceptada del mismo cliente. La referencia es obligatoria.</p>
+              <div class="mt-3 flex flex-wrap items-end gap-3">
+                <div class="min-w-[250px] flex-1">
+                  <DhInput v-model="linkedQuoteSearch" label="Número de QUO aceptada" placeholder="QUO-00000-000618" @keyup.enter="searchAcceptedLinkedQuotes" />
+                </div>
+                <DhButton variant="secondary" :loading="linkedQuoteLoading" :disabled="linkedQuoteLoading" @click="searchAcceptedLinkedQuotes">Buscar</DhButton>
+              </div>
+              <div class="mt-3">
+                <DhSelect v-model="linkedAcceptedRateId" label="QUO aceptada" placeholder="Seleccione la cotización" :options="linkedQuoteOptions" :disabled="linkedQuoteLoading || !linkedQuoteOptions.length" />
+              </div>
+              <div class="mt-4 flex flex-wrap justify-end gap-2">
+                <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
+                <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving || !linkedAcceptedRateId" @click="submitCommercialDecision">Confirmar vínculo</DhButton>
               </div>
             </div>
 

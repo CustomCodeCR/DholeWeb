@@ -32,7 +32,7 @@ import {
   statusTone,
 } from '@/modules/pricing/utils/pricingFormat'
 
-type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'PendingReapproval' | 'RejectedByClient' | 'Cancelled'
+type CommercialRateStatus = 'PendingApproval' | 'Open' | 'Sent' | 'Expired' | 'AcceptedByClient' | 'PendingReapproval' | 'RejectedByClient' | 'Cancelled' | 'QUOVinculada'
 type CommercialRateStatusFilter = CommercialRateStatus | ''
 
 const commercialStatuses = new Set<CommercialRateStatus>([
@@ -44,6 +44,7 @@ const commercialStatuses = new Set<CommercialRateStatus>([
   'PendingReapproval',
   'RejectedByClient',
   'Cancelled',
+  'QUOVinculada',
 ])
 
 function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
@@ -393,6 +394,7 @@ const statusOptions: Array<{ label: string; value: CommercialRateStatusFilter }>
   { label: 'Aceptadas', value: 'AcceptedByClient' },
   { label: 'Aprobada pendiente de re-aprobación', value: 'PendingReapproval' },
   { label: 'No aceptadas', value: 'RejectedByClient' },
+  { label: 'Cliente aceptó otra QUO', value: 'QUOVinculada' },
   { label: 'Canceladas', value: 'Cancelled' },
 ]
 
@@ -439,6 +441,7 @@ function statusLabel(status: string) {
         Closed: 'No aceptada',
         Cancelled: 'Cancelada',
         Expired: 'Vencida',
+        QUOVinculada: 'Cliente aceptó otra QUO',
       } as Record<string, string>
     )[status] ?? status
   )
