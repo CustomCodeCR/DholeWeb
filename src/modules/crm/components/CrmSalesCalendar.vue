@@ -6,6 +6,7 @@ import { DhMultiSelect } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { StorageService } from '@/core/services/storageService'
 import CrmFileDropzone from './CrmFileDropzone.vue'
+import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -180,6 +181,8 @@ const editor = ref({
   start: '',
   end: '',
   location: '',
+  locationLatitude: null as number | null,
+  locationLongitude: null as number | null,
   involved: '',
   minutes: '',
   agreements: '',
@@ -190,6 +193,11 @@ const editor = ref({
   reminderRepeatMinutes: 0,
   channel: 'BOTH',
 })
+function applyVisitLocation(value: { address: string; latitude: number | null; longitude: number | null }) {
+  editor.value.location = value.address
+  editor.value.locationLatitude = value.latitude
+  editor.value.locationLongitude = value.longitude
+}
 function syncAgreementDrafts(text: string) {
   const reference = new Date(editor.value.start || Date.now())
   const parsed = crmAgreementDrafts(text, Number.isFinite(reference.getTime()) ? reference : new Date())
@@ -445,7 +453,8 @@ function openCreation(date?: Date) {
     type: 'VISIT', subject: 'Visita comercial', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
-    location: '', involved: '', minutes: '', agreements: '', nextCommitment: '', commitmentDue: '',
+    location: '', locationLatitude: null, locationLongitude: null,
+    involved: '', minutes: '', agreements: '', nextCommitment: '', commitmentDue: '',
     reminderMinutes: 60, repeatEveryDays: 0, reminderRepeatMinutes: 0,
     channel: 'BOTH',
   }
@@ -713,6 +722,8 @@ async function create() {
         occurredAt: historicalActivity ? end.toISOString() : null,
         repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
         locationText: data.location.trim() || null,
+        locationLatitude: data.type === 'VISIT' ? data.locationLatitude : null,
+        locationLongitude: data.type === 'VISIT' ? data.locationLongitude : null,
         involved: selectedContactIds.value
           .map(id => contactChoices.value.find(contact => contact.value === id)?.label)
           .filter(Boolean).join(', ') || null,
@@ -1133,7 +1144,11 @@ function openEvent(item: CalendarEvent) {
         <label v-if="editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
           <input v-model="editor.end" type="datetime-local" class="calendar-input" required />
         </label>
-        <label v-if="editor.type!=='FOLLOWUP'" class="calendar-label">Lugar o enlace
+        <div v-if="editor.type === 'VISIT'" class="sm:col-span-2">
+          <CrmVisitMapPicker :model-value="{ address: editor.location, latitude: editor.locationLatitude, longitude: editor.locationLongitude }"
+            @update:model-value="applyVisitLocation" />
+        </div>
+        <label v-else-if="editor.type!=='FOLLOWUP'" class="calendar-label">Lugar o enlace
           <input v-model="editor.location" class="calendar-input" maxlength="500" placeholder="Oficina, cliente o videollamada" />
         </label>
         <label class="calendar-label">Recordar
