@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { MessageSquareText, Plus, UsersRound, RefreshCw } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect, DhTextarea, DhMultiSelect } from '@/shared/components/atoms'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 
@@ -11,7 +11,6 @@ const props = defineProps<{
   canManage: boolean
 }>()
 
-type ParticipantType = 'name' | 'contact'
 const notes = ref<CrmRow[]>([])
 const participants = ref<CrmRow[]>([])
 const contacts = ref<CrmRow[]>([])
@@ -74,19 +73,18 @@ const noteHasDueErrors = computed(() => noteCommitments.value.some(item =>
   !Number.isFinite(new Date(item.dueLocal).getTime()) ||
   new Date(item.dueLocal).getTime() <= Date.now()))
 const showParticipantForm = ref(false)
-const participantType = ref<ParticipantType>('name')
 const participantName = ref('')
-const contactId = ref('')
+const selectedContactIds = ref<string[]>([])
 const role = ref('ATTENDEE')
 let generation = 0
 
-const contactChoices = computed(() => [
-  { value: '', label: 'Seleccionar contacto' },
-  ...contacts.value.map(x => ({
-    value: String(x.contactId ?? x.id),
-    label: String(x.name ?? x.fullName ?? x.displayName ?? 'Contacto')
-  }))
-])
+const linkedContactIds = computed(() =>
+  new Set(participants.value.map(x => String(x.contactId ?? '')).filter(Boolean)))
+const contactChoices = computed(() => contacts.value.map(contact => ({
+  value: String(contact.contactId ?? contact.id),
+  label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
+})).filter(option => option.value && option.value !== 'undefined' &&
+  !linkedContactIds.value.has(option.value)))
 const labelForContact = (id: unknown) =>
   contacts.value.find(x => String(x.contactId ?? x.id) === String(id))?.name ?? 'Contacto de la cuenta'
 const roleLabel = (value: unknown) =>
@@ -128,28 +126,39 @@ async function addParticipant() {
   if (saving.value || !props.canManage || !props.activityId) return
   error.value = ''
   message.value = ''
-  const byContact = participantType.value === 'contact' && !!props.accountId
-  if (byContact ? !contactId.value : !participantName.value.trim()) {
-    error.value = 'Seleccioná un contacto o ingresá el nombre del participante.'
+  const byContact = Boolean(props.accountId)
+  const ids = [...new Set(selectedContactIds.value)]
+    .filter(id => !linkedContactIds.value.has(id))
+  if (byContact ? !ids.length : !participantName.value.trim()) {
+    error.value = 'Seleccioná contactos de la cuenta o ingresá el nombre del participante.'
+    return
+  }
+  if (byContact && ids.some(id => !contactChoices.value.some(x => x.value === id))) {
+    error.value = 'Todos los contactos deben pertenecer a esta cuenta.'
     return
   }
   saving.value = true
+  let added = 0
   try {
-    const created = await crmRequest<CrmRow>(crmPath('activities',props.activityId,'participants'), 'POST', {
-      contactId: byContact ? contactId.value : null,
-      userId: null,
-      participantName: byContact ? null : participantName.value.trim(),
-      role: role.value
-    }, crmUuid())
-    if (created?.id) participants.value = [...participants.value, created]
+    for (const id of (byContact ? ids : [null])) {
+      await crmRequest<CrmRow>(crmPath('activities', props.activityId, 'participants'), 'POST', {
+        contactId: byContact ? id : null, userId: null,
+        participantName: byContact ? null : participantName.value.trim(),
+        role: role.value,
+      }, crmUuid())
+      added++
+    }
+    selectedContactIds.value = []
     participantName.value = ''
-    contactId.value = ''
     role.value = 'ATTENDEE'
     showParticipantForm.value = false
-    message.value = 'Participante agregado a la actividad.'
     await load()
+    message.value = added === 1 ? 'Participante agregado a la actividad.' :
+      added + ' participantes agregados a la actividad.'
   } catch (cause) {
-    error.value = crmError(cause)
+    if (added) await load()
+    error.value = crmError(cause) + (added ? ' Se agregaron ' + added + ' participantes antes del error.' : '')
+    selectedContactIds.value = selectedContactIds.value.filter(id => !linkedContactIds.value.has(id))
   } finally { saving.value = false }
 }
 async function addNote() {
@@ -207,16 +216,18 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
         </div>
         <form v-if="showParticipantForm && canManage" class="mt-4 space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4"
           @submit.prevent="addParticipant">
-          <DhSelect v-if="accountId && contacts.length" v-model="participantType" label="Participante"
-            :options="[{value:'name',label:'Ingresar nombre'},{value:'contact',label:'Contacto de la cuenta'}]" />
-          <DhSelect v-if="participantType === 'contact' && accountId && contacts.length" v-model="contactId"
-            label="Contacto" :options="contactChoices" />
+          <DhMultiSelect v-if="accountId && contacts.length"
+            v-model="selectedContactIds" label="Contactos de la cuenta"
+            :options="contactChoices" placeholder="Seleccionar participantes"
+            search-placeholder="Buscar contacto..."
+            empty-text="Todos los contactos ya están vinculados." />
+          <p v-else-if="accountId" class="text-xs text-amber-600">Agregá contactos a esta cuenta para seleccionarlos.</p>
           <DhInput v-else v-model="participantName" label="Nombre del participante" placeholder="Nombre y apellidos" />
           <DhSelect v-model="role" label="Participación"
             :options="[{value:'ORGANIZER',label:'Organizador'},{value:'RESPONSIBLE',label:'Responsable'},{value:'ATTENDEE',label:'Asistente'},{value:'GUEST',label:'Invitado'}]" />
           <div class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" size="sm" @click="showParticipantForm=false" />
-            <DhButton label="Guardar participante" size="sm" type="submit" :loading="saving" />
+            <DhButton :label="accountId ? 'Guardar participantes' : 'Guardar participante'" size="sm" type="submit" :loading="saving" />
           </div>
         </form>
         <p v-if="!participants.length && !loading" class="mt-5 rounded-xl border border-dashed border-[var(--dh-border)] px-4 py-7 text-center text-sm text-[var(--dh-text-muted)]">
