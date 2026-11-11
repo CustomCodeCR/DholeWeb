@@ -75,7 +75,7 @@ test('Dhole CRM account shows full-width three-column workspace and timeline', (
     'xl:grid-cols-[minmax(0,.94fr)_minmax(0,1.14fr)_minmax(265px,.86fr)]',
     'Escala de tiempo', 'Contactos relacionados', 'Historial de tarifas',
     'Ficha comercial', '<CrmCatalogPicker', '<DhDrawer :open="routeEditor"',
-    '<DhDrawer :open="Boolean(editor)"', 'var(--dh-card)', 'var(--dh-border)',
+    '<CrmSalesCalendar ref="calendarRef"', 'var(--dh-card)', 'var(--dh-border)',
   ]) assert.ok(hub.includes(marker), 'Missing CRM UI element: ' + marker)
   assert.ok(detail.includes('max-w-[1750px]'))
   assert.ok(detail.includes('@change-executive="openExecutiveDrawer"'))
@@ -195,7 +195,7 @@ test('CRM route history is sourced from completed meetings or linked quotes', ()
   assert.ok(hub.includes(":catalog-group-slugs=\"['pol']\""))
   assert.ok(hub.includes(":catalog-group-slugs=\"['poe']\""))
   assert.ok(hub.includes(":catalog-group-slugs=\"['pod']\""))
-  assert.ok(hub.includes("Registrar una visita") || hub.includes("Programar una visita"))
+  assert.ok(hub.includes("Nueva actividad"))
   assert.ok(sidebar.includes("isCrmSection(item) || !group.label"))
   assert.ok(sidebar.includes("group.label && isCrmSection(item)"))
 })
@@ -560,4 +560,32 @@ test('CRM create activity keeps save and notification activation visible in moda
   assert.match(calendar, /form="crm-agenda-create-form"/)
   assert.match(calendar, /Guardar actividad y activar avisos/)
   assert.match(calendar, /Los avisos de actividades futuras se activan al guardar/)
+})
+
+test('CRM unified calendar creates contacts-based minutes and scoped seller agendas', () => {
+  const hub = read('src/modules/crm/components/CrmAccountHub.vue')
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.ok(hub.includes('openCalendarActivity'))
+  assert.ok(hub.includes('Nueva actividad'))
+  assert.ok(!hub.includes("newActivity('CALL')"))
+  assert.ok(calendar.includes('selectedContactIds'))
+  assert.ok(calendar.includes('participantContactIds: selectedContactIds.value'))
+  assert.ok(calendar.includes('v-model="editor.minutes"'))
+  assert.ok(calendar.includes('min-h-48 resize-y'))
+  assert.ok(calendar.includes("can('crm.account.read-all')"))
+  assert.ok(calendar.includes("can('crm.lead.read-all')"))
+  assert.ok(calendar.includes("crmPath('calendar/users')"))
+  assert.ok(detail.includes('markCommitmentCompleted'))
+  assert.ok(detail.includes('Actividad principal asociada'))
+})
+
+test('CRM related agreement checkbox completes followups from parent activity', () => {
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.ok(detail.includes('markCommitmentCompleted'))
+  assert.ok(detail.includes("crmPath('followups', String(commitment.id), 'complete')"))
+  assert.ok(detail.includes("can('crm.task.manage')"))
+  assert.ok(detail.includes("can('crm.followup.manage')"))
+  assert.ok(detail.includes('@change="markCommitmentCompleted(commitment)"'))
+  assert.ok(detail.includes('Actividad principal asociada'))
 })
