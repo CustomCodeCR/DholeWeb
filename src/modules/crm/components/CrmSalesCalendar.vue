@@ -371,9 +371,12 @@ const listDays = computed(() => visibleDays.value
 const pendingCount = computed(() => visibleRows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
 const selectedAccount = computed(() => accounts.value.find(x => x.id === editor.value.accountId))
 const selectedLead = computed(() => leads.value.find(x => x.id === editor.value.leadId))
+const currentUserCanOwnAgenda = computed(() =>
+  ['Vendedor', 'Vendedores', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']
+    .some(role => auth.hasRole(role)))
 const assignees = computed(() => canAssignOtherSellers.value
   ? sellerDirectory.value.map(user => user.id)
-  : [String(auth.userId ?? '')].filter(Boolean))
+  : currentUserCanOwnAgenda.value ? [String(auth.userId ?? '')].filter(Boolean) : [])
 function eligibleSeller(id: string): boolean {
   return sellerDirectory.value.some(user => user.id === id)
 }
@@ -618,6 +621,12 @@ const historicalActivityDraft = computed(() =>
 async function create() {
   const data = editor.value
   if (saving.value) return
+  if (canAssignOtherSellers.value
+    ? !eligibleSeller(data.ownerId)
+    : !assignees.value.includes(data.ownerId)) {
+    error.value = 'Seleccioná un usuario activo con rol Vendedor o SuperUsuario antes de guardar.'
+    return
+  }
   if (canAssignOtherSellers.value && !eligibleSeller(data.ownerId)) {
     error.value = 'Seleccioná un usuario activo con rol Vendedor antes de guardar.'
     return
@@ -681,14 +690,14 @@ async function create() {
       })
     } else {
       await crmRequest(crmPath('activities'), 'POST', {
-        ...common, contactId: data.contactId || null, ownerUserId: data.ownerId || auth.userId,
+        ...common, contactId: selectedContactIds.value[0] || null, ownerUserId: data.ownerId || auth.userId,
         type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
         scheduledEndAt: end.toISOString(),
         occurredAt: historicalActivity ? end.toISOString() : null,
         repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
         locationText: data.location.trim() || null,
         involved: selectedContactIds.value
-          .map(id => contactRows.value.find(x => String(x.id) === id)?.name)
+          .map(id => contactChoices.value.find(x => x.value === id)?.label)
           .filter(Boolean).join(', ') || null,
         minutes: data.minutes.trim() || null,
         participantContactIds: selectedContactIds.value,
@@ -1068,12 +1077,6 @@ function openEvent(item: CalendarEvent) {
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
           Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
         </div>
-        <label v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto principal de la cuenta
-          <select v-model="editor.contactId" class="calendar-input">
-            <option value="">Sin contacto específico</option>
-            <option v-for="contact in contactRows" :key="contact.id" :value="contact.id">{{ contact.name }}</option>
-          </select>
-        </label>
         <label class="calendar-label">Vendedor responsable
           <select v-model="editor.ownerId" class="calendar-input" required>
             <option v-for="owner in assignees" :key="owner" :value="owner">
@@ -1083,6 +1086,7 @@ function openEvent(item: CalendarEvent) {
         </label>
         <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando vendedores disponibles…</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
+        <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay vendedores o superusuarios habilitados.</p>
         <label class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
