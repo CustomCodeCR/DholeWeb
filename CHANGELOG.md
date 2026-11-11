@@ -1,7 +1,12 @@
-## [1.25.2] - 2026-11-11
+## [1.26.1] - 2026-11-11
 
-- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos sugeridos de la lista, conservar íntegros los «Acuerdos alcanzados» y restaurar los compromisos antes de guardar, incluso con líneas repetidas.
-- Los compromisos omitidos no generan agenda, avisos ni seguimiento. Conserva REST/SignalR; versión global 1.26.1, CI/staging pendientes, sin autorización de producción.
+- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos detectados en «Acuerdos alcanzados» y restaurarlos antes de guardar, sin borrar sus textos ni generar avisos para los excluidos; maneja repeticiones.
+- REST/SignalR y backend conservados. Versión global 1.26.1; CI/staging pendientes; producción no autorizada.
+
+## [1.26.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-DOCUMENTS-084: permite adjuntar, consultar y descargar documentos en cuentas, prospectos, contactos, actividades y seguimientos con Dhole Storage y validación de acceso por registro.
+- Preserva la corrección de pestañas de master 1.25.1; carga múltiple, versión global 1.26.0, CI y staging aprobados antes de la promoción del release. Integración master autorizada.
 
 ## [1.25.1] - 2026-11-11
 
