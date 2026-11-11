@@ -20,7 +20,7 @@ test('FCL duplicate screen 8 exposes link for existing source QUO without saving
   assert.match(wizard, /linkedQuoteDuplicateSourceId/)
   assert.match(wizard, /<DhButton v-if="linkedQuoteDuplicateSourceId"/)
   assert.match(wizard, /@click="openLinkedQuoteModal\(linkedQuoteDuplicateSourceId\)"/)
-  assert.match(wizard, /if \(props\.rateId\) await hydrateExistingRate\(\)/)
+  assert.match(wizard, /if \\(props\\.rateId\\) \\{\\s*await hydrateExistingRate\\(\\)/)
 })
 
 test('linking requires another existing accepted quotation from same client and valid status', () => {
