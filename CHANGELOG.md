@@ -1,3 +1,13 @@
+## [1.28.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop accesible y sin límite fijo de cantidad de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos. Máximo 100 MB por archivo.
+- Se preserva el historial por procedimiento, la visualización de PDF, imágenes y texto, y la descarga de otros formatos. Reintentos de carga sin duplicación.
+- Ecosistema 1.28.0; CRM 1.16.0; CI y staging pendientes, producción no autorizada.
+
+## [1.27.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: adjuntos en cada procedimiento específico por cuenta, con visor protegido y descarga.
+
 ## [1.26.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DOCUMENTS-084: permite adjuntar, consultar y descargar documentos en cuentas, prospectos, contactos, actividades y seguimientos con Dhole Storage y validación de acceso por registro.
