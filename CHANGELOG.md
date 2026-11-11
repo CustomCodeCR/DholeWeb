@@ -1,3 +1,8 @@
+## [1.24.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ACCOUNT-CATEGORY-SCOPE-082: La categoría comercial solo puede seleccionarse con crm.account.category.manage; controles en creación, ficha de cliente y conversión de prospectos.
+- Tests CI obligatorios y staging por validar. Merge a master autorizado expresamente.
+
 ## [1.23.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-LEAD-QUO-PARITY-082: Prospectos gana ficha, cotizaciones vinculadas directamente desde Pricing por ClientLeadId, indicadores de estado oficiales y rutas cotizadas en análisis comercial; vinculación de QUO históricas mediante acordeón exclusivo de superadministración con confirmación.
