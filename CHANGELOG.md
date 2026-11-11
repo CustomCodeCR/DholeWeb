@@ -1,3 +1,8 @@
+## [1.31.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-QUOTE-DELIVERY-089: en Cotizaciones de cada cuenta CRM se puede elegir enviar la QUO al vendedor o a un contacto específico del cliente con copia al vendedor asignado.
+- Valida que el contacto tenga correo y pertenezca a la cuenta; envía el PDF comercial mediante el Outbox existente, con correo distinto para el cliente sin vínculos privados. Coordina Pricing 1.11.0 y System 1.31.0; CI y staging pendientes, sin autorización para producción.
+
 ## [1.30.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-ACTIVITY-COMPLETE-EDIT-088: pantalla de edición integral en actividades CRM, incluso completadas: título, tipo, agenda, recordatorios, minutas, acuerdos y pendientes con casillas de completado y retiro reversible antes de guardar.
