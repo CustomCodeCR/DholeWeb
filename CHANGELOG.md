@@ -1,3 +1,8 @@
+## [1.34.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-VISIT-LOCATIONS-096: muestra ubicaciones registradas de clientes y prospectos en el mapa de visitas, autocompletado y búsqueda directa alternativa de Geoapify con botón Buscar, selección de marcador y detalle del error HTTP.
+- Incorpora registro/edición de ubicaciones de prospectos y adapta rutas de CRM. DholeCRMService 1.21.0, ecosistema 1.34.0; staging pendiente; despliegue productivo coordinado tras comprobaciones.
+
 ## [1.32.4] - 2026-11-11
 
 - PATCH DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095: integra el mapa de visitas CRM (Geoapify) en master y utiliza la clave pública directamente en el selector, sin configurar archivos `.env`, Docker ni variables del pipeline. Permite buscar direcciones y negocios, colocar el punto y guardar latitud/longitud.
