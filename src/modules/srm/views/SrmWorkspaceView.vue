@@ -7,6 +7,7 @@ import { DhDrawer } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
+import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -116,22 +117,28 @@ function validCreditPrecision(value: number, places: number): boolean {
   const scaled = value * 10 ** places
   return Math.abs(Math.round(scaled) - scaled) < 1e-6
 }
-type SupplierContact = { name: string; email: string; phone: string; role: string }
+type SupplierContact = { name: string; email: string; phone: string; role: string; countryId: string }
 const contacts = ref<SupplierContact[]>([])
-function newContact(): SupplierContact { return { name: '', email: '', phone: '', role: '' } }
+function newContact(): SupplierContact {
+  return { name: '', email: '', phone: '', role: '', countryId: countryIds.value[0] || '' }
+}
 function supplierContacts(item: Supplier): SupplierContact[] {
   const info = metadata(item)
   const saved = Array.isArray(info.contacts) ? info.contacts : []
+  const primaryCountryId = String(
+    (Array.isArray(info.countryIds) ? info.countryIds[0] : null) || info.countryId || '',
+  )
   const mapped = saved.filter((row): row is Record<string, unknown> =>
     !!row && typeof row === 'object' && !Array.isArray(row))
     .map(row => ({
       name: String(row.name || ''), email: String(row.email || ''),
       phone: String(row.phone || ''), role: String(row.role || ''),
+      countryId: String(row.countryId || primaryCountryId),
     })).filter(row => row.name.trim())
   if (mapped.length) return mapped
   if (info.contactName) return [{
     name: String(info.contactName), email: String(info.contactEmail || ''),
-    phone: String(info.contactPhone || ''), role: '',
+    phone: String(info.contactPhone || ''), role: '', countryId: primaryCountryId,
   }]
   return []
 }
@@ -146,6 +153,11 @@ const countries = ref<CatalogItemSelectDto[]>([])
 const countryOptions = computed(() => countries.value.map(row => ({
   value: row.id, label: row.label || row.value || row.id,
 })))
+watch(countryIds, ids => {
+  for (const contact of contacts.value) {
+    if (!ids.includes(contact.countryId)) contact.countryId = ids[0] || ''
+  }
+}, { deep: true })
 
 function metadata(row: CatalogItemDto): Record<string, unknown> {
   try {
@@ -340,6 +352,8 @@ function openEdit(item: Supplier) {
     : typeof info.countryId === 'string' && info.countryId ? [info.countryId] : []
   detailsVisible.value = false
   formVisible.value = true
+  error.value = ''
+  success.value = ''
 }
 function openDetails(item: Supplier) {
   selected.value = item
@@ -349,8 +363,21 @@ function openDetails(item: Supplier) {
 function closeDetails() { detailsVisible.value = false }
 function closeForm() { formVisible.value = false; resetForm() }
 async function saveSupplier() {
-  if (saving.value || !supplierName.value.trim() || !validSupplierType.value ||
-      !(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) return
+  if (saving.value) return
+  error.value = ''
+  success.value = ''
+  if (!(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) {
+    error.value = en.value ? 'You cannot save suppliers.' : 'No tenés permiso para guardar proveedores.'
+    return
+  }
+  if (!supplierName.value.trim()) {
+    error.value = en.value ? 'Enter a company name.' : 'Ingresá el nombre de la empresa.'
+    return
+  }
+  if (!validSupplierType.value) {
+    error.value = en.value ? 'Select at least one category.' : 'Seleccioná al menos una categoría.'
+    return
+  }
   if (!countryIds.value.length) {
     error.value = en.value ? 'Select at least one country.' : 'Seleccioná al menos un país.'
     return
@@ -358,11 +385,20 @@ async function saveSupplier() {
   const filledContacts = contacts.value.map(contact => ({
     name: contact.name.trim(), email: contact.email.trim(),
     phone: contact.phone.trim(), role: contact.role.trim(),
+    countryId: countryIds.value.includes(contact.countryId)
+      ? contact.countryId : countryIds.value[0] || '',
   })).filter(contact => contact.name || contact.email || contact.phone || contact.role)
   if (filledContacts.some(contact => !contact.name)) {
     error.value = en.value
       ? 'Enter a name for every added contact, or remove the incomplete contact.'
       : 'Ingresá el nombre de cada contacto agregado o eliminá el contacto incompleto.'
+    return
+  }
+  if (filledContacts.some(contact => contact.email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email))) {
+    error.value = en.value
+      ? 'Enter a valid email for each supplier contact.'
+      : 'Ingresá un correo válido para cada contacto del proveedor.'
     return
   }
   if (creditEnabled.value) {
@@ -772,7 +808,7 @@ onMounted(() => {
       </DhDrawer>
       <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
         size="xl" @close="closeForm">
-        <form class="grid gap-4 md:grid-cols-2" @submit.prevent="saveSupplier">
+        <form class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="saveSupplier">
           <label class="text-sm font-semibold">{{ en ? 'Company name' : 'Nombre de empresa' }}
             <input v-model="supplierName" required maxlength="220" placeholder="Ej. Transportes Romo" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
@@ -805,9 +841,18 @@ onMounted(() => {
               <label class="text-xs font-semibold">Correo
                 <input v-model="contact.email" type="email" maxlength="180" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
               </label>
-              <label class="text-xs font-semibold">Teléfono
-                <input v-model="contact.phone" maxlength="40" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-              </label>
+              <div class="min-w-0 space-y-2">
+                <label v-if="countryIds.length > 1" class="block text-xs font-semibold">
+                  {{ en ? 'Phone country' : 'País del teléfono' }}
+                  <select v-model="contact.countryId" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                    <option v-for="option in countryOptions.filter(row => countryIds.includes(row.value))"
+                      :key="option.value" :value="option.value">{{ option.label }}</option>
+                  </select>
+                </label>
+                <CrmPhoneInput v-model="contact.phone"
+                  :country-id="contact.countryId || countryIds[0] || ''"
+                  :label="en ? 'Phone' : 'Teléfono'" />
+              </div>
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
           </section>
@@ -866,7 +911,15 @@ onMounted(() => {
           <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
             <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
           </label>
-          <div class="md:col-span-2"><button type="submit" :disabled="saving || !supplierName.trim() || !validSupplierType || !countryIds.length" class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{{ saving ? t('common.loading') : (en ? 'Save supplier' : 'Guardar proveedor') }}</button></div>
+          <div class="md:col-span-2 space-y-3">
+            <p v-if="error" role="alert" data-srm-save-error
+              class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">{{ error }}</p>
+            <button type="button" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
+              data-srm-save-button @click="saveSupplier"
+              class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
+              {{ saving ? t('common.loading') : (editing ? (en ? 'Update supplier' : 'Actualizar proveedor') : (en ? 'Save supplier' : 'Guardar proveedor')) }}
+            </button>
+          </div>
         </form>
       </DhDrawer>
     </template>

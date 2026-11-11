@@ -1,3 +1,8 @@
+## [1.33.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-SUPPLIER-SAVE-PHONE-096: el botón de guardar/actualizar proveedor SRM ejecuta la acción, valida obligatorios explícitamente y muestra errores en el panel lateral.
+- Los contactos adoptan el prefijo telefónico del país elegido utilizando CrmPhoneInput (CRM); con varios países, permiten asignar país por contacto sin perder números históricos. Ecosistema 1.33.1. CI y staging pendientes; producción no autorizada.
+
 ## [1.32.4] - 2026-11-11
 
 - PATCH DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095: integra el mapa de visitas CRM (Geoapify) en master y utiliza la clave pública directamente en el selector, sin configurar archivos `.env`, Docker ni variables del pipeline. Permite buscar direcciones y negocios, colocar el punto y guardar latitud/longitud.
