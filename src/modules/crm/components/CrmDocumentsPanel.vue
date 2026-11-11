@@ -2,13 +2,16 @@
 import { computed, ref, watch } from 'vue'
 import { Download, FileText, Paperclip, RefreshCw, Upload } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
-import { StorageService } from '@/core/services/storageService'
+import { StorageService, storagePreviewKind } from '@/core/services/storageService'
 import type { StorageFileDto } from '@/core/interfaces/storage'
+import { useModalStore } from '@/core/stores/modalStore'
+import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import { crmPath, crmRequest, crmError } from '../services/crmApi'
 
-type CrmDocumentKind = 'account' | 'lead' | 'contact' | 'activity' | 'followup'
+type CrmDocumentKind = 'account' | 'lead' | 'contact' | 'activity' | 'followup' | 'procedure'
 const props = defineProps<{ kind: CrmDocumentKind; recordId: string }>()
 const auth = useAuthStore()
+const modal = useModalStore()
 const files = ref<StorageFileDto[]>([])
 const selectedFiles = ref<File[]>([])
 const input = ref<HTMLInputElement | null>(null)
@@ -76,6 +79,25 @@ async function upload() {
   } catch (cause) { error.value = crmError(cause) }
   finally { uploading.value = false }
 }
+function canPreview(file: StorageFileDto): boolean {
+  const kind = storagePreviewKind({
+    id: file.id, fileName: file.originalFileName,
+    contentType: file.contentType, extension: file.extension,
+  })
+  return kind === 'pdf' || kind === 'image' || kind === 'text'
+}
+function preview(file: StorageFileDto) {
+  if (!canDownload.value || !canPreview(file)) return
+  modal.open({
+    title: file.originalFileName,
+    component: StorageFileViewer,
+    size: 'xl',
+    props: {
+      id: file.id, fileName: file.originalFileName,
+      contentType: file.contentType, extension: file.extension, sizeInBytes: file.sizeInBytes,
+    },
+  })
+}
 async function download(file: StorageFileDto) {
   if (!canDownload.value || downloading.value) return
   downloading.value = file.id
@@ -111,6 +133,11 @@ watch(() => [props.kind, props.recordId], () => void refresh(), { immediate: tru
             {{ fileSize(file.sizeInBytes) }} · {{ new Date(file.createdAt).toLocaleDateString('es-CR') }}
           </p>
         </div>
+        <button v-if="canDownload && canPreview(file)" type="button"
+          class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
+          :disabled="Boolean(downloading)" @click="preview(file)">
+          Ver
+        </button>
         <button v-if="canDownload" type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
           :disabled="Boolean(downloading)" @click="download(file)">
           <Download class="mr-1 inline h-3.5 w-3.5" />Descargar
