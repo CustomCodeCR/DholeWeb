@@ -51,6 +51,9 @@ const catalogFields: Record<string, { slug: string; kind: 'id' | 'code' | 'value
 function upperAccountName(value: unknown): string {
   return String(value ?? '').toLocaleUpperCase('es-CR')
 }
+function accountCategoryDefault(type: unknown): string {
+  return String(type) === 'NVOCC' ? 'B' : String(type) === 'LITTLE' ? 'A' : 'D'
+}
 
 function applyHacienda(result: HaciendaResult) {
   // Every explicit tax lookup replaces the stale account name.
@@ -350,7 +353,11 @@ function beginCreate() {
   Object.keys(form).forEach(key => delete form[key])
   Object.assign(form, crmDefaults(section.value))
   if (section.value === 'followups') form.assignedUserId = auth.userId ?? ''
-  if (section.value === 'accounts') { form.executiveUserId = auth.userId ?? ''; accountFormTab.value = 'identity' }
+  if (section.value === 'accounts') {
+    form.executiveUserId = auth.userId ?? ''
+    if (!can('crm.account.category.manage')) form.categoryCode = accountCategoryDefault(form.categoryType)
+    accountFormTab.value = 'identity'
+  }
   if (section.value === 'leads') form.executiveUserId = ''
   showForm.value = true
 }
@@ -587,6 +594,9 @@ async function save() {
   error.value = ''; saving.value = true
   try {
     let body = crmPayload(section.value, form, edited.value ?? undefined)
+    if (section.value === 'accounts' && !edited.value && !can('crm.account.category.manage')) {
+      body.categoryCode = accountCategoryDefault(form.categoryType)
+    }
     if (section.value === 'accounts' && !edited.value &&
         form.executiveUserId === '__castro_fallas__') {
       body.executiveUserId = null
@@ -998,11 +1008,12 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                     @update:model-value="form.customerTypeCode=$event" />
                   <DhSelect label="Tipo de cuenta" :model-value="String(form.categoryType ?? 'CUSTOMER')" :disabled="!!edited"
                     :options="[{label:'Cliente',value:'CUSTOMER'},{label:'Agente / NVOCC',value:'NVOCC'},{label:'Cargas Little',value:'LITTLE'}]"
-                    @update:model-value="form.categoryType=$event;form.categoryCode='A'" />
+                    @update:model-value="form.categoryType=$event;form.categoryCode=can('crm.account.category.manage') ? 'A' : accountCategoryDefault($event)" />
                   <DhSelect label="Categoría *" data-required-field="categoryCode" :error="fieldError('categoryCode')"
-                    :model-value="String(form.categoryCode ?? 'A')" :disabled="!!edited"
+                    :model-value="String(form.categoryCode ?? accountCategoryDefault(form.categoryType))" :disabled="!!edited || !can('crm.account.category.manage')"
                     :options="(String(form.categoryType)==='LITTLE'?['A']:String(form.categoryType)==='NVOCC' ? ['A','B'] : ['A','B','C','D']).map(value=>({label:String(form.categoryType)==='LITTLE'?'Cargas Little':'Categoría '+value,value}))"
                     @update:model-value="form.categoryCode=$event" />
+                  <p v-if="!edited && !can('crm.account.category.manage')" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">CRM asigna automáticamente la categoría inicial; solo los usuarios autorizados pueden cambiarla.</p>
                   <DhInput label="Origen de la cuenta" :model-value="String(form.sourceCode ?? '')" @update:model-value="form.sourceCode=$event" />
                   <CrmRelationshipPicker label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
                     @update:model-value="form.relationshipTypeCode=$event" />
