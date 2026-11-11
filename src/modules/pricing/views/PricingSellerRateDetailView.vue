@@ -62,6 +62,7 @@ const statusText = computed(() => {
     ?? 'Última revisión enviada · Actualización pendiente'
   if (rate.value.status === 'AcceptedByClient') return 'Aceptada por cliente'
   if (rate.value.status === 'RejectedByClient') return 'No aceptada por cliente'
+  if (rate.value.status === 'QUOVinculada') return 'Cliente aceptó otra QUO'
   if (rate.value.status === 'Cancelled') return 'Cancelada'
   if (rate.value.status === 'Expired') return 'Vencida'
   return isReceived.value ? 'Recibida por vendedor' : isSent.value ? 'Enviada al vendedor' : 'En preparación'
