@@ -1,3 +1,8 @@
+## [1.21.1] - 2026-11-10
+
+- PATCH DH-20261110-SELLER-EXPIRED-081: habilita Aceptada/Rechazada sobre tarifas vencidas en detalle y dashboard del vendedor. Solicitar modificación de vencidas permanece operativo; no se habilitan revisiones no publicadas.
+- Advertencia al registrar decisión sobre cotización vencida y conservación de vigencia, permisos y contrato REST/SignalR.
+
 ## [1.21.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-CONTACTS-ROLE-MULTISELECT-079: DhMultiSelect en creación de actividad y participantes del detalle; selección múltiple de contactos vinculados a la cuenta; solo vendedores y superusuarios elegibles para asignación.

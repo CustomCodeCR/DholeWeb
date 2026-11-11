@@ -37,6 +37,8 @@ const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => N
 
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
+const canRespondToRate = computed(() => Boolean(rate.value && !revisionPending.value
+  && ['Sent', 'RequestedByClient', 'Expired'].includes(rate.value.status)))
 const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
 const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocaleLowerCase() === 'castro fallas')
@@ -168,7 +170,7 @@ async function downloadPdf() {
 }
 
 function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
-  if (!rate.value || !isSent.value || revisionPending.value) return
+  if (!rate.value || !canRespondToRate.value) return
   modal.open({
     title: decision === 'AcceptedByClient' ? 'Registrar aceptación del cliente' : 'Registrar rechazo del cliente',
     component: SellerRateDecisionModal,
@@ -276,14 +278,14 @@ onBeforeUnmount(() => {
             </div>
             <div data-seller-guide="detail-decision" class="flex flex-wrap gap-2">
               <DhButton v-if="canReceive" label="Marcar como recibida" :loading="receiving" @click="markReceived" />
-              <template v-if="isSent && !revisionPending">
+              <template v-if="canRespondToRate">
                 <DhButton label="Aceptada" @click="clientDecision('AcceptedByClient')" />
                 <DhButton label="Rechazada" variant="danger" @click="clientDecision('RejectedByClient')" />
               </template>
             </div>
           </div>
           <p v-if="canReceive" class="mt-3 text-xs text-[var(--dh-text-muted)]">Confirmar la recepción no significa aceptar la cotización por parte del cliente.</p>
-          <p v-if="isSent && !revisionPending" class="mt-2 text-xs text-[var(--dh-text-muted)]">Registre la aceptación o el rechazo únicamente cuando el cliente comunique su decisión.</p>
+          <p v-if="canRespondToRate" class="mt-2 text-xs text-[var(--dh-text-muted)]">Registre la aceptación o el rechazo únicamente cuando el cliente comunique su decisión.</p>
           <p v-if="isReceived && rate.sellerReceivedAtUtc" class="mt-2 text-xs text-[var(--dh-text-muted)]">Recepción confirmada: {{ new Date(rate.sellerReceivedAtUtc).toLocaleString('es-CR') }}</p>
         </section>
 

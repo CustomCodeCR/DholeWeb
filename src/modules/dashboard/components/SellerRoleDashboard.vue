@@ -466,7 +466,7 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return canActOnRate(rate) && !rate.revisionPending && ['Sent', 'RequestedByClient'].includes(rate.status)
+  return canActOnRate(rate) && !rate.revisionPending && ['Sent', 'RequestedByClient', 'Expired'].includes(rate.status)
 }
 
 function pendingModification(rate: RateDto): boolean {
@@ -521,7 +521,7 @@ function openSellerRate(rate: RateDto) {
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
-  if (!canActOnRate(rate)) return
+  if (!canRespondToRate(rate)) return
   modalStore.open({
     title: decision === 'AcceptedByClient'
       ? 'Registrar aceptación del cliente'
