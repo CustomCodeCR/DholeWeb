@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261111-SRM-CREDIT-NUMERIC-104",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.36.2",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.36.1",
+      "next": "1.36.2"
+    }
+  ],
+  "changes": [
+    "Validar entradas numéricas Vue sin aplicar trim() a number",
+    "Regresiones con crédito 120 días, USD 1200000, tasas 0 y números inválidos"
+  ],
+  "releaseBranch": "fix/srm-credit-numeric-input-104-develop",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
