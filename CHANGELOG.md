@@ -1,3 +1,8 @@
+## [1.32.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-ACCOUNT-FUTURE-QUOTE-DELIVERY-093: Configuración por cuenta de destinatarios para TODAS las próximas cotizaciones; opción vendedor o contacto del cliente con copia al ejecutivo asignado. Se guarda en CRM y no envía ninguna QUO al editar.
+- 1.31.1 → 1.32.0. Se eliminó la acción por cotización y se añadieron pruebas de regresión. Realtime y REST compatibles; CI y staging pendientes.
+
 ## [1.31.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-QUOTE-SEND-VISIBLE-092: vuelve siempre visible «Enviar cotización» en el encabezado de cada cuenta CRM, incluso en Cliente y cuando todavía no hay QUO vinculadas. El panel muestra lista de cotizaciones enviables, opciones vendedor/cliente, contacto y CC vendedor asignado; informa cuando faltan tarifas o contactos.
