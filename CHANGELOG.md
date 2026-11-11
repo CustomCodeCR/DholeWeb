@@ -1,12 +1,17 @@
 ## [1.28.0] - 2026-11-11
 
-- MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop accesible y sin límite fijo de cantidad de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos. Máximo 100 MB por archivo.
-- Se preserva el historial por procedimiento, la visualización de PDF, imágenes y texto, y la descarga de otros formatos. Reintentos de carga sin duplicación.
-- Ecosistema 1.28.0; CRM 1.16.0; CI y staging pendientes, producción no autorizada.
+- MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: drag & drop y carga acumulativa sin límite fijo de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos, con visualización y descarga de adjuntos almacenados.
+- Máximo 100 MB por archivo; sin duplicados al reintentar guardados. Web 1.28.0, CRM 1.16.0, ecosistema 1.28.0. CI/staging pendientes; producción no autorizada.
+
+## [1.27.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos detectados en «Acuerdos alcanzados» y restaurarlos antes de guardar, sin borrar sus textos ni generar avisos para los excluidos; maneja repeticiones.
+- REST/SignalR y backend conservados. Versión global 1.27.1; compilación y CRM CI aprobados, staging completado para el candidato develop; producción autorizada para el mismo parche.
 
 ## [1.27.0] - 2026-11-11
 
-- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: adjuntos en cada procedimiento específico por cuenta, con visor protegido y descarga.
+- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: carga múltiple de adjuntos al crear/editar procedimientos de cuentas, vista previa protegida de PDF, imágenes y texto, descarga de documentos y reintento sin duplicar procedimientos.
+- Backport selectivo a master sobre la versión 1.26.0 con el CRM 1.15.0; aprobado en develop/staging. Mantiene otras funciones y contratos REST/SignalR.
 
 ## [1.26.0] - 2026-11-11
 

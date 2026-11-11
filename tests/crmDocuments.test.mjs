@@ -11,8 +11,8 @@ const calendar = readFileSync('src/modules/crm/components/CrmSalesCalendar.vue',
 test('CRM documents reuse Storage and bind to the exact entity record', () => {
   assert.match(storage, /getFilesByEntity\(sourceService: string, entityType: string, entityId: string\)/)
   assert.match(storage, /\/api\/v1\/storage\/files\/by-entity/)
-  assert.match(component, /crmPath\('documents\/' \+ props\.kind, props\.recordId, 'access'\)/)
-  assert.match(component, /'DholeCRMService', entityType\.value, props\.recordId/)
+  assert.match(component, /crmPath\('documents\/' \+ kind, recordId, 'access'\)/)
+  assert.match(component, /'DholeCRMService', 'crm\.' \+ kind, recordId/)
   assert.match(component, /entityId: props\.recordId/)
   assert.match(component, /storage\.files\.create/)
   assert.match(component, /storage\.files\.view/)
@@ -34,4 +34,12 @@ test('agenda preserves created identity on file-upload retries', () => {
   assert.match(calendar, /createdFollowup\.id/)
   assert.match(calendar, /StorageService\.uploadFile\(/)
   assert.match(calendar, /Adjuntos|Documentos adjuntos|Documentos/)
+})
+
+test('procedure documents can be previewed and the panel uses record-level access', () => {
+  assert.match(component, /'followup' \| 'procedure'/)
+  assert.match(component, /StorageFileViewer/)
+  assert.match(component, /storagePreviewKind/)
+  assert.match(component, /canPreview\(file\)/)
+  assert.match(component, /@click="preview\(file\)"/)
 })
