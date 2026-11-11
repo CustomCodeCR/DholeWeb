@@ -137,7 +137,7 @@ const contactChoices = computed(() => contactRows.value.map(contact => ({
   label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
 })).filter(option => option.value && option.value !== 'undefined'))
 const currentUserCanOwnAgenda = computed(() =>
-  ['Vendedor', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']
+  ['Vendedor', 'Vendedores', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']
     .some(role => auth.hasRole(role)))
 const sellerDirectory = calendarDirectory
 const sellerLoading = calendarDirectoryLoading
