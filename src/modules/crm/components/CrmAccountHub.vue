@@ -137,6 +137,7 @@ const quoteRouteSnapshots = ref<CrmRow[]>([])
 const pricingQuotes = ref<CrmRow[]>([])
 const pricingQuoteTotal = ref(0)
 const pricingQuoteError = ref('')
+const pricingQuotesLoading = ref(false)
 const quoteRefreshKey = ref(0)
 let pricingQuotesGeneration = 0
 let quoteRoutesGeneration = 0
@@ -405,21 +406,39 @@ function quoteLink(quote: CrmRow) {
   return '/pricing/rates?rateId=' + encodeURIComponent(rowId(quote.pricingQuoteId))
 }
 const quoteToSend = ref<CrmRow | null>(null)
+const quoteDeliveryOpen = ref(false)
+const quoteDeliveryAnchor = ref<HTMLElement | null>(null)
 const quoteSendNotice = ref('')
 const canSendAccountQuote = computed(() =>
   has('crm.quote.read') && (has('crm.account.update') || has('pricing.rate.update')))
-function openQuoteDelivery(quote: CrmRow) {
+const sendableQuotes = computed(() => pricingQuotes.value.filter(quote =>
+  ['Open', 'ApprovedByManagement', 'RequestedByClient']
+    .includes(String(quote.commercialStatusSnapshot ?? ''))))
+function openQuoteDelivery(quote: CrmRow | null = null) {
   quoteSendNotice.value = ''
   quoteToSend.value = quote
+  quoteDeliveryOpen.value = true
+  void loadPricingQuotes()
+  void nextTick(() => quoteDeliveryAnchor.value?.scrollIntoView({
+    behavior: 'smooth', block: 'start',
+  }))
+}
+function closeQuoteDelivery() {
+  quoteDeliveryOpen.value = false
+  quoteToSend.value = null
 }
 function quoteSent() {
-  quoteToSend.value = null
+  closeQuoteDelivery()
   quoteSendNotice.value = 'La cotización se preparó para su envío con el PDF adjunto.'
   quoteRefreshKey.value++
   void loadPricingQuotes()
 }
+function openQuoteRelatedTab(tab: 'quotes' | 'contacts') {
+  closeQuoteDelivery()
+  activeTab.value = tab
+}
 watch(() => props.account.id, () => {
-  quoteToSend.value = null
+  closeQuoteDelivery()
   quoteSendNotice.value = ''
 })
 const activityCount = computed(() => overview.value.activities.length)
@@ -463,9 +482,11 @@ async function loadPricingQuotes() {
   if (!accountId || !has('crm.quote.read')) {
     pricingQuotes.value = []
     pricingQuoteTotal.value = 0
+    pricingQuotesLoading.value = false
     return
   }
   pricingQuoteError.value = ''
+  pricingQuotesLoading.value = true
   try {
     const data = await fetchClient<{ items: CrmRow[]; total: number }>(
       '/api/pricing/rates/crm-account/' + encodeURIComponent(accountId) + '?page=1&pageSize=100',
@@ -478,6 +499,8 @@ async function loadPricingQuotes() {
     pricingQuotes.value = []
     pricingQuoteTotal.value = 0
     pricingQuoteError.value = message(cause)
+  } finally {
+    if (generation === pricingQuotesGeneration) pricingQuotesLoading.value = false
   }
 }
 function accountAuditFields(entry: AccountAuditEntry): AccountChange[] {
@@ -700,6 +723,7 @@ watch(() => props.account.id, () => {
   pricingQuotes.value = []
   pricingQuoteTotal.value = 0
   pricingQuoteError.value = ''
+  pricingQuotesLoading.value = false
   contacts.value = []
   contactsPage.value = 1
   contactDrawerOpen.value = false
@@ -904,6 +928,11 @@ async function saveRoute() {
             :aria-pressed="Boolean(editing)" @click="emit('edit-account')">
             <FileText class="h-4 w-4" />{{ editing ? 'Volver al detalle' : 'Editar cuenta' }}
           </button>
+          <button v-if="!editing" type="button" class="hub-primary-button"
+            :aria-expanded="quoteDeliveryOpen" aria-controls="crm-account-quote-delivery"
+            @click="quoteDeliveryOpen ? closeQuoteDelivery() : openQuoteDelivery()">
+            <Truck class="h-4 w-4" />{{ quoteDeliveryOpen ? 'Cerrar envío' : 'Enviar cotización' }}
+          </button>
           <button v-if="!editing && has('crm.account.assign') && has('auth.users.view')" type="button"
             class="hub-outline-button hub-small" @click="emit('change-executive')"><UsersRound class="h-4 w-4" />Asignar vendedor</button>
           <button v-if="!editing" type="button" class="hub-outline-button hub-small" :disabled="loading" @click="load">
@@ -950,6 +979,15 @@ async function saveRoute() {
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="saved" role="status" class="text-sm text-emerald-500">{{ saved }}</p>
     <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'Loading account data…' : 'Cargando datos de la cuenta…' }}</p>
+    <p v-if="quoteSendNotice" role="status" class="rounded-xl border border-[var(--dh-primary)]/25 p-3 text-sm font-bold text-[var(--dh-primary)]">{{ quoteSendNotice }}</p>
+    <div v-if="quoteDeliveryOpen" ref="quoteDeliveryAnchor" class="scroll-mt-28">
+      <CrmQuoteDeliveryPanel :quote="quoteToSend" :quotes="sendableQuotes"
+        :contacts="contacts" :seller-name="displaySeller" :authorized="canSendAccountQuote"
+        :quotes-loading="pricingQuotesLoading" :quotes-error="pricingQuoteError"
+        @sent="quoteSent" @cancel="closeQuoteDelivery"
+        @open-contacts="openQuoteRelatedTab('contacts')"
+        @open-quotes="openQuoteRelatedTab('quotes')" />
+    </div>
 
     <div v-if="activeTab === 'documents'" id="crm-account-documents" role="tabpanel">
       <CrmDocumentsPanel kind="account" :record-id="String(account.id)" />
@@ -1559,10 +1597,6 @@ async function saveRoute() {
         </div>
       </details>
       <CrmAccountQuotesDashboard :account-id="rowId(account.id)" :refresh-key="quoteRefreshKey" />
-      <CrmQuoteDeliveryPanel v-if="quoteToSend" :key="rowId(quoteToSend.pricingQuoteId)"
-        :quote="quoteToSend" :contacts="contacts" :seller-name="displaySeller"
-        @sent="quoteSent" @cancel="quoteToSend = null" />
-      <p v-if="quoteSendNotice" role="status" class="my-3 text-xs font-bold text-[var(--dh-primary)]">{{ quoteSendNotice }}</p>
       <p v-if="pricingQuoteError" role="alert" class="text-xs text-amber-600">No se pudieron consultar las QUO vinculadas en Pricing: {{ pricingQuoteError }}</p>
       <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones vinculadas a esta cuenta todavía.</p>
       <div v-else class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm">
@@ -1575,7 +1609,7 @@ async function saveRoute() {
           <td class="px-3 py-3">
             <div class="flex flex-wrap items-center gap-3">
               <RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
-              <button v-if="canSendAccountQuote && ['Open', 'ApprovedByManagement'].includes(String(q.commercialStatusSnapshot))"
+              <button v-if="canSendAccountQuote && ['Open', 'ApprovedByManagement', 'RequestedByClient'].includes(String(q.commercialStatusSnapshot))"
                 type="button" class="hub-text-link" @click="openQuoteDelivery(q)">
                 Enviar cotización
               </button>
