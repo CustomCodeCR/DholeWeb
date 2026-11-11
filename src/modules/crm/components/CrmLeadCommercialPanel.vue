@@ -9,7 +9,7 @@ import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmPage, type CrmRow } from '../services/crmApi'
 
-const props = defineProps<{ lead: CrmRow; view?: 'analysis' | 'quotes' | 'history' }>()
+const props = defineProps<{ lead: CrmRow; sellerName?: string; view?: 'analysis' | 'quotes' | 'history' }>()
 const auth = useAuthStore()
 const { locale } = useI18n()
 const can = (scope: string) => auth.hasScope(scope)
@@ -449,7 +449,7 @@ function quotePageChange(delta: number) {
       <summary class="cursor-pointer text-sm font-bold text-[var(--dh-primary)]">Vincular QUO históricas · Superadministración</summary>
       <CrmLegacyQuoteManager v-if="legacyQuoteLinksExpanded" :lead-id="String(lead.id)"
         :client-name="String(lead.companyName || lead.name || '')"
-        :executive-name="String(lead.executiveName || '')" view="quotes"
+        :executive-name="sellerName || String(lead.executiveName || '')" view="quotes"
         @changed="refreshQuotesAfterLink" />
     </details>
     <div v-if="(canLinkQuotes || canCreateOpportunity) && canReadOpportunities" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
