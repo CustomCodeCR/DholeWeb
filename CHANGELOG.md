@@ -1,3 +1,8 @@
+## [1.22.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-LEAD-QUO-PARITY-080: Prospectos iguala la navegación de Cuentas y consulta todas las QUO por ClientLeadId directamente de Pricing; dashboard oficial, rutas automáticamente cotizadas y vinculación histórica exclusiva de superadministradores.
+- Mantiene la corrección 081 para tarifas vencidas y el DhMultiSelect 1.21.0. Coordina Pricing 1.10.0 y System 1.22.0. REST/SignalR existentes retrocompatibles.
+
 ## [1.21.1] - 2026-11-10
 
 - PATCH DH-20261110-SELLER-EXPIRED-081: permite aceptar o rechazar tarifas vencidas en el dashboard y detalle del vendedor, incluso sobre la última revisión publicada sin modificaciones activas. Las solicitudes de modificación siguen disponibles.
