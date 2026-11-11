@@ -10,6 +10,7 @@ import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmLeadCommercialPanel from '../components/CrmLeadCommercialPanel.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import CrmLeadLocations from '../components/CrmLeadLocations.vue'
 import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import CrmActivityFullEditor from '../components/CrmActivityFullEditor.vue'
@@ -139,7 +140,7 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'conversion' | 'documents'
+type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'conversion' | 'documents' | 'locations'
 const leadTab = ref<LeadTab>('summary')
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
@@ -149,6 +150,7 @@ const leadTabs = computed(() => [
     ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
   ...(can('crm.analysis.read') ? [{ key: 'history' as const, label: 'Historial de rutas', icon: Route }] : []),
   { key: 'documents' as const, label: 'Documentos', icon: FileText },
+  { key: 'locations' as const, label: 'Ubicaciones', icon: MapPin },
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
     ? [{ key: 'agenda' as const, label: 'Seguimientos', icon: CalendarClock }] : []),
   ...(can('crm.lead.convert') && can('crm.account.create')
@@ -1070,6 +1072,11 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
         </dl>
       </section>
+      <CrmLeadLocations v-if="section === 'leads' && leadTab === 'locations'"
+        id="crm-lead-panel-locations" role="tabpanel" :key="id"
+        :lead-id="id" :country-id="String(record.countryId ?? '')"
+        :can-manage="can('crm.lead.update')" :converted="Boolean(record.convertedAt)"
+        @changed="load" />
       <div v-if="section === 'leads' && leadTab === 'analysis'"
         id="crm-lead-panel-analysis" role="tabpanel" class="min-w-0">
         <CrmLeadCommercialPanel :lead="record" :seller-name="leadExecutiveName" view="analysis" />
