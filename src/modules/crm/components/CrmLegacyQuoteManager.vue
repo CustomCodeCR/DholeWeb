@@ -22,13 +22,15 @@ type Quote = Record<string, unknown> & {
 type Page<T> = { items: T[]; total: number; page: number; pageSize: number }
 
 const props = withDefaults(defineProps<{
-  accountId: string
+  accountId?: string
+  leadId?: string
   clientName: string
   executiveName?: string
   view?: 'quotes' | 'history'
 }>(), { view: 'quotes' })
 const emit = defineEmits<{ changed: [] }>()
 const base = '/api/pricing/rates'
+const isLead = computed(() => Boolean(props.leadId))
 const { locale } = useI18n()
 
 const quotes = ref<Quote[]>([])
@@ -119,13 +121,14 @@ async function selectAllMatching() {
   error.value = ''
   confirmed.value = false
   const expectedAccount = props.accountId
+  const expectedLead = props.leadId
   try {
     const result: Quote[] = []
     for (let page = 1; page <= Math.ceil(catalogTotal.value / 100); page++) {
       const params = new URLSearchParams({ q: query, linkStatus: 'unlinked',
         page: String(page), pageSize: '100' })
       const data = await fetchClient<Page<Quote>>(base + '/crm-legacy-catalog?' + params, { method: 'GET' })
-      if (props.accountId !== expectedAccount || appliedSearch.value !== query)
+      if (props.accountId !== expectedAccount || props.leadId !== expectedLead || appliedSearch.value !== query)
         throw new Error('Cambió la cuenta o búsqueda. Vuelva a seleccionar las QUO.')
       if (data.total > 1000 || data.total !== catalogTotal.value)
         throw new Error('Cambió la lista de pendientes. Actualice antes de seleccionarlas.')
@@ -150,7 +153,8 @@ async function refresh() {
       page: String(quotesPage.value), pageSize: String(quotesPageSize.value),
     })
     const result = await fetchClient<Page<Quote>>(
-      base + '/crm-account/' + encodeURIComponent(props.accountId) + '?' + params, { method: 'GET' })
+      base + (props.leadId ? '/crm-lead/' + encodeURIComponent(props.leadId) :
+        '/crm-account/' + encodeURIComponent(props.accountId || '')) + '?' + params, { method: 'GET' })
     if (generation !== linkedRequestGeneration) return
     quotes.value = result.items || []
     quotesTotal.value = result.total || 0
@@ -222,7 +226,7 @@ async function reloadAll() {
   await Promise.all([refresh(), searchLegacy()])
 }
 async function syncLinkedClient() {
-  if (busy.value || !props.accountId || !props.clientName.trim()) return
+  if (busy.value || isLead.value || !props.accountId || !props.clientName.trim()) return
   busy.value = true
   error.value = ''
   success.value = ''
@@ -252,15 +256,23 @@ async function reconcile() {
   success.value = ''
   try {
     const result = await fetchClient<{ linked: number; total: number }>(
-      base + '/crm-legacy-reconcile', {
+      base + (props.leadId ? '/crm-legacy-lead-reconcile' : '/crm-legacy-reconcile'), {
         method: 'POST',
-        body: {
-          accountId: props.accountId,
-          clientName: props.clientName,
-          executiveName: props.executiveName || null,
-          rateIds: [...selected.value],
-          confirmedForAccount: true,
-        },
+        body: props.leadId
+          ? {
+              leadId: props.leadId,
+              clientName: props.clientName,
+              executiveName: props.executiveName || null,
+              rateIds: [...selected.value],
+              confirmedForLead: true,
+            }
+          : {
+              accountId: props.accountId,
+              clientName: props.clientName,
+              executiveName: props.executiveName || null,
+              rateIds: [...selected.value],
+              confirmedForAccount: true,
+            },
       })
     clearSelection()
     quotesPage.value = 1
@@ -274,7 +286,7 @@ async function reconcile() {
     busy.value = false
   }
 }
-watch(() => [props.accountId, props.clientName], () => {
+watch(() => [props.accountId, props.leadId, props.clientName], () => {
   quotesPage.value = 1
   catalogPage.value = 1
   catalogSearch.value = ''
@@ -292,7 +304,7 @@ watch(() => [props.accountId, props.clientName], () => {
         <h3 class="text-base font-extrabold">Historial de cotizaciones Pricing</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
           Cotizaciones históricas que aún no tienen cuenta o prospecto CRM. Seleccione las que pertenecen a
-          <strong>{{ clientName }}</strong>; al vincularlas dejarán esta lista y aparecerán en el historial del cliente y en Pricing con sus datos CRM.
+          <strong>{{ clientName }}</strong>; al vincularlas dejarán esta lista y aparecerán en el historial {{ isLead ? 'del prospecto' : 'del cliente' }} y en Pricing con sus datos CRM.
         </p>
       </div>
       <button type="button" class="hub-outline-button hub-small" :disabled="catalogLoading || linkedLoading || busy" @click="reloadAll">
@@ -327,7 +339,7 @@ watch(() => [props.accountId, props.clientName], () => {
     </div>
 
     <DhDataTable :columns="catalogColumns" :rows="catalogRows" :loading="catalogLoading"
-      empty-text="No quedan QUO pendientes con esta búsqueda. Las ya vinculadas están en el historial de su cuenta CRM.">
+      empty-text="No quedan QUO pendientes con esta búsqueda. Las ya vinculadas están en el historial del CRM correspondiente.">
       <template #cell-select="{ row }">
         <input type="checkbox" :aria-label="'Seleccionar ' + row.quoteNumberSnapshot"
           :checked="selected.includes(row.pricingQuoteId)" :disabled="!canSelect(row) || busy || selectionLoading"
@@ -362,7 +374,7 @@ watch(() => [props.accountId, props.clientName], () => {
       <p class="text-xs text-[var(--dh-text-muted)]">Revise que todas las cotizaciones seleccionadas pertenezcan a este cliente antes de vincularlas; la selección masiva no comprueba nombres automáticamente.</p>
       <label class="flex items-start gap-2 text-xs">
         <input v-model="confirmed" type="checkbox" class="mt-0.5" />
-        <span>Confirmo que revisé cada QUO seleccionada, su cliente histórico y su ruta, y que todas corresponden a esta cuenta CRM. Esta acción no modifica valores comerciales ni reasigna cotizaciones de otras cuentas.</span>
+        <span>Confirmo que revisé cada QUO seleccionada, su cliente histórico y su ruta, y que todas corresponden a este {{ isLead ? 'prospecto' : 'cliente' }} CRM. Esta acción no modifica valores comerciales ni reasigna cotizaciones de otras cuentas.</span>
       </label>
       <button type="button" class="crm-action" :disabled="!ready" @click="reconcile">
         {{ busy ? 'Vinculando…' : 'Vincular ' + selected.length + ' QUO a este cliente' }}
@@ -371,14 +383,14 @@ watch(() => [props.accountId, props.clientName], () => {
 
     <details class="border-t border-[var(--dh-border)] pt-3">
       <summary class="cursor-pointer text-sm font-bold">
-        Cotizaciones vinculadas a esta cuenta ({{ quotesTotal }})
+        {{ isLead ? 'Cotizaciones vinculadas a este prospecto' : 'Cotizaciones vinculadas a esta cuenta' }} ({{ quotesTotal }})
       </summary>
       <div class="mt-3 space-y-3">
-        <button type="button" class="hub-outline-button hub-small" :disabled="busy || linkedLoading || !quotesTotal || !clientName.trim()" @click="syncLinkedClient">
+        <button v-if="!isLead" type="button" class="hub-outline-button hub-small" :disabled="busy || linkedLoading || !quotesTotal || !clientName.trim()" @click="syncLinkedClient">
           Sincronizar cliente y ejecutivo CRM en tarifas existentes
         </button>
         <DhDataTable :columns="linkedColumns" :rows="linkedRows" :loading="linkedLoading"
-          empty-text="Esta cuenta todavía no tiene cotizaciones vinculadas.">
+          empty-text="Este {{ isLead ? 'prospecto' : 'cliente' }} todavía no tiene cotizaciones vinculadas.">
           <template #cell-quoteNumberSnapshot="{ row }">
             <RouterLink class="hub-text-link font-bold" :to="quoteUrl(row)">{{ row.quoteNumberSnapshot }}</RouterLink>
           </template>
