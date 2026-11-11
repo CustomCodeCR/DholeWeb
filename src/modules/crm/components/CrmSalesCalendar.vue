@@ -621,7 +621,9 @@ const historicalActivityDraft = computed(() =>
 async function create() {
   const data = editor.value
   if (saving.value) return
-  if (!assignees.value.includes(data.ownerId)) {
+  if (canAssignOtherSellers.value
+    ? !eligibleSeller(data.ownerId)
+    : !assignees.value.includes(data.ownerId)) {
     error.value = 'Seleccioná un usuario activo con rol Vendedor o SuperUsuario antes de guardar.'
     return
   }
