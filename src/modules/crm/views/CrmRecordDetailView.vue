@@ -10,6 +10,7 @@ import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmLeadCommercialPanel from '../components/CrmLeadCommercialPanel.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
@@ -136,7 +137,7 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'conversion'
+type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'conversion' | 'documents'
 const leadTab = ref<LeadTab>('summary')
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
@@ -145,6 +146,7 @@ const leadTabs = computed(() => [
   ...(can('crm.quote.read')
     ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
   ...(can('crm.analysis.read') ? [{ key: 'history' as const, label: 'Historial de rutas', icon: Route }] : []),
+  { key: 'documents' as const, label: 'Documentos', icon: FileText },
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
     ? [{ key: 'agenda' as const, label: 'Seguimientos', icon: CalendarClock }] : []),
   ...(can('crm.lead.convert') && can('crm.account.create')
@@ -1041,6 +1043,10 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
 
 
+      <CrmDocumentsPanel v-if="section === 'contacts'" kind="contact" :record-id="id" />
+      <CrmDocumentsPanel v-if="section === 'activities' || section === 'followups'"
+        :kind="section === 'activities' ? 'activity' : 'followup'" :record-id="id" />
+
       <section v-if="section === 'leads' && leadTab === 'profile'"
         id="crm-lead-panel-profile" role="tabpanel"
         class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4">
@@ -1073,6 +1079,9 @@ onMounted(() => { if (crmEnabled()) void load() })
       <div v-if="section === 'leads' && leadTab === 'history'"
         id="crm-lead-panel-history" role="tabpanel" class="min-w-0">
         <CrmLeadCommercialPanel :lead="record" :seller-name="leadExecutiveName" view="history" />
+      </div>
+      <div v-if="section === 'leads' && leadTab === 'documents'" id="crm-lead-panel-documents" role="tabpanel">
+        <CrmDocumentsPanel kind="lead" :record-id="id" />
       </div>
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
