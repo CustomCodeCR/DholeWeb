@@ -45,3 +45,13 @@ test('modal does not promise Apertura a draft pending publication', () => {
   assert.match(modal, /última revisión enviada/)
   assert.match(modal, /no se enviará el borrador/)
 })
+
+test('expired issued quotes allow seller decision but not an unpublished active modification', () => {
+  const expired = { status: 'Expired' as const, revisionPending: false }
+  assert.equal(canDecideSellerQuote(expired, false), true)
+  assert.equal(canDecideSellerQuote({ ...quo269, status: 'Expired' }, false), true)
+  assert.equal(canDecideSellerQuote({ ...quo269, status: 'Expired' }, true), false)
+  assert.equal(canDecideSellerQuote({ status: 'Closed', revisionPending: false }, false), false)
+  const modal = read('src/modules/dashboard/components/SellerRateDecisionModal.vue')
+  assert.match(modal, /props[.]rate[.]status === 'Expired'/)
+})
