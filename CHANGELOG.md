@@ -1,3 +1,8 @@
+## [1.34.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-VISIT-LOCATIONS-096: selección de ubicaciones registradas de clientes y prospectos en visitas CRM, geocodificación Geoapify con fallback a búsqueda por texto libre y botón Buscar; mensajes HTTP y recuperación manual del marcador.
+- Nueva pestaña Ubicaciones de prospectos, con alta y edición protegida mediante scopes; cambios de cliente reinician las coordenadas anteriores. DholeCRMService 1.21.0, ecosistema 1.34.0; CI/staging pendientes.
+
 ## [1.33.1] - 2026-11-11
 
 - PATCH DH-20261111-SRM-SUPPLIER-SAVE-PHONE-096: el botón de guardar/actualizar proveedor SRM ejecuta la acción, valida obligatorios explícitamente y muestra errores en el panel lateral.
