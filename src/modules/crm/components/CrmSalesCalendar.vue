@@ -8,7 +8,7 @@ import { StorageService } from '@/core/services/storageService'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
+import { crmAgreementDrafts, crmVisibleAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
@@ -50,6 +50,7 @@ const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
 const rows = ref<CalendarEvent[]>([])
 const agreementDrafts = ref<CrmAgreementDraft[]>([])
+const omittedAgreementKeys = ref<string[]>([])
 const attachedDocuments = ref<File[]>([])
 const pendingDocumentRecord = ref<{ kind: 'activity' | 'followup'; id: string } | null>(null)
 function selectDocuments(event: Event) {
@@ -188,15 +189,26 @@ const editor = ref({
   reminderRepeatMinutes: 0,
   channel: 'BOTH',
 })
-watch(() => editor.value.agreements, (text) => {
+function syncAgreementDrafts(text: string) {
   const reference = new Date(editor.value.start || Date.now())
   const parsed = crmAgreementDrafts(text, Number.isFinite(reference.getTime()) ? reference : new Date())
-  agreementDrafts.value = parsed.map(row => {
-    const previous = agreementDrafts.value.find(d => d.source === row.source)
+  agreementDrafts.value = crmVisibleAgreementDrafts(parsed, omittedAgreementKeys.value).map(row => {
+    const previous = agreementDrafts.value.find(d => d.key === row.key)
     return previous ? { ...row, title: previous.title, dueLocal: previous.dueLocal,
       hasExplicitTime: previous.hasExplicitTime } : row
   })
-})
+}
+watch(() => editor.value.agreements, syncAgreementDrafts)
+
+function removeAgreementDraft(key: string) {
+  if (!omittedAgreementKeys.value.includes(key)) omittedAgreementKeys.value.push(key)
+  agreementDrafts.value = agreementDrafts.value.filter(item => item.key !== key)
+}
+
+function restoreAgreementDrafts() {
+  omittedAgreementKeys.value = []
+  syncAgreementDrafts(editor.value.agreements)
+}
 
 const userEditedStart = ref(false)
 const defaultSubjects: Record<string,string> = {
@@ -440,6 +452,7 @@ function openCreation(date?: Date) {
     channel: 'BOTH',
   }
   agreementDrafts.value = []
+  omittedAgreementKeys.value = []
   attachedDocuments.value = []
   pendingDocumentRecord.value = null
   selectedContactIds.value = []
@@ -1176,6 +1189,12 @@ function openEvent(item: CalendarEvent) {
               <label class="calendar-label">Fecha límite
                 <input v-model="item.dueLocal" type="datetime-local" class="calendar-input" required />
               </label>
+              <div class="sm:col-span-2 flex justify-end">
+                <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-[var(--dh-border)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[var(--dh-surface-hover)]"
+                  :aria-label="'Quitar compromiso de la lista: ' + item.title" @click="removeAgreementDraft(item.key)">
+                  <X class="h-3.5 w-3.5" aria-hidden="true" /> Quitar de la lista
+                </button>
+              </div>
               <p v-if="!item.dueLocal" class="text-xs text-amber-600 sm:col-span-2">
                 No se detectó una fecha. Seleccioná cuándo debe cumplirse este acuerdo.
               </p>
@@ -1183,6 +1202,10 @@ function openEvent(item: CalendarEvent) {
                 Hora sugerida, no confirmada por el cliente.
               </p>
             </div>
+          </div>
+          <div v-if="omittedAgreementKeys.length" class="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+            <span>Los compromisos quitados no se programarán. El texto se conserva en «Acuerdos alcanzados».</span>
+            <button type="button" class="font-semibold underline" @click="restoreAgreementDrafts">Restaurar compromisos</button>
           </div>
           <label class="calendar-label sm:col-span-2">Próximo compromiso
             <input v-model.trim="editor.nextCommitment" class="calendar-input" maxlength="250" placeholder="Ej. Enviar propuesta y confirmar recepción" />
