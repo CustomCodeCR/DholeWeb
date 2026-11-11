@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
+import { StorageService } from '@/core/services/storageService'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -49,6 +50,11 @@ const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
 const rows = ref<CalendarEvent[]>([])
 const agreementDrafts = ref<CrmAgreementDraft[]>([])
+const attachedDocuments = ref<File[]>([])
+const pendingDocumentRecord = ref<{ kind: 'activity' | 'followup'; id: string } | null>(null)
+function selectDocuments(event: Event) {
+  attachedDocuments.value = Array.from((event.target as HTMLInputElement).files ?? [])
+}
 const calendarLabels = ref<{
   accounts: Record<string, string>; leads: Record<string, string>; owners: Record<string, string>
 }>({ accounts: {}, leads: {}, owners: {} })
@@ -434,6 +440,8 @@ function openCreation(date?: Date) {
     channel: 'BOTH',
   }
   agreementDrafts.value = []
+  attachedDocuments.value = []
+  pendingDocumentRecord.value = null
   selectedContactIds.value = []
   void loadSellerDirectory()
   userEditedStart.value = false
@@ -675,17 +683,19 @@ async function create() {
   saving.value = true
   error.value = ''
   try {
+    if (!pendingDocumentRecord.value) {
     const common = {
       accountId: data.accountId || null, leadId: data.leadId || null, opportunityId: null,
       reminderLeadMinutes: data.reminderMinutes, reminderChannelStrategy: 'BOTH',
     }
     if (data.type === 'FOLLOWUP') {
-      await crmRequest(crmPath('followups'), 'POST', {
+      const createdFollowup = await crmRequest<CrmRow>(crmPath('followups'), 'POST', {
         ...common, subject: data.subject.trim(), channel: 'SYSTEM',
         assignedUserId: data.ownerId || auth.userId, dueAt: start.toISOString(),
       })
+      pendingDocumentRecord.value = { kind: 'followup', id: String(createdFollowup.id) }
     } else {
-      await crmRequest(crmPath('activities'), 'POST', {
+      const createdActivity = await crmRequest<CrmRow>(crmPath('activities'), 'POST', {
         ...common, contactId: selectedContactIds.value[0] || null, ownerUserId: data.ownerId || auth.userId,
         type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
         scheduledEndAt: end.toISOString(),
@@ -704,7 +714,22 @@ async function create() {
           subject: item.title.trim(), dueAt: new Date(item.dueLocal).toISOString(),
         })),
       })
+      pendingDocumentRecord.value = { kind: 'activity', id: String(createdActivity.id) }
     }
+    }
+    if (attachedDocuments.value.length && pendingDocumentRecord.value) {
+      const target = pendingDocumentRecord.value
+      const access = await crmRequest<{ canUpload: boolean }>(crmPath('documents', target.kind, target.id, 'access'))
+      if (!access.canUpload || !can('storage.files.create'))
+        throw new Error('La actividad se guardó, pero no tenés permisos para adjuntar los documentos.')
+      for (const file of [...attachedDocuments.value]) {
+        if (file.size > 100 * 1024 * 1024)
+          throw new Error('La actividad se guardó, pero ' + file.name + ' excede 100 MB.')
+        await StorageService.uploadFile({ file, sourceService: 'DholeCRMService', entityType: 'crm.' + target.kind, entityId: target.id })
+        attachedDocuments.value = attachedDocuments.value.filter(item => item !== file)
+      }
+    }
+    pendingDocumentRecord.value = null
     creationOpen.value = false
     selected.value = start
     notice.value = (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
@@ -1170,6 +1195,15 @@ function openEvent(item: CalendarEvent) {
             Los pendientes vencidos activan recordatorios por sistema y correo y su escalamiento a jmesen.
           </p>
         </template>
+        <div class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+          <label class="calendar-label" for="crm-agenda-documents">Documentos adjuntos (opcional)
+            <input id="crm-agenda-documents" type="file" multiple class="calendar-input"
+              :disabled="saving || !can('storage.files.create')" @change="selectDocuments" />
+          </label>
+          <p class="text-xs text-[var(--dh-text-muted)]">Se guardarán vinculados a la actividad o seguimiento. Máximo 100 MB por archivo.</p>
+          <p v-if="!can('storage.files.create')" class="text-xs text-amber-600">Necesitás storage.files.create para adjuntar.</p>
+          <p v-if="pendingDocumentRecord" class="text-xs text-amber-600">El registro ya está guardado; reintentá para adjuntar los archivos pendientes sin duplicarlo.</p>
+        </div>
         <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
           Los avisos de actividades futuras se activan al guardar. Si ya pasó la hora del recordatorio anticipado,
           se enviará al procesarse la actividad guardada, siempre que el inicio no haya vencido.
