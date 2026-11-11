@@ -1,7 +1,12 @@
-## [1.34.0] - 2026-11-11
+## [1.35.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-VISIT-LOCATIONS-096: muestra ubicaciones registradas de clientes y prospectos en el mapa de visitas, autocompletado y búsqueda directa alternativa de Geoapify con botón Buscar, selección de marcador y detalle del error HTTP.
 - Incorpora registro/edición de ubicaciones de prospectos y adapta rutas de CRM. DholeCRMService 1.21.0, ecosistema 1.34.0; staging pendiente; despliegue productivo coordinado tras comprobaciones.
+
+## [1.34.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-SUPPLIER-CREDIT-SAVE-101: corrige guardado SRM con contactos y crédito, con validación visible en el drawer, desplazamiento hasta la sección afectada y pruebas ejecutables.
+- Detecta fallos de aplicación en respuestas HTTP 200 para altas y modificaciones sin falsos mensajes de éxito. Versión DholeWeb 1.34.1. Staging y CI deben validarse; no se autoriza producción.
 
 ## [1.33.1] - 2026-11-11
 
