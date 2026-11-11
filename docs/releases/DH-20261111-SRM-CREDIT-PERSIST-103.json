@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261111-SRM-CREDIT-PERSIST-103",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.36.1",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.35.0",
+      "next": "1.36.1"
+    }
+  ],
+  "changes": [
+    "Confirmar persistencia efectiva de condiciones de crédito y contactos mediante lectura del catálogo",
+    "No cerrar el formulario ni indicar éxito si Config no confirma los datos"
+  ],
+  "releaseBranch": "fix/srm-credit-persistence-verification-103-develop",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}

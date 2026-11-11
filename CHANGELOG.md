@@ -1,3 +1,8 @@
+## [1.36.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-CREDIT-PERSIST-103: exige verificación de lectura posterior al POST/PUT para confirmar que los campos de crédito (plazo, límite, moneda, intereses y conceptos) y los contactos se almacenaron realmente. Nunca confirma éxito antes del readback; conserva el formulario si la persistencia no coincide y evita reintentos silenciosos.
+- Agrega prueba de regresión con crédito activo de 120 días, 1.200.000 USD, intereses 0% y conceptos incluidos/excluidos. Conserva REST, realtime e integración CRM. Ecosistema 1.36.1; CI/staging pendientes y producción no autorizada.
+
 ## [1.35.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-QUOTE-MULTI-CONTACTS-102: elimina selección de QUO individual. Configuración persistente por cuenta con DhMultiSelect para varios contactos que recibirán todas las próximas cotizaciones, con CC al vendedor asignado.

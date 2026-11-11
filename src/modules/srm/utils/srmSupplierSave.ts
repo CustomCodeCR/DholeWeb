@@ -80,3 +80,35 @@ export function srmMutationFailure(response: unknown): string | null {
   }
   return null
 }
+
+/** Compare the exact monetary terms after a supplier mutation, using the saved Config catalog row. */
+export function supplierPersistedCreditMatches(metadataJson: string | null | undefined, expected: {
+  days: number
+  limit: number
+  currency: string
+  monthlyFinancingPct: number
+  lateInterestMonthlyPct: number
+  includedServices: string[]
+  excludedServices: string[]
+}): boolean {
+  try {
+    const metadata: unknown = JSON.parse(metadataJson || '{}')
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false
+    const credit: unknown = (metadata as Record<string, unknown>).creditTerms
+    if (!credit || typeof credit !== 'object' || Array.isArray(credit)) return false
+    const saved = credit as Record<string, unknown>
+    const equalCodes = (value: unknown, codes: string[]): boolean =>
+      Array.isArray(value) && value.length === codes.length &&
+      codes.every(code => value.includes(code))
+    return saved.paymentType === 'credit' && saved.creditEnabled === true &&
+      Number(saved.creditDays ?? saved.days) === expected.days &&
+      Number(saved.creditLimit ?? saved.limit) === expected.limit &&
+      String(saved.currencyCode ?? saved.currency).toUpperCase() === expected.currency.toUpperCase() &&
+      Number(saved.monthlyFinancingPct) === expected.monthlyFinancingPct &&
+      Number(saved.lateInterestMonthlyPct) === expected.lateInterestMonthlyPct &&
+      equalCodes(saved.includedServices, expected.includedServices) &&
+      equalCodes(saved.excludedServices, expected.excludedServices)
+  } catch {
+    return false
+  }
+}
