@@ -600,7 +600,7 @@ async function save() {
     if (section.value === 'accounts' && !edited.value && !can('crm.account.category.manage')) {
       body.categoryCode = accountCategoryDefault(form.categoryType)
     }
-    if (section.value === 'accounts' && !edited.value &&
+    if (['accounts', 'leads'].includes(section.value) && !edited.value &&
         form.executiveUserId === '__castro_fallas__') {
       body.executiveUserId = null
       body.assignToCastroFallas = true
@@ -1071,7 +1071,6 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
             <div v-if="section === 'leads' && !edited" class="sm:col-span-2">
               <CrmExecutivePicker v-if="can('crm.lead.assign') && can('auth.users.view')"
                 :model-value="String(form.executiveUserId ?? '')" label="Asignar prospecto a un vendedor"
-                :allow-institutional="false"
                 @update:model-value="form.executiveUserId = $event" />
               <p v-if="can('crm.lead.assign')" class="mt-2 text-xs text-[var(--dh-text-muted)]">
                 Si no seleccionás otro vendedor, el prospecto se asigna a tu usuario.
