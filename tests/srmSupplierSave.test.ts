@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { supplierSaveIssue, srmMutationFailure } from '../src/modules/srm/utils/srmSupplierSave.ts'
+import { supplierSaveIssue, srmMutationFailure, supplierPersistedCreditMatches } from '../src/modules/srm/utils/srmSupplierSave.ts'
 const contact = { name: 'Operaciones', email: 'contacto@ejemplo.com', phone: '+50688887777', role: 'Encargado', countryId: 'country-1' }
 const credit = {
   contacts: [contact], creditEnabled: true, creditDays: '120', creditLimit: '1200000',
@@ -28,4 +28,30 @@ test('SRM API distinguishes response success from application-level failure', ()
   assert.equal(srmMutationFailure({ success: true, data: { id: 'abc' } }), null)
   assert.equal(srmMutationFailure({ success: false, message: 'srm_invalid_contacts' }), 'srm_invalid_contacts')
   assert.equal(srmMutationFailure({ data: { isSuccess: false, errors: ['Invalid credit'] } }), 'Invalid credit')
+})
+
+test('credit save is confirmed only when Config returns the persisted 120-day terms', () => {
+  const creditMeta = JSON.stringify({ creditTerms: {
+    paymentType: 'credit', creditEnabled: true, creditDays: 120, creditLimit: 1200000,
+    currencyCode: 'USD', monthlyFinancingPct: 0, lateInterestMonthlyPct: 0,
+    includedServices: ['international-freight'], excludedServices: ['taxes'],
+  } })
+  const expected = {
+    days: 120, limit: 1200000, currency: 'USD',
+    monthlyFinancingPct: 0, lateInterestMonthlyPct: 0,
+    includedServices: ['international-freight'], excludedServices: ['taxes'],
+  }
+  assert.equal(supplierPersistedCreditMatches(creditMeta, expected), true)
+  assert.equal(supplierPersistedCreditMatches(creditMeta, { ...expected, days: 90 }), false)
+  assert.equal(supplierPersistedCreditMatches(creditMeta, { ...expected, includedServices: ['other'] }), false)
+  assert.equal(supplierPersistedCreditMatches('{}', expected), false)
+  assert.equal(supplierPersistedCreditMatches(null, expected), false)
+})
+
+test('SRM submit uses native submit with novalidate and a catch-all handler', async () => {
+  const { readFileSync } = await import('node:fs')
+  const source = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
+  assert.match(source, /novalidate @submit\.prevent="submitSupplierSafely"/)
+  assert.match(source, /<button type="submit"[^>]+data-srm-save-button/)
+  assert.match(source, /async function submitSupplierSafely\(\)/)
 })

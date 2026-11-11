@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261111-SRM-CREDIT-PERSIST-103",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.36.1",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.36.0",
+      "next": "1.36.1"
+    }
+  ],
+  "changes": [
+    "Corregir envío del formulario con crédito y captura de excepciones",
+    "Verificar que crédito y contactos se persistieron antes de informar éxito"
+  ],
+  "releaseBranch": "fix/srm-credit-persistence-verification-103-master",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
