@@ -26,7 +26,7 @@ test('prospect Quotes read directly from Pricing ClientLeadId, not only CRM oppo
   assert.match(commercial, /quote\.polName/)
   assert.match(commercial, /quote\.executiveName/)
   assert.match(commercial, /loadQuotes\(\)/)
-  assert.match(commercial, /view="history"/)
+  assert.match(detail, /view="history"/)
   assert.match(commercial, /data-crm-lead-pricing-analysis/)
   assert.doesNotMatch(commercial, /crmPath\('leads', leadId, 'quotes'\)/)
 })
