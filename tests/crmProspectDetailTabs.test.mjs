@@ -2,10 +2,13 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-const detail = readFileSync('src/modules/crm/views/CrmRecordDetailView.vue', 'utf8')
-const commercial = readFileSync('src/modules/crm/components/CrmLeadCommercialPanel.vue', 'utf8')
+const read = path => readFileSync(path, 'utf8')
+const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+const commercial = read('src/modules/crm/components/CrmLeadCommercialPanel.vue')
+const dashboard = read('src/modules/crm/components/CrmAccountQuotesDashboard.vue')
+const legacy = read('src/modules/crm/components/CrmLegacyQuoteManager.vue')
 
-test('prospects show one role-authorized tab panel at a time like CRM accounts', () => {
+test('prospects show account-style tab panels according to permissions', () => {
   assert.match(detail, /role="tablist" aria-label="Secciones del prospecto"/)
   for (const tab of ['summary', 'profile', 'analysis', 'quotes', 'history', 'agenda', 'conversion']) {
     assert.match(detail, new RegExp("leadTab === '" + tab + "'"))
@@ -13,32 +16,41 @@ test('prospects show one role-authorized tab panel at a time like CRM accounts',
   }
   assert.match(detail, /:aria-selected="leadTab === tab.key"/)
   assert.match(detail, /role="tabpanel"/)
-})
-test('commercial analysis and quote panels are separately rendered and loaded', () => {
-  assert.match(detail, /view="analysis"/)
-  assert.match(detail, /view="quotes"/)
-  assert.match(commercial, /props.view !== 'quotes' \? \[loadAnalyses\(\)\]/)
-  assert.match(commercial, /props.view === 'quotes' \? \[loadQuotes\(\), loadOpportunities\(\)\]/)
-})
-test('conversion deep links open the conversion tab', () => {
-  assert.match(detail, /route.hash === '#crm-lead-conversion'/)
-  assert.match(detail, /@click.prevent="showLeadTab\('conversion'\)"/)
-  assert.match(detail, /id="crm-lead-conversion"/)
+  assert.match(detail, /crm\.quote\.read/)
 })
 
-test('prospect quote indicators are derived from all linked CRM quotation pages', () => {
-  const dashboard = readFileSync('src/modules/crm/components/CrmAccountQuotesDashboard.vue', 'utf8')
-  assert.match(commercial, /<CrmAccountQuotesDashboard :lead-id="String\(lead.id\)"/)
-  assert.match(dashboard, /crmPath\('leads', leadId, 'quotes'\)/)
-  assert.match(dashboard, /for \(let page = 1; page <= limit \/ pageSize; page\+\+\)/)
-  assert.match(dashboard, /commercialStatusSnapshot/)
-  assert.match(dashboard, /'\/api\/pricing\/rates\/crm-account\/\'/)
-  assert.match(dashboard, /props.leadId/)
+test('prospect Quotes read directly from Pricing ClientLeadId, not only CRM opportunities', () => {
+  assert.match(commercial, /\/api\/pricing\/rates\/crm-lead\//)
+  assert.match(commercial, /quote\.pricingQuoteId/)
+  assert.match(commercial, /quoteNumberSnapshot/)
+  assert.match(commercial, /quote\.polName/)
+  assert.match(commercial, /quote\.executiveName/)
+  assert.match(commercial, /loadQuotes\(\)/)
+  assert.match(commercial, /view="history"/)
+  assert.match(commercial, /data-crm-lead-pricing-analysis/)
+  assert.doesNotMatch(commercial, /crmPath\('leads', leadId, 'quotes'\)/)
 })
-test('prospect route history includes all registered analyses without name-based attribution', () => {
-  assert.match(detail, /view="history"/)
-  assert.match(commercial, /data-crm-lead-route-history/)
-  assert.match(commercial, /Promise.all\(list.map\(async analysis/)
-  assert.match(commercial, /crmPath\('analyses', String\(analysis.id\), 'routes'\)/)
-  assert.match(commercial, /props.view !== 'history' && canReadAnalyses/)
+
+test('shared KPI dashboard asks Pricing for official lead and account totals', () => {
+  assert.match(dashboard, /\/api\/pricing\/rates\/crm-lead\//)
+  assert.match(dashboard, /\/api\/pricing\/rates\/crm-account\//)
+  assert.match(dashboard, /props\.leadId/)
+  assert.match(commercial, /CrmAccountQuotesDashboard/)
+})
+
+test('only privileged users may reconcile historical QUO to a lead', () => {
+  assert.match(commercial, /canManageHistoricalQuoteLinks/)
+  assert.match(commercial, /hasRole\(role\)/)
+  assert.match(commercial, /CrmLegacyQuoteManager/)
+  assert.match(legacy, /crm-legacy-lead-reconcile/)
+  assert.match(legacy, /confirmedForLead: true/)
+  assert.match(legacy, /clientLeadId/)
+  assert.match(legacy, /linkStatus: 'unlinked'/)
+  assert.match(legacy, /!quote\.clientAccountId && !quote\.clientLeadId/)
+})
+
+test('conversion deep links open the conversion tab', () => {
+  assert.match(detail, /route\.hash === '#crm-lead-conversion'/)
+  assert.match(detail, /@click\.prevent="showLeadTab\('conversion'\)"/)
+  assert.match(detail, /id="crm-lead-conversion"/)
 })
