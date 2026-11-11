@@ -1,3 +1,8 @@
+## [1.26.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-DOCUMENTS-084: pestañas y paneles de documentos adjuntos para cuentas, prospectos, contactos y seguimientos; carga múltiple desde Nueva actividad, consulta y descarga con Dhole Storage.
+- Ecosistema 1.26.0; no se crean actividades duplicadas al reintentar adjuntos; validación CI y staging pendientes; sin despliegue a producción.
+
 ## [1.25.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-LEAD-DUPLICATE-083: Muestra alerta de prospecto duplicado con el nombre del vendedor, conserva los datos ingresados y evita avisos emergentes duplicados por SignalR.
