@@ -28,6 +28,7 @@ const endpoints = {
   upload: { method: 'POST', path: '/api/v1/storage/files', baseUrl: STORAGE_BASE_URL },
   summary: { method: 'GET', path: '/api/v1/storage/files/summary', baseUrl: STORAGE_BASE_URL },
   get: { method: 'GET', path: '/api/v1/storage/files/{{fileId}}', baseUrl: STORAGE_BASE_URL },
+  byEntity: { method: 'GET', path: '/api/v1/storage/files/by-entity', baseUrl: STORAGE_BASE_URL },
   delete: { method: 'DELETE', path: '/api/v1/storage/files/{{fileId}}', baseUrl: STORAGE_BASE_URL },
   providers: { method: 'GET', path: '/api/v1/storage/providers', baseUrl: STORAGE_BASE_URL },
 } satisfies Record<string, Endpoint>
@@ -86,6 +87,15 @@ export interface UploadStorageFileInput {
 }
 
 export const StorageService = {
+  async getFilesByEntity(sourceService: string, entityType: string, entityId: string): Promise<StorageFileDto[]> {
+    const params = new URLSearchParams({ sourceService, entityType, entityId })
+    const response = await callEndpoint<unknown>({
+      ...endpoints.byEntity,
+      path: endpoints.byEntity.path + '?' + params.toString(),
+    })
+    return unwrapListResponse<StorageFileDto>(response)
+  },
+
   async browse(query?: BrowseStorageFilesQuery): Promise<PagedResponse<StorageFileListItemDto>> {
     const response = await callEndpoint<unknown>({
       ...endpoints.browse,
