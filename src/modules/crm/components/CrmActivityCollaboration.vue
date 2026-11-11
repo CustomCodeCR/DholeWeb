@@ -322,7 +322,7 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
           <li v-for="entry in notes" :key="entry.id" class="border-l-2 border-[var(--dh-primary)]/40 py-1 pl-3">
             <p class="whitespace-pre-wrap break-words text-sm">{{ entry.noteText ?? entry.text ?? 'Observación' }}</p>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ formattedDate(entry.createdAt) }}</p>
-            <button v-if="canManage && crmAgreementDrafts(String(entry.noteText ?? '')).some(x => x.dueLocal)"
+            <button v-if="canManage && !String(entry.noteText ?? '').startsWith('[Historial de edición]') && crmAgreementDrafts(String(entry.noteText ?? '')).some(x => x.dueLocal)"
               type="button" class="mt-2 text-xs font-semibold text-[var(--dh-primary)] underline"
               @click="openSavedNote(entry)">
               {{ noteToConvert===entry.id ? 'Cerrar conversión' : 'Registrar acuerdos anteriores en calendario' }}

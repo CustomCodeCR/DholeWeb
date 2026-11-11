@@ -13,6 +13,7 @@ import CrmLeadCommercialPanel from '../components/CrmLeadCommercialPanel.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
+import CrmActivityFullEditor from '../components/CrmActivityFullEditor.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
 import CrmAccountEditor from '../components/CrmAccountEditor.vue'
@@ -1205,6 +1206,8 @@ onMounted(() => { if (crmEnabled()) void load() })
         </div>
         <p v-if="agendaDetailsWarning" role="alert" class="text-sm text-amber-600">{{ agendaDetailsWarning }}</p>
         <template v-if="section === 'activities'">
+          <CrmActivityFullEditor :activity="record" :notes="agendaNotes" :commitments="agendaCommitments"
+            :can-manage="can('crm.activity.update')" @saved="load" />
           <div v-if="agendaNotes.length" class="space-y-3">
             <article v-for="note in agendaNotes" :key="String(note.id)"
               class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
@@ -1393,6 +1396,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
       <CrmActivityCollaboration v-if="section === 'activities'" :activity-id="id"
         :account-id="record.accountId ? String(record.accountId) : null"
+        :key="id + '-' + String(record.rowVersion ?? 0)"
         :can-manage="can('crm.activity.update')" :parent-subject="String(record.subject || '')" />
       <nav v-if="section !== 'accounts' && section !== 'activities'" class="flex flex-wrap gap-2" aria-label="CRM">
         <button v-for="tab in tabs.filter(permitted)" :key="tab" class="crm-action"
