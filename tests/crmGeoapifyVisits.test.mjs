@@ -9,7 +9,8 @@ const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
 test('Geoapify map supports autocomplete search reverse geocoding tiles and markers', () => {
   for (const pattern of [/geocode\/autocomplete/, /geocode\/reverse/, /maps\.geoapify\.com/, /onPointerUp/, /marker/, /attribution|openstreetmap\.org\/copyright/i])
     assert.match(map, pattern)
-  assert.match(map, /VITE_GEOAPIFY_API_KEY/)
+  assert.match(map, /const apiKey = '[a-f0-9]{32}'/)
+  assert.doesNotMatch(map, /import\.meta\.env\.VITE_GEOAPIFY_API_KEY/)
   assert.match(map, /bias: 'countrycode:cr'/)
 })
 test('creation uses map only for VISIT and sends coordinates to CRM', () => {
@@ -24,8 +25,8 @@ test('complete activity editor persists coordinates while detail renders locatio
   assert.match(detail, /record\.locationLatitude != null/)
   assert.match(detail, /readonly/)
 })
-test('Geoapify key is build-configurable for staging and production', () => {
-  assert.match(read('Dockerfile'), /ARG VITE_GEOAPIFY_API_KEY/)
+test('Geoapify is ready without configuration in environment files', () => {
+  assert.doesNotMatch(read('Dockerfile'), /VITE_GEOAPIFY_API_KEY/)
   for (const path of ['.github/workflows/deploy-staging.yml','.github/workflows/deploy-production.yml'])
-    assert.match(read(path), /--build-arg VITE_GEOAPIFY_API_KEY/)
+    assert.doesNotMatch(read(path), /VITE_GEOAPIFY_API_KEY/)
 })

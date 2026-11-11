@@ -1,3 +1,8 @@
+## [1.32.4] - 2026-11-11
+
+- PATCH DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095: utiliza la clave pública Geoapify suministrada directamente en el componente del mapa de visitas CRM, sin requerir variables `.env` ni argumentos de compilación Docker; conserva autocompletado, puntos, coordenadas y API REST.
+- Se requiere restringir la clave por HTTP referrers en Geoapify. Compatible con DholeCRMService 1.19.0. Ecosistema Dhole 1.32.4; verificación CI y staging pendientes.
+
 ## [1.32.3] - 2026-11-11
 
 - PATCH DH-20261111-PRICING-SELLER-SYNC-094: el wizard reconoce una modificación completada por Pricing en el guardado, limpia el envío pendiente local, refresca la bandeja y vuelve a la QUO sin crear otra revisión. Reintentar una solicitud ya completada es idempotente.

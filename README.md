@@ -43,6 +43,6 @@ pnpm build
 
 ## Ubicaciones de visitas comerciales con Geoapify
 
-Para habilitar el mapa y la búsqueda de direcciones, configurar `VITE_GEOAPIFY_API_KEY` en el entorno del build de DholeWeb (en los despliegues se lee desde el archivo protegido `DHOLE_ENV_FILE`). En Geoapify, restringir esta clave pública a los dominios de staging y producción mediante *HTTP referrer restrictions*. No almacenar credenciales privadas en el frontend ni en Git.
+La clave pública de navegador de Geoapify está configurada directamente en `src/modules/crm/components/CrmVisitMapPicker.vue`: no requiere `.env` ni argumento de Docker. Dado que el código y el navegador exponen esta clave, **restringir el uso mediante HTTP referrers** a los dominios autorizados de producción y staging en la consola de Geoapify, y supervisar su cuota.
 
-El mapa aparece únicamente si el tipo de actividad es **Visita** y permite buscar lugares y negocios, arrastrar, hacer zoom y seleccionar un punto. Al crear/editar se envía `locationText`, `locationLatitude` y `locationLongitude` a DholeCRMService 1.19.0; las actividades antiguas sin coordenadas siguen disponibles.
+El mapa aparece únicamente si el tipo de actividad es **Visita** y permite buscar direcciones y negocios, mover el mapa, hacer zoom y seleccionar un punto. Al crear/editar se envía `locationText`, `locationLatitude` y `locationLongitude` a DholeCRMService 1.19.0; las actividades antiguas sin coordenadas siguen disponibles.

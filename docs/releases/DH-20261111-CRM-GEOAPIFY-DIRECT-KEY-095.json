@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.32.4",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.32.3",
+      "next": "1.32.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.19.0",
+      "next": "1.19.0",
+      "unchanged": true
+    }
+  ],
+  "changes": [
+    "Usar la clave pública Geoapify del usuario directamente en el selector de visitas en navegador sin archivo .env",
+    "Eliminar configuración VITE_GEOAPIFY_API_KEY de Docker y workflows; añadir pruebas de regresión"
+  ],
+  "releaseBranch": "feature/geoapify-direct-key-20261111-develop",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}

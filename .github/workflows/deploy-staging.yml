@@ -98,7 +98,6 @@ jobs:
           VITE_API_URL="$(read_env VITE_API_URL)"
           VITE_APP_NAME="$(read_env VITE_APP_NAME)"
           VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
-          VITE_GEOAPIFY_API_KEY="$(read_env VITE_GEOAPIFY_API_KEY)"
           VITE_DHOLE_REALTIME_ENABLED="true" # staging-only catalog pilot; prod build unchanged
           VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_ENABLED"
           VITE_DHOLE_REALTIME_RELEASE="rt-20261107-01"
@@ -113,7 +112,6 @@ jobs:
             --build-arg VITE_API_URL="$VITE_API_URL" \
             --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
             --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
-            --build-arg VITE_GEOAPIFY_API_KEY="$VITE_GEOAPIFY_API_KEY" \
             --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
             --build-arg VITE_RELEASE_CHANNEL="staging" \
             --build-arg VITE_DHOLE_REALTIME_ENABLED="$VITE_DHOLE_REALTIME_ENABLED" \
