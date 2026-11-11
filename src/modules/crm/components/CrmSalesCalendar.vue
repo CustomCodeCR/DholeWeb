@@ -106,13 +106,13 @@ watch(calendarDirectory, users => {
   for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
   calendarLabels.value = { ...calendarLabels.value, owners }
 })
-const ownerChoices = computed(() => [...new Set([
-  ...calendarDirectory.value.map(user => user.id),
-  ...rows.value.map(x => x.ownerId),
-].filter(Boolean))]
-  .sort((a,b) => (calendarDirectory.value.find(u => u.id === a)?.displayName || calendarLabels.value.owners[a] || a)
-    .localeCompare(calendarDirectory.value.find(u => u.id === b)?.displayName || calendarLabels.value.owners[b] || b)))
-const eventOwnerChoices = computed(() => [...new Set(rows.value.map(x => x.ownerId).filter(Boolean))])
+const ownerChoices = computed(() => calendarDirectory.value.map(user => user.id)
+  .sort((a,b) => (calendarDirectory.value.find(u => u.id === a)?.displayName || a)
+    .localeCompare(calendarDirectory.value.find(u => u.id === b)?.displayName || b)))
+const eventOwnerChoices = computed(() => {
+  const sellers = new Set(calendarDirectory.value.map(user => user.id))
+  return [...new Set(rows.value.map(x => x.ownerId).filter(id => sellers.has(id)))]
+})
 const clientChoices = computed(() => {
   const names = new Map<string, string>()
   for (const item of rows.value) names.set(clientKey(item), clientName(item))
@@ -365,14 +365,15 @@ const listDays = computed(() => visibleDays.value
 const pendingCount = computed(() => visibleRows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
 const selectedAccount = computed(() => accounts.value.find(x => x.id === editor.value.accountId))
 const selectedLead = computed(() => leads.value.find(x => x.id === editor.value.leadId))
-const assignees = computed(() => {
-  const mine = String(auth.userId ?? '')
-  const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
-    ? String(selectedAccount.value?.executiveUserId ?? '')
-    : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
-  return [...new Set([mine,
-    ...(canAssignOtherSellers.value ? [seller, ...sellerDirectory.value.map(x => x.id)] : [])
-  ].filter(Boolean))]
+const assignees = computed(() => canAssignOtherSellers.value
+  ? sellerDirectory.value.map(user => user.id)
+  : [String(auth.userId ?? '')].filter(Boolean))
+function eligibleSeller(id: string): boolean {
+  return sellerDirectory.value.some(user => user.id === id)
+}
+watch(sellerDirectory, users => {
+  if (canAssignOtherSellers.value && users.length && !eligibleSeller(editor.value.ownerId))
+    editor.value.ownerId = users[0]!.id
 })
 function assigneeLabel(id: string) {
   const user = sellerDirectory.value.find(x => x.id === id)
@@ -436,7 +437,7 @@ function openCreation(date?: Date) {
       if (!creationOpen.value || editor.value.accountId !== account.id) return
       accounts.value = [account]
       const assigned = String(account.executiveUserId ?? auth.userId ?? '')
-      if (canAssignOtherSellers.value && assigned) editor.value.ownerId = assigned
+      if (canAssignOtherSellers.value && eligibleSeller(assigned)) editor.value.ownerId = assigned
     }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
   }
   if (!scopedRecord.value) {
@@ -488,7 +489,8 @@ watch(() => editor.value.accountId, () => {
     const ownerId = selectedAccount.value?.isCastroFallasExecutive === true
       ? String(auth.userId ?? '') : String(selectedAccount.value?.executiveUserId ?? auth.userId ?? '')
     editor.value.ownerId = canAssignOtherSellers.value
-      ? ownerId : String(auth.userId ?? '')
+      ? (eligibleSeller(ownerId) ? ownerId : sellerDirectory.value[0]?.id ?? '')
+      : String(auth.userId ?? '')
   }
   void loadContacts()
 })
@@ -497,7 +499,8 @@ watch(() => editor.value.leadId, leadId => {
     editor.value.accountId = ''; editor.value.contactId = ''
     const executiveId = String(selectedLead.value?.executiveUserId ?? auth.userId ?? '')
     editor.value.ownerId = canAssignOtherSellers.value
-      ? executiveId : String(auth.userId ?? '')
+      ? (eligibleSeller(executiveId) ? executiveId : sellerDirectory.value[0]?.id ?? '')
+      : String(auth.userId ?? '')
   }
 })
 async function fetchAll(resource: string, from: string, to: string): Promise<{ items: CrmRow[]; truncated: boolean }> {
@@ -609,6 +612,10 @@ const historicalActivityDraft = computed(() =>
 async function create() {
   const data = editor.value
   if (saving.value) return
+  if (canAssignOtherSellers.value && !eligibleSeller(data.ownerId)) {
+    error.value = 'Seleccioná un usuario activo con rol Vendedor antes de guardar.'
+    return
+  }
   if (activityTypesLoading.value) { error.value = 'Consultando los tipos de actividad de Config…'; return }
   if (data.type !== 'FOLLOWUP' && !configuredActivityTypes.value.some(item => item.value === data.type)) {
     error.value = activityTypesError.value || 'El tipo de actividad no existe en Config. Actualizá el catálogo y volvé a intentar.'
@@ -821,7 +828,7 @@ function openEvent(item: CalendarEvent) {
               @keyup.enter.prevent="loadCalendarDirectory" />
           </label>
           <button type="button" class="calendar-btn" :disabled="calendarDirectoryLoading"
-            @click="loadCalendarDirectory">{{ calendarDirectoryLoading ? 'Buscando…' : 'Buscar usuarios' }}</button>
+            @click="loadCalendarDirectory">{{ calendarDirectoryLoading ? 'Buscando…' : 'Buscar vendedores' }}</button>
           <p v-if="calendarDirectoryError" role="alert" class="w-full text-xs text-amber-600">{{ calendarDirectoryError }}</p>
         </div>
         <label class="calendar-label">Filtrar por vendedor
