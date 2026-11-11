@@ -15,7 +15,8 @@ interface QuoteDashboard {
   linkedOnly: boolean
   truncated?: boolean
 }
-const props = defineProps<{ accountId: string; refreshKey?: number }>()
+const props = defineProps<{ accountId?: string; leadId?: string; refreshKey?: number }>()
+const isLead = computed(() => Boolean(props.leadId))
 const stats = ref<QuoteDashboard | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -115,14 +116,21 @@ async function loadDashboard() {
   stats.value = null
   error.value = ''
   disposeCharts()
-  if (!props.accountId) return
+  if (!props.accountId && !props.leadId) return
   loading.value = true
   try {
     // Count the authoritative Pricing RateHeaders linked by CRM account ID.
     // CRM's opportunity-only dashboard omits manually migrated historical QUOs.
-    const result = await fetchClient<QuoteDashboard>(
-      '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId) + '/dashboard',
-      { method: 'GET' })
+    let result: QuoteDashboard | null = null
+    if (props.leadId) {
+      result = await fetchClient<QuoteDashboard>(
+        '/api/pricing/rates/crm-lead/' + encodeURIComponent(props.leadId) + '/dashboard',
+        { method: 'GET' })
+    } else if (props.accountId) {
+      result = await fetchClient<QuoteDashboard>(
+        '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId) + '/dashboard',
+        { method: 'GET' })
+    }
     if (requestId !== generation) return
     stats.value = result
   } catch (cause) {
@@ -132,7 +140,7 @@ async function loadDashboard() {
     if (requestId === generation) loading.value = false
   }
 }
-watch(() => [props.accountId, props.refreshKey], () => { void loadDashboard() }, { immediate: true })
+watch(() => [props.accountId, props.leadId, props.refreshKey], () => { void loadDashboard() }, { immediate: true })
 watch(stats, async () => {
   await nextTick()
   renderCharts()
@@ -141,12 +149,12 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
 </script>
 
 <template>
-  <div class="mb-5 space-y-4" aria-label="Dashboard de cotizaciones del cliente">
+  <div class="mb-5 space-y-4" aria-label="Dashboard de cotizaciones comerciales">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-sm font-extrabold">Indicadores de cotizaciones del cliente</h3>
+        <h3 class="text-sm font-extrabold">Indicadores de cotizaciones {{ isLead ? 'del prospecto' : 'del cliente' }}</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Estados oficiales de Pricing para todas las QUO vinculadas por ID a esta cuenta, incluidas las históricas.
+          {{ isLead ? 'Estados oficiales de Pricing de todas las QUO vinculadas por ID al prospecto, aunque no tengan oportunidad CRM.' : 'Estados oficiales de Pricing para todas las QUO vinculadas por ID a esta cuenta, incluidas las históricas.' }}
         </p>
       </div>
       <button type="button" class="hub-outline-button hub-small"
@@ -158,7 +166,7 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
       {{ error }}
     </div>
     <p v-if="loading" class="py-6 text-center text-sm text-[var(--dh-text-muted)]">
-      Consultando indicadores de esta cuenta…
+      Consultando indicadores de {{ isLead ? 'este prospecto' : 'esta cuenta' }}…
     </p>
     <template v-else-if="stats">
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -187,18 +195,20 @@ onBeforeUnmount(() => { ++generation; disposeCharts() })
         </section>
       </div>
       <p v-else class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-center text-sm text-[var(--dh-text-muted)]">
-        Aún no hay cotizaciones verificadas para esta cuenta.
+        Aún no hay cotizaciones vinculadas a {{ isLead ? 'este prospecto' : 'esta cuenta' }}.
       </p>
       <p v-if="stats.truncated" class="text-xs text-amber-700 dark:text-amber-300">
-        El cliente tiene más de 5000 cotizaciones; los indicadores muestran solo las primeras 5000.
+        Hay más de 5000 cotizaciones; los indicadores por estado muestran hasta 5000 registros.
       </p>
       <p v-if="stats.pendingSync" class="text-xs text-amber-700 dark:text-amber-300">
         {{ stats.pendingSync }} cotización(es) con actualización de estado pendiente desde Pricing.
       </p>
       <p class="text-xs text-[var(--dh-text-muted)]">
-        Datos de cotizaciones asociadas directamente por ID a esta cuenta, consultadas en tiempo real a Pricing.
-        No se atribuyen tarifas por coincidencia de nombre. “Enviadas” incluye pendientes de respuesta,
-        solicitadas por el cliente y vencidas. “Aprobadas” significa aceptadas por el cliente.
+        {{ isLead
+          ? 'Datos oficiales de Pricing de todas las QUO vinculadas directamente por ID a este prospecto. No se atribuyen tarifas por coincidencia de nombre.'
+          : 'Datos de cotizaciones asociadas directamente por ID a esta cuenta, consultadas en tiempo real a Pricing. No se atribuyen tarifas por coincidencia de nombre.' }}
+        “Enviadas” incluye pendientes de respuesta, solicitadas por el cliente y vencidas.
+        “Aprobadas” significa aceptadas por el cliente.
       </p>
     </template>
   </div>
