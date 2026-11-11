@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { DhModal } from '@/shared/components/organisms'
+import { DhMultiSelect } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
@@ -131,6 +132,13 @@ const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
 const selectedContactIds = ref<string[]>([])
+const contactChoices = computed(() => contactRows.value.map(contact => ({
+  value: String(contact.contactId ?? contact.id),
+  label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
+})).filter(option => option.value && option.value !== 'undefined'))
+const currentUserCanOwnAgenda = computed(() =>
+  ['Vendedor', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']
+    .some(role => auth.hasRole(role)))
 const sellerDirectory = calendarDirectory
 const sellerLoading = calendarDirectoryLoading
 const sellerError = calendarDirectoryError
@@ -365,14 +373,15 @@ const listDays = computed(() => visibleDays.value
 const pendingCount = computed(() => visibleRows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
 const selectedAccount = computed(() => accounts.value.find(x => x.id === editor.value.accountId))
 const selectedLead = computed(() => leads.value.find(x => x.id === editor.value.leadId))
-const assignees = computed(() => {
-  const mine = String(auth.userId ?? '')
-  const seller = editor.value.accountId && selectedAccount.value?.isCastroFallasExecutive !== true
-    ? String(selectedAccount.value?.executiveUserId ?? '')
-    : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
-  return [...new Set([mine,
-    ...(canAssignOtherSellers.value ? [seller, ...sellerDirectory.value.map(x => x.id)] : [])
-  ].filter(Boolean))]
+// Only an active Vendedor role (including Supervisor/Jefe) or SuperUsuario
+// may be selected as responsible. Auth filters the shared directory.
+const assignees = computed(() => [...new Set([
+  ...(currentUserCanOwnAgenda.value ? [String(auth.userId ?? '')] : []),
+  ...(canAssignOtherSellers.value ? sellerDirectory.value.map(user => user.id) : []),
+].filter(Boolean))])
+watch(assignees, ids => {
+  if (creationOpen.value && ids.length && !ids.includes(editor.value.ownerId))
+    editor.value.ownerId = ids[0] ?? ''
 })
 function assigneeLabel(id: string) {
   const user = sellerDirectory.value.find(x => x.id === id)
@@ -668,14 +677,14 @@ async function create() {
       })
     } else {
       await crmRequest(crmPath('activities'), 'POST', {
-        ...common, contactId: data.contactId || null, ownerUserId: data.ownerId || auth.userId,
+        ...common, contactId: selectedContactIds.value[0] || null, ownerUserId: data.ownerId || auth.userId,
         type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
         scheduledEndAt: end.toISOString(),
         occurredAt: historicalActivity ? end.toISOString() : null,
         repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
         locationText: data.location.trim() || null,
         involved: selectedContactIds.value
-          .map(id => contactRows.value.find(x => String(x.id) === id)?.name)
+           .map(id => contactChoices.value.find(contact => contact.value === id)?.label)
           .filter(Boolean).join(', ') || null,
         minutes: data.minutes.trim() || null,
         participantContactIds: selectedContactIds.value,
@@ -1055,12 +1064,12 @@ function openEvent(item: CalendarEvent) {
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
           Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
         </div>
-        <label v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')" class="calendar-label">Contacto principal de la cuenta
-          <select v-model="editor.contactId" class="calendar-input">
-            <option value="">Sin contacto específico</option>
-            <option v-for="contact in contactRows" :key="contact.id" :value="contact.id">{{ contact.name }}</option>
-          </select>
-        </label>
+        <DhMultiSelect v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')"
+          v-model="selectedContactIds" class="sm:col-span-2"
+          label="Personas involucradas · contactos de la cuenta"
+          :options="contactChoices" placeholder="Seleccionar contactos"
+          search-placeholder="Buscar contactos de esta cuenta..."
+          empty-text="No hay contactos disponibles en esta cuenta." />
         <label class="calendar-label">Vendedor responsable
           <select v-model="editor.ownerId" class="calendar-input" required>
             <option v-for="owner in assignees" :key="owner" :value="owner">
@@ -1069,6 +1078,7 @@ function openEvent(item: CalendarEvent) {
           </select>
         </label>
         <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando vendedores disponibles…</p>
+        <p v-if="!assignees.length" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay vendedores o superusuarios habilitados para asignar esta actividad.</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
         <label class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
@@ -1108,17 +1118,9 @@ function openEvent(item: CalendarEvent) {
           </p>
         </div>
         <template v-if="editor.type!=='FOLLOWUP'">
-          <fieldset v-if="editor.accountId" class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
-            <legend class="px-1 text-xs font-bold">Personas involucradas · contactos de la cuenta</legend>
-            <p v-if="!can('crm.contact.read')" class="text-xs text-[var(--dh-text-muted)]">Necesitás el permiso de lectura de contactos para seleccionar participantes.</p>
-            <p v-else-if="!contactRows.length" class="text-xs text-[var(--dh-text-muted)]">Esta cuenta todavía no tiene contactos disponibles.</p>
-            <div v-else class="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
-              <label v-for="contact in contactRows" :key="contact.id" class="flex items-center gap-2 text-xs">
-                <input v-model="selectedContactIds" type="checkbox" :value="String(contact.id)" class="accent-[var(--dh-primary)]" />
-                <span>{{ contact.name || contact.displayName }}</span>
-              </label>
-            </div>
-          </fieldset>
+          <p v-if="editor.accountId && !can('crm.contact.read')" class="sm:col-span-2 text-xs text-amber-600">
+            Necesitás permiso de lectura de contactos para seleccionar participantes.
+          </p>
           <label class="calendar-label sm:col-span-2">Minuta de la actividad
             <textarea v-model="editor.minutes" rows="9" maxlength="20000"
               class="calendar-input min-h-48 resize-y"
