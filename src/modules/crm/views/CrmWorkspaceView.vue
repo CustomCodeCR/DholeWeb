@@ -20,7 +20,7 @@ import { identificationOptionsForCountry, normalizeIdentificationType } from '..
 import { crmAction, crmCreate, crmEnabled, crmError, crmList, crmPatch,
   crmRequest, crmUuid, crmPath, fromUtc, type CrmRow } from '../services/crmApi'
 import { crmSectionScope } from '../model/crmForms'
-import { crmDuplicateProspectAlert } from '../model/crmDuplicateProspect'
+import { crmDuplicateProspectAlert, rememberLocalDuplicateProspectAlert } from '../model/crmDuplicateProspect'
 import { useToastStore } from '@/core/stores/toastStore'
 import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import { crmAgendaClientName, crmAgendaExecutiveName, crmAgendaIdentityIds,
@@ -645,6 +645,7 @@ async function save() {
     if (duplicate) {
       error.value = duplicate.message
       // Visible immediately; the form and entered data remain intact.
+      rememberLocalDuplicateProspectAlert(duplicate.existingProspectId)
       toastStore.warning(duplicate.title, duplicate.message)
     } else {
       error.value = crmError(e)
