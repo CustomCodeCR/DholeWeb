@@ -21,6 +21,7 @@ const downloading = ref('')
 const error = ref('')
 const notice = ref('')
 const recordMayUpload = ref(false)
+let refreshSequence = 0
 const canView = computed(() => auth.hasScope('storage.files.view'))
 const canDownload = computed(() => auth.hasScope('storage.files.download'))
 const canUpload = computed(() => recordMayUpload.value && auth.hasScope('storage.files.create'))
@@ -36,6 +37,9 @@ function selected(event: Event) {
   selectedFiles.value = Array.from(target.files ?? [])
 }
 async function refresh() {
+  const sequence = ++refreshSequence
+  const recordId = props.recordId
+  const kind = props.kind
   files.value = []
   recordMayUpload.value = false
   notice.value = ''
@@ -44,15 +48,20 @@ async function refresh() {
   loading.value = true
   try {
     const access = await crmRequest<{ canUpload: boolean }>(
-      crmPath('documents/' + props.kind, props.recordId, 'access'))
+      crmPath('documents/' + kind, recordId, 'access'))
+    if (sequence !== refreshSequence) return
     recordMayUpload.value = access.canUpload === true
     if (!canView.value) {
       error.value = 'Para consultar los documentos necesitás el permiso storage.files.view.'
       return
     }
-    files.value = await StorageService.getFilesByEntity('DholeCRMService', entityType.value, props.recordId)
-  } catch (cause) { error.value = crmError(cause) }
-  finally { loading.value = false }
+    const found = await StorageService.getFilesByEntity('DholeCRMService', 'crm.' + kind, recordId)
+    if (sequence === refreshSequence) files.value = found
+  } catch (cause) {
+    if (sequence === refreshSequence) error.value = crmError(cause)
+  } finally {
+    if (sequence === refreshSequence) loading.value = false
+  }
 }
 async function upload() {
   if (!canUpload.value || !validRecord.value || uploading.value || !selectedFiles.value.length) return
