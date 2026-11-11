@@ -3,6 +3,9 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronDown, ClipboardList, Pencil, Plus, RefreshCw, Search, Trash2, UsersRound, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
+import { StorageService } from '@/core/services/storageService'
+import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
+import CrmFileDropzone from './CrmFileDropzone.vue'
 
 type Procedure = {
   id: string
@@ -27,6 +30,8 @@ const deleteCandidate = ref<string | null>(null)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
 const draft = reactive({ name: '', detail: '', assignedTeam: '' })
+const pendingDocuments = ref<File[]>([])
+const canAttach = computed(() => canEdit.value && auth.hasScope('storage.files.create'))
 
 const endpoint = () => crmPath('accounts', props.accountId, 'specific-procedures')
 const shown = computed(() => {
@@ -63,6 +68,7 @@ function closeEditor() {
   draft.name = ''
   draft.detail = ''
   draft.assignedTeam = ''
+  pendingDocuments.value = []
 }
 function newProcedure() {
   closeEditor()
@@ -81,6 +87,10 @@ function editProcedure(item: Procedure) {
 }
 async function save() {
   if (saving.value) return
+  if (pendingDocuments.value.length && !canAttach.value) {
+    error.value = 'Necesitás permisos de Storage para adjuntar documentos.'
+    return
+  }
   const name = draft.name.trim()
   if (!name) { error.value = 'El nombre del procedimiento es obligatorio.'; return }
   if (name.length > 160 || draft.detail.trim().length > 8000 || draft.assignedTeam.trim().length > 500) {
@@ -100,9 +110,36 @@ async function save() {
       name, detail: draft.detail.trim() || null, assignedTeam: draft.assignedTeam.trim() || null,
       expectedVersion: previous?.rowVersion ?? null,
     })
-    closeEditor()
+    // Remember a successful creation before attempting Storage uploads.
+    // A failed attachment must never cause a second procedure on retry.
+    editingId.value = result.id
+    procedures.value = [result, ...procedures.value.filter(item => item.id !== result.id)]
     success.value = 'Procedimiento guardado correctamente.'
     expandedId.value = result.id
+    if (pendingDocuments.value.length) {
+      const access = await crmRequest<{ canUpload: boolean }>(
+        crmPath('documents/procedure', result.id, 'access'))
+      if (!access.canUpload) throw new Error('No tenés permiso para adjuntar archivos a este procedimiento.')
+      const failed: File[] = []
+      for (const file of pendingDocuments.value) {
+        try {
+          await StorageService.uploadFile({
+            file, sourceService: 'DholeCRMService', entityType: 'crm.procedure',
+            entityId: result.id,
+          })
+        } catch (cause) {
+          failed.push(file)
+        }
+      }
+      pendingDocuments.value = failed
+      if (failed.length) {
+        await load()
+        error.value = failed.length + ' archivo(s) no se pudieron subir. El procedimiento ya se guardó; podés reintentar sin duplicarlo.'
+        return
+      }
+    }
+    closeEditor()
+    success.value = 'Procedimiento guardado correctamente.'
     await load()
   } catch (cause) {
     error.value = crmError(cause)
@@ -192,6 +229,15 @@ function teamLabels(value: string | null): string[] {
           placeholder="Describa instrucciones, responsables, excepciones y pasos a seguir..."
           class="min-h-40 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-3 text-sm leading-relaxed text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
       </label>
+      <div class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+        <CrmFileDropzone v-model="pendingDocuments" :disabled="saving || !canAttach"
+          label="Documentos del procedimiento" />
+        <p class="text-[11px] text-[var(--dh-text-muted)]">
+          {{ canAttach
+            ? 'Los documentos se subirán al guardar el procedimiento. Podés adjuntar todos los que necesités.'
+            : 'Se requieren permisos de edición y storage.files.create para adjuntar archivos.' }}
+        </p>
+      </div>
       <div class="flex flex-wrap justify-end gap-2">
         <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-xs font-bold" @click="closeEditor">Cancelar</button>
         <button type="submit" :disabled="saving || !draft.name.trim()" class="rounded-xl bg-[var(--dh-primary)] px-5 py-2.5 text-xs font-extrabold text-white disabled:opacity-50">
@@ -258,6 +304,7 @@ function teamLabels(value: string | null): string[] {
             </div>
             <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin equipo asignado.</p>
           </div>
+          <CrmDocumentsPanel kind="procedure" :record-id="procedure.id" />
           <div v-if="canEdit" class="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
             <button type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
               @click="editProcedure(procedure)"><Pencil class="h-3.5 w-3.5" />Editar</button>
