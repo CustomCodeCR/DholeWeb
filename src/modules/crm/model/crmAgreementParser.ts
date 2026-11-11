@@ -5,6 +5,7 @@
  */
 export interface CrmAgreementDraft {
   source: string
+  key: string
   title: string
   dueLocal: string
   hasExplicitTime: boolean
@@ -78,9 +79,21 @@ export function crmAgreementDrafts(raw: string, reference: Date = new Date()): C
   return raw.split(/\r?\n|;|(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ])/)
     .map(item => item.trim().replace(/^[•*-]\s*/, ''))
     .filter(Boolean).slice(0, 30)
-    .map(source => ({
-      source,
-      title: source.slice(0, 250),
-      ...crmAgreementDueLocal(source, reference),
-    }))
+    .map((source, index, all) => {
+      // Content and occurrence prevent identical lines from sharing dismissal state.
+      const occurrence = all.slice(0, index).filter(item => item === source).length + 1
+      return {
+        source,
+        key: JSON.stringify([source, occurrence]),
+        title: source.slice(0, 250),
+        ...crmAgreementDueLocal(source, reference),
+      }
+    })
+}
+
+export function crmVisibleAgreementDrafts(
+  drafts: CrmAgreementDraft[],
+  omittedKeys: readonly string[],
+): CrmAgreementDraft[] {
+  return drafts.filter(item => !omittedKeys.includes(item.key))
 }

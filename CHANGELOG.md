@@ -1,3 +1,8 @@
+## [1.25.2] - 2026-11-11
+
+- PATCH DH-20261111-CRM-AGREEMENT-LIST-085: permite quitar individualmente compromisos sugeridos de la lista, conservar íntegros los «Acuerdos alcanzados» y restaurar los compromisos antes de guardar, incluso con líneas repetidas.
+- Los compromisos omitidos no generan agenda, avisos ni seguimiento. Conserva REST/SignalR; versión global 1.26.1, CI/staging pendientes, sin autorización de producción.
+
 ## [1.25.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-WORKSPACE-TABS-084: unifica las pestañas de Prospectos y Agenda/Seguimientos entre listas, actividades y fichas de detalle; evita duplicados al restaurar sesiones, conserva el registro activo y respeta los demás grupos.
