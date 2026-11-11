@@ -627,10 +627,6 @@ async function create() {
     error.value = 'Seleccioná un usuario activo con rol Vendedor o SuperUsuario antes de guardar.'
     return
   }
-  if (canAssignOtherSellers.value && !eligibleSeller(data.ownerId)) {
-    error.value = 'Seleccioná un usuario activo con rol Vendedor antes de guardar.'
-    return
-  }
   if (activityTypesLoading.value) { error.value = 'Consultando los tipos de actividad de Config…'; return }
   if (data.type !== 'FOLLOWUP' && !configuredActivityTypes.value.some(item => item.value === data.type)) {
     error.value = activityTypesError.value || 'El tipo de actividad no existe en Config. Actualizá el catálogo y volvé a intentar.'
