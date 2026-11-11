@@ -26,3 +26,15 @@ test('Castro Fallas appears for creation and reassignment without Auth sentinel 
   assert.match(detail, /assignToCastroFallas: selectedExecutive.value === '__castro_fallas__'/)
   assert.match(detail, /executiveUserId: selectedExecutive.value === '__castro_fallas__' \? null/)
 })
+
+test('Castro Fallas is visible in accounts and prospects by default and pinned above Auth sellers', () => {
+  assert.match(picker, /withDefaults\(defineProps<\{ modelValue: string; label\?: string; allowInstitutional\?: boolean \}>\(\),\s*\{\s*allowInstitutional: true/)
+  assert.match(picker, /const showHouseSeller = computed\(\(\) => props\.allowInstitutional\)/)
+  assert.match(workspace, /label="Ejecutivo de ventas" :allow-institutional="true"/)
+  assert.match(workspace, /label="Asignar prospecto a un vendedor" :allow-institutional="true"/)
+  assert.match(detail, /label="Ejecutivo" :allow-institutional="true"/)
+  const house = picker.indexOf('<label v-if="showHouseSeller"')
+  const scrollingUsers = picker.indexOf('data-crm-auth-sellers')
+  assert.ok(house > 0 && scrollingUsers > house, 'Castro Fallas must be outside the scrolling list')
+  assert.match(picker, /@change="emit\('update:modelValue', CASTRO_FALLAS_SELLER\)"/)
+})
