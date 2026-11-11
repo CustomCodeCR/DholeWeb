@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261110-CRM-LEAD-QUO-PARITY-080",
+  "ecosystemVersion": "1.22.0",
+  "releaseType": "MINOR",
+  "createdAt": "2026-11-10",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "from": "1.21.1",
+      "version": "1.22.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "from": "1.9.12",
+      "version": "1.10.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "from": "1.21.0",
+      "version": "1.22.0"
+    }
+  ],
+  "unchangedServices": [
+    "DholeCRMService",
+    "DholeAuthService",
+    "DholeApiGateway",
+    "DholeNotificationsService"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "pending"
+  },
+  "productionDeploymentAuthorized": false,
+  "changes": [
+    "Lead QUO and dashboard read directly from Pricing ClientLeadId",
+    "CRM lead historical QUO linkage confirms identity and prevents taking another subject's quote",
+    "Prospect tabs, automatic priced routes and quotation history comparable to Accounts"
+  ],
+  "rollback": "Revert coordinated release commits; no migrations."
+}
