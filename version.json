@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.37.2",
-  "ecosystemVersion": "1.37.2",
-  "releaseId": "DH-20261111-PRICING-QUO-LINK-ACTION-106",
+  "version": "1.38.0",
+  "ecosystemVersion": "1.38.0",
+  "releaseId": "DH-20261111-CRM-ACCOUNT-INLINE-RELATIONS-107",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261111-PRICING-QUO-LINK-ACTION-106"
+  "businessReleaseId": "DH-20261111-CRM-ACCOUNT-INLINE-RELATIONS-107"
 }
