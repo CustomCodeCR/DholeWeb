@@ -5,7 +5,10 @@ import { DhButton, DhInput } from '@/shared/components/atoms'
 import { UsersService } from '@/core/services/usersService'
 import type { UserDto } from '@/core/interfaces/users'
 
-const props = defineProps<{ modelValue: string; label?: string; allowInstitutional?: boolean }>()
+// Vue casts omitted Boolean props to false; the shared CRM picker must default to showing the house seller.
+const props = withDefaults(defineProps<{ modelValue: string; label?: string; allowInstitutional?: boolean }>(), {
+  allowInstitutional: true,
+})
 // Pricing already represents the institutional seller with this sentinel.
 // The CRM API never receives it as a user GUID: it receives assignToCastroFallas=true.
 const CASTRO_FALLAS_SELLER = '__castro_fallas__'
@@ -93,8 +96,8 @@ async function searchUsers() {
       : 'No se pudo consultar el personal comercial de Auth. Castro Fallas sigue disponible.'
   } finally { if (request === requestVersion) loading.value = false }
 }
-const showHouseSeller = computed(() => props.allowInstitutional !== false &&
-  (!query.value.trim() || normalize('Castro Fallas').includes(normalize(query.value))))
+// Always show this institutional choice independently of the Auth directory and its search.
+const showHouseSeller = computed(() => props.allowInstitutional)
 void searchUsers()
 </script>
 
@@ -107,8 +110,9 @@ void searchUsers()
       <DhButton :icon="Search" label="Buscar" :loading="loading" variant="secondary" size="sm"
         @click="searchUsers" />
     </div>
-    <div class="max-h-72 overflow-y-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-1"
+    <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-1"
       role="radiogroup" aria-label="Vendedores y Castro Fallas">
+      <!-- Keep the institutional seller pinned above the scrollable Auth user list. -->
       <label v-if="showHouseSeller"
         class="flex cursor-pointer items-center gap-3 rounded-lg border-b border-[var(--dh-border)] p-3 transition hover:bg-[var(--dh-shell)]"
         :class="modelValue === CASTRO_FALLAS_SELLER ? 'bg-[var(--dh-primary)]/10 ring-1 ring-[var(--dh-primary)]' : ''">
@@ -120,6 +124,7 @@ void searchUsers()
           <span class="block text-xs text-[var(--dh-text-muted)]">Vendedor institucional</span>
         </span>
       </label>
+      <div class="max-h-72 overflow-y-auto" data-crm-auth-sellers>
       <label v-for="person in users" :key="person.id"
         class="flex cursor-pointer items-center gap-3 rounded-lg p-3 transition hover:bg-[var(--dh-shell)]"
         :class="modelValue === person.id ? 'bg-[var(--dh-primary)]/10 ring-1 ring-[var(--dh-primary)]' : ''">
@@ -131,9 +136,10 @@ void searchUsers()
         </span>
         <span v-if="isCastroFallasAccount(person)" class="text-xs font-bold text-[var(--dh-primary)]">Castro Fallas</span>
       </label>
-      <p v-if="!users.length && !showHouseSeller" class="p-4 text-center text-xs text-[var(--dh-text-muted)]">
+      <p v-if="!users.length" class="p-4 text-center text-xs text-[var(--dh-text-muted)]">
         {{ loading ? 'Consultando roles de ventas…' : 'No hay ejecutivos confirmados para esta búsqueda.' }}
       </p>
+      </div>
     </div>
     <p v-if="error" role="alert" class="text-xs text-amber-500">{{ error }}</p>
 

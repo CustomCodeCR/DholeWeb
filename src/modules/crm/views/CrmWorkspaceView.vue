@@ -1042,7 +1042,7 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                   <CrmRelationshipPicker label="Tipo de relación comercial" :model-value="String(form.relationshipTypeCode ?? '')"
                     @update:model-value="form.relationshipTypeCode=$event" />
                   <CrmExecutivePicker v-if="!edited && can('crm.account.assign') && can('auth.users.view')"
-                    :model-value="String(form.executiveUserId ?? '')" label="Ejecutivo de ventas"
+                    :model-value="String(form.executiveUserId ?? '')" label="Ejecutivo de ventas" :allow-institutional="true"
                     @update:model-value="form.executiveUserId=$event" />
                 </div>
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
@@ -1080,7 +1080,7 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
             </div>
             <div v-if="section === 'leads' && !edited" class="sm:col-span-2">
               <CrmExecutivePicker v-if="can('crm.lead.assign') && can('auth.users.view')"
-                :model-value="String(form.executiveUserId ?? '')" label="Asignar prospecto a un vendedor"
+                :model-value="String(form.executiveUserId ?? '')" label="Asignar prospecto a un vendedor" :allow-institutional="true"
                 @update:model-value="form.executiveUserId = $event" />
               <p v-if="can('crm.lead.assign')" class="mt-2 text-xs text-[var(--dh-text-muted)]">
                 Si no seleccionás otro vendedor, el prospecto se asigna a tu usuario.

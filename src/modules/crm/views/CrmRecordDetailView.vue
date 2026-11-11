@@ -1079,7 +1079,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           :subtitle="section === 'activities' ? 'Actividad comercial' : section === 'followups' ? 'Seguimiento comercial' : t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
         <DhDrawer :open="showExecutiveDrawer" :title="section === 'leads' ? 'Asignar vendedor al prospecto' : 'Asignar ejecutivo comercial'" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
-            <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo"
+            <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo" :allow-institutional="true"
               @update:model-value="selectedExecutive=$event" />
             <label v-if="section === 'accounts'" class="block text-xs font-bold text-[var(--dh-text-muted)]">
               Motivo de reasignación
