@@ -1,3 +1,9 @@
+## [1.28.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-DOCUMENT-DROPZONE-086: zonas drag & drop accesibles, con selección múltiple acumulativa y sin tope artificial de documentos en cuentas, prospectos, contactos, actividades, seguimientos y procedimientos específicos.
+- Vista previa protegida de PDF, imágenes y texto; descarga de todos los formatos, validación de 100 MB por archivo, borrado de elementos en cola y recuperación ante fallos sin duplicar registros.
+- Ecosistema Dhole 1.28.0; DholeCRMService 1.16.0. CI y staging pendientes, producción no autorizada.
+
 ## [1.27.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: cada procedimiento específico de una cuenta admite múltiples documentos enlazados a su ID por Dhole Storage, carga al crear o editar, reintento seguro sin duplicar procedimientos y consulta de adjuntos en la tarjeta desplegable.
