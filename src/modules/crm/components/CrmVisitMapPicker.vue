@@ -161,6 +161,7 @@ async function selectRegisteredLocation(item: RegisteredVisitLocation) {
   searchError.value = ''
   mapError.value = ''
   suggestions.value = []
+  searching.value = false
   searchAttempted.value = false
   const lat = item.locationLatitude == null ? null : Number(item.locationLatitude)
   const lon = item.locationLongitude == null ? null : Number(item.locationLongitude)
@@ -203,6 +204,7 @@ function chooseSuggestion(item: Suggestion) {
   pointGeneration++
   reverseAbort?.abort()
   suggestions.value = []
+  registeredGeocodeAbort?.abort()
   searchText.value = suggestionLabel(item)
   searchError.value = ''
   center.value = { latitude: item.lat, longitude: item.lon }
@@ -211,6 +213,7 @@ function chooseSuggestion(item: Suggestion) {
 }
 async function reverseGeocode(latitude: number, longitude: number) {
   const id = ++pointGeneration
+  registeredGeocodeAbort?.abort()
   reverseAbort?.abort()
   reverseAbort = new AbortController()
   const fallback = latitude.toFixed(6) + ', ' + longitude.toFixed(6)
@@ -356,6 +359,7 @@ function onPointerUp(event: PointerEvent) {
 function clearLocation() {
   pointGeneration++
   reverseAbort?.abort()
+  registeredGeocodeAbort?.abort()
   generation++
   searchAbort?.abort()
   searchText.value = ''
