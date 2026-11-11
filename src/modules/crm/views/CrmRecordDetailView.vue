@@ -136,15 +136,17 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'analysis' | 'quotes' | 'agenda' | 'conversion'
+type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'conversion'
 const leadTab = ref<LeadTab>('summary')
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
-  ...(can('crm.analysis.read') ? [{ key: 'analysis' as const, label: 'Análisis comercial y rutas', icon: Route }] : []),
+  { key: 'profile' as const, label: 'Ficha prospecto', icon: FileText },
+  ...(can('crm.analysis.read') ? [{ key: 'analysis' as const, label: 'Análisis comercial', icon: Route }] : []),
   ...(can('crm.quote.read') && (can('crm.opportunity.read') || can('crm.opportunity.read-all'))
     ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
+  ...(can('crm.analysis.read') ? [{ key: 'history' as const, label: 'Historial de rutas', icon: Route }] : []),
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
-    ? [{ key: 'agenda' as const, label: 'Agenda y seguimientos', icon: CalendarClock }] : []),
+    ? [{ key: 'agenda' as const, label: 'Seguimientos', icon: CalendarClock }] : []),
   ...(can('crm.lead.convert') && can('crm.account.create')
     ? [{ key: 'conversion' as const, label: 'Convertir a cuenta', icon: UsersRound }] : []),
 ])
@@ -1033,6 +1035,27 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
 
 
+      <section v-if="section === 'leads' && leadTab === 'profile'"
+        id="crm-lead-panel-profile" role="tabpanel"
+        class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4">
+        <div>
+          <h2 class="text-base font-extrabold">Ficha del prospecto</h2>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Información comercial y de contacto guardada en CRM, antes de convertirlo en cuenta.</p>
+        </div>
+        <dl class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div v-for="[label,value] in [
+            ['Nombre del prospecto',record.name],['Razón social',record.companyName],
+            ['Vendedor asignado',leadExecutiveName],['Cédula',record.taxId],
+            ['Correo',record.contactEmail],['Teléfono',record.phone],
+            ['Estado de calificación',record.qualificationStatus],
+            ['Origen',record.sourceCode],['Relación comercial',record.relationshipTypeCode],
+            ['Versión',record.rowVersion],['Creado',record.createdAt],['Última actualización',record.updatedAt]
+          ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+            <dt class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ label }}</dt>
+            <dd class="mt-1 break-words text-sm font-semibold">{{ value || '—' }}</dd>
+          </div>
+        </dl>
+      </section>
       <div v-if="section === 'leads' && leadTab === 'analysis'"
         id="crm-lead-panel-analysis" role="tabpanel" class="min-w-0">
         <CrmLeadCommercialPanel :lead="record" view="analysis" />
@@ -1040,6 +1063,10 @@ onMounted(() => { if (crmEnabled()) void load() })
       <div v-if="section === 'leads' && leadTab === 'quotes'"
         id="crm-lead-panel-quotes" role="tabpanel" class="min-w-0">
         <CrmLeadCommercialPanel :lead="record" view="quotes" />
+      </div>
+      <div v-if="section === 'leads' && leadTab === 'history'"
+        id="crm-lead-panel-history" role="tabpanel" class="min-w-0">
+        <CrmLeadCommercialPanel :lead="record" view="history" />
       </div>
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
