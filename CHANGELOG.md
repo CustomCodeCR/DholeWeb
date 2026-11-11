@@ -1,4 +1,4 @@
-## [1.22.0] - 2026-11-10
+## [1.23.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-ACCOUNT-CATEGORY-SCOPE-082: La creación, edición y conversión de prospectos restringen la selección de categoría a usuarios con crm.account.category.manage; los demás ven la clasificación inicial automática.
 - Pruebas CI, staging y autorización de producción pendientes.
