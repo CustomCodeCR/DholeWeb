@@ -175,7 +175,7 @@ const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
   { key: 'profile' as const, label: 'Ficha prospecto', icon: FileText },
   ...(can('crm.analysis.read') ? [{ key: 'analysis' as const, label: 'Análisis comercial', icon: Route }] : []),
-  ...(can('crm.quote.read') && (can('crm.opportunity.read') || can('crm.opportunity.read-all'))
+  ...(can('crm.quote.read')
     ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
   ...(can('crm.analysis.read') ? [{ key: 'history' as const, label: 'Historial de rutas', icon: Route }] : []),
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
@@ -1177,15 +1177,15 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
       <div v-if="section === 'leads' && leadTab === 'analysis'"
         id="crm-lead-panel-analysis" role="tabpanel" class="min-w-0">
-        <CrmLeadCommercialPanel :lead="record" view="analysis" />
+        <CrmLeadCommercialPanel :lead="record" :seller-name="leadExecutiveName" view="analysis" />
       </div>
       <div v-if="section === 'leads' && leadTab === 'quotes'"
         id="crm-lead-panel-quotes" role="tabpanel" class="min-w-0">
-        <CrmLeadCommercialPanel :lead="record" view="quotes" />
+        <CrmLeadCommercialPanel :lead="record" :seller-name="leadExecutiveName" view="quotes" />
       </div>
       <div v-if="section === 'leads' && leadTab === 'history'"
         id="crm-lead-panel-history" role="tabpanel" class="min-w-0">
-        <CrmLeadCommercialPanel :lead="record" view="history" />
+        <CrmLeadCommercialPanel :lead="record" :seller-name="leadExecutiveName" view="history" />
       </div>
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
