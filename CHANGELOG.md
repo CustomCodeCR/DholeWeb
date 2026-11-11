@@ -1,3 +1,8 @@
+## [1.35.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-QUOTE-MULTI-CONTACTS-102: elimina selección de QUO individual. Configuración persistente por cuenta con DhMultiSelect para varios contactos que recibirán todas las próximas cotizaciones, con CC al vendedor asignado.
+- Validación de correos y pertenencia a la cuenta, envío idempotente por Outbox y compatibilidad REST/realtime. Ecosistema Dhole 1.35.0; CI y staging pendientes.
+
 ## [1.34.1] - 2026-11-11
 
 - PATCH DH-20261111-SRM-SUPPLIER-CREDIT-SAVE-101: corrige guardado SRM con contactos y crédito, con validación visible en el drawer, desplazamiento hasta la sección afectada y pruebas ejecutables.
