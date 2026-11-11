@@ -7,6 +7,7 @@ import type { StorageFileDto } from '@/core/interfaces/storage'
 import { useModalStore } from '@/core/stores/modalStore'
 import StorageFileViewer from '@/modules/storage/components/StorageFileViewer.vue'
 import { crmPath, crmRequest, crmError } from '../services/crmApi'
+import CrmFileDropzone from './CrmFileDropzone.vue'
 
 type CrmDocumentKind = 'account' | 'lead' | 'contact' | 'activity' | 'followup' | 'procedure'
 const props = defineProps<{ kind: CrmDocumentKind; recordId: string }>()
@@ -14,9 +15,9 @@ const auth = useAuthStore()
 const modal = useModalStore()
 const files = ref<StorageFileDto[]>([])
 const selectedFiles = ref<File[]>([])
-const input = ref<HTMLInputElement | null>(null)
 const loading = ref(false)
 const uploading = ref(false)
+const uploadProgress = ref({ done: 0, total: 0 })
 const downloading = ref('')
 const error = ref('')
 const notice = ref('')
@@ -31,10 +32,6 @@ const entityType = computed(() => 'crm.' + props.kind)
 function fileSize(bytes: number): string {
   return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB'
     : Math.max(1, Math.ceil(bytes / 1024)) + ' KB'
-}
-function selected(event: Event) {
-  const target = event.target as HTMLInputElement
-  selectedFiles.value = Array.from(target.files ?? [])
 }
 async function refresh() {
   const sequence = ++refreshSequence
@@ -66,6 +63,7 @@ async function refresh() {
 async function upload() {
   if (!canUpload.value || !validRecord.value || uploading.value || !selectedFiles.value.length) return
   uploading.value = true
+  uploadProgress.value = { done: 0, total: selectedFiles.value.length }
   error.value = ''
   notice.value = ''
   try {
@@ -81,8 +79,8 @@ async function upload() {
         entityId: props.recordId,
       })
       selectedFiles.value = selectedFiles.value.filter(item => item !== file)
+      uploadProgress.value.done++
     }
-    if (input.value) input.value.value = ''
     await refresh()
     notice.value = 'Documentos adjuntados correctamente.'
   } catch (cause) { error.value = crmError(cause) }
@@ -155,11 +153,10 @@ watch(() => [props.kind, props.recordId], () => void refresh(), { immediate: tru
     </ul>
     <p v-else-if="canView && !error" class="text-xs text-[var(--dh-text-muted)]">Todavía no hay documentos adjuntos.</p>
     <div v-if="canUpload" class="space-y-2 border-t border-[var(--dh-border)] pt-4">
-      <label class="block text-xs font-bold" :for="'crm-docs-' + props.kind + props.recordId">Adjuntar archivos</label>
-      <input :id="'crm-docs-' + props.kind + props.recordId" ref="input" type="file" multiple
-        class="block w-full rounded-lg border border-[var(--dh-border)] p-2 text-xs"
-        :disabled="uploading" @change="selected" />
-      <p class="text-[11px] text-[var(--dh-text-muted)]">Podés seleccionar varios archivos. Máximo 100 MB por archivo.</p>
+      <CrmFileDropzone v-model="selectedFiles" :disabled="uploading" label="Adjuntar documentos" />
+      <p v-if="uploading" role="status" class="text-xs text-[var(--dh-text-muted)]">
+        Subiendo {{ uploadProgress.done }} de {{ uploadProgress.total }} documentos…
+      </p>
       <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-xs font-bold text-white"
         :disabled="uploading || !selectedFiles.length" @click="upload">
         <Upload class="h-3.5 w-3.5" />{{ uploading ? 'Adjuntando…' : 'Guardar documentos' }}
