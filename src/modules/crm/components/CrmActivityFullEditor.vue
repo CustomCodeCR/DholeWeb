@@ -185,6 +185,7 @@ watch(() => props.activity.rowVersion, () => {
         </label>
         <div v-if="form.type === 'VISIT'" class="sm:col-span-2">
           <CrmVisitMapPicker :model-value="{ address: form.locationText, latitude: form.locationLatitude, longitude: form.locationLongitude }"
+            :account-id="String(activity.accountId ?? '')" :lead-id="String(activity.leadId ?? '')"
             @update:model-value="applyVisitLocation" />
         </div>
         <label class="space-y-1 text-xs font-bold">Inicio programado
