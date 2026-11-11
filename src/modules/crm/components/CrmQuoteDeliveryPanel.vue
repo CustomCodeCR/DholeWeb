@@ -1,72 +1,97 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PricingService } from '@/core/services/pricingService'
-import type { CrmRow } from '../services/crmApi'
+import { crmPath, crmRequest, type CrmRow } from '../services/crmApi'
 
+type DeliveryTarget = 'seller' | 'client'
+interface DeliveryPreference {
+  deliveryTarget: DeliveryTarget
+  contactId: string | null
+  rowVersion: number
+  updatedAtUtc: string | null
+}
 const props = defineProps<{
-  quote: CrmRow | null
-  quotes: CrmRow[]
+  accountId: string
   contacts: CrmRow[]
   sellerName: string
   authorized: boolean
-  quotesLoading?: boolean
-  quotesError?: string
 }>()
 const emit = defineEmits<{
-  (e: 'sent'): void
+  (e: 'saved'): void
   (e: 'cancel'): void
   (e: 'open-contacts'): void
-  (e: 'open-quotes'): void
 }>()
 
-type RecipientMode = 'seller' | 'client'
-const destination = ref<RecipientMode>('seller')
-const selectedQuoteId = ref(String(props.quote?.pricingQuoteId ?? ''))
+const destination = ref<DeliveryTarget>('seller')
 const selectedContactId = ref('')
-const sending = ref(false)
+const rowVersion = ref(0)
+const updatedAtUtc = ref<string | null>(null)
+const loading = ref(false)
+const saving = ref(false)
+const loaded = ref(false)
 const error = ref('')
-
-const selectedQuote = computed(() => props.quotes.find(
-  quote => String(quote.pricingQuoteId) === selectedQuoteId.value) ?? null)
+const notice = ref('')
+let generation = 0
 const emailContacts = computed(() => props.contacts.filter(contact => {
   const email = String(contact.email ?? '').trim()
   return Boolean(contact.id) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }))
 const selectedContact = computed(() => emailContacts.value.find(
   contact => String(contact.id) === selectedContactId.value))
-const canSend = computed(() => props.authorized && !sending.value && !props.quotesLoading &&
-  Boolean(selectedQuote.value) &&
+const canSave = computed(() => loaded.value && props.authorized &&
+  !loading.value && !saving.value &&
   (destination.value === 'seller' || Boolean(selectedContact.value)))
 
-watch(() => props.quote?.pricingQuoteId, quoteId => {
-  selectedQuoteId.value = String(quoteId ?? '')
-  destination.value = 'seller'
-  selectedContactId.value = ''
+async function loadPreference() {
+  const current = ++generation
+  loaded.value = false
+  loading.value = true
   error.value = ''
-})
-watch(() => props.quotes, quotes => {
-  if (selectedQuoteId.value && !quotes.some(
-    quote => String(quote.pricingQuoteId) === selectedQuoteId.value)) {
-    selectedQuoteId.value = ''
-  }
-})
-
-async function sendQuote() {
-  if (!canSend.value || !selectedQuote.value) return
-  sending.value = true
-  error.value = ''
+  notice.value = ''
   try {
-    await PricingService.setRateStatus(String(selectedQuote.value.pricingQuoteId), {
-      status: 'Sent',
-      deliveryTarget: destination.value,
-      contactId: destination.value === 'client' ? selectedContactId.value : null,
-    })
-    emit('sent')
+    const preference = await crmRequest<DeliveryPreference>(
+      crmPath('accounts', props.accountId, 'quote-delivery-preference'))
+    if (current !== generation) return
+    destination.value = preference.deliveryTarget === 'client' ? 'client' : 'seller'
+    selectedContactId.value = preference.contactId || ''
+    rowVersion.value = preference.rowVersion
+    updatedAtUtc.value = preference.updatedAtUtc
+    loaded.value = true
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message
-      : 'No se pudo preparar el correo. La cotización no se marcó como enviada.'
+    if (current === generation)
+      error.value = cause instanceof Error ? cause.message :
+        'No se pudo cargar la configuración de envíos de esta cuenta.'
   } finally {
-    sending.value = false
+    if (current === generation) loading.value = false
+  }
+}
+
+watch(() => props.accountId, () => { void loadPreference() }, { immediate: true })
+
+async function savePreference() {
+  if (!canSave.value) return
+  saving.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    const saved = await crmRequest<DeliveryPreference>(
+      crmPath('accounts', props.accountId, 'quote-delivery-preference'),
+      'PUT',
+      {
+        deliveryTarget: destination.value,
+        contactId: destination.value === 'client' ? selectedContactId.value : null,
+        expectedVersion: rowVersion.value,
+      })
+    destination.value = saved.deliveryTarget
+    selectedContactId.value = saved.contactId || ''
+    rowVersion.value = saved.rowVersion
+    updatedAtUtc.value = saved.updatedAtUtc
+    notice.value = 'Preferencia guardada. Se aplicará a todas las cotizaciones futuras de esta cuenta.'
+    emit('saved')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message :
+      'No se pudo guardar la preferencia. No se modificaron los destinatarios.'
+  } finally {
+    saving.value = false
   }
 }
 </script>
@@ -74,56 +99,32 @@ async function sendQuote() {
 <template>
   <form id="crm-account-quote-delivery"
     class="rounded-xl border border-[var(--dh-primary)]/35 bg-[var(--dh-card)] p-4 shadow-sm space-y-4"
-    aria-label="Elegir destinatario de cotización" @submit.prevent="sendQuote">
+    aria-label="Configurar envío de todas las cotizaciones futuras" @submit.prevent="savePreference">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 class="text-base font-extrabold text-[var(--dh-text)]">Enviar cotización</h3>
+        <h3 class="text-base font-extrabold text-[var(--dh-text)]">Configurar envío de cotizaciones</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Seleccioná la QUO y decidí si el PDF se envía al vendedor o a un contacto del cliente.
+          La alternativa guardada se utilizará automáticamente en todas las próximas cotizaciones
+          vinculadas a esta cuenta. No envía ninguna cotización ahora.
         </p>
       </div>
-      <button type="button" :disabled="sending" class="hub-outline-button hub-small"
-        aria-label="Cerrar envío de cotización" @click="emit('cancel')">Cerrar</button>
+      <button type="button" :disabled="saving" class="hub-outline-button hub-small"
+        @click="emit('cancel')">Cerrar</button>
     </div>
 
-    <p v-if="!authorized" class="text-sm text-amber-600" role="alert">
-      No tenés los permisos necesarios para enviar cotizaciones de esta cuenta.
+    <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">
+      Cargando preferencia actual…
     </p>
-
-    <div class="space-y-2">
-      <label for="crm-quote-to-send" class="block text-xs font-bold">Cotización disponible *</label>
-      <select id="crm-quote-to-send" v-model="selectedQuoteId" :disabled="sending || quotesLoading || !authorized"
-        class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm text-[var(--dh-text)]">
-        <option value="">Seleccioná la cotización</option>
-        <option v-for="item in quotes" :key="String(item.pricingQuoteId)"
-          :value="String(item.pricingQuoteId)">
-          {{ item.quoteNumberSnapshot || item.pricingQuoteId }} · {{ item.shipmentModeSnapshot || 'QUO' }}
-        </option>
-      </select>
-      <p v-if="quotesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">
-        Cargando cotizaciones vinculadas…
-      </p>
-      <p v-else-if="quotesError" role="alert" class="text-xs text-amber-600">
-        {{ quotesError }}
-      </p>
-      <div v-else-if="!quotes.length" class="space-y-2 text-xs text-[var(--dh-text-muted)]">
-        <p>Esta cuenta aún no tiene cotizaciones disponibles para enviar. Podés crear o vincular
-          una QUO y después elegir a quién enviarla.</p>
-        <button type="button" class="hub-text-link" @click="emit('open-quotes')">
-          Ir a Cotizaciones
-        </button>
-      </div>
-    </div>
-
-    <fieldset class="grid gap-3 sm:grid-cols-2" :disabled="sending || !authorized">
-      <legend class="mb-2 text-xs font-bold">¿A quién enviar?</legend>
+    <p v-if="!authorized" role="alert" class="text-xs text-amber-600">
+      Necesitás permiso para actualizar esta cuenta.
+    </p>
+    <fieldset class="grid gap-3 sm:grid-cols-2" :disabled="loading || saving || !authorized">
+      <legend class="mb-2 text-xs font-bold">Destinatario de todas las cotizaciones futuras</legend>
       <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--dh-border)] p-3">
         <input v-model="destination" type="radio" value="seller" class="mt-1 accent-[var(--dh-primary)]" />
         <span class="text-sm">
           <strong class="block">Solo al vendedor</strong>
-          <span class="text-xs text-[var(--dh-text-muted)]">
-            {{ sellerName || 'Vendedor asignado a la cuenta' }}
-          </span>
+          <span class="text-xs text-[var(--dh-text-muted)]">{{ sellerName }}</span>
         </span>
       </label>
       <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--dh-border)] p-3">
@@ -136,33 +137,38 @@ async function sendQuote() {
     </fieldset>
 
     <div v-if="destination === 'client'" class="space-y-2">
-      <label for="crm-quote-delivery-contact" class="block text-xs font-bold">Contacto del cliente *</label>
+      <label for="crm-quote-delivery-contact" class="block text-xs font-bold">
+        Contacto que recibirá las próximas cotizaciones *
+      </label>
       <select id="crm-quote-delivery-contact" v-model="selectedContactId"
-        :disabled="sending || !authorized"
+        :disabled="loading || saving || !authorized"
         class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2 text-sm text-[var(--dh-text)]">
         <option value="">Seleccioná un contacto</option>
-        <option v-for="contact in emailContacts" :key="String(contact.id)" :value="String(contact.id)">
+        <option v-for="contact in emailContacts" :key="String(contact.id)"
+          :value="String(contact.id)">
           {{ contact.name || contact.displayName }} · {{ contact.email }}
         </option>
       </select>
-      <div v-if="!emailContacts.length" class="space-y-2">
-        <p class="text-xs text-amber-600">
-          No hay contactos con correo válido vinculados a esta cuenta.
-        </p>
+      <p v-if="!emailContacts.length" class="text-xs text-amber-600">
+        Esta cuenta no tiene contactos con correo válido.
         <button type="button" class="hub-text-link" @click="emit('open-contacts')">
-          Ir a Contactos para añadir uno
+          Agregar contacto
         </button>
-      </div>
+      </p>
       <p v-else class="text-xs text-[var(--dh-text-muted)]">
         Para: {{ selectedContact?.email || 'Seleccioná un contacto' }} · CC: {{ sellerName }}
       </p>
     </div>
 
+    <p v-if="updatedAtUtc" class="text-xs text-[var(--dh-text-muted)]">
+      Última actualización: {{ new Date(updatedAtUtc).toLocaleString('es-CR') }}
+    </p>
+    <p v-if="notice" role="status" class="text-xs font-semibold text-emerald-500">{{ notice }}</p>
     <p v-if="error" role="alert" class="text-xs font-semibold text-red-500">{{ error }}</p>
     <div class="flex justify-end">
-      <button type="submit" :disabled="!canSend"
+      <button type="submit" :disabled="!canSave"
         class="rounded-lg bg-[var(--dh-primary)] px-4 py-2 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50">
-        {{ sending ? 'Preparando envío…' : 'Confirmar y enviar cotización' }}
+        {{ saving ? 'Guardando…' : 'Guardar para todas las próximas cotizaciones' }}
       </button>
     </div>
   </form>
