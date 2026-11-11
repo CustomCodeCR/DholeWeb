@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261111-CRM-VISIT-LOCATIONS-096",
+  "date": "2026-11-11",
+  "type": "MINOR",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.34.0",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.32.4",
+      "next": "1.34.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.19.0",
+      "next": "1.21.0"
+    }
+  ],
+  "changes": [
+    "Mapa de visitas conectado con ubicaciones registradas de clientes y prospectos",
+    "Autocompletado Geoapify y fallback de geocodificación de texto libre",
+    "Alta y edición de ubicaciones de prospectos, validación y pruebas de regresión"
+  ],
+  "releaseBranch": "feature/crm-visit-registered-locations-search-20261111-master",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
