@@ -1,3 +1,9 @@
+## [1.37.0] - 2026-11-11
+
+- MINOR DH-20261111-PRICING-QUO-LINKED-104: nuevo estado comercial QUOVinculada para cotizaciones cuya operación fue aceptada bajo otra QUO del mismo cliente. El vínculo a la QUO aceptada es obligatorio, persistente y validado en Pricing.
+- El módulo Web muestra «Cliente aceptó otra QUO» con búsqueda, selección y navegación al documento aceptado; las tarifas vinculadas se muestran por separado y no computan como vencidas o no aceptadas.
+- Componente DholeWeb 1.36.1 → 1.37.0, ecosistema Dhole 1.37.0. Contratos REST, SignalR e infraestructura Outbox preservados. CI/staging pendientes; sin autorización de producción.
+
 ## [1.36.1] - 2026-11-11
 
 - PATCH DH-20261111-SRM-CREDIT-PERSIST-103: exige verificación de lectura posterior al POST/PUT para confirmar que los campos de crédito (plazo, límite, moneda, intereses y conceptos) y los contactos se almacenaron realmente. Nunca confirma éxito antes del readback; conserva el formulario si la persistencia no coincide y evita reintentos silenciosos.
