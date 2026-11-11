@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { supplierSaveIssue } from '../src/modules/srm/utils/srmSupplierSave.ts'
-import { srmMutationFailure } from '../src/modules/srm/services/srmApi.ts'
+import { supplierSaveIssue, srmMutationFailure } from '../src/modules/srm/utils/srmSupplierSave.ts'
 const contact = { name: 'Operaciones', email: 'contacto@ejemplo.com', phone: '+50688887777', role: 'Encargado', countryId: 'country-1' }
 const credit = {
   contacts: [contact], creditEnabled: true, creditDays: '120', creditLimit: '1200000',

@@ -1,6 +1,7 @@
 import { fetchClient } from '@/core/api/fetchConfig'
 import { unwrapApiResponse, unwrapListResponse, type ApiResponse } from '@/core/api/apiResponse'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
+import { srmMutationFailure } from '../utils/srmSupplierSave'
 
 // Fixed SRM routes are hosted by Config but authorize only their dedicated srm.* scopes.
 // Never expose generic catalog group/item administration to SRM-only users.
@@ -22,21 +23,6 @@ export interface SrmLegacyPartner {
 const base = '/api/config/srm'
 
 /** Config can return a 200 response carrying an application-level failure. */
-export function srmMutationFailure(response: unknown): string | null {
-  let current: unknown = response
-  for (let depth = 0; depth < 3; depth++) {
-    if (!current || typeof current !== 'object' || Array.isArray(current)) break
-    const result = current as Record<string, unknown>
-    if (result.success === false || result.isSuccess === false) {
-      if (typeof result.message === 'string' && result.message.trim()) return result.message
-      if (Array.isArray(result.errors) && result.errors.length)
-        return result.errors.map(String).join(', ')
-      return 'El servicio de proveedores rechazó el guardado.'
-    }
-    current = result.data ?? result.result
-  }
-  return null
-}
 function verifySrmMutation(response: unknown): void {
   const message = srmMutationFailure(response)
   if (message) throw new Error(message)
