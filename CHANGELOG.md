@@ -1,3 +1,8 @@
+## [1.21.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-CONTACTS-SELLERS-078: DhMultiSelect único para contactos de actividad y añadido múltiple en participantes de su detalle, sin duplicados. Mantiene los cambios previos en prospectos de 1.20.2.
+- Auth filtra responsables a vendedor/superusuarios; CRM valida asignaciones. Sin migración ni cambios de SignalR.
+
 ## [1.20.2] - 2026-11-10
 
 - PATCH DH-20261110-CRM-LEAD-PARITY-079: incorpora a Prospectos pestañas Ficha e Historial de rutas, y gráficos de cotizaciones vinculadas mediante oportunidades por ID. Corrige el tipo de pestaña history del CRM, preserva el dashboard de Pricing para Cuentas y los cambios de vendedores/compromisos de 1.20.1.
