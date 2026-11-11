@@ -1,3 +1,8 @@
+## [1.36.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-CREDIT-PERSIST-103: los botones Guardar/Actualizar proveedor SRM utilizan submit nativo con novalidate y capturan cualquier error previo al API; luego verifican por lectura real que el crédito y contactos se almacenaron antes de confirmar éxito. Con datos inconsistentes mantiene el formulario abierto y explica el fallo.
+- Incluye pruebas de regresión con crédito 120 días, límite 1.200.000 USD, tasas 0% e incluidos/excluidos. Conserva la arquitectura REST/realtime. Ecosistema 1.36.1; CI y staging pendientes, no autorizado producción.
+
 ## [1.36.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-QUOTE-MULTI-CONTACTS-102: versión de master actualizada tras release concurrente. Elimina selector de cotización y usa DhMultiSelect para configurar varios contactos por cuenta para todas las cotizaciones futuras.

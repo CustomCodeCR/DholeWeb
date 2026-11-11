@@ -156,8 +156,10 @@ test('SRM supplier contact phone follows the selected country', () => {
   assert.ok(view.includes('countryId: countryIds.value.includes(contact.countryId)'))
 })
 test('SRM save button triggers validation and create/update even with invalid HTML inputs', () => {
-  assert.ok(view.includes('novalidate @submit.prevent="saveSupplier"'))
-  assert.ok(view.includes('data-srm-save-button @click="saveSupplier"'))
+  assert.ok(view.includes('novalidate @submit.prevent="submitSupplierSafely"'))
+  assert.ok(view.includes('type="submit" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"'))
+  assert.ok(view.includes('data-srm-save-button'))
+  assert.ok(view.includes('async function submitSupplierSafely()'))
   assert.ok(view.includes('data-srm-save-error'))
   assert.ok(view.includes('if (!supplierName.value.trim())'))
   assert.ok(view.includes('if (!validSupplierType.value)'))
