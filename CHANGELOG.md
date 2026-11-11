@@ -1,3 +1,8 @@
+## [1.20.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: formulario de Nueva actividad unificado; selección múltiple de contactos y minuta ampliada; asignación de agendas autorizadas; cierre de compromisos vinculados y actividad principal accesible.
+- Coordinado con CRM y System; sin migración de datos. CI, staging y autorización de producción pendientes.
+
 ## [1.19.4] - 2026-11-10
 
 - PATCH DH-20261110-CRM-HISTORICAL-ACTIVITIES-075: permite registrar actividades comerciales pasadas conservando fecha y hora originales, completas cuando ya finalizaron, sin recordatorios retroactivos. Las minutas, participantes, acuerdos y compromisos posteriores se conservan. No altera la validación de fechas futuras de seguimientos.
