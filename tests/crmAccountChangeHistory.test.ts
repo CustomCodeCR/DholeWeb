@@ -4,11 +4,15 @@ import { test } from 'node:test'
 
 const hub = readFileSync('src/modules/crm/components/CrmAccountHub.vue', 'utf8')
 
-test('account change history is separate from the commercial route history', () => {
-  assert.match(hub, /key: 'history' as const/)
+test('account change history stays separate while commercial analysis owns all quotation routes', () => {
+  assert.doesNotMatch(hub, /key: 'history' as const/)
+  assert.match(hub, /key: 'commercial' as const/)
   assert.match(hub, /key: 'changes' as const/)
+  assert.match(hub, /activeTab === 'commercial'/)
   assert.match(hub, /activeTab === 'changes'/)
-  assert.match(hub, /activeTab === 'history'/)
+  assert.doesNotMatch(hub, /activeTab === 'history'/)
+  assert.match(hub, /Rutas y cotizaciones del análisis comercial/)
+  assert.match(hub, /if \(tab === 'commercial' && has\('crm.quote.read'\)\)/)
 })
 
 test('account history loads from the protected CRM endpoint, not local state', () => {
