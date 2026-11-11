@@ -1,3 +1,8 @@
+## [1.21.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-CONTACTS-SELLERS-078: formulario de Nueva actividad y detalle con DhMultiSelect de contactos vinculados, selección múltiple y prevención de duplicados. Conserva el filtro Vendedores 1.20.1 y habilita roles Vendedor/SuperUsuario en coordinación con Auth.
+- El vendedor responsable se valida por Auth y CRM; no cambia la API REST, SignalR, recordatorios ni compromisos.
+
 ## [1.20.1] - 2026-11-10
 
 - PATCH DH-20261110-CRM-SELLERS-COMMITMENTS-078: solo Vendedores activos en selector de responsables, filtros de agenda y leyenda; casilla de compromisos habilitada para responsables autorizados mediante crm.activity.update.
