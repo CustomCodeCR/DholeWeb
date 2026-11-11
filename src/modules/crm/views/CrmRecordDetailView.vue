@@ -632,10 +632,9 @@ async function loadLeadExecutive() {
   }
 }
 function openExecutiveDrawer() {
-  selectedExecutive.value = section.value === 'leads' ? ''
-    : record.value?.isCastroFallasExecutive === true
-      ? '__castro_fallas__'
-      : String(record.value?.executiveUserId ?? '')
+  selectedExecutive.value = record.value?.isCastroFallasExecutive === true
+    ? '__castro_fallas__'
+    : String(record.value?.executiveUserId ?? '')
   executiveReason.value = ''
   showExecutiveDrawer.value = true
 }
@@ -649,7 +648,9 @@ async function reassignExecutive() {
   try {
     if (section.value === 'leads') {
       await crmRequest(crmPath('leads', id.value, 'assign'), 'POST', {
-        expectedVersion: version(), executiveUserId: selectedExecutive.value,
+        expectedVersion: version(),
+        executiveUserId: selectedExecutive.value === '__castro_fallas__' ? null : selectedExecutive.value,
+        assignToCastroFallas: selectedExecutive.value === '__castro_fallas__',
       }, crmUuid())
     } else {
       await crmRequest(crmPath('accounts', id.value, 'assign'), 'POST', {
@@ -1078,7 +1079,6 @@ onMounted(() => { if (crmEnabled()) void load() })
         <DhDrawer :open="showExecutiveDrawer" :title="section === 'leads' ? 'Asignar vendedor al prospecto' : 'Asignar ejecutivo comercial'" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
             <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo"
-              :allow-institutional="section === 'accounts'"
               @update:model-value="selectedExecutive=$event" />
             <label v-if="section === 'accounts'" class="block text-xs font-bold text-[var(--dh-text-muted)]">
               Motivo de reasignación
