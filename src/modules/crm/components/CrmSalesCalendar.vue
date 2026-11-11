@@ -5,6 +5,7 @@ import { DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { StorageService } from '@/core/services/storageService'
+import CrmFileDropzone from './CrmFileDropzone.vue'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -52,9 +53,6 @@ const rows = ref<CalendarEvent[]>([])
 const agreementDrafts = ref<CrmAgreementDraft[]>([])
 const attachedDocuments = ref<File[]>([])
 const pendingDocumentRecord = ref<{ kind: 'activity' | 'followup'; id: string } | null>(null)
-function selectDocuments(event: Event) {
-  attachedDocuments.value = Array.from((event.target as HTMLInputElement).files ?? [])
-}
 const calendarLabels = ref<{
   accounts: Record<string, string>; leads: Record<string, string>; owners: Record<string, string>
 }>({ accounts: {}, leads: {}, owners: {} })
@@ -1197,11 +1195,9 @@ function openEvent(item: CalendarEvent) {
           </p>
         </template>
         <div class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
-          <label class="calendar-label" for="crm-agenda-documents">Documentos adjuntos (opcional)
-            <input id="crm-agenda-documents" type="file" multiple class="calendar-input"
-              :disabled="saving || !can('storage.files.create')" @change="selectDocuments" />
-          </label>
-          <p class="text-xs text-[var(--dh-text-muted)]">Se guardarán vinculados a la actividad o seguimiento. Máximo 100 MB por archivo.</p>
+          <CrmFileDropzone v-model="attachedDocuments" :disabled="saving || !can('storage.files.create')"
+            label="Documentos de la actividad (opcional)" />
+          <p class="text-xs text-[var(--dh-text-muted)]">Se guardarán vinculados a la actividad o seguimiento. Sin límite de cantidad; máximo 100 MB por archivo.</p>
           <p v-if="!can('storage.files.create')" class="text-xs text-amber-600">Necesitás storage.files.create para adjuntar.</p>
           <p v-if="pendingDocumentRecord" class="text-xs text-amber-600">El registro ya está guardado; reintentá para adjuntar los archivos pendientes sin duplicarlo.</p>
         </div>
