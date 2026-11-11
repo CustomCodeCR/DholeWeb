@@ -1,3 +1,9 @@
+## [1.27.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-PROCEDURE-ATTACHMENTS-085: cada procedimiento específico de una cuenta admite múltiples documentos enlazados a su ID por Dhole Storage, carga al crear o editar, reintento seguro sin duplicar procedimientos y consulta de adjuntos en la tarjeta desplegable.
+- Vista previa protegida de PDF, imágenes y texto con el visor existente; Word y Excel se descargan. La API CRM verifica visibilidad de la cuenta y permisos de edición antes de habilitar adjuntos del procedimiento.
+- Ecosistema Dhole 1.27.0; DholeCRMService 1.15.0. Mantiene contratos REST, SignalR y otros adjuntos CRM. CI y staging por verificar; producción no autorizada.
+
 ## [1.26.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DOCUMENTS-084: documentos asociados por registro en Cuentas, Prospectos, Contactos, Actividades y Seguimientos; carga múltiple mediante Dhole Storage con validación de autorización por registro.
