@@ -1,3 +1,8 @@
+## [1.34.1] - 2026-11-11
+
+- PATCH DH-20261111-SRM-SUPPLIER-CREDIT-SAVE-101: corrige el bloqueo al guardar proveedores SRM con contactos y crédito. Validaciones por sección con mensajes visibles y desplazamiento al campo; casos combinados cubiertos con pruebas ejecutables.
+- Revisa respuestas HTTP 200 con errores funcionales en altas y modificaciones SRM; informa fallos y confirma operaciones correctas. Compatible con API Config existente y prefijos de CRM. Ecosistema 1.34.1; CI y staging pendientes, sin autorización de producción.
+
 ## [1.34.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-VISIT-LOCATIONS-096: selección de ubicaciones registradas de clientes y prospectos en visitas CRM, geocodificación Geoapify con fallback a búsqueda por texto libre y botón Buscar; mensajes HTTP y recuperación manual del marcador.

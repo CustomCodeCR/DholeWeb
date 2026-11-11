@@ -21,6 +21,27 @@ export interface SrmLegacyPartner {
 }
 const base = '/api/config/srm'
 
+/** Config can return a 200 response carrying an application-level failure. */
+export function srmMutationFailure(response: unknown): string | null {
+  let current: unknown = response
+  for (let depth = 0; depth < 3; depth++) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) break
+    const result = current as Record<string, unknown>
+    if (result.success === false || result.isSuccess === false) {
+      if (typeof result.message === 'string' && result.message.trim()) return result.message
+      if (Array.isArray(result.errors) && result.errors.length)
+        return result.errors.map(String).join(', ')
+      return 'El servicio de proveedores rechazó el guardado.'
+    }
+    current = result.data ?? result.result
+  }
+  return null
+}
+function verifySrmMutation(response: unknown): void {
+  const message = srmMutationFailure(response)
+  if (message) throw new Error(message)
+}
+
 export const SrmApi = {
   // Config-owned classification catalog, read via SRM-only permissions.
   async listTypes(): Promise<CatalogItemDto[]> {
@@ -40,9 +61,11 @@ export const SrmApi = {
   },
   async create(collection: SrmCollection, body: SrmRecordInput): Promise<string> {
     const response = await fetchClient<string | ApiResponse<string>>(base + '/' + collection, { method: 'POST', body })
+    verifySrmMutation(response)
     return unwrapApiResponse<string>(response)
   },
   async updateSupplier(id: string, body: SrmRecordInput): Promise<void> {
-    await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'PUT', body })
+    const response = await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'PUT', body })
+    verifySrmMutation(response)
   },
 }
