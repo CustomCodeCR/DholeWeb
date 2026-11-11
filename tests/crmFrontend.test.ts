@@ -561,3 +561,13 @@ test('CRM create activity keeps save and notification activation visible in moda
   assert.match(calendar, /Guardar actividad y activar avisos/)
   assert.match(calendar, /Los avisos de actividades futuras se activan al guardar/)
 })
+
+test('CRM agreement commitments can be completed from their parent activity', () => {
+  const detail = read('src/modules/crm/views/CrmRecordDetailView.vue')
+  assert.ok(detail.includes('markCommitmentCompleted'))
+  assert.ok(detail.includes("crmPath('followups', String(commitment.id), 'complete')"))
+  assert.ok(detail.includes("can('crm.task.manage')"))
+  assert.ok(detail.includes("can('crm.followup.manage')"))
+  assert.ok(detail.includes('@change="markCommitmentCompleted(commitment)"'))
+  assert.ok(detail.includes('Actividad principal asociada'))
+})
