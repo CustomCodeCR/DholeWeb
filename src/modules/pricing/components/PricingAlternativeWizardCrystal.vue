@@ -4684,7 +4684,9 @@ function openLinkedQuoteModal(rateId: string) {
       rateId,
       onLinked: async () => {
         // Al duplicar FCL aún no existe la nueva QUO: mantener el borrador intacto.
-        if (props.rateId) await hydrateExistingRate()
+        if (props.rateId) {
+          await hydrateExistingRate()
+        }
       },
     },
   })
