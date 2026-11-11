@@ -1,3 +1,8 @@
+## [1.22.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-ACCOUNT-CATEGORY-SCOPE-082: La creación, edición y conversión de prospectos restringen la selección de categoría a usuarios con crm.account.category.manage; los demás ven la clasificación inicial automática.
+- Pruebas CI, staging y autorización de producción pendientes.
+
 ## [1.21.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-CONTACTS-ROLE-MULTISELECT-079: DhMultiSelect en creación de actividad y participantes del detalle; selección múltiple de contactos vinculados a la cuenta; solo vendedores y superusuarios elegibles para asignación.
