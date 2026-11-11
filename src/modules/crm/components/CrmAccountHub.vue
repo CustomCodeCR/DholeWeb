@@ -14,6 +14,7 @@ import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
 import CrmDynamicsAccountSheet from './CrmDynamicsAccountSheet.vue'
 import CrmAccountLogo from './CrmAccountLogo.vue'
+import CrmContactForm from './CrmContactForm.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
 import CrmSpecificProceduresManager from './CrmSpecificProceduresManager.vue'
@@ -113,6 +114,13 @@ const accountChangesError = ref('')
 let accountChangesGeneration = 0
 
 const contacts = ref<CrmRow[]>([])
+const contactDrawerOpen = ref(false)
+function onAccountContactSaved() {
+  contactDrawerOpen.value = false
+  contactsPage.value = 1
+  saved.value = locale.value === 'en' ? 'Contact created and linked to this account.' : 'Contacto creado y vinculado a esta cuenta.'
+  void load()
+}
 const contactsPage = ref(1)
 const contactsPageSize = ref(25)
 const pagedContacts = computed(() => contacts.value.slice(
@@ -675,6 +683,7 @@ watch(() => props.account.id, () => {
   pricingQuoteError.value = ''
   contacts.value = []
   contactsPage.value = 1
+  contactDrawerOpen.value = false
   addresses.value = []
   credit.value = []
   contracts.value = []
@@ -1105,8 +1114,17 @@ async function saveRoute() {
     <section v-else-if="activeTab === 'contacts'" id="crm-account-contacts" role="tabpanel" class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div><h2 class="font-extrabold">Contactos de la cuenta</h2><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Personas vinculadas realmente a este cliente.</p></div>
-        <RouterLink to="/crm/contacts" class="hub-outline-button hub-small"><UsersRound class="h-4 w-4" />Directorio de contactos</RouterLink>
+        <div class="flex flex-wrap items-center gap-2">
+          <button v-if="has('crm.contact.create')" type="button"
+            class="inline-flex items-center gap-2 rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white hover:opacity-90"
+            @click="contactDrawerOpen=true"><Plus class="h-4 w-4" />Nuevo contacto</button>
+          <RouterLink to="/crm/contacts" class="hub-outline-button hub-small"><UsersRound class="h-4 w-4" />Directorio de contactos</RouterLink>
+        </div>
       </div>
+      <DhDrawer :open="contactDrawerOpen && has('crm.contact.create')" title="Nuevo contacto" size="lg" @close="contactDrawerOpen=false">
+        <CrmContactForm v-if="contactDrawerOpen" :account-id="String(account.id)"
+          @saved="onAccountContactSaved" @cancel="contactDrawerOpen=false" />
+      </DhDrawer>
       <p v-if="!contacts.length" class="hub-empty">No hay contactos vinculados. Podés administrarlos desde la gestión avanzada de la cuenta.</p>
       <div v-else class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <RouterLink v-for="contact in pagedContacts" :key="contact.id" :to="returnToAccount('/crm/contacts/' + encodeURIComponent(rowId(contact.id)))"
