@@ -1125,8 +1125,8 @@ function openEvent(item: CalendarEvent) {
           </p>
         </div>
         <template v-if="editor.type!=='FOLLOWUP'">
-          <DhMultiSelect v-if="editor.accountId && can('crm.contact.read')"
-            v-model="selectedContactIds"
+          <DhMultiSelect v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')"
+            v-model="selectedContactIds" class="sm:col-span-2"
             label="Personas involucradas · contactos de la cuenta"
             :options="contactChoices"
             placeholder="Seleccionar contactos"
