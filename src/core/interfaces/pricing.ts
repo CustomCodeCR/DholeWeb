@@ -1106,6 +1106,8 @@ export interface SetRateStatusRequest extends Record<string, unknown> {
   idtraNumber?: string | null
   otherReferences?: string | null
   observations?: string | null
+  deliveryTarget?: 'seller' | 'client' | null
+  contactId?: string | null
 }
 
 export interface DeleteBatchRequest extends Record<string, unknown> {

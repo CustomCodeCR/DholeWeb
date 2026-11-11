@@ -1,7 +1,12 @@
 ## [1.32.0] - 2026-11-11
 
-- MINOR DH-20261111-CRM-GEOAPIFY-VISIT-089: mapa Geoapify interactivo con búsqueda de direcciones y negocios, geocodificación inversa y selección de un punto en visitas CRM. Persiste ubicación en creación y edición y la muestra en detalles.
-- Coordinado con DholeCRMService 1.19.0; ecosistema Dhole 1.31.0. CI y staging pendientes, sin autorización de despliegue a producción.
+- MINOR DH-20261111-CRM-GEOAPIFY-VISIT-089: mapa Geoapify para visitas con buscador y autocompletado de direcciones y negocios, marcador al seleccionar el punto y geocodificación inversa. Coordenadas persistidas en creación, edición y detalle.
+- Conserva CRM Quote Delivery 1.31.0 incorporado a master. CRM 1.19.0, ecosistema Dhole 1.32.0; CI/staging pendientes, producción no autorizada.
+
+## [1.31.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-QUOTE-DELIVERY-089: en Cotizaciones de cada cuenta CRM se puede elegir enviar la QUO al vendedor o a un contacto específico del cliente con copia al vendedor asignado.
+- Valida que el contacto tenga correo y pertenezca a la cuenta; envía el PDF comercial mediante el Outbox existente, con correo distinto para el cliente sin vínculos privados. Coordina Pricing 1.11.0 y System 1.31.0; CI y staging pendientes, sin autorización para producción.
 
 ## [1.30.0] - 2026-11-11
 
