@@ -1,3 +1,9 @@
+## [1.31.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-QUOTE-SEND-VISIBLE-092: vuelve siempre visible «Enviar cotización» en el encabezado de cada cuenta CRM, incluso en Cliente y cuando todavía no hay QUO vinculadas. El panel muestra lista de cotizaciones enviables, opciones vendedor/cliente, contacto y CC vendedor asignado; informa cuando faltan tarifas o contactos.
+- Elimina el formulario oculto bajo la pestaña Cotizaciones y conserva la validación del backend/Outbox; protege con test de regresión la disponibilidad del botón y del selector sin QUO.
+- Web 1.31.0 → 1.31.1; ecosistema Dhole 1.32.1; staging y CI obligatorios antes de producción.
+
 ## [1.31.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-QUOTE-DELIVERY-089: en Cotizaciones de cada cuenta CRM se puede elegir enviar la QUO al vendedor o a un contacto específico del cliente con copia al vendedor asignado.
