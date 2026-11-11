@@ -110,6 +110,10 @@ async function submit() {
       </div>
     </div>
 
+    <p v-if="props.rate.status === 'Expired'" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm font-semibold text-[var(--dh-text)]">
+      Esta cotización está vencida. Registrar la decisión no renueva su vigencia; confirme las condiciones comerciales con Pricing.
+    </p>
+
     <div class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <div class="flex items-center gap-2 text-xs font-black text-[var(--dh-primary)]" :class="{ 'mb-4': !isAccept }">
         <FileCheck2 class="h-4 w-4" />

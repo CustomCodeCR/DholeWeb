@@ -36,9 +36,9 @@ export function canDecideSellerQuote(
   modificationWorkOpen: boolean,
 ): boolean {
   if (!rate.revisionPending)
-    return ['Open', 'Sent', 'RequestedByClient'].includes(rate.status)
+    return ['Open', 'Sent', 'RequestedByClient', 'Expired'].includes(rate.status)
 
   return currentSellerWorkflowStatus(rate) === 'Open'
     && !modificationWorkOpen
-    && ['Sent', 'RequestedByClient'].includes(rate.status)
+    && ['Sent', 'RequestedByClient', 'Expired'].includes(rate.status)
 }
