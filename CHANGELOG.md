@@ -1,3 +1,8 @@
+## [1.20.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-AGENDA-UNIFIED-077: unifica Nueva actividad en cuentas/prospectos, selector de participantes desde contactos, minuta redimensionable, asignación de vendedor en agendas con scopes globales y checkbox funcional para compromisos vinculados.
+- Backport de las mejoras de CRM de develop sin modificar otras pantallas. Requiere DholeCRMService 1.5.0. CI y staging previos al merge, sin migraciones.
+
 ## [1.19.5] - 2026-11-10
 
 - PATCH DH-20261110-CRM-GLOBAL-AGENDAS-076: la agenda muestra registros de todos los vendedores a usuarios con crm.activity.read-all o ambos scopes globales de clientes y prospectos; el selector permite elegir usuarios activos mediante un directorio CRM protegido, sin depender del permiso auth.users.view.
