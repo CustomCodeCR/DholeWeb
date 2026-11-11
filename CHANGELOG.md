@@ -1,3 +1,8 @@
+## [1.32.2] - 2026-11-11
+
+- PATCH DH-20261111-PRICING-SELLER-REQUEST-HISTORY-093: la QUO muestra solicitud original de Ventas y todas las modificaciones históricas con vendedor, fecha, estado, revisión de origen, diferencias y adjuntos en componentes independientes. Visible con pricing.rate.view sin alterar la revisión comercial actual.
+- Incluye pruebas de regresión y es compatible con Pricing 1.11.3, ecosistema Dhole 1.32.2. CI y staging pendientes; producción no autorizada.
+
 ## [1.31.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-QUOTE-SEND-VISIBLE-092: vuelve siempre visible «Enviar cotización» en el encabezado de cada cuenta CRM, incluso en Cliente y cuando todavía no hay QUO vinculadas. El panel muestra lista de cotizaciones enviables, opciones vendedor/cliente, contacto y CC vendedor asignado; informa cuando faltan tarifas o contactos.
