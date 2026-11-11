@@ -1,3 +1,8 @@
+## [1.29.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-LEAD-INSTITUTIONAL-087: permite elegir Castro Fallas como vendedor institucional de prospectos en creación y reasignación, enviando el indicador separado en vez de UUID de Auth.
+- Conserva el selector de cuentas, responsables por scopes 1.28.1, controles de acceso, REST/SignalR y pruebas. Backend CRM 1.17.0, ecosistema 1.29.0. CI y staging pendientes; producción no autorizada.
+
 ## [1.28.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-RESPONSIBLES-SCOPES-086: cambia Vendedor responsable por Responsable e incluye usuarios activos con los scopes efectivos crm.activity.read, crm.activity.read-all o crm.followup.manage; se elimina el filtro basado en roles y se actualizan las pruebas.
