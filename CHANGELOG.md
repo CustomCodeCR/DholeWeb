@@ -1,3 +1,8 @@
+## [1.32.3] - 2026-11-11
+
+- PATCH DH-20261111-PRICING-SELLER-SYNC-094: el wizard reconoce una modificación completada por Pricing en el guardado, limpia el envío pendiente local, refresca la bandeja y vuelve a la QUO sin crear otra revisión. Reintentar una solicitud ya completada es idempotente.
+- Coordinado con DholePricingService 1.11.4 y Dhole ecosistema 1.32.3. Recuperación de solicitudes históricas en backend; CI/staging pendientes y sin autorización de despliegue productivo.
+
 ## [1.32.2] - 2026-11-11
 
 - PATCH DH-20261111-PRICING-SELLER-REQUEST-HISTORY-093: la vista de cualquier tarifa con solicitudes vinculadas presenta por separado la solicitud original de Ventas y todas las modificaciones históricas, incluyendo las completadas o canceladas, con vendedor, fecha, estado, revisión de origen y valores originales/solicitados.
