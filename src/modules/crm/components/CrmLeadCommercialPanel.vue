@@ -3,10 +3,11 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
+import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmPage, type CrmRow } from '../services/crmApi'
 
-const props = defineProps<{ lead: CrmRow; view?: 'analysis' | 'quotes' }>()
+const props = defineProps<{ lead: CrmRow; view?: 'analysis' | 'quotes' | 'history' }>()
 const auth = useAuthStore()
 const { locale } = useI18n()
 const can = (scope: string) => auth.hasScope(scope)
@@ -19,9 +20,12 @@ const canCreateOpportunity = computed(() => can('crm.opportunity.create'))
 const analyses = ref<CrmRow[]>([])
 const selectedAnalysisId = ref('')
 const analysisRoutes = ref<CrmRow[]>([])
+const historyRoutes = ref<Array<{ route: CrmRow; analysis: CrmRow }>>([])
+const historyLoading = ref(false)
 const quotes = ref<CrmRow[]>([])
 const quoteTotal = ref(0)
 const quotePage = ref(1)
+const quoteRefreshKey = ref(0)
 const opportunities = ref<CrmRow[]>([])
 const opportunityId = ref('')
 const busy = ref(false)
@@ -68,12 +72,30 @@ async function loadAnalyses() {
     analyses.value = result.items ?? []
     if (!analyses.value.some(x => String(x.id) === selectedAnalysisId.value))
       selectedAnalysisId.value = String(analyses.value[0]?.id ?? '')
-    if (selectedAnalysisId.value) await loadRoutes(selectedAnalysisId.value)
+    if (props.view === 'history') await loadHistoryRoutes(analyses.value, generation)
+    else if (selectedAnalysisId.value) await loadRoutes(selectedAnalysisId.value)
     else analysisRoutes.value = []
   } catch (cause) {
     if (generation === analysisGeneration) loadError.value = crmError(cause)
   } finally {
     if (generation === analysisGeneration) analysisLoading.value = false
+  }
+}
+async function loadHistoryRoutes(list: CrmRow[], generation: number) {
+  historyLoading.value = true
+  historyRoutes.value = []
+  try {
+    const results = await Promise.all(list.map(async analysis => ({
+      analysis,
+      routes: await crmRequest<CrmRow[]>(crmPath('analyses', String(analysis.id), 'routes')),
+    })))
+    if (generation !== analysisGeneration) return
+    historyRoutes.value = results.flatMap(({ analysis, routes }) =>
+      routes.map(route => ({ analysis, route })))
+  } catch (cause) {
+    if (generation === analysisGeneration) loadError.value = crmError(cause)
+  } finally {
+    if (generation === analysisGeneration) historyLoading.value = false
   }
 }
 async function loadRoutes(analysisId: string) {
@@ -122,17 +144,17 @@ async function loadOpportunities() {
 }
 function resetAndLoad() {
   ++analysisGeneration; ++routesGeneration; ++quoteGeneration; ++opportunitiesGeneration
-  analyses.value = []; selectedAnalysisId.value = ''; analysisRoutes.value = []
+  analyses.value = []; selectedAnalysisId.value = ''; analysisRoutes.value = []; historyRoutes.value = []
   quotes.value = []; quoteTotal.value = 0; quotePage.value = 1
   opportunities.value = []; opportunityId.value = ''
   loadError.value = ''; quoteError.value = ''; error.value = ''; success.value = ''
   void Promise.all([
     ...(props.view !== 'quotes' ? [loadAnalyses()] : []),
-    ...(props.view !== 'analysis' ? [loadQuotes(), loadOpportunities()] : []),
+    ...(props.view === 'quotes' ? [loadQuotes(), loadOpportunities()] : []),
   ])
 }
 watch(() => props.lead.id, resetAndLoad, { immediate: true })
-watch(selectedAnalysisId, value => { void loadRoutes(value) })
+watch(selectedAnalysisId, value => { if (props.view === 'analysis') void loadRoutes(value) })
 
 async function createAnalysis() {
   if (!canManageAnalyses.value || busy.value) return
@@ -211,6 +233,7 @@ async function linkQuote() {
     quoteId.value = ''; requestId.value = ''
     quotePage.value = 1
     await loadQuotes()
+    quoteRefreshKey.value++
     success.value = 'Cotización vinculada a la oportunidad de este prospecto.'
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -288,7 +311,37 @@ function quotePageChange(delta: number) {
     </template>
   </section>
 
-  <section v-if="props.view !== 'analysis' && canReadQuotes" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-quotes>
+  <section v-if="props.view === 'history' && canReadAnalyses"
+    class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4"
+    data-crm-lead-route-history>
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 class="text-base font-extrabold">Historial de rutas del prospecto</h2>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Rutas registradas en los análisis comerciales de este prospecto, sin confundirlas con trayectos de cotizaciones o visitas.</p>
+      </div>
+      <span class="text-xs text-[var(--dh-text-muted)]">{{ historyRoutes.length }} rutas registradas</span>
+    </div>
+    <p v-if="loadError" role="alert" class="text-sm text-red-500">{{ loadError }}</p>
+    <p v-if="analysisLoading || historyLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando rutas…</p>
+    <p v-if="!historyRoutes.length && !analysisLoading && !historyLoading" class="text-sm text-[var(--dh-text-muted)]">Todavía no hay rutas documentadas en los análisis del prospecto.</p>
+    <div v-if="historyRoutes.length" class="grid gap-3 md:grid-cols-2">
+      <article v-for="item in historyRoutes" :key="String(item.analysis.id) + ':' + String(item.route.id)"
+        class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+        <p class="text-sm font-bold">
+          {{ String(item.route.polName || item.route.polCode || 'Origen por definir') }}
+          → {{ String(item.route.poeName || item.route.poeCode || 'Puerto de entrada por definir') }}
+          → {{ String(item.route.podName || item.route.podCode || 'Destino por definir') }}
+        </p>
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+          Mercado: {{ String(item.analysis.marketCode || 'No definido') }}
+          · {{ String(item.route.frequencyPerMonth ?? '—') }} movimientos/mes
+        </p>
+        <p v-if="item.route.notes" class="mt-2 whitespace-pre-wrap text-xs">{{ item.route.notes }}</p>
+      </article>
+    </div>
+  </section>
+
+  <section v-if="props.view !== 'analysis' && props.view !== 'history' && canReadQuotes" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5 space-y-4" data-crm-lead-quotes>
     <div class="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 class="text-base font-extrabold">Cotizaciones del prospecto</h2>
@@ -296,6 +349,7 @@ function quotePageChange(delta: number) {
       </div>
       <span class="text-xs text-[var(--dh-text-muted)]">{{ quoteTotal }} cotizaciones</span>
     </div>
+    <CrmAccountQuotesDashboard :lead-id="String(lead.id)" :refresh-key="quoteRefreshKey" />
     <p v-if="quoteError" role="alert" class="text-sm text-red-500">{{ quoteError }}</p>
     <p v-if="quotesLoading" class="text-xs text-[var(--dh-text-muted)]">Cargando cotizaciones…</p>
     <p v-if="!quotes.length && !quotesLoading" class="text-sm text-[var(--dh-text-muted)]">Todavía no existen cotizaciones vinculadas.</p>
