@@ -77,26 +77,33 @@ function clientName(event: CalendarEvent): string {
 function clientKey(event: CalendarEvent): string {
   return event.accountId ? 'a:' + event.accountId : 'l:' + event.leadId
 }
+const canAssignOtherSellers = computed(() => calendarAdmin.value || can('crm.activity.read-all') ||
+  can('crm.account.read-all') || can('crm.lead.read-all'))
 const calendarDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
 const calendarDirectoryQuery = ref('')
 const calendarDirectoryLoading = ref(false)
 const calendarDirectoryError = ref('')
 async function loadCalendarDirectory() {
-  if (!calendarAdmin.value || calendarDirectoryLoading.value) return
+  if (!canAssignOtherSellers.value || calendarDirectoryLoading.value) return
   calendarDirectoryLoading.value = true
   calendarDirectoryError.value = ''
   try {
-    const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
-      crmPath('calendar/users') + '?page=1&pageSize=100&search=' + encodeURIComponent(calendarDirectoryQuery.value.trim()),
-    )
-    calendarDirectory.value = result.items ?? []
+    const users: Array<{ id: string; displayName: string; userName: string }> = []
+    for (let page = 1; page <= 50; page++) {
+      const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+        crmPath('calendar/users') + '?page=' + page + '&pageSize=100&search=' + encodeURIComponent(calendarDirectoryQuery.value.trim()),
+      )
+      users.push(...(result.items ?? []))
+      if (!result.items?.length || users.length >= result.total) break
+    }
+    calendarDirectory.value = users
   } catch {
     calendarDirectoryError.value = 'No se pudo consultar el directorio de usuarios de Auth.'
   } finally {
     calendarDirectoryLoading.value = false
   }
 }
-watch(calendarAdmin, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
+watch(canAssignOtherSellers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
 watch(calendarDirectory, users => {
   const owners = { ...calendarLabels.value.owners }
   for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
@@ -130,7 +137,6 @@ const selectedContactIds = ref<string[]>([])
 const sellerDirectory = ref<UserDto[]>([])
 const sellerLoading = ref(false)
 const sellerError = ref('')
-const canAssignOtherSellers = computed(() => can('crm.activity.read-all'))
 async function loadSellerDirectory() {
   if (!canAssignOtherSellers.value || !can(AUTH_SCOPES.users.view) || sellerLoading.value || sellerDirectory.value.length) return
   sellerLoading.value = true
@@ -381,12 +387,13 @@ const assignees = computed(() => {
     ? String(selectedAccount.value?.executiveUserId ?? '')
     : editor.value.leadId ? String(selectedLead.value?.executiveUserId ?? '') : ''
   return [...new Set([mine, seller,
-    ...(canAssignOtherSellers.value ? sellerDirectory.value.map(x => x.id) : [])
+    ...(canAssignOtherSellers.value ? [...sellerDirectory.value.map(x => x.id), ...calendarDirectory.value.map(x => x.id)] : [])
   ].filter(Boolean))]
 })
 function assigneeLabel(id: string) {
   const user = sellerDirectory.value.find(x => x.id === id)
-  return user?.displayName || user?.userName ||
+  const crmUser = calendarDirectory.value.find(x => x.id === id)
+  return user?.displayName || user?.userName || crmUser?.displayName || crmUser?.userName ||
     (id === auth.userId ? 'Mi agenda' :
       id === selectedAccount.value?.executiveUserId ? 'Vendedor de la cuenta' :
       calendarLabels.value.owners[id] || id)
@@ -446,7 +453,7 @@ function openCreation(date?: Date) {
       if (!creationOpen.value || editor.value.accountId !== account.id) return
       accounts.value = [account]
       const assigned = String(account.executiveUserId ?? auth.userId ?? '')
-      if ((calendarAdmin.value || can('crm.activity.read-all')) && can('crm.activity.create') && assigned) editor.value.ownerId = assigned
+      if (canAssignOtherSellers.value && can('crm.activity.create') && assigned) editor.value.ownerId = assigned
     }).catch(() => { /* Keep the form usable for an authorized account seller. */ })
   }
   if (!scopedRecord.value) {
