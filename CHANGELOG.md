@@ -1,4 +1,4 @@
-## [1.31.0] - 2026-11-11
+## [1.32.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-GEOAPIFY-VISIT-089: mapa Geoapify interactivo con búsqueda de direcciones y negocios, geocodificación inversa y selección de un punto en visitas CRM. Persiste ubicación en creación y edición y la muestra en detalles.
 - Coordinado con DholeCRMService 1.19.0; ecosistema Dhole 1.31.0. CI y staging pendientes, sin autorización de despliegue a producción.
