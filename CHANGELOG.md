@@ -1,3 +1,8 @@
+## [1.23.0] - 2026-11-10
+
+- MINOR DH-20261110-CRM-LEAD-QUO-PARITY-082: Prospectos consulta QUO reales e indicadores de Pricing por ClientLeadId, integra rutas cotizadas al análisis comercial y ofrece la vinculación histórica confirmada solo a superadministradores.
+- Coordinado con Pricing 1.10.0 y System 1.23.0. Conserva 1.22.0 (procedimientos de cuentas), 1.21.1 (tarifas vencidas) y DhMultiSelect. REST/SignalR compatibles; sin migraciones.
+
 ## [1.22.0] - 2026-11-10
 
 - MINOR DH-20261110-CRM-ACCOUNT-PROCEDURES-080: pestaña «Procedimientos específicos» en cada cuenta con múltiples tarjetas desplegables, buscador, creación, edición y eliminación confirmada; campos nombre, detalle y equipo asignado.
