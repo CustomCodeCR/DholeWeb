@@ -3,6 +3,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { ChevronDown, ClipboardList, Pencil, Plus, RefreshCw, Search, Trash2, UsersRound, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
+import { StorageService } from '@/core/services/storageService'
+import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
 
 type Procedure = {
   id: string
@@ -27,6 +29,31 @@ const deleteCandidate = ref<string | null>(null)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
 const draft = reactive({ name: '', detail: '', assignedTeam: '' })
+const pendingDocuments = ref<File[]>([])
+const canAttach = computed(() => canEdit.value && auth.hasScope('storage.files.create'))
+
+function queueDocuments(event: Event) {
+  const input = event.target as HTMLInputElement
+  const incoming = Array.from(input.files ?? [])
+  input.value = ''
+  if (!incoming.length) return
+  if (incoming.some(file => file.size === 0 || file.size > 100 * 1024 * 1024)) {
+    error.value = 'Los documentos no pueden estar vacíos ni superar 100 MB por archivo.'
+    return
+  }
+  const current = pendingDocuments.value
+  const unique = incoming.filter(file => !current.some(existing =>
+    existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified))
+  if (current.length + unique.length > 10) {
+    error.value = 'Podés seleccionar hasta 10 documentos por guardado.'
+    return
+  }
+  pendingDocuments.value = [...current, ...unique]
+  error.value = ''
+}
+function dropPendingDocument(index: number) {
+  pendingDocuments.value = pendingDocuments.value.filter((_, i) => i !== index)
+}
 
 const endpoint = () => crmPath('accounts', props.accountId, 'specific-procedures')
 const shown = computed(() => {
@@ -63,6 +90,7 @@ function closeEditor() {
   draft.name = ''
   draft.detail = ''
   draft.assignedTeam = ''
+  pendingDocuments.value = []
 }
 function newProcedure() {
   closeEditor()
@@ -81,6 +109,10 @@ function editProcedure(item: Procedure) {
 }
 async function save() {
   if (saving.value) return
+  if (pendingDocuments.value.length && !canAttach.value) {
+    error.value = 'Necesitás permisos de Storage para adjuntar documentos.'
+    return
+  }
   const name = draft.name.trim()
   if (!name) { error.value = 'El nombre del procedimiento es obligatorio.'; return }
   if (name.length > 160 || draft.detail.trim().length > 8000 || draft.assignedTeam.trim().length > 500) {
@@ -100,9 +132,36 @@ async function save() {
       name, detail: draft.detail.trim() || null, assignedTeam: draft.assignedTeam.trim() || null,
       expectedVersion: previous?.rowVersion ?? null,
     })
-    closeEditor()
+    // Remember a successful creation before attempting Storage uploads.
+    // A failed attachment must never cause a second procedure on retry.
+    editingId.value = result.id
+    procedures.value = [result, ...procedures.value.filter(item => item.id !== result.id)]
     success.value = 'Procedimiento guardado correctamente.'
     expandedId.value = result.id
+    if (pendingDocuments.value.length) {
+      const access = await crmRequest<{ canUpload: boolean }>(
+        crmPath('documents/procedure', result.id, 'access'))
+      if (!access.canUpload) throw new Error('No tenés permiso para adjuntar archivos a este procedimiento.')
+      const failed: File[] = []
+      for (const file of pendingDocuments.value) {
+        try {
+          await StorageService.uploadFile({
+            file, sourceService: 'DholeCRMService', entityType: 'crm.procedure',
+            entityId: result.id,
+          })
+        } catch (cause) {
+          failed.push(file)
+        }
+      }
+      pendingDocuments.value = failed
+      if (failed.length) {
+        error.value = failed.length + ' archivo(s) no se pudieron subir. El procedimiento ya se guardó; podés reintentar sin duplicarlo.'
+        await load()
+        return
+      }
+    }
+    closeEditor()
+    success.value = 'Procedimiento y documentos guardados correctamente.'
     await load()
   } catch (cause) {
     error.value = crmError(cause)
@@ -192,6 +251,22 @@ function teamLabels(value: string | null): string[] {
           placeholder="Describa instrucciones, responsables, excepciones y pasos a seguir..."
           class="min-h-40 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-3 text-sm leading-relaxed text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
       </label>
+      <div class="space-y-2 rounded-xl border border-dashed border-[var(--dh-border)] p-3">
+        <label class="block text-xs font-bold">Documentos del procedimiento</label>
+        <input v-if="canAttach" type="file" multiple :disabled="saving" class="block w-full text-xs"
+          aria-label="Seleccionar documentos del procedimiento" @change="queueDocuments" />
+        <p class="text-[11px] text-[var(--dh-text-muted)]">
+          {{ canAttach ? 'Se cargarán al guardar. Máximo 10 archivos por vez y 100 MB por archivo.' : 'Se requiere el permiso storage.files.create para adjuntar archivos.' }}
+        </p>
+        <ul v-if="pendingDocuments.length" class="space-y-1">
+          <li v-for="(file, index) in pendingDocuments" :key="file.name + file.lastModified"
+            class="flex items-center justify-between gap-2 text-xs">
+            <span class="min-w-0 break-all">{{ file.name }}</span>
+            <button type="button" :disabled="saving" class="shrink-0 text-red-500"
+              :aria-label="'Quitar ' + file.name" @click="dropPendingDocument(index)">Quitar</button>
+          </li>
+        </ul>
+      </div>
       <div class="flex flex-wrap justify-end gap-2">
         <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2.5 text-xs font-bold" @click="closeEditor">Cancelar</button>
         <button type="submit" :disabled="saving || !draft.name.trim()" class="rounded-xl bg-[var(--dh-primary)] px-5 py-2.5 text-xs font-extrabold text-white disabled:opacity-50">
@@ -258,6 +333,7 @@ function teamLabels(value: string | null): string[] {
             </div>
             <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin equipo asignado.</p>
           </div>
+          <CrmDocumentsPanel kind="procedure" :record-id="procedure.id" />
           <div v-if="canEdit" class="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--dh-border)] pt-3">
             <button type="button" class="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
               @click="editProcedure(procedure)"><Pencil class="h-3.5 w-3.5" />Editar</button>
