@@ -490,7 +490,7 @@ async function load() {
       // Each endpoint enforces its own scope and per-user record visibility.
       const resources = [
         ...(can('crm.activity.read') || can('crm.activity.read-all') || (can('crm.account.read-all') && can('crm.lead.read-all')) ? ['activities'] : []),
-        ...(can('crm.task.manage') || can('crm.followup.manage') ? ['followups'] : []),
+        ...(can('crm.task.manage') || can('crm.followup.manage') || (can('crm.account.read-all') && can('crm.lead.read-all')) ? ['followups'] : []),
       ]
       const settled = await Promise.allSettled(resources.map(async resource => {
         const found: CrmRow[] = []

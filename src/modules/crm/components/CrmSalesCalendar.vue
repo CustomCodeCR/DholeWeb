@@ -558,7 +558,7 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
     const params = new URLSearchParams({
       accountIds: accounts.slice(i * 100, (i + 1) * 100).join(','),
       leadIds: leads.slice(i * 100, (i + 1) * 100).join(','),
-      ownerIds: owners.slice(0, 100).join(','),
+      ownerIds: owners.slice(i * 100, (i + 1) * 100).join(','),
     })
     try {
       const result = await crmRequest<typeof merged>(crmPath('calendar/labels') + '?' + params.toString())
@@ -567,7 +567,11 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
       Object.assign(merged.owners, result.owners ?? {})
     } catch { /* Calendar still works if a label provider is unavailable. */ }
   }
-  if (generation === loadGeneration) calendarLabels.value = merged
+  if (generation === loadGeneration) {
+    for (const user of calendarDirectory.value)
+      merged.owners[user.id] = user.displayName || user.userName || 'Usuario'
+    calendarLabels.value = merged
+  }
 }
 
 watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
