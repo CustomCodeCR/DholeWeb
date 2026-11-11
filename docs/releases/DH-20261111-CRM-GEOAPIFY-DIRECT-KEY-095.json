@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261111-CRM-GEOAPIFY-DIRECT-KEY-095",
+  "date": "2026-11-11",
+  "type": "PATCH",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.32.4",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.32.2",
+      "next": "1.32.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previous": "1.18.0",
+      "next": "1.19.0",
+      "separateRelease": "DH-20261111-CRM-GEOAPIFY-VISIT-089"
+    }
+  ],
+  "changes": [
+    "Backport compatible del mapa de visitas Geoapify y persistencia de coordenadas para CRM 1.19.0",
+    "API key pública incorporada directamente en componente Vue; no requiere configurar .env"
+  ],
+  "releaseBranch": "feature/geoapify-direct-key-20261111-master",
+  "validation": {
+    "CI": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}

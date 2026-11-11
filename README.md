@@ -40,3 +40,9 @@ pnpm dev
 ```sh
 pnpm build
 ```
+
+## Ubicaciones de visitas comerciales con Geoapify
+
+La clave pública de navegador de Geoapify está configurada directamente en `src/modules/crm/components/CrmVisitMapPicker.vue`: no requiere `.env` ni argumento de Docker. Dado que el código y el navegador exponen esta clave, **restringir el uso mediante HTTP referrers** a los dominios autorizados de producción y staging en la consola de Geoapify, y supervisar su cuota.
+
+El mapa aparece únicamente si el tipo de actividad es **Visita** y permite buscar direcciones y negocios, mover el mapa, hacer zoom y seleccionar un punto. Al crear/editar se envía `locationText`, `locationLatitude` y `locationLongitude` a DholeCRMService 1.19.0; las actividades antiguas sin coordenadas siguen disponibles.
