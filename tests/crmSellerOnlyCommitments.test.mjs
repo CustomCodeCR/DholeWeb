@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 const calendar = readFileSync('src/modules/crm/components/CrmSalesCalendar.vue', 'utf8')
 const detail = readFileSync('src/modules/crm/views/CrmRecordDetailView.vue', 'utf8')
-test('Only role-filtered active sellers are selectable in the CRM calendar', () => {
+test('CRM calendar assignees are eligible by effective scopes, not named roles', () => {
+  assert.ok(calendar.includes("['crm.activity.read', 'crm.activity.read-all', 'crm.followup.manage']"))
+  assert.ok(!calendar.includes("['Vendedor', 'Vendedores', 'Vendedor Supervisor', 'Vendedor Jefe', 'SuperUsuario']"))
+  assert.ok(calendar.includes('<label class="calendar-label">Responsable'))
   assert.ok(calendar.includes('const ownerChoices = computed(() => calendarDirectory.value.map'))
   assert.ok(calendar.includes('sellerDirectory.value.map(user => user.id)'))
   assert.ok(calendar.includes('eligibleSeller(data.ownerId)'))

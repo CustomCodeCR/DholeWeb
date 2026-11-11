@@ -1,3 +1,8 @@
+## [1.29.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-RESPONSIBLES-SCOPES-086: renombra Vendedor responsable a Responsable. El selector incluye usuarios internos activos con scopes efectivos crm.activity.read, crm.activity.read-all o crm.followup.manage, incluso Asistente, sin filtros de rol; conserva la delegación autorizada.
+- Ecosistema Dhole 1.29.1. Compilación y pruebas de master en validación, staging aprobado y promoción productiva autorizada.
+
 ## [1.29.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-LEAD-INSTITUTIONAL-087: backport selectivo a master para mostrar Castro Fallas en vendedores de Prospectos al crear y reasignar, preservando vendedor institucional mediante bandera API sin GUID ficticio.
