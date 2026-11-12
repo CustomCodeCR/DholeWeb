@@ -1,3 +1,9 @@
+## [1.39.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-DRAFT-RECOVERY-109: autoguardado y restauración local de borradores CRM por usuario, cliente, formulario y registro. Protege cuentas, prospectos, contactos, actividades, minutas, compromisos, ubicaciones, procedimientos, créditos, contratos, rutas y vínculos comerciales ante cierre inesperado, pérdida de conexión o error de guardado.
+- Los datos persistidos con éxito eliminan su borrador; los errores conservan el trabajo. Se advierte que los archivos adjuntos deben seleccionarse nuevamente. Sin escrituras automáticas a CRM, manteniendo scopes, APIs REST, SignalR y semántica de versión existentes.
+- DholeWeb 1.38.1 → 1.39.0; DholeCRMService 1.23.0 → 1.24.0; ecosistema 1.39.0. CI y staging pendientes; sin autorización para despliegue en producción.
+
 ## [1.38.1] - 2026-11-11
 
 - PATCH DH-20261111-CRM-GEOAPIFY-CSP-108: corrige el error de búsqueda de direcciones y negocios de Geoapify en visitas CRM: la política Content-Security-Policy de Nginx ahora permite explícitamente conexiones HTTPS a api.geoapify.com en connect-src, conservando el resto de dominios autorizados y las protecciones existentes.
