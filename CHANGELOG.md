@@ -1,3 +1,9 @@
+## [1.42.0] - 2026-11-12
+
+- MINOR DH-20261112-PRICING-ACCEPTANCE-MAIL-113: botón «Reenviar notificación» para QUO aceptadas en pantalla 9, confirmado por DhModal y restringido a pricing.rate.update.
+- Reenvío manual con UUID de idempotencia compartido entre petición y Outbox; aprobación, IDTRA, PDF, adjuntos y revisión no cambian.
+- DholeWeb 1.41.2 → 1.42.0, Pricing 1.15.0 y ecosistema Dhole 1.42.0; CI y staging requeridos.
+
 ## [1.41.2] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-LINKED-QUO-NUMBER-113: en pantalla 9 de Pricing Crystal, «QUO aceptada vinculada» resuelve el número comercial de la QUO mediante su ID interno; no muestra UUID, mantiene navegación y se sincroniza al actualizar/vincular otra cotización.

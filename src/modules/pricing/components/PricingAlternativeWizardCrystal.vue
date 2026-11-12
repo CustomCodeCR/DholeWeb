@@ -83,6 +83,7 @@ import PricingLinkedSellerRequest from '@/modules/pricing/components/PricingLink
 import PricingMarketBenchmarkPanel from '@/modules/pricing/components/PricingMarketBenchmarkPanel.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import PricingCancelAcceptedRateModal from '@/modules/pricing/components/PricingCancelAcceptedRateModal.vue'
+import PricingResendAcceptanceEmailModal from '@/modules/pricing/components/PricingResendAcceptanceEmailModal.vue'
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import PricingLinkAcceptedQuoteModal from '@/modules/pricing/components/PricingLinkAcceptedQuoteModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
@@ -4744,6 +4745,20 @@ function openAssignIdtra() {
   })
 }
 
+function openAcceptanceNotificationResendModal() {
+  const rate = editingRate.value
+  if (!rate || rate.status !== 'AcceptedByClient' || !canUpdateRateStatus.value) return
+  modalStore.open({
+    title: 'Reenviar notificación de aceptación',
+    component: PricingResendAcceptanceEmailModal,
+    size: 'md',
+    props: {
+      rateId: rate.id,
+      quoteNumber: rate.quoNumber || rate.rateCode,
+    },
+  })
+}
+
 function startAcceptedRateCancellation() {
   if (!editingRate.value || !canCancelAccepted.value || commercialStatusSaving.value) return
   modalStore.open({
@@ -8268,6 +8283,15 @@ onMounted(async () => {
                   <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
                   <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
                   <DhButton size="sm" variant="secondary" :disabled="!canLinkAnotherQuote || commercialStatusSaving" @click="openLinkedQuoteModal(editingRate.id)">Cliente aceptó otra QUO</DhButton>
+                  <DhButton
+                    v-if="editingRate.status === 'AcceptedByClient' && canUpdateRateStatus"
+                    size="sm"
+                    variant="secondary"
+                    :disabled="commercialStatusSaving"
+                    @click="openAcceptanceNotificationResendModal"
+                  >
+                    Reenviar notificación
+                  </DhButton>
                 </template>
               </div>
             </div>
