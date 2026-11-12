@@ -1,3 +1,9 @@
+## [1.40.1] - 2026-11-12
+
+- PATCH DH-20261112-CRM-DRAFT-DHMODAL-111: estandariza todos los diálogos nativos detectados, incluyendo Mercadeo (insertar enlace, archivar/eliminar contenido y categorías). Reemplaza la confirmación nativa de recuperación de borradores CRM por DhModal con botones DhButton y opciones Recuperar, Descartar y Más tarde.
+- No muestra diálogos para formularios cerrados; las recuperaciones pendientes se cancelan al cambiar de registro o desmontar el formulario. «Más tarde» conserva el borrador sin pérdidas y las solicitudes concurrentes se serializan.
+- Sin cambios en contratos REST, SignalR ni backend. Release coordinado con CRMService 1.24.1 y DholeSystem 1.40.1; CI y staging pendientes.
+
 ## [1.40.0] - 2026-11-11 (Dhole API Manager)
 
 - MINOR: Builder de APIs de terceros ahora ofrece ocho catálogos de Config con selección de campos y URL pública versionada.

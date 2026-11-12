@@ -5,6 +5,8 @@ import { CONTENT_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { ContentService } from '@/core/services/contentService'
+import { DhButton } from '@/shared/components/atoms'
+import { DhModal } from '@/shared/components/organisms'
 import type { TaxonomyTermDto } from '@/core/interfaces/content'
 
 const props = defineProps<{ siteKey: string }>()
@@ -15,6 +17,7 @@ const items = ref<TaxonomyTermDto[]>([])
 const search = ref('')
 const filter = ref('')
 const editingId = ref<string | null>(null)
+const pendingRemoval = ref<TaxonomyTermDto | null>(null)
 const form = reactive({ type: 'Category', name: '', slug: '', description: '', parentId: '' })
 
 const canEdit = () => authStore.hasScope(CONTENT_SCOPES.edit)
@@ -81,8 +84,14 @@ async function save() {
   }
 }
 
-async function remove(item: TaxonomyTermDto) {
-  if (!canDelete() || !window.confirm(`¿Eliminar “${item.name}”?`)) return
+function remove(item: TaxonomyTermDto) {
+  if (canDelete()) pendingRemoval.value = item
+}
+
+async function confirmRemoval() {
+  const item = pendingRemoval.value
+  if (!item || !canDelete()) return
+  pendingRemoval.value = null
   try {
     await ContentService.deleteTaxonomy(item.id)
     toastStore.success(`${typeLabel(item.kind)} eliminada`)
@@ -100,6 +109,17 @@ onMounted(() => void load())
 
 <template>
   <div class="space-y-5">
+    <DhModal :open="Boolean(pendingRemoval)" title="Eliminar categoría o etiqueta" size="sm" @close="pendingRemoval = null">
+      <p class="text-sm text-[var(--dh-text-muted)]">
+        ¿Eliminar «{{ pendingRemoval?.name }}»? Esta acción no se puede deshacer.
+      </p>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <DhButton label="Cancelar" variant="secondary" @click="pendingRemoval = null" />
+          <DhButton label="Eliminar" variant="danger" @click="confirmRemoval" />
+        </div>
+      </template>
+    </DhModal>
     <section class="dh-glass dh-liquid rounded-[30px] p-5">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
