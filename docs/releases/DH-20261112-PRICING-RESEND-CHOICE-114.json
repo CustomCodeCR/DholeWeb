@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261112-PRICING-RESEND-CHOICE-114",
+  "ecosystem": "Dhole",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.43.0",
+  "date": "2026-11-12",
+  "sourceBranch": "fix/quo609-select-notification-20261112-master",
+  "components": [
+    {
+      "component": "DholePricingService",
+      "repository": "CustomCodeCR/DholePricingService",
+      "previous": "1.15.0",
+      "next": "1.16.0"
+    },
+    {
+      "component": "DholeWeb",
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.42.0",
+      "next": "1.43.0"
+    },
+    {
+      "component": "DholeSystem",
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.42.0",
+      "next": "1.43.0"
+    }
+  ],
+  "tests": [
+    "tests/pricingResendAcceptanceNotification.test.mjs",
+    "Web typecheck/build"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
