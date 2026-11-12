@@ -8,6 +8,7 @@ import { fetchClient } from '@/core/api/fetchConfig'
 import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import { commercialRateStatusLabel } from '@/modules/pricing/utils/pricingFormat'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmPage, type CrmRow } from '../services/crmApi'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 
 const props = defineProps<{ lead: CrmRow; sellerName?: string; view?: 'analysis' | 'quotes' | 'history' }>()
 const auth = useAuthStore()
@@ -57,6 +58,47 @@ const opportunityTitle = ref('')
 const opportunityCurrency = ref('USD')
 const quoteId = ref('')
 const requestId = ref('')
+const analysisAutosave = useCrmDraftAutosave({
+  scope: () => 'lead-commercial:' + props.lead.id + ':analysis',
+  capture: () => ({ market: newMarket.value, observations: newObservations.value,
+    volume: newVolume.value, unit: newVolumeUnit.value, customs: requiresCustoms.value }),
+  apply: (snapshot) => {
+    newMarket.value = snapshot.market; newObservations.value = snapshot.observations
+    newVolume.value = snapshot.volume; newVolumeUnit.value = snapshot.unit
+    requiresCustoms.value = snapshot.customs
+  },
+})
+const routeAutosave = useCrmDraftAutosave({
+  scope: () => 'lead-commercial:' + props.lead.id + ':route',
+  capture: () => ({ analysisId: selectedAnalysisId.value, route: { ...routeDraft } }),
+  apply: (snapshot) => {
+    selectedAnalysisId.value = snapshot.analysisId
+    Object.assign(routeDraft, snapshot.route)
+  },
+})
+const opportunityAutosave = useCrmDraftAutosave({
+  scope: () => 'lead-commercial:' + props.lead.id + ':opportunity',
+  capture: () => ({ title: opportunityTitle.value, currency: opportunityCurrency.value }),
+  apply: (snapshot) => {
+    opportunityTitle.value = snapshot.title; opportunityCurrency.value = snapshot.currency
+  },
+})
+const quoteAutosave = useCrmDraftAutosave({
+  scope: () => 'lead-commercial:' + props.lead.id + ':quote',
+  capture: () => ({ opportunityId: opportunityId.value, quoteId: quoteId.value, requestId: requestId.value }),
+  apply: (snapshot) => {
+    opportunityId.value = snapshot.opportunityId
+    quoteId.value = snapshot.quoteId; requestId.value = snapshot.requestId
+  },
+})
+function stopCommercialDrafts() {
+  analysisAutosave.stop(); routeAutosave.stop()
+  opportunityAutosave.stop(); quoteAutosave.stop()
+}
+function beginCommercialDrafts() {
+  analysisAutosave.begin(); routeAutosave.begin()
+  opportunityAutosave.begin(); quoteAutosave.begin()
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 let analysisGeneration = 0
 let routesGeneration = 0
@@ -192,6 +234,13 @@ async function loadOpportunities() {
   }
 }
 function resetAndLoad() {
+  stopCommercialDrafts()
+  newMarket.value = ''; newObservations.value = ''; newVolume.value = ''; newVolumeUnit.value = 'TEU'
+  requiresCustoms.value = false
+  Object.assign(routeDraft, { polCode: '', poeCode: '', podCode: '', originCountryCode: '',
+    destinationCountryCode: '', frequencyPerMonth: '', notes: '' })
+  opportunityTitle.value = ''; opportunityCurrency.value = 'USD'
+  quoteId.value = ''; requestId.value = ''
   ++analysisGeneration; ++routesGeneration; ++quoteGeneration; ++opportunitiesGeneration
   analyses.value = []; selectedAnalysisId.value = ''; analysisRoutes.value = []; historyRoutes.value = []
   quotes.value = []; quoteTotal.value = 0; quotePage.value = 1
@@ -201,7 +250,7 @@ function resetAndLoad() {
   void Promise.all([
     ...(props.view !== 'quotes' ? [loadAnalyses(), loadQuotedRoutes()] : []),
     ...(props.view === 'quotes' ? [loadQuotes(), ...(canReadOpportunities.value ? [loadOpportunities()] : [])] : []),
-  ])
+  ]).then(() => beginCommercialDrafts())
 }
 watch(() => props.lead.id, resetAndLoad, { immediate: true })
 watch(selectedAnalysisId, value => { if (props.view === 'analysis') void loadRoutes(value) })
@@ -218,9 +267,11 @@ async function createAnalysis() {
       estimatedMonthlyVolume: newVolume.value ? Number(newVolume.value) : null,
       volumeUnit: newVolume.value ? newVolumeUnit.value : null,
     }, crmUuid())
+    analysisAutosave.commit()
     selectedAnalysisId.value = String(created.id)
     newMarket.value = ''; newObservations.value = ''; newVolume.value = ''
     await loadAnalyses()
+    analysisAutosave.begin()
     success.value = 'Análisis comercial agregado al prospecto.'
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -242,9 +293,11 @@ async function addRoute() {
       frequencyPerMonth: routeDraft.frequencyPerMonth ? Number(routeDraft.frequencyPerMonth) : null,
       notes: routeDraft.notes.trim() || null,
     }, crmUuid())
+    routeAutosave.commit()
     Object.assign(routeDraft, { polCode: '', poeCode: '', podCode: '',
       originCountryCode: '', destinationCountryCode: '', frequencyPerMonth: '', notes: '' })
     await loadRoutes(selectedAnalysisId.value)
+    routeAutosave.begin()
     success.value = 'Ruta vinculada al análisis comercial.'
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -260,9 +313,11 @@ async function createOpportunity() {
       amountEstimated: 0, currencyCode: opportunityCurrency.value,
       expectedCloseAt: null, description: null,
     }, crmUuid())
+    opportunityAutosave.commit()
     opportunityId.value = String(created.id)
     opportunityTitle.value = ''
     await loadOpportunities()
+    opportunityAutosave.begin()
     success.value = 'Oportunidad creada para vincular cotizaciones.'
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -280,9 +335,11 @@ async function linkQuote() {
       pricingQuoteId: quoteId.value,
       pricingRequestId: requestId.value || null,
     }, crmUuid())
+    quoteAutosave.commit()
     quoteId.value = ''; requestId.value = ''
     quotePage.value = 1
     refreshQuotesAfterLink()
+    quoteAutosave.begin()
     success.value = 'Cotización vinculada a la oportunidad de este prospecto.'
   } catch (cause) { error.value = crmError(cause) }
   finally { busy.value = false }
@@ -304,6 +361,7 @@ function quotePageChange(delta: number) {
       </div>
       <span class="text-xs text-[var(--dh-text-muted)]">{{ analyses.length }} análisis</span>
     </div>
+    <p v-if="analysisAutosave.status.value !== 'idle' || routeAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">Autoguardado de análisis y rutas activo. Los borradores se recuperan al volver a este prospecto.</p>
     <p v-if="loadError" role="alert" class="text-sm text-red-500">{{ loadError }}</p>
     <p v-if="analysisLoading" class="text-xs text-[var(--dh-text-muted)]">Cargando análisis…</p>
     <form v-if="canManageAnalyses" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" @submit.prevent="createAnalysis">
