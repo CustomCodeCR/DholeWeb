@@ -7,6 +7,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { StorageService } from '@/core/services/storageService'
 import CrmFileDropzone from './CrmFileDropzone.vue'
 import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -193,6 +194,28 @@ const editor = ref({
   reminderRepeatMinutes: 0,
   channel: 'BOTH',
 })
+const draftHadAttachments = ref(false)
+function captureCalendarDraft() {
+  return { fields: editor.value, contacts: selectedContactIds.value,
+    agreements: agreementDrafts.value, omittedAgreements: omittedAgreementKeys.value,
+    pendingRecord: pendingDocumentRecord.value, hadAttachments: attachedDocuments.value.length > 0 }
+}
+const calendarDraft = useCrmDraftAutosave({
+  scope: () => 'calendar-create:' + (props.accountId ? 'account:' + props.accountId :
+    props.leadId ? 'lead:' + props.leadId : 'global'),
+  enabled: () => creationOpen.value,
+  capture: captureCalendarDraft,
+  apply: (snapshot: ReturnType<typeof captureCalendarDraft>) => {
+    editor.value = { ...editor.value, ...snapshot.fields }
+    selectedContactIds.value = snapshot.contacts ?? []
+    agreementDrafts.value = snapshot.agreements ?? []
+    omittedAgreementKeys.value = snapshot.omittedAgreements ?? []
+    pendingDocumentRecord.value = snapshot.pendingRecord ?? null
+    draftHadAttachments.value = Boolean(snapshot.hadAttachments)
+  },
+})
+watch(creationOpen, open => { if (!open) calendarDraft.stop() })
+
 function applyVisitLocation(value: { address: string; latitude: number | null; longitude: number | null }) {
   editor.value.location = value.address
   editor.value.locationLatitude = value.latitude
@@ -444,6 +467,8 @@ function navigate(step: number) {
   else selected.value = new Date(selected.value.getFullYear(), selected.value.getMonth() + step, 1)
 }
 function openCreation(date?: Date) {
+  calendarDraft.stop()
+  draftHadAttachments.value = false
   const now = new Date()
   const when = date
     ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), now.getHours(), now.getMinutes())
@@ -467,6 +492,7 @@ function openCreation(date?: Date) {
   userEditedStart.value = false
   error.value = ''
   creationOpen.value = true
+  calendarDraft.begin()
   void loadConfiguredActivityTypes()
   // Account-local calendars must preselect the real assigned commercial seller.
   if (props.accountId && (can('crm.account.read') || can('crm.account.read-all'))) {
@@ -759,6 +785,7 @@ async function create() {
         attachedDocuments.value = attachedDocuments.value.filter(item => item !== file)
       }
     }
+    calendarDraft.commit()
     pendingDocumentRecord.value = null
     creationOpen.value = false
     selected.value = start
@@ -1088,6 +1115,14 @@ function openEvent(item: CalendarEvent) {
       </div>
       <p v-if="error" role="alert" class="mb-3 text-sm text-red-500">{{ error }}</p>
       <form id="crm-agenda-create-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="create">
+        <p v-if="calendarDraft.status.value !== 'idle'" role="status" class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
+          {{ calendarDraft.status.value === 'restored' ? 'Se recuperó tu actividad pendiente.' :
+            calendarDraft.status.value === 'saved' ? 'Actividad guardada como borrador en este navegador.' :
+            'No se pudo conservar el borrador local.' }}
+        </p>
+        <p v-if="draftHadAttachments" role="alert" class="sm:col-span-2 text-xs text-amber-600">
+          Volvé a seleccionar los documentos adjuntos: el navegador no permite restaurar archivos después de cerrar la página.
+        </p>
         <label class="calendar-label">Tipo de actividad
           <select v-model="editor.type" class="calendar-input" required>
             <option v-if="!selectableActivityTypes.some(item => item.value === editor.type)" :value="editor.type" disabled>Seleccionar tipo disponible</option>
