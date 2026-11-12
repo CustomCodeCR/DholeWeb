@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261112-PRICING-ACCEPTANCE-MAIL-113",
+  "ecosystem": "Dhole",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.42.0",
+  "date": "2026-11-12",
+  "sourceBranch": "feature/acceptance-notification-resend-20261112-master",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "component": "DholePricingService",
+      "previous": "1.14.0",
+      "next": "1.15.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "previous": "1.41.1",
+      "next": "1.42.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "previous": "1.41.1",
+      "next": "1.42.0"
+    }
+  ],
+  "changes": [
+    "DhModal de confirmación para reenvío de notificación de cotizaciones aceptadas",
+    "POST /api/pricing/rates/{rateId}/acceptance-email/resend con idempotencia",
+    "Notificación a Apertura, copia a Pricing y ejecutivo, sin cambiar aceptación ni IDTRA"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
