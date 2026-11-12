@@ -45,7 +45,9 @@ function patchWizard(source: string) {
 // before POST/PUT instead of relying on the previous QUO/request snapshot.
 async function refreshModificationCrmOwner(): Promise<boolean> {
   const pricingModification = Boolean(props.modificationRequestId && editingRate.value)
-  if (!pricingModification && !props.sellerRequestMode) return true
+  // New Pricing quotations must also revalidate the owner; drafts and legacy
+  // watchers may contain a previous user's executive after a CRM selection.
+  if (!pricingModification && !props.sellerRequestMode && !form.clientId) return true
   const clientId = String(form.clientId || (pricingModification
     ? editingRate.value?.clientAccountId || editingRate.value?.clientLeadId : '') || '').trim()
   if (!clientId) return true // Historical quotations/requests never linked to CRM.
@@ -60,7 +62,8 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
       toastStore.error('La cuenta o prospecto vinculado no está disponible en CRM. Verifique los permisos o seleccione un registro vigente.')
       return false
     }
-    const castroFallas = client.isCastroFallasExecutive
+    const castroFallas = client.isCastroFallasExecutive === true
+      || String(client.executiveName ?? '').trim().toLocaleLowerCase() === 'castro fallas'
     const executiveId = String(client.executiveUserId ?? '').trim()
     const executiveName = castroFallas ? 'Castro Fallas' : String(client.executiveName ?? '').trim()
     if (!castroFallas && (!executiveId
@@ -74,6 +77,9 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
     form.clientId = client.id
     form.crmClientKind = client.kind
     form.clientName = client.displayName
+    if (!editingRate.value && form.clientName.toLocaleUpperCase().includes('TARIFARIO')) {
+      form.rateType = 'Tariff'
+    }
     form.executiveId = castroFallas ? '' : executiveId
     form.executiveName = executiveName
     return true
@@ -120,6 +126,15 @@ async function saveRate() {
   }`,
       'CRM identity validation for normal seller requests',
     )
+    // Draft hydration can restore a stale seller. Re-read the CRM owner after
+    // restoring the form and before autosave marks the draft as recovered.
+    if (code.includes('    pricingDraftLastSnapshot = raw')) {
+      code = replaceOne(code,
+        '    pricingDraftLastSnapshot = raw',
+        '    if (form.clientId) await refreshModificationCrmOwner()\n\n    pricingDraftLastSnapshot = raw',
+        'CRM owner reconciliation after draft restore',
+      )
+    }
     return code
   }
   let code = source

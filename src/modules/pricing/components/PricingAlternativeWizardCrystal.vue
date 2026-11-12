@@ -6274,17 +6274,30 @@ function setCrmClient(client: {
   displayName: string
   executiveUserId: string
   executiveName: string
+  isCastroFallasExecutive?: boolean
 } | null) {
   form.crmClientKind = client?.kind || ''
   form.clientId = client?.id || ''
   form.clientName = client?.displayName || ''
   form.executiveId = client?.executiveUserId || ''
   form.executiveName = client?.executiveName || ''
+  // Institutional CRM records are owned by Castro Fallas, never by the logged-in user.
+  if (client?.isCastroFallasExecutive === true) {
+    form.executiveId = ''
+    form.executiveName = 'Castro Fallas'
+  }
+  // CRM's TARIFARIO client is a reusable master, not a personal SPOT quotation.
+  if (!editingRate.value && String(client?.displayName ?? '').toLocaleUpperCase().includes('TARIFARIO')) {
+    form.rateType = 'Tariff'
+  }
 }
 
 watch(
   () => form.clientId,
   (clientId) => {
+    // CRM is authoritative for linked accounts and prospects; do not let the
+    // historical Config catalog overwrite their commercial owner.
+    if (form.crmClientKind) return
     const client = findById(catalogs.clients, clientId)
     if (!client) return
     form.clientName = displayValue(client) || client.label
@@ -6298,6 +6311,8 @@ watch(
 watch(
   () => form.executiveId,
   (executiveId) => {
+    // Auth/Config seller selections apply to legacy unlinked quotations only.
+    if (form.crmClientKind) return
     const executive = findById(catalogs.salesExecutives, executiveId)
     if (executive) form.executiveName = displayValue(executive) || executive.label
   },

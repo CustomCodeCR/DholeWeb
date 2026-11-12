@@ -50,7 +50,7 @@ test('Existing modifications reject an unavailable seller and retain unlinked le
 })
 
 test('Solicitudes normales y de modificación recuperan también el ejecutivo de prospectos CRM por ID', () => {
-  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode\) return true/)
+  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode && !form\.clientId\) return true/)
   assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
   assert.match(identity, /async function saveOpenRequest\(\) \{\s*if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
   assert.match(identity, /form\.crmClientKind = client\.kind/)
@@ -64,4 +64,21 @@ test('Las solicitudes de modificación de vendedores con prospecto revalidan el 
   assert.match(modification, /if \(!source \|\| saving\.value\) return\s+\/\/ Seller amendments/)
   assert.match(modification, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
   assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
+})
+
+test('Prospecto institucional conserva Castro Fallas en la selección y al restaurar el borrador', () => {
+  const wizard = source('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  assert.match(wizard, /client\?\.isCastroFallasExecutive === true/)
+  assert.match(wizard, /form\.executiveName = 'Castro Fallas'/)
+  assert.match(wizard, /if \(form\.crmClientKind\) return/)
+  assert.match(identity, /!props\.sellerRequestMode && !form\.clientId/)
+  assert.match(identity, /if \(form\.clientId\) await refreshModificationCrmOwner\(\)/)
+})
+
+test('Prospecto TARIFARIO se crea como maestro incluso desde un borrador SPOT', () => {
+  const wizard = source('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  assert.match(wizard, /client\?\.displayName \?\? ''\)\.toLocaleUpperCase\(\)\.includes\('TARIFARIO'\)/)
+  assert.match(wizard, /form\.rateType = 'Tariff'/)
+  assert.match(identity, /form\.clientName\.toLocaleUpperCase\(\)\.includes\('TARIFARIO'\)/)
+  assert.match(identity, /form\.rateType = 'Tariff'/)
 })
