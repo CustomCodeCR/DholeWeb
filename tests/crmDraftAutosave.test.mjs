@@ -36,6 +36,7 @@ for (const [path, scope, expected] of [
   ['components/CrmSpecificProceduresManager.vue', 'procedureAutosave', 'draft'],
   ['components/CrmLeadLocations.vue', 'locationAutosave', 'location.value'],
   ['components/CrmLeadCommercialPanel.vue', 'routeAutosave', 'routeDraft'],
+  ['components/CrmQuoteDeliveryPanel.vue', 'deliveryAutosave', 'selectedContactIds.value'],
 ]) {
   test('CRM autosave wiring: ' + path, () => {
     const code = source(path)
