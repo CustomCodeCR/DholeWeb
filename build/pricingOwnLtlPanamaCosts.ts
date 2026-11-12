@@ -171,7 +171,7 @@ function applyOwnLtlPanamaCosts() {
   code = code.slice(0, syncStart) + helper + '\n' + code.slice(syncStart, syncEnd)
     + '\n  applyOwnLtlPanamaCosts()' + code.slice(syncEnd)
 
-  return code + '\n' + MARKER + '\n'
+  return code.replace('</script>', MARKER + '\n</script>')
 }
 
 export function pricingOwnLtlPanamaCosts(): Plugin {
