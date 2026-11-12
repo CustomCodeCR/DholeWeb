@@ -35,3 +35,13 @@ test('each selection has one idempotency key preserved on retry', () => {
   assert.match(service, /body: \{ requestId, notificationType \}/)
   assert.match(service, /idempotencyKey: requestId/)
 })
+
+test('resend error panel renders the actual API detail and preserves request id on failure', () => {
+  assert.match(modal, /getApiErrorMessage\(error, 'No se pudo registrar la notificación\.'\)/)
+  assert.match(modal, /error instanceof ApiError/)
+  assert.match(modal, /errorMessage\.value = code \?/)
+  assert.doesNotMatch(modal, /No se confirmó el envío a Outbox\. Consulte el detalle del error/)
+  assert.match(modal, /role="alert"/)
+  assert.match(modal, /finally \{/)
+  assert.match(modal, /sending\.value = false/)
+})
