@@ -165,6 +165,13 @@ function applyOwnLtlPanamaCosts() {
   }
 }
 `
+  // A catalog-driven LTL route uses only the four Costos y recargos rows.
+  // Do not manufacture default DUA/DUCA/Stuffing lines from the old CBM matrix.
+  code = replaceOnce(code,
+    '  const chargeItems = [...configuredCharges, ...requiredExtras]',
+    "  const chargeItems = String(tariff.id) === 'ltl-catalog:cfz-san-jose' ? [] : [...configuredCharges, ...requiredExtras]",
+  )
+
   const syncStart = code.indexOf('function syncResolvedLandLtlTariffLines() {')
   const syncEnd = code.indexOf('\n}\n', syncStart)
   if (syncEnd < 0) throw new Error('[pricingOwnLtlPanamaCosts] LTL sync closing brace missing.')
