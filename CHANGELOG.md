@@ -1,3 +1,10 @@
+## [1.43.1] - 2026-11-12
+
+- PATCH DH-20261112-LTL-PANAMA-COSTS-115: LTL propios CFZ, Panamá → San José, Costa Rica consume automáticamente los costos activos de Bunker, Gastos Panamá a Costa Rica, Flete Terrestre Internacional y Custodia + Marchamo.
+- Resuelve los importes del catálogo por peso y sus rangos (monto fijo o por KG); sustituye el flete del tarifario para evitar doble cobro, agrega los demás rubros una sola vez y conserva el identificador de costo en el detalle.
+- No altera otros destinos, FTL ni LTL coloader. Se incorpora prueba de selección, modalidad y límites de tramos.
+- DholeWeb 1.43.0 → 1.43.1; ecosistema 1.43.0 → 1.43.1. DholePricingService permanece en 1.16.0 porque sus APIs existentes no requieren cambios. CI/staging pendientes y producción no autorizada.
+
 ## [1.43.0] - 2026-11-12
 
 - MINOR DH-20261112-PRICING-RESEND-CHOICE-114: pantalla 9 permite seleccionar cuál notificación reenviar desde DhModal con DhSelect: Apertura con PDF, cotización enviada según preferencias CRM o aviso urgente SIN PDF.
