@@ -350,6 +350,7 @@ const euroRateLoading = ref(false)
 const exchangeRateError = ref('')
 const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
+const rateRevisions = ref<RateRevisionDto[]>([])
 const linkedAcceptedQuote = ref<RateDto | null>(null)
 const linkedAcceptedQuoteLoading = ref(false)
 
@@ -377,7 +378,6 @@ watch(
   },
 )
 
-const rateRevisions = ref<RateRevisionDto[]>([])
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
 const expandedSavedQuotePanels = ref<Record<string, boolean>>({})
