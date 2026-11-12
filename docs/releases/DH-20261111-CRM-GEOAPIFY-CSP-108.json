@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261111-CRM-GEOAPIFY-CSP-108",
+  "ecosystem": "Dhole",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.38.1",
+  "date": "2026-11-11",
+  "sourceBranch": "fix/geoapify-csp-search-20261111-develop",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.38.0",
+      "next": "1.38.1"
+    },
+    {
+      "component": "DholeSystem",
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.37.2",
+      "next": "1.38.1"
+    }
+  ],
+  "unchangedComponents": [
+    "DholeCRMService",
+    "DholeApiGateway",
+    "DholeNotificationsService"
+  ],
+  "changes": [
+    "Permit Geoapify geocoding origin in Nginx CSP connect-src to fix Firefox NetworkError on CRM visit address/business lookup",
+    "Regression for CSP origin allowlist; preserve coordinate search, reverse geocoding and registered locations"
+  ],
+  "tests": [
+    "tests/crmGeoapifyVisits.test.mjs",
+    "npm run build",
+    "nginx -t",
+    "staging Firefox geocode search"
+  ],
+  "restCompatible": true,
+  "realtimeCompatible": true,
+  "schemaMigration": false,
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
