@@ -1,3 +1,10 @@
+## [1.42.0] - 2026-11-12
+
+- MINOR DH-20261112-PRICING-ACCEPTANCE-MAIL-113: Pantalla 9 muestra «Reenviar notificación» únicamente para cotizaciones AcceptedByClient a usuarios con pricing.rate.update.
+- Confirmación exclusiva DhModal mediante PricingResendAcceptanceEmailModal, evitando confirmaciones nativas; botón bloqueado durante envío, idempotencia por requestId y mensajes separados de cola versus entrega.
+- DholeWeb 1.41.1 → 1.42.0, DholePricingService 1.14.0 → 1.15.0 y ecosistema Dhole 1.42.0. Mantiene compatibilidad REST, SignalR, documentos y estados comerciales.
+- CI y staging pendientes; sin autorización de producción.
+
 ## [1.41.1] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-CLIENT-QUO-PICKER-112: modal «Cliente aceptó otra QUO» con catálogo automático paginado de todas las cotizaciones enviadas y aceptadas del mismo cliente, filtro local, modalidad, ruta y estado. La QUO destino debe estar aceptada y se revalida su identidad antes de guardar.
