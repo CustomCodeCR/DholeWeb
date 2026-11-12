@@ -82,14 +82,14 @@ test('CRM recovery never opens for a hidden form and never discards deferred wor
 
 test('Dhole source prohibits native browser modal dialogs', () => {
   const sourceRoot = fileURLToPath(new URL('../src/', import.meta.url))
-  const nativeDialog = /\\b(?:window|globalThis)\\s*\\.\\s*(?:confirm|alert|prompt)\\s*\\(/
+  const nativeDialog = /\b(?:window|globalThis)\s*\.\s*(?:confirm|alert|prompt)\s*\(/
   const violations = []
   function walk(folder) {
     for (const item of readdirSync(folder, { withFileTypes: true })) {
       const path = join(folder, item.name)
       if (item.isDirectory()) {
         walk(path)
-      } else if (/\\.(?:vue|ts|tsx|js|jsx)$/.test(item.name)) {
+      } else if (/\.(?:vue|ts|tsx|js|jsx)$/.test(item.name)) {
         if (nativeDialog.test(readFileSync(path, 'utf8'))) violations.push(path)
       }
     }
