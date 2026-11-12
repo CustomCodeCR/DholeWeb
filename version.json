@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.43.1",
-  "ecosystemVersion": "1.43.1",
-  "releaseId": "DH-20261112-LTL-PANAMA-COSTS-115",
+  "version": "1.43.2",
+  "ecosystemVersion": "1.43.2",
+  "releaseId": "DH-20261112-LTL-CFZ-ROUTE-116",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261112-LTL-PANAMA-COSTS-115"
+  "businessReleaseId": "DH-20261112-LTL-CFZ-ROUTE-116"
 }
