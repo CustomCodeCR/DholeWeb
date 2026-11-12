@@ -149,6 +149,7 @@ async function save() {
         </button>
       </div>
     </div>
+    <p v-if="editorOpen && locationAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ locationAutosave.status.value === 'restored' ? 'Ubicación recuperada.' : locationAutosave.status.value === 'saved' ? 'Borrador de ubicación guardado.' : 'No se pudo guardar el borrador local.' }}</p>
     <p v-if="error" role="alert" class="text-sm text-amber-600">{{ error }}</p>
     <p v-if="message" role="status" class="text-sm text-emerald-600">{{ message }}</p>
     <p v-if="busy" role="status" class="text-sm text-[var(--dh-text-muted)]">Cargando ubicaciones…</p>
