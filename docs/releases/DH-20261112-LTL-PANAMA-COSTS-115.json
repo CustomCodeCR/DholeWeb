@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261112-LTL-PANAMA-COSTS-115",
+  "ecosystemVersion": "1.43.1",
+  "releaseType": "PATCH",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.43.0",
+      "to": "1.43.1"
+    },
+    {
+      "component": "DholePricingService",
+      "from": "1.16.0",
+      "to": "1.16.0",
+      "unchanged": true,
+      "reason": "Existing /costs/select and /ftl-tariffs already expose the required pricing data"
+    }
+  ],
+  "changes": [
+    "Own LTL CFZ to San Jose resolves and applies the active Panama to Costa Rica operational charges from Costos y recargos: bunker, land freight, expenses, custody + marchamo",
+    "Weight brackets are evaluated using total cargo kilograms and amounts are persisted without re-multiplication",
+    "Land-freight catalog line replaces CBM freight to prevent duplicates; other LTL/FTL routes remain unchanged"
+  ],
+  "validation": "CI, type-check, unit and staging tests pending",
+  "productionDeploymentAuthorized": false
+}
