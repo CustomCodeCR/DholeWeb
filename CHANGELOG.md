@@ -1,3 +1,9 @@
+## [1.39.2] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-CLIENT-QUO-PICKER-112: el modal «Cliente aceptó otra QUO» muestra automáticamente todas las cotizaciones enviadas y aceptadas del mismo cliente mediante identificador CRM y paginación de todas las páginas; muestra número, modalidad, ruta y estado, permite filtro local.
+- QUO históricas sin ID CRM usan búsqueda paginada y verificación de identidad. El vínculo solo procede con otra QUO aceptada del mismo cliente, revalidada en servidor. No se cambia REST, SignalR ni base de datos.
+- DholeWeb 1.39.1 → 1.39.2; DholeSystem 1.39.1 → 1.39.2; DholePricingService 1.14.0 sin cambios. Validaciones CI/staging pendientes; producción no autorizada.
+
 ## [1.39.1] - 2026-11-12
 
 - PATCH DH-20261112-CRM-DRAFT-DHMODAL-111: corrección de recuperación de borradores CRM exclusivamente con DhModal y DhButton. Elimina window.confirm de CRM y permite Recuperar, Descartar y Más tarde.
