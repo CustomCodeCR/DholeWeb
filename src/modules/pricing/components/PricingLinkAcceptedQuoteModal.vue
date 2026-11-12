@@ -1,12 +1,33 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
+import { fetchClient } from '@/core/api/fetchConfig'
+import { DhButton, DhInput } from '@/shared/components/atoms'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { PricingService } from '@/core/services/pricingService'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
+
+interface QuoteChoice {
+  id: string
+  number: string
+  status: 'Sent' | 'AcceptedByClient'
+  mode: string
+  route: string
+}
+interface CrmQuoteRow {
+  pricingQuoteId: string
+  quoteNumberSnapshot?: string | null
+  commercialStatusSnapshot?: string | null
+  shipmentModeSnapshot?: string | null
+  polName?: string | null
+  poeName?: string | null
+  podName?: string | null
+  clientAccountId?: string | null
+  clientLeadId?: string | null
+}
+interface ClientQuotePage { items: CrmQuoteRow[]; total: number }
 
 const props = defineProps<{
   rateId: string
@@ -18,11 +39,11 @@ const modalStore = useModalStore()
 const toastStore = useToastStore()
 const source = ref<RateDto | null>(null)
 const loading = ref(true)
-const searching = ref(false)
+const loadingCandidates = ref(false)
 const saving = ref(false)
 const search = ref('')
 const selectedRateId = ref('')
-const acceptedRates = ref<RateDto[]>([])
+const candidateRates = ref<QuoteChoice[]>([])
 const errorMessage = ref('')
 
 const allowedStatuses = new Set([
@@ -49,78 +70,135 @@ function sameClient(a: RateDto, b: RateDto): boolean {
     a.clientName.trim().toLocaleUpperCase() === b.clientName?.trim().toLocaleUpperCase())
 }
 
-const options = computed(() => acceptedRates.value.map(rate => ({
-  value: rate.id,
-  label: `${rate.quoNumber || rate.rateCode} · ${rate.clientName || 'Sin cliente'}`,
-})))
+const selectedQuote = computed(() => candidateRates.value.find(rate => rate.id === selectedRateId.value))
+const canConfirm = computed(() =>
+  Boolean(selectedQuote.value?.status === 'AcceptedByClient' && canLink.value && !saving.value),
+)
+const filteredQuotes = computed(() => {
+  const term = search.value.trim().toLocaleLowerCase()
+  return candidateRates.value.filter(rate =>
+    !term || [rate.number, rate.mode, rate.route, rate.status].join(' ').toLocaleLowerCase().includes(term))
+})
+
+function routeLabel(pol?: string | null, poe?: string | null, pod?: string | null): string {
+  return [pol, poe, pod].filter(Boolean).join(' → ') || 'Sin ruta'
+}
+
+function fromCrmQuote(rate: CrmQuoteRow): QuoteChoice | null {
+  if (!source.value || rate.pricingQuoteId === source.value.id) return null
+  if (source.value.clientAccountId && source.value.clientAccountId !== rate.clientAccountId) return null
+  if (source.value.clientLeadId && source.value.clientLeadId !== rate.clientLeadId) return null
+  if (rate.commercialStatusSnapshot !== 'Sent' && rate.commercialStatusSnapshot !== 'AcceptedByClient') return null
+  return {
+    id: rate.pricingQuoteId,
+    number: rate.quoteNumberSnapshot || 'QUO sin número',
+    status: rate.commercialStatusSnapshot,
+    mode: rate.shipmentModeSnapshot || 'Sin modalidad',
+    route: routeLabel(rate.polName, rate.poeName, rate.podName),
+  }
+}
+
+function fromRate(rate: RateDto): QuoteChoice | null {
+  if (!source.value || rate.id === source.value.id || !sameClient(source.value, rate)
+    || (rate.status !== 'Sent' && rate.status !== 'AcceptedByClient')
+    || !(rate.quoNumber || rate.rateCode?.startsWith('QUO-'))) return null
+  return {
+    id: rate.id,
+    number: rate.quoNumber || rate.rateCode,
+    status: rate.status,
+    mode: rate.shipmentMode,
+    route: routeLabel(rate.polName, rate.poeName, rate.podName),
+  }
+}
+
+async function loadCandidates() {
+  const current = source.value
+  if (!current || !canLink.value || loadingCandidates.value) return
+  loadingCandidates.value = true
+  errorMessage.value = ''
+  try {
+    const all: QuoteChoice[] = []
+    const accountId = current.clientAccountId
+    const leadId = current.clientLeadId
+    if (accountId || leadId) {
+      // The existing Pricing endpoints filter by real CRM identity before pagination.
+      const path = '/api/pricing/rates/' + (accountId ? 'crm-account/' : 'crm-lead/')
+        + encodeURIComponent(accountId || leadId || '')
+      for (let page = 1; ; page++) {
+        const response = await fetchClient<ClientQuotePage>(
+          path + '?page=' + page + '&pageSize=100', { method: 'GET' },
+        )
+        if (source.value?.id !== current.id) return
+        all.push(...(response.items || []).map(fromCrmQuote).filter((row): row is QuoteChoice => row !== null))
+        if (!response.items?.length || page * 100 >= response.total) break
+      }
+    } else if (current.clientName?.trim()) {
+      // Historical quotes lacking a CRM ID need all pages and exact client verification.
+      for (let page = 1; ; page++) {
+        const response = await PricingService.browseRates({
+          search: current.clientName.trim(),
+          statuses: ['Sent', 'AcceptedByClient'],
+          pageNumber: page,
+          pageSize: 100,
+        })
+        if (source.value?.id !== current.id) return
+        all.push(...response.items.map(fromRate).filter((row): row is QuoteChoice => row !== null))
+        if (!response.items.length || page * 100 >= (response.totalCount ?? 0)) break
+      }
+    } else {
+      errorMessage.value = 'No hay una identidad de cliente para consultar sus tarifas.'
+    }
+    candidateRates.value = Array.from(new Map(all.map(rate => [rate.id, rate])).values())
+      .sort((a, b) => Number(b.status === 'AcceptedByClient') - Number(a.status === 'AcceptedByClient')
+        || b.number.localeCompare(a.number))
+    selectedRateId.value = candidateRates.value.some(rate => rate.id === current.linkedAcceptedRateId)
+      ? current.linkedAcceptedRateId || '' : ''
+  } catch (error) {
+    candidateRates.value = []
+    selectedRateId.value = ''
+    errorMessage.value = 'No fue posible cargar las cotizaciones de este cliente.'
+    toastStore.backendError(error, errorMessage.value)
+  } finally {
+    loadingCandidates.value = false
+  }
+}
 
 async function loadSource() {
   loading.value = true
   try {
     source.value = await PricingService.getRate(props.rateId)
-    if (source.value.linkedAcceptedRateId) {
-      const accepted = await PricingService.getRate(source.value.linkedAcceptedRateId).catch(() => null)
-      if (accepted?.status === 'AcceptedByClient') {
-        acceptedRates.value = [accepted]
-        selectedRateId.value = accepted.id
-        search.value = accepted.quoNumber || accepted.rateCode
-      }
-    }
   } catch (error) {
     toastStore.backendError(error, 'No se pudo consultar la QUO original.')
     errorMessage.value = 'No se pudo cargar la cotización. Cierre esta ventana e inténtelo nuevamente.'
   } finally {
     loading.value = false
   }
-}
-
-async function findAcceptedQuotes() {
-  if (!source.value || !canLink.value || searching.value) return
-  const text = search.value.trim()
-  if (!text) {
-    errorMessage.value = 'Escriba el número de la QUO que el cliente sí aceptó.'
-    return
-  }
-  searching.value = true
-  errorMessage.value = ''
-  selectedRateId.value = ''
-  acceptedRates.value = []
-  try {
-    const result = await PricingService.browseRates({
-      statuses: ['AcceptedByClient'], search: text, pageNumber: 1, pageSize: 100,
-    })
-    acceptedRates.value = result.items.filter(rate =>
-      rate.status === 'AcceptedByClient' && rate.id !== source.value?.id
-      && sameClient(source.value!, rate),
-    )
-    if (!acceptedRates.value.length)
-      errorMessage.value = 'No se encontró una QUO aceptada para este mismo cliente. Verifique su número.'
-  } catch (error) {
-    errorMessage.value = 'No fue posible buscar las cotizaciones aceptadas.'
-    toastStore.backendError(error, errorMessage.value)
-  } finally {
-    searching.value = false
-  }
+  await loadCandidates()
 }
 
 async function saveLink() {
-  const target = acceptedRates.value.find(rate => rate.id === selectedRateId.value)
-  if (!source.value || !canLink.value || !target || saving.value) {
-    errorMessage.value = 'Seleccione una QUO aceptada válida del mismo cliente.'
+  const current = source.value
+  if (!current || !canConfirm.value || saving.value) {
+    errorMessage.value = 'Seleccione una QUO aceptada del mismo cliente.'
     return
   }
   saving.value = true
   errorMessage.value = ''
   try {
-    await PricingService.setRateStatus(source.value.id, {
+    // Revalidate at save time. A sent quote cannot be linked before acceptance.
+    const target = await PricingService.getRate(selectedRateId.value)
+    if (target.status !== 'AcceptedByClient' || target.id === current.id || !sameClient(current, target))
+      throw new Error('La QUO seleccionada ya no es una aceptada válida de este cliente.')
+    await PricingService.setRateStatus(current.id, {
       status: 'QUOVinculada',
       linkedAcceptedRateId: target.id,
     })
     await props.onLinked?.()
-    toastStore.success('QUO vinculada', `La cotización original quedó vinculada a ${target.quoNumber || target.rateCode}. No contará como vencida o no aceptada.`)
+    toastStore.success('QUO vinculada', 'La cotización original quedó vinculada a ' +
+      (target.quoNumber || target.rateCode) + '. No contará como vencida o no aceptada.')
     modalStore.close()
   } catch (error) {
-    errorMessage.value = 'No se pudo guardar el vínculo. Verifique que la QUO destino continúe aceptada.'
+    errorMessage.value = 'No se pudo guardar el vínculo. Revise que la QUO ganadora esté aceptada.'
     toastStore.backendError(error, errorMessage.value)
   } finally {
     saving.value = false
@@ -141,22 +219,47 @@ onMounted(loadSource)
         <p class="mt-2 text-xs font-semibold">Estado actual: {{ source.status }}</p>
       </div>
       <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-        Esta acción cambia el estado de la QUO indicada arriba; no crea ni acepta automáticamente una tarifa nueva.
-        La cotización ganadora debe estar aceptada y pertenecer al mismo cliente.
+        Seleccione la QUO ganadora de este cliente. Se muestran automáticamente todas las tarifas
+        enviadas y aceptadas; solo una QUO aceptada puede quedar vinculada.
       </p>
       <template v-if="canLink">
         <div class="flex flex-wrap items-end gap-2">
           <div class="min-w-[220px] flex-1">
-            <DhInput v-model="search" label="Número de QUO aceptada" placeholder="QUO-00000-000618" @keyup.enter="findAcceptedQuotes" />
+            <DhInput v-model="search" label="Filtrar las QUO de este cliente" placeholder="Buscar por número, ruta o modalidad" />
           </div>
-          <DhButton variant="secondary" :loading="searching" :disabled="searching || saving" @click="findAcceptedQuotes">Buscar</DhButton>
+          <DhButton variant="secondary" :loading="loadingCandidates" :disabled="saving || loadingCandidates" @click="loadCandidates">Actualizar lista</DhButton>
         </div>
-        <DhSelect v-model="selectedRateId" label="QUO aceptada del mismo cliente" placeholder="Seleccione la QUO aceptada" :options="options" :disabled="searching || saving || !options.length" />
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <p class="text-xs font-black">Cotizaciones enviadas y aceptadas</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ filteredQuotes.length }} de {{ candidateRates.length }} tarifas</p>
+        </div>
+        <p v-if="loadingCandidates" role="status" class="text-xs text-[var(--dh-text-muted)]">Cargando las tarifas del cliente...</p>
+        <p v-else-if="!candidateRates.length" class="rounded-xl border border-[var(--dh-border)] p-4 text-xs text-[var(--dh-text-muted)]">No hay otras tarifas enviadas o aceptadas para este cliente.</p>
+        <p v-else-if="!filteredQuotes.length" class="rounded-xl border border-[var(--dh-border)] p-4 text-xs text-[var(--dh-text-muted)]">Ninguna tarifa coincide con el filtro.</p>
+        <div v-else class="max-h-80 space-y-2 overflow-y-auto pr-1" role="list" aria-label="Tarifas del cliente">
+          <DhButton
+            v-for="rate in filteredQuotes"
+            :key="rate.id"
+            variant="secondary"
+            class="!w-full !max-w-none !justify-start !text-left"
+            :class="selectedRateId === rate.id ? '!border-[var(--dh-primary)] !bg-[var(--dh-card-hover)]' : ''"
+            :disabled="saving || loadingCandidates"
+            @click="selectedRateId = rate.id"
+          >
+            <span class="flex w-full min-w-0 flex-col items-start gap-1 text-left">
+              <span class="flex w-full flex-wrap items-center justify-between gap-2">
+                <span class="text-sm font-black">{{ rate.number }}</span>
+                <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-[10px] font-bold">{{ rate.status === 'AcceptedByClient' ? 'Aceptada' : 'Enviada' }}</span>
+              </span>
+              <span class="text-xs text-[var(--dh-text-muted)]">{{ rate.mode }} · {{ rate.route }}</span>
+              <span v-if="selectedRateId === rate.id" class="text-[11px] font-bold text-[var(--dh-primary)]">Seleccionada</span>
+            </span>
+          </DhButton>
+        </div>
+        <p v-if="selectedQuote?.status === 'Sent'" role="status" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-bold text-amber-600">Esta QUO está enviada, pero aún no aceptada. Primero debe marcarse como Aceptada para vincularla.</p>
         <div class="flex flex-wrap justify-end gap-2">
           <DhButton variant="secondary" :disabled="saving" @click="modalStore.close()">Cancelar</DhButton>
-          <DhButton :loading="saving" :disabled="saving || !selectedRateId || !acceptedRates.some(rate => rate.id === selectedRateId)" @click="saveLink">
-            Confirmar vínculo
-          </DhButton>
+          <DhButton :loading="saving" :disabled="!canConfirm || loadingCandidates" @click="saveLink">Confirmar vínculo</DhButton>
         </div>
       </template>
       <p v-else class="text-xs font-bold text-amber-600">La QUO no permite este cambio de estado o el usuario no tiene permisos para modificarlo.</p>
