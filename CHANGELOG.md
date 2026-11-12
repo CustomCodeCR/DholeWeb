@@ -1,3 +1,9 @@
+## [1.44.2] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-TARIFF-MODAL-123: rediseño del DhModal «Aplicar tarifario a cliente»: superficie sólida sin transparencia sobre la pantalla de tarifas, ancho lg en las seis entradas de Pricing y disposición responsive con resumen del maestro, selector CRM a ancho completo, ejecutivo informativo y acciones despejadas.
+- El listado CRM se integra dentro del flujo del diálogo para evitar recortes y superposiciones con el pie; los demás selectores mantienen su comportamiento flotante. No se modifica identidad, permisos, contratos REST, SignalR ni la vinculación de QUO al maestro.
+- DholeWeb 1.44.1 → 1.44.2 y DholeSystem/ecosistema 1.44.1 → 1.44.2; PricingService 1.17.0 y CRMService 1.25.2 sin cambios. Se requieren CI, compilación y verificación de staging antes de producción.
+
 ## [1.44.1] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-TRANSIT-LABEL-122: la pantalla 6 del asistente de tarifas terrestres FTL/LTL, aéreas y marítimas FCL/LCL muestra exactamente «Días de tránsito». Elimina la etiqueta especial «Días de tránsito para la entrega» sin modificar transitDays, guardado ni lógica de visibilidad.

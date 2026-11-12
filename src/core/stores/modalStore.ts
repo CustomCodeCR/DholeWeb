@@ -7,6 +7,7 @@ export interface ModalState {
   component: Component | null
   props: Record<string, unknown>
   size: 'sm' | 'md' | 'lg' | 'xl'
+  surface: 'glass' | 'solid'
 }
 
 export const useModalStore = defineStore('modal', {
@@ -16,6 +17,7 @@ export const useModalStore = defineStore('modal', {
     component: null,
     props: {},
     size: 'md',
+    surface: 'glass',
   }),
 
   actions: {
@@ -24,11 +26,13 @@ export const useModalStore = defineStore('modal', {
       component: Component
       props?: Record<string, unknown>
       size?: ModalState['size']
+      surface?: ModalState['surface']
     }) {
       this.title = input.title
       this.component = input.component
       this.props = input.props ?? {}
       this.size = input.size ?? 'md'
+      this.surface = input.surface ?? 'glass'
       this.isOpen = true
     },
 
@@ -38,6 +42,7 @@ export const useModalStore = defineStore('modal', {
       this.component = null
       this.props = {}
       this.size = 'md'
+      this.surface = 'glass'
     },
   },
 })

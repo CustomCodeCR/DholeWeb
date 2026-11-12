@@ -662,7 +662,8 @@ function applyTariff(rate: RateDto) {
   modalStore.open({
     title: 'Aplicar tarifario a cliente',
     component: PricingApplyTariffModal,
-    size: 'md',
+    size: 'lg',
+    surface: 'solid',
     props: {
       rate,
       onApplied: async () => {
