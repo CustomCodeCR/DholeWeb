@@ -1,3 +1,10 @@
+## [1.42.0] - 2026-11-12
+
+- MINOR DH-20261112-PRICING-ACCEPTANCE-MAIL-113: se incluye el botón «Reenviar notificación» en la Pantalla 9 para QUO aceptadas, confirmado con DhModal propio y protegido por pricing.rate.update.
+- Reenvío manual de apertura a través del servicio Pricing, con copia al ejecutivo y Pricing; cada operación se procesa de forma idempotente, sin cambiar el estado ni el IDTRA de la QUO.
+- Backport desde develop después del release 1.41.2: DholeWeb 1.41.2 → 1.42.0, DholePricingService 1.15.0 y DholeSystem/ecosistema 1.42.0.
+- CI y validaciones de staging obligatorias, sin cambios al framework.
+
 ## [1.41.2] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-LINKED-QUO-NUMBER-113: en pantalla 9 de Pricing Crystal, «QUO aceptada vinculada» resuelve el número comercial de la QUO mediante su ID interno; no muestra UUID, mantiene navegación y se sincroniza al actualizar/vincular otra cotización.
