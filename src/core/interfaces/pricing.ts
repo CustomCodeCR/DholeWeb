@@ -1089,6 +1089,8 @@ export interface DuplicateRateRequest extends Record<string, unknown> {
   identicalCopy?: boolean
   clientName?: string | null
   executiveName?: string | null
+  clientAccountId?: string | null
+  clientLeadId?: string | null
   idtraNumber?: string | null
 }
 

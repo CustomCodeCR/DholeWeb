@@ -1,3 +1,9 @@
+## [1.44.0] - 2026-11-12
+
+- MINOR DH-20261112-PRICING-TARIFF-CRM-121: el modal «Aplicar tarifario a cliente» usa el mismo selector de cuentas y prospectos de CRM que el wizard, sin campos manuales de cliente o ejecutivo; reconsulta CRM al guardar para obtener nombres y vendedor vigentes, incluyendo Castro Fallas institucional.
+- La QUO derivada envía ClientAccountId o ClientLeadId para mantener la vinculación al historial del CRM; el backend Pricing verifica cada ID/ACL con el token actual y sustituye nombres por el valor canónico. El maestro y su revisión permanecen intactos.
+- DholeWeb 1.43.6 → 1.44.0, DholePricingService 1.16.3 → 1.17.0, DholeSystem/ecosistema 1.43.8 → 1.44.0. REST heredado y SignalR compatibles. CI, staging y health antes de producción.
+
 ## [1.43.6] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-CRM-TARIFF-119: Pricing respeta el ejecutivo real de CRM para cuentas y prospectos institucionales, sin sustituir Castro Fallas por el usuario conectado ni por valores antiguos de Config.
