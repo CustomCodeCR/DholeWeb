@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 const root = new URL('../src/modules/crm/', import.meta.url)
 const source = (name) => readFileSync(new URL(name, root), 'utf8')
@@ -76,4 +78,22 @@ test('CRM recovery never opens for a hidden form and never discards deferred wor
   assert.match(code, /if \(preserveStoredDraft\) return/)
   assert.match(code, /generation !== recoveryGeneration/)
   assert.match(code, /cancelPendingRecovery\(\)/)
+})
+
+test('Dhole source prohibits native browser modal dialogs', () => {
+  const sourceRoot = fileURLToPath(new URL('../src/', import.meta.url))
+  const nativeDialog = /\\b(?:window|globalThis)\\s*\\.\\s*(?:confirm|alert|prompt)\\s*\\(/
+  const violations = []
+  function walk(folder) {
+    for (const item of readdirSync(folder, { withFileTypes: true })) {
+      const path = join(folder, item.name)
+      if (item.isDirectory()) {
+        walk(path)
+      } else if (/\\.(?:vue|ts|tsx|js|jsx)$/.test(item.name)) {
+        if (nativeDialog.test(readFileSync(path, 'utf8'))) violations.push(path)
+      }
+    }
+  }
+  walk(sourceRoot)
+  assert.deepEqual(violations, [], 'Use DhModal/DhButton, never a native browser modal')
 })
