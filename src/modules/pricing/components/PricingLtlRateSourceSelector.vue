@@ -174,7 +174,7 @@ const filteredOwn = computed(() => {
   const inferred = costBackedOwnRow.value
   const available = inferred && !ownRows.value.some((row) =>
     row.isActive && ownMatchesRoute(row) && String(row.commercialProfile) === 'FinalClient'
-  ) ? [...ownRows.value, inferred] : ownRows.value
+  ) ? [...ownRows.value, { ...inferred } as OwnRow] : ownRows.value
   return available.filter((row) =>
     row.isActive
     && String(row.shipmentMode).toLowerCase() === 'ltl'
@@ -366,7 +366,7 @@ watch(
             <p v-if="row.id === 'ltl-catalog:cfz-san-jose'" class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount * requestedCbm) }} por embarque</p>
             <p v-else class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount) }} / CBM</p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
-              <template v-if="row.id === 'ltl-catalog:cfz-san-jose'">Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm * requestedCbm) }} por embarque · Tramos por KG</template>
+              <template v-if="row.id === 'ltl-catalog:cfz-san-jose'">Costo {{ row.currencyCode || 'USD' }} {{ money(n(row.costPerCbm) * requestedCbm) }} por embarque · Tramos por KG</template>
               <template v-else>Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ row.currencyCode || 'USD' }} {{ money(row.minimumAmount) }}</template>
             </p>
           </div>
