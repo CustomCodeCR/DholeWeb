@@ -67,7 +67,7 @@ try {
       throw new Error('Chrome terminated: ' + chromeLog.slice(-1500))
     const portFile = join(chromeProfile, 'DevToolsActivePort')
     if (!existsSync(portFile)) return null
-    const port = Number(readFileSync(portFile, 'utf8').split('\\n')[0])
+    const port = Number(readFileSync(portFile, 'utf8').split('\n')[0])
     if (!Number.isInteger(port) || port <= 0) return null
     const response = await fetch('http://127.0.0.1:' + port + '/json/list')
     if (!response.ok) return null
