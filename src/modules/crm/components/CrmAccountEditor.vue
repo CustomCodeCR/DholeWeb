@@ -83,10 +83,12 @@ const relatedAddresses = ref<CrmRow[]>([])
 const editingContactId = ref('')
 const creatingContact = ref(false)
 function beginNewContact() {
+  accountContactAutosave.stop()
   Object.assign(contactDraft, { firstName: '', lastName: '', jobTitle: '',
     email: '', phone: '', countryId: accountDraft.countryId || String(props.account.countryId ?? '') })
   editingContactId.value = ''
   creatingContact.value = true
+  accountContactAutosave.begin()
   relatedError.value = ''
   relatedSuccess.value = ''
 }
@@ -98,7 +100,20 @@ const addressDraft = reactive({
   admin2Code: '', admin2Name: '', admin3Code: '', admin3Name: '', postalCode: '',
 })
 const creatingAddress = ref(false)
+const accountContactAutosave = useCrmDraftAutosave({
+  scope: () => 'account-contact:' + props.account.id + ':' + (editingContactId.value || 'new'),
+  enabled: () => props.open && (creatingContact.value || Boolean(editingContactId.value)),
+  capture: () => ({ ...contactDraft }),
+  apply: (snapshot) => { Object.assign(contactDraft, snapshot) },
+})
+const accountAddressAutosave = useCrmDraftAutosave({
+  scope: () => 'account-address:' + props.account.id + ':' + (editingAddressId.value || 'new'),
+  enabled: () => props.open && (creatingAddress.value || Boolean(editingAddressId.value)),
+  capture: () => ({ ...addressDraft }),
+  apply: (snapshot) => { Object.assign(addressDraft, snapshot) },
+})
 function beginNewAddress() {
+  accountAddressAutosave.stop()
   Object.assign(addressDraft, {
     addressType: 'WORK', addressText: '', location: '',
     countryId: accountDraft.countryId || String(props.account.countryId ?? ''), countryCode: '', admin1Code: '', admin1Name: '', admin2Code: '', admin2Name: '',
@@ -106,6 +121,7 @@ function beginNewAddress() {
   })
   editingAddressId.value = ''
   creatingAddress.value = true
+  accountAddressAutosave.begin()
   relatedError.value = ''
 }
 const relationSaving = ref(false)
@@ -113,6 +129,7 @@ const relatedError = ref('')
 const relatedSuccess = ref('')
 
 function beginContactEdit(contact: CrmRow) {
+  accountContactAutosave.stop()
   creatingContact.value = false
   editingContactId.value = String(contact.id)
   // Don't infer compound surnames from a legacy full name.
@@ -121,9 +138,11 @@ function beginContactEdit(contact: CrmRow) {
     email: String(contact.email ?? ''), phone: String(contact.phone ?? ''),
     countryId: String(contact.countryId || props.account.countryId || '') })
   editingAddressId.value = ''
+  accountContactAutosave.begin()
   relatedError.value = ''
 }
 function beginAddressEdit(address: CrmRow) {
+  accountAddressAutosave.stop()
   editingAddressId.value = String(address.id)
   Object.assign(addressDraft, {
     addressType: String(address.addressType ?? 'WORK'),
@@ -138,6 +157,7 @@ function beginAddressEdit(address: CrmRow) {
   creatingAddress.value = false
   creatingContact.value = false
   editingContactId.value = ''
+  accountAddressAutosave.begin()
   relatedError.value = ''
 }
 async function saveContact() {
@@ -163,6 +183,7 @@ async function saveContact() {
     relatedContacts.value = previous
       ? relatedContacts.value.map(c => c.id === updated.id ? updated : c)
       : [...relatedContacts.value, updated]
+    accountContactAutosave.commit()
     editingContactId.value = ''
     creatingContact.value = false
     relatedSuccess.value = previous ? 'Contacto actualizado.' : 'Contacto creado y vinculado a esta cuenta.'
@@ -187,6 +208,7 @@ async function saveAddress() {
     relatedAddresses.value = previous
       ? relatedAddresses.value.map(a => a.id === updated.id ? updated : a)
       : [...relatedAddresses.value, updated]
+    accountAddressAutosave.commit()
     editingAddressId.value = ''
     creatingAddress.value = false
     relatedSuccess.value = previous ? 'Dirección actualizada.' : 'Dirección registrada.'
