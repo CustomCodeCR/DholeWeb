@@ -116,7 +116,7 @@ const operations = computed(() =>
   catalog.value.filter(t => t.service === service.value && t.method === method.value))
 const filtered = computed(() => endpoints.value.filter(x =>
   [x.name, x.slug, x.target].join(' ').toLowerCase().includes(search.value.toLowerCase())))
-const externalUrl = (x: PublishedEndpoint) => base + '/api/external/' + (x.slug || 'mi-api') +
+const externalUrl = (x: PublishedEndpoint) => base + '/api/external/v1/' + (x.slug || 'mi-api') +
   (catalog.value.find(t => t.code === x.target)?.path.includes('{id}') ? '/{id}' : '')
 const example = computed(() => {
   if (!selectedTarget.value) return ''
@@ -156,6 +156,7 @@ function methodName(value: string) {
   return METHODS.find(m => m.value === value)?.label || value
 }
 function targetName(value: ApprovedTarget): string {
+  if (value.code.startsWith('config-catalog-')) return value.description.replace(/\s*\(solo lectura.*$/i, '')
   if (value.code === 'pricing-usd-crc') return 'Tipo de cambio USD / CRC'
   if (value.code === 'pricing-rate-detail') return 'Consultar una tarifa por ID'
   if (value.code === 'pricing-rates-list') return 'Consultar listado de tarifas'
@@ -170,6 +171,7 @@ function targetName(value: ApprovedTarget): string {
   return value.description || 'Función del módulo'
 }
 function targetHelp(value: ApprovedTarget): string {
+  if (value.code.startsWith('config-catalog-')) return 'Consulta segura de ' + targetName(value) + '. La API expone únicamente los campos de Config seleccionados.'
   switch (value.code) {
     case 'pricing-usd-crc': return 'Compartir el precio de compra y venta del dólar.'
     case 'pricing-rate-detail': return 'El tercero consulta una tarifa indicando su identificador.'
@@ -201,6 +203,12 @@ function initialInputs(code: string): Mapping[] {
   return []
 }
 function initialOutputs(code: string): Mapping[] {
+  if (code.startsWith('config-catalog-')) return [
+    { public: 'id', internal: 'id', required: false },
+    { public: 'code', internal: 'code', required: false },
+    { public: 'name', internal: 'name', required: false },
+    { public: 'value', internal: 'value', required: false },
+  ]
   if (code === 'pricing-rate-request-create') return [
     { public: 'solicitudId', internal: 'value', required: false },
   ]
@@ -277,7 +285,7 @@ function chooseTarget(target: ApprovedTarget) {
     .filter(field => field.selected).map(field => field.public))
   draft.value.outputs = mapSelected(target.outputFields || [], (target.outputFields || [])
     .filter(field => field.selected).map(field => field.public))
-  draft.value.responseRoot = null
+  draft.value.responseRoot = target.code.startsWith('config-catalog-') ? 'data' : null
   if (isNew.value) {
     draft.value.name = targetName(target)
     // Automatic unique address: no one needs to invent or edit a slug.
@@ -428,7 +436,7 @@ onMounted(() => { void load() })
     <header class="flex flex-wrap items-center justify-between gap-4">
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Dhole · APIs</p>
-        <h1 class="mt-1 text-2xl font-black">Rutas para terceros</h1>
+        <h1 class="mt-1 text-2xl font-black">Dhole API Manager</h1>
         <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Creá y administrá APIs GET, POST, PUT y DELETE con una dirección y clave propias.</p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -455,7 +463,7 @@ onMounted(() => { void load() })
           </thead>
           <tbody>
             <tr v-for="row in filtered" :key="row.id" class="border-b border-[var(--dh-border)] last:border-0">
-              <td class="p-3"><strong class="block">{{ row.name }}</strong><code class="text-xs text-[var(--dh-text-muted)]">{{ '/api/external/' + row.slug }}</code></td>
+              <td class="p-3"><strong class="block">{{ row.name }}</strong><code class="text-xs text-[var(--dh-text-muted)]">{{ '/api/external/v1/' + row.slug }}</code></td>
               <td class="p-3 uppercase">{{ catalog.find(t => t.code === row.target)?.service || row.target }}</td>
               <td class="p-3"><span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 font-mono text-xs font-bold">{{ catalog.find(t => t.code === row.target)?.method || '—' }}</span></td>
               <td class="p-3"><span class="text-xs font-semibold">{{ row.enabled ? 'Publicada' : 'Borrador' }}</span></td>
