@@ -261,13 +261,12 @@ function patchWizard(source: string): string {
   if (freightInputs < 3) {
     throw new Error('[pricingCustomsOnlyWizard] Missing freight, free days or transit controls')
   }
-  // Label the same persisted transit field consistently for all shipment modalities.
+  // Keep the original persisted transit field and its «Días de tránsito» label for all modalities.
   const transitControl = /<DhInput\b[^>]*v-model\.number="form\.transitDays"[^>]*\/>/
   if (!transitControl.test(six) || !six.includes('label="Días de tránsito"')) {
-    throw new Error('[pricingCustomsOnlyWizard] Missing delivery transit field')
+    throw new Error('[pricingCustomsOnlyWizard] Missing transit field')
   }
   six = six.replace(transitControl, (tag) => tag
-    .replace('label="Días de tránsito"', 'label="Días de tránsito normal"')
     .replace('type="number" min="0"', 'type="number" min="0" step="1"'))
   six = six.replace(
     'v-else-if="form.modality !== \'Land\'"',

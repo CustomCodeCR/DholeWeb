@@ -46,10 +46,9 @@ test('land delivery transit stays visible, is not reset and persists without fre
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
 
   assert.ok(wizard.includes('v-model.number="form.transitDays"'), 'reuse the persisted transit model')
-  assert.ok(plugin.includes(`.replace('label="Días de tránsito"', 'label="Días de tránsito normal"')`),
-    'use the same transit label for land, maritime and air quotations')
-  assert.ok(!plugin.includes("form.modality === 'Land' ? 'Días de tránsito normal'"),
-    'transit label must not depend on transport modality')
+  assert.ok(wizard.includes('label="Días de tránsito"'), 'the source label remains Días de tránsito')
+  assert.ok(!plugin.includes('Días de tránsito normal'), 'no modality may rename the transit label')
+  assert.ok(!plugin.includes('form.modality === \'Land\' ?'), 'the transit label must not depend on transport modality')
   assert.ok(!plugin.includes('Días de tránsito para la entrega'), 'outdated land transit label must not appear')
   assert.ok(plugin.includes("(hasInternationalTransportService || form.modality === 'Land')"),
     'do not hide delivery transit when international freight is not selected')
