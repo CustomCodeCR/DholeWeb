@@ -1,5 +1,5 @@
 import type { CostSelectDto } from '@/core/interfaces/pricing'
-import { isLtlCfzLocation, normalizeLandLocation } from './ltlGamRouting'
+import { isLtlCfzLocation, normalizeLandLocation } from './ltlGamRouting.ts'
 
 /**
  * Country-route operational charges are catalog costs, not additional master
