@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { sellerRateCurrencyValue } from '../src/modules/pricing/utils/sellerRateCurrency.ts'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { CostSelectDto } from '../src/core/interfaces/pricing.ts'
@@ -126,4 +128,22 @@ test('cost-backed LTL selection does not borrow unrelated Balboa-only master cos
     cost('custody', 'Custodia + Marchamo'),
   ]
   assert.equal(buildCfzSanJoseCatalogTariff(all, route), null)
+})
+
+test('LTL uses Config currency Value for own and coloader rates, never a generated CUR code', () => {
+  const currencies = [
+    { id: 'usd', code: 'CUR-2026-001', label: 'Dólares', value: 'USD' },
+    { id: 'crc', code: 'CUR-2026-002', label: 'Colones', value: 'CRC' },
+  ]
+  assert.equal(sellerRateCurrencyValue({ currencyId: 'usd', currencyCode: 'CUR-2026-001' }, currencies), 'USD')
+  assert.equal(sellerRateCurrencyValue({ currencyId: 'crc', currencyCode: 'CUR-2026-002' }, currencies), 'CRC')
+  assert.equal(sellerRateCurrencyValue({ currencyId: '', currencyCode: 'CUR-2026-001' }, currencies), 'USD')
+  assert.equal(sellerRateCurrencyValue({ currencyId: '', currencyCode: 'CUR-2026-999' }, currencies), null)
+  const selector = readFileSync(new URL('../src/modules/pricing/components/PricingLtlRateSourceSelector.vue', import.meta.url), 'utf8')
+  assert.match(selector, /CatalogItemsService\.select\(\{ catalogGroupSlug: 'currencies' \}\)/)
+  assert.match(selector, /currencyCatalog\.value = currencyResult\.status === 'fulfilled'/)
+  assert.match(selector, /sellerRateCurrencyValue\(row, currencyCatalog\.value\)/)
+  assert.match(selector, /importedCurrencyValue\(row\)/)
+  assert.ok((selector.match(/ownCurrencyValue\(row\)/g) ?? []).length >= 5)
+  assert.doesNotMatch(selector, /\{\{\s*row\.currencyCode\s*\|\|/)
 })

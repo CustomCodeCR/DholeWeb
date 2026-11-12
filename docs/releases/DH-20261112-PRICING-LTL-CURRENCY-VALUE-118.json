@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261112-PRICING-LTL-CURRENCY-VALUE-118",
+  "ecosystemVersion": "1.43.5",
+  "releaseType": "PATCH",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.43.3",
+      "to": "1.43.4"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.43.4",
+      "to": "1.43.5"
+    },
+    {
+      "component": "DholePricingService",
+      "from": "1.16.2",
+      "to": "1.16.2",
+      "unchanged": true
+    }
+  ],
+  "changes": [
+    "Resolve LTL source currency from Config currencies Value",
+    "Render Value for all own/coloader sale, cost, minimum amounts, with historical code resolution",
+    "Regression test prevents technical CUR-* codes in LTL output"
+  ],
+  "validation": "CI and staging pending",
+  "productionDeploymentAuthorized": false
+}

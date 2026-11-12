@@ -1,3 +1,8 @@
+## [1.43.4] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-LTL-CURRENCY-VALUE-118: pantalla 5 LTL (propios/coloaders) presenta Config.currencies.Value y no códigos CUR-* en venta, costo y mínimo; resuelve moneda por ID/código histórico y agrega regresión USD/CRC.
+- DholeWeb 1.43.3 → 1.43.4; ecosistema/DholeSystem 1.43.4 → 1.43.5; DholePricingService 1.16.2 sin cambios. Conserva corrección de Outbox incorporada previamente en develop. CI/staging pendientes, producción no autorizada.
+
 ## [1.43.3] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-OUTBOX-CORRELATION-115: el modal de reenvío de notificaciones de QUO muestra el detalle real devuelto por Pricing, incluyendo código de error cuando exista; elimina el mensaje genérico que atribuía incorrectamente errores de Outbox a Reports.

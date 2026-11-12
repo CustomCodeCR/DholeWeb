@@ -9,6 +9,9 @@ import {
   type FtlTariffDto,
 } from '@/core/services/ftlTariffService'
 import { PricingService } from '@/core/services/pricingService'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import { sellerRateCurrencyValue } from '@/modules/pricing/utils/sellerRateCurrency'
 import type { ImportRateSelectDto, CostSelectDto } from '@/core/interfaces/pricing'
 import { buildCfzSanJoseCatalogTariff, isCfzToSanJoseOwnLtl, LTL_PANAMA_REQUIRED_KINDS, selectLtlPanamaCosts } from '@/modules/pricing/utils/ltlPanamaOwnCosts'
 
@@ -59,6 +62,7 @@ const tab = ref<SourceTab>('Own')
 const ownRows = ref<OwnRow[]>([])
 const coloaderRows = ref<ColoaderRow[]>([])
 const costMasterRows = ref<CostSelectDto[]>([])
+const currencyCatalog = ref<CatalogItemSelectDto[]>([])
 const isPanamaCostRoute = computed(() => isCfzToSanJoseOwnLtl(
   [props.originName, props.originCode].filter(Boolean).join(' '),
   [props.destinationName, props.destinationCode].filter(Boolean).join(' '),
@@ -222,7 +226,7 @@ async function load() {
   try {
     loading.value = true
     error.value = ''
-    const [mastersResult, importsResult, costsResult] = await Promise.allSettled([
+    const [mastersResult, importsResult, costsResult, currencyResult] = await Promise.allSettled([
       FtlTariffService.browse('Ltl'),
       PricingService.selectImportRates({
         shipmentMode: 'Ltl',
@@ -233,6 +237,7 @@ async function load() {
       isPanamaCostRoute.value
         ? PricingService.selectCosts({ isActive: true })
         : Promise.resolve([] as CostSelectDto[]),
+      CatalogItemsService.select({ catalogGroupSlug: 'currencies' }),
     ])
 
     // Own land LTL tariffs must remain visible even if the imports/coloader API fails.
@@ -243,6 +248,7 @@ async function load() {
       ? importsResult.value.map((row) => ({ ...row }))
       : []
     costMasterRows.value = costsResult.status === 'fulfilled' ? costsResult.value : []
+    currencyCatalog.value = currencyResult.status === 'fulfilled' ? currencyResult.value : []
     if (isPanamaCostRoute.value && costsResult.status === 'rejected') {
       error.value = 'No se pudieron consultar los costos LTL Panamá → Costa Rica. Intente actualizar.'
     } else if (mastersResult.status === 'rejected' && !costBackedOwnRow.value) {
@@ -286,6 +292,20 @@ function importedSale(row: ImportRateSelectDto) {
 
 function importedCost(row: ImportRateSelectDto) {
   return n(row.totalCost ?? row.freight)
+}
+
+// CurrencyCode is an internal Config identifier. Render the currency Value
+// for both own and imported LTL rates, including historical snapshots.
+function ownCurrencyValue(row: FtlTariffDto): string {
+  return sellerRateCurrencyValue(row, currencyCatalog.value) ?? '—'
+}
+
+function importedCurrencyValue(row: ImportRateSelectDto): string {
+  return sellerRateCurrencyValue({
+    currencyId: row.currencyId,
+    currencyName: row.currency,
+    currencyCode: row.currencyCode,
+  }, currencyCatalog.value) ?? '—'
 }
 
 onMounted(load)
@@ -363,13 +383,13 @@ watch(
         </template>
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
-            <p v-if="row.id === 'ltl-catalog:cfz-san-jose' && row.priceAmount > 0" class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount * requestedCbm) }} por embarque</p>
+            <p v-if="row.id === 'ltl-catalog:cfz-san-jose' && row.priceAmount > 0" class="font-black">{{ ownCurrencyValue(row) }} {{ money(row.priceAmount * requestedCbm) }} por embarque</p>
             <p v-else-if="row.id === 'ltl-catalog:cfz-san-jose'" class="text-xs font-bold text-[var(--dh-text-muted)]">Pendiente de peso total / tramo válido</p>
-            <p v-else class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount) }} / CBM</p>
+            <p v-else class="font-black">{{ ownCurrencyValue(row) }} {{ money(row.priceAmount) }} / CBM</p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
-              <template v-if="row.id === 'ltl-catalog:cfz-san-jose' && row.priceAmount > 0">Costo {{ row.currencyCode || 'USD' }} {{ money(n(row.costPerCbm) * requestedCbm) }} por embarque · Tramos por KG</template>
+              <template v-if="row.id === 'ltl-catalog:cfz-san-jose' && row.priceAmount > 0">Costo {{ ownCurrencyValue(row) }} {{ money(n(row.costPerCbm) * requestedCbm) }} por embarque · Tramos por KG</template>
               <template v-else-if="row.id === 'ltl-catalog:cfz-san-jose'">Complete peso en KG para activar los cuatro cargos</template>
-              <template v-else>Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ row.currencyCode || 'USD' }} {{ money(row.minimumAmount) }}</template>
+              <template v-else>Costo {{ ownCurrencyValue(row) }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ ownCurrencyValue(row) }} {{ money(row.minimumAmount) }}</template>
             </p>
           </div>
         </template>
@@ -421,9 +441,9 @@ watch(
         </template>
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
-            <p class="font-black">{{ row.currencyCode || row.currency || 'USD' }} {{ money(importedSale(row)) }} / CBM</p>
+            <p class="font-black">{{ importedCurrencyValue(row) }} {{ money(importedSale(row)) }} / CBM</p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
-              Costo {{ row.currencyCode || row.currency || 'USD' }} {{ money(importedCost(row)) }} / CBM
+              Costo {{ importedCurrencyValue(row) }} {{ money(importedCost(row)) }} / CBM
             </p>
           </div>
         </template>
