@@ -1,3 +1,10 @@
+## [1.43.0] - 2026-11-12
+
+- MINOR DH-20261112-PRICING-RESEND-CHOICE-114: pantalla 9 permite seleccionar cuál notificación reenviar desde DhModal con DhSelect: Apertura con PDF, cotización enviada según preferencias CRM o aviso urgente SIN PDF.
+- Los errores del servidor se muestran por etapa; las operaciones conservan el requestId al reintentar la misma opción y generan un identificador nuevo al cambiar la selección.
+- DholeWeb 1.42.0 → 1.43.0, DholePricingService 1.15.0 → 1.16.0 y DholeSystem/ecosistema 1.43.0. Sin modificar estado comercial, IDTRA, REST/SignalR ni framework.
+- CI/staging/SMTP pendientes antes de cerrar el incidente QUO-00000-000609.
+
 ## [1.42.0] - 2026-11-12
 
 - MINOR DH-20261112-PRICING-ACCEPTANCE-MAIL-113: se incluye el botón «Reenviar notificación» en la Pantalla 9 para QUO aceptadas, confirmado con DhModal propio y protegido por pricing.rate.update.
