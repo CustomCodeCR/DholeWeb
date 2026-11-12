@@ -10,7 +10,7 @@ test('account grouping preserves separate customer records and uses Dhole modal'
   assert.match(manager, /<DhModal :open="open" title="Agrupar cuentas comerciales"/)
   assert.match(manager, /group\/members/)
   assert.match(manager, /expectedVersion: selected\.value\.rowVersion/)
-  assert.match(manager, /:can-manage=/)
+  assert.match(manager, /props\.canManage/)
   assert.match(manager, /'DELETE'/)
   assert.match(manager, /Cada una conserva su razón social/)
 })
