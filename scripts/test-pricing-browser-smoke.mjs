@@ -109,5 +109,13 @@ try {
   try { ws?.close() } catch {}
   chrome?.kill('SIGTERM')
   vite.kill('SIGTERM')
-  rmSync(chromeProfile, {recursive: true, force: true})
+  // Chrome may still flush its profile after SIGTERM. Cleanup is best effort
+  // and must not turn a successful browser smoke test into a false failure.
+  try {
+    rmSync(chromeProfile, {
+      recursive: true, force: true, maxRetries: 10, retryDelay: 100
+    })
+  } catch (error) {
+    console.warn('Chrome test profile cleanup incomplete:', String(error))
+  }
 }
