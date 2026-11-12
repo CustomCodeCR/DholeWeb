@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261112-LTL-CFZ-ROUTE-116",
+  "ecosystemVersion": "1.43.2",
+  "releaseType": "PATCH",
+  "releasedAt": null,
+  "components": [
+    {
+      "component": "DholeWeb",
+      "from": "1.43.1",
+      "to": "1.43.2"
+    },
+    {
+      "component": "DholeSystem",
+      "from": "1.43.1",
+      "to": "1.43.2"
+    },
+    {
+      "component": "DholePricingService",
+      "from": "1.16.0",
+      "to": "1.16.0",
+      "unchanged": true
+    }
+  ],
+  "changes": [
+    "CFZ Panama to San Jose Costa Rica own LTL is selectable without a persisted FtlTariff row",
+    "Build synthetic quote source from all 4 live cost catalog items and weight-based pricing tiers",
+    "Show cost-linked own route in administrative listing and prevent fallback freight/DUA document charges"
+  ],
+  "validation": "CI pending; functional quote staging required",
+  "productionDeploymentAuthorized": false
+}

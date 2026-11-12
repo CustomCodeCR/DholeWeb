@@ -6,6 +6,8 @@ import {
   isCfzToSanJoseOwnLtl,
   ltlPanamaCostKind,
   selectLtlPanamaCosts,
+  buildCfzSanJoseCatalogTariff,
+  CFZ_SAN_JOSE_CATALOG_TARIFF_ID,
   LTL_PANAMA_REQUIRED_KINDS,
 } from '../src/modules/pricing/utils/ltlPanamaOwnCosts.ts'
 
@@ -70,4 +72,58 @@ test('land freight tiers apply once to the TOTAL shipment weight, including the 
   assert.deepEqual(resolveCostPricing(freight, { weightKg: 185.5 }), { costAmount: 90, saleAmount: 100 })
   assert.deepEqual(resolveCostPricing(freight, { weightKg: 501 }), { costAmount: 100.2, saleAmount: 150.29999999999998 })
   assert.equal(resolveCostPricing(freight, { weightKg: 0 }), null)
+})
+
+test('CFZ to San José is selectable directly from the four master costs, without a stored land tariff', () => {
+  const costs = [
+    cost('freight', 'Flete Terrestre Internacional Panama a Costa Rica', {
+      costAmount: 0, saleAmount: 0,
+      pricingRulesJson: JSON.stringify([
+        { dimension: 'WeightKg', minValue: 1, maxValue: 500, costAmount: 180, saleAmount: 200, calculationMode: 'Flat' },
+        { dimension: 'WeightKg', minValue: 501, maxValue: 3000, costAmount: 0.2, saleAmount: 0.3, calculationMode: 'PerKg' },
+        { dimension: 'WeightKg', minValue: 3001, maxValue: null, costAmount: 0.18, saleAmount: 0.25, calculationMode: 'PerKg' },
+      ]),
+    }),
+    cost('bunker', 'Bunker Panamá a Costa Rica', { costAmount: 55, saleAmount: 70 }),
+    cost('expense', 'Gastos Panamá a Costa Rica', { costAmount: 40, saleAmount: 50 }),
+    cost('custody', 'Custodia + Marchamo', { costAmount: 25, saleAmount: 30 }),
+  ]
+  const route = {
+    originId: 'cfz', originName: 'Colón Free Zone, Panamá', originCode: 'CFZ',
+    destinationId: 'sj', destinationName: 'San José, Costa Rica', destinationCode: 'SJO',
+    weightKg: 185.5,
+    billableCbm: 28.56,
+  }
+  const first = buildCfzSanJoseCatalogTariff(costs, route)
+  assert.ok(first)
+  assert.equal(first.id, CFZ_SAN_JOSE_CATALOG_TARIFF_ID)
+  assert.equal(first.priceAmount * route.billableCbm, 200)
+  assert.equal(first.costPerCbm! * route.billableCbm, 180)
+  assert.equal(first.commercialProfile, 'FinalClient')
+  assert.equal(first.shipmentMode, 'Ltl')
+  assert.deepEqual(first.ltlChargeItems, [])
+  assert.equal(buildCfzSanJoseCatalogTariff(costs, { ...route, weightKg: 501 })?.priceAmount,
+    (501 * 0.3) / route.billableCbm)
+  assert.equal(buildCfzSanJoseCatalogTariff(costs, { ...route, weightKg: 3001 })?.priceAmount,
+    (3001 * 0.25) / route.billableCbm)
+  const pending = buildCfzSanJoseCatalogTariff(costs, { ...route, weightKg: 0 })
+  assert.ok(pending, 'route must remain visible before entering weight')
+  assert.equal(pending.priceAmount, 0)
+  assert.match(pending.notes ?? '', /Pendiente de ingresar peso/)
+  assert.equal(buildCfzSanJoseCatalogTariff(costs.slice(1), route), null)
+  assert.equal(buildCfzSanJoseCatalogTariff(costs, { ...route, originName: 'Balboa, Panamá', originCode: 'BLB' }), null)
+})
+
+test('cost-backed LTL selection does not borrow unrelated Balboa-only master costs', () => {
+  const route = {
+    originName: 'Colon Free Zone, Panama', destinationName: 'San Jose, Costa Rica',
+    weightKg: 500, billableCbm: 2.07,
+  }
+  const all = [
+    cost('freight', 'Flete Terrestre Internacional Panama a Costa Rica'),
+    cost('bunker', 'Bunker', { poes: [{ id: 'blb', name: 'Balboa, Panamá', code: 'BLB' }] }),
+    cost('expense', 'Gastos Panama a Costa Rica'),
+    cost('custody', 'Custodia + Marchamo'),
+  ]
+  assert.equal(buildCfzSanJoseCatalogTariff(all, route), null)
 })

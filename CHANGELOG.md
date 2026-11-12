@@ -1,3 +1,10 @@
+## [1.43.2] - 2026-11-12
+
+- PATCH DH-20261112-LTL-CFZ-ROUTE-116: corrige la ausencia de la ruta CFZ, Panamá → San José, Costa Rica en los tarifarios LTL propios y en Pantalla 5. Crea una tarifa propia calculada en tiempo real desde los cuatro conceptos vigentes de Costos y recargos sin requerir fila preexistente en la tabla de rutas.
+- Se muestran Bunker, Flete Terrestre Internacional, Gastos Panamá a Costa Rica y Custodia + Marchamo. La selección toma el peso real y los tramos configurados, respeta ruta, modalidad y condiciones, y no agrega cargos documentales ficticios ni duplica el flete por CBM.
+- DholeWeb 1.43.1 → 1.43.2, DholeSystem/ecosistema 1.43.1 → 1.43.2; PricingService conserva 1.16.0 al reutilizar el catálogo de costos sin cambiar contratos REST/SignalR.
+- Validación de integración, staging y producción sujetas a CI, pruebas reales y autorización.
+
 ## [1.43.1] - 2026-11-12
 
 - PATCH DH-20261112-LTL-PANAMA-COSTS-115: LTL propios CFZ, Panamá → San José, Costa Rica consume automáticamente los costos activos de Bunker, Gastos Panamá a Costa Rica, Flete Terrestre Internacional y Custodia + Marchamo.

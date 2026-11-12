@@ -333,14 +333,17 @@ const selectedPairRows = computed(() =>
 )
 
 function originRouteCount(code: string) {
-  return profileRows.value.filter((row) => rowCountryCode(row, 'origin') === code).length
+  const existing = profileRows.value.filter((row) => rowCountryCode(row, 'origin') === code).length
+  const missingCrRoute = !profileRows.value.some((row) => rowCountryCode(row, 'origin') === 'PA' && rowCountryCode(row, 'destination') === 'CR')
+  return existing + (code === 'PA' && costBackedRouteAvailable.value && missingCrRoute ? 1 : 0)
 }
 
 function destinationRouteCount(code: string) {
-  return profileRows.value.filter((row) =>
+  const existing = profileRows.value.filter((row) =>
     rowCountryCode(row, 'origin') === selectedOriginCountry.value
     && rowCountryCode(row, 'destination') === code,
   ).length
+  return existing + (selectedOriginCountry.value === 'PA' && code === 'CR' && costBackedRouteAvailable.value && existing === 0 ? 1 : 0)
 }
 
 function routeSnapshot(value: string, role: 'origin' | 'destination') {
@@ -441,6 +444,14 @@ const usesPanamaLtlCosts = computed(() => isCfzToSanJoseOwnLtl(
   'Ltl',
   form.commercialProfile,
 ))
+const hasCostBackedOwnRoute = computed(() =>
+  selectedOriginCountry.value === 'PA'
+  && selectedDestinationCountry.value === 'CR'
+  && LTL_PANAMA_REQUIRED_KINDS.every((kind) => selectLtlPanamaCosts(panamaCatalogCosts.value).has(kind)),
+)
+const costBackedRouteAvailable = computed(() =>
+  LTL_PANAMA_REQUIRED_KINDS.every((kind) => selectLtlPanamaCosts(panamaCatalogCosts.value).has(kind)),
+)
 const panamaCostRows = computed(() => {
   const selectedCosts = selectLtlPanamaCosts(panamaCatalogCosts.value)
   const labels = {
@@ -870,7 +881,28 @@ onMounted(load)
                 {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}
               </p>
             </div>
-            <DhButton v-if="canCreate" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
+            <DhButton v-if="canCreate && !hasCostBackedOwnRoute" label="Agregar ruta" :icon="Plus" @click.stop="newRouteForPair" />
+          </div>
+
+          <div v-if="hasCostBackedOwnRoute" class="mt-4 rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="font-black text-[var(--dh-text)]">CFZ, Panamá → San José, Costa Rica</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Tarifa LTL propia automática desde Costos y recargos. No requiere crear una tarifa manual.
+                  En cada cotización se calcula el tramo correspondiente al peso total en KG.
+                </p>
+              </div>
+              <DhBadge label="Ruta disponible · Costos maestros" variant="success" />
+            </div>
+            <div class="mt-4 grid gap-2 sm:grid-cols-2">
+              <div v-for="entry in panamaCostRows" :key="entry.kind" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                <p class="text-xs font-bold">{{ entry.label }}</p>
+                <p class="mt-1 text-xs font-semibold text-[var(--dh-primary)]">
+                  {{ entry.rules ? entry.rules + ' tramos configurados' : 'Costo y venta del catálogo' }}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div v-if="selectedPairRows.length" class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
@@ -922,7 +954,7 @@ onMounted(load)
             </table>
           </div>
 
-          <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] px-5 py-10 text-center">
+          <div v-else-if="!hasCostBackedOwnRoute" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] px-5 py-10 text-center">
             <p class="font-black text-[var(--dh-text)]">No hay una ruta configurada para esta combinación.</p>
             <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Use “Agregar ruta” para ingresar los valores de {{ originLabel(selectedOriginCountry) }} → {{ countryName(selectedDestinationCountry) }}.</p>
           </div>
