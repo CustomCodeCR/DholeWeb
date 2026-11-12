@@ -6,7 +6,7 @@ const wizard = readFileSync('src/modules/pricing/components/PricingAlternativeWi
 const modal = readFileSync('src/modules/pricing/components/PricingResendAcceptanceEmailModal.vue', 'utf8')
 const service = readFileSync('src/core/services/pricingService.ts', 'utf8')
 
-test('resend button is present for accepted quotations and requires pricing update scope', () => {
+test('resend button is only for accepted quotations and authorized pricing editors', () => {
   assert.match(wizard, /editingRate\.status === 'AcceptedByClient' && canUpdateRateStatus/)
   assert.match(wizard, /Reenviar notificación/)
   assert.match(wizard, /@click="openAcceptanceNotificationResendModal"/)
@@ -14,17 +14,24 @@ test('resend button is present for accepted quotations and requires pricing upda
   assert.match(wizard, /modalStore\.open\(/)
 })
 
-test('confirmation is a Dhole modal with one operation ID reused on retry', () => {
-  assert.match(modal, /const requestId = crypto\.randomUUID\(\)/)
-  assert.match(modal, /if \(sending\.value\) return/)
-  assert.match(modal, /PricingService\.resendAcceptedRateEmail\(props\.rateId, requestId\)/)
-  assert.match(modal, /DhButton/)
+test('DhModal lets user select the exact notification to resend', () => {
+  assert.match(modal, /DhSelect/)
+  assert.match(modal, /v-model="notificationType"/)
+  assert.match(modal, /value: 'opening'/)
+  assert.match(modal, /value: 'quote'/)
+  assert.match(modal, /value: 'notice'/)
+  assert.match(modal, /SIN PDF/)
   assert.match(modal, /Confirmar reenvío/)
   assert.doesNotMatch(modal, /window\.confirm|window\.alert/)
 })
 
-test('web client reuses the UUID for backend and HTTP idempotency', () => {
+test('each selection has one idempotency key preserved on retry', () => {
+  assert.match(modal, /const requestId = ref\(crypto\.randomUUID\(\)\)/)
+  assert.match(modal, /watch\(notificationType, \(\) => \{/)
+  assert.match(modal, /requestId\.value = crypto\.randomUUID\(\)/)
+  assert.match(modal, /if \(sending\.value\) return/)
+  assert.match(modal, /PricingService\.resendAcceptedRateEmail\(props\.rateId, requestId\.value, notificationType\.value\)/)
   assert.match(service, /acceptance-email\/resend/)
-  assert.match(service, /body: \{ requestId \}/)
+  assert.match(service, /body: \{ requestId, notificationType \}/)
   assert.match(service, /idempotencyKey: requestId/)
 })
