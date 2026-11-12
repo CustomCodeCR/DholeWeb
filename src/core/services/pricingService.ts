@@ -793,6 +793,17 @@ export const PricingService = {
     })
   },
 
+  resendAcceptedRateEmail(rateId: string, requestId: string): Promise<unknown> {
+    return callEndpoint<unknown, { requestId: string }>({
+      method: 'POST',
+      path: `/api/pricing/rates/${encodeURIComponent(rateId)}/acceptance-email/resend`,
+    }, {
+      body: { requestId },
+      // Una confirmación usa el mismo UUID en body y middleware de idempotencia.
+      idempotencyKey: requestId,
+    })
+  },
+
   deleteRates(ids: string[]): Promise<NoContent> {
     return callEndpoint<NoContent, DeleteBatchRequest>(Endpoints.deleteRates, { body: { ids } })
   },
