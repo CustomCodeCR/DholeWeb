@@ -1,3 +1,10 @@
+## [1.41.0] - 2026-11-12
+
+- MINOR DH-20261112-CRM-ACCOUNT-GROUPS-112: interfaz CRM para agrupar cuentas en una principal y vinculadas, con selección de cuentas existentes, confirmación para desvincular y DhModal propio de Dhole.
+- La ficha muestra todas las cuentas del grupo; las secciones de actividades, seguimientos, análisis comercial, procedimientos, tarifas preferenciales, historial de QUO y rutas consultan registros comerciales del conjunto con filtros de permisos.
+- Cada cuenta conserva su cédula, razón social, contactos, vendedor, dirección, crédito y contratos. Historial Pricing se obtiene por cuenta y se muestra consolidado sin mutar la relación original.
+- DholeWeb 1.39.1 → 1.41.0; DholeCRMService 1.25.0; ecosistema 1.41.0. CI y staging pendientes; sin autorización de producción.
+
 ## [1.39.1] - 2026-11-12
 
 - PATCH DH-20261112-CRM-DRAFT-DHMODAL-111: corrección de recuperación de borradores CRM exclusivamente con DhModal y DhButton. Elimina window.confirm de CRM y permite Recuperar, Descartar y Más tarde.
