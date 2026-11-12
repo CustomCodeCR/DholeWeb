@@ -1,3 +1,9 @@
+## [1.43.4] - 2026-11-12
+
+- PATCH DH-20261112-DYNAMICS-QUO-613-619-118: la consola de Dynamics permite conciliar la única línea Dhole de QUO-00000-000613 mediante comprobación de solo lectura, sin crear ni actualizar registros.
+- QUO-00000-000619: muestra el identificador real de la operación de cabecera y permite al administrador registrar una conciliación "no aplicada" solo tras confirmar manualmente en Dataverse que no existe cabecera por RateId/IDTRA/cliente. Registrar evidencia no reenvía la QUO; luego se ofrece recuperación independiente y verificada.
+- DholeWeb 1.43.3 → 1.43.4; global 1.43.5. Se conservan REST, SignalR y controles de reintentos. CI/staging y comprobación real pendientes; sin producción.
+
 ## [1.43.3] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-OUTBOX-CORRELATION-115: el modal de reenvío de notificaciones de QUO muestra el detalle real devuelto por Pricing, incluyendo código de error cuando exista; elimina el mensaje genérico que atribuía incorrectamente errores de Outbox a Reports.
