@@ -46,7 +46,8 @@ test('land delivery transit stays visible, is not reset and persists without fre
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
 
   assert.ok(wizard.includes('v-model.number="form.transitDays"'), 'reuse the persisted transit model')
-  assert.ok(plugin.includes('Días de tránsito para la entrega'), 'label delivery transit on step 6')
+  assert.ok(plugin.includes('Días de tránsito normal'), 'label normal transit on step 6')
+  assert.ok(!plugin.includes('Días de tránsito para la entrega'), 'outdated land transit label must not appear')
   assert.ok(plugin.includes("(hasInternationalTransportService || form.modality === 'Land')"),
     'do not hide delivery transit when international freight is not selected')
   assert.equal(plugin.split("if (form.modality !== 'Land') form.transitDays = 0").length - 1, 2,

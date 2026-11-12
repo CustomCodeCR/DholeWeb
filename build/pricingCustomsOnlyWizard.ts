@@ -267,7 +267,7 @@ function patchWizard(source: string): string {
     throw new Error('[pricingCustomsOnlyWizard] Missing delivery transit field')
   }
   six = six.replace(transitControl, (tag) => tag
-    .replace('label="Días de tránsito"', `:label="form.modality === 'Land' ? 'Días de tránsito para la entrega' : 'Días de tránsito'"`)
+    .replace('label="Días de tránsito"', `:label="form.modality === 'Land' ? 'Días de tránsito normal' : 'Días de tránsito'"`)
     .replace('type="number" min="0"', 'type="number" min="0" step="1"'))
   six = six.replace(
     'v-else-if="form.modality !== \'Land\'"',
