@@ -31,3 +31,14 @@ test('Geoapify is ready without configuration in environment files', () => {
   for (const path of ['.github/workflows/deploy-staging.yml','.github/workflows/deploy-production.yml'])
     assert.doesNotMatch(read(path), /VITE_GEOAPIFY_API_KEY/)
 })
+
+test('nginx CSP allows Geoapify requests from CRM without weakening origin restrictions', () => {
+  const nginx = read('nginx.conf')
+  const policy = nginx.match(/add_header Content-Security-Policy "([^"]+)"/)?.[1]
+  assert.ok(policy, 'SPA should expose a Content-Security-Policy header')
+  const connectSrc = policy.split(';').map(value => value.trim()).find(value => value.startsWith('connect-src '))
+  assert.ok(connectSrc, 'CSP must define connect-src')
+  assert.match(connectSrc, /(?:^|\\s)https:\/\/api\\.geoapify\\.com(?:\\s|$)/)
+  assert.doesNotMatch(connectSrc, /(?:^|\\s)\\*(?:\\s|$)/)
+  assert.match(map, /https:\/\/api\\.geoapify\\.com\/v1\/geocode\//)
+})
