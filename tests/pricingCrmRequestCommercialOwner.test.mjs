@@ -65,3 +65,20 @@ test('Las solicitudes de modificación de vendedores con prospecto revalidan el 
   assert.match(modification, /if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
   assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
 })
+
+test('Prospecto institucional conserva Castro Fallas en la selección y al restaurar el borrador', () => {
+  const wizard = source('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  assert.match(wizard, /client\?\.isCastroFallasExecutive === true/)
+  assert.match(wizard, /form\.executiveName = 'Castro Fallas'/)
+  assert.match(wizard, /if \(form\.crmClientKind\) return/)
+  assert.match(identity, /!props\.sellerRequestMode && !form\.clientId/)
+  assert.match(identity, /if \(form\.clientId\) await refreshModificationCrmOwner\(\)/)
+})
+
+test('Prospecto TARIFARIO se crea como maestro incluso desde un borrador SPOT', () => {
+  const wizard = source('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  assert.match(wizard, /client\?\.displayName \?\? ''\)\.toLocaleUpperCase\(\)\.includes\('TARIFARIO'\)/)
+  assert.match(wizard, /form\.rateType = 'Tariff'/)
+  assert.match(identity, /form\.clientName\.toLocaleUpperCase\(\)\.includes\('TARIFARIO'\)/)
+  assert.match(identity, /form\.rateType = 'Tariff'/)
+})
