@@ -5,6 +5,7 @@ import { DhButton, DhInput, DhSelect, DhMultiSelect } from '@/shared/components/
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 import { useAuthStore } from '@/core/stores/authStore'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 
 const props = defineProps<{
   activityId: string
@@ -83,6 +84,28 @@ const showParticipantForm = ref(false)
 const participantName = ref('')
 const selectedContactIds = ref<string[]>([])
 const role = ref('ATTENDEE')
+const noteAutosave = useCrmDraftAutosave({
+  scope: () => 'activity-note:' + props.activityId,
+  capture: () => ({ text: note.value, commitments: noteCommitments.value }),
+  apply: (snapshot) => {
+    note.value = snapshot.text
+    noteCommitments.value = snapshot.commitments ?? []
+  },
+})
+const participantAutosave = useCrmDraftAutosave({
+  scope: () => 'activity-participants:' + props.activityId,
+  enabled: () => showParticipantForm.value,
+  capture: () => ({ name: participantName.value, contacts: selectedContactIds.value, role: role.value }),
+  apply: (snapshot) => {
+    participantName.value = snapshot.name
+    selectedContactIds.value = snapshot.contacts ?? []
+    role.value = snapshot.role
+  },
+})
+watch(showParticipantForm, opened => {
+  if (opened) participantAutosave.begin()
+  else participantAutosave.stop()
+})
 let generation = 0
 
 const linkedContactIds = computed(() =>
@@ -162,6 +185,7 @@ async function addParticipant() {
       }, crmUuid())
       added++
     }
+    participantAutosave.commit()
     selectedContactIds.value = []
     participantName.value = ''
     role.value = 'ATTENDEE'
@@ -214,8 +238,10 @@ async function addNote() {
         noteText: note.value.trim(),agreementCommitments:items,
       },crmUuid())
     if (saved?.id) notes.value=[...notes.value,saved]
+    noteAutosave.commit()
     note.value=''
     noteCommitments.value=[]
+    noteAutosave.begin()
     message.value=items.length
       ? 'Observación guardada y '+items.length+' compromiso(s) agregado(s) al calendario del cliente y vendedor.'
       : 'Observación agregada.'
@@ -224,7 +250,13 @@ async function addNote() {
     error.value = crmError(cause)
   } finally { saving.value = false }
 }
-watch(() => [props.activityId, props.accountId], () => { void load() }, { immediate: true })
+watch(() => [props.activityId, props.accountId], () => {
+  noteAutosave.stop(); participantAutosave.stop()
+  note.value = ''; noteCommitments.value = []
+  participantName.value = ''; selectedContactIds.value = []; role.value = 'ATTENDEE'
+  noteAutosave.begin()
+  void load()
+}, { immediate: true })
 </script>
 
 <template>
@@ -238,6 +270,7 @@ watch(() => [props.activityId, props.accountId], () => { void load() }, { immedi
     </div>
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="message" role="status" class="text-sm text-[var(--dh-primary)]">{{ message }}</p>
+    <p v-if="noteAutosave.status.value !== 'idle' || participantAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">Borrador de observaciones o participantes guardado. Podés retomarlo después.</p>
     <div class="grid gap-4 lg:grid-cols-2">
       <article class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
         <div class="flex items-center justify-between gap-3">
