@@ -61,6 +61,7 @@ import PricingCancelAcceptedRateModal from '@/modules/pricing/components/Pricing
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
+import { linkedAcceptedQuoteNumber } from '@/modules/pricing/utils/pricingLinkedAcceptedQuote'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
 import { resolveDestinationVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
@@ -5500,7 +5501,7 @@ onMounted(async () => {
             <div v-if="editingRate.status === 'QUOVinculada'" class="mt-4 rounded-2xl border border-[var(--dh-border)] p-4">
               <p class="text-xs font-black uppercase tracking-[0.12em]">QUO aceptada vinculada</p>
               <router-link v-if="editingRate.linkedAcceptedRateId" :to="{ name: 'pricing-rate-wizard', params: { rateId: editingRate.linkedAcceptedRateId }, query: { mode: 'view' } }" class="mt-2 inline-block text-sm font-bold text-emerald-600 underline dark:text-emerald-300">
-                {{ linkedAcceptedRate?.quoNumber || linkedAcceptedRate?.rateCode || editingRate.linkedAcceptedRateId }}
+                {{ linkedAcceptedQuoteNumber(linkedAcceptedRate) }}
               </router-link>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Esta tarifa se contabiliza como QUO vinculada, no como vencida ni no aceptada.</p>
             </div>
