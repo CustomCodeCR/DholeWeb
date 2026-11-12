@@ -1,3 +1,9 @@
+## [1.41.2] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-LINKED-QUO-NUMBER-113: en pantalla 9 de Pricing Crystal, «QUO aceptada vinculada» resuelve el número comercial de la QUO mediante su ID interno; no muestra UUID, mantiene navegación y se sincroniza al actualizar/vincular otra cotización.
+- El asistente anterior utiliza el mismo formato seguro y tampoco muestra el UUID cuando la consulta falla. Sin cambios de Pricing Service, REST, SignalR, datos ni permisos.
+- DholeWeb 1.41.1 → 1.41.2 y DholeSystem 1.41.1 → 1.41.2. Validar CI/build y staging antes de producción.
+
 ## [1.41.1] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-CLIENT-QUO-PICKER-112: carga automática y paginada de cotizaciones enviadas y aceptadas del mismo cliente en el modal «Cliente aceptó otra QUO», con filtros, modalidad, ruta y estado. No permite vincular una QUO enviada sin aceptación; la referencia se revalida contra Pricing.
