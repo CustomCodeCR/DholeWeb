@@ -18,6 +18,7 @@ import CrmContactForm from './CrmContactForm.vue'
 import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmCommercialBenefitsManager from './CrmCommercialBenefitsManager.vue'
 import CrmSpecificProceduresManager from './CrmSpecificProceduresManager.vue'
+import CrmAccountGroupManager from './CrmAccountGroupManager.vue'
 import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmQuoteDeliveryPanel from './CrmQuoteDeliveryPanel.vue'
 import CrmLegacyQuoteManager from './CrmLegacyQuoteManager.vue'
@@ -106,6 +107,26 @@ const initial = (): Overview => ({
   analyses: [], opportunities: [], quotes: [], quotesAreLinkedOnly: true,
 })
 const overview = ref<Overview>(initial())
+const groupAccountIds = ref<string[]>([])
+async function accountGroupIds(accountId: string): Promise<string[]> {
+  try {
+    const result = await get<{ members: Array<{ id: string }> }>(crmPath('accounts', accountId, 'group'))
+    const ids = [...new Set((result.members || []).map(member => member.id).filter(Boolean))]
+    const effective = ids.length ? ids : [accountId]
+    if (accountId === rowId(props.account.id)) groupAccountIds.value = effective
+    return effective
+  } catch {
+    if (accountId === rowId(props.account.id)) groupAccountIds.value = [accountId]
+    return [accountId]
+  }
+}
+function groupedAccountChanged() {
+  quoteRefreshKey.value++
+  quoteRoutePage.value = 1
+  void load()
+  void loadPricingQuotes()
+  void loadQuotedRoutes()
+}
 const accountChanges = ref<AccountAuditEntry[]>([])
 const accountChangesTotal = ref(0)
 const accountChangesPage = ref(1)
@@ -477,12 +498,21 @@ async function loadPricingQuotes() {
   pricingQuoteError.value = ''
   pricingQuotesLoading.value = true
   try {
-    const data = await fetchClient<{ items: CrmRow[]; total: number }>(
-      '/api/pricing/rates/crm-account/' + encodeURIComponent(accountId) + '?page=1&pageSize=100',
-      { method: 'GET' })
+    const ids = await accountGroupIds(accountId)
+    const pages = await Promise.allSettled(ids.map(id => fetchClient<{ items: CrmRow[]; total: number }>(
+      '/api/pricing/rates/crm-account/' + encodeURIComponent(id) + '?page=1&pageSize=100',
+      { method: 'GET' })))
     if (generation !== pricingQuotesGeneration || accountId !== rowId(props.account.id)) return
-    pricingQuotes.value = data.items || []
-    pricingQuoteTotal.value = data.total || 0
+    const successes = pages.flatMap(page => page.status === 'fulfilled' ? [page.value] : [])
+    if (!successes.length) throw new Error('No fue posible consultar las cotizaciones.')
+    const byId = new Map<string, CrmRow>()
+    for (const page of successes) for (const quote of page.items || []) {
+      const key = String(quote.pricingQuoteId || quote.id || quote.quoteNumberSnapshot || '')
+      if (key) byId.set(key, quote)
+    }
+    pricingQuotes.value = [...byId.values()].slice(0, 100)
+    pricingQuoteTotal.value = Math.max(byId.size, successes.reduce((total, page) => total + (page.total || 0), 0))
+    if (successes.length !== ids.length) pricingQuoteError.value = 'Algunas cuentas del grupo no pudieron consultarse en Pricing.'
   } catch (cause) {
     if (generation !== pricingQuotesGeneration) return
     pricingQuotes.value = []
@@ -707,6 +737,7 @@ watch(() => props.account.id, () => {
   accountChangesPage.value = 1
   accountChangesError.value = ''
   overview.value = initial()
+  groupAccountIds.value = []
   ++pricingQuotesGeneration
   ++quoteRoutesGeneration
   pricingQuotes.value = []
@@ -769,20 +800,30 @@ async function loadQuotedRoutes() {
   quoteRouteLoading.value = true
   quoteRouteError.value = ''
   try {
-    // Read the same Pricing account link written by crm-legacy-reconcile.
-    // The old CRM endpoint only sees opportunity quotes and returned zero.
-    const page = await fetchClient<{ items: CrmRow[]; total: number }>(
-      '/api/pricing/rates/crm-account/' + encodeURIComponent(accountId) +
-      '?page=' + quoteRoutePage.value + '&pageSize=8', { method: 'GET' })
+    const ids = await accountGroupIds(accountId)
+    const pages = await Promise.allSettled(ids.map(id => fetchClient<{ items: CrmRow[]; total: number }>(
+      '/api/pricing/rates/crm-account/' + encodeURIComponent(id) +
+      '?page=1&pageSize=100', { method: 'GET' })))
     if (generation !== quoteRoutesGeneration || accountId !== rowId(props.account.id)) return
-    quoteRouteSnapshots.value = (page.items || []).map(q => ({
+    const successes = pages.flatMap(page => page.status === 'fulfilled' ? [page.value] : [])
+    if (!successes.length) throw new Error('No fue posible consultar las rutas de las cotizaciones.')
+    const byId = new Map<string, CrmRow>()
+    for (const page of successes) for (const quote of page.items || []) {
+      const key = String(quote.pricingQuoteId || quote.id || quote.quoteNumberSnapshot || '')
+      if (key) byId.set(key, quote)
+    }
+    const sorted = [...byId.values()].sort((a, b) =>
+      String(b.linkedAt || b.createdAt || '').localeCompare(String(a.linkedAt || a.createdAt || '')))
+    quoteRouteSnapshots.value = sorted.slice((quoteRoutePage.value - 1) * 8, quoteRoutePage.value * 8).map(q => ({
       ...q,
       quoteNumber: q.quoteNumberSnapshot,
       shipmentMode: q.shipmentModeSnapshot,
       revisionPending: false,
       available: Boolean(q.polName) && Boolean(q.podName || q.poeName),
     }))
-    quoteRouteTotal.value = page.total || 0
+    quoteRouteTotal.value = Math.max(byId.size,
+      successes.reduce((total, page) => total + (page.total || 0), 0))
+    if (successes.length !== ids.length) quoteRouteError.value = 'Algunas cuentas del grupo no pudieron consultarse.'
   } catch (cause) {
     if (generation !== quoteRoutesGeneration) return
     quoteRouteError.value = message(cause)
@@ -956,6 +997,9 @@ async function saveRoute() {
 
       </div>
     </header>
+    <CrmAccountGroupManager v-if="!editing" :account-id="rowId(account.id)"
+      :can-manage="has('crm.account.update') && has('crm.account.read-all')"
+      @changed="groupedAccountChanged" />
       <nav v-if="!editing" role="tablist" class="hub-sticky-tabs sticky z-20 flex max-w-full flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4"
         :aria-label="locale === 'en' ? 'Account sections' : 'Secciones del cliente'">
         <button v-for="tab in tabs" :key="tab.key" type="button" role="tab"
@@ -1568,7 +1612,7 @@ async function saveRoute() {
     <section v-else-if="activeTab === 'quotes'" id="crm-account-quotes" role="tabpanel" class="hub-panel">
       <div class="mb-4">
         <h2 class="font-extrabold">{{ locale === 'en' ? 'Quotation history' : 'Historial de cotizaciones' }}</h2>
-        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran todas las QUO vinculadas directamente por ID a esta cuenta en Pricing, aunque no tengan oportunidad CRM.</p>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se muestran las QUO vinculadas por ID a cualquiera de las cuentas visibles del grupo, aunque no tengan oportunidad CRM.</p>
       </div>
       <details v-if="canManageHistoricalQuoteLinks" :open="legacyQuoteLinksExpanded"
         class="hub-panel" @toggle="onLegacyQuoteLinksToggle">
@@ -1584,7 +1628,7 @@ async function saveRoute() {
             :executive-name="assignedSellerName" view="quotes" @changed="handleQuoteLinked" />
         </div>
       </details>
-      <CrmAccountQuotesDashboard :account-id="rowId(account.id)" :refresh-key="quoteRefreshKey" />
+      <CrmAccountQuotesDashboard :account-id="rowId(account.id)" :account-ids="groupAccountIds" :refresh-key="quoteRefreshKey" />
       <p v-if="pricingQuoteError" role="alert" class="text-xs text-amber-600">No se pudieron consultar las QUO vinculadas en Pricing: {{ pricingQuoteError }}</p>
       <p v-if="!recentQuotes.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay cotizaciones vinculadas a esta cuenta todavía.</p>
       <div v-else class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm">
