@@ -363,10 +363,12 @@ watch(
         </template>
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
-            <p v-if="row.id === 'ltl-catalog:cfz-san-jose'" class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount * requestedCbm) }} por embarque</p>
+            <p v-if="row.id === 'ltl-catalog:cfz-san-jose' && row.priceAmount > 0" class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount * requestedCbm) }} por embarque</p>
+            <p v-else-if="row.id === 'ltl-catalog:cfz-san-jose'" class="text-xs font-bold text-[var(--dh-text-muted)]">Pendiente de peso total / tramo válido</p>
             <p v-else class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount) }} / CBM</p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
-              <template v-if="row.id === 'ltl-catalog:cfz-san-jose'">Costo {{ row.currencyCode || 'USD' }} {{ money(n(row.costPerCbm) * requestedCbm) }} por embarque · Tramos por KG</template>
+              <template v-if="row.id === 'ltl-catalog:cfz-san-jose' && row.priceAmount > 0">Costo {{ row.currencyCode || 'USD' }} {{ money(n(row.costPerCbm) * requestedCbm) }} por embarque · Tramos por KG</template>
+              <template v-else-if="row.id === 'ltl-catalog:cfz-san-jose'">Complete peso en KG para activar los cuatro cargos</template>
               <template v-else>Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ row.currencyCode || 'USD' }} {{ money(row.minimumAmount) }}</template>
             </p>
           </div>
@@ -379,6 +381,7 @@ watch(
               :icon="selectedMasterId === row.id ? Check : undefined"
               size="sm"
               :loading="selecting === 'own:' + row.id"
+              :disabled="row.id === 'ltl-catalog:cfz-san-jose' && !(row.priceAmount > 0)"
               @click="chooseOwn(row)"
             />
           </div>
