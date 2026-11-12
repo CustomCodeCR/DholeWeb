@@ -216,6 +216,7 @@ function teamLabels(value: string | null): string[] {
     <form v-if="isEditing && canEdit" class="space-y-4 rounded-2xl border border-[var(--dh-primary)]/50 bg-[var(--dh-card)] p-5"
 
       @submit.prevent="save">
+      <p v-if="procedureAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ procedureAutosave.status.value === 'restored' ? 'Procedimiento recuperado.' : procedureAutosave.status.value === 'saved' ? 'Borrador del procedimiento guardado.' : 'No se pudo guardar el borrador local.' }}</p>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-extrabold">{{ editingId ? 'Editar procedimiento' : 'Nuevo procedimiento específico' }}</h3>
         <button type="button" aria-label="Cerrar formulario" class="rounded-lg p-1 text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]" @click="closeEditor">
