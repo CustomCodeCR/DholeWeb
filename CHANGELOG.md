@@ -1,3 +1,8 @@
+## [1.44.1] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-TRANSIT-LABEL-122: la pantalla 6 del asistente de tarifas terrestres FTL/LTL, aéreas y marítimas FCL/LCL muestra exactamente «Días de tránsito». Elimina la etiqueta especial «Días de tránsito para la entrega» sin modificar transitDays, guardado ni lógica de visibilidad.
+- Prueba de regresión del texto. DholeWeb 1.44.0 → 1.44.1; ecosistema Dhole 1.44.0 → 1.44.1. CI, compilación y staging requeridos; promover a master por autorización del usuario tras verificar.
+
 ## [1.44.0] - 2026-11-12
 
 - MINOR DH-20261112-PRICING-TARIFF-CRM-121: el modal «Aplicar tarifario a cliente» usa el mismo selector de cuentas y prospectos de CRM que el wizard, sin campos manuales de cliente o ejecutivo; reconsulta CRM al guardar para obtener nombres y vendedor vigentes, incluyendo Castro Fallas institucional.
