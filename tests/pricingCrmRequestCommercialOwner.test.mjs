@@ -50,7 +50,7 @@ test('Existing modifications reject an unavailable seller and retain unlinked le
 })
 
 test('Solicitudes normales y de modificación recuperan también el ejecutivo de prospectos CRM por ID', () => {
-  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode\) return true/)
+  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode && !form\.clientId\) return true/)
   assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
   assert.match(identity, /async function saveOpenRequest\(\) \{\s*if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
   assert.match(identity, /form\.crmClientKind = client\.kind/)
