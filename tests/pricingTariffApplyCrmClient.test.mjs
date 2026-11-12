@@ -11,8 +11,11 @@ test('Tarifario must select a real CRM account or lead, never free-type a client
   assert.match(modal, /@selected="selectClient"/)
   assert.doesNotMatch(modal, /v-model="form\.clientName"/)
   assert.doesNotMatch(modal, /v-model="form\.executiveName"/)
-  assert.match(modal, /:model-value="ownerName"/)
-  assert.match(modal, /label="Ejecutivo comercial \(asignado en CRM\)"/)
+  assert.match(modal, /:inline-results="true"/)
+  assert.match(modal, /aria-live="polite"/)
+  assert.match(modal, /ownerName \|\| 'Seleccioná un cliente/)
+  assert.doesNotMatch(modal, /<DhInput/)
+  assert.match(modal, /Ejecutivo comercial · CRM/)
 })
 
 test('Recheck CRM permission and seller before applying a master tariff', () => {
