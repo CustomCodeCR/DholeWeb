@@ -1,3 +1,9 @@
+## [1.40.0] - 2026-11-11 (Dhole API Manager)
+
+- MINOR: Builder de APIs de terceros ahora ofrece ocho catálogos de Config con selección de campos y URL pública versionada.
+- Preserva operaciones existentes de Pricing y el acceso con API Keys; publicación requiere identidad técnica.
+- Release coordinado con Gateway 1.6.0, pendiente de CI y staging.
+
 ## [1.39.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DRAFT-RECOVERY-109: autoguardado y restauración local de borradores CRM por usuario, cliente, formulario y registro. Protege cuentas, prospectos, contactos, actividades, minutas, compromisos, ubicaciones, procedimientos, créditos, contratos, rutas y vínculos comerciales ante cierre inesperado, pérdida de conexión o error de guardado.
