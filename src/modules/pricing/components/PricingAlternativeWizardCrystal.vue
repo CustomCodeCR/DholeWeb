@@ -87,6 +87,7 @@ import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignI
 import PricingLinkAcceptedQuoteModal from '@/modules/pricing/components/PricingLinkAcceptedQuoteModal.vue'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
+import { linkedAcceptedQuoteNumber } from '@/modules/pricing/utils/pricingLinkedAcceptedQuote'
 import { pricingCurrencyValue } from '@/modules/pricing/utils/pricingCurrencyValue'
 import { haulageAssociation as identifyHaulage } from '@/modules/pricing/utils/pricingHaulageCosts'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
@@ -255,6 +256,33 @@ const euroRateLoading = ref(false)
 const exchangeRateError = ref('')
 const createdRateId = ref('')
 const editingRate = ref<RateDto | null>(null)
+const linkedAcceptedQuote = ref<RateDto | null>(null)
+const linkedAcceptedQuoteLoading = ref(false)
+
+// Resolve the commercial number of the winning QUO by its internal ID.
+// Re-fetch after status changes and discard stale responses when switching rates.
+watch(
+  [() => editingRate.value?.id, () => editingRate.value?.linkedAcceptedRateId],
+  async ([, linkedRateId], _previous, onCleanup) => {
+    linkedAcceptedQuote.value = null
+    if (!linkedRateId) {
+      linkedAcceptedQuoteLoading.value = false
+      return
+    }
+    let current = true
+    onCleanup(() => { current = false })
+    linkedAcceptedQuoteLoading.value = true
+    try {
+      const accepted = await PricingService.getRate(linkedRateId)
+      if (current && accepted.id === linkedRateId) linkedAcceptedQuote.value = accepted
+    } catch {
+      // Preserve navigation; never fall back to displaying the database UUID.
+    } finally {
+      if (current) linkedAcceptedQuoteLoading.value = false
+    }
+  },
+)
+
 const rateRevisions = ref<RateRevisionDto[]>([])
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
@@ -8221,7 +8249,7 @@ onMounted(async () => {
             <div v-if="editingRate.status === 'QUOVinculada' && editingRate.linkedAcceptedRateId" class="mt-3 rounded-xl border border-[var(--dh-border)] p-3 text-xs font-semibold">
               QUO aceptada vinculada:
               <router-link :to="{ name: 'pricing-rate-wizard', params: { rateId: editingRate.linkedAcceptedRateId }, query: { mode: 'view' } }" class="ml-1 font-black text-[var(--dh-primary)] underline">
-                {{ editingRate.linkedAcceptedRateId }}
+                {{ linkedAcceptedQuoteLoading ? 'Consultando número de QUO…' : linkedAcceptedQuoteNumber(linkedAcceptedQuote) }}
               </router-link>
               <p class="mt-1 text-[var(--dh-text-muted)]">Esta tarifa no se contabiliza como vencida ni como no aceptada.</p>
             </div>
