@@ -23,12 +23,13 @@ test('FCL duplicate screen 8 exposes link for existing source QUO without saving
   assert.match(wizard, /if \(props\.rateId\) \{\s*await hydrateExistingRate\(\)/)
 })
 
-test('linking requires another existing accepted quotation from same client and valid status', () => {
+test('modal lists sent/accepted quotations for the same customer, linking only accepted QUOs', () => {
   assert.match(modal, /PricingService\.getRate\(props\.rateId\)/)
-  assert.match(modal, /statuses: \['AcceptedByClient'\]/)
-  assert.match(modal, /rate\.status === 'AcceptedByClient'/)
-  assert.match(modal, /rate\.id !== source\.value\?\.id/)
-  assert.match(modal, /sameClient\(source\.value!, rate\)/)
+  assert.match(modal, /crm-account\//)
+  assert.match(modal, /crm-lead\//)
+  assert.match(modal, /statuses: \['Sent', 'AcceptedByClient'\]/)
+  assert.match(modal, /target\.status !== 'AcceptedByClient'/)
+  assert.match(modal, /sameClient\(current, target\)/)
   assert.match(modal, /linkedAcceptedRateId: target\.id/)
   assert.match(modal, /status: 'QUOVinculada'/)
   assert.match(modal, /allowedStatuses\.has\(source\.value\.status\)/)
