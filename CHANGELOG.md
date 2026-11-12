@@ -1,6 +1,6 @@
 ## [1.43.7] - 2026-11-12
 
-- PATCH DH-20261112-PRICING-LAND-TRANSIT-LABEL-121: en la pantalla 6 del asistente de tarifas terrestres FTL/LTL, renombra la etiqueta «Días de tránsito para la entrega» a «Días de tránsito normal» sin modificar la propiedad transitDays, su valor ni la persistencia de cotizaciones existentes.
+- PATCH DH-20261112-PRICING-LAND-TRANSIT-LABEL-121: en la pantalla 6 del asistente de tarifas terrestres, aéreas y marítimas, unifica la etiqueta como «Días de tránsito normal» sin modificar la propiedad transitDays, su valor ni la persistencia de cotizaciones existentes.
 - Actualiza la prueba de regresión de la etiqueta. DholeWeb 1.43.6 → 1.43.7; ecosistema Dhole 1.43.8 → 1.43.9; CI, compilación y staging pendientes. Producción no autorizada.
 
 ## [1.43.6] - 2026-11-12
