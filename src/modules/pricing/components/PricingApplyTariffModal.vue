@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { FilePlus2, UserRoundPlus } from 'lucide-vue-next'
+import { BookOpen, FilePlus2, ShieldCheck, UserRoundPlus } from 'lucide-vue-next'
 import { DhButton, DhInput } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateDto } from '@/core/interfaces/pricing'
@@ -108,66 +108,85 @@ async function submit() {
 </script>
 
 <template>
-  <form class="space-y-5" @submit.prevent="submit">
-    <section class="rounded-[24px] border border-[rgb(var(--dh-primary-rgb)/0.24)] bg-[rgb(var(--dh-primary-rgb)/0.06)] p-4">
-      <div class="flex items-start gap-3">
-        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
-          <UserRoundPlus class="h-5 w-5" />
+  <form class="min-w-0 space-y-6" @submit.prevent="submit">
+    <section class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-4 sm:p-5">
+      <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-[rgb(var(--dh-primary-rgb)/0.25)] bg-[rgb(var(--dh-primary-rgb)/0.1)] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-[var(--dh-primary)]">
+          <BookOpen class="h-3.5 w-3.5" /> Tarifario maestro
         </span>
-        <div class="min-w-0">
-          <p class="text-sm font-black text-[var(--dh-text)]">Aplicar tarifario a un cliente</p>
-          <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Se creará una nueva QUO abierta copiando exactamente esta revisión: flete, cargos, recargos, vigencia y condiciones. El tarifario maestro no cambia y podrá volver a utilizarse.
+        <span class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card-solid)] px-3 py-1 text-xs font-semibold text-[var(--dh-text-soft)]">
+          Nueva QUO · Abierta
+        </span>
+      </div>
+
+      <div class="mt-4 flex min-w-0 items-start gap-3">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
+          <FilePlus2 class="h-5 w-5" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Cotización de origen</p>
+          <p class="mt-1 break-words text-lg font-extrabold text-[var(--dh-text)]">{{ rate.quoNumber || rate.rateCode }}</p>
+          <p class="mt-1 break-words text-sm leading-5 text-[var(--dh-text-soft)]">
+            {{ [rate.polName, rate.poeName, rate.podName].filter(Boolean).join(' → ') || 'Ruta de transporte registrada' }}
           </p>
         </div>
       </div>
+      <p class="mt-4 border-t border-[var(--dh-border)] pt-3 text-xs leading-5 text-[var(--dh-text-soft)]">
+        Se copiarán los fletes, cargos, condiciones y vigencia de esta revisión. El maestro permanecerá disponible para otros clientes.
+      </p>
     </section>
 
-    <section class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-      <div class="mb-4 flex items-center gap-2 text-xs font-black text-[var(--dh-primary)]">
-        <FilePlus2 class="h-4 w-4" />
-        {{ rate.quoNumber || rate.rateCode }} · TARIFARIO MAESTRO
+    <section class="min-w-0 space-y-4">
+      <div class="flex items-start gap-3">
+        <span class="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-sm font-extrabold text-[var(--dh-primary)]">1</span>
+        <div class="min-w-0">
+          <h3 class="text-base font-extrabold text-[var(--dh-text)]">Seleccionar cliente</h3>
+          <p class="mt-1 text-sm leading-5 text-[var(--dh-text-soft)]">
+            Elegí una cuenta o prospecto del CRM. El responsable se asignará automáticamente.
+          </p>
+        </div>
       </div>
 
-      <div class="grid gap-4 sm:grid-cols-2">
+      <div class="min-w-0 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-surface)] p-3 sm:p-4">
         <PricingCrmClientSelect
           v-model="selectedClientId"
           mode="create"
+          :inline-results="true"
           :disabled="form.saving"
           :error="form.submitted && !selectedClientId ? 'Seleccione una cuenta o prospecto de CRM.' : ''"
           @selected="selectClient"
         />
-        <DhInput
-          :model-value="ownerName"
-          label="Ejecutivo comercial (asignado en CRM)"
-          placeholder="Seleccione primero una cuenta o prospecto"
-          disabled
-        />
       </div>
 
-      <p class="mt-3 text-[11px] font-semibold leading-5 text-[var(--dh-text-muted)]">
-        La QUO quedará vinculada a la cuenta o prospecto seleccionado y aparecerá en su historial comercial. El ejecutivo se obtiene de CRM, no se escribe manualmente.
-      </p>
-      <p class="mt-2 text-[11px] font-semibold leading-5 text-[var(--dh-text-muted)]">
-        La nueva QUO quedará en estado Abierta. Después podrá marcarse Enviada y, únicamente sobre esa QUO del cliente, registrar Aceptada o Rechazada.
-      </p>
+      <div class="flex min-w-0 items-start gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card-solid)] p-4" aria-live="polite">
+        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-[var(--dh-primary)]">
+          <ShieldCheck class="h-5 w-5" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-xs font-bold uppercase tracking-[0.08em] text-[var(--dh-text-muted)]">Ejecutivo comercial · CRM</p>
+            <span v-if="selectedClient" class="rounded-full bg-[rgb(var(--dh-primary-rgb)/0.09)] px-2 py-1 text-[11px] font-bold text-[var(--dh-primary)]">
+              Validado al guardar
+            </span>
+          </div>
+          <p class="mt-1.5 break-words text-sm font-bold text-[var(--dh-text)]">
+            {{ ownerName || 'Seleccioná un cliente para ver su responsable' }}
+          </p>
+          <p class="mt-1 text-xs leading-5 text-[var(--dh-text-soft)]">Se obtiene de CRM y no se puede cambiar desde el tarifario.</p>
+        </div>
+      </div>
     </section>
 
-    <div class="flex justify-end gap-2">
-      <DhButton
-        type="button"
-        label="Cancelar"
-        variant="secondary"
-        :disabled="form.saving"
-        @click="modalStore.close()"
-      />
-      <DhButton
-        type="submit"
-        label="Crear QUO para cliente"
-        :icon="UserRoundPlus"
-        :disabled="!selectedClientId || !selectedClient"
-        :loading="form.saving"
-      />
+    <div class="border-t border-[var(--dh-border)] pt-5">
+      <p class="mb-4 flex items-start gap-2 text-xs leading-5 text-[var(--dh-text-soft)]">
+        <ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+        La nueva QUO aparecerá en el historial del cliente. La aceptación o el rechazo se registrarán solo sobre esa QUO, sin alterar el maestro.
+      </p>
+      <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <DhButton type="button" label="Cancelar" variant="secondary" :disabled="form.saving" @click="modalStore.close()" />
+        <DhButton type="submit" label="Crear QUO para cliente" :icon="UserRoundPlus"
+          :disabled="!selectedClientId || !selectedClient" :loading="form.saving" />
+      </div>
     </div>
   </form>
 </template>
