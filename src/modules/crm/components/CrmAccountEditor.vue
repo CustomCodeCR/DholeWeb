@@ -9,6 +9,7 @@ import CrmCreditCoverageManager from './CrmCreditCoverageManager.vue'
 import CrmPhoneInput from './CrmPhoneInput.vue'
 import CrmAddressLocationFields from './CrmAddressLocationFields.vue'
 import CrmHaciendaLookup from './CrmHaciendaLookup.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import type { HaciendaResult } from './CrmHaciendaLookup.vue'
 import { identificationOptionsForCountry, normalizeIdentificationType } from '../model/crmIdentification'
 import { crmPatch, crmPath, crmRequest, crmUuid, crmError, type CrmRow } from '../services/crmApi'
@@ -201,6 +202,18 @@ const businessChanged = computed(() => JSON.stringify(profileDraft) !== business
 const fiscalFieldsChanged = computed(() =>
   ['countryId','taxId','taxIdTypeCode'].some(k =>
     accountDraft[k as IdentityField] !== String(props.account[k] ?? '')))
+function captureAccountDraft() {
+  return { identity: { ...accountDraft }, business: { ...profileDraft } }
+}
+const accountAutosave = useCrmDraftAutosave({
+  scope: () => 'account-edit:' + props.account.id,
+  enabled: () => props.open && loadedProfile.value,
+  capture: captureAccountDraft,
+  apply: (snapshot: ReturnType<typeof captureAccountDraft>) => {
+    Object.assign(accountDraft, snapshot.identity)
+    Object.assign(profileDraft, snapshot.business)
+  },
+})
 const isDirty = computed(() => identityChanged.value || businessChanged.value)
 const canSave = computed(() => isDirty.value && !loading.value && !saving.value)
 watch(isDirty, dirty => emit('dirty-change', dirty), { immediate: true })
@@ -213,6 +226,7 @@ function resetFromAccount() {
   identitySnapshot.value = JSON.stringify(accountDraft)
 }
 async function load() {
+  accountAutosave.stop()
   loading.value = true
   error.value = ''
   loadedProfile.value = false
@@ -248,6 +262,7 @@ async function load() {
         }).catch(() => { relatedError.value = 'No fue posible consultar las direcciones relacionadas.' }))
     await Promise.all(requests)
     loadedProfile.value = true
+    accountAutosave.begin()
   } catch (cause) {
     error.value = 'No se pudo cargar la ficha empresarial. ' + crmError(cause)
   } finally { loading.value = false }
@@ -298,6 +313,7 @@ async function save() {
         { ...profileDraft, expectedVersion: profileVersion.value }, crmUuid())
       businessSnapshot.value = JSON.stringify(profileDraft)
     }
+    accountAutosave.commit()
     emit('dirty-change', false)
     emit('saved')
     emit('close')
@@ -339,6 +355,11 @@ async function save() {
         </nav>
         <div class="min-w-0">
       <form v-if="!loading && loadedProfile" class="space-y-4" @submit.prevent="save">
+        <p v-if="accountAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">
+          {{ accountAutosave.status.value === 'restored' ? 'Se recuperaron los cambios de la ficha.' :
+            accountAutosave.status.value === 'saved' ? 'Borrador guardado automáticamente en este navegador.' :
+            'El navegador no pudo guardar el borrador local.' }}
+        </p>
         <section v-show="activeEditorSection==='identity'" id="crm-edit-identity" class="crm-editor-section">
           <div class="crm-editor-heading"><Building2 class="h-5 w-5" /><div><h3>Identidad del cliente</h3><p>Información comercial y tributaria</p></div></div>
           <div class="grid gap-4 md:grid-cols-2">
