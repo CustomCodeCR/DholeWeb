@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { MailCheck, AlertCircle } from 'lucide-vue-next'
 import { DhButton, DhSelect } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
+import { ApiError, getApiErrorMessage } from '@/core/api/apiErrorHandler'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 
@@ -55,8 +56,11 @@ async function resend() {
     )
     modal.close()
   } catch (error) {
-    errorMessage.value = 'No se confirmó el envío a Outbox. Consulte el detalle del error y reintente con la misma selección, o elija un aviso sin PDF si falló Reports.'
-    toast.backendError(error, 'No se pudo preparar la notificación seleccionada.')
+    // Mostrar el motivo real que devolvió el backend, sin insinuar un error de
+    // Reports cuando la base de datos rechazó el identificador de Outbox.
+    const detail = getApiErrorMessage(error, 'No se pudo registrar la notificación.')
+    const code = error instanceof ApiError ? error.code : undefined
+    errorMessage.value = code ? `${detail} (Código: ${code})` : detail
   } finally {
     sending.value = false
   }
