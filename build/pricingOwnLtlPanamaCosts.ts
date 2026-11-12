@@ -142,7 +142,7 @@ function applyOwnLtlPanamaCosts() {
       section,
       name: cost.name,
       costDetailType: cost.costDetailType,
-      costType: 'Fixed',
+      // Keep the evaluated amount as an explicit quote snapshot: the backend\n      // fixed-cost synchronizer otherwise removes/recreates foreign-POE costs.\n      costType: 'Variable',
       chargeBasis: 'PerShipment',
       costId: cost.id,
       contextLabel: 'LTL propio · CFZ → San José · Costos y recargos',
