@@ -1,3 +1,8 @@
+## [1.41.1] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-CLIENT-QUO-PICKER-112: carga automática y paginada de cotizaciones enviadas y aceptadas del mismo cliente en el modal «Cliente aceptó otra QUO», con filtros, modalidad, ruta y estado. No permite vincular una QUO enviada sin aceptación; la referencia se revalida contra Pricing.
+- Reconciliado con DholeWeb 1.41.0 (agrupación de cuentas CRM). DholeWeb 1.41.0 → 1.41.1, DholeSystem 1.40.1 → 1.41.1, PricingService 1.14.0 sin cambios; CI/staging pendientes, producción no autorizada.
+
 ## [1.41.0] - 2026-11-12
 
 - MINOR DH-20261112-CRM-ACCOUNT-GROUPS-112: interfaz CRM para agrupar cuentas en una principal y vinculadas, con selección de cuentas existentes, confirmación para desvincular y DhModal propio de Dhole.

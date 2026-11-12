@@ -4679,7 +4679,7 @@ function openLinkedQuoteModal(rateId: string) {
   modalStore.open({
     title: 'Cliente aceptó otra QUO',
     component: PricingLinkAcceptedQuoteModal,
-    size: 'md',
+    size: 'lg',
     props: {
       rateId,
       onLinked: async () => {
