@@ -1,4 +1,6 @@
 import type { CostSelectDto } from '@/core/interfaces/pricing'
+import type { FtlTariffDto } from '@/core/services/ftlTariffService'
+import { resolveCostPricing } from './pricingCostRules.ts'
 import { isLtlCfzLocation, normalizeLandLocation } from './ltlGamRouting.ts'
 
 /**
@@ -88,4 +90,88 @@ export function selectLtlPanamaCosts(costs: CostSelectDto[], ctx: LtlPanamaCostC
     if (!selected.has(kind)) selected.set(kind, cost)
   }
   return selected
+}
+
+/** Virtual own-LTL route. Nothing is saved to the land-tariff table: every amount
+ * comes from the four active Costos y recargos rows on each quote refresh. */
+export const CFZ_SAN_JOSE_CATALOG_TARIFF_ID = 'ltl-catalog:cfz-san-jose'
+
+export interface CfzSanJoseQuoteContext extends LtlPanamaCostContext {
+  originId?: string | null
+  originName?: string | null
+  originCode?: string | null
+  destinationId?: string | null
+  destinationName?: string | null
+  destinationCode?: string | null
+  weightKg: number
+  billableCbm: number
+}
+
+export function buildCfzSanJoseCatalogTariff(
+  costs: CostSelectDto[],
+  context: CfzSanJoseQuoteContext,
+): FtlTariffDto | null {
+  if (!isCfzToSanJoseOwnLtl(
+    [context.originName, context.originCode].filter(Boolean).join(' '),
+    [context.destinationName, context.destinationCode].filter(Boolean).join(' '),
+    'Ltl', 'FinalClient',
+  )) return null
+  const weightKg = Number(context.weightKg)
+  const cbm = Number(context.billableCbm)
+  if (!Number.isFinite(weightKg) || weightKg <= 0 || !Number.isFinite(cbm) || cbm <= 0) return null
+  const selected = selectLtlPanamaCosts(costs, context)
+  if (LTL_PANAMA_REQUIRED_KINDS.some((kind) => !selected.has(kind))) return null
+  const amounts = LTL_PANAMA_REQUIRED_KINDS.map((kind) => {
+    const cost = selected.get(kind)!
+    const price = resolveCostPricing(cost, { weightKg })
+    if (!price || !Number.isFinite(price.costAmount) || !Number.isFinite(price.saleAmount)) return null
+    return {
+      kind,
+      cost,
+      amount: {
+        costAmount: Math.max(0, price.costAmount, Number(cost.minimumCostAmount ?? 0)),
+        saleAmount: Math.max(0, price.saleAmount, Number(cost.minimumSaleAmount ?? 0)),
+      },
+    }
+  })
+  if (amounts.some((item) => item === null)) return null
+  const freight = amounts.find((item) => item?.kind === 'freight')!
+  const freightCost = freight.cost
+  return {
+    id: CFZ_SAN_JOSE_CATALOG_TARIFF_ID,
+    originId: context.originId || null,
+    originName: context.originName || 'Colón Free Zone, Panamá',
+    originCode: context.originCode || 'CFZ',
+    destinationId: context.destinationId || null,
+    destinationName: context.destinationName || 'San José, Costa Rica',
+    destinationCode: context.destinationCode || 'SJO',
+    applicableOriginIds: context.originId ? [context.originId] : [],
+    applicableDestinationIds: context.destinationId ? [context.destinationId] : [],
+    equipmentClass: 'LTL_CBM',
+    equipmentLabel: 'LTL propio · Costos y recargos',
+    currencyId: freightCost.currencyId,
+    currencyName: freightCost.currencyName,
+    currencyCode: freightCost.currencyCode,
+    priceAmount: freight.amount.saleAmount / cbm,
+    costPerCbm: freight.amount.costAmount / cbm,
+    minimumAmount: 0,
+    panamaCostSurchargePerCbm: 0,
+    rateBasis: 'PerCbm',
+    shipmentMode: 'Ltl',
+    commercialProfile: 'FinalClient',
+    transitDays: null,
+    source: 'Costos y recargos · Panamá → Costa Rica',
+    notes: 'Importes dinámicos por peso; flete, Bunker, Gastos y Custodia + Marchamo',
+    warehouseName: 'Tarifa LTL propia calculada',
+    isActive: true,
+    validFrom: null,
+    validTo: null,
+    applicableEquipmentClasses: ['LTL_CBM'],
+    weightKgPerCbm: 333.33,
+    duaCost: null,
+    ducaTCost: null,
+    stuffingCostPerCbm: null,
+    stuffingSalePerCbm: null,
+    ltlChargeItems: [],
+  }
 }
