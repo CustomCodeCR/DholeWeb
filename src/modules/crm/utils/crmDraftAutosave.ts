@@ -1,5 +1,6 @@
 import { onBeforeUnmount, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { useAuthStore } from '@/core/stores/authStore'
+import { requestCrmDraftRecovery } from './crmDraftRecoveryDialog'
 
 /**
  * Crash-safe CRM form drafts, scoped to the authenticated user, tenant and
@@ -41,6 +42,9 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
   let active = false
   let baseline = ''
   let currentKey: string | null = null
+  let preserveStoredDraft = false
+  let recoveryGeneration = 0
+  let cancelRecovery: (() => void) | null = null
 
   function key() {
     const userId = String(auth.userId ?? '').trim()
@@ -55,6 +59,12 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
     try { localStorage.removeItem(currentKey) } catch { /* Storage may be blocked. */ }
   }
 
+  function cancelPendingRecovery() {
+    recoveryGeneration++
+    cancelRecovery?.()
+    cancelRecovery = null
+  }
+
   function persist() {
     if (!active || !currentKey || !auth.isAuthenticated ||
       (options.enabled !== undefined && !toValue(options.enabled))) return
@@ -63,6 +73,9 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
       const data = options.capture()
       const serialized = JSON.stringify(data)
       if (serialized === baseline) {
+        // "Más tarde" must never erase the previous unsaved draft merely
+        // because the user closed this editor without touching the fields.
+        if (preserveStoredDraft) return
         removeStored()
         status.value = 'idle'
         lastSavedAt.value = null
@@ -76,6 +89,7 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
       localStorage.setItem(currentKey, JSON.stringify({
         version: 1, savedAt, data,
       } satisfies StoredCrmDraft<T>))
+      preserveStoredDraft = false
       status.value = 'saved'
       lastSavedAt.value = savedAt
     } catch {
@@ -83,45 +97,71 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
     }
   }
 
-  /** Call only AFTER the server state/defaults have been loaded into the form. */
+  /** Call only AFTER server state/defaults loaded; never open recovery for hidden editors. */
   function begin() {
+    cancelPendingRecovery()
     active = false
-    currentKey = key()
-    baseline = JSON.stringify(options.capture())
+    currentKey = null
     status.value = 'idle'
     lastSavedAt.value = null
+    preserveStoredDraft = false
+
+    if (options.enabled !== undefined && !toValue(options.enabled)) return
+    currentKey = key()
     if (!currentKey) return
-    let restored: StoredCrmDraft<T> | null = null
+
     try {
+      baseline = JSON.stringify(options.capture())
       const raw = localStorage.getItem(currentKey)
-      restored = safeParse<T>(raw)
+      const restored = safeParse<T>(raw)
       if (raw && !restored) removeStored()
-    } catch { status.value = 'unavailable' }
-    if (restored && JSON.stringify(restored.data) !== baseline) {
-      const yes = window.confirm(
-        'Encontramos un borrador de este formulario CRM sin guardar, del ' +
-        new Date(restored.savedAt).toLocaleString('es-CR') +
-        '. ¿Querés recuperar tu trabajo? Cancelar descartará el borrador.',
-      )
-      if (yes) {
-        try {
-          options.apply(restored.data)
-          status.value = 'restored'
-          lastSavedAt.value = restored.savedAt
-        } catch { status.value = 'unavailable' }
-      } else {
-        removeStored()
+
+      if (restored && JSON.stringify(restored.data) !== baseline) {
+        preserveStoredDraft = true
+        const promptKey = currentKey
+        const generation = recoveryGeneration
+        const recovery = requestCrmDraftRecovery(restored.savedAt)
+        cancelRecovery = recovery.cancel
+
+        void recovery.result.then(choice => {
+          // Route changes, closing a form or switching accounts invalidates
+          // the old response. Never apply a draft to the wrong CRM record.
+          if (generation !== recoveryGeneration || currentKey !== promptKey ||
+              key() !== promptKey ||
+              (options.enabled !== undefined && !toValue(options.enabled))) return
+          cancelRecovery = null
+
+          if (choice === 'restore') {
+            try {
+              options.apply(restored.data)
+              preserveStoredDraft = false
+              status.value = 'restored'
+              lastSavedAt.value = restored.savedAt
+            } catch {
+              status.value = 'unavailable'
+            }
+          } else if (choice === 'discard') {
+            removeStored()
+            preserveStoredDraft = false
+          }
+          active = true
+        })
+        return
       }
-    } else if (restored) {
-      removeStored()
+      if (restored) removeStored()
+      active = true
+    } catch {
+      status.value = 'unavailable'
+      active = true
     }
-    active = true
   }
 
   /** Finish a successful server save. Never clear a draft on a failed request. */
   function commit() {
+    cancelPendingRecovery()
     active = false
     removeStored()
+    preserveStoredDraft = false
     status.value = 'idle'
     lastSavedAt.value = null
   }
@@ -130,6 +170,7 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
   function stop() {
     persist()
     active = false
+    cancelPendingRecovery()
   }
 
   watch(options.capture, persist, { deep: true, flush: 'sync' })
