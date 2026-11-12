@@ -15,8 +15,11 @@ const modalStore = useModalStore()
       >
         <Transition name="modal-panel" appear>
           <section
-            class="dh-glass-strong dh-liquid flex max-h-[calc(100dvh-1rem)] min-w-0 flex-col overflow-hidden rounded-[22px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
+            class="flex max-h-[calc(100dvh-1rem)] min-w-0 flex-col overflow-hidden rounded-[22px] sm:max-h-[90vh] sm:rounded-[var(--dh-radius-xl)]"
             :class="[
+              modalStore.surface === 'solid'
+                ? 'border border-[var(--dh-border-strong)] bg-[var(--dh-card-solid)] shadow-[var(--dh-shadow-lg)]'
+                : 'dh-glass-strong dh-liquid',
               modalStore.size === 'sm' && 'w-full max-w-sm',
               modalStore.size === 'md' && 'w-full max-w-lg',
               modalStore.size === 'lg' && 'w-full max-w-2xl',
