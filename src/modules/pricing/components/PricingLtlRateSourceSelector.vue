@@ -9,7 +9,8 @@ import {
   type FtlTariffDto,
 } from '@/core/services/ftlTariffService'
 import { PricingService } from '@/core/services/pricingService'
-import type { ImportRateSelectDto } from '@/core/interfaces/pricing'
+import type { ImportRateSelectDto, CostSelectDto } from '@/core/interfaces/pricing'
+import { buildCfzSanJoseCatalogTariff, isCfzToSanJoseOwnLtl, LTL_PANAMA_REQUIRED_KINDS, selectLtlPanamaCosts } from '@/modules/pricing/utils/ltlPanamaOwnCosts'
 
 type SourceTab = 'Own' | 'Coloader'
 type OwnRow = FtlTariffDto & Record<string, unknown>
@@ -24,6 +25,9 @@ const props = withDefaults(defineProps<{
   destinationCode?: string | null
   quoteDate?: string | null
   requestedCbm?: number
+  cargoWeightKg?: number
+  incotermId?: string | null
+  serviceIds?: string[]
   selectedMasterId?: string | null
   selectedImportId?: string | null
 }>(), {
@@ -35,6 +39,9 @@ const props = withDefaults(defineProps<{
   destinationCode: null,
   quoteDate: null,
   requestedCbm: 0,
+  cargoWeightKg: 0,
+  incotermId: null,
+  serviceIds: () => [],
   selectedMasterId: null,
   selectedImportId: null,
 })
@@ -51,6 +58,24 @@ const search = ref('')
 const tab = ref<SourceTab>('Own')
 const ownRows = ref<OwnRow[]>([])
 const coloaderRows = ref<ColoaderRow[]>([])
+const costMasterRows = ref<CostSelectDto[]>([])
+const isPanamaCostRoute = computed(() => isCfzToSanJoseOwnLtl(
+  [props.originName, props.originCode].filter(Boolean).join(' '),
+  [props.destinationName, props.destinationCode].filter(Boolean).join(' '),
+  'Ltl', 'FinalClient',
+))
+const costBackedOwnRow = computed(() => buildCfzSanJoseCatalogTariff(costMasterRows.value, {
+  originId: props.originId,
+  originName: props.originName,
+  originCode: props.originCode,
+  destinationId: props.destinationId,
+  destinationName: props.destinationName,
+  destinationCode: props.destinationCode,
+  weightKg: Number(props.cargoWeightKg),
+  billableCbm: Number(props.requestedCbm),
+  incotermId: props.incotermId,
+  serviceIds: props.serviceIds,
+}))
 const error = ref('')
 
 const ownColumns: DhTableColumn<OwnRow>[] = [
@@ -146,7 +171,11 @@ function searchableColoader(row: ImportRateSelectDto) {
 
 const filteredOwn = computed(() => {
   const q = normalize(search.value)
-  return ownRows.value.filter((row) =>
+  const inferred = costBackedOwnRow.value
+  const available = inferred && !ownRows.value.some((row) =>
+    row.isActive && ownMatchesRoute(row) && String(row.commercialProfile) === 'FinalClient'
+  ) ? [...ownRows.value, inferred] : ownRows.value
+  return available.filter((row) =>
     row.isActive
     && String(row.shipmentMode).toLowerCase() === 'ltl'
     && isValidOn(row.validFrom, row.validTo)
@@ -156,6 +185,13 @@ const filteredOwn = computed(() => {
 })
 
 const ownEmptyText = computed(() => {
+  if (isPanamaCostRoute.value) {
+    if (!(Number(props.cargoWeightKg) > 0)) return 'Ingrese el peso total en KG para calcular la ruta LTL CFZ → San José según los tramos configurados.'
+    const catalog = selectLtlPanamaCosts(costMasterRows.value, { incotermId: props.incotermId, serviceIds: props.serviceIds })
+    const missing = LTL_PANAMA_REQUIRED_KINDS.filter((kind) => !catalog.has(kind))
+    if (missing.length) return 'No se pudo formar la ruta LTL propia: faltan costos aplicables en Costos y recargos (' + missing.join(', ') + ').'
+    return 'Los costos configurados no tienen un tramo aplicable al peso total de la carga. Revise los tramos en Costos y recargos.'
+  }
   const base = ownRows.value
   if (!base.length) return 'No hay tarifarios LTL propios registrados en Pricing. Revise las tarifas terrestres LTL o la carga de la matriz oficial.'
   const applicable = base.filter((row) => row.isActive
@@ -186,7 +222,7 @@ async function load() {
   try {
     loading.value = true
     error.value = ''
-    const [mastersResult, importsResult] = await Promise.allSettled([
+    const [mastersResult, importsResult, costsResult] = await Promise.allSettled([
       FtlTariffService.browse('Ltl'),
       PricingService.selectImportRates({
         shipmentMode: 'Ltl',
@@ -194,6 +230,9 @@ async function load() {
         poe: props.destinationName || props.destinationCode || undefined,
         quoteDate: props.quoteDate || undefined,
       }),
+      isPanamaCostRoute.value
+        ? PricingService.selectCosts({ isActive: true })
+        : Promise.resolve([] as CostSelectDto[]),
     ])
 
     // Own land LTL tariffs must remain visible even if the imports/coloader API fails.
@@ -203,13 +242,17 @@ async function load() {
     coloaderRows.value = importsResult.status === 'fulfilled'
       ? importsResult.value.map((row) => ({ ...row }))
       : []
-    if (mastersResult.status === 'rejected') {
+    costMasterRows.value = costsResult.status === 'fulfilled' ? costsResult.value : []
+    if (isPanamaCostRoute.value && costsResult.status === 'rejected') {
+      error.value = 'No se pudieron consultar los costos LTL Panamá → Costa Rica. Intente actualizar.'
+    } else if (mastersResult.status === 'rejected' && !costBackedOwnRow.value) {
       error.value = 'No fue posible cargar los tarifarios propios LTL. Intente actualizar.'
     } else if (importsResult.status === 'rejected') {
       error.value = 'Los tarifarios LTL propios están disponibles, pero no se pudieron consultar los LTL coloaders.'
     }
 
     if (!filteredOwn.value.length && filteredColoaders.value.length) tab.value = 'Coloader'
+    else if (filteredOwn.value.length) tab.value = 'Own'
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'No fue posible consultar las tarifas LTL.'
   } finally {
@@ -248,7 +291,7 @@ function importedCost(row: ImportRateSelectDto) {
 onMounted(load)
 
 watch(
-  () => [props.originId, props.originName, props.originCode, props.destinationId, props.destinationName, props.destinationCode, props.quoteDate],
+  () => [props.originId, props.originName, props.originCode, props.destinationId, props.destinationName, props.destinationCode, props.quoteDate, props.incotermId, props.serviceIds.join(',')],
   () => { void load() },
 )
 </script>
@@ -320,9 +363,11 @@ watch(
         </template>
         <template #cell-sale="{ row }">
           <div class="space-y-0.5 text-right">
-            <p class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount) }} / CBM</p>
+            <p v-if="row.id === 'ltl-catalog:cfz-san-jose'" class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount * requestedCbm) }} por embarque</p>
+            <p v-else class="font-black">{{ row.currencyCode || 'USD' }} {{ money(row.priceAmount) }} / CBM</p>
             <p class="text-[10px] font-semibold text-[var(--dh-text-muted)]">
-              Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ row.currencyCode || 'USD' }} {{ money(row.minimumAmount) }}
+              <template v-if="row.id === 'ltl-catalog:cfz-san-jose'">Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm * requestedCbm) }} por embarque · Tramos por KG</template>
+              <template v-else>Costo {{ row.currencyCode || 'USD' }} {{ money(row.costPerCbm) }} / CBM · Mínimo {{ row.currencyCode || 'USD' }} {{ money(row.minimumAmount) }}</template>
             </p>
           </div>
         </template>
