@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261112-PRICING-CLIENT-QUO-PICKER-112",
+  "ecosystem": "Dhole",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.39.2",
+  "date": "2026-11-12",
+  "sourceBranch": "fix/quo-link-client-sent-list-20261112-master",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.39.1",
+      "next": "1.39.2"
+    },
+    {
+      "component": "DholeSystem",
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.39.1",
+      "next": "1.39.2"
+    }
+  ],
+  "unchangedComponents": [
+    {
+      "component": "DholePricingService",
+      "version": "1.14.0"
+    }
+  ],
+  "changes": [
+    "List every sent or accepted QUO from the same CRM account or lead with server-filtered pagination, local search, route and status.",
+    "Search historical same-name clients across all pages with exact client validation; link only an accepted target."
+  ],
+  "tests": [
+    "pricingQuoVinculadaCrystal.test.mjs",
+    "pricingQuoLinkClientSentList.test.mjs",
+    "DholeWeb type-check/build",
+    "staging account and lead regression"
+  ],
+  "restCompatible": true,
+  "realtimeCompatible": true,
+  "schemaMigration": false,
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
