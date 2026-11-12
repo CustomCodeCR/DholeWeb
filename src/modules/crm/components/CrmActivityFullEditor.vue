@@ -2,6 +2,7 @@
 import { reactive, ref, watch } from 'vue'
 import { DhButton } from '@/shared/components/atoms'
 import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc, type CrmRow } from '../services/crmApi'
 
 interface NoteDraft { id?: string; expectedVersion?: number; noteText: string }
@@ -28,6 +29,19 @@ const form = reactive({
 })
 const noteDrafts = ref<NoteDraft[]>([])
 const agreementDrafts = ref<AgreementDraft[]>([])
+function captureActivityDraft() {
+  return { fields: { ...form }, notes: noteDrafts.value, agreements: agreementDrafts.value }
+}
+const activityDraft = useCrmDraftAutosave({
+  scope: () => 'activity-detail:' + props.activity.id,
+  enabled: () => editing.value,
+  capture: captureActivityDraft,
+  apply: (snapshot: ReturnType<typeof captureActivityDraft>) => {
+    Object.assign(form, snapshot.fields)
+    noteDrafts.value = snapshot.notes ?? []
+    agreementDrafts.value = snapshot.agreements ?? []
+  },
+})
 
 function reset() {
   const activity = props.activity
@@ -63,13 +77,15 @@ function applyVisitLocation(value: { address: string; latitude: number | null; l
   form.locationLongitude = value.longitude
 }
 function toggleEditing() {
-  if (editing.value) editing.value = false
+  if (editing.value) { activityDraft.stop(); editing.value = false }
   else startEditing()
 }
 function startEditing() {
+  activityDraft.stop()
   reset()
   error.value = ''
   editing.value = true
+  activityDraft.begin()
 }
 function addNote() { noteDrafts.value.push({ noteText: '' }) }
 function addAgreement() {
@@ -140,6 +156,7 @@ async function save() {
           })),
       },
     )
+    activityDraft.commit()
     editing.value = false
     emit('saved')
   } catch (cause) {
@@ -168,6 +185,11 @@ watch(() => props.activity.rowVersion, () => {
         @click="toggleEditing" />
     </div>
     <form v-if="editing" class="mt-4 space-y-5" @submit.prevent="save">
+      <p v-if="activityDraft.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">
+        {{ activityDraft.status.value === 'restored' ? 'Cambios recuperados del borrador.' :
+          activityDraft.status.value === 'saved' ? 'Borrador guardado automáticamente.' :
+          'No se pudo conservar el borrador en este navegador.' }}
+      </p>
       <p v-if="error" role="alert" class="rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
       <div class="grid gap-3 sm:grid-cols-2">
         <label class="sm:col-span-2 space-y-1 text-xs font-bold">Título de la actividad

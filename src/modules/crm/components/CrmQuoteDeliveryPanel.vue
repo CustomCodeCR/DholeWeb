@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
 import { crmPath, crmRequest, type CrmRow } from '../services/crmApi'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 
 type DeliveryTarget = 'seller' | 'client'
 interface DeliveryPreference {
@@ -33,6 +34,15 @@ const loaded = ref(false)
 const error = ref('')
 const notice = ref('')
 let generation = 0
+const deliveryAutosave = useCrmDraftAutosave({
+  scope: () => 'account-quote-delivery:' + props.accountId,
+  enabled: () => loaded.value && props.authorized,
+  capture: () => ({ destination: destination.value, contacts: selectedContactIds.value }),
+  apply: (snapshot) => {
+    destination.value = snapshot.destination
+    selectedContactIds.value = snapshot.contacts ?? []
+  },
+})
 
 const emailContacts = computed(() => props.contacts.filter(contact => {
   const email = String(contact.email ?? '').trim()
@@ -53,6 +63,7 @@ const canSave = computed(() => loaded.value && props.authorized &&
   (destination.value === 'seller' || selectionValid.value))
 
 async function loadPreference() {
+  deliveryAutosave.stop()
   const current = ++generation
   loaded.value = false
   loading.value = true
@@ -69,6 +80,7 @@ async function loadPreference() {
     rowVersion.value = preference.rowVersion
     updatedAtUtc.value = preference.updatedAtUtc
     loaded.value = true
+    deliveryAutosave.begin()
   } catch (cause) {
     if (current === generation)
       error.value = cause instanceof Error ? cause.message :
@@ -96,6 +108,8 @@ async function savePreference() {
       : saved.contactId ? [saved.contactId] : []
     rowVersion.value = saved.rowVersion
     updatedAtUtc.value = saved.updatedAtUtc
+    deliveryAutosave.commit()
+    deliveryAutosave.begin()
     notice.value = 'Preferencia guardada para todas las cotizaciones futuras de esta cuenta.'
     emit('saved')
   } catch (cause) {
@@ -123,6 +137,7 @@ async function savePreference() {
         @click="emit('cancel')">Cerrar</button>
     </div>
 
+    <p v-if="deliveryAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ deliveryAutosave.status.value === 'restored' ? 'Se recuperó una configuración pendiente.' : deliveryAutosave.status.value === 'saved' ? 'Configuración guardada como borrador local.' : 'No se pudo conservar el borrador.' }}</p>
     <p v-if="loading" role="status" class="text-xs text-[var(--dh-text-muted)]">Cargando configuración…</p>
     <p v-if="!authorized" role="alert" class="text-xs text-amber-600">
       Necesitás permiso para actualizar esta cuenta.
