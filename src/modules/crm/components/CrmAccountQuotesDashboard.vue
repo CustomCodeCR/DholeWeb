@@ -15,7 +15,7 @@ interface QuoteDashboard {
   linkedOnly: boolean
   truncated?: boolean
 }
-const props = defineProps<{ accountId?: string; leadId?: string; refreshKey?: number }>()
+const props = defineProps<{ accountId?: string; accountIds?: string[]; leadId?: string; refreshKey?: number }>()
 const isLead = computed(() => Boolean(props.leadId))
 const stats = ref<QuoteDashboard | null>(null)
 const loading = ref(false)
@@ -127,9 +127,23 @@ async function loadDashboard() {
         '/api/pricing/rates/crm-lead/' + encodeURIComponent(props.leadId) + '/dashboard',
         { method: 'GET' })
     } else if (props.accountId) {
-      result = await fetchClient<QuoteDashboard>(
-        '/api/pricing/rates/crm-account/' + encodeURIComponent(props.accountId) + '/dashboard',
-        { method: 'GET' })
+      const ids = [...new Set(props.accountIds?.length ? props.accountIds : [props.accountId])]
+      const responses = await Promise.allSettled(ids.map(id => fetchClient<QuoteDashboard>(
+        '/api/pricing/rates/crm-account/' + encodeURIComponent(id) + '/dashboard',
+        { method: 'GET' })))
+      const values = responses.flatMap(response => response.status === 'fulfilled' ? [response.value] : [])
+      if (!values.length) throw new Error('No fue posible consultar el grupo en Pricing.')
+      const sum = (key: 'total' | 'sent' | 'approved' | 'rejected' | 'cancelled' | 'other' | 'pendingSync') =>
+        values.reduce((total, row) => total + (row[key] || 0), 0)
+      result = {
+        total: sum('total'), sent: sum('sent'), approved: sum('approved'),
+        rejected: sum('rejected'), cancelled: sum('cancelled'), other: sum('other'),
+        pendingSync: sum('pendingSync'), linkedOnly: values.every(value => value.linkedOnly),
+        lastSyncAt: values.map(value => value.lastSyncAt).filter((value): value is string => Boolean(value))
+          .sort().at(-1) ?? null,
+        truncated: values.some(value => value.truncated),
+      }
+      if (values.length !== ids.length) error.value = 'Algunas cuentas del grupo no pudieron consultarse.'
     }
     if (requestId !== generation) return
     stats.value = result
@@ -140,7 +154,7 @@ async function loadDashboard() {
     if (requestId === generation) loading.value = false
   }
 }
-watch(() => [props.accountId, props.leadId, props.refreshKey], () => { void loadDashboard() }, { immediate: true })
+watch(() => [props.accountId, props.accountIds?.join(','), props.leadId, props.refreshKey], () => { void loadDashboard() }, { immediate: true })
 watch(stats, async () => {
   await nextTick()
   renderCharts()

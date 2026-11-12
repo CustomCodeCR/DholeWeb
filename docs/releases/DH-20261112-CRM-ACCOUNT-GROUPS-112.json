@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261112-CRM-ACCOUNT-GROUPS-112",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.41.0",
+  "createdAt": "2026-11-12",
+  "sourceBranch": "feature/crm-account-groups-20261112-develop",
+  "baseBranch": "develop",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "component": "DholeCRMService",
+      "version": "1.25.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "version": "1.41.0"
+    }
+  ],
+  "changes": [
+    "Manage primary and linked customer accounts with Dhole components",
+    "CRM grouped commercial activity, analyses, procedures, preferential rates and followups",
+    "Consolidate Pricing quote history and route read models for authorized group members",
+    "Retain independent fiscal identities and REST/SignalR compatibility"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}

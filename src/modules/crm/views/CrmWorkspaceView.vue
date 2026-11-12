@@ -84,6 +84,7 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
     { key: '_crmTitle', label: 'Cliente' },
     { key: '_crmDescription', label: 'Razón social' },
     { key: '_crmTax', label: 'Identificación' },
+    { key: '_crmGroup', label: 'Grupo' },
     { key: '_crmCountry', label: 'País' },
     { key: '_crmType', label: 'Tipo de cliente' },
     { key: '_crmSeller', label: 'Vendedor asignado' },
@@ -167,6 +168,7 @@ const tableRows = computed(() => (section.value === 'finance' || section.value =
     ? ({Scheduled:'Programada',Pending:'Pendiente',Overdue:'Vencida',Completed:'Completada',Cancelled:'Cancelada'} as Record<string,string>)[String(item.status)] || String(item.status ?? '—')
     : String(item.status ?? item.qualificationStatus ?? '—'),
   _crmTax: String(item.taxId ?? '—'),
+  _crmGroup: item.parentAccountId ? 'Cuenta vinculada' : 'Principal / independiente',
   _crmCountry: countryLabels.value[String(item.countryId ?? '')] || '—',
   _crmSeller: section.value === 'accounts' || section.value === 'leads'
     ? (sellerNames.value[String(item.id)] ?? 'Consultando vendedor…') : '—',
