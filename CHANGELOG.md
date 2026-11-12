@@ -1,3 +1,9 @@
+## [1.43.6] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-CRM-TARIFF-119: Pricing respeta el ejecutivo real de CRM para cuentas y prospectos institucionales, sin sustituir Castro Fallas por el usuario conectado ni por valores antiguos de Config.
+- Los borradores y las nuevas tarifas revalidan su propietario antes de guardarse; los registros CRM cuyo nombre contiene TARIFARIO se fuerzan a tarifario maestro reutilizable, preservando las QUO individuales derivadas.
+- DholeWeb 1.43.5 → 1.43.6, DholeSystem/ecosistema 1.43.6 → 1.43.7; PricingService y CRMService sin cambios. Pendientes CI, compilación y validación funcional en staging; producción no autorizada.
+
 ## [1.43.5] - 2026-11-12
 
 - PATCH DH-20261112-DYNAMICS-QUO-613-619-118: consola para conciliación de QUO-613 por línea Dhole existente y QUO-619 mediante confirmación manual de operación no aplicada, por IDTRA, RateId y cliente, separada del reenvío. No se crean cabeceras ni líneas en la acción de conciliación.
