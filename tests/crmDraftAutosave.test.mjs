@@ -52,3 +52,26 @@ test('CRM calendar warns when attached files must be selected again', () => {
   assert.match(code, /draftHadAttachments/)
   assert.match(code, /Volvé a seleccionar los documentos adjuntos/)
 })
+
+test('CRM recovery uses a shared DhModal and DhButton, never native dialogs', () => {
+  const app = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+  const modal = source('components/CrmDraftRecoveryModal.vue')
+  const queue = source('utils/crmDraftRecoveryDialog.ts')
+  assert.match(app, /<CrmDraftRecoveryModal/)
+  assert.match(modal, /<DhModal/)
+  assert.match(modal, /<DhButton/)
+  assert.match(modal, /choose\\('restore'\\)/)
+  assert.match(modal, /choose\\('discard'\\)/)
+  assert.match(modal, /choose\\('later'\\)/)
+  assert.match(queue, /pending\\.push\\(request\\)/)
+  assert.match(queue, /cancel: \\(\\) => finish\\(request, 'later'\\)/)
+  assert.doesNotMatch(modal + queue, /window\\.(?:confirm|alert|prompt)\\s*\\(/)
+})
+
+test('CRM recovery never opens for a hidden form and never discards deferred work', () => {
+  const code = source('utils/crmDraftAutosave.ts')
+  assert.match(code, /if \\(options\\.enabled !== undefined && !toValue\\(options\\.enabled\\)\\) return/)
+  assert.match(code, /if \\(preserveStoredDraft\\) return/)
+  assert.match(code, /generation !== recoveryGeneration/)
+  assert.match(code, /cancelPendingRecovery\\(\\)/)
+})
