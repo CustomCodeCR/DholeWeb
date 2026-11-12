@@ -793,12 +793,14 @@ export const PricingService = {
     })
   },
 
-  resendAcceptedRateEmail(rateId: string, requestId: string): Promise<unknown> {
-    return callEndpoint<unknown, { requestId: string }>({
+  resendAcceptedRateEmail(
+    rateId: string, requestId: string, notificationType: string = 'opening',
+  ): Promise<unknown> {
+    return callEndpoint<unknown, { requestId: string; notificationType: string }>({
       method: 'POST',
       path: `/api/pricing/rates/${encodeURIComponent(rateId)}/acceptance-email/resend`,
     }, {
-      body: { requestId },
+      body: { requestId, notificationType },
       idempotencyKey: requestId,
     })
   },
