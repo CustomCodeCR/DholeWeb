@@ -118,10 +118,13 @@ export function buildCfzSanJoseCatalogTariff(
   )) return null
   const weightKg = Number(context.weightKg)
   const cbm = Number(context.billableCbm)
-  if (!Number.isFinite(weightKg) || weightKg <= 0 || !Number.isFinite(cbm) || cbm <= 0) return null
+  // The route remains visible even before the seller enters the weight.
+  // Its selection is disabled until the master band can be priced.
+  if (!Number.isFinite(cbm) || cbm <= 0) return null
+  const hasWeight = Number.isFinite(weightKg) && weightKg > 0
   const selected = selectLtlPanamaCosts(costs, context)
   if (LTL_PANAMA_REQUIRED_KINDS.some((kind) => !selected.has(kind))) return null
-  const amounts = LTL_PANAMA_REQUIRED_KINDS.map((kind) => {
+  const amounts = hasWeight ? LTL_PANAMA_REQUIRED_KINDS.map((kind) => {
     const cost = selected.get(kind)!
     const price = resolveCostPricing(cost, { weightKg })
     if (!price || !Number.isFinite(price.costAmount) || !Number.isFinite(price.saleAmount)) return null
@@ -133,10 +136,10 @@ export function buildCfzSanJoseCatalogTariff(
         saleAmount: Math.max(0, price.saleAmount, Number(cost.minimumSaleAmount ?? 0)),
       },
     }
-  })
-  if (amounts.some((item) => item === null)) return null
-  const freight = amounts.find((item) => item?.kind === 'freight')!
-  const freightCost = freight.cost
+  }) : []
+  if (hasWeight && amounts.some((item) => item === null)) return null
+  const freight = amounts.find((item) => item?.kind === 'freight')
+  const freightCost = selected.get('freight')!
   return {
     id: CFZ_SAN_JOSE_CATALOG_TARIFF_ID,
     originId: context.originId || null,
@@ -152,8 +155,8 @@ export function buildCfzSanJoseCatalogTariff(
     currencyId: freightCost.currencyId,
     currencyName: freightCost.currencyName,
     currencyCode: freightCost.currencyCode,
-    priceAmount: freight.amount.saleAmount / cbm,
-    costPerCbm: freight.amount.costAmount / cbm,
+    priceAmount: freight?.amount.saleAmount ? freight.amount.saleAmount / cbm : 0,
+    costPerCbm: freight?.amount.costAmount ? freight.amount.costAmount / cbm : 0,
     minimumAmount: 0,
     panamaCostSurchargePerCbm: 0,
     rateBasis: 'PerCbm',
@@ -161,7 +164,9 @@ export function buildCfzSanJoseCatalogTariff(
     commercialProfile: 'FinalClient',
     transitDays: null,
     source: 'Costos y recargos · Panamá → Costa Rica',
-    notes: 'Importes dinámicos por peso; flete, Bunker, Gastos y Custodia + Marchamo',
+    notes: hasWeight
+      ? 'Importes dinámicos por peso; flete, Bunker, Gastos y Custodia + Marchamo'
+      : 'Pendiente de ingresar peso total en KG para calcular tramos',
     warehouseName: 'Tarifa LTL propia calculada',
     isActive: true,
     validFrom: null,
