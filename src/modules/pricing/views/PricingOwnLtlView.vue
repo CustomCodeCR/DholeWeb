@@ -19,6 +19,10 @@ import {
   type PricingCatalogItem,
 } from '@/modules/pricing/composables/usePricingCatalogs'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import { PricingService } from '@/core/services/pricingService'
+import type { CostSelectDto } from '@/core/interfaces/pricing'
+import { readCostPricingRules } from '@/modules/pricing/utils/pricingCostRules'
+import { isCfzToSanJoseOwnLtl, LTL_PANAMA_REQUIRED_KINDS, selectLtlPanamaCosts } from '@/modules/pricing/utils/ltlPanamaOwnCosts'
 
 type OwnLtlTableRow = FtlTariffDto & Record<string, unknown>
 
@@ -38,6 +42,7 @@ const toastStore = useToastStore()
 const catalogs = usePricingCatalogs()
 
 const rows = ref<OwnLtlTableRow[]>([])
+const panamaCatalogCosts = ref<CostSelectDto[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const selectedOriginCountry = ref('')
@@ -430,6 +435,28 @@ function isPanamaOrigin(row: FtlTariffDto) {
 
 const formOrigin = computed(() => routeSnapshot(form.originId, 'origin'))
 const formDestination = computed(() => routeSnapshot(form.destinationId, 'destination'))
+const usesPanamaLtlCosts = computed(() => isCfzToSanJoseOwnLtl(
+  formOrigin.value?.name || selected.value?.originName,
+  formDestination.value?.name || selected.value?.destinationName,
+  'Ltl',
+  form.commercialProfile,
+))
+const panamaCostRows = computed(() => {
+  const selectedCosts = selectLtlPanamaCosts(panamaCatalogCosts.value)
+  const labels = {
+    freight: 'Flete Terrestre Internacional Panamá a Costa Rica',
+    bunker: 'Bunker',
+    'panama-expenses': 'Gastos Panamá a Costa Rica',
+    custody: 'Custodia + Marchamo',
+  }
+  return LTL_PANAMA_REQUIRED_KINDS.map((kind) => {
+    const cost = selectedCosts.get(kind)
+    return {
+      kind, label: labels[kind], cost,
+      rules: cost?.pricingRulesJson ? readCostPricingRules(cost.pricingRulesJson).length : 0,
+    }
+  })
+})
 const formIsPanamaOrigin = computed(() =>
   selectedOriginCountry.value === 'PA'
   || isPanamaValue([formOrigin.value?.name, formOrigin.value?.code].filter(Boolean).join(' ')),
@@ -685,6 +712,12 @@ async function load() {
   try {
     await catalogs.loadAll()
     rows.value = (await FtlTariffService.browse('Ltl')) as OwnLtlTableRow[]
+    try {
+      panamaCatalogCosts.value = await PricingService.selectCosts({ isActive: true })
+    } catch {
+      // The cost catalog is informational here: never block editing an LTL route.
+      panamaCatalogCosts.value = []
+    }
   } catch (error) {
     toastStore.backendError(error, 'No se pudo cargar la matriz LTL propia.')
   } finally {
@@ -978,6 +1011,26 @@ onMounted(load)
                 <span class="text-xs font-semibold text-[var(--dh-text-muted)]">Disponible para resolver cotizaciones LTL.</span>
               </span>
             </label>
+          </section>
+
+          <section v-if="usesPanamaLtlCosts" class="rounded-[24px] border border-[var(--dh-primary)]/25 bg-[var(--dh-card)] p-4">
+            <h3 class="text-sm font-black">Costos operativos vinculados · Panamá → Costa Rica</h3>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              Esta ruta LTL propia CFZ → San José utiliza los cargos activos de Costos y recargos.
+              Los importes se calculan con el peso total del embarque y sus tramos vigentes al crear la cotización.
+              El flete del catálogo reemplaza al flete por CBM de esta matriz; no se suman ambos.
+            </p>
+            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+              <div v-for="entry in panamaCostRows" :key="entry.kind" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3">
+                <p class="text-xs font-bold">{{ entry.label }}</p>
+                <p v-if="entry.cost" class="mt-1 text-[11px] font-semibold text-[var(--dh-primary)]">
+                  Vinculado al catálogo · {{ entry.rules ? entry.rules + ' tramos por condición' : 'Monto configurado' }}
+                </p>
+                <p v-else class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                  Sin costo LTL aplicable configurado
+                </p>
+              </div>
+            </div>
           </section>
 
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
