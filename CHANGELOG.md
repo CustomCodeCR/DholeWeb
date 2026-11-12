@@ -1,8 +1,14 @@
-## [1.39.2] - 2026-11-12
+## [1.41.1] - 2026-11-12
 
-- PATCH DH-20261112-PRICING-CLIENT-QUO-PICKER-112: el modal «Cliente aceptó otra QUO» muestra automáticamente todas las cotizaciones enviadas y aceptadas del mismo cliente mediante identificador CRM y paginación de todas las páginas; muestra número, modalidad, ruta y estado, permite filtro local.
-- QUO históricas sin ID CRM usan búsqueda paginada y verificación de identidad. El vínculo solo procede con otra QUO aceptada del mismo cliente, revalidada en servidor. No se cambia REST, SignalR ni base de datos.
-- DholeWeb 1.39.1 → 1.39.2; DholeSystem 1.39.1 → 1.39.2; DholePricingService 1.14.0 sin cambios. Validaciones CI/staging pendientes; producción no autorizada.
+- PATCH DH-20261112-PRICING-CLIENT-QUO-PICKER-112: modal «Cliente aceptó otra QUO» con catálogo automático paginado de todas las cotizaciones enviadas y aceptadas del mismo cliente, filtro local, modalidad, ruta y estado. La QUO destino debe estar aceptada y se revalida su identidad antes de guardar.
+- Backport aislado preservando DholeWeb 1.41.0 de agrupación de cuentas CRM. Web 1.41.0 → 1.41.1; DholeSystem 1.39.1 → 1.41.1; PricingService 1.14.0 sin cambios. Staging y autorización de producción pendientes.
+
+## [1.41.0] - 2026-11-12
+
+- MINOR DH-20261112-CRM-ACCOUNT-GROUPS-112: interfaz CRM para agrupar cuentas en una principal y vinculadas, con selección de cuentas existentes, confirmación para desvincular y DhModal propio de Dhole.
+- La ficha muestra todas las cuentas del grupo; las secciones de actividades, seguimientos, análisis comercial, procedimientos, tarifas preferenciales, historial de QUO y rutas consultan registros comerciales del conjunto con filtros de permisos.
+- Cada cuenta conserva su cédula, razón social, contactos, vendedor, dirección, crédito y contratos. Historial Pricing se obtiene por cuenta y se muestra consolidado sin mutar la relación original.
+- DholeWeb 1.39.1 → 1.41.0; DholeCRMService 1.25.0; ecosistema 1.41.0. CI y staging pendientes; sin autorización de producción.
 
 ## [1.39.1] - 2026-11-12
 

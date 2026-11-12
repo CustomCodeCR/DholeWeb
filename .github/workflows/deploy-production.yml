@@ -20,6 +20,9 @@ env:
 
 jobs:
   deploy:
+    # Only this staging-validated release push remains source-only until production is explicitly approved.
+    # A manual workflow_dispatch is not blocked.
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'DH-20261112-CRM-ACCOUNT-GROUPS-112 [no-prod]') }}
     # Master push runs the production deployment; workflow_dispatch supports manual runs.
     runs-on: [self-hosted, linux, x64, dhole]
     steps:

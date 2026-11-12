@@ -27,6 +27,13 @@ test('production workflow must start on a master push with no duplicate job cond
   assert.match(workflow, /\n\s+workflow_dispatch:/)
   const header = workflow.split('jobs:\n  deploy:')[1]?.split('    steps:')[0]
   assert.ok(header, 'Deployment job definition is required')
-  assert.equal((header.match(/^\s+if:/gm) || []).length, 0, 'The production job must not have conflicting manual-only conditions')
+  const guards = header.match(/^\s+if:.*$/gm) || []
+  assert.ok(guards.length <= 1, 'Production must have at most one explicit guard')
+  if (guards.length) {
+    // This named release is source-only on master. Every other push still deploys
+    // automatically, and authorized workflow_dispatch remains available.
+    assert.match(guards[0], /github\.event_name == 'workflow_dispatch'/)
+    assert.match(guards[0], /!contains\(github\.event\.head_commit\.message, 'DH-20261112-CRM-ACCOUNT-GROUPS-112 \[no-prod\]'\)/)
+  }
   assert.match(header, /runs-on: \[self-hosted, linux, x64, dhole\]/)
 })
