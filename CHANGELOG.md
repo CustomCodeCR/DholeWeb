@@ -1,3 +1,9 @@
+## [1.39.1] - 2026-11-12
+
+- PATCH DH-20261112-CRM-DRAFT-DHMODAL-111: corrección de recuperación de borradores CRM exclusivamente con DhModal y DhButton. Elimina window.confirm de CRM y permite Recuperar, Descartar y Más tarde.
+- No interrumpe Cuentas ni abre modales para formularios cerrados. Al posponer, conserva el borrador y la recuperación se invalida al cambiar de registro.
+- Release aislado de master, sin arrastrar API Manager ni Mercadeo aún presentes únicamente en develop. Compatibilidad REST y SignalR preservada; CI/staging pendientes.
+
 ## [1.39.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-DRAFT-RECOVERY-109: autoguardado y restauración local de borradores CRM por usuario, cliente, formulario y registro. Protege cuentas, prospectos, contactos, actividades, minutas, compromisos, ubicaciones, procedimientos, créditos, contratos, rutas y vínculos comerciales ante cierre inesperado, pérdida de conexión o error de guardado.

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import DhToastContainer from '@/shared/components/containers/DhToastContainer.vue'
 import DhModalContainer from '@/shared/components/containers/DhModalContainer.vue'
 import DhDrawerContainer from '@/shared/components/containers/DhDrawerContainer.vue'
+import CrmDraftRecoveryModal from '@/modules/crm/components/CrmDraftRecoveryModal.vue'
 import AiAssistantFloatingButton from '@/modules/ai/components/AiAssistantFloatingButton.vue'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
@@ -128,6 +129,7 @@ onBeforeUnmount(() => {
   <template v-if="!isPublicRoute">
     <DhModalContainer />
     <DhDrawerContainer />
+    <CrmDraftRecoveryModal />
   </template>
 
   <RouterView />
