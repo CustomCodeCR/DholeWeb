@@ -106,7 +106,7 @@ function applyOwnLtlPanamaCosts() {
   // Remove all copies before inserting the one authoritative charge per kind.
   rateLines.value = rateLines.value.filter((line) => {
     const kind = ltlPanamaCostKind(line.name)
-    return !kind || !amounts.has(kind)
+    return line.costDetailType === 'Freight' || !kind || !amounts.has(kind)
   })
 
   for (const [kind, cost] of selected) {
