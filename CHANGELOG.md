@@ -1,3 +1,8 @@
+## [1.43.5] - 2026-11-12
+
+- PATCH DH-20261112-DYNAMICS-QUO-613-619-118: consola para conciliación de QUO-613 por línea Dhole existente y QUO-619 mediante confirmación manual de operación no aplicada, por IDTRA, RateId y cliente, separada del reenvío. No se crean cabeceras ni líneas en la acción de conciliación.
+- Web 1.43.4 → 1.43.5, ecosistema 1.43.5 → 1.43.6. Se conservan controles de seguridad, DhModal, REST, SignalR y Outbox; CI/staging pendientes, sin producción.
+
 ## [1.43.4] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-LTL-CURRENCY-VALUE-118: en Pantalla 5 de LTL propio y coloader, venta, costo y mínimo muestran Config.currencies.Value (USD/CRC), no identificadores técnicos CUR-*. Se resuelven moneda por CurrencyId o código histórico contra Config.
