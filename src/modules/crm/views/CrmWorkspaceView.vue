@@ -31,6 +31,7 @@ import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 
 const route = useRoute()
@@ -284,6 +285,22 @@ type OptionalAddress = CrmAddressLocation & {
 const accountFormTab = ref<AccountFormTab>('identity')
 const optionalContacts = ref<OptionalContact[]>([])
 const optionalAddresses = ref<OptionalAddress[]>([])
+function captureWorkspaceDraft() {
+  return { fields: { ...form }, contacts: optionalContacts.value,
+    addresses: optionalAddresses.value, operationKey: pendingCreateKey.value }
+}
+const workspaceDraft = useCrmDraftAutosave({
+  scope: () => 'workspace:' + section.value + ':' + (edited.value?.id ?? 'new'),
+  enabled: () => showForm.value,
+  capture: captureWorkspaceDraft,
+  apply: (snapshot: ReturnType<typeof captureWorkspaceDraft>) => {
+    Object.keys(form).forEach(key => delete form[key])
+    Object.assign(form, snapshot.fields)
+    optionalContacts.value = snapshot.contacts ?? []
+    optionalAddresses.value = snapshot.addresses ?? []
+    if (snapshot.operationKey) pendingCreateKey.value = snapshot.operationKey
+  },
+})
 function addAccountContact() {
   optionalContacts.value.push({ key: crmUuid(), firstName: '', lastName: '',
     jobTitle: '', email: '', phone: '', countryId: '', isPrimary: false })
@@ -383,6 +400,7 @@ function focusAccountSection(key: typeof accountFormTab.value) {
 
 
 function beginCreate() {
+  workspaceDraft.stop()
   resetValidation()
   pendingCreateKey.value = crmUuid()
   edited.value = null
@@ -398,6 +416,7 @@ function beginCreate() {
   }
   if (section.value === 'leads') form.executiveUserId = ''
   showForm.value = true
+  workspaceDraft.begin()
 }
 function beginEdit(item: CrmRow) {
   // Edit accounts in their real record page instead of a separate drawer.
@@ -405,6 +424,7 @@ function beginEdit(item: CrmRow) {
     void router.push({ path: '/crm/accounts/' + encodeURIComponent(item.id), query: { edit: '1' } })
     return
   }
+  workspaceDraft.stop()
   resetValidation()
   edited.value = item
   accountFormTab.value = 'identity'
@@ -413,6 +433,7 @@ function beginEdit(item: CrmRow) {
     form[f.key] = f.type === 'datetime-local' ? fromUtc(item[f.key]) : item[f.key] ?? (f.type === 'checkbox' ? false : '')
   }
   showForm.value = true
+  workspaceDraft.begin()
 }
 function canCreate() {
   return !!model.value?.createScope && can(model.value.createScope)
@@ -680,6 +701,7 @@ async function save() {
     const createdOrUpdated = edited.value
       ? await crmPatch<CrmRow>(model.value.resource, edited.value.id, body)
       : await crmCreate<CrmRow>(model.value.resource, body, pendingCreateKey.value)
+    workspaceDraft.commit()
     showForm.value = false
     pendingCreateKey.value = crmUuid()
     if (section.value === 'accounts' && createdOrUpdated?.id) {
@@ -1036,6 +1058,11 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
 
       <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'xl' : 'lg'" @close="showForm = false">
         <form v-if="model" class="mx-auto max-w-4xl space-y-5" @submit.prevent="save">
+          <p v-if="workspaceDraft.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">
+            {{ workspaceDraft.status.value === 'unavailable' ? 'No se pudo guardar el borrador local; revisá el espacio del navegador.' :
+              workspaceDraft.status.value === 'restored' ? 'Borrador recuperado. Guardá los cambios cuando estén listos.' :
+              'Borrador guardado automáticamente en este navegador.' }}
+          </p>
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
           <template v-if="section === 'accounts'">
