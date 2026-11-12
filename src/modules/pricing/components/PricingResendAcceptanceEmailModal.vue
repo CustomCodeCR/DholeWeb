@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { MailCheck } from 'lucide-vue-next'
-import { DhButton } from '@/shared/components/atoms'
+import { computed, ref, watch } from 'vue'
+import { MailCheck, AlertCircle } from 'lucide-vue-next'
+import { DhButton, DhSelect } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 
+type NotificationType = 'opening' | 'quote' | 'notice'
 const props = defineProps<{
   rateId: string
   quoteNumber: string
@@ -14,22 +15,49 @@ const props = defineProps<{
 const modal = useModalStore()
 const toast = useToastStore()
 const sending = ref(false)
-// Se mantiene estable incluso si una respuesta de red se pierde: reintentar
-// este mismo diálogo nunca genera otro evento de Outbox.
-const requestId = crypto.randomUUID()
+const notificationType = ref<NotificationType>('opening')
+// El UUID permanece estable por selección mientras se reintenta la misma operación.
+const requestId = ref(crypto.randomUUID())
+const errorMessage = ref('')
+
+const options = [
+  { value: 'opening', label: 'Aceptación / Apertura de trámite (PDF y respaldos)' },
+  { value: 'quote', label: 'Cotización enviada (destinatarios configurados)' },
+  { value: 'notice', label: 'Aviso de aceptación SIN PDF (emergencia)' },
+]
+
+const explanation = computed(() => {
+  switch (notificationType.value) {
+    case 'opening':
+      return 'Envía a Apertura de Trámite, con copia a Pricing y al vendedor asignado. Requiere generar PDF y adjunta los respaldos disponibles.'
+    case 'quote':
+      return 'Reenvía la cotización comercial al vendedor o a los contactos del cliente, según las preferencias vigentes de la cuenta CRM. Puede llegar al cliente.'
+    case 'notice':
+      return 'Envía a Apertura un aviso explícitamente marcado SIN PDF, con copia a Pricing y al vendedor. Solo para avisar la aceptación mientras se resuelve un fallo de Reports. No sustituye el PDF obligatorio para apertura.'
+  }
+})
+
+watch(notificationType, () => {
+  requestId.value = crypto.randomUUID()
+  errorMessage.value = ''
+})
 
 async function resend() {
   if (sending.value) return
   sending.value = true
+  errorMessage.value = ''
   try {
-    await PricingService.resendAcceptedRateEmail(props.rateId, requestId)
+    await PricingService.resendAcceptedRateEmail(props.rateId, requestId.value, notificationType.value)
     toast.success(
-      'Notificación en cola',
-      'Se preparó el reenvío a Apertura con copia a Pricing y al ejecutivo. La entrega la realiza Notifications.',
+      'Notificación encolada',
+      notificationType.value === 'notice'
+        ? 'Aviso SIN PDF preparado en Outbox. La apertura requiere completar el expediente.'
+        : 'El correo seleccionado quedó preparado en Outbox. Notifications gestionará su entrega.',
     )
     modal.close()
   } catch (error) {
-    toast.backendError(error, 'No se pudo preparar el reenvío. Puede reintentar sin duplicar esta operación.')
+    errorMessage.value = 'No se confirmó el envío a Outbox. Consulte el detalle del error y reintente con la misma selección, o elija un aviso sin PDF si falló Reports.'
+    toast.backendError(error, 'No se pudo preparar la notificación seleccionada.')
   } finally {
     sending.value = false
   }
@@ -41,21 +69,36 @@ async function resend() {
     <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <div class="flex items-start gap-3">
         <MailCheck class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-        <div>
+        <div class="min-w-0 space-y-1">
           <p class="text-sm font-black text-[var(--dh-text)]">{{ quoteNumber }}</p>
-          <p class="mt-2 text-sm font-semibold text-[var(--dh-text)]">
-            ¿Reenviar la notificación de aceptación?
-          </p>
-          <p class="mt-2 text-xs leading-5 text-[var(--dh-text-muted)]">
-            Se generará un nuevo correo para Apertura de Trámite con copia al equipo de Pricing
-            y al ejecutivo asignado. Incluirá el PDF y los respaldos disponibles.
-          </p>
-          <p class="mt-2 text-xs leading-5 text-[var(--dh-text-muted)]">
-            Es un reenvío manual: si el correo anterior ya se entregó, los destinatarios recibirán otro.
-            No modifica la aceptación, el IDTRA ni la revisión de la QUO.
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+            Seleccione la notificación que desea reenviar.
           </p>
         </div>
       </div>
+
+      <DhSelect
+        v-model="notificationType"
+        class="mt-4"
+        label="Tipo de notificación"
+        placeholder=""
+        :options="options"
+        :disabled="sending"
+      />
+
+      <p class="mt-3 text-xs leading-5 text-[var(--dh-text-muted)]">{{ explanation }}</p>
+      <p v-if="notificationType === 'notice'" class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-bold text-amber-700 dark:text-amber-300">
+        Aviso preliminar: no contiene PDF ni respaldos y no reemplaza el correo de apertura completo.
+      </p>
+      <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+        Un reenvío manual puede hacer que un correo ya entregado llegue nuevamente.
+        No modifica el estado, IDTRA ni la revisión de la QUO.
+      </p>
+    </div>
+
+    <div v-if="errorMessage" class="flex items-start gap-2 rounded-xl border border-red-500/30 p-3 text-xs font-semibold text-red-600 dark:text-red-300" role="alert">
+      <AlertCircle class="h-4 w-4 shrink-0" />
+      <p>{{ errorMessage }}</p>
     </div>
 
     <div class="flex flex-wrap justify-end gap-2">
