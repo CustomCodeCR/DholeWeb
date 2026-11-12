@@ -106,7 +106,10 @@ test('CFZ to San José is selectable directly from the four master costs, withou
     (501 * 0.3) / route.billableCbm)
   assert.equal(buildCfzSanJoseCatalogTariff(costs, { ...route, weightKg: 3001 })?.priceAmount,
     (3001 * 0.25) / route.billableCbm)
-  assert.equal(buildCfzSanJoseCatalogTariff(costs, { ...route, weightKg: 0 }), null)
+  const pending = buildCfzSanJoseCatalogTariff(costs, { ...route, weightKg: 0 })
+  assert.ok(pending, 'route must remain visible before entering weight')
+  assert.equal(pending.priceAmount, 0)
+  assert.match(pending.notes ?? '', /Pendiente de ingresar peso/)
   assert.equal(buildCfzSanJoseCatalogTariff(costs.slice(1), route), null)
   assert.equal(buildCfzSanJoseCatalogTariff(costs, { ...route, originName: 'Balboa, Panamá', originCode: 'BLB' }), null)
 })
