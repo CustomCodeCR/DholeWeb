@@ -28,3 +28,22 @@ test('administrative adoption controls and diagnostics stay within their own row
   assert.match(source, /class="quote-sync-actions"/)
   assert.match(source, /@click="resumePartial\(issue, true\)"/)
 })
+
+test('unconfirmed quotedetail can only be reconciled through a read-only action', () => {
+  assert.match(source, /function canReadOnlyReconcileSale\(issue: QuoteIssue\)/)
+  assert.match(source, /ledger\.total\.status === 'reserved'/)
+  assert.match(source, /ledger\.total\.status === 'ambiguous'/)
+  assert.match(source, /ledger\.live\.actualLines\?\.length === 1/)
+  assert.match(source, /await reconcileExistingSale\(issue\)/)
+  assert.match(source, /'\/dynamics-sync\/reconcile-existing'/)
+  assert.match(source, /ledger\.total\.status !== 'not_sent'/)
+})
+
+test('uncertain header recovery requires separate admin no-effect confirmation', () => {
+  assert.match(source, /const noEffectEvidenceConfirmed = ref/)
+  assert.match(source, /function canConfirmNoEffect\(issue: QuoteIssue\)/)
+  assert.match(source, /confirmedNotApplied: true/)
+  assert.match(source, /'\/reconcile'/)
+  assert.match(source, /ledger\.header\.manuallyConfirmedNotApplied === true/)
+  assert.match(source, /@click="confirmNoDataverseWrite\(issue\)"/)
+})
