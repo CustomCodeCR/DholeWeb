@@ -22,6 +22,8 @@ import { CONTENT_SCOPES } from '@/core/auth/scopes'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { ContentService } from '@/core/services/contentService'
+import { DhButton, DhInput } from '@/shared/components/atoms'
+import { DhModal } from '@/shared/components/organisms'
 import { ContentRouteService } from '@/core/services/contentRouteService'
 import { normalizePublicPath, shouldCreatePermanentRedirect } from '@/core/redirects/redirectFlow'
 import { buildSeoPreview, validateSeoInput } from '@/core/seo/seoPreview'
@@ -69,6 +71,10 @@ const serverSeoPreview = ref<SeoPreviewDto | null>(null)
 const primaryRoute = ref<ContentRouteDto | null>(null)
 const originalPublicPath = ref('')
 const createPermanentRedirect = ref(true)
+const linkModalOpen = ref(false)
+const linkUrlDraft = ref('')
+let linkSelectionRange: Range | null = null
+const actionToConfirm = ref<'delete' | 'archive' | null>(null)
 
 const statuses = [
   { value: '', label: 'Todos los estados' },
@@ -289,9 +295,30 @@ function editorCommand(command: string, value?: string) {
 }
 
 function addLink() {
-  const url = window.prompt('Pegue la dirección del enlace:')?.trim()
+  const selection = window.getSelection()
+  linkSelectionRange = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null
+  linkUrlDraft.value = ''
+  linkModalOpen.value = true
+}
+
+function closeLinkModal() {
+  linkModalOpen.value = false
+  linkSelectionRange = null
+}
+
+function confirmAddLink() {
+  const url = linkUrlDraft.value.trim()
   if (!url) return
-  editorCommand('createLink', url)
+  linkModalOpen.value = false
+  void nextTick(() => {
+    if (linkSelectionRange) {
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(linkSelectionRange)
+    }
+    editorCommand('createLink', url)
+    linkSelectionRange = null
+  })
 }
 
 function seoPayload(): UpdateSeoRequest {
@@ -439,10 +466,12 @@ async function schedule() {
   }
 }
 
-async function applyAction(action: 'unpublish' | 'archive' | 'delete') {
+async function applyAction(action: 'unpublish' | 'archive' | 'delete', confirmed = false) {
   if (!selected.value || saving.value) return
-  if (action === 'delete' && !window.confirm(`¿Eliminar “${selected.value.title}”?`)) return
-  if (action === 'archive' && !window.confirm(`¿Archivar “${selected.value.title}”?`)) return
+  if ((action === 'delete' || action === 'archive') && !confirmed) {
+    actionToConfirm.value = action
+    return
+  }
 
   saving.value = true
   try {
@@ -458,6 +487,12 @@ async function applyAction(action: 'unpublish' | 'archive' | 'delete') {
   } finally {
     saving.value = false
   }
+}
+
+function confirmAction() {
+  const action = actionToConfirm.value
+  actionToConfirm.value = null
+  if (action) void applyAction(action, true)
 }
 
 watch(() => props.siteKey, () => {
@@ -479,6 +514,26 @@ onMounted(() => void Promise.all([load(), loadAuxiliary()]))
 
 <template>
   <div class="space-y-5">
+    <DhModal :open="linkModalOpen" title="Agregar enlace" size="sm" @close="closeLinkModal">
+      <DhInput v-model="linkUrlDraft" label="Dirección del enlace" placeholder="https://..." />
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <DhButton label="Cancelar" variant="secondary" @click="closeLinkModal" />
+          <DhButton label="Insertar enlace" :disabled="!linkUrlDraft.trim()" @click="confirmAddLink" />
+        </div>
+      </template>
+    </DhModal>
+    <DhModal :open="Boolean(actionToConfirm)" :title="actionToConfirm === 'delete' ? 'Eliminar contenido' : 'Archivar contenido'" size="sm" @close="actionToConfirm = null">
+      <p class="text-sm text-[var(--dh-text-muted)]">
+        {{ actionToConfirm === 'delete' ? '¿Eliminar definitivamente' : '¿Archivar' }} «{{ selected?.title }}»?
+      </p>
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <DhButton label="Cancelar" variant="secondary" @click="actionToConfirm = null" />
+          <DhButton :label="actionToConfirm === 'delete' ? 'Eliminar' : 'Archivar'" :variant="actionToConfirm === 'delete' ? 'danger' : 'primary'" :loading="saving" @click="confirmAction" />
+        </div>
+      </template>
+    </DhModal>
     <section class="dh-glass dh-liquid rounded-[30px] p-5">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
