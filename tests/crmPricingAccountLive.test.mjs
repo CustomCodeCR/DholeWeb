@@ -21,7 +21,7 @@ test('historical quote migration has page-wide and filtered cross-page select-al
 
 test('pricing account quotes, not opportunity snapshots, drive CRM indicators', () => {
   assert.match(dashboard, /fetchClient<QuoteDashboard>/)
-  assert.match(dashboard, /\/crm-account\/' \+ encodeURIComponent\(props\.accountId\) \+ '\/dashboard'/)
+  assert.match(dashboard, /\/crm-account\/' + ' \+ encodeURIComponent\(id\) \+ \'\/dashboard\'/)
   assert.doesNotMatch(dashboard, /crmPath\('accounts', props\.accountId, 'quote-dashboard'\)/)
   assert.match(dashboard, /props\.refreshKey/)
   assert.match(account, /<CrmAccountQuotesDashboard[^>]+:refresh-key="quoteRefreshKey"/)
@@ -32,7 +32,7 @@ test('route and account quote history use authoritative Pricing link by account 
   assert.match(account, /async function loadQuotedRoutes\(\)/)
   assert.match(account, /\/api\/pricing\/rates\/crm-account\//)
   assert.doesNotMatch(account, /'quote-route-snapshots'/)
-  assert.match(account, /quoteRouteTotal\.value = page\.total \|\| 0/)
+  assert.match(account, /quoteRouteTotal\.value = Math\.max\(byId\.size,/)
   assert.match(account, /const recentQuotes = computed\(\(\) => pricingQuotes\.value\)/)
   assert.match(account, /quoteRefreshKey\.value\+\+/)
   assert.match(account, /hasOpportunityQuote\(rowId\(q\.pricingQuoteId\)\)/)
