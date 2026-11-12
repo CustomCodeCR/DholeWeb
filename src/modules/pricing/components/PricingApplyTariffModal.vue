@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { BookOpen, FilePlus2, ShieldCheck, UserRoundPlus } from 'lucide-vue-next'
-import { DhButton, DhInput } from '@/shared/components/atoms'
+import { DhButton } from '@/shared/components/atoms'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
