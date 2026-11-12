@@ -25,8 +25,9 @@ const props = withDefaults(defineProps<{
   sellerUserId?: string
   initialName?: string
   disabled?: boolean
+  inlineResults?: boolean
   error?: string
-}>(), {sellerUserId:'',initialName:'',disabled:false,error:''})
+}>(), {sellerUserId:'',initialName:'',disabled:false,inlineResults:false,error:''})
 const emit = defineEmits<{
   'update:modelValue': [id:string]
   selected: [client:PricingCrmClient|null]
@@ -171,7 +172,11 @@ onBeforeUnmount(()=>{++requestId;++linkedClientLookupId;if(searchTimer)clearTime
     </div>
     <p v-if="error" role="alert" class="mt-1 text-xs font-semibold text-red-500">{{error}}</p>
     <p v-if="failure" role="alert" class="mt-1 text-xs text-red-500">{{failure}}</p>
-    <div v-if="open && !disabled" class="absolute z-[150] mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card-solid)] p-1.5 shadow-2xl">
+    <div
+      v-if="open && !disabled"
+      class="mt-2 w-full overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card-solid)] p-1.5 shadow-2xl"
+      :class="inlineResults ? 'relative z-10 max-h-60' : 'absolute z-[150] max-h-72'"
+    >
       <button v-for="client in items" :key="client.id" type="button"
         class="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left hover:bg-[var(--dh-card-hover)]"
         @click="choose(client)">
