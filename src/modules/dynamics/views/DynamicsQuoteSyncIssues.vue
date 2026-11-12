@@ -695,12 +695,24 @@ async function resumePartial(issue: QuoteIssue, adoptUnmanagedLine = false) {
   }
 }
 
+function canReadOnlyReconcileSale(issue: QuoteIssue): boolean {
+  const ledger = ledgerByRate.value[issue.rateId]
+  if (!ledger || ledger.header.status !== 'succeeded' ||
+      !ledger.header.recordId || ledger.live?.headerExists !== true) return false
+  if (ledger.total.status === 'not_sent') return true
+  // QUO-613: an unsettled quotedetail ledger may coexist with one existing
+  // Dataverse line. This only exposes an admin *read-only* proof action.
+  return (ledger.total.status === 'reserved' ||
+          ledger.total.status === 'ambiguous') &&
+    ledger.live.quoteLineLookupStatus === 'verified' &&
+    ledger.live.actualLines?.length === 1
+}
+
 async function reconcileExistingSale(issue: QuoteIssue) {
   const ledger = ledgerByRate.value[issue.rateId]
   if (!isAdministrator.value || reconcilingRateId.value ||
       issue.status !== 'NeedsAttention' || issue.retryBlockReason ||
-      ledger?.header.status !== 'succeeded' || !ledger.header.recordId ||
-      ledger.total.status !== 'not_sent') return
+      !canReadOnlyReconcileSale(issue)) return
   reconcilingRateId.value = issue.rateId
   reconcileMessages.value = { ...reconcileMessages.value, [issue.rateId]: '' }
   try {
@@ -873,13 +885,13 @@ async function retryWithoutDuplicate(issue: QuoteIssue) {
         'El estado actual no admite un nuevo envío. Se consultó el historial sin escribir en Dynamics.' }
       return
     }
-    if (ledger.header.status === 'succeeded' && ledger.header.recordId &&
-        ledger.total.status === 'not_sent' &&
-        ledger.live?.headerExists === true && issue.status === 'NeedsAttention') {
-      // An unmanaged line requires a separate, explicitly acknowledged action.
-      // Never silently overwrite it via the generic retry.
-      if (needsSingleLineAdoption(issue)) {
-        // QUO-613: try read-only reconciliation first; never overwrite lines.
+    if (issue.status === 'NeedsAttention' &&
+        canReadOnlyReconcileSale(issue)) {
+      // When a previously dispatched line has an uncertain result, NEVER
+      // resend: only validate its actual single Dhole line in Dataverse.
+      if (ledger.total.status === 'reserved' ||
+          ledger.total.status === 'ambiguous' ||
+          needsSingleLineAdoption(issue)) {
         await reconcileExistingSale(issue)
         return
       }
@@ -1425,6 +1437,11 @@ onUnmounted(() => {
                   ? 'Existe una línea de venta con otro nombre — confirmar su actualización'
                   : 'Cabecera existente — falta completar la línea de venta' }}
               </strong>
+              <strong v-else-if="ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+                ['reserved', 'ambiguous'].includes(ledgerByRate[issue.rateId]?.total.status || '') &&
+                ledgerByRate[issue.rateId]?.live?.actualLines?.length === 1">
+                Línea registrada en Dataverse con escritura sin confirmar — comprobar sin reenviar
+              </strong>
               <strong v-else-if="issue.lastError?.includes('quote_line_postwrite_verification_failed')">
                 Línea escrita — confirmar importe real antes de finalizar
               </strong>
@@ -1457,6 +1474,13 @@ onUnmounted(() => {
                   Usá «Completar línea de venta» para reanudar la misma revisión,
                   sin duplicar la oferta.
                 </template>
+              </p>
+              <p v-else-if="ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
+                ['reserved', 'ambiguous'].includes(ledgerByRate[issue.rateId]?.total.status || '') &&
+                ledgerByRate[issue.rateId]?.live?.actualLines?.length === 1">
+                Dataverse muestra una línea, pero el registro de idempotencia sigue incierto.
+                Utilizá «Comprobar si la venta ya coincide» para cotejar RateId, línea,
+                cantidad e importe mediante lectura; nunca reenviés un POST.
               </p>
               <p v-else-if="issue.lastError?.includes('quote_line_postwrite_verification_failed')">
                 El registro de Dynamics puede contener la línea de venta creada o
@@ -1694,10 +1718,7 @@ onUnmounted(() => {
               'Verificar y conciliar venta registrada (sin duplicar)' }}
           </button>
           <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
-              !issue.retryBlockReason &&
-              ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
-              ledgerByRate[issue.rateId]?.header.recordId &&
-              ledgerByRate[issue.rateId]?.total.status === 'not_sent'"
+              !issue.retryBlockReason && canReadOnlyReconcileSale(issue)"
             type="button" class="dynamics-outline-button"
             :disabled="Boolean(reconcilingRateId)"
             @click="reconcileExistingSale(issue)">
