@@ -1,3 +1,10 @@
+## [1.43.3] - 2026-11-12
+
+- PATCH DH-20261112-PRICING-OUTBOX-CORRELATION-115: el modal de reenvío de notificaciones de QUO muestra el detalle real devuelto por Pricing, incluyendo código de error cuando exista; elimina el mensaje genérico que atribuía incorrectamente errores de Outbox a Reports.
+- El backend normaliza los correlationId de Outbox mayores de varchar(100), conservando el identificador de la operación y los destinatarios; corrección reproducible para QUO-00000-000609.
+- DholeWeb 1.43.2 → 1.43.3; Pricing 1.16.1 → 1.16.2; System/ecosistema 1.43.3 → 1.43.4. Sin modificar componentes UI globales, API o framework.
+- Pendiente CI y validaciones staging/SMTP antes de producir nuevos correos.
+
 ## [1.43.2] - 2026-11-12
 
 - PATCH DH-20261112-LTL-CFZ-ROUTE-116: corrige la ausencia de la ruta CFZ, Panamá → San José, Costa Rica en los tarifarios LTL propios y en Pantalla 5. Crea una tarifa propia calculada en tiempo real desde los cuatro conceptos vigentes de Costos y recargos sin requerir fila preexistente en la tabla de rutas.

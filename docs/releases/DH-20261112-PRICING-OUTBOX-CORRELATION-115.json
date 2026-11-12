@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261112-PRICING-OUTBOX-CORRELATION-115",
+  "ecosystem": "Dhole",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.43.4",
+  "createdAt": "2026-11-12",
+  "sourceBranch": "fix/outbox-correlation-overflow-quo609-20261112-develop",
+  "components": [
+    {
+      "component": "DholePricingService",
+      "repository": "CustomCodeCR/DholePricingService",
+      "previous": "1.16.1",
+      "next": "1.16.2"
+    },
+    {
+      "component": "DholeWeb",
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.43.2",
+      "next": "1.43.3"
+    },
+    {
+      "component": "DholeSystem",
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.43.3",
+      "next": "1.43.4"
+    }
+  ],
+  "changes": [
+    "Show server error message and code in resend DhModal; no duplicate toast.",
+    "Server enforces <=100 Outbox correlation ID with deterministic hashing fallback."
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "smtp": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
