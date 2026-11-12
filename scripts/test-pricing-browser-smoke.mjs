@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 
 const base = 'http://127.0.0.1:5188'
-const debugBase = 'http://127.0.0.1:9229'
+// Use a unique browser debugging port on shared CI runners. Fixed 9229 can
+// collide with other concurrently running jobs or Node inspector sessions.
+const chromeProfile = mkdtempSync(join(tmpdir(), 'dhole-pricing-chrome-'))
 const productionBundle = process.env.DHOLE_PRICING_RUNTIME_SMOKE === '1'
 const serveArgs = productionBundle
   ? ['node_modules/vite/bin/vite.js', 'preview', '--outDir', 'dist-smoke', '--host', '127.0.0.1', '--port', '5188', '--strictPort']
@@ -16,12 +20,14 @@ vite.stderr.on('data', (chunk) => viteLog += chunk)
 let chrome
 let chromeLog = ''
 let ws
-async function waitFor(getValue, label, iterations = 80) {
+async function waitFor(getValue, label, iterations = 150) {
   for (let i = 0; i < iterations; i++) {
     await delay(200)
     try { const value = await getValue(); if (value) return value } catch {}
   }
-  throw new Error('Timed out waiting for ' + label)
+  throw new Error('Timed out waiting for ' + label +
+    '. Chrome output: ' + chromeLog.slice(-1600) +
+    '. Vite output: ' + viteLog.slice(-500))
 }
 function createCdp(client) {
   let seq = 0
@@ -50,13 +56,22 @@ try {
   chrome = spawn('google-chrome', [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--no-first-run',
     '--disable-dev-shm-usage', '--disable-extensions', '--no-proxy-server',
-    '--remote-allow-origins=*', '--remote-debugging-port=9229',
-    '--user-data-dir=/tmp/dhole-pricing-chrome-' + process.pid,
+    '--remote-allow-origins=*', '--remote-debugging-port=0',
+    '--user-data-dir=' + chromeProfile,
     'about:blank',
   ], { stdio: ['ignore', 'ignore', 'pipe'] })
   chrome.stderr.on('data', (chunk) => chromeLog += chunk)
+  chrome.on('error', (error) => { chromeLog += String(error) })
   const tab = await waitFor(async () => {
-    const tabs = await (await fetch(debugBase + '/json/list')).json()
+    if (chrome.exitCode !== null)
+      throw new Error('Chrome terminated: ' + chromeLog.slice(-1500))
+    const portFile = join(chromeProfile, 'DevToolsActivePort')
+    if (!existsSync(portFile)) return null
+    const port = Number(readFileSync(portFile, 'utf8').split('\\n')[0])
+    if (!Number.isInteger(port) || port <= 0) return null
+    const response = await fetch('http://127.0.0.1:' + port + '/json/list')
+    if (!response.ok) return null
+    const tabs = await response.json()
     return tabs.find((item) => item.type === 'page' && item.webSocketDebuggerUrl)
   }, 'Chrome DevTools')
   ws = new WebSocket(tab.webSocketDebuggerUrl)
@@ -94,4 +109,5 @@ try {
   try { ws?.close() } catch {}
   chrome?.kill('SIGTERM')
   vite.kill('SIGTERM')
+  rmSync(chromeProfile, {recursive: true, force: true})
 }
