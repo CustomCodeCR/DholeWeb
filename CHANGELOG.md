@@ -1,3 +1,9 @@
+## [1.38.1] - 2026-11-11
+
+- PATCH DH-20261111-CRM-GEOAPIFY-CSP-108: corrige el error de búsqueda de direcciones y negocios de Geoapify en visitas CRM: la política Content-Security-Policy de Nginx ahora permite explícitamente conexiones HTTPS a api.geoapify.com en connect-src, conservando el resto de dominios autorizados y las protecciones existentes.
+- Agrega regresión de CSP en el test CRM Geoapify. Mantiene mapa, autocompletado, geocodificación inversa y ubicaciones guardadas sin modificar API key, REST, SignalR o datos de CRM.
+- DholeWeb 1.38.0 → 1.38.1; versión global 1.38.1 (DholeSystem 1.37.2 → 1.38.1). Validar CI, despliegue y búsqueda real en staging antes de producción.
+
 ## [1.38.0] - 2026-11-11
 
 - MINOR DH-20261111-CRM-ACCOUNT-INLINE-RELATIONS-107: agrega secciones opcionales de contactos y direcciones con alta múltiple desde «Nueva cuenta», guardadas directamente con el cliente. La edición de cuentas permite crear contactos desde la pestaña Contactos y mantiene el alta/edición de direcciones en la misma ficha.
