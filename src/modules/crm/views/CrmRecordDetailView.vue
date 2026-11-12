@@ -22,6 +22,7 @@ import CrmAccountEditor from '../components/CrmAccountEditor.vue'
 import CrmContactForm from '../components/CrmContactForm.vue'
 import CrmAddressLocationFields from '../components/CrmAddressLocationFields.vue'
 import { emptyAddressLocation } from '../model/crmAddressLocation'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
 import CrmContractFileDropzone from '../components/CrmContractFileDropzone.vue'
 import { creditCoverageLabel } from '../model/crmCreditCoverage'
@@ -169,6 +170,22 @@ const drafts = reactive({
   summary: '',
 })
 const addressLocation = ref(emptyAddressLocation())
+function captureRelatedDraft() {
+  return { fields: { ...drafts }, address: addressLocation.value,
+    included: creditIncluded.value, excluded: creditExcluded.value }
+}
+const relatedAutosave = useCrmDraftAutosave({
+  scope: () => 'related:' + section.value + ':' + id.value + ':' + relation.value,
+  enabled: () => showRelationForm.value,
+  capture: captureRelatedDraft,
+  apply: (snapshot: ReturnType<typeof captureRelatedDraft>) => {
+    Object.assign(drafts, snapshot.fields)
+    addressLocation.value = { ...snapshot.address }
+    creditIncluded.value = snapshot.included ?? []
+    creditExcluded.value = snapshot.excluded ?? []
+  },
+})
+watch(showRelationForm, open => { if (open) relatedAutosave.begin(); else relatedAutosave.stop() })
 const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
@@ -1023,7 +1040,9 @@ watch(() => [route.query.edit, section.value], ([edit]) => {
   showAccountEditor.value = section.value === 'accounts' && edit === '1' && can('crm.account.update')
 }, { immediate: true })
 watch(relation, () => { showRelationForm.value = false; if (relation.value) void loadRelation() })
-watch(success, value => { if (value) showRelationForm.value = false })
+watch(success, value => {
+  if (value) { relatedAutosave.commit(); showRelationForm.value = false }
+})
 watch([accountEditingDirty, showAccountEditor, showRelationForm, saving], () => {
   if (!accountEditingDirty.value && !showAccountEditor.value &&
       !showRelationForm.value && !saving.value)
@@ -1580,6 +1599,11 @@ onMounted(() => { if (crmEnabled()) void load() })
                 relation === 'credit-contracts' ? 'Registrar contrato de crédito' :
                 relation === 'credit-profiles' ? 'Nueva solicitud de crédito' : 'Nuevo · ' + (accountRelationInfo?.label ?? relation))
              : t('common.create') + ' · ' + relation" size="lg" @close="showRelationForm = false">
+          <p v-if="relatedAutosave.status.value !== 'idle'" role="status" class="mb-3 text-xs text-[var(--dh-text-muted)]">
+            {{ relatedAutosave.status.value === 'restored' ? 'Se recuperó un formulario sin terminar.' :
+              relatedAutosave.status.value === 'saved' ? 'Borrador local guardado automáticamente.' :
+              'El navegador no pudo conservar el borrador.' }}
+          </p>
           <p v-if="error" role="alert" class="mb-3 rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
         <form v-if="section==='accounts' && relation==='addresses' && can('crm.account.update')"
           class="grid gap-4 p-1 sm:grid-cols-2" @submit.prevent="addAddress">
