@@ -12,6 +12,8 @@ type LedgerEntry = {
   httpStatus: number | null
   recordId: string | null
   providerCode: string | null
+  operationId?: string | null
+  manuallyConfirmedNotApplied?: boolean
 }
 type QuoteLedger = {
   rateId: string
@@ -530,6 +532,53 @@ const recoveringRateId = ref<string | null>(null)
 const recoveryMessages = ref<Record<string,string>>({})
 const legacyConfirmed = ref<Record<string, boolean>>({})
 const singleLineAdoptionConfirmed = ref<Record<string, boolean>>({})
+const noEffectEvidenceConfirmed = ref<Record<string, boolean>>({})
+const confirmingNoEffectRateId = ref<string | null>(null)
+const noEffectMessages = ref<Record<string, string>>({})
+function canConfirmNoEffect(issue: QuoteIssue): boolean {
+  const ledger = ledgerByRate.value[issue.rateId]
+  return isAdministrator.value && issue.status === 'NeedsAttention' &&
+    !issue.retryBlockReason && ledger?.header.recordId == null &&
+    (ledger?.header.status === 'reserved' || ledger?.header.status === 'ambiguous') &&
+    ledger?.total.status === 'not_sent' && Boolean(ledger.header.operationId)
+}
+async function confirmNoDataverseWrite(issue: QuoteIssue) {
+  if (!canConfirmNoEffect(issue) ||
+      !noEffectEvidenceConfirmed.value[issue.rateId] ||
+      confirmingNoEffectRateId.value) return
+  const operationId = ledgerByRate.value[issue.rateId]!.header.operationId
+  if (!operationId) return
+  confirmingNoEffectRateId.value = issue.rateId
+  noEffectMessages.value = { ...noEffectMessages.value, [issue.rateId]: '' }
+  try {
+    // This changes only the write ledger, never Dataverse.
+    // The operator must separately authorize a new recovery generation.
+    await fetchClient<void>(
+      '/api/dynamics-admin/connections/principal/write-operations/' +
+        encodeURIComponent(operationId) + '/reconcile', {
+        method: 'POST',
+        body: {
+          confirmedNotApplied: true,
+          recordId: null,
+          reason: 'Revisión administrativa de ' +
+            (issue.rate?.rateCode || issue.rateId) +
+            ': no se encontró cabecera por RateId, IDTRA ni cliente en Dataverse; ' +
+            'efecto descartado y verificado manualmente.'
+        }
+      })
+    noEffectEvidenceConfirmed.value[issue.rateId] = false
+    noEffectMessages.value = { ...noEffectMessages.value,
+      [issue.rateId]: 'Conciliación registrada. Verificá el historial y recuperá la revisión solo después de comprobar el estado. No se escribió en Dataverse.' }
+    await verifyQuoteLedger(issue)
+  } catch (error) {
+    noEffectMessages.value = { ...noEffectMessages.value,
+      [issue.rateId]: error instanceof ApiError
+        ? (error.code ? '[' + error.code + '] ' : '') + getApiErrorMessage(error)
+        : error instanceof Error ? error.message : 'No se pudo conciliar la operación.' }
+  } finally {
+    confirmingNoEffectRateId.value = null
+  }
+}
 function needsSingleLineAdoption(issue: QuoteIssue): boolean {
   return Boolean(issue.lastError?.includes('quote_line_unmanaged_requires_reconciliation') ||
     issue.error?.message?.includes('quote_line_unmanaged_requires_reconciliation'))
@@ -585,7 +634,10 @@ async function recoverRejected(issue: QuoteIssue) {
   const ledger = ledgerByRate.value[issue.rateId]
   if (!isAdministrator.value || recoveringRateId.value || issue.retryBlockReason ||
       issue.status !== 'NeedsAttention' ||
-      ledger?.header.status !== 'rejected' || ledger.total.status !== 'not_sent' ||
+      !(ledger?.header.status === 'rejected' ||
+        ledger?.header.status === 'reconciled' &&
+        ledger.header.manuallyConfirmedNotApplied === true) ||
+      ledger.total.status !== 'not_sent' ||
       ledger.header.recordId || ledger.total.recordId) return
   recoveringRateId.value = issue.rateId
   recoveryMessages.value = { ...recoveryMessages.value, [issue.rateId]: '' }
@@ -827,14 +879,17 @@ async function retryWithoutDuplicate(issue: QuoteIssue) {
       // An unmanaged line requires a separate, explicitly acknowledged action.
       // Never silently overwrite it via the generic retry.
       if (needsSingleLineAdoption(issue)) {
-        retryMessages.value = { ...retryMessages.value, [rateId]:
-          'Ya existe una línea con un nombre distinto. Revisá la QUO en Dynamics y confirmá expresamente su actualización en esta pantalla.' }
+        // QUO-613: try read-only reconciliation first; never overwrite lines.
+        await reconcileExistingSale(issue)
         return
       }
       await resumePartial(issue)
       return
     }
-    if (ledger.header.status === 'rejected' && ledger.total.status === 'not_sent' &&
+    if ((ledger.header.status === 'rejected' ||
+         ledger.header.status === 'reconciled' &&
+         ledger.header.manuallyConfirmedNotApplied === true) &&
+        ledger.total.status === 'not_sent' &&
         !ledger.header.recordId && !ledger.total.recordId) {
       // One click: the backend checks the prior 4xx ledger, read-only
       // lookups and text limits, then queues a fresh safe idempotency key.
@@ -1534,6 +1589,9 @@ onUnmounted(() => {
                   · Código {{ ledgerByRate[issue.rateId]!.header.providerCode }}
                 </template>
               </p>
+              <p v-if="ledgerByRate[issue.rateId]!.header.operationId">
+                Operación cabecera: <code>{{ ledgerByRate[issue.rateId]!.header.operationId }}</code>
+              </p>
               <p>Línea de venta: {{ ledgerLabel(ledgerByRate[issue.rateId]!.total) }}
                 <template v-if="ledgerByRate[issue.rateId]!.total.httpStatus">
                   · HTTP {{ ledgerByRate[issue.rateId]!.total.httpStatus }}
@@ -1543,6 +1601,9 @@ onUnmounted(() => {
                 requiere corregir el fallo y realizar una recuperación controlada.</p>
             </div>
           </div>
+          <p v-if="noEffectMessages[issue.rateId]" class="quote-sync-meta" role="status">
+            {{ noEffectMessages[issue.rateId] }}
+          </p>
           <p v-if="recoveryMessages[issue.rateId]" class="quote-sync-meta" role="status">
             {{ recoveryMessages[issue.rateId] }}
           </p>
@@ -1605,6 +1666,23 @@ onUnmounted(() => {
             target="_blank" rel="noopener noreferrer" class="dynamics-outline-button">
             <ExternalLink :size="15" /> Abrir registro en Dynamics
           </a>
+          <div v-if="canConfirmNoEffect(issue)" class="quote-sync-adoption">
+            <p>Una reserva sin ID no prueba ausencia. Buscá la QUO manualmente
+              por RateId, IDTRA y cliente en Dataverse antes de continuar.</p>
+            <label>
+              <input v-model="noEffectEvidenceConfirmed[issue.rateId]" type="checkbox" />
+              Confirmo que comprobé que esta operación NO creó cabecera
+              y que tampoco existe otra QUO vinculada.
+            </label>
+            <button type="button" class="dynamics-outline-button"
+              :disabled="!noEffectEvidenceConfirmed[issue.rateId] ||
+                Boolean(confirmingNoEffectRateId)"
+              @click="confirmNoDataverseWrite(issue)">
+              <SearchCheck :size="15" />
+              {{ confirmingNoEffectRateId === issue.rateId
+                ? 'Conciliando...' : 'Registrar no aplicado (sin enviar QUO)' }}
+            </button>
+          </div>
           <button v-if="isAdministrator && issue.status === 'NeedsAttention' &&
               ledgerByRate[issue.rateId]?.header.status === 'succeeded' &&
               ledgerByRate[issue.rateId]?.header.recordId &&
