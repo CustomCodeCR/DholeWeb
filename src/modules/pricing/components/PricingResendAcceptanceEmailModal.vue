@@ -6,7 +6,6 @@ import { PricingService } from '@/core/services/pricingService'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 
-type NotificationType = 'opening' | 'quote' | 'notice'
 const props = defineProps<{
   rateId: string
   quoteNumber: string
@@ -15,7 +14,7 @@ const props = defineProps<{
 const modal = useModalStore()
 const toast = useToastStore()
 const sending = ref(false)
-const notificationType = ref<NotificationType>('opening')
+const notificationType = ref('opening')
 // El UUID permanece estable por selección mientras se reintenta la misma operación.
 const requestId = ref(crypto.randomUUID())
 const errorMessage = ref('')
