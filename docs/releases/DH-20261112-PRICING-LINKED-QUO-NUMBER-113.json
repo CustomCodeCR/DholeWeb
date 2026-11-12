@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261112-PRICING-LINKED-QUO-NUMBER-113",
+  "ecosystem": "Dhole",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.41.2",
+  "date": "2026-11-12",
+  "sourceBranch": "fix/pricing-linked-quo-number-20261112-develop",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "repository": "CustomCodeCR/DholeWeb",
+      "previous": "1.41.1",
+      "next": "1.41.2"
+    },
+    {
+      "component": "DholeSystem",
+      "repository": "CustomCodeCR/DholeSystem",
+      "previous": "1.41.1",
+      "next": "1.41.2"
+    }
+  ],
+  "unchangedComponents": [
+    {
+      "component": "DholePricingService",
+      "version": "1.14.0"
+    }
+  ],
+  "description": "Show the winning accepted QUO commercial number in the Crystal wizard and legacy wizard instead of its database UUID. Preserve UUID as route parameter only, handle fetch failures without exposing ID.",
+  "tests": [
+    "tests/pricingLinkedAcceptedQuoteNumber.test.mjs",
+    "tests/pricingQuoVinculadaCrystal.test.mjs",
+    "DholeWeb build/typecheck",
+    "staging quoted-rate page"
+  ],
+  "restCompatible": true,
+  "realtimeCompatible": true,
+  "schemaMigration": false,
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
