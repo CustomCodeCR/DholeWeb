@@ -1,3 +1,8 @@
+## [1.38.0] - 2026-11-11
+
+- MINOR DH-20261111-CRM-ACCOUNT-INLINE-RELATIONS-107: agrega secciones opcionales de contactos y direcciones con alta múltiple desde «Nueva cuenta», guardadas directamente con el cliente. La edición de cuentas permite crear contactos desde la pestaña Contactos y mantiene el alta/edición de direcciones en la misma ficha.
+- Reutiliza el formulario de ubicación geográfica, respeta los scopes de CRM y valida únicamente los registros opcionales que se agreguen. Web 1.37.2 → 1.38.0, CRM 1.22.0 → 1.23.0, ecosistema 1.38.0; CI y staging pendientes, sin despliegue a producción.
+
 ## [1.37.2] - 2026-11-11
 
 - PATCH DH-20261111-PRICING-QUO-LINK-ACTION-106: muestra «Cliente aceptó otra QUO» en pantalla 9 del asistente Crystal usado para visualizar cotizaciones; el botón anterior existía únicamente en el asistente antiguo.
