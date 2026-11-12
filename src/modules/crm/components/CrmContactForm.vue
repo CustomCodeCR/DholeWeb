@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmReferencePicker from './CrmReferencePicker.vue'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmPhoneInput from './CrmPhoneInput.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { crmError, crmGet, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 
 const props = withDefaults(defineProps<{ accountId?: string }>(), { accountId: '' })
@@ -23,6 +24,16 @@ const draft = reactive({
 const error = ref('')
 const saving = ref(false)
 const operationKey = ref(crmUuid())
+function captureContactDraft() { return { fields: { ...draft }, operationKey: operationKey.value } }
+const contactAutosave = useCrmDraftAutosave({
+  scope: () => 'contact-create:' + (props.accountId || 'global'),
+  capture: captureContactDraft,
+  apply: (snapshot: ReturnType<typeof captureContactDraft>) => {
+    Object.assign(draft, snapshot.fields)
+    if (snapshot.operationKey) operationKey.value = snapshot.operationKey
+  },
+})
+onMounted(() => contactAutosave.begin())
 watch(() => props.accountId, id => { if (id) draft.accountId = id })
 // A new contact inherits its linked account's country unless a different one
 // was selected. No manual country selection is needed for Costa Rica clients.
@@ -54,6 +65,7 @@ async function save() {
         countryId: draft.countryId || null, relationRole: draft.relationRole,
         isPrimary: draft.isPrimary,
       }, operationKey.value)
+    contactAutosave.commit()
     operationKey.value = crmUuid()
     emit('saved', result)
   } catch (cause) {
@@ -66,6 +78,11 @@ async function save() {
 
 <template>
   <form class="space-y-4" data-crm-contact-form @submit.prevent="save">
+    <p v-if="contactAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">
+      {{ contactAutosave.status.value === 'restored' ? 'Se recuperó el contacto pendiente.' :
+        contactAutosave.status.value === 'saved' ? 'Contacto guardado como borrador local.' :
+        'No se pudo guardar el borrador local.' }}
+    </p>
     <p v-if="error" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <h3 class="mb-3 text-xs font-extrabold uppercase tracking-wider">

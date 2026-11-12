@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { MapPin, Plus, Pencil, RefreshCw, X } from 'lucide-vue-next'
 import { crmError, crmPath, crmRequest, type CrmRow } from '../services/crmApi'
 import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 
 type LocationModel = { address: string; latitude: number | null; longitude: number | null }
 const props = withDefaults(defineProps<{
@@ -19,6 +20,16 @@ const expectedVersion = ref(0)
 const editorOpen = ref(false)
 const addressType = ref('WORK')
 const location = ref<LocationModel>({ address: '', latitude: null, longitude: null })
+function captureLeadLocation() { return { addressType: addressType.value, location: location.value } }
+const locationAutosave = useCrmDraftAutosave({
+  scope: () => 'lead-location:' + props.leadId + ':' + (editingId.value || 'new'),
+  enabled: () => editorOpen.value,
+  capture: captureLeadLocation,
+  apply: (snapshot: ReturnType<typeof captureLeadLocation>) => {
+    addressType.value = snapshot.addressType
+    location.value = { ...snapshot.location }
+  },
+})
 let requestId = 0
 const locationTypes = [
   { value: 'WORK', label: 'Oficina / trabajo' },
@@ -51,6 +62,7 @@ watch(() => props.leadId, () => {
   void loadLocations()
 }, { immediate: true })
 function resetEditor() {
+  locationAutosave.stop()
   editingId.value = ''
   expectedVersion.value = 0
   addressType.value = 'WORK'
@@ -62,8 +74,10 @@ function startCreation() {
   message.value = ''
   error.value = ''
   editorOpen.value = true
+  locationAutosave.begin()
 }
 function startEditing(item: CrmRow) {
+  locationAutosave.stop()
   editingId.value = String(item.id)
   expectedVersion.value = Number(item.rowVersion ?? 0)
   addressType.value = String(item.addressType ?? 'WORK')
@@ -75,6 +89,7 @@ function startEditing(item: CrmRow) {
   error.value = ''
   message.value = ''
   editorOpen.value = true
+  locationAutosave.begin()
 }
 async function save() {
   if (saving.value || !props.canManage || props.converted) return
@@ -102,6 +117,7 @@ async function save() {
         ...body, countryId: props.countryId || null,
       })
     }
+    locationAutosave.commit()
     resetEditor()
     message.value = 'La ubicación quedó registrada en el prospecto.'
     await loadLocations()
@@ -133,6 +149,7 @@ async function save() {
         </button>
       </div>
     </div>
+    <p v-if="editorOpen && locationAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ locationAutosave.status.value === 'restored' ? 'Ubicación recuperada.' : locationAutosave.status.value === 'saved' ? 'Borrador de ubicación guardado.' : 'No se pudo guardar el borrador local.' }}</p>
     <p v-if="error" role="alert" class="text-sm text-amber-600">{{ error }}</p>
     <p v-if="message" role="status" class="text-sm text-emerald-600">{{ message }}</p>
     <p v-if="busy" role="status" class="text-sm text-[var(--dh-text-muted)]">Cargando ubicaciones…</p>

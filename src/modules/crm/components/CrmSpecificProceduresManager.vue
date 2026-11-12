@@ -6,6 +6,7 @@ import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { StorageService } from '@/core/services/storageService'
 import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
 import CrmFileDropzone from './CrmFileDropzone.vue'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 
 type Procedure = {
   id: string
@@ -30,6 +31,13 @@ const deleteCandidate = ref<string | null>(null)
 const isEditing = ref(false)
 const editingId = ref<string | null>(null)
 const draft = reactive({ name: '', detail: '', assignedTeam: '' })
+function captureProcedure() { return { fields: { ...draft } } }
+const procedureAutosave = useCrmDraftAutosave({
+  scope: () => 'procedure:' + props.accountId + ':' + (editingId.value || 'new'),
+  enabled: () => isEditing.value,
+  capture: captureProcedure,
+  apply: (snapshot: ReturnType<typeof captureProcedure>) => { Object.assign(draft, snapshot.fields) },
+})
 const pendingDocuments = ref<File[]>([])
 const canAttach = computed(() => canEdit.value && auth.hasScope('storage.files.create'))
 
@@ -63,6 +71,7 @@ watch(() => props.accountId, () => {
 }, { immediate: true })
 
 function closeEditor() {
+  procedureAutosave.stop()
   isEditing.value = false
   editingId.value = null
   draft.name = ''
@@ -75,8 +84,10 @@ function newProcedure() {
   error.value = ''
   success.value = ''
   isEditing.value = true
+  procedureAutosave.begin()
 }
 function editProcedure(item: Procedure) {
+  procedureAutosave.stop()
   editingId.value = item.id
   draft.name = item.name
   draft.detail = item.detail ?? ''
@@ -84,6 +95,7 @@ function editProcedure(item: Procedure) {
   error.value = ''
   success.value = ''
   isEditing.value = true
+  procedureAutosave.begin()
 }
 async function save() {
   if (saving.value) return
@@ -112,6 +124,7 @@ async function save() {
     })
     // Remember a successful creation before attempting Storage uploads.
     // A failed attachment must never cause a second procedure on retry.
+    procedureAutosave.commit()
     editingId.value = result.id
     procedures.value = [result, ...procedures.value.filter(item => item.id !== result.id)]
     success.value = 'Procedimiento guardado correctamente.'
@@ -201,7 +214,9 @@ function teamLabels(value: string | null): string[] {
     <p v-if="success" role="status" class="text-xs font-semibold text-emerald-500">{{ success }}</p>
 
     <form v-if="isEditing && canEdit" class="space-y-4 rounded-2xl border border-[var(--dh-primary)]/50 bg-[var(--dh-card)] p-5"
+
       @submit.prevent="save">
+      <p v-if="procedureAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">{{ procedureAutosave.status.value === 'restored' ? 'Procedimiento recuperado.' : procedureAutosave.status.value === 'saved' ? 'Borrador del procedimiento guardado.' : 'No se pudo guardar el borrador local.' }}</p>
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-sm font-extrabold">{{ editingId ? 'Editar procedimiento' : 'Nuevo procedimiento específico' }}</h3>
         <button type="button" aria-label="Cerrar formulario" class="rounded-lg p-1 text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]" @click="closeEditor">

@@ -10,6 +10,7 @@ import CrmPhoneInput from '../components/CrmPhoneInput.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import { resolveCrmCountryPrefix } from '../services/crmCountryPhone'
 import { phoneWithCountryPrefix } from '../utils/crmPhone'
+import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmGet, crmPatch, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 
@@ -30,6 +31,14 @@ const error = ref('')
 const success = ref('')
 const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
 const contactId = computed(() => String(route.params.id ?? ''))
+function captureContactEdit() { return { ...draft.value } }
+const contactAutosave = useCrmDraftAutosave({
+  scope: () => 'contact-edit:' + contactId.value,
+  enabled: () => editOpen.value,
+  capture: captureContactEdit,
+  apply: (snapshot: ReturnType<typeof captureContactEdit>) => { draft.value = { ...snapshot } },
+})
+watch(editOpen, open => { if (!open) contactAutosave.stop() })
 const displayedPhone = computed(() => phoneWithCountryPrefix(String(contact.value?.phone ?? ''), contactDialPrefix.value))
 const display = (value: unknown): string =>
   typeof value === 'string' && value.trim() ? value : '—'
@@ -64,6 +73,7 @@ async function load() {
   finally { loading.value = false }
 }
 function edit() {
+  contactAutosave.stop()
   if (!contact.value) return
   // Legacy full names are not split automatically: compound surnames are ambiguous.
   draft.value = { firstName: String(contact.value.firstName || ''), lastName: String(contact.value.lastName || ''),
@@ -71,6 +81,7 @@ function edit() {
     email: String(contact.value.email || ''), phone: String(contact.value.phone || ''),
     countryId: String(contact.value.countryId || linkedAccountCountryId.value || '') }
   editOpen.value = true
+  contactAutosave.begin()
 }
 async function save() {
   if (!contact.value || !draft.value.firstName.trim() || !draft.value.lastName.trim() || saving.value) return
@@ -85,6 +96,7 @@ async function save() {
       phone: draft.value.phone.trim() || null,
       countryId: draft.value.countryId || null,
     })
+    contactAutosave.commit()
     editOpen.value = false
     await load()
     success.value = en.value ? 'Contact updated.' : 'Contacto actualizado.'
@@ -180,6 +192,11 @@ watch(contactId, load)
     </template>
     <DhDrawer :open="editOpen" :title="en ? 'Edit contact' : 'Editar contacto'" size="md" @close="editOpen=false">
       <form class="space-y-4" @submit.prevent="save">
+        <p v-if="contactAutosave.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">
+          {{ contactAutosave.status.value === 'restored' ? 'Cambios recuperados.' :
+            contactAutosave.status.value === 'saved' ? 'Borrador guardado automáticamente.' :
+            'No se pudo conservar el borrador.' }}
+        </p>
         <div class="grid gap-3 sm:grid-cols-2">
           <DhInput v-model="draft.firstName" label="Nombre(s) *" />
           <DhInput v-model="draft.lastName" label="Apellido(s) *" />
