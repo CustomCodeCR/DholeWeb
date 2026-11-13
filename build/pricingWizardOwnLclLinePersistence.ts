@@ -346,6 +346,21 @@ function patchWizard(source: string) {
   }
 
 
+  // Evitar que rutas genéricas de Web agreguen seguro o aduanas al consolidado propio.
+  // Los cargos pertenecen únicamente a su matriz, incluso al reabrir la QUO.
+  code = replaceOne(
+    code,
+    'function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {',
+    'function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {\\n  if (isOwnLclMatrixContext()) return',
+    'own LCL excludes extra CRC customs from generic forms',
+  )
+  code = replaceOne(
+    code,
+    'function syncDeclaredCargoInsuranceOnEdit() {',
+    'function syncDeclaredCargoInsuranceOnEdit() {\\n  if (isOwnLclMatrixContext()) return',
+    'own LCL excludes auto insurance outside configured matrix',
+  )
+
   return code
 }
 
