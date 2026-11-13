@@ -20,10 +20,7 @@ env:
 
 jobs:
   deploy:
-    # CRM bitácora release explicitly authorized for production.
-    # A manual workflow_dispatch is not blocked.
-    if: ${{ github.event_name == 'workflow_dispatch' || (!contains(github.event.head_commit.message, 'DH-20261112-CRM-ACCOUNT-GROUPS-112 [no-prod]') && !contains(github.event.head_commit.message, 'DH-20261112-CRM-ACTIVITY-DB-CONSTRAINT-128 [no-prod]') && !contains(github.event.head_commit.message, 'DH-20261113-CRM-COMMERCIAL-LOG-131 [no-prod]') && !contains(github.event.head_commit.message, 'DH-20261113-CRM-COMMERCIAL-LOG-FILTER-133 [no-prod]') && !contains(github.event.head_commit.message, 'DH-20261113-CRM-COMMERCIAL-LOG-ACL-134 [no-prod]')) }}
-    # Master push runs the production deployment; workflow_dispatch supports manual runs.
+    # Every push to master deploys; CI and staging gate the merge.
     runs-on: [self-hosted, linux, x64, dhole]
     steps:
       - name: Checkout service
