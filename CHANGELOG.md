@@ -1,3 +1,8 @@
+## [1.47.1] - 2026-11-12
+
+- PATCH DH-20261112-CRM-BITACORA-PRODUCTION-127: publicación autorizada a producción de bitácora CRM y recordatorios opcionales, sin cambios funcionales frente al release 126 aprobado en staging. Web 1.47.0 → 1.47.1, CRM 1.27.0 → 1.27.1, ecosistema 1.47.0 → 1.47.1. Se mantienen REST, SignalR, Outbox y ACL.
+- Staging y CI deberán validarse antes de promover el mismo release a master; producción autorizada expresamente.
+
 ## [1.47.0] - 2026-11-12
 
 - MINOR DH-20261112-CRM-BITACORA-REMINDERS-126: actividades registradas en bitácora sin fecha ni avisos; «Crear recordatorio» habilita fecha, finalización, repetición y compromisos.
