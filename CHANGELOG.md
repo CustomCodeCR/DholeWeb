@@ -1,3 +1,9 @@
+## [1.51.3] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-141: cotizaciones LCL propias existentes reconocen CFS como CBM cobrable en vista y edición (mínimo 1 CBM), sin alterar coloader ni matrices Miami CFT.
+- Corrige en Pricing 1.18.2 la persistencia de base y cantidad y la proyección histórica API/PDF. El CFS de 0,118 CBM físico × USD 8,00/CBM se factura por 1 CBM = USD 8,00.
+- Web/ecosistema 1.51.2 → 1.51.3. Suite de regresión añadida y CI/staging obligatorios.
+
 ## [1.51.2] - 2026-11-13
 
 - PATCH DH-20261113-PRICING-OWN-LCL-140: recuperar cotizaciones históricas LCL propias, incluida #56 (Shandong, China): restaurar CFS por CBM cobrable también en los detalles persistidos y eliminar los rubros ajenos a la matriz (Cargos en Origen, Recolecta genérica y Manejos de catálogo).
