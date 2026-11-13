@@ -8,7 +8,7 @@ import { StorageService } from '@/core/services/storageService'
 import CrmFileDropzone from './CrmFileDropzone.vue'
 import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
 import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
-import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X, NotebookPen } from 'lucide-vue-next'
 import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmAgreementDrafts, crmVisibleAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
@@ -28,6 +28,7 @@ interface CalendarEvent {
   source: Source
   id: string
   subject: string
+  notes: string
   type: string
   status: string
   at: Date
@@ -52,6 +53,11 @@ const mode = ref<CalendarMode>('month')
 const logFrom = ref('')
 const logTo = ref('')
 const logType = ref('')
+const logClientQuery = ref('')
+const logClientSelection = ref('')
+const logClientOptions = ref<Array<{ value: string; label: string }>>([])
+const logClientLoading = ref(false)
+const logClientError = ref('')
 const logPage = ref(1)
 const logTotal = ref(0)
 const logPageSize = 50
@@ -173,6 +179,45 @@ const currentUserCanOwnAgenda = computed(() =>
     .some(scope => can(scope)))
 const canAssignOtherSellers = computed(() =>
   (can('crm.activity.create') || can('crm.followup.manage')) && (can('crm.activity.read-all') || hasBothGlobalCrmScopes.value))
+async function searchLogClients() {
+  if (logClientLoading.value) return
+  logClientLoading.value = true
+  logClientError.value = ''
+  try {
+    const q = logClientQuery.value.trim()
+    if (!q) {
+      logClientOptions.value = []
+      logClientSelection.value = ''
+      return
+    }
+    const results = await Promise.allSettled([
+      (can('crm.account.read') || can('crm.account.read-all'))
+        ? crmList('accounts', { q, page: 1, pageSize: 50 }) : Promise.resolve(null),
+      (can('crm.lead.read') || can('crm.lead.read-all'))
+        ? crmList('leads', { q, page: 1, pageSize: 50 }) : Promise.resolve(null),
+    ])
+    const options: Array<{ value: string; label: string }> = []
+    for (const [index, result] of results.entries()) {
+      if (result.status !== 'fulfilled' || !result.value) continue
+      const prefix = index === 0 ? 'a:' : 'l:'
+      for (const item of result.value.items) {
+        options.push({
+          value: prefix + item.id,
+          label: String(index === 0
+            ? item.displayName ?? item.legalName ?? item.name ?? item.id
+            : item.companyName ?? item.name ?? item.id),
+        })
+      }
+    }
+    logClientOptions.value = options.sort((a,b) => a.label.localeCompare(b.label, 'es'))
+    if (logClientSelection.value && !options.some(item => item.value === logClientSelection.value))
+      logClientSelection.value = ''
+    if (!options.length) logClientError.value = 'No se encontraron clientes o prospectos autorizados con ese nombre.'
+    else if (results.some(result => result.status === 'rejected'))
+      logClientError.value = 'Algunos resultados no pudieron consultarse.'
+  } catch (cause) { logClientError.value = crmError(cause) }
+  finally { logClientLoading.value = false }
+}
 async function loadSellerDirectory() {
   if (canAssignOtherSellers.value && !sellerDirectory.value.length) await loadCalendarDirectory()
 }
@@ -643,7 +688,8 @@ async function load() {
     if (canReadLog.value) {
       tasks.push(crmList('activities/bitacora', {
         from, to, page: logPage.value, pageSize: logPageSize,
-        accountId: props.accountId || undefined, leadId: props.leadId || undefined,
+        accountId: props.accountId || (logClientSelection.value.startsWith('a:') ? logClientSelection.value.slice(2) : undefined),
+        leadId: props.leadId || (logClientSelection.value.startsWith('l:') ? logClientSelection.value.slice(2) : undefined),
         ownerId: canSeeAllLogOwners.value && ownerFilter.value ? ownerFilter.value : undefined,
         type: logType.value || undefined,
       }).then(result => {
@@ -688,6 +734,7 @@ async function load() {
       events.push({
         key: source + ':' + item.id, source, id: String(item.id),
         subject: String(item.subject || (source === 'followup' ? (item.policyId ? 'Seguimiento periódico' : 'Seguimiento comercial') : 'Actividad')),
+        notes: String(item.minutes ?? item.agreements ?? ''),
         type: source === 'followup' ? 'FOLLOWUP' : String(item.type ?? 'OTHER'),
         status: String(item.status ?? ''), at,
         endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt) : null,
@@ -698,7 +745,7 @@ async function load() {
         reminderChannelStrategy: String(item.reminderChannelStrategy ?? 'BOTH'),
         repeatEveryDays: typeof item.repeatEveryDays === 'number' ? item.repeatEveryDays : null,
         reminderRepeatMinutes: typeof item.reminderRepeatMinutes === 'number' ? item.reminderRepeatMinutes : null,
-        scheduled: props.view === 'agenda' && (source === 'followup' || Boolean(item.scheduledStartAt)),
+        scheduled: source === 'followup' || Boolean(item.scheduledStartAt),
       })
     }
   }
@@ -741,6 +788,10 @@ watch([logFrom, logTo, logType], () => {
   if (props.view === 'log') void load()
 })
 watch(logPage, () => { if (props.view === 'log') void load() })
+watch(logClientSelection, () => {
+  logPage.value = 1
+  if (props.view === 'log') void load()
+})
 watch(ownerFilter, () => { if (isManagerCalendar.value || (props.view === 'log' && canSeeAllLogOwners.value)) void load() })
 const historicalActivityDraft = computed(() =>
   creatingReminder.value && editor.value.type !== 'FOLLOWUP' &&
@@ -1188,6 +1239,24 @@ function openEvent(item: CalendarEvent) {
           </select>
         </label>
       </div>
+      <div v-if="!scopedRecord" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+        <div class="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <label class="calendar-label">Buscar cliente o prospecto
+            <input v-model="logClientQuery" type="search" class="calendar-input"
+              placeholder="Nombre del cliente o prospecto…" @keyup.enter.prevent="searchLogClients" />
+          </label>
+          <button type="button" class="calendar-btn" :disabled="logClientLoading" @click="searchLogClients">
+            {{ logClientLoading ? 'Buscando…' : 'Buscar clientes' }}
+          </button>
+          <label class="calendar-label">Filtrar notas por cliente
+            <select v-model="logClientSelection" class="calendar-input">
+              <option value="">Todos los clientes y prospectos</option>
+              <option v-for="item in logClientOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+        </div>
+        <p v-if="logClientError" class="mt-2 text-xs text-[var(--dh-text-muted)]" role="status">{{ logClientError }}</p>
+      </div>
       <p v-if="logFrom && logTo && logFrom > logTo" role="alert" class="text-sm text-amber-600">La fecha inicial debe ser anterior a la final.</p>
       <p v-if="pending" role="status" class="text-sm text-[var(--dh-text-muted)]">Consultando bitácora…</p>
       <p v-if="error && !creationOpen" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
@@ -1200,16 +1269,27 @@ function openEvent(item: CalendarEvent) {
         <p v-if="!pending && !logRows.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
           No hay gestiones registradas con estos filtros.
         </p>
-        <div v-for="event in logRows" :key="event.key"
-          class="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
-          <button type="button" class="min-w-0 flex-1 text-left" @click="openEvent(event)">
-            <strong class="block truncate text-sm">{{ event.subject }}</strong>
-            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">
-              {{ labelFor(event) }} · {{ event.at.toLocaleString('es-CR') }} · {{ ownerName(event) }}
-              <template v-if="!scopedRecord">· {{ clientName(event) }}</template>
-            </span>
-          </button>
-          <button type="button" class="calendar-btn" @click="detail(event)">Ver detalle y documentos</button>
+        <div class="grid gap-3 lg:grid-cols-2" data-crm-commercial-notes>
+          <article v-for="event in logRows" :key="event.key"
+            class="flex min-w-0 flex-col gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 shadow-sm">
+            <div class="flex items-start gap-3">
+              <span class="rounded-xl bg-[var(--dh-primary)]/10 p-2 text-[var(--dh-primary)]"><NotebookPen class="h-5 w-5" /></span>
+              <div class="min-w-0 flex-1">
+                <span class="text-[11px] font-semibold uppercase tracking-wide text-[var(--dh-text-muted)]">
+                  {{ event.scheduled ? 'Gestión realizada' : 'Nota de bitácora' }} · {{ labelFor(event) }}
+                </span>
+                <h3 class="mt-1 break-words text-base font-extrabold">{{ event.subject }}</h3>
+              </div>
+            </div>
+            <p class="line-clamp-5 min-h-8 whitespace-pre-wrap break-words text-sm text-[var(--dh-text)]">
+              {{ event.notes || 'Sin descripción adicional. Abrí el detalle para revisar el registro y sus documentos.' }}
+            </p>
+            <div class="mt-auto space-y-1 border-t border-[var(--dh-border)] pt-3 text-xs text-[var(--dh-text-muted)]">
+              <p v-if="!scopedRecord" class="font-semibold text-[var(--dh-text)]">{{ clientName(event) }}</p>
+              <p>{{ ownerName(event) }} · {{ event.at.toLocaleString('es-CR') }}</p>
+            </div>
+            <button type="button" class="calendar-btn self-start" @click="detail(event)">Abrir nota y documentos</button>
+          </article>
         </div>
         <div v-if="logTotal > logPageSize" class="mt-4 flex items-center justify-end gap-2">
           <button type="button" class="calendar-btn" :disabled="pending || logPage<=1" @click="logPage--">Anterior</button>
