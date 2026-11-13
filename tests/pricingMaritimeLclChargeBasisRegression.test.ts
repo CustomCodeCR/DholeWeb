@@ -38,3 +38,13 @@ test('full quote table and Excel agree on corrected basis and persisted amounts'
   assert.match(wizard, /savedCommercialDetail\(line\)\?\.commercialQuantity \?\? quantityForRateLine\(line\)/)
   assert.match(wizard, /savedCommercialDetail\(line\)\?\.commercialSaleSubtotal/)
 })
+
+test('own LCL CFS is rendered and billed by minimum chargeable CBM even in legacy quotations', () => {
+  const method = wizard.slice(wizard.indexOf('function effectiveChargeBasisForLine('),
+    wizard.indexOf('function quantityForRateLine('))
+  assert.match(method, /normalizeCatalogValue\(line\.name\) === 'cfs'/)
+  assert.match(method, /ConsolidadoId:/)
+  assert.match(method, /!isMiamiLcl\.value/)
+  assert.match(method, /return 'PerChargeableCbm'/)
+  assert.match(wizard, /return quantityForChargeBasis\(effectiveChargeBasisForLine\(line\), operationalConditionsForLine\(line\)\)/)
+})
