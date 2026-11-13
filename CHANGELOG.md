@@ -1,3 +1,9 @@
+## [1.50.1] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-139: CFS de LCL propio se factura por CBM cobrable en selección, edición, navegación, restauración y recálculo, no por CBM físico.
+- Los cargos de LCL propio proceden de la matriz del consolidado; se conservan Manejos y precios editados al navegar sin agregar seguros o cargos automáticos del catálogo ajeno. Los cargos manuales explícitos se preservan. Coloader no se modifica.
+- Web 1.50.0 → 1.50.1; Pricing 1.18.0 → 1.18.1; ecosistema 1.50.1. CI y staging obligatorios antes de master; producción no autorizada.
+
 ## [1.50.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-SELLER-ACTIVITY-REPORTS-137: Reportes de actividades comerciales en Agenda: consolidado general y por vendedor, filtro de fechas, tipo, estado y origen, indicadores de cumplimiento, comparativos y detalle de actividades, seguimientos y bitácora.
