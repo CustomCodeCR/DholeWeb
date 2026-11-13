@@ -63,6 +63,14 @@ export function crmError(error: unknown): string {
   const status = x.statusCode ?? x.status
   if (status === 403) return 'No tiene permiso para este registro (403)'
   if (status === 404) return 'Registro no encontrado (404)'
-  if (status === 409) return 'El registro cambió. Recargue y vuelva a intentarlo (409)'
+  if (status === 409) {
+    const reason = typeof x.message === 'string' ? x.message.trim() : ''
+    // Not every database conflict is an optimistic-concurrency error.
+    if (/stale|modified concurrently|record modified|concurrenc/i.test(reason))
+      return 'El registro cambió mientras lo editabas. Recargá su detalle y volvé a intentar (409).'
+    return reason
+      ? 'No se pudo completar el guardado: ' + reason + ' (409).'
+      : 'El servidor rechazó el guardado por un conflicto de datos (409). Tu borrador permanece disponible.'
+  }
   return typeof x.message === 'string' ? x.message : 'No se pudo completar la operación'
 }

@@ -1,3 +1,9 @@
+## [1.47.2] - 2026-11-12
+
+- PATCH DH-20261112-CRM-ACTIVITY-DB-CONSTRAINT-128: distingue el HTTP 409 de concurrencia real del conflicto SQL por tipo de actividad CRM; muestra la causa en vez del mensaje incorrecto «El registro cambió». Evita duplicar el mismo error en el formulario y conserva el borrador y los adjuntos en caso de fallo.
+- Compatible con migración CRM 1.27.2 para «Seguimiento comercial», WhatsApp, Recomendación y Oferta. Sin cambios de contrato REST, SignalR ni Outbox.
+- DholeWeb 1.47.1 → 1.47.2; DholeCRMService 1.27.1 → 1.27.2; ecosistema 1.47.1 → 1.47.2. CI y staging pendientes, producción no autorizada.
+
 ## [1.47.1] - 2026-11-12
 
 - PATCH DH-20261112-CRM-BITACORA-PRODUCTION-127: publicación autorizada a producción de bitácora CRM y recordatorios opcionales, sin cambios funcionales frente al release 126 aprobado en staging. Web 1.47.0 → 1.47.1, CRM 1.27.0 → 1.27.1, ecosistema 1.47.0 → 1.47.1. Se mantienen REST, SignalR, Outbox y ACL.
