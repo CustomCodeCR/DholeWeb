@@ -1,3 +1,8 @@
+## [1.48.4] - 2026-11-13
+
+- PATCH DH-20261113-PRODUCTION-DEPLOY-SKIP-135: elimina filtros de mensajes [no-prod] del job de producción para que los pushes a master ejecuten el build, comprobación del bundle y despliegue de Web; mantiene validación de salud. Sin flags de activación.
+- Auth 1.9.2 → 1.9.3, CRM 1.28.2 → 1.28.3, Web 1.48.3 → 1.48.4 y global 1.48.3 → 1.48.4. CI y staging antes de producción; publicación solicitada el 2026-11-13.
+
 ## [1.48.3] - 2026-11-13
 
 - PATCH DH-20261113-CRM-COMMERCIAL-LOG-ACL-134: consolidación coordinada de permisos de lectura de prospectos en Bitácora CRM. Mantiene filtros de tipo, fecha, responsable, notas y documentos, sin cambios de frontend adicionales.
