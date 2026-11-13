@@ -35,6 +35,7 @@ type WorkRequest = {
     form?: Record<string, unknown>
     requestContext?: Record<string, unknown>
     sellerContext?: Record<string, unknown>
+    sellerRouteOriginal?: { polName?: string; poeName?: string; podName?: string }
     pickupLocations?: unknown[]
     supportDocuments?: ModificationDocument[]
     modification?: {
@@ -66,6 +67,7 @@ const modificationSnapshot = computed(() => {
   const request = workRequest.value
   const payload = request?.payload
   const context = payload?.requestContext ?? {}
+  const originalRoute = payload?.sellerRouteOriginal
   const form = payload?.form ?? {}
   return {
     form,
@@ -75,10 +77,10 @@ const modificationSnapshot = computed(() => {
     documents: (payload?.supportDocuments ?? []).filter(file => !!file.id && !!file.fileName),
     clientName: request?.clientName || String(form.clientName || ''),
     executiveName: request?.executiveName || request?.sellerName || String(form.executiveName || ''),
-    originName: String(context.originName || request?.originName || ''),
-    destinationName: String(context.destinationName || request?.destinationName || ''),
-    poeName: String(request?.poeName || context.poeName || context.destinationName || ''),
-    podName: String(context.podName || request?.podName || ''),
+    originName: String(originalRoute?.polName || context.originName || request?.originName || ''),
+    destinationName: String(originalRoute?.poeName || context.destinationName || request?.destinationName || ''),
+    poeName: String(originalRoute?.poeName || context.poeName || request?.poeName || context.destinationName || ''),
+    podName: String(originalRoute?.podName || context.podName || request?.podName || ''),
     priority: request?.priority || 'Green',
   }
 })
