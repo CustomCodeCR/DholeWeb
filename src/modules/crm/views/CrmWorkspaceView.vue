@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
-import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight } from 'lucide-vue-next'
+import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight, NotebookPen } from 'lucide-vue-next'
 import { DhButton, DhInput, DhMultiSelect, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
@@ -201,8 +201,12 @@ const pageSize = ref(25)
 const search = ref('')
 const agendaStatusFilter = ref('')
 const agendaSourceFilter = ref('')
+const agendaClientQuery = ref('')
+const agendaSellerQuery = ref('')
+const normalizeAgendaQuery = (value: unknown) => String(value ?? '')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-CR').trim()
 const agendaTruncated = ref(false)
-const agendaView = ref<'list' | 'calendar'>('list')
+const agendaView = ref<'list' | 'calendar' | 'log'>('list')
 const agendaIdentityLabels = ref<CrmAgendaIdentityLabels>({ accounts: {}, leads: {}, owners: {} })
 const agendaIdentityLoading = ref(false)
 let agendaIdentityGeneration = 0
@@ -574,18 +578,25 @@ async function load() {
           agendaTruncated.value ||= result.value.truncated
         } else failures.push(resources[index] || 'CRM')
       })
-      const term = search.value.trim().toLocaleLowerCase()
+      // Resolve identities for every authorized candidate BEFORE filtering and pagination.
+      // Unscheduled commercial-log entries belong to the separate notes view.
+      await loadAgendaIdentityLabels(combined)
+      const term = normalizeAgendaQuery(search.value)
+      const clientTerm = normalizeAgendaQuery(agendaClientQuery.value)
+      const sellerTerm = normalizeAgendaQuery(agendaSellerQuery.value)
       const filtered = combined.filter(item => {
+        if (item._crmResource === 'activities' && !item.scheduledStartAt) return false
         if (agendaStatusFilter.value && item.status !== agendaStatusFilter.value) return false
         if (agendaSourceFilter.value && item._crmResource !== agendaSourceFilter.value) return false
+        if (clientTerm && !normalizeAgendaQuery(crmAgendaClientName(item, agendaIdentityLabels.value)).includes(clientTerm)) return false
+        if (sellerTerm && !normalizeAgendaQuery(crmAgendaExecutiveName(item, agendaIdentityLabels.value, String(auth.userId ?? ''))).includes(sellerTerm)) return false
         return !term || [item.subject, item.type, item.channel, item.status]
-          .some(value => String(value ?? '').toLocaleLowerCase().includes(term))
+          .some(value => normalizeAgendaQuery(value).includes(term))
       }).sort((a,b) => Date.parse(String(a.scheduledStartAt ?? a.dueAt ?? a.createdAt ?? ''))
         - Date.parse(String(b.scheduledStartAt ?? b.dueAt ?? b.createdAt ?? '')))
       total.value = filtered.length
       page.value = Math.min(page.value, Math.max(1, Math.ceil(total.value / pageSize.value)))
       rows.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
-      void loadAgendaIdentityLabels(rows.value)
       if (failures.length) error.value = 'No se pudieron consultar todos los registros de la agenda (' + failures.join(', ') + ').'
     }
     else if (section.value === 'dashboard') await loadDashboard()
@@ -806,9 +817,14 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
             <button type="button" class="rounded-lg px-4 py-2 text-xs font-bold"
               :class="agendaView==='calendar' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
               @click="agendaView='calendar'">Calendario</button>
+            <button type="button" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"
+              :class="agendaView==='log' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
+              :aria-pressed="agendaView==='log'"
+              @click="agendaView='log'"><NotebookPen class="h-4 w-4" /> Bitácora · Notas</button>
           </div>
         </div>
         <CrmSalesCalendar v-if="agendaView === 'calendar'" @changed="page=1;load()" />
+        <CrmSalesCalendar v-if="agendaView === 'log'" view="log" @changed="page=1;load()" />
       </section>
 
       <template v-else-if="section === 'finance'">
@@ -924,10 +940,20 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
               <p class="mt-1 text-xl font-bold">{{ agendaCompleted }}</p>
             </div>
           </div>
-          <form class="grid items-end gap-2 md:grid-cols-[minmax(0,1fr)_170px_160px_auto]" @submit.prevent="page=1;load()">
+          <form class="grid items-end gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_155px_145px_auto]" @submit.prevent="page=1;load()">
             <label class="space-y-1 text-xs font-semibold">
               <span>Buscar actividad</span>
               <input v-model="search" type="search" placeholder="Nombre, tipo, estado…"
+                class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm" />
+            </label>
+            <label class="space-y-1 text-xs font-semibold">
+              <span>Cliente o prospecto</span>
+              <input v-model="agendaClientQuery" type="search" placeholder="Buscar cliente…"
+                class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm" />
+            </label>
+            <label class="space-y-1 text-xs font-semibold">
+              <span>Vendedor responsable</span>
+              <input v-model="agendaSellerQuery" type="search" placeholder="Buscar vendedor…"
                 class="h-11 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm" />
             </label>
             <label class="space-y-1 text-xs font-semibold">
@@ -945,16 +971,16 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
             </label>
             <DhButton type="submit" label="Filtrar" variant="secondary" :disabled="loading" />
           </form>
-          <div v-if="search || agendaStatusFilter || agendaSourceFilter" class="mt-2 text-right">
+          <div v-if="search || agendaClientQuery || agendaSellerQuery || agendaStatusFilter || agendaSourceFilter" class="mt-2 text-right">
             <button type="button" class="text-xs font-bold text-[var(--dh-primary)]"
-              @click="search='';agendaStatusFilter='';agendaSourceFilter='';page=1;load()">Limpiar filtros</button>
+              @click="search='';agendaClientQuery='';agendaSellerQuery='';agendaStatusFilter='';agendaSourceFilter='';page=1;load()">Limpiar filtros</button>
           </div>
           <p v-if="agendaTruncated" class="mt-3 text-xs text-amber-500" role="status">Hay más de 1000 registros por tipo. Ajustá el período del calendario para revisar otros eventos.</p>
         </section>
         <div v-if="!loading && !tableRows.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-10 text-center">
           <CalendarClock class="mx-auto h-8 w-8 text-[var(--dh-text-muted)]" />
           <p class="mt-3 font-semibold">No hay actividades con esos filtros</p>
-          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Los eventos del calendario y los seguimientos se consultan desde CRM.</p>
+          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Las gestiones sin fecha programada están en Bitácora · Notas.</p>
         </div>
         <DhDataTable v-else :columns="columns" :rows="tableRows" :loading="loading"
           empty-text="No hay actividades o seguimientos registrados"
