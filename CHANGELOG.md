@@ -1,3 +1,8 @@
+## [1.51.0] - 2026-11-13
+
+- MINOR DH-20261113-CRM-BITACORA-AGREEMENT-TASKS-138: los acuerdos en Bitácora pueden convertirse selectivamente en tareas con vencimiento, avisos y responsable, sin programar la gestión original. El editor de registros no agendados muestra el formulario de bitácora, no el de recordatorios; se conserva texto, adjuntos y borradores.
+- Web 1.50.0 → 1.51.0, CRM 1.29.0 → 1.30.0 y sistema/ecosistema 1.50.0 → 1.51.0. REST/SignalR compatibles, CI y staging requeridos; no se autoriza despliegue productivo.
+
 ## [1.50.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-SELLER-ACTIVITY-REPORTS-137: Reportes de actividades comerciales en Agenda: consolidado general y por vendedor, filtro de fechas, tipo, estado y origen, indicadores de cumplimiento, comparativos y detalle de actividades, seguimientos y bitácora.
