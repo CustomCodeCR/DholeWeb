@@ -157,7 +157,7 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'conversion' | 'documents' | 'locations'
+type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'log' | 'conversion' | 'documents' | 'locations'
 const leadTab = ref<LeadTab>('summary')
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
@@ -169,7 +169,9 @@ const leadTabs = computed(() => [
   { key: 'documents' as const, label: 'Documentos', icon: FileText },
   { key: 'locations' as const, label: 'Ubicaciones', icon: MapPin },
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
-    ? [{ key: 'agenda' as const, label: 'Seguimientos', icon: CalendarClock }] : []),
+    ? [{ key: 'agenda' as const, label: 'Agenda y recordatorios', icon: CalendarClock }] : []),
+  ...(can('crm.bitacora.read') || can('crm.bitacora.read-all') || can('crm.activity.read') || can('crm.activity.read-all')
+    ? [{ key: 'log' as const, label: 'Bitácora', icon: FileText }] : []),
   ...(can('crm.lead.convert') && can('crm.account.create')
     ? [{ key: 'conversion' as const, label: 'Convertir a cuenta', icon: UsersRound }] : []),
 ])
@@ -1163,6 +1165,10 @@ onMounted(() => { if (crmEnabled()) void load() })
           </div>
           <p v-else class="text-sm text-[var(--dh-text-muted)]">Seguimiento independiente o sin actividad principal accesible.</p>
         </template>
+      </section>
+      <section v-if="section === 'leads' && leadTab === 'log'"
+        id="crm-lead-panel-log" role="tabpanel" class="crm-panel space-y-3 p-4">
+        <CrmSalesCalendar view="log" :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
       </section>
       <section v-if="section === 'leads' && leadTab === 'agenda' && (can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage'))"
         id="crm-lead-panel-agenda" role="tabpanel" class="crm-panel space-y-3 p-4">

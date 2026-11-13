@@ -1,3 +1,9 @@
+## [1.48.0] - 2026-11-13
+
+- MINOR DH-20261113-CRM-COMMERCIAL-LOG-131: Bitácora comercial en cuentas y prospectos, separada de Agenda; filtros de fecha, tipo y responsable, paginación y enlace a documentos.
+- Conserva formulario, notas, contactos, adjuntos, borradores y realtime/REST; no elimina registros existentes. Web 1.47.4 → 1.48.0, CRM 1.27.4 → 1.28.0, Auth 1.8.1 → 1.9.0, global 1.48.0.
+- CI y staging obligatorios; producción no autorizada.
+
 ## [1.47.4] - 2026-11-13
 
 - PATCH DH-20261113-CRM-DRAFT-RECOVERY-130: el DhModal de recuperación de borradores CRM tiene prioridad visual sobre cualquier editor, incluidos Agenda y seguimientos; evita que la recuperación quede inaccesible detrás del formulario.

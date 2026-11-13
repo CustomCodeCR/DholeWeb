@@ -32,7 +32,7 @@ import {
   ArrowRight, ChevronDown, History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet, XCircle,
 } from 'lucide-vue-next'
 
-type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'changes' | 'agenda' | 'finance' | 'documents'
+type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'changes' | 'agenda' | 'log' | 'finance' | 'documents'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
   id: string
@@ -95,7 +95,9 @@ const tabs = computed(() => [
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'changes' as const, label: locale.value === 'en' ? 'Change history' : 'Historial de cambios', icon: History },
-  { key: 'agenda' as const, label: locale.value === 'en' ? 'Activity & follow-up' : 'Seguimientos', icon: CalendarClock },
+  { key: 'agenda' as const, label: locale.value === 'en' ? 'Agenda & reminders' : 'Agenda y recordatorios', icon: CalendarClock },
+  ...(has('crm.bitacora.read') || has('crm.bitacora.read-all') || has('crm.activity.read') || has('crm.activity.read-all')
+    ? [{ key: 'log' as const, label: locale.value === 'en' ? 'Commercial log' : 'Bitácora', icon: ClipboardList }] : []),
   { key: 'documents' as const, label: locale.value === 'en' ? 'Documents' : 'Documentos', icon: FileText },
   ...(has('crm.credit.read') || has('crm.contract.read')
     ? [{ key: 'finance' as const, label: locale.value === 'en' ? 'Credit & contracts' : 'Crédito y contratos', icon: Wallet }]
@@ -484,6 +486,9 @@ const visibleTimeline = computed(() => {
   }))
   return [...activities, ...followups].sort((a, b) => b.time.localeCompare(a.time))
 })
+const scheduledTimeline = computed(() => visibleTimeline.value.filter(entry =>
+  entry.status !== 'Completed' && entry.status !== 'Cancelled'))
+
 async function get<T>(endpoint: string): Promise<T> { return crmRequest<T>(endpoint) }
 async function loadPricingQuotes() {
   const generation = ++pricingQuotesGeneration
@@ -1640,6 +1645,7 @@ async function saveRoute() {
           <td class="px-3 py-3">
             <div class="flex flex-wrap items-center gap-3">
               <RouterLink :to="quoteLink(q)" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir tarifa</RouterLink>
+
               <button v-if="has('crm.analysis.manage') && has('crm.analysis.read') && hasOpportunityQuote(rowId(q.pricingQuoteId))" type="button" class="hub-text-link" @click="openRouteEvidence('QUOTE', rowId(q.pricingQuoteId))">Registrar ruta</button>
             </div>
           </td>
@@ -1655,19 +1661,23 @@ async function saveRoute() {
       </div>
     </section>
 
+    <section v-else-if="activeTab === 'log'" id="crm-account-log" role="tabpanel" class="space-y-4">
+      <CrmSalesCalendar view="log" :account-id="String(account.id)"
+        :account-name="String(account.displayName || account.legalName)" @changed="load" />
+    </section>
     <section v-else-if="activeTab === 'agenda'" id="crm-account-agenda" role="tabpanel" class="space-y-4">
       <CrmSalesCalendar ref="calendarRef" :account-id="String(account.id)" :account-name="String(account.displayName || account.legalName)" @changed="load" />
       <div class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div><h2 class="font-extrabold">Actividad comercial y seguimientos</h2>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Visitas, llamadas, tareas y recordatorios en una sola línea de tiempo.</p></div>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo compromisos agendados, tareas y avisos. Las gestiones completadas están en Bitácora.</p></div>
         <div class="flex flex-wrap gap-2">
           <button v-if="has('crm.activity.create') || has('crm.task.manage') || has('crm.followup.manage')" type="button" class="crm-action inline-flex items-center gap-1" @click="openCalendarActivity"><Plus class="h-4 w-4" />Nueva actividad</button>
         </div>
       </div>
-      <div v-if="!visibleTimeline.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay actividades ni seguimientos registrados.</div>
+      <div v-if="!scheduledTimeline.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">No hay compromisos pendientes.</div>
       <ol v-else class="space-y-0">
-        <li v-for="entry in visibleTimeline" :key="entry.kind + entry.id" class="relative ml-2 border-l border-[var(--dh-border)] py-4 pl-6">
+        <li v-for="entry in scheduledTimeline" :key="entry.kind + entry.id" class="relative ml-2 border-l border-[var(--dh-border)] py-4 pl-6">
           <span class="absolute -left-[6px] top-6 h-3 w-3 rounded-full border-2 border-[var(--dh-card)] bg-[var(--dh-primary)]"></span>
           <div class="flex flex-wrap justify-between gap-2">
             <RouterLink :to="returnToAccount(entry.href)" class="text-sm font-extrabold hover:text-[var(--dh-primary)]">{{ entry.subject }}</RouterLink>

@@ -17,8 +17,8 @@ import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrat
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
 const props = withDefaults(defineProps<{
-  accountId?: string; accountName?: string; leadId?: string; leadName?: string
-}>(), { accountId: '', accountName: '', leadId: '', leadName: '' })
+  accountId?: string; accountName?: string; leadId?: string; leadName?: string; view?: 'agenda' | 'log'
+}>(), { accountId: '', accountName: '', leadId: '', leadName: '', view: 'agenda' })
 const scopedAccount = computed(() => Boolean(props.accountId))
 const scopedLead = computed(() => Boolean(props.leadId))
 const scopedRecord = computed(() => scopedAccount.value || scopedLead.value)
@@ -49,6 +49,24 @@ const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => aut
 const hasBothGlobalCrmScopes = computed(() => can('crm.account.read-all') && can('crm.lead.read-all'))
 const canManageAcrossUsers = computed(() => calendarAdmin.value || can('crm.activity.read-all') || hasBothGlobalCrmScopes.value)
 const mode = ref<CalendarMode>('month')
+const logFrom = ref('')
+const logTo = ref('')
+const logType = ref('')
+const logPage = ref(1)
+const logTotal = ref(0)
+const logPageSize = 50
+const canReadLog = computed(() => can('crm.bitacora.read') ||
+  can('crm.bitacora.read-all') || can('crm.activity.read') ||
+  can('crm.activity.read-all') || calendarAdmin.value)
+const canSeeAllLogOwners = computed(() =>
+  can('crm.bitacora.read-all') || canManageAcrossUsers.value)
+function logDateBoundary(value: string, exclusive = false): string | undefined {
+  if (!value) return undefined
+  const date = new Date(value + 'T00:00:00')
+  if (!Number.isFinite(date.getTime())) return undefined
+  if (exclusive) date.setDate(date.getDate() + 1)
+  return date.toISOString()
+}
 const selected = ref(new Date())
 const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
@@ -90,7 +108,7 @@ const calendarDirectoryQuery = ref('')
 const calendarDirectoryLoading = ref(false)
 const calendarDirectoryError = ref('')
 async function loadCalendarDirectory() {
-  if (!canManageAcrossUsers.value || calendarDirectoryLoading.value) return
+  if (!(canManageAcrossUsers.value || (props.view === 'log' && canSeeAllLogOwners.value)) || calendarDirectoryLoading.value) return
   calendarDirectoryLoading.value = true
   calendarDirectoryError.value = ''
   try {
@@ -109,7 +127,9 @@ async function loadCalendarDirectory() {
     calendarDirectoryLoading.value = false
   }
 }
-watch(canManageAcrossUsers, value => { if (value) void loadCalendarDirectory() }, { immediate: true })
+watch([canManageAcrossUsers, canSeeAllLogOwners, () => props.view],
+  () => { if (canManageAcrossUsers.value || (props.view === 'log' && canSeeAllLogOwners.value)) void loadCalendarDirectory() },
+  { immediate: true })
 watch(calendarDirectory, users => {
   const owners = { ...calendarLabels.value.owners }
   for (const user of users) owners[user.id] = user.displayName || user.userName || 'Usuario'
@@ -128,7 +148,7 @@ const clientChoices = computed(() => {
   return [...names].sort((a,b) => a[1].localeCompare(b[1]))
 })
 const visibleRows = computed(() => rows.value.filter(row =>
-  (!isManagerCalendar.value || !ownerFilter.value || row.ownerId === ownerFilter.value) &&
+  (!(isManagerCalendar.value || (props.view === 'log' && canSeeAllLogOwners.value)) || !ownerFilter.value || row.ownerId === ownerFilter.value) &&
   (!isManagerCalendar.value || !clientFilter.value || clientKey(row) === clientFilter.value)))
 function sellerEventStyle(event: CalendarEvent) {
   const color = sellerColor(event.ownerId)
@@ -148,6 +168,10 @@ const contactChoices = computed(() => contactRows.value.map(contact => ({
 const sellerDirectory = calendarDirectory
 const sellerLoading = calendarDirectoryLoading
 const sellerError = calendarDirectoryError
+// Auth returns only active internal users holding an eligible effective CRM scope.
+const currentUserCanOwnAgenda = computed(() =>
+  ['crm.activity.read', 'crm.activity.read-all', 'crm.followup.manage']
+    .some(scope => can(scope)))
 const canAssignOtherSellers = computed(() =>
   (can('crm.activity.create') || can('crm.followup.manage')) && (can('crm.activity.read-all') || hasBothGlobalCrmScopes.value))
 async function loadSellerDirectory() {
@@ -426,12 +450,10 @@ const outsideOfficeHours = computed(() => visibleRows.value.filter(item =>
 const listDays = computed(() => visibleDays.value
   .map(day => ({ day, events: eventsByDay.value[dateKey(day)] ?? [] }))
   .filter(item => item.events.length > 0))
+const logRows = computed(() => [...visibleRows.value].sort((a, b) => b.at.getTime() - a.at.getTime()))
 const pendingCount = computed(() => visibleRows.value.filter(x => x.status === 'Pending' || x.status === 'Scheduled' || x.status === 'Overdue').length)
 const selectedAccount = computed(() => accounts.value.find(x => x.id === editor.value.accountId))
 const selectedLead = computed(() => leads.value.find(x => x.id === editor.value.leadId))
-const currentUserCanOwnAgenda = computed(() =>
-  ['crm.activity.read', 'crm.activity.read-all', 'crm.followup.manage']
-    .some(scope => can(scope)))
 const assignees = computed(() => canAssignOtherSellers.value
   ? sellerDirectory.value.map(user => user.id)
   : currentUserCanOwnAgenda.value ? [String(auth.userId ?? '')].filter(Boolean) : [])
@@ -598,6 +620,7 @@ async function fetchAll(resource: string, from: string, to: string): Promise<{ i
   let total = 0
   for (let page = 1; page <= 10; page++) {
     const response = await crmList(resource, { from, to, page, pageSize: 100,
+      agendaOnly: resource === 'activities' ? 'true' : undefined,
       accountId: props.accountId || undefined,
       leadId: props.leadId || undefined,
       ownerId: !scopedRecord.value && isManagerCalendar.value && ownerFilter.value
@@ -612,16 +635,33 @@ async function load() {
   const generation = ++loadGeneration
   pending.value = true
   error.value = ''
-  const from = rangeStart.value.toISOString()
-  const to = rangeEnd.value.toISOString()
+  const from = props.view === 'log' ? logDateBoundary(logFrom.value) : rangeStart.value.toISOString()
+  const to = props.view === 'log' ? logDateBoundary(logTo.value, true) : rangeEnd.value.toISOString()
   const tasks: Promise<{ items: CrmRow[]; truncated: boolean }>[] = []
   const sources: Source[] = []
-  if (canManageAcrossUsers.value || can('crm.activity.read')) {
-    tasks.push(fetchAll('activities', from, to)); sources.push('activity')
-  }
-  if (can('crm.task.manage') || can('crm.followup.manage') ||
-      can('crm.activity.read') || canManageAcrossUsers.value) {
-    tasks.push(fetchAll('followups', from, to)); sources.push('followup')
+  if (props.view === 'log') {
+    if (canReadLog.value) {
+      tasks.push(crmList('activities/bitacora', {
+        from, to, page: logPage.value, pageSize: logPageSize,
+        accountId: props.accountId || undefined, leadId: props.leadId || undefined,
+        ownerId: canSeeAllLogOwners.value && ownerFilter.value ? ownerFilter.value : undefined,
+        type: logType.value || undefined,
+      }).then(result => {
+        logTotal.value = result.total
+        return { items: result.items, truncated: false }
+      }))
+      sources.push('activity')
+    } else {
+      error.value = 'No contás con permiso para consultar la bitácora comercial.'
+    }
+  } else {
+    if (canManageAcrossUsers.value || can('crm.activity.read')) {
+      tasks.push(fetchAll('activities', from || '', to || '')); sources.push('activity')
+    }
+    if (can('crm.task.manage') || can('crm.followup.manage') ||
+        can('crm.activity.read') || canManageAcrossUsers.value) {
+      tasks.push(fetchAll('followups', from || '', to || '')); sources.push('followup')
+    }
   }
   const results = await Promise.allSettled(tasks)
   if (generation !== loadGeneration) return
@@ -637,11 +677,13 @@ async function load() {
     for (const item of result.value.items) {
       const source = sources[index]
       if (!source) continue
+      if (props.view === 'agenda' && (item.status === 'Completed' || item.status === 'Cancelled')) continue
       // Followups API currently exposes accountId but not leadId as a query param.
       // Filter the authorized date-bounded results locally for the lead record.
       if (props.leadId && source === 'followup' && String(item.leadId ?? '') !== props.leadId) continue
       const at = normalizeTime(source === 'activity'
-        ? item.scheduledStartAt ?? item.occurredAt : item.dueAt)
+        ? (props.view === 'log' ? item.occurredAt ?? item.scheduledEndAt ?? item.createdAt
+          : item.scheduledStartAt ?? item.occurredAt) : item.dueAt)
       if (!at) continue
       events.push({
         key: source + ':' + item.id, source, id: String(item.id),
@@ -693,8 +735,13 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
   }
 }
 
-watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
-watch(ownerFilter, () => { if (isManagerCalendar.value) void load() })
+watch([rangeKey, () => props.accountId, () => props.leadId, () => props.view], () => void load(), { immediate: true })
+watch([logFrom, logTo, logType], () => {
+  logPage.value = 1
+  if (props.view === 'log') void load()
+})
+watch(logPage, () => { if (props.view === 'log') void load() })
+watch(ownerFilter, () => { if (isManagerCalendar.value || (props.view === 'log' && canSeeAllLogOwners.value)) void load() })
 const historicalActivityDraft = computed(() =>
   creatingReminder.value && editor.value.type !== 'FOLLOWUP' &&
   Number.isFinite(new Date(editor.value.end).getTime()) &&
@@ -921,6 +968,7 @@ function openEvent(item: CalendarEvent) {
 
 <template>
   <section class="space-y-4" data-crm-sales-calendar>
+    <template v-if="view === 'agenda'">
     <div class="sticky top-[112px] z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-sm">
       <div>
         <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-primary)]">Agenda comercial</p>
@@ -1103,6 +1151,73 @@ function openEvent(item: CalendarEvent) {
         </button>
       </section>
     </div>
+    </template>
+    <template v-else>
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-primary)]">Historial comercial</p>
+          <h2 class="mt-1 text-xl font-extrabold">Bitácora comercial</h2>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Gestiones realizadas, sin citas ni recordatorios. Conserva contactos, notas y documentos.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="calendar-btn" :disabled="pending" @click="load"><RefreshCw class="h-4 w-4" /> Actualizar</button>
+          <button v-if="can('crm.activity.create')" type="button" class="calendar-btn calendar-primary" @click="openCreation()">
+            <Plus class="h-4 w-4" /> Registrar gestión
+          </button>
+        </div>
+      </div>
+      <div class="grid gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:grid-cols-2 xl:grid-cols-4">
+        <label class="calendar-label">Desde
+          <input v-model="logFrom" type="date" class="calendar-input" aria-label="Bitácora desde" />
+        </label>
+        <label class="calendar-label">Hasta
+          <input v-model="logTo" type="date" class="calendar-input" aria-label="Bitácora hasta" />
+        </label>
+        <label class="calendar-label">Tipo de gestión
+          <select v-model="logType" class="calendar-input">
+            <option value="">Todos los tipos</option>
+            <option v-for="item in configuredActivityTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label class="calendar-label">Responsable
+          <select v-model="ownerFilter" class="calendar-input" :disabled="!canSeeAllLogOwners">
+            <option value="">{{ canSeeAllLogOwners ? 'Todos los responsables' : 'Mis registros' }}</option>
+            <option v-for="ownerId in ownerChoices" :key="ownerId" :value="ownerId">
+              {{ calendarDirectory.find(x => x.id === ownerId)?.displayName || calendarLabels.owners[ownerId] || ownerId }}
+            </option>
+          </select>
+        </label>
+      </div>
+      <p v-if="logFrom && logTo && logFrom > logTo" role="alert" class="text-sm text-amber-600">La fecha inicial debe ser anterior a la final.</p>
+      <p v-if="pending" role="status" class="text-sm text-[var(--dh-text-muted)]">Consultando bitácora…</p>
+      <p v-if="error && !creationOpen" role="alert" class="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{{ error }}</p>
+      <p v-if="notice" role="status" class="rounded-xl border border-emerald-500/30 p-3 text-sm text-emerald-600">{{ notice }}</p>
+      <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <strong class="text-sm">Registros completados ({{ logTotal }})</strong>
+          <span class="text-xs text-[var(--dh-text-muted)]">Página {{ logPage }}</span>
+        </div>
+        <p v-if="!pending && !logRows.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-6 text-sm text-[var(--dh-text-muted)]">
+          No hay gestiones registradas con estos filtros.
+        </p>
+        <div v-for="event in logRows" :key="event.key"
+          class="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+          <button type="button" class="min-w-0 flex-1 text-left" @click="openEvent(event)">
+            <strong class="block truncate text-sm">{{ event.subject }}</strong>
+            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">
+              {{ labelFor(event) }} · {{ event.at.toLocaleString('es-CR') }} · {{ ownerName(event) }}
+              <template v-if="!scopedRecord">· {{ clientName(event) }}</template>
+            </span>
+          </button>
+          <button type="button" class="calendar-btn" @click="detail(event)">Ver detalle y documentos</button>
+        </div>
+        <div v-if="logTotal > logPageSize" class="mt-4 flex items-center justify-end gap-2">
+          <button type="button" class="calendar-btn" :disabled="pending || logPage<=1" @click="logPage--">Anterior</button>
+          <span class="text-xs text-[var(--dh-text-muted)]">{{ logPage }} / {{ Math.max(1, Math.ceil(logTotal / logPageSize)) }}</span>
+          <button type="button" class="calendar-btn" :disabled="pending || logPage * logPageSize >= logTotal" @click="logPage++">Siguiente</button>
+        </div>
+      </div>
+    </template>
     <DhModal :open="Boolean(active)" title="Detalle de actividad comercial" size="lg" @close="active=null">
       <div v-if="active" class="space-y-3">
       <div class="flex justify-between gap-3">
@@ -1141,7 +1256,7 @@ function openEvent(item: CalendarEvent) {
         <button type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': !creatingReminder }"
           :disabled="saving || Boolean(pendingDocumentRecord) || !can('crm.activity.create')"
           @click="setReminderMode(false)">Registrar en bitácora</button>
-        <button type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': creatingReminder }"
+        <button v-if="view === 'agenda'" type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': creatingReminder }"
           :disabled="saving || Boolean(pendingDocumentRecord)"
           @click="setReminderMode(true)">Crear recordatorio</button>
       </div>
@@ -1210,7 +1325,7 @@ function openEvent(item: CalendarEvent) {
         </label>
         <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando responsables disponibles…</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
-        <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay responsables activos con los scopes requeridos.</p>
+        <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay responsables activos con los scopes requeridos para esta actividad.</p>
         <label v-if="creatingReminder" class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
@@ -1261,7 +1376,7 @@ function openEvent(item: CalendarEvent) {
             placeholder="Seleccionar contactos"
             search-placeholder="Buscar contactos de esta cuenta..."
             empty-text="No hay contactos disponibles en esta cuenta." />
-          <p v-else-if="editor.accountId" class="text-xs text-amber-600">Necesitás permiso de lectura de contactos para seleccionar participantes.</p>
+          <p v-if="editor.accountId && !can('crm.contact.read')" class="sm:col-span-2 text-xs text-amber-600">Necesitás permiso de lectura de contactos para seleccionar participantes.</p>
           <label class="calendar-label sm:col-span-2">{{ creatingReminder ? 'Minuta de la actividad' : 'Detalle de la gestión / bitácora' }}
             <textarea v-model="editor.minutes" rows="9" maxlength="20000"
               class="calendar-input min-h-48 resize-y"
