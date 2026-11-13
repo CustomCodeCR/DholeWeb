@@ -1,3 +1,9 @@
+## [1.47.0] - 2026-11-12
+
+- MINOR DH-20261112-CRM-BITACORA-REMINDERS-126: actividades registradas en bitácora sin fecha ni avisos; «Crear recordatorio» habilita fecha, finalización, repetición y compromisos.
+- Se conservan cliente/prospecto, tipo, responsable, notas, contactos y documentos, así como actividad programada, REST y SignalR/Outbox.
+- Web 1.46.0 → 1.47.0, CRM 1.26.0 → 1.27.0, ecosistema 1.46.0 → 1.47.0. CI y staging pendientes; producción no autorizada.
+
 ## [1.46.0] - 2026-11-12
 
 - MINOR DH-20261112-CRM-ACTIVITY-TYPES-125: agenda y editor CRM incluyen Seguimiento comercial, Llamada telefónica, WhatsApp, Recomendación y Oferta; CALL mantiene su código, y FOLLOWUP conserva recordatorios y seguimiento existentes.
