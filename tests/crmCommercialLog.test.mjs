@@ -12,7 +12,7 @@ test('commercial log is a separate read-only activity listing with server side f
   assert.match(calendar, /type: logType\.value \|\| undefined/)
   assert.match(calendar, /canSeeAllLogOwners\.value && ownerFilter\.value/)
   assert.match(calendar, /view === 'agenda' && \(item\.status === 'Completed'/)
-  assert.match(calendar, /Ver detalle y documentos/)
+  assert.match(calendar, /Abrir nota y documentos/)
   assert.match(calendar, /<DhModal :open="creationOpen"/)
   assert.match(calendar, /<CrmFileDropzone/)
 })
