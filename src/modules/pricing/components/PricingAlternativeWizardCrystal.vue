@@ -2899,7 +2899,7 @@ function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {
   // independent coloader rates untouched.
   if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
     && !isMiamiLcl.value && normalizeCatalogValue(line.name) === 'cfs'
-    && /LCL\\s*PROPIO|ConsolidadoId:|Fuente LCL:\\s*Propio/i.test(String(line.notes ?? ''))) {
+    && /LCL\s*PROPIO|ConsolidadoId:|Fuente LCL:\s*Propio/i.test(String(line.notes ?? ''))) {
     return 'PerChargeableCbm'
   }
   // An own maritime LCL consolidation bills its international freight by
