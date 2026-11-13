@@ -1,3 +1,8 @@
+## [1.48.2] - 2026-11-13
+
+- PATCH DH-20261113-CRM-COMMERCIAL-LOG-FILTER-133: corrige selector de tipos de Bitácora desde la primera apertura, sin abrir modal. Se mantienen borradores, notas, archivos, reglas ACL y nuevo registro de gestiones.
+- Coordinado con Auth 1.9.1, CRM 1.28.1 y Web 1.48.2; versión global 1.48.2. Compatible REST/SignalR. Producción no autorizada.
+
 ## [1.48.1] - 2026-11-13
 
 - PATCH DH-20261113-CRM-AGENDA-RETURN-132: «Volver al listado» desde detalles de actividades CRM regresa a Agenda y seguimientos (`/crm/followups`), no al listado obsoleto de Actividades y visitas.
