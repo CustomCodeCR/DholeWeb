@@ -89,6 +89,7 @@ function startEditing() {
   reset()
   error.value = ''
   editing.value = true
+  if (isBitacora.value) syncTasksFromNotes()
   activityDraft.begin()
 }
 function addNote() { noteDrafts.value.push({ noteText: '' }) }
@@ -100,22 +101,26 @@ function addAgreement() {
 function removeNewNote(index: number) { noteDrafts.value.splice(index, 1) }
 function removeNewAgreement(index: number) { agreementDrafts.value.splice(index, 1) }
 
-function tasksFromSavedAgreements() {
+function syncTasksFromNotes() {
   const excerpts = noteDrafts.value.map(note => {
     const match = note.noteText.match(/(?:^|\n)\s*Acuerdos:\s*([\s\S]*?)(?=\n\s*Próximo compromiso:|$)/i)
     return match?.[1]?.trim() ?? ''
   }).filter(Boolean)
-  const suggestions = crmAgreementDrafts(excerpts.join('\n'))
-  let created = 0
-  for (const suggestion of suggestions) {
+  for (const suggestion of crmAgreementDrafts(excerpts.join('\n'))) {
+    const due = new Date(suggestion.dueLocal).getTime()
+    if (!Number.isFinite(due) || due <= Date.now()) continue
     const key = suggestion.title.trim().toLocaleLowerCase('es')
-    if (agreementDrafts.value.some(row => !row.remove && row.subject.trim().toLocaleLowerCase('es') === key)) continue
+    if (agreementDrafts.value.some(row => !row.remove &&
+      row.subject.trim().toLocaleLowerCase('es') === key)) continue
     agreementDrafts.value.push({ subject: suggestion.title, dueLocal: suggestion.dueLocal,
       completed: false, remove: false })
-    created++
   }
-  error.value = created ? '' : 'No se encontraron acuerdos nuevos. Podés agregar una tarea manualmente.'
 }
+// Editar una nota actualiza los borradores de tareas sin necesitar otro botón.
+watch(() => noteDrafts.value.map(note => note.noteText).join('\n'), () => {
+  if (editing.value && isBitacora.value) syncTasksFromNotes()
+})
+
 
 async function save() {
   if (!props.canManage || saving.value) return
@@ -200,7 +205,7 @@ watch(() => props.activity.rowVersion, () => {
       <div>
         <h3 class="text-sm font-extrabold">{{ isBitacora ? 'Editar bitácora comercial' : 'Editar actividad, minuta y acuerdos' }}</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          {{ isBitacora ? 'Editá la gestión, las notas y sus acuerdos sin programar una cita. Convertí acuerdos en tareas solo cuando lo necesités.' : 'Se pueden actualizar actividades completadas. Los cambios en acuerdos conservan su historial.' }}
+          {{ isBitacora ? 'Editá la gestión, las notas y sus acuerdos sin programar una cita. Los acuerdos con fecha futura generan tareas vinculadas directamente.' : 'Se pueden actualizar actividades completadas. Los cambios en acuerdos conservan su historial.' }}
         </p>
       </div>
       <DhButton :label="editing ? 'Cerrar edición' : isBitacora ? 'Editar bitácora' : 'Editar actividad completa'"
@@ -300,13 +305,10 @@ watch(() => props.activity.rowVersion, () => {
       <div class="space-y-3 border-t border-[var(--dh-border)] pt-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h4 class="text-sm font-bold">{{ isBitacora ? 'Tareas generadas desde acuerdos' : 'Pendientes de los acuerdos' }} ({{ agreementDrafts.filter(x => !x.remove).length }})</h4>
-          <div class="flex flex-wrap gap-2">
-            <DhButton v-if="isBitacora" label="Generar tareas desde acuerdos" size="sm" variant="secondary"
-              @click="tasksFromSavedAgreements" />
-            <DhButton :label="isBitacora ? 'Añadir tarea' : 'Añadir pendiente'" size="sm" variant="secondary" @click="addAgreement" />
-          </div>
+          <DhButton :label="isBitacora ? 'Añadir tarea manual' : 'Añadir pendiente'"
+            size="sm" variant="secondary" @click="addAgreement" />
         </div>
-        <p v-if="isBitacora" class="text-xs text-[var(--dh-text-muted)]">Las tareas son opcionales. Cada una requiere fecha futura y se vincula al cliente, al responsable y al historial de esta bitácora.</p>
+        <p v-if="isBitacora" class="text-xs text-[var(--dh-text-muted)]">Los acuerdos con fecha futura generan automáticamente tareas asociadas a esta bitácora. También podés agregar una tarea manual.</p>
         <label v-if="isBitacora && agreementDrafts.some(item => !item.id && !item.remove)" class="block space-y-1 text-xs font-bold">Avisar antes de cada tarea nueva
           <select v-model="form.reminderLeadMinutes" class="crm-editor-input">
             <option v-for="minutes in [0,5,15,30,60,120,240,1440]" :key="minutes" :value="String(minutes)">{{ minutes }} minutos</option>
