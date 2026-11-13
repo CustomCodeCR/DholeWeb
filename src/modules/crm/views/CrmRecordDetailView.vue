@@ -23,6 +23,7 @@ import CrmContactForm from '../components/CrmContactForm.vue'
 import CrmAddressLocationFields from '../components/CrmAddressLocationFields.vue'
 import { emptyAddressLocation } from '../model/crmAddressLocation'
 import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
+import { crmDetailReturnPath } from '../utils/crmDetailNavigation'
 import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
 import CrmContractFileDropzone from '../components/CrmContractFileDropzone.vue'
 import { creditCoverageLabel } from '../model/crmCreditCoverage'
@@ -1014,10 +1015,7 @@ function addNegotiation() {
 }
 
 function back() {
-  const source = typeof route.query.fromAccount === 'string' ? route.query.fromAccount : ''
-  if (section.value !== 'accounts' && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(source))
-    void router.push('/crm/accounts/' + encodeURIComponent(source))
-  else void router.push('/crm/' + section.value)
+  void router.push(crmDetailReturnPath(section.value, route.query.fromAccount))
 }
 onBeforeRouteLeave(() => {
   if (saving.value && !conversionRedirectAllowed.value) {
