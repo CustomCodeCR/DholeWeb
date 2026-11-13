@@ -1,3 +1,9 @@
+## [1.45.0] - 2026-11-12
+
+- MINOR DH-20261112-PRICING-ROUTE-124: Pricing puede modificar exclusivamente POL, POE y POD desde el paso 5 de «Completar solicitud», mediante selectores de catálogos y guardado protegido por reserva activa. El Incoterm, carga, equipo, cliente y servicios de Ventas no son editables en este control.
+- Se conserva la ruta original de Ventas, se visualiza la nueva ruta operativa, se restaura al reabrir la solicitud y se limpian selecciones de navieras, costos y líneas de la ruta anterior para volver a cotizar. Prueba de regresión para aislamiento de campos y contrato PATCH.
+- DholeWeb 1.44.2 → 1.45.0; PricingService 1.17.0 → 1.18.0; ecosistema 1.44.2 → 1.45.0. CI y staging pendientes; no se autoriza despliegue a producción.
+
 ## [1.44.2] - 2026-11-12
 
 - PATCH DH-20261112-PRICING-TARIFF-MODAL-123: rediseño del DhModal «Aplicar tarifario a cliente»: superficie sólida sin transparencia sobre la pantalla de tarifas, ancho lg en las seis entradas de Pricing y disposición responsive con resumen del maestro, selector CRM a ancho completo, ejecutivo informativo y acciones despejadas.

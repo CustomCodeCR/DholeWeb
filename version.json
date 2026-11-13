@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.44.2",
-  "ecosystemVersion": "1.44.2",
-  "releaseId": "DH-20261112-PRICING-TARIFF-MODAL-123",
+  "version": "1.45.0",
+  "ecosystemVersion": "1.45.0",
+  "releaseId": "DH-20261112-PRICING-ROUTE-124",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261112-PRICING-TARIFF-MODAL-123"
+  "businessReleaseId": "DH-20261112-PRICING-ROUTE-124"
 }

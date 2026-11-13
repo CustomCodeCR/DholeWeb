@@ -25,6 +25,18 @@ export const RateRequestLeaseService = {
     sessionStorage.setItem(key(id), lease.token)
     return lease
   },
+  async updatePricingRoute(id: string, route: {
+    polId: string; polName: string; poeId: string; poeName: string;
+    podId: string | null; podName: string | null
+  }): Promise<void> {
+    const token = this.tokenFor(id)
+    if (!token) throw new Error('Debe recuperar la reserva antes de cambiar la ruta.')
+    await callEndpoint<unknown, typeof route>({
+      method: 'PATCH',
+      path: path(id, 'pricing-route'),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, { body: route, extraHeaders: { 'X-Rate-Request-Lease': token } })
+  },
   async setWorkStatus(id: string, workStatus: 'Working' | 'RequestedFromProvider'): Promise<{ workStatus: 'Working' | 'RequestedFromProvider'; workStatusUpdatedAtUtc: string }> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente de la solicitud.')
