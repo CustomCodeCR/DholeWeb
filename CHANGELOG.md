@@ -1,3 +1,8 @@
+## [1.52.1] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-141: Web 1.52.0 → 1.52.1, Pricing 1.18.2. CFS LCL propio usa CBM cobrable también en cotizaciones históricas; la API y los totales comerciales se corrigen en backend. Coloader y Miami CFT no se alteran.
+- Preserva nuevas funcionalidades compatibles de develop 1.52.0; CI y staging requeridos antes de master.
+
 ## [1.52.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-BITACORA-DIRECT-TASKS-PARENT-141: los acuerdos con vencimiento futuro crean directamente recordatorios desde Bitácora sin seleccionar casillas ni quitar elementos de listas; fecha sin confirmar se mantiene como nota y la hora sugerida vencida de hoy se ajusta a la siguiente franja futura. Edición sincroniza borradores de tareas con acuerdos, sin botón intermedio.
