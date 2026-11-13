@@ -1,3 +1,8 @@
+## [1.47.3] - 2026-11-12
+
+- PATCH DH-20261112-CRM-ACTIVITY-PRODUCTION-129: publicación expresamente autorizada de la corrección `DH-20261112-CRM-ACTIVITY-DB-CONSTRAINT-128` validada en CI y staging. Sin cambios funcionales adicionales; se mantienen REST, SignalR, Outbox y registro histórico.
+- Web 1.47.2 → 1.47.3; CRM 1.27.2 → 1.27.3; ecosistema 1.47.2 → 1.47.3. La integración sigue el orden develop → staging → master → producción.
+
 ## [1.47.2] - 2026-11-12
 
 - PATCH DH-20261112-CRM-ACTIVITY-DB-CONSTRAINT-128: distingue el HTTP 409 de concurrencia real del conflicto SQL por tipo de actividad CRM; muestra la causa en vez del mensaje incorrecto «El registro cambió». Evita duplicar el mismo error en el formulario y conserva el borrador y los adjuntos en caso de fallo.
