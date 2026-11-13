@@ -1,7 +1,7 @@
-## [1.48.1] - 2026-11-13
+## [1.48.2] - 2026-11-13
 
-- PATCH DH-20261113-CRM-COMMERCIAL-LOG-FILTER-132: la bitácora muestra todos los tipos históricos en el filtro desde la apertura; no depende de visitar primero el modal de creación. Se aislan borradores de bitácora frente a agenda, evitando programaciones involuntarias; conserva documentos y ACL.
-- Auth 1.9.0 → 1.9.1, CRM 1.28.0 → 1.28.1, Web 1.48.0 → 1.48.1, ecosistema 1.48.0 → 1.48.1. Producción no autorizada.
+- PATCH DH-20261113-CRM-COMMERCIAL-LOG-FILTER-133: la bitácora muestra todos los tipos históricos en el filtro desde la apertura; no depende de visitar primero el modal de creación. Se aislan borradores de bitácora frente a agenda, evitando programaciones involuntarias; conserva documentos y ACL.
+- Auth 1.9.0 → 1.9.1, CRM 1.28.0 → 1.28.1, Web 1.48.0 → 1.48.2, ecosistema 1.48.0 → 1.48.2. Producción no autorizada.
 
 ## [1.48.0] - 2026-11-13
 
