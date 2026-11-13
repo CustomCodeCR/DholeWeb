@@ -1,3 +1,14 @@
+## [1.48.2] - 2026-11-13
+
+- PATCH DH-20261113-CRM-COMMERCIAL-LOG-FILTER-133: la bitácora muestra todos los tipos históricos en el filtro desde la apertura; no depende de visitar primero el modal de creación. Se aislan borradores de bitácora frente a agenda, evitando programaciones involuntarias; conserva documentos y ACL.
+- Auth 1.9.0 → 1.9.1, CRM 1.28.0 → 1.28.1, Web 1.48.0 → 1.48.2, ecosistema 1.48.0 → 1.48.2. Producción no autorizada.
+
+## [1.48.0] - 2026-11-13
+
+- MINOR DH-20261113-CRM-COMMERCIAL-LOG-131: Bitácora comercial en cuentas y prospectos, separada de Agenda; filtros de fecha, tipo y responsable, paginación y enlace a documentos.
+- Conserva formulario, notas, contactos, adjuntos, borradores y realtime/REST; no elimina registros existentes. Web 1.47.4 → 1.48.0, CRM 1.27.4 → 1.28.0, Auth 1.8.1 → 1.9.0, global 1.48.0.
+- CI y staging obligatorios; producción no autorizada.
+
 ## [1.47.5] - 2026-11-13
 
 - PATCH DH-20261113-CRM-AGENDA-RETURN-132 (backport master): «Volver al listado» desde detalle de actividades CRM regresa a Agenda y seguimientos (`/crm/followups`) y no al listado legado (`/crm/activities`). Mismo cambio funcional validado en develop 1.48.1.
