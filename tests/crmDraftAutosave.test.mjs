@@ -97,3 +97,13 @@ test('Dhole source prohibits native browser modal dialogs', () => {
   walk(sourceRoot)
   assert.deepEqual(violations, [], 'Use DhModal/DhButton, never a native browser modal')
 })
+
+test('CRM recovery remains above the originating DhModal and saves changes while the prompt is open', () => {
+  const overlay = readFileSync(new URL('../src/shared/components/organisms/DhModal.vue', import.meta.url), 'utf8')
+  const modal = source('components/CrmDraftRecoveryModal.vue')
+  const autosave = source('utils/crmDraftAutosave.ts')
+  assert.match(overlay, /priority\?: boolean/)
+  assert.match(overlay, /priority \? 'z-\[110\]' : 'z-\[90\]'/)
+  assert.match(modal, /<DhModal[\s\S]*?\spriority\b/)
+  assert.match(autosave, /preserveStoredDraft = true\s+\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*active = true\s+const promptKey/)
+})
