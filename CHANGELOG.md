@@ -1,8 +1,8 @@
 ## [1.47.5] - 2026-11-13
 
-- PATCH DH-20261113-CRM-AGENDA-RETURN-131: «Volver al listado» desde el detalle de actividades CRM regresa a Agenda y seguimientos (`/crm/followups`) y no abre el listado legado de Actividades y visitas (`/crm/activities`).
+- PATCH DH-20261113-CRM-AGENDA-RETURN-132 (backport master): «Volver al listado» desde detalle de actividades CRM regresa a Agenda y seguimientos (`/crm/followups`) y no al listado legado (`/crm/activities`). Mismo cambio funcional validado en develop 1.48.1.
 - Conserva retorno a la cuenta de origen, permisos CRM, borradores, API REST, SignalR y eventos existentes. Incluye prueba de regresión para navegación de actividades y otros detalles.
-- DholeWeb 1.47.4 → 1.47.5; DholeSystem/ecosistema 1.47.4 → 1.47.5. Servicios restantes sin modificaciones. CI y staging pendientes; producción no autorizada.
+- DholeWeb 1.47.4 → 1.47.5; DholeSystem/ecosistema 1.47.4 → 1.47.5. Backport compatible con master sin integrar Bitácora comercial 1.48.0 ni modificar servicios backend. CI y staging del cambio original aprobados; master autorizado expresamente por usuario.
 
 ## [1.47.4] - 2026-11-13
 
