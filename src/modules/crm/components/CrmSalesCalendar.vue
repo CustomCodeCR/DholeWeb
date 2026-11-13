@@ -222,7 +222,7 @@ function captureCalendarDraft() {
     pendingRecord: pendingDocumentRecord.value, hadAttachments: attachedDocuments.value.length > 0 }
 }
 const calendarDraft = useCrmDraftAutosave({
-  scope: () => 'calendar-create:' + (props.accountId ? 'account:' + props.accountId :
+  scope: () => 'calendar-create:' + (props.view === 'log' ? 'bitacora:' : '') + (props.accountId ? 'account:' + props.accountId :
     props.leadId ? 'lead:' + props.leadId : 'global'),
   enabled: () => creationOpen.value,
   capture: captureCalendarDraft,
@@ -363,7 +363,7 @@ async function loadConfiguredActivityTypes() {
 }
 const selectableActivityTypes = computed(() => [
   ...configuredActivityTypes.value.filter(() => can('crm.activity.create')),
-  ...(can('crm.followup.manage') || can('crm.task.manage')
+  ...(props.view === 'agenda' && (can('crm.followup.manage') || can('crm.task.manage'))
     ? [{ value: 'FOLLOWUP', label: 'Seguimiento' }] : []),
 ])
 const reminderOptions = [
@@ -697,7 +697,7 @@ async function load() {
         reminderChannelStrategy: String(item.reminderChannelStrategy ?? 'BOTH'),
         repeatEveryDays: typeof item.repeatEveryDays === 'number' ? item.repeatEveryDays : null,
         reminderRepeatMinutes: typeof item.reminderRepeatMinutes === 'number' ? item.reminderRepeatMinutes : null,
-        scheduled: source === 'followup' || Boolean(item.scheduledStartAt),
+        scheduled: props.view === 'agenda' && (source === 'followup' || Boolean(item.scheduledStartAt)),
       })
     }
   }
