@@ -197,8 +197,14 @@ watch(() => props.activity.rowVersion, () => {
         </label>
         <label class="space-y-1 text-xs font-bold">Tipo de gestión
           <select v-model="form.type" class="crm-editor-input" required>
-            <option value="CALL">Llamada</option><option value="VISIT">Visita</option>
-            <option value="EMAIL">Correo</option><option value="MEETING">Reunión</option>
+            <option value="VISIT">Visita</option>
+            <option value="CALL">Llamada telefónica</option>
+            <option value="MEETING">Reunión / Teams</option>
+            <option value="EMAIL">Correo electrónico</option>
+            <option value="COMMERCIAL_FOLLOWUP">Seguimiento comercial</option>
+            <option value="WHATSAPP">WhatsApp</option>
+            <option value="RECOMMENDATION">Recomendación</option>
+            <option value="OFFER">Oferta</option>
             <option value="OTHER">Otra actividad</option>
           </select>
         </label>
