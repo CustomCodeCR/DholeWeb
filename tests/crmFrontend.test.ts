@@ -558,9 +558,9 @@ test('Accounts filter by seller and any exact commercial relationship on the ser
 test('CRM calendar submits repeat frequency and recurring reminder cadence', () => {
   const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
   for (const marker of [
-    'repeatEveryDays: data.repeatEveryDays',
-    'reminderRepeatMinutes: data.reminderRepeatMinutes',
-    'reminderLeadMinutes: data.reminderMinutes',
+    'repeatEveryDays: requiresSchedule ? data.repeatEveryDays : null',
+    'reminderRepeatMinutes: requiresSchedule ? data.reminderRepeatMinutes : null',
+    'reminderLeadMinutes: requiresSchedule ? data.reminderMinutes : null',
     'v-model.number="editor.repeatEveryDays"',
     'v-model.number="editor.reminderRepeatMinutes"',
     'Recordatorios: 24 horas y 1 hora antes'
