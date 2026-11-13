@@ -194,6 +194,7 @@ interface AgendaLabels {
 interface AgendaParent {
   activityId: string | null
   activitySubject?: string
+  isBitacora?: boolean
 }
 const agendaLabels = ref<AgendaLabels>({ accounts: {}, leads: {}, owners: {} })
 const agendaContactName = ref('')
@@ -1114,7 +1115,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
         <div>
-          <h2 class="text-base font-bold">{{ section === 'activities' ? 'Minuta, acuerdos y compromisos' : 'Actividad principal y compromiso' }}</h2>
+          <h2 class="text-base font-bold">{{ section === 'activities' ? 'Minuta, acuerdos y compromisos' : agendaParent?.isBitacora ? 'Bitácora padre del recordatorio' : 'Actividad principal y compromiso' }}</h2>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Información registrada en esta gestión, conservada en el historial del CRM.</p>
         </div>
         <p v-if="agendaDetailsWarning" role="alert" class="text-sm text-amber-600">{{ agendaDetailsWarning }}</p>
@@ -1155,10 +1156,10 @@ onMounted(() => { if (crmEnabled()) void load() })
         </template>
         <template v-else>
           <div v-if="agendaParent?.activityId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
-            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>
+            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ agendaParent.isBitacora ? 'Bitácora comercial de origen' : 'Actividad principal asociada' }}</p>
             <RouterLink :to="'/crm/activities/' + encodeURIComponent(String(agendaParent.activityId))"
               class="text-sm font-bold text-[var(--dh-primary)] hover:underline">
-              {{ agendaParent.activitySubject || 'Ver actividad principal' }}
+              {{ agendaParent.activitySubject || (agendaParent.isBitacora ? 'Abrir bitácora padre' : 'Ver actividad principal') }}
             </RouterLink>
           </div>
           <p v-else class="text-sm text-[var(--dh-text-muted)]">Seguimiento independiente o sin actividad principal accesible.</p>
