@@ -1,3 +1,9 @@
+## [1.47.4] - 2026-11-13
+
+- PATCH DH-20261113-CRM-DRAFT-RECOVERY-130: el DhModal de recuperación de borradores CRM tiene prioridad visual sobre cualquier editor, incluidos Agenda y seguimientos; evita que la recuperación quede inaccesible detrás del formulario.
+- Conserva el autoguardado local de cambios mientras se resuelve la recuperación. «Más tarde» mantiene el borrador anterior sin modificaciones, y Restaurar/Descartar respetan la elección del usuario. Sin cambios en REST, SignalR, Outbox ni base de datos.
+- DholeWeb 1.47.3 → 1.47.4; DholeCRMService 1.27.3 → 1.27.4 (versión de release coordinado); ecosistema 1.47.3 → 1.47.4. CI, pruebas y staging pendientes; no autorizado para producción.
+
 ## [1.47.3] - 2026-11-12
 
 - PATCH DH-20261112-CRM-ACTIVITY-PRODUCTION-129: publicación expresamente autorizada de la corrección `DH-20261112-CRM-ACTIVITY-DB-CONSTRAINT-128` validada en CI y staging. Sin cambios funcionales adicionales; se mantienen REST, SignalR, Outbox y registro histórico.
