@@ -1,3 +1,8 @@
+## [1.48.3] - 2026-11-13
+
+- PATCH DH-20261113-CRM-COMMERCIAL-LOG-ACL-134: consolidación coordinada de permisos de lectura de prospectos en Bitácora CRM. Mantiene filtros de tipo, fecha, responsable, notas y documentos, sin cambios de frontend adicionales.
+- Auth 1.9.1 → 1.9.2; CRM 1.28.1 → 1.28.2; Web 1.48.2 → 1.48.3; ecosistema 1.48.2 → 1.48.3. CI y staging obligatorios; producción no autorizada.
+
 ## [1.48.2] - 2026-11-13
 
 - PATCH DH-20261113-CRM-COMMERCIAL-LOG-FILTER-133: la bitácora muestra todos los tipos históricos en el filtro desde la apertura; no depende de visitar primero el modal de creación. Se aislan borradores de bitácora frente a agenda, evitando programaciones involuntarias; conserva documentos y ACL.
