@@ -163,7 +163,7 @@ async function hydratePersistedLclSource(rate: RateDto) {
         // were separated from the ocean-freight/destination rules.
         section: isPickup ? 'pickup_origin' : line.section,
         costDetailType: isPickup ? 'OriginCharge' : line.costDetailType,
-        chargeBasis: normalizedName === 'cfs' ? 'PerCbm' : line.chargeBasis,
+        chargeBasis: normalizedName === 'cfs' ? 'PerChargeableCbm' : line.chargeBasis,
       }
     }) as LclRateSourceSelection['lines'],
     totalCost: Number(rate.totalCostAmount || 0),
