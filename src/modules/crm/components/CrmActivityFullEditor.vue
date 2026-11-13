@@ -134,7 +134,8 @@ async function save() {
     return
   }
   if (agreementDrafts.value.some(item => !item.id && !item.remove &&
-      new Date(item.dueLocal).getTime() <= Date.now())) {
+      (!Number.isFinite(new Date(item.dueLocal).getTime()) ||
+       new Date(item.dueLocal).getTime() <= Date.now()))) {
     error.value = 'Los compromisos nuevos deben tener una fecha futura.'
     return
   }
