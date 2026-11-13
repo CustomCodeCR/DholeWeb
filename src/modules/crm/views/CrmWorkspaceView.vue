@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
-import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight, NotebookPen } from 'lucide-vue-next'
+import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight, NotebookPen, ChartNoAxesCombined } from 'lucide-vue-next'
 import { DhButton, DhInput, DhMultiSelect, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
@@ -28,6 +28,7 @@ import { crmAgendaDays, crmAgendaRecordsForDay } from '../model/crmAgenda'
 import { crmAgendaClientName, crmAgendaExecutiveName, crmAgendaIdentityIds,
   type CrmAgendaIdentityLabels } from '../model/crmAgendaIdentity'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import CrmActivityReports from '../components/CrmActivityReports.vue'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 import CrmAccountViewerManager from '../components/CrmAccountViewerManager.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
@@ -212,7 +213,7 @@ const agendaSellerQuery = ref('')
 const normalizeAgendaQuery = (value: unknown) => String(value ?? '')
   .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es-CR').trim()
 const agendaTruncated = ref(false)
-const agendaView = ref<'list' | 'calendar' | 'log'>('list')
+const agendaView = ref<'list' | 'calendar' | 'log' | 'reports'>('list')
 const agendaIdentityLabels = ref<CrmAgendaIdentityLabels>({ accounts: {}, leads: {}, owners: {} })
 const agendaIdentityLoading = ref(false)
 let agendaIdentityGeneration = 0
@@ -831,10 +832,15 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
               :class="agendaView==='log' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
               :aria-pressed="agendaView==='log'"
               @click="agendaView='log'"><NotebookPen class="h-4 w-4" /> Bitácora · Notas</button>
+            <button type="button" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"
+              :class="agendaView==='reports' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
+              :aria-pressed="agendaView==='reports'"
+              @click="agendaView='reports'"><ChartNoAxesCombined class="h-4 w-4" /> Reportes</button>
           </div>
         </div>
         <CrmSalesCalendar v-if="agendaView === 'calendar'" @changed="page=1;load()" />
         <CrmSalesCalendar v-if="agendaView === 'log'" view="log" @changed="page=1;load()" />
+        <CrmActivityReports v-if="agendaView === 'reports'" />
       </section>
 
       <template v-else-if="section === 'finance'">
