@@ -24,6 +24,7 @@ function choose(choice: CrmDraftRecoveryChoice) {
 <template>
   <DhModal
     :open="Boolean(activeCrmDraftRecovery)"
+    priority
     title="Recuperar borrador de CRM"
     size="md"
     @close="choose('later')"

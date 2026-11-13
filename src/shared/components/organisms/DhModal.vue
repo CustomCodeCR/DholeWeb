@@ -7,9 +7,11 @@ withDefaults(
     open: boolean
     title?: string
     size?: 'sm' | 'md' | 'lg' | 'xl'
+    priority?: boolean
   }>(),
   {
     size: 'md',
+    priority: false,
   },
 )
 
@@ -26,7 +28,8 @@ const { t } = useI18n()
       <div
         v-if="open"
         data-dh-overlay="modal"
-        class="fixed inset-0 z-[90] flex items-end justify-center bg-black/25 p-2 backdrop-blur-sm sm:items-center sm:p-4"
+        class="fixed inset-0 flex items-end justify-center bg-black/25 p-2 backdrop-blur-sm sm:items-center sm:p-4"
+        :class="priority ? 'z-[110]' : 'z-[90]'"
         @click.self="emit('close')"
       >
         <section
