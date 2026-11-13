@@ -11,6 +11,10 @@ const fixture = [
   'function rebuildRateLines() {',
   '  if (pricingDraftRestoring.value) return',
   '}',
+  'async function persistRate() {',
+  '    await loadApplicableCosts()',
+  '    syncPersistedLinesWithChangedConfiguredCosts()',
+  '}',
   '</script>',
   '<div v-else-if="step === 7" class="crystal-lines-stage space-y-6">',
 ].join('\n')
