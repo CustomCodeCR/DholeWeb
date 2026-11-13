@@ -1,3 +1,8 @@
+## [1.50.0] - 2026-11-13
+
+- MINOR DH-20261113-CRM-SELLER-ACTIVITY-REPORTS-137: Reportes de actividades comerciales en Agenda: consolidado general y por vendedor, filtro de fechas, tipo, estado y origen, indicadores de cumplimiento, comparativos y detalle de actividades, seguimientos y bitácora.
+- Exportación Excel completa y generación PDF mediante impresión; endpoint CRM autorizado por vendedor. DholeWeb 1.49.0 → 1.50.0, CRM 1.28.4 → 1.29.0 y ecosistema 1.49.0 → 1.50.0. CI/staging pendientes; producción no autorizada.
+
 ## [1.49.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-AGENDA-NOTES-FILTERS-136: nueva pestaña Bitácora · Notas en Agenda comercial; las gestiones sin programación dejan de aparecer entre actividades y seguimientos. Tarjetas con notas, cliente, responsable, fecha y enlace a documentos.
