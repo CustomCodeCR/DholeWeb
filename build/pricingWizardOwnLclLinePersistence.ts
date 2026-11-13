@@ -351,13 +351,13 @@ function patchWizard(source: string) {
   code = replaceOne(
     code,
     'function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {',
-    'function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {\\n  if (isOwnLclMatrixContext()) return',
+    'function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {\n  if (isOwnLclMatrixContext()) return',
     'own LCL excludes extra CRC customs from generic forms',
   )
   code = replaceOne(
     code,
     'function syncDeclaredCargoInsuranceOnEdit() {',
-    'function syncDeclaredCargoInsuranceOnEdit() {\\n  if (isOwnLclMatrixContext()) return',
+    'function syncDeclaredCargoInsuranceOnEdit() {\n  if (isOwnLclMatrixContext()) return',
     'own LCL excludes auto insurance outside configured matrix',
   )
 
