@@ -1,3 +1,9 @@
+## [1.51.1] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-139: CFS de LCL propio se factura por CBM cobrable en selección, edición, navegación, restauración y recálculo, no por CBM físico.
+- Los cargos de LCL propio proceden de la matriz del consolidado; se conservan Manejos y precios editados al navegar sin agregar seguros o cargos automáticos del catálogo ajeno. Los cargos manuales explícitos se preservan. Coloader no se modifica.
+- Web 1.51.0 → 1.51.1; Pricing 1.18.0 → 1.18.1; ecosistema 1.51.1. CI y staging obligatorios antes de master; producción no autorizada.
+
 ## [1.51.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-BITACORA-AGREEMENT-TASKS-138: los acuerdos en Bitácora pueden convertirse selectivamente en tareas con vencimiento, avisos y responsable, sin programar la gestión original. El editor de registros no agendados muestra el formulario de bitácora, no el de recordatorios; se conserva texto, adjuntos y borradores.
