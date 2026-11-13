@@ -619,6 +619,7 @@ async function fetchAll(resource: string, from: string, to: string): Promise<{ i
   let total = 0
   for (let page = 1; page <= 10; page++) {
     const response = await crmList(resource, { from, to, page, pageSize: 100,
+      agendaOnly: resource === 'activities' ? 'true' : undefined,
       accountId: props.accountId || undefined,
       leadId: props.leadId || undefined,
       ownerId: !scopedRecord.value && isManagerCalendar.value && ownerFilter.value
@@ -739,7 +740,7 @@ watch([logFrom, logTo, logType], () => {
   if (props.view === 'log') void load()
 })
 watch(logPage, () => { if (props.view === 'log') void load() })
-watch(ownerFilter, () => { if (isManagerCalendar.value) void load() })
+watch(ownerFilter, () => { if (isManagerCalendar.value || (props.view === 'log' && canSeeAllLogOwners.value)) void load() })
 const historicalActivityDraft = computed(() =>
   creatingReminder.value && editor.value.type !== 'FOLLOWUP' &&
   Number.isFinite(new Date(editor.value.end).getTime()) &&
