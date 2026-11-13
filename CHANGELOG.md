@@ -1,3 +1,9 @@
+## [1.46.0] - 2026-11-12
+
+- MINOR DH-20261112-CRM-ACTIVITY-TYPES-125: agenda y editor CRM incluyen Seguimiento comercial, Llamada telefónica, WhatsApp, Recomendación y Oferta; CALL mantiene su código, y FOLLOWUP conserva recordatorios y seguimiento existentes.
+- Validación por catálogo Config y API CRM. Tipos consistentes en formularios, creación, edición y etiquetas del calendario; se preservan mapa de visitas, REST, SignalR y Outbox.
+- DholeWeb 1.45.0 → 1.46.0; DholeCRMService 1.25.3 → 1.26.0; DholeConfigService → 1.5.0; ecosistema 1.45.0 → 1.46.0. CI/staging pendientes; producción no autorizada.
+
 ## [1.45.0] - 2026-11-12
 
 - MINOR DH-20261112-PRICING-ROUTE-124: Pricing puede modificar exclusivamente POL, POE y POD desde el paso 5 de «Completar solicitud», mediante selectores de catálogos y guardado protegido por reserva activa. El Incoterm, carga, equipo, cliente y servicios de Ventas no son editables en este control.
