@@ -1,3 +1,8 @@
+## [1.52.0] - 2026-11-13
+
+- MINOR DH-20261113-CRM-BITACORA-DIRECT-TASKS-PARENT-141: los acuerdos con vencimiento futuro crean directamente recordatorios desde Bitácora sin seleccionar casillas ni quitar elementos de listas; fecha sin confirmar se mantiene como nota y la hora sugerida vencida de hoy se ajusta a la siguiente franja futura. Edición sincroniza borradores de tareas con acuerdos, sin botón intermedio.
+- Detalles de seguimientos enlazan a «Bitácora padre», mostrando su contexto y conservando permisos y REST. Web 1.51.2 → 1.52.0, CRM 1.30.0 → 1.31.0, DholeSystem/ecosistema 1.51.2 → 1.52.0. CI y staging obligatorios antes de producción.
+
 ## [1.51.2] - 2026-11-13
 
 - PATCH DH-20261113-PRICING-OWN-LCL-140: recuperar cotizaciones históricas LCL propias, incluida #56 (Shandong, China): restaurar CFS por CBM cobrable también en los detalles persistidos y eliminar los rubros ajenos a la matriz (Cargos en Origen, Recolecta genérica y Manejos de catálogo).
