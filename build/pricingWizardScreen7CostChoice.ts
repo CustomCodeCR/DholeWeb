@@ -180,9 +180,18 @@ function screen7OwnLclPolCode() {
   for (const [alias, code] of Object.entries(aliases)) {
     if (persisted.includes(alias)) return code
   }
-  // Never send Config's opaque POL-YYYY-NNN keys to the calculation API.
-  // Requiring a recognizable commercial POL is safer than a wrong quote.
-  throw new Error('No se pudo identificar el puerto comercial (POL) de LCL propio. Revise la ruta antes de recalcular.')
+  // Unknown Chinese commercial origins (e.g. Shandong, China) use the
+  // Shanghai pickup fallback. Do not substitute Shanghai as the customer's POL.
+  const commercialLabels = [
+    displayValue(selectedOrigin.value),
+    String(editingRate.value?.polName ?? ''),
+    String(selectedOrigin.value?.name ?? ''),
+  ].map((label) => String(label ?? '').trim())
+  const chinaLabel = commercialLabels.find((label) =>
+    /,\s*(?:china|cn|prc)\s*$/i.test(label) && !/^POL-\d{4}/i.test(label))
+  if (chinaLabel) return chinaLabel
+  // Opaque Config identifiers are never sufficient evidence of origin.
+  throw new Error('No se pudo identificar el POL comercial de LCL propio. Confirme el nombre y país del puerto.')
 }
 
 function screen7OwnLclQuoteLineType(name: string): CostDetailType {
@@ -213,7 +222,6 @@ function screen7OwnLclMatrixIdentity(line: RateLine) {
   return [
     normalizeCatalogValue(line.name),
     line.section,
-    line.chargeBasis,
   ].join('|')
 }
 
@@ -227,6 +235,9 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
   if (!consolidationId) {
     throw new Error('La tarifa no contiene un identificador de consolidado propio. No se modificaron sus líneas.')
   }
+  const savedShanghaiPickup = previous.find((line) =>
+    /LCL ORIGEN SIN TARIFA/i.test(String(line.notes ?? ''))
+      && /recolecta|pickup/i.test(normalizeCatalogValue(line.name)))
   const destinationCode = screen7OwnLclDestinationCode()
   if (!destinationCode) {
     throw new Error('No se pudo determinar el país de destino de la matriz LCL. Se conservaron los importes.')
@@ -259,11 +270,14 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
     incoterm: selectedIncotermCode.value || 'FOB',
     cargoLines,
     polCode: screen7OwnLclPolCode(),
+    useShanghaiPickupFallback: Boolean(savedShanghaiPickup)
+      || /,\s*(?:china|cn|prc)\s*$/i.test(screen7OwnLclPolCode()),
     salePerCbm: null,
     sets: 1,
     hbl: 1,
-    pickupCost: 0,
-    pickupSale: 0,
+    // The unlisted-origin pickup is user-priced; never reset it to zero.
+    pickupCost: number(savedShanghaiPickup?.costAmount),
+    pickupSale: number(savedShanghaiPickup?.saleAmount),
     discount: 0,
     commercialPlan: isMiamiLcl.value ? form.miamiCommercialPlan : null,
     cargoValue: Math.max(0, number(form.cargoValue)),
@@ -325,8 +339,13 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
       destinationTaxRate: 0,
     }
     const identity = screen7OwnLclMatrixIdentity(line)
-    const oldIndex = existingMatrix.findIndex((candidate, candidateIndex) =>
+    let oldIndex = existingMatrix.findIndex((candidate, candidateIndex) =>
       !used.has(candidateIndex) && screen7OwnLclMatrixIdentity(candidate) === identity)
+    if (oldIndex < 0 && isPickup) {
+      oldIndex = existingMatrix.findIndex((candidate, candidateIndex) =>
+        !used.has(candidateIndex) && /LCL ORIGEN SIN TARIFA/i.test(String(candidate.notes ?? ''))
+          && /recolecta|pickup/i.test(normalizeCatalogValue(candidate.name)))
+    }
     if (oldIndex >= 0) {
       used.add(oldIndex)
       const old = existingMatrix[oldIndex]
@@ -338,15 +357,9 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
     }
     return line
   })
-  // Matrix items are replaced in full. Preserve ad-hoc/historical details
-  // without a consolidation marker and prevent duplicate generated insurance.
-  const supplemental = previous.filter((line) => {
-    if (screen7OwnLclMatrixMarker(line)) return false
-    if (line.key === 'cargo-insurance:auto') {
-      return !fresh.some((item) => item.costDetailType === 'Insurance')
-    }
-    return true
-  })
+  // Own consolidations are authoritative: no inherited generic Cargo en
+  // Origen, Recolecta, Manejos or insurance lines from legacy rate snapshots.
+  const supplemental: RateLine[] = []
   return { fresh, next: [...fresh, ...supplemental], calculation }
 }
 
@@ -371,11 +384,7 @@ async function applyScreen7DatabaseCosts() {
     if (isOwnLclMatrixContext()) {
       // LCL propio uses its consolidated route matrix, never the generic
       // Pricing Costs catalog or the historical persisted detail snapshot.
-      // Own consolidation matrix remains authoritative for freight, while
-      // an independently selected CRC agency charge must use the current Cost master.
-      if (selectedCrcCustomsService.value) {
-        allCosts.value = await PricingService.selectCosts({ isActive: true })
-      }
+      // Only the consolidation matrix may supply costs, never the global Cost catalog.
       const { fresh, next, calculation } = await screen7RefreshOwnLclMatrix(previous)
       if (requestedContext !== pricingDraftLineContextKey()) {
         throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')

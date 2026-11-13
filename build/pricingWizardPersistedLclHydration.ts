@@ -127,6 +127,24 @@ async function hydratePersistedLclSource(rate: RateDto) {
   }
   if (!kind || !sourceId) return
 
+  if (kind === 'Own') {
+    // Historical quotations contain generic charges saved by earlier wizards.
+    // Only the consolidated matrix rows may be loaded or sent again.
+    const ownMatrixLine = (notes: unknown) =>
+      /LCL\s*PROPIO|Fuente LCL:\s*Propio|Consolidado(Id)?:/i.test(String(notes ?? ''))
+    rateLines.value = rateLines.value
+      .filter((line) => ownMatrixLine(line.notes))
+      .map((line) => ({
+        ...line,
+        chargeBasis: normalizeCatalogValue(line.name) === 'cfs'
+          ? 'PerChargeableCbm' : line.chargeBasis,
+        costId: null,
+        included: true,
+        optional: false,
+        manual: false,
+      }))
+  }
+
   lclSelectedSourceKey.value = \`\${kind}:\${sourceId}\`
   const billableCbm = lclRequestedCbm.value
   const profitAmount = Number(rate.totalUtilityAmount || 0)

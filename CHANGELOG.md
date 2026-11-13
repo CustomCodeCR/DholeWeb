@@ -1,3 +1,10 @@
+## [1.51.2] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-140: recuperar cotizaciones históricas LCL propias, incluida #56 (Shandong, China): restaurar CFS por CBM cobrable también en los detalles persistidos y eliminar los rubros ajenos a la matriz (Cargos en Origen, Recolecta genérica y Manejos de catálogo).
+- El recálculo explícito de Pantalla 7 acepta POL comerciales chinos sin tarifa directa usando la recolecta Shanghai con validación del país; conserva importes y detalle de la recolecta original, así como el ID del CFS al migrar de base, y cobra Manejos solo según la matriz LCL propia.
+- Al guardar se excluyen y marcan para eliminación los detalles históricos ajenos al consolidado, aun cuando la ruta no cambió. Incluida regresión para CFS, Manejos y recolecta 250/255; sin alterar tarifas coloader ni contratos REST/SignalR.
+- Web 1.51.1 → 1.51.2; Pricing permanece en 1.18.1; ecosistema 1.51.1 → 1.51.2. CI, staging y promoción coordinada obligatorios.
+
 ## [1.51.1] - 2026-11-13
 
 - PATCH DH-20261113-PRICING-OWN-LCL-139: CFS de LCL propio se factura por CBM cobrable en selección, edición, navegación, restauración y recálculo, no por CBM físico.
