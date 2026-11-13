@@ -1,3 +1,9 @@
+## [1.47.5] - 2026-11-13
+
+- PATCH DH-20261113-CRM-AGENDA-RETURN-131: «Volver al listado» desde el detalle de actividades CRM regresa a Agenda y seguimientos (`/crm/followups`) y no abre el listado legado de Actividades y visitas (`/crm/activities`).
+- Conserva retorno a la cuenta de origen, permisos CRM, borradores, API REST, SignalR y eventos existentes. Incluye prueba de regresión para navegación de actividades y otros detalles.
+- DholeWeb 1.47.4 → 1.47.5; DholeSystem/ecosistema 1.47.4 → 1.47.5. Servicios restantes sin modificaciones. CI y staging pendientes; producción no autorizada.
+
 ## [1.47.4] - 2026-11-13
 
 - PATCH DH-20261113-CRM-DRAFT-RECOVERY-130: el DhModal de recuperación de borradores CRM tiene prioridad visual sobre cualquier editor, incluidos Agenda y seguimientos; evita que la recuperación quede inaccesible detrás del formulario.
