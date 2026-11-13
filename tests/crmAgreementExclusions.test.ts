@@ -25,6 +25,18 @@ test('calendar only excludes submitted commitments, never the saved agreements',
   assert.match(source, /@click="removeAgreementDraft\(item\.key\)"/)
   assert.match(source, /@click="restoreAgreementDrafts"/)
   assert.match(source, /agreements: data\.agreements\.trim\(\) \|\| null/)
-  assert.match(source, /agreementCommitments: requiresSchedule \? agreementDrafts\.value\.map/)
+  assert.match(source, /agreementCommitments: taskDrafts\\.map/)
   assert.match(source, /omittedAgreementKeys\.value = \[\]/)
+})
+
+
+test('bitácora only schedules explicit agreement selections', () => {
+  const source = readFileSync('src/modules/crm/components/CrmSalesCalendar.vue', 'utf8')
+  assert.match(source, /const logTaskKeys = ref<string\[\]>\(\[\]\)/)
+  assert.match(source, /selectedLogTaskKeys: logTaskKeys\.value/)
+  assert.match(source, /logTaskKeys\.value\.includes\(item\.key\)/)
+  assert.match(source, /agreementCommitments: taskDrafts\.map/)
+  assert.match(source, /scheduledStartAt: requiresSchedule \? start\.toISOString\(\) : null/)
+  assert.match(source, /reminderLeadMinutes: requiresSchedule \|\| taskDrafts\.length/)
+  assert.match(source, /Cada tarea seleccionada necesita un nombre y una fecha futura/)
 })
