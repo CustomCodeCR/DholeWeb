@@ -1,3 +1,9 @@
+## [1.49.0] - 2026-11-13
+
+- MINOR DH-20261113-CRM-AGENDA-NOTES-FILTERS-136: agenda permite buscar por cliente/prospecto y vendedor antes de paginar; las actividades no programadas salen del listado y aparecen en Bitácora · Notas, una tercera vista con tarjetas de notas, contenido y enlaces a documentos.
+- Bitácora conserva filtro por fecha, tipo, responsable y añade búsqueda de cliente/prospecto con selección autorizada y filtrado en servidor. Mantiene ACL, REST, SignalR, Outbox y creación de recordatorios opcionales.
+- Versiones: DholeWeb 1.48.4 → 1.49.0; DholeCRMService 1.28.3 → 1.28.4 (sin cambios de contrato); DholeSystem / ecosistema 1.48.4 → 1.49.0. CI/staging y aprobación de producción pendientes.
+
 ## [1.48.4] - 2026-11-13
 
 - PATCH DH-20261113-PRODUCTION-DEPLOY-SKIP-135: elimina filtros de mensajes [no-prod] del job de producción para que los pushes a master ejecuten el build, comprobación del bundle y despliegue de Web; mantiene validación de salud. Sin flags de activación.
