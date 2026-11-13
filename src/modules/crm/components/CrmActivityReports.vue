@@ -94,9 +94,12 @@ async function loadLabels(items: Entry[], requestGeneration: number) {
     Object.assign(values.owners, result.value.owners)
   }
   labels.value = values
-  sellerOptions.value = (report.value?.sellers ?? []).map(seller => ({
+  const current = (report.value?.sellers ?? []).map(seller => ({
     value: seller.ownerUserId, label: sellerName(seller.ownerUserId),
-  })).sort((a, b) => a.label.localeCompare(b.label, 'es'))
+  }))
+  const choices = ownerId.value ? [...sellerOptions.value, ...current] : current
+  sellerOptions.value = [...new Map(choices.map(choice => [choice.value, choice])).values()]
+    .sort((a, b) => a.label.localeCompare(b.label, 'es'))
 }
 
 async function load() {
