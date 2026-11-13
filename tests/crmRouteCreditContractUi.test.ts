@@ -93,3 +93,24 @@ test('Credit request visibly verifies API write and shows backend error', () => 
   assert.ok(credit.includes('if (!created?.id)'))
   assert.ok(credit.includes('proposalFailure(cause)'))
 })
+
+
+test('CRM agenda and editor support catalog-backed commercial activity types', () => {
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  const editor = read('src/modules/crm/components/CrmActivityFullEditor.vue')
+  const forms = read('src/modules/crm/model/crmForms.ts')
+  for (const [code, label] of [
+    ['CALL', 'Llamada telefónica'],
+    ['COMMERCIAL_FOLLOWUP', 'Seguimiento comercial'],
+    ['WHATSAPP', 'WhatsApp'],
+    ['RECOMMENDATION', 'Recomendación'],
+    ['OFFER', 'Oferta'],
+  ]) {
+    assert.ok(calendar.includes(`{ value: '${code}', label: '${label}' }`), code)
+    assert.ok(editor.includes(`<option value="${code}">${label}</option>`), code)
+    assert.ok(forms.includes(`{ value: '${code}', label: '${label}' }`), code)
+  }
+  assert.ok(calendar.includes("code !== 'FOLLOWUP'"))
+  assert.ok(calendar.includes("if (data.type === 'FOLLOWUP')"))
+  assert.ok(calendar.includes("if (data.type !== 'FOLLOWUP'"))
+})

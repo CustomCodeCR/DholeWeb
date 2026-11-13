@@ -283,9 +283,13 @@ async function searchSubjects() {
 }
 const eventTypes = [
   { value: 'VISIT', label: 'Visita' },
-  { value: 'CALL', label: 'Llamada' },
+  { value: 'CALL', label: 'Llamada telefónica' },
   { value: 'MEETING', label: 'Reunión / Teams' },
   { value: 'EMAIL', label: 'Correo electrónico' },
+  { value: 'COMMERCIAL_FOLLOWUP', label: 'Seguimiento comercial' },
+  { value: 'WHATSAPP', label: 'WhatsApp' },
+  { value: 'RECOMMENDATION', label: 'Recomendación' },
+  { value: 'OFFER', label: 'Oferta' },
   { value: 'FOLLOWUP', label: 'Seguimiento' },
   { value: 'OTHER', label: 'Tarea' },
 ] as const
@@ -308,7 +312,7 @@ async function loadConfiguredActivityTypes() {
       for (const item of items) {
         if (item.isActive === false) continue
         // CRM checks the exact Config item CODE with GetCatalogItemByCode,
-        // and CommercialRules only accepts these five canonical codes.
+        // and CommercialRules only accepts the supported canonical codes.
         const code = String(item.code ?? '').trim().toUpperCase()
         const known = eventTypes.find(type => type.value === code && code !== 'FOLLOWUP')
         if (known) values.push({ value: code, label: known.label })
@@ -320,7 +324,7 @@ async function loadConfiguredActivityTypes() {
       }
     }
     if (!configuredActivityTypes.value.length) {
-      activityTypesError.value = 'No hay tipos de actividad disponibles en Config. El administrador debe configurar Visita, Llamada y Reunión en el catálogo de tipos de actividad para poder registrarlos.'
+      activityTypesError.value = 'No hay tipos de actividad disponibles en Config. El administrador debe configurar Visita, Llamada telefónica y Reunión en el catálogo de tipos de actividad para poder registrarlos.'
       if (can('crm.followup.manage') || can('crm.task.manage')) editor.value.type = 'FOLLOWUP'
     } else if (!configuredActivityTypes.value.some(type => type.value === editor.value.type)) {
       editor.value.type = configuredActivityTypes.value[0]?.value ?? 'FOLLOWUP'
