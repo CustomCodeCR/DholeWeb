@@ -18,7 +18,7 @@ test('completed historical activity sends original end as occurredAt', () => {
 
 test('past activities are explained in the form; future commitments keep validation', () => {
   assert.match(view, /historicalActivityDraft/)
-  assert.match(view, /Cada tarea seleccionada necesita un nombre y una fecha futura/)
+  assert.match(view, /Las tareas con vencimiento futuro necesitan un nombre/)
   assert.match(view, /commitmentDue\.getTime\(\) <= end\.getTime\(\)/)
 })
 
