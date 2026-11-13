@@ -40,6 +40,7 @@ interface CalendarEvent {
   reminderChannelStrategy: string
   repeatEveryDays: number | null
   reminderRepeatMinutes: number | null
+  scheduled: boolean
 }
 const router = useRouter()
 const auth = useAuthStore()
@@ -193,7 +194,7 @@ const editor = ref({
 })
 const draftHadAttachments = ref(false)
 function captureCalendarDraft() {
-  return { fields: editor.value, contacts: selectedContactIds.value,
+  return { fields: editor.value, scheduleReminder: reminderMode.value, contacts: selectedContactIds.value,
     agreements: agreementDrafts.value, omittedAgreements: omittedAgreementKeys.value,
     pendingRecord: pendingDocumentRecord.value, hadAttachments: attachedDocuments.value.length > 0 }
 }
@@ -204,6 +205,7 @@ const calendarDraft = useCrmDraftAutosave({
   capture: captureCalendarDraft,
   apply: (snapshot: ReturnType<typeof captureCalendarDraft>) => {
     editor.value = { ...editor.value, ...snapshot.fields }
+    reminderMode.value = Boolean(snapshot.scheduleReminder)
     selectedContactIds.value = snapshot.contacts ?? []
     agreementDrafts.value = snapshot.agreements ?? []
     omittedAgreementKeys.value = snapshot.omittedAgreements ?? []
@@ -240,12 +242,17 @@ function restoreAgreementDrafts() {
 }
 
 const userEditedStart = ref(false)
+const reminderMode = ref(false)
+const creatingReminder = computed(() => reminderMode.value || editor.value.type === 'FOLLOWUP')
 const defaultSubjects: Record<string,string> = {
   VISIT: 'Visita comercial', CALL: 'Llamada comercial',
   MEETING: 'Reunión comercial', EMAIL: 'Correo comercial',
-  FOLLOWUP: 'Seguimiento comercial', OTHER: 'Tarea comercial'
+  FOLLOWUP: 'Seguimiento comercial', OTHER: 'Tarea comercial',
+  COMMERCIAL_FOLLOWUP: 'Seguimiento comercial', WHATSAPP: 'WhatsApp',
+  RECOMMENDATION: 'Recomendación', OFFER: 'Oferta'
 }
 watch(() => editor.value.type, (next,previous) => {
+  if (next === 'FOLLOWUP') reminderMode.value = true
   if (!editor.value.subject.trim() ||
       editor.value.subject === defaultSubjects[previous]) {
     editor.value.subject = defaultSubjects[next] ?? 'Actividad comercial'
@@ -470,16 +477,24 @@ function navigate(step: number) {
   else if (mode.value === 'week') selected.value = dayOffset(selected.value, 7 * step)
   else selected.value = new Date(selected.value.getFullYear(), selected.value.getMonth() + step, 1)
 }
-function openCreation(date?: Date) {
+function setReminderMode(enabled: boolean) {
+  if (saving.value || pendingDocumentRecord.value) return
+  reminderMode.value = enabled
+  if (!enabled && editor.value.type === 'FOLLOWUP')
+    editor.value.type = configuredActivityTypes.value[0]?.value ?? 'COMMERCIAL_FOLLOWUP'
+}
+function openCreation(date?: Date, withReminder = false) {
   calendarDraft.stop()
   draftHadAttachments.value = false
+  reminderMode.value = Boolean(date || withReminder)
   const now = new Date()
   const when = date
     ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), now.getHours(), now.getMinutes())
     : now
   when.setSeconds(0, 0)
   editor.value = {
-    type: 'VISIT', subject: 'Visita comercial', accountId: props.accountId, leadId: props.leadId, contactId: '',
+    type: reminderMode.value ? 'VISIT' : 'COMMERCIAL_FOLLOWUP',
+    subject: reminderMode.value ? 'Visita comercial' : 'Seguimiento comercial', accountId: props.accountId, leadId: props.leadId, contactId: '',
     ownerId: String(auth.userId ?? ''), start: localInput(when),
     end: localInput(new Date(when.getTime() + 60 * 60000)),
     location: '', locationLatitude: null, locationLongitude: null,
@@ -641,6 +656,7 @@ async function load() {
         reminderChannelStrategy: String(item.reminderChannelStrategy ?? 'BOTH'),
         repeatEveryDays: typeof item.repeatEveryDays === 'number' ? item.repeatEveryDays : null,
         reminderRepeatMinutes: typeof item.reminderRepeatMinutes === 'number' ? item.reminderRepeatMinutes : null,
+        scheduled: source === 'followup' || Boolean(item.scheduledStartAt),
       })
     }
   }
@@ -680,12 +696,13 @@ async function loadCalendarLabels(events: CalendarEvent[], generation: number) {
 watch([rangeKey, () => props.accountId, () => props.leadId], () => void load(), { immediate: true })
 watch(ownerFilter, () => { if (isManagerCalendar.value) void load() })
 const historicalActivityDraft = computed(() =>
-  editor.value.type !== 'FOLLOWUP' &&
+  creatingReminder.value && editor.value.type !== 'FOLLOWUP' &&
   Number.isFinite(new Date(editor.value.end).getTime()) &&
   new Date(editor.value.end).getTime() <= Date.now()
 )
 async function create() {
   const data = editor.value
+  const requiresSchedule = creatingReminder.value
   if (saving.value) return
   if (canAssignOtherSellers.value
     ? !eligibleSeller(data.ownerId)
@@ -716,24 +733,24 @@ async function create() {
     data.end = localInput(end)
     adjustedStart = true
   }
-  const historicalActivity = data.type !== 'FOLLOWUP' &&
+  const historicalActivity = requiresSchedule && data.type !== 'FOLLOWUP' &&
     Number.isFinite(end.getTime()) && end.getTime() <= Date.now()
   const commitmentDue = data.nextCommitment.trim() ? new Date(data.commitmentDue) : null
-  if (data.type !== 'FOLLOWUP' && agreementDrafts.value.some(item =>
+  if (requiresSchedule && data.type !== 'FOLLOWUP' && agreementDrafts.value.some(item =>
       !item.title.trim() || !item.dueLocal ||
       !Number.isFinite(new Date(item.dueLocal).getTime()) ||
       new Date(item.dueLocal).getTime() < Date.now())) {
     error.value = 'Revisá cada acuerdo y asignale una fecha futura válida antes de guardar.'
     return
   }
-  if (data.type !== 'FOLLOWUP' && data.nextCommitment.trim() &&
+  if (requiresSchedule && data.type !== 'FOLLOWUP' && data.nextCommitment.trim() &&
       (!commitmentDue || !Number.isFinite(commitmentDue.getTime()) ||
        commitmentDue.getTime() <= end.getTime())) {
     error.value = 'Indicá una fecha límite posterior a la actividad para el compromiso.'; return
   }
-  if (!Number.isFinite(start.getTime()) ||
+  if (requiresSchedule && (!Number.isFinite(start.getTime()) ||
     (data.type === 'FOLLOWUP' && start.getTime() < Date.now() - 60000) ||
-    (data.type !== 'FOLLOWUP' && (!Number.isFinite(end.getTime()) || end <= start))) {
+    (data.type !== 'FOLLOWUP' && (!Number.isFinite(end.getTime()) || end <= start)))) {
     error.value = data.type === 'FOLLOWUP'
       ? 'El seguimiento necesita una fecha futura válida.'
       : 'Ingresá fechas válidas: la finalización debe ser posterior al inicio.'; return
@@ -744,7 +761,8 @@ async function create() {
     if (!pendingDocumentRecord.value) {
     const common = {
       accountId: data.accountId || null, leadId: data.leadId || null, opportunityId: null,
-      reminderLeadMinutes: data.reminderMinutes, reminderChannelStrategy: 'BOTH',
+      reminderLeadMinutes: requiresSchedule ? data.reminderMinutes : null,
+      reminderChannelStrategy: requiresSchedule ? 'BOTH' : null,
     }
     if (data.type === 'FOLLOWUP') {
       const createdFollowup = await crmRequest<CrmRow>(crmPath('followups'), 'POST', {
@@ -755,10 +773,12 @@ async function create() {
     } else {
       const createdActivity = await crmRequest<CrmRow>(crmPath('activities'), 'POST', {
         ...common, contactId: selectedContactIds.value[0] || null, ownerUserId: data.ownerId || auth.userId,
-        type: data.type, subject: data.subject.trim(), scheduledStartAt: start.toISOString(),
-        scheduledEndAt: end.toISOString(),
-        occurredAt: historicalActivity ? end.toISOString() : null,
-        repeatEveryDays: data.repeatEveryDays, reminderRepeatMinutes: data.reminderRepeatMinutes,
+        type: data.type, subject: data.subject.trim(),
+        scheduledStartAt: requiresSchedule ? start.toISOString() : null,
+        scheduledEndAt: requiresSchedule ? end.toISOString() : null,
+        occurredAt: !requiresSchedule ? new Date().toISOString() : historicalActivity ? end.toISOString() : null,
+        repeatEveryDays: requiresSchedule ? data.repeatEveryDays : null,
+        reminderRepeatMinutes: requiresSchedule ? data.reminderRepeatMinutes : null,
         locationText: data.location.trim() || null,
         locationLatitude: data.type === 'VISIT' ? data.locationLatitude : null,
         locationLongitude: data.type === 'VISIT' ? data.locationLongitude : null,
@@ -768,11 +788,11 @@ async function create() {
         minutes: data.minutes.trim() || null,
         participantContactIds: selectedContactIds.value,
         agreements: data.agreements.trim() || null,
-        nextCommitment: data.nextCommitment.trim() || null,
-        commitmentDueAt: commitmentDue?.toISOString() ?? null,
-        agreementCommitments: agreementDrafts.value.map(item => ({
+        nextCommitment: requiresSchedule ? data.nextCommitment.trim() || null : null,
+        commitmentDueAt: requiresSchedule ? commitmentDue?.toISOString() ?? null : null,
+        agreementCommitments: requiresSchedule ? agreementDrafts.value.map(item => ({
           subject: item.title.trim(), dueAt: new Date(item.dueLocal).toISOString(),
-        })),
+        })) : [],
       })
       pendingDocumentRecord.value = { kind: 'activity', id: String(createdActivity.id) }
     }
@@ -792,13 +812,15 @@ async function create() {
     calendarDraft.commit()
     pendingDocumentRecord.value = null
     creationOpen.value = false
-    selected.value = start
-    notice.value = (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
-      (historicalActivity
-        ? 'Actividad histórica registrada como completada, con su fecha original y sin avisos retroactivos. '
-        : 'Actividad guardada; los avisos aplicables fueron programados. ') +
-      'Se registraron ' + (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
-      ' compromisos con fecha futura.'
+    selected.value = requiresSchedule ? start : new Date()
+    notice.value = !requiresSchedule
+      ? 'Acción registrada en bitácora como completada, sin fecha programada ni recordatorios.'
+      : (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
+        (historicalActivity
+          ? 'Actividad histórica registrada como completada, con su fecha original y sin avisos retroactivos. '
+          : 'Actividad guardada; los avisos aplicables fueron programados. ') +
+        'Se registraron ' + (agreementDrafts.value.length + (data.nextCommitment.trim() ? 1 : 0)) +
+        ' compromisos con fecha futura.'
     emit('changed')
     await load()
   } catch (cause) { error.value = crmError(cause) }
@@ -911,8 +933,11 @@ function openEvent(item: CalendarEvent) {
         <button type="button" class="calendar-btn" aria-label="Período anterior" @click="navigate(-1)"><ChevronLeft class="h-4 w-4" /></button>
         <button type="button" class="calendar-btn" aria-label="Período siguiente" @click="navigate(1)"><ChevronRight class="h-4 w-4" /></button>
         <button type="button" class="calendar-btn" :disabled="pending" @click="load"><RefreshCw class="h-4 w-4" /></button>
+        <button v-if="can('crm.activity.create')" type="button" class="calendar-btn"
+          @click="openCreation()"><Plus class="h-4 w-4" /> Nueva actividad</button>
         <button v-if="can('crm.activity.create') || can('crm.followup.manage') || can('crm.task.manage')"
-          type="button" class="calendar-btn calendar-primary" @click="openCreation()"><Plus class="h-4 w-4" /> Nueva actividad</button>
+          type="button" class="calendar-btn calendar-primary"
+          @click="openCreation(undefined, true)"><Clock3 class="h-4 w-4" /> Crear recordatorio</button>
       </div>
     </div>
     <div v-if="isManagerCalendar" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
@@ -1084,12 +1109,13 @@ function openEvent(item: CalendarEvent) {
         <div><h3 class="font-extrabold">{{ active.subject }}</h3>
           <p class="mt-1 text-sm text-[var(--dh-text-muted)]">{{ labelFor(active) }} · {{ statusLabel(effectiveStatus(active)) }} · {{ active.at.toLocaleString('es-CR') }}</p>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cliente: {{ clientName(active) }} · Responsable: {{ ownerName(active) }}</p>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+          <p v-if="active.scheduled" class="mt-1 text-xs text-[var(--dh-text-muted)]">
             Recordatorios: 24 horas y 1 hora antes, {{ active.reminderLeadMinutes ?? 60 }} minutos antes y al inicio.
             {{ active.reminderRepeatMinutes ? reminderRepeatLabel(active.reminderRepeatMinutes) + ' mientras esté pendiente.' : 'Cada 24 horas si vence.' }}
             Sistema y correo electrónico.
           </p>
-          <p v-if="active.source==='activity'" class="mt-1 text-xs text-[var(--dh-text-muted)]">
+          <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Registro en bitácora · Sin recordatorios.</p>
+          <p v-if="active.source==='activity' && active.scheduled" class="mt-1 text-xs text-[var(--dh-text-muted)]">
             Repetición de actividad: {{ activityRepeatLabel(active.repeatEveryDays) }}.
           </p>
         </div>
@@ -1111,7 +1137,16 @@ function openEvent(item: CalendarEvent) {
     </DhModal>
     <DhModal :open="creationOpen" title="Nueva actividad comercial" size="lg" @close="creationOpen=false">
       <div class="space-y-4">
-      <p class="text-xs text-[var(--dh-text-muted)]">Podés registrar actividades con fecha pasada, actual o futura. Las actividades ya finalizadas se guardan como completadas y no generan avisos retroactivos. Las futuras mantienen sus recordatorios.</p>
+      <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] p-2">
+        <button type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': !creatingReminder }"
+          :disabled="saving || Boolean(pendingDocumentRecord) || !can('crm.activity.create')"
+          @click="setReminderMode(false)">Registrar en bitácora</button>
+        <button type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': creatingReminder }"
+          :disabled="saving || Boolean(pendingDocumentRecord)"
+          @click="setReminderMode(true)">Crear recordatorio</button>
+      </div>
+      <p v-if="!creatingReminder" class="text-xs text-[var(--dh-text-muted)]">Registrá una cotización enviada, una solicitud del cliente, la entrega de documentos u otra gestión. Se guardará completada con fecha automática, sin agendar ni enviar avisos.</p>
+      <p v-else class="text-xs text-[var(--dh-text-muted)]">Definí cuándo realizar la actividad y sus recordatorios. Las actividades pasadas se guardan completadas sin avisos retroactivos.</p>
       <div v-if="activityTypesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando tipos de actividades en Config…</div>
       <div v-if="activityTypesError" role="alert" class="rounded-xl border border-amber-500/40 p-3 text-xs text-amber-600">
         {{ activityTypesError }}
@@ -1177,12 +1212,12 @@ function openEvent(item: CalendarEvent) {
         <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando responsables disponibles…</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
         <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay responsables activos con los scopes requeridos.</p>
-        <label class="calendar-label">Inicio
+        <label v-if="creatingReminder" class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
         </label>
         <p v-if="historicalActivityDraft" class="sm:col-span-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs">Esta actividad ya ocurrió: se guardará como completada, conservando la fecha ingresada y sin crear recordatorios atrasados.</p>
-        <label v-if="editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
+        <label v-if="creatingReminder && editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
           <input v-model="editor.end" type="datetime-local" class="calendar-input" required />
         </label>
         <div v-if="editor.type === 'VISIT'" class="sm:col-span-2">
@@ -1193,16 +1228,16 @@ function openEvent(item: CalendarEvent) {
         <label v-else-if="editor.type!=='FOLLOWUP'" class="calendar-label">Lugar o enlace
           <input v-model="editor.location" class="calendar-input" maxlength="500" placeholder="Oficina, cliente o videollamada" />
         </label>
-        <label class="calendar-label">Recordar
+        <label v-if="creatingReminder" class="calendar-label">Recordar
           <select v-model.number="editor.reminderMinutes" class="calendar-input">
             <option v-for="item in reminderOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <div class="calendar-label">
+        <div v-if="creatingReminder" class="calendar-label">
           Canal obligatorio
           <p class="calendar-input flex items-center text-sm">Sistema y correo electrónico</p>
         </div>
-        <div v-if="editor.type!=='FOLLOWUP'"
+        <div v-if="creatingReminder && editor.type!=='FOLLOWUP'"
           class="sm:col-span-2 grid gap-4 rounded-xl border border-[var(--dh-border)] p-3 sm:grid-cols-2">
           <label class="calendar-label">¿Cada cuánto repetir esta actividad?
             <select v-model.number="editor.repeatEveryDays" class="calendar-input">
@@ -1228,7 +1263,7 @@ function openEvent(item: CalendarEvent) {
             search-placeholder="Buscar contactos de esta cuenta..."
             empty-text="No hay contactos disponibles en esta cuenta." />
           <p v-else-if="editor.accountId" class="text-xs text-amber-600">Necesitás permiso de lectura de contactos para seleccionar participantes.</p>
-          <label class="calendar-label sm:col-span-2">Minuta de la actividad
+          <label class="calendar-label sm:col-span-2">{{ creatingReminder ? 'Minuta de la actividad' : 'Detalle de la gestión / bitácora' }}
             <textarea v-model="editor.minutes" rows="9" maxlength="20000"
               class="calendar-input min-h-48 resize-y"
               placeholder="Escribí la minuta completa: asistentes, temas tratados, decisiones y próximos pasos." />
@@ -1236,7 +1271,7 @@ function openEvent(item: CalendarEvent) {
           <label class="calendar-label sm:col-span-2">Acuerdos alcanzados
             <textarea v-model.trim="editor.agreements" class="calendar-input min-h-24" maxlength="6000" placeholder="Resumen de acuerdos de la llamada, visita, correo o reunión" />
           </label>
-          <div v-if="agreementDrafts.length" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] p-3">
+          <div v-if="creatingReminder && agreementDrafts.length" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] p-3">
             <p class="text-sm font-bold">Compromisos detectados en los acuerdos ({{ agreementDrafts.length }})</p>
             <p class="mb-3 text-xs text-[var(--dh-text-muted)]">
               Revisá cada compromiso antes de guardar. Cuando no se especificó hora, se propone 09:00, editable.
@@ -1264,17 +1299,17 @@ function openEvent(item: CalendarEvent) {
               </p>
             </div>
           </div>
-          <div v-if="omittedAgreementKeys.length" class="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+          <div v-if="creatingReminder && omittedAgreementKeys.length" class="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
             <span>Los compromisos quitados no se programarán. El texto se conserva en «Acuerdos alcanzados».</span>
             <button type="button" class="font-semibold underline" @click="restoreAgreementDrafts">Restaurar compromisos</button>
           </div>
-          <label class="calendar-label sm:col-span-2">Próximo compromiso
+          <label v-if="creatingReminder" class="calendar-label sm:col-span-2">Próximo compromiso
             <input v-model.trim="editor.nextCommitment" class="calendar-input" maxlength="250" placeholder="Ej. Enviar propuesta y confirmar recepción" />
           </label>
-          <label v-if="editor.nextCommitment" class="calendar-label sm:col-span-2">Fecha límite del compromiso
+          <label v-if="creatingReminder && editor.nextCommitment" class="calendar-label sm:col-span-2">Fecha límite del compromiso
             <input v-model="editor.commitmentDue" type="datetime-local" class="calendar-input" required />
           </label>
-          <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
+          <p v-if="creatingReminder" class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
             Cada acuerdo con fecha confirmada se registra por separado en el calendario del cliente y del vendedor.
             El campo «Próximo compromiso» permite agregar una tarea adicional, independiente de los acuerdos.
             Los pendientes vencidos activan recordatorios por sistema y correo y su escalamiento a jmesen.
@@ -1287,7 +1322,7 @@ function openEvent(item: CalendarEvent) {
           <p v-if="!can('storage.files.create')" class="text-xs text-amber-600">Necesitás storage.files.create para adjuntar.</p>
           <p v-if="pendingDocumentRecord" class="text-xs text-amber-600">El registro ya está guardado; reintentá para adjuntar los archivos pendientes sin duplicarlo.</p>
         </div>
-        <p class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
+        <p v-if="creatingReminder" class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
           Los avisos de actividades futuras se activan al guardar. Si ya pasó la hora del recordatorio anticipado,
           se enviará al procesarse la actividad guardada, siempre que el inicio no haya vencido.
         </p>
@@ -1300,7 +1335,7 @@ function openEvent(item: CalendarEvent) {
             <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
             <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary"
               :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
-              {{ saving ? 'Guardando…' : historicalActivityDraft ? 'Registrar actividad realizada' : 'Guardar actividad y activar avisos' }}
+              {{ saving ? 'Guardando…' : !creatingReminder ? 'Guardar en bitácora' : historicalActivityDraft ? 'Registrar actividad realizada' : 'Guardar actividad y activar avisos' }}
             </button>
           </div>
         </div>
