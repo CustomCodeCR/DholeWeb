@@ -2893,7 +2893,7 @@ function isFlatPickupLine(line: Pick<RateLine, 'name'>) {
 function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {
   // An own maritime LCL consolidation bills its international freight by
   // chargeable CBM. Old air-to-maritime edits can retain PerKg on that row.
-  // Do not rewrite CFS (physical CBM), Miami (CFT) or other services.
+  // Preserve CFS (chargeable CBM), Miami (CFT), and other service bases.
   if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
     && line.costDetailType === 'Freight'
     && ['PerKg', 'PerLb', 'Per100Kg', 'PerTon'].includes(line.chargeBasis)
