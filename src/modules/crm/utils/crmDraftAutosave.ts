@@ -118,6 +118,9 @@ export function useCrmDraftAutosave<T>(options: CrmDraftOptions<T>) {
 
       if (restored && JSON.stringify(restored.data) !== baseline) {
         preserveStoredDraft = true
+        // Keep crash-safe persistence active while the recovery dialog is pending.
+        // Until the user changes anything, persist() preserves the older draft.
+        active = true
         const promptKey = currentKey
         const generation = recoveryGeneration
         const recovery = requestCrmDraftRecovery(restored.savedAt)
