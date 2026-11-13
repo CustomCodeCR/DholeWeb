@@ -296,7 +296,7 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
     const volumeBased = sourceBasis.includes('cbm') || sourceBasis.includes('cft')
     const quantity = Math.max(0, number(item.quantity))
     const collapseFixed = !volumeBased && quantity > 1
-    const basis = normalized === 'cfs' ? 'PerCbm' : screen7OwnLclQuoteLineBasis(item.chargeBasis)
+    const basis = normalized === 'cfs' ? 'PerChargeableCbm' : screen7OwnLclQuoteLineBasis(item.chargeBasis)
     const section: RateSection = isPickup ? 'pickup_origin'
       : sectionForDetail(type, item.name)
     const line: RateLine = {
