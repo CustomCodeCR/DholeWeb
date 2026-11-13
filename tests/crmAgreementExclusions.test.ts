@@ -25,6 +25,6 @@ test('calendar only excludes submitted commitments, never the saved agreements',
   assert.match(source, /@click="removeAgreementDraft\(item\.key\)"/)
   assert.match(source, /@click="restoreAgreementDrafts"/)
   assert.match(source, /agreements: data\.agreements\.trim\(\) \|\| null/)
-  assert.match(source, /agreementCommitments: agreementDrafts\.value\.map/)
+  assert.match(source, /agreementCommitments: requiresSchedule \? agreementDrafts\.value\.map/)
   assert.match(source, /omittedAgreementKeys\.value = \[\]/)
 })

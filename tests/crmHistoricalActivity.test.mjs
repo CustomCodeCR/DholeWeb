@@ -11,8 +11,8 @@ test('backdated activities are not automatically moved forward', () => {
 })
 
 test('completed historical activity sends original end as occurredAt', () => {
-  assert.match(view, /const historicalActivity = data\.type !== 'FOLLOWUP'/)
-  assert.match(view, /occurredAt: historicalActivity \? end\.toISOString\(\) : null/)
+  assert.match(view, /const historicalActivity = requiresSchedule && data\.type !== 'FOLLOWUP'/)
+  assert.match(view, /occurredAt: !requiresSchedule \? new Date\(\)\.toISOString\(\) : historicalActivity \? end\.toISOString\(\) : null/)
   assert.match(view, /no generar|sin avisos retroactivos/i)
 })
 
@@ -20,4 +20,16 @@ test('past activities are explained in the form; future commitments keep validat
   assert.match(view, /historicalActivityDraft/)
   assert.match(view, /'Revisá cada acuerdo y asignale una fecha futura válida/)
   assert.match(view, /commitmentDue\.getTime\(\) <= end\.getTime\(\)/)
+})
+
+test('bitácora completes entries without scheduling or reminders', () => {
+  assert.match(view, /const creatingReminder = computed/)
+  assert.match(view, /setReminderMode\(false\)/)
+  assert.match(view, /Crear recordatorio/)
+  assert.match(view, /v-if="creatingReminder" class="calendar-label">Inicio/)
+  assert.match(view, /scheduledStartAt: requiresSchedule \? start\.toISOString\(\) : null/)
+  assert.match(view, /scheduledEndAt: requiresSchedule \? end\.toISOString\(\) : null/)
+  assert.match(view, /reminderLeadMinutes: requiresSchedule \? data\.reminderMinutes : null/)
+  assert.match(view, /agreementCommitments: requiresSchedule \? agreementDrafts\.value/)
+  assert.match(view, /Registro en bitácora · Sin recordatorios/)
 })
