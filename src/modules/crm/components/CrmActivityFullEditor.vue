@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { DhButton } from '@/shared/components/atoms'
 import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
+import { crmAgreementDrafts } from '../model/crmAgreementParser'
 import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc, type CrmRow } from '../services/crmApi'
 
@@ -17,6 +18,9 @@ const props = defineProps<{
   canManage: boolean
 }>()
 const emit = defineEmits<{ saved: [] }>()
+// Unscheduled completed activities are historical log entries, not appointments.
+const isBitacora = computed(() => !props.activity.scheduledStartAt &&
+  !props.activity.scheduledEndAt && String(props.activity.status ?? '') === 'Completed')
 const editing = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -96,6 +100,23 @@ function addAgreement() {
 function removeNewNote(index: number) { noteDrafts.value.splice(index, 1) }
 function removeNewAgreement(index: number) { agreementDrafts.value.splice(index, 1) }
 
+function tasksFromSavedAgreements() {
+  const excerpts = noteDrafts.value.map(note => {
+    const match = note.noteText.match(/(?:^|\n)\s*Acuerdos:\s*([\s\S]*?)(?=\n\s*Próximo compromiso:|$)/i)
+    return match?.[1]?.trim() ?? ''
+  }).filter(Boolean)
+  const suggestions = crmAgreementDrafts(excerpts.join('\n'))
+  let created = 0
+  for (const suggestion of suggestions) {
+    const key = suggestion.title.trim().toLocaleLowerCase('es')
+    if (agreementDrafts.value.some(row => !row.remove && row.subject.trim().toLocaleLowerCase('es') === key)) continue
+    agreementDrafts.value.push({ subject: suggestion.title, dueLocal: suggestion.dueLocal,
+      completed: false, remove: false })
+    created++
+  }
+  error.value = created ? '' : 'No se encontraron acuerdos nuevos. Podés agregar una tarea manualmente.'
+}
+
 async function save() {
   if (!props.canManage || saving.value) return
   error.value = ''
@@ -133,12 +154,13 @@ async function save() {
         locationLatitude: form.type === 'VISIT' ? form.locationLatitude : null,
         locationLongitude: form.type === 'VISIT' ? form.locationLongitude : null,
         updateVisitCoordinates: true,
-        scheduledStartAt: toUtc(form.scheduledStartAt),
-        scheduledEndAt: toUtc(form.scheduledEndAt),
-        reminderLeadMinutes: Number(form.reminderLeadMinutes),
-        reminderChannelStrategy: form.reminderChannelStrategy,
-        repeatEveryDays: Number(form.repeatEveryDays),
-        reminderRepeatMinutes: Number(form.reminderRepeatMinutes),
+        scheduledStartAt: isBitacora.value ? null : toUtc(form.scheduledStartAt),
+        scheduledEndAt: isBitacora.value ? null : toUtc(form.scheduledEndAt),
+        reminderLeadMinutes: isBitacora.value && !agreementDrafts.value.some(item => !item.remove)
+          ? null : Number(form.reminderLeadMinutes),
+        reminderChannelStrategy: isBitacora.value ? null : form.reminderChannelStrategy,
+        repeatEveryDays: isBitacora.value ? null : Number(form.repeatEveryDays),
+        reminderRepeatMinutes: isBitacora.value ? null : Number(form.reminderRepeatMinutes),
         notes: noteDrafts.value.filter(note => note.id || note.noteText.trim()).map(note => ({
           id: note.id ?? null,
           expectedVersion: note.expectedVersion ?? null,
@@ -175,12 +197,12 @@ watch(() => props.activity.rowVersion, () => {
     data-crm-activity-full-editor>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 class="text-sm font-extrabold">Editar actividad, minuta y acuerdos</h3>
+        <h3 class="text-sm font-extrabold">{{ isBitacora ? 'Editar bitácora comercial' : 'Editar actividad, minuta y acuerdos' }}</h3>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-          Se pueden actualizar actividades completadas. Los cambios en acuerdos conservan su historial.
+          {{ isBitacora ? 'Editá la gestión, las notas y sus acuerdos sin programar una cita. Convertí acuerdos en tareas solo cuando lo necesités.' : 'Se pueden actualizar actividades completadas. Los cambios en acuerdos conservan su historial.' }}
         </p>
       </div>
-      <DhButton :label="editing ? 'Cerrar edición' : 'Editar actividad completa'"
+      <DhButton :label="editing ? 'Cerrar edición' : isBitacora ? 'Editar bitácora' : 'Editar actividad completa'"
         size="sm" variant="secondary" :disabled="saving"
         @click="toggleEditing" />
     </div>
@@ -192,7 +214,7 @@ watch(() => props.activity.rowVersion, () => {
       </p>
       <p v-if="error" role="alert" class="rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
       <div class="grid gap-3 sm:grid-cols-2">
-        <label class="sm:col-span-2 space-y-1 text-xs font-bold">Título de la actividad
+        <label class="sm:col-span-2 space-y-1 text-xs font-bold">{{ isBitacora ? 'Título de la gestión' : 'Título de la actividad' }}
           <input v-model.trim="form.subject" class="crm-editor-input" maxlength="250" required />
         </label>
         <label class="space-y-1 text-xs font-bold">Tipo de gestión
@@ -208,6 +230,7 @@ watch(() => props.activity.rowVersion, () => {
             <option value="OTHER">Otra actividad</option>
           </select>
         </label>
+        <template v-if="!isBitacora">
         <label v-if="form.type !== 'VISIT'" class="space-y-1 text-xs font-bold">Ubicación
           <input v-model.trim="form.locationText" class="crm-editor-input" maxlength="2000" />
         </label>
@@ -248,10 +271,14 @@ watch(() => props.activity.rowVersion, () => {
             </option>
           </select>
         </label>
+        </template>
+        <p v-else class="sm:col-span-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
+          Esta gestión ya fue realizada y se conserva en Bitácora. Las tareas de sus acuerdos tendrán fechas y avisos independientes.
+        </p>
       </div>
       <div class="space-y-3 border-t border-[var(--dh-border)] pt-4">
         <div class="flex items-center justify-between">
-          <h4 class="text-sm font-bold">Minuta y acuerdos alcanzados</h4>
+          <h4 class="text-sm font-bold">{{ isBitacora ? 'Detalle de la bitácora y acuerdos' : 'Minuta y acuerdos alcanzados' }}</h4>
           <DhButton label="Añadir texto" size="sm" variant="secondary" @click="addNote" />
         </div>
         <div v-for="(note,index) in noteDrafts" :key="note.id || 'new-' + index"
@@ -271,9 +298,20 @@ watch(() => props.activity.rowVersion, () => {
       </div>
       <div class="space-y-3 border-t border-[var(--dh-border)] pt-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
-          <h4 class="text-sm font-bold">Pendientes de los acuerdos ({{ agreementDrafts.filter(x => !x.remove).length }})</h4>
-          <DhButton label="Añadir pendiente" size="sm" variant="secondary" @click="addAgreement" />
+          <h4 class="text-sm font-bold">{{ isBitacora ? 'Tareas generadas desde acuerdos' : 'Pendientes de los acuerdos' }} ({{ agreementDrafts.filter(x => !x.remove).length }})</h4>
+          <div class="flex flex-wrap gap-2">
+            <DhButton v-if="isBitacora" label="Generar tareas desde acuerdos" size="sm" variant="secondary"
+              @click="tasksFromSavedAgreements" />
+            <DhButton :label="isBitacora ? 'Añadir tarea' : 'Añadir pendiente'" size="sm" variant="secondary" @click="addAgreement" />
+          </div>
         </div>
+        <p v-if="isBitacora" class="text-xs text-[var(--dh-text-muted)]">Las tareas son opcionales. Cada una requiere fecha futura y se vincula al cliente, al responsable y al historial de esta bitácora.</p>
+        <label v-if="isBitacora && agreementDrafts.some(item => !item.id && !item.remove)" class="block space-y-1 text-xs font-bold">Avisar antes de cada tarea nueva
+          <select v-model="form.reminderLeadMinutes" class="crm-editor-input">
+            <option v-for="minutes in [0,5,15,30,60,120,240,1440]" :key="minutes" :value="String(minutes)">{{ minutes }} minutos</option>
+          </select>
+          <span class="text-xs font-normal text-[var(--dh-text-muted)]">Canales: correo electrónico y sistema.</span>
+        </label>
         <article v-for="(item,index) in agreementDrafts" :key="item.id || 'new-' + index"
           class="space-y-3 rounded-lg border border-[var(--dh-border)] p-3"
           :class="item.remove && 'opacity-60'">
@@ -306,7 +344,7 @@ watch(() => props.activity.rowVersion, () => {
       </div>
       <div class="flex flex-wrap justify-end gap-2 border-t border-[var(--dh-border)] pt-4">
         <DhButton label="Cancelar" variant="secondary" :disabled="saving" @click="editing=false" />
-        <DhButton label="Guardar actividad completa" type="submit" :loading="saving" :disabled="saving" />
+        <DhButton :label="isBitacora ? 'Guardar bitácora y tareas' : 'Guardar actividad completa'" type="submit" :loading="saving" :disabled="saving" />
       </div>
     </form>
   </section>
