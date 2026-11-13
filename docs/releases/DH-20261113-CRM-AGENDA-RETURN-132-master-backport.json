@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261113-CRM-AGENDA-RETURN-132",
+  "releaseDate": "2026-11-13",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.47.5",
+  "component": "DholeWeb",
+  "previousVersion": "1.47.4",
+  "version": "1.47.5",
+  "branches": [
+    "develop",
+    "master"
+  ],
+  "change": "Desde el detalle de actividades CRM, Volver al listado abre Agenda y seguimientos (/crm/followups) en vez de /crm/activities.",
+  "compatibility": [
+    "fromAccount conserva el retorno a cuenta",
+    "Los demás listados CRM y los contratos REST/SignalR permanecen sin cambios"
+  ],
+  "tests": [
+    "node --experimental-strip-types --test tests/crmDetailNavigation.test.mjs",
+    "pnpm test:crm",
+    "pnpm build"
+  ],
+  "status": "candidate-ci-and-staging-pending",
+  "productionDeploymentAuthorized": true,
+  "releasePurpose": "Master backport of the same navigation fix merged to develop in Web 1.48.1",
+  "productionApproval": "Explicit user instruction: 'subelo a master' on 2026-11-13",
+  "developValidation": "DholeWeb CI, targeted CRM and release gates passed; staging Web and System deployment succeeded on original patch",
+  "sourceRelease": {
+    "branch": "develop",
+    "version": "1.48.1",
+    "releaseId": "DH-20261113-CRM-AGENDA-RETURN-132"
+  },
+  "scopeRestriction": "No 1.48.0 commercial-log release bundled; CRM/Auth backend unchanged"
+}
