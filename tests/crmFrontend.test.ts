@@ -560,7 +560,7 @@ test('CRM calendar submits repeat frequency and recurring reminder cadence', () 
   for (const marker of [
     'repeatEveryDays: requiresSchedule ? data.repeatEveryDays : null',
     'reminderRepeatMinutes: requiresSchedule ? data.reminderRepeatMinutes : null',
-    'reminderLeadMinutes: requiresSchedule ? data.reminderMinutes : null',
+    'reminderLeadMinutes: requiresSchedule || taskDrafts.length ? data.reminderMinutes : null',
     'v-model.number="editor.repeatEveryDays"',
     'v-model.number="editor.reminderRepeatMinutes"',
     'Recordatorios: 24 horas y 1 hora antes'

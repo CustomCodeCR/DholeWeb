@@ -18,7 +18,7 @@ test('completed historical activity sends original end as occurredAt', () => {
 
 test('past activities are explained in the form; future commitments keep validation', () => {
   assert.match(view, /historicalActivityDraft/)
-  assert.match(view, /'Revisá cada acuerdo y asignale una fecha futura válida/)
+  assert.match(view, /Cada tarea seleccionada necesita un nombre y una fecha futura/)
   assert.match(view, /commitmentDue\.getTime\(\) <= end\.getTime\(\)/)
 })
 
@@ -29,7 +29,7 @@ test('bitácora completes entries without scheduling or reminders', () => {
   assert.match(view, /v-if="creatingReminder" class="calendar-label">Inicio/)
   assert.match(view, /scheduledStartAt: requiresSchedule \? start\.toISOString\(\) : null/)
   assert.match(view, /scheduledEndAt: requiresSchedule \? end\.toISOString\(\) : null/)
-  assert.match(view, /reminderLeadMinutes: requiresSchedule \? data\.reminderMinutes : null/)
-  assert.match(view, /agreementCommitments: requiresSchedule \? agreementDrafts\.value/)
-  assert.match(view, /Registro en bitácora · Sin recordatorios/)
+  assert.match(view, /reminderLeadMinutes: requiresSchedule \|\| taskDrafts\.length \? data\.reminderMinutes : null/)
+  assert.match(view, /agreementCommitments: taskDrafts\.map/)
+  assert.match(view, /Gestión registrada en bitácora, sin cita ni avisos para la gestión/)
 })

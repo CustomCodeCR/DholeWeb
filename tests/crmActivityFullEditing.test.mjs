@@ -36,3 +36,15 @@ test('after save activity and linked panels refresh with the new record version'
   assert.match(detail, /:key="id \+ '-'/)
   assert.match(detail, /String\(record\.rowVersion \?\? 0\)/)
 })
+
+test('an unscheduled completed record edits as bitácora without appointment fields', () => {
+  assert.match(editor, /const isBitacora = computed/)
+  assert.match(editor, /!props\.activity\.scheduledStartAt/)
+  assert.match(editor, /Editar bitácora comercial/)
+  assert.match(editor, /<template v-if="!isBitacora">/)
+  assert.match(editor, /scheduledStartAt: isBitacora\.value \? null/)
+  assert.match(editor, /scheduledEndAt: isBitacora\.value \? null/)
+  assert.match(editor, /Generar tareas desde acuerdos/)
+  assert.match(editor, /tasksFromSavedAgreements/)
+  assert.match(editor, /Guardar bitácora y tareas/)
+})
