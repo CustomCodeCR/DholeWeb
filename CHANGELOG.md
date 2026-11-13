@@ -1,3 +1,8 @@
+## [1.48.3] - 2026-11-13
+
+- PATCH DH-20261113-CRM-COMMERCIAL-LOG-ACL-134: coordinación de la ACL por prospecto en Bitácora CRM, sin cambios adicionales del frontend. Preserva filtros, borradores, adjuntos y recordatorios separados.
+- Auth 1.9.1 → 1.9.2; CRM 1.28.1 → 1.28.2; Web 1.48.2 → 1.48.3; ecosistema 1.48.2 → 1.48.3. CI y staging pendientes, producción no autorizada.
+
 ## [1.48.2] - 2026-11-13
 
 - PATCH DH-20261113-CRM-COMMERCIAL-LOG-FILTER-133: corrige selector de tipos de Bitácora desde la primera apertura, sin abrir modal. Se mantienen borradores, notas, archivos, reglas ACL y nuevo registro de gestiones.
