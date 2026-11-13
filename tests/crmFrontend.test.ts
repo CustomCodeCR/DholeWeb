@@ -630,3 +630,15 @@ test('CRM account offers direct contact creation beside the contact directory', 
   assert.ok(hub.includes('contactDrawerOpen.value = false'))
   assert.ok(hub.includes('void load()'))
 })
+
+test('CRM 409 displays a genuine conflict reason and not a false stale-record warning', () => {
+  const api = read('src/modules/crm/services/crmApi.ts')
+  const calendar = read('src/modules/crm/components/CrmSalesCalendar.vue')
+  assert.match(api, /const reason = typeof x\.message === 'string'/)
+  assert.match(api, /modified concurrently/)
+  assert.match(api, /No se pudo completar el guardado/)
+  assert.doesNotMatch(api, /if \(status === 409\) return 'El registro cambió/)
+  assert.equal((calendar.match(/<p v-if="error" role="alert"/g) || []).length, 1)
+  assert.match(calendar, /pendingDocumentRecord\.value = \{ kind: 'activity'/)
+  assert.match(calendar, /calendarDraft\.commit\(\)/)
+})
