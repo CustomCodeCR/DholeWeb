@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261113-CRM-AGENDA-RETURN-132",
+  "releaseDate": "2026-11-13",
+  "kind": "PATCH",
+  "ecosystemVersion": "1.48.1",
+  "component": "DholeWeb",
+  "previousVersion": "1.48.0",
+  "version": "1.48.1",
+  "branches": [
+    "develop",
+    "master"
+  ],
+  "change": "Detalles de actividades CRM retornan a /crm/followups y no /crm/activities.",
+  "preserves": [
+    "Bitácora comercial 1.48.0",
+    "retorno a cuenta con fromAccount",
+    "API REST y SignalR"
+  ],
+  "tests": [
+    "node --experimental-strip-types --test tests/crmDetailNavigation.test.mjs",
+    "pnpm test:crm",
+    "pnpm build"
+  ],
+  "status": "candidate-ci-and-staging-pending",
+  "productionDeploymentAuthorized": false
+}
