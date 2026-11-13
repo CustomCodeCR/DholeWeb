@@ -323,6 +323,7 @@ const eventTypes = [
   { value: 'FOLLOWUP', label: 'Seguimiento' },
   { value: 'OTHER', label: 'Tarea' },
 ] as const
+const bitacoraTypeChoices = computed(() => eventTypes.filter(item => item.value !== 'FOLLOWUP'))
 const configuredActivityTypes = ref<Array<{ value: string; label: string }>>([])
 const activityTypesLoading = ref(false)
 const activityTypesError = ref('')
@@ -1175,7 +1176,7 @@ function openEvent(item: CalendarEvent) {
         <label class="calendar-label">Tipo de gestión
           <select v-model="logType" class="calendar-input">
             <option value="">Todos los tipos</option>
-            <option v-for="item in configuredActivityTypes" :key="item.value" :value="item.value">{{ item.label }}</option>
+            <option v-for="item in bitacoraTypeChoices" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
         <label class="calendar-label">Responsable
