@@ -78,7 +78,17 @@ export const CRM_MODULES: Record<string, CrmModule> = {
     updateScope: 'crm.activity.update', primary: 'subject', secondary: 'type',
     fields: [
       field('subject', 'Actividad', 'text', true),
-      select('type', 'Tipo', ['VISIT', 'CALL', 'EMAIL', 'MEETING', 'OTHER']),
+      field('type', 'Tipo', 'select', true, [
+        { value: 'VISIT', label: 'Visita' },
+        { value: 'CALL', label: 'Llamada telefónica' },
+        { value: 'MEETING', label: 'Reunión / Teams' },
+        { value: 'EMAIL', label: 'Correo electrónico' },
+        { value: 'COMMERCIAL_FOLLOWUP', label: 'Seguimiento comercial' },
+        { value: 'WHATSAPP', label: 'WhatsApp' },
+        { value: 'RECOMMENDATION', label: 'Recomendación' },
+        { value: 'OFFER', label: 'Oferta' },
+        { value: 'OTHER', label: 'Otra actividad' },
+      ]),
       field('accountId', 'ID cuenta'), field('leadId', 'ID prospecto'),
       field('opportunityId', 'ID oportunidad'), field('contactId', 'ID contacto'),
       field('scheduledStartAt', 'Inicio', 'datetime-local'),
