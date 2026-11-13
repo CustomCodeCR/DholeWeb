@@ -1,3 +1,9 @@
+## [1.48.1] - 2026-11-13
+
+- PATCH DH-20261113-CRM-AGENDA-RETURN-132: «Volver al listado» desde detalles de actividades CRM regresa a Agenda y seguimientos (`/crm/followups`), no al listado obsoleto de Actividades y visitas.
+- Preserva la Bitácora comercial de 1.48.0, los retornos con `fromAccount`, permisos, borradores, REST y SignalR. Incluye tres pruebas de regresión de navegación.
+- DholeWeb 1.48.0 → 1.48.1; DholeSystem/ecosistema → 1.48.1. Compilación y CI pendientes; staging antes de master y sin autorización de producción.
+
 ## [1.48.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-COMMERCIAL-LOG-131: pestaña Bitácora separada de Agenda y recordatorios para cuentas y prospectos, con filtros por período, tipo de gestión y responsable y consulta paginada; acceso a detalles y adjuntos existentes.
