@@ -358,7 +358,7 @@ test('FCL refresh retains one freight per two different equipment types', async 
   assert.equal(env.explicitlyRemovedPersistedDetailIds.value.size, 0)
 })
 
-test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and retains manual charges', async () => {
+test('own LCL screen 7 recalculates matrix only and removes legacy manual extras', async () => {
   const { env, events, runRefresh } = refreshHarness([], true)
   const id = '11111111-1111-4111-8111-111111111111'
   const marker = 'LCL PROPIO · ConsolidadoId: ' + id
@@ -385,14 +385,13 @@ test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and
   await runRefresh()
 
   assert.deepEqual(Array.from(env.rateLines.value, (item: any) => item.name), [
-    'Flete internacional', 'Zone Charge', 'DMCE', 'Manejos', 'Recargo manual',
+    'Flete internacional', 'Zone Charge', 'DMCE', 'Manejos',
   ])
   assert.equal(env.rateLines.value[0].detailId, 'F')
   assert.equal(env.rateLines.value[0].costAmount, 165)
   assert.equal(env.rateLines.value[1].detailId, 'Z')
   assert.equal(env.rateLines.value[2].costAmount, 65)
-  assert.equal(env.rateLines.value[4].detailId, 'M')
-  assert.equal(env.rateLines.value[4].saleAmount, 20)
+  assert.equal(env.rateLines.value.some((line: any) => line.detailId === 'M'), false)
   assert.equal(env.lclSelectedSource.value.lines.length, 4)
   assert.equal(env.screen7OwnLclRefreshContext.value, 'normal-context')
   assert.equal(env.screen7RefreshPromptOpen.value, false)
@@ -402,4 +401,79 @@ test('own LCL screen 7 recalculates every matrix item, preserves detail IDs, and
 test('wizard includes own LCL service import used by screen 7 refresh', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   assert.ok(wizard.includes("import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'"), 'wizard must import the own LCL calculation service')
+})
+
+
+test('historical Shandong China quote refresh keeps pickup price, CFS chargeable base and matrix Manejos only', async () => {
+  const { env, events, runRefresh } = refreshHarness([], true)
+  const id = '11111111-1111-4111-8111-111111111111'
+  const matrix = 'LCL PROPIO · ConsolidadoId: ' + id + ' · Consolidado: #56'
+  const pickupNotes = matrix + ' · LCL ORIGEN SIN TARIFA · RECOLECTA OBLIGATORIA'
+  env.selectedOrigin.value = { name: 'Shandong, China', code: 'POL-2026-099' }
+  env.editingRate.value = {
+    polName: 'Shandong, China', polCode: 'POL-2026-099',
+    chargeableQuantity: 1,
+  }
+  env.lclRequestedCbm.value = 1
+  env.lclChargeableCbm.value = 1
+  env.lclCargoLines.value = []
+  env.lclSelectedSource.value = {
+    kind: 'Own', id, requestedCbm: 1, currencyId: 'USD',
+    currencyName: 'USD', currencyCode: 'USD', lines: [],
+  }
+  env.rateLines.value = [
+    { key: 'existing:F', detailId: 'F', name: 'Flete internacional',
+      costDetailType: 'Freight', section: 'international_freight',
+      chargeBasis: 'PerChargeableCbm', notes: matrix, costAmount: 238.38, saleAmount: 244.07 },
+    { key: 'existing:C', detailId: 'C', name: 'CFS', costDetailType: 'OriginCharge',
+      section: 'origin_charges', chargeBasis: 'PerCbm', notes: matrix,
+      costAmount: 8, saleAmount: 8 },
+    { key: 'existing:P', detailId: 'P', name: 'Recolecta Shandong, China → Shanghai, China',
+      costDetailType: 'OriginCharge', section: 'pickup_origin',
+      chargeBasis: 'PerShipment', notes: pickupNotes, costAmount: 250, saleAmount: 255 },
+    { key: 'existing:EXTRA', detailId: 'EXTRA', name: 'Manejos',
+      costDetailType: 'DestinationCharge', section: 'destination_charges',
+      chargeBasis: 'PerShipment', notes: null, costAmount: 0, saleAmount: 55 },
+    { key: 'existing:GEN', detailId: 'GEN', name: 'Cargos en Origen',
+      costDetailType: 'OriginCharge', section: 'origin_charges',
+      chargeBasis: 'PerShipment', notes: null, costAmount: 0, saleAmount: 0 },
+  ]
+  let request: Record<string, any> | null = null
+  env.OwnLclConsolidationService.calculate = async (_id: string, data: Record<string, any>) => {
+    request = data
+    return {
+      consolidationId: id, consolidationNumber: 56, matrixVersion: 'matrix-56',
+      lines: [
+        { name: 'Flete internacional', chargeBasis: 'CBM', quantity: 1,
+          costUnit: 238.38, saleUnit: 244.07, costTotal: 238.38, saleTotal: 244.07 },
+        { name: 'CFS', chargeBasis: 'CBM', quantity: 1,
+          costUnit: 8, saleUnit: 8, costTotal: 8, saleTotal: 8 },
+        { name: 'Recolecta SHANDONG → Shanghai, China', chargeBasis: 'Flat', quantity: 1,
+          costUnit: data.pickupCost, saleUnit: data.pickupSale,
+          costTotal: data.pickupCost, saleTotal: data.pickupSale },
+        { name: 'Manejos', chargeBasis: 'HBL', quantity: 1,
+          costUnit: 25, saleUnit: 55, costTotal: 25, saleTotal: 55 },
+      ],
+      totalCost: 521.38, finalSale: 562.07, profitAmount: 40.69,
+      profitPerCbm: 40.69, profitPercentage: 7.24, meetsMinimumMargin: true,
+    }
+  }
+  await runRefresh()
+  assert.ok(request, 'the quotation should reach Pricing for recalculation')
+  assert.equal(request!.polCode, 'Shandong, China')
+  assert.equal(request!.useShanghaiPickupFallback, true)
+  assert.equal(request!.pickupCost, 250)
+  assert.equal(request!.pickupSale, 255)
+  assert.deepEqual(Array.from(env.rateLines.value, (line: any) => line.name), [
+    'Flete internacional', 'CFS', 'Recolecta SHANDONG → Shanghai, China', 'Manejos',
+  ])
+  assert.equal(env.rateLines.value[1].chargeBasis, 'PerChargeableCbm')
+  assert.equal(env.rateLines.value[1].detailId, 'C', 'legacy CFS ID must survive basis migration')
+  assert.equal(env.rateLines.value[2].detailId, 'P', 'pickup detail ID must survive label changes')
+  assert.equal(env.rateLines.value[2].costAmount, 250)
+  assert.equal(env.rateLines.value[2].saleAmount, 255)
+  assert.equal(env.rateLines.value[3].costAmount, 25)
+  assert.equal(env.rateLines.value[3].saleAmount, 55)
+  assert.equal(env.rateLines.value.some((line: any) => line.detailId === 'EXTRA'), false)
+  assert.ok(events.includes('saved'))
 })
