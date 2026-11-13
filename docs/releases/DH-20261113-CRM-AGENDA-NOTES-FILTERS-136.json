@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261113-CRM-AGENDA-NOTES-FILTERS-136",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.49.0",
+  "component": "DholeWeb",
+  "version": "1.49.0",
+  "sourceBranch": "feature/crm-agenda-client-seller-notes-136-develop",
+  "changes": [
+    "Third CRM Agenda tab for commercial notes, separate from scheduled records",
+    "Client and seller text search on authorized agenda records before pagination",
+    "Commercial log note cards with minutes and document details",
+    "Server-side account/prospect selection and owner filter for commercial log"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
