@@ -89,66 +89,40 @@ function fixture() {
   return { env, ...methods }
 }
 
-test('own LCL loads configured CRC agency as an independent line at 500 kg', () => {
+test('LCL propio conserva exclusivamente las líneas de su matriz al sincronizar aduanas', () => {
   const { env, sync } = fixture()
   sync()
-  assert.equal(env.rateLines.value.length, 3)
-  const agency = env.rateLines.value[2]
-  assert.equal(agency.name, 'Servicio de agencia')
-  assert.equal(agency.costId, null,
-    'Own-LCL selected agency must survive server fixed-cost synchronization')
-  assert.match(agency.notes, /Costo maestro Pricing: agency-cost/)
-  assert.match(agency.notes, /Servicio aduanal CRC seleccionado/)
-  assert.equal(agency.costAmount, 40000)
-  assert.equal(agency.saleAmount, 40000)
-  assert.equal(agency.currencyCode, 'CRC')
-  assert.equal(agency.chargeBasis, 'PerShipment')
-  assert.equal(env.rateLines.value[1].name, 'CUSTOMS')
-  sync()
-  assert.equal(env.rateLines.value.length, 3, 'watchers must not duplicate the agency charge')
-  const masterRefs = String(env.rateLines.value[2].notes).match(/Costo maestro Pricing:/g) ?? []
-  assert.equal(masterRefs.length, 1, 'watchers must not multiply cost provenance markers')
+  sync(true)
+  assert.deepEqual(env.rateLines.value.map((line: { name: string }) => line.name),
+    ['Flete internacional', 'CUSTOMS'])
+  assert.equal(env.rateLines.value.length, 2,
+    'un catálogo global seleccionado no debe convertirse en cargo adicional al consolidado')
 })
 
-test('own LCL selects the next configured tier starting at 501 kg', () => {
+test('LCL propio no reemplaza Manejos ni otros importes guardados durante recálculos', () => {
   const { env, sync } = fixture()
-  env.form.cargoWeightKg = 501
-  sync()
-  assert.equal(env.rateLines.value[2].costAmount, 60000)
-  assert.equal(env.rateLines.value[2].saleAmount, 60000)
-})
-
-test('own LCL preserves saved edits unless explicit refresh was requested', () => {
-  const { env, sync } = fixture()
-  env.form.cargoWeightKg = 499
   env.rateLines.value.push({
     key: 'existing:SAVED', detailId: 'SAVED', costId: null,
-    name: 'Servicio de agencia', section: 'destination_charges',
-    costDetailType: 'DestinationCharge', currencyId: 'CRC',
-    currencyName: 'CRC', currencyCode: 'CRC',
-    costAmount: 38000, saleAmount: 50000, included: true,
+    name: 'Manejos', section: 'destination_charges',
+    costDetailType: 'DestinationCharge', currencyId: 'USD',
+    currencyName: 'USD', currencyCode: 'USD',
+    costAmount: 35, saleAmount: 65, included: true,
   })
   sync()
-  assert.equal(env.rateLines.value.length, 3)
-  assert.equal(env.rateLines.value[2].saleAmount, 50000)
   sync(true)
-  assert.equal(env.rateLines.value[2].saleAmount, 40000)
+  assert.equal(env.rateLines.value.length, 3)
+  assert.equal(env.rateLines.value[2].costAmount, 35)
+  assert.equal(env.rateLines.value[2].saleAmount, 65)
   assert.equal(env.rateLines.value[2].detailId, 'SAVED')
 })
 
-test('cost association and destination must match before including own LCL agency', () => {
+test('LCL propio tampoco agrega cargos de aduana si cambia el peso o el servicio', () => {
   const { env, sync } = fixture()
-  env.allCosts.value = [{ ...target, services: [{ id: 'OTHER' }] }]
-  env.ensureCrcCustomsLine = (lines: any[]) => { lines.push({ key: 'service:customs-cr', saleAmount: 0 }) }
+  env.form.cargoWeightKg = 501
   sync()
-  assert.equal(env.rateLines.value[2].key, 'service:customs-cr',
-    'missing matching cost should expose the unpriced service')
-  const second = fixture()
-  second.env.crcImportContext.value = false
-  second.sync()
-  assert.equal(second.env.rateLines.value.length, 2)
-  const third = fixture()
-  third.env.selectedCrcCustomsService.value = null
-  third.sync()
-  assert.equal(third.env.rateLines.value.length, 2)
+  assert.equal(env.rateLines.value.length, 2)
+  env.allCosts.value = [{ ...target, services: [{ id: 'OTHER' }] }]
+  env.ensureCrcCustomsLine = () => { throw Error('No se permite el cargo adicional') }
+  sync()
+  assert.equal(env.rateLines.value.length, 2)
 })

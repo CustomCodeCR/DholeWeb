@@ -78,7 +78,7 @@ function persistedRateLineForEdit(detail: RateDto['rateDetails'][number]): RateL
   const detailType: CostDetailType = isLclPickup ? 'OriginCharge' : detail.costDetailType
   const chargeBasis: ChargeBasis =
     shipmentModeForApi.value === 'Lcl' && normalizedName === 'cfs'
-      ? 'PerCbm'
+      ? 'PerChargeableCbm'
       : detail.chargeBasis
 
   return {
