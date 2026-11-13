@@ -1152,7 +1152,6 @@ function openEvent(item: CalendarEvent) {
         {{ activityTypesError }}
         <button type="button" class="ml-2 font-bold underline" @click="loadConfiguredActivityTypes">Reintentar consulta</button>
       </div>
-      <p v-if="error" role="alert" class="mb-3 text-sm text-red-500">{{ error }}</p>
       <form id="crm-agenda-create-form" class="grid gap-4 sm:grid-cols-2" @submit.prevent="create">
         <p v-if="calendarDraft.status.value !== 'idle'" role="status" class="sm:col-span-2 text-xs text-[var(--dh-text-muted)]">
           {{ calendarDraft.status.value === 'restored' ? 'Se recuperó tu actividad pendiente.' :
