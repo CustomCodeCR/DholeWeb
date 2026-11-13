@@ -1,3 +1,9 @@
+## [1.51.1] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-139: CFS del consolidado LCL propio por CBM cobrable, en selección, hidratación, edición y recálculo de Pantalla 7.
+- Los importes de Manejos y las líneas editadas de la matriz propia no se pierden al volver entre pasos; no se agregan automáticamente seguros ni cargos ajenos al consolidado. Se preservan rubros explícitamente manuales y no se altera LCL coloader.
+- Backport del release de develop: Web 1.51.0 → 1.51.1; Pricing 1.18.1; ecosistema 1.51.1. CI y staging obligatorios; integración vía rama intermedia master sin tocar main.
+
 ## [1.51.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-BITACORA-AGREEMENT-TASKS-138: los acuerdos en Bitácora pueden convertirse selectivamente en tareas con vencimiento, avisos y responsable, sin programar la gestión original. El editor de registros no agendados muestra el formulario de bitácora, no el de recordatorios; se conserva texto, adjuntos y borradores.
