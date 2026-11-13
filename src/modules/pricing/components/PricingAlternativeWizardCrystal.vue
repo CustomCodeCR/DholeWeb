@@ -2895,6 +2895,13 @@ function isFlatPickupLine(line: Pick<RateLine, 'name'>) {
 }
 
 function effectiveChargeBasisForLine(line: RateLine): ChargeBasis {
+  // Fix legacy CFS rows saved with physical-CBM basis, keeping Miami/CFT and
+  // independent coloader rates untouched.
+  if (form.modality === 'Maritime' && shipmentModeForApi.value === 'Lcl'
+    && !isMiamiLcl.value && normalizeCatalogValue(line.name) === 'cfs'
+    && /LCL\\s*PROPIO|ConsolidadoId:|Fuente LCL:\\s*Propio/i.test(String(line.notes ?? ''))) {
+    return 'PerChargeableCbm'
+  }
   // An own maritime LCL consolidation bills its international freight by
   // chargeable CBM. Old air-to-maritime edits can retain PerKg on that row.
   // Preserve CFS (chargeable CBM), Miami (CFT), and other service bases.
