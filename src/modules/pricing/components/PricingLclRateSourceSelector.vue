@@ -593,8 +593,8 @@ function mapOwnLines(calculation: OwnLclQuoteCalculationDto, unlistedOrigin = fa
         : line.name,
       costDetailType: type,
       costType: variable ? 'Variable' : 'Fixed',
-      // CFS es CBM físico. CFT/CBM cobrable conservan su base dinámica.
-      chargeBasis: normalizedName === 'cfs' ? 'PerCbm' : ownBasis(line.chargeBasis),
+      // CFS se cobra por CBM cobrable, igual que el resto de cargos volumétricos del consolidado.
+      chargeBasis: normalizedName === 'cfs' ? 'PerChargeableCbm' : ownBasis(line.chargeBasis),
       contextLabel: fallbackPickupLine
         ? `Recolecta ${props.polName || props.polCode} → Shanghai · Referencia Guangzhou`
         : `Consolidado ${calculation.consolidationNumber} · ${calculation.matrixVersion}`,
