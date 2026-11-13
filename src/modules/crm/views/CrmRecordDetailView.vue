@@ -229,6 +229,7 @@ interface AgendaLabels {
 interface AgendaParent {
   activityId: string | null
   activitySubject?: string
+  isBitacora?: boolean
   sourceType?: 'POLICY' | 'ACTIVITY' | 'MANUAL' | 'UNAVAILABLE'
   policyOccurrenceAt?: string | null
   policy?: {
@@ -331,7 +332,7 @@ const agendaFields = computed(() => {
         ['Política', policy.enabled ? 'Activa' : 'Desactivada'],
       )
     } else {
-      fields.push(['Origen', agendaParent.value?.activityId ? 'Compromiso de actividad comercial' : 'Seguimiento individual'])
+      fields.push(['Origen', agendaParent.value?.isBitacora ? 'Recordatorio de bitácora' : agendaParent.value?.activityId ? 'Compromiso de actividad comercial' : 'Seguimiento individual'])
     }
   }
   fields.push(
@@ -1162,7 +1163,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           :model-value="{ address: String(record.locationText ?? ''), latitude: Number(record.locationLatitude), longitude: Number(record.locationLongitude) }" />
         <div v-if="section === 'followups' && originActivity"
           class="mt-4 rounded-xl border border-[var(--dh-primary)]/40 bg-[var(--dh-shell)] p-4">
-          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ !originActivity.scheduledStartAt && originActivity.status === 'Completed' ? 'Bitácora padre' : 'Actividad principal asociada' }}</p>
           <RouterLink :to="'/crm/activities/'+encodeURIComponent(String(originActivity.id))"
             class="mt-1 block text-sm font-bold text-[var(--dh-primary)] hover:underline">
             {{ originActivity.subject }}
@@ -1232,7 +1233,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       <section v-if="section === 'activities' || section === 'followups'"
         class="crm-panel space-y-4 p-4 sm:p-5" data-crm-activity-full-detail>
         <div>
-          <h2 class="text-base font-bold">{{ section === 'activities' ? 'Minuta, acuerdos y compromisos' : 'Actividad principal y compromiso' }}</h2>
+          <h2 class="text-base font-bold">{{ section === 'activities' ? 'Minuta, acuerdos y compromisos' : agendaParent?.isBitacora ? 'Bitácora padre del recordatorio' : 'Actividad principal y compromiso' }}</h2>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Información registrada en esta gestión, conservada en el historial del CRM.</p>
         </div>
         <p v-if="agendaDetailsWarning" role="alert" class="text-sm text-amber-600">{{ agendaDetailsWarning }}</p>
@@ -1271,10 +1272,10 @@ onMounted(() => { if (crmEnabled()) void load() })
         </template>
         <template v-else>
           <div v-if="agendaParent?.activityId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
-            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Actividad principal asociada</p>
+            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ agendaParent.isBitacora ? 'Bitácora comercial de origen' : 'Actividad principal asociada' }}</p>
             <RouterLink :to="'/crm/activities/' + encodeURIComponent(String(agendaParent.activityId))"
               class="text-sm font-bold text-[var(--dh-primary)] hover:underline">
-              {{ agendaParent.activitySubject || 'Ver actividad principal' }}
+              {{ agendaParent.activitySubject || (agendaParent.isBitacora ? 'Abrir bitácora padre' : 'Ver actividad principal') }}
             </RouterLink>
           </div>
           <div v-if="record.policyId" class="space-y-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
@@ -1284,7 +1285,7 @@ onMounted(() => { if (crmEnabled()) void load() })
             <p class="text-xs text-[var(--dh-text-muted)]">La política no registra por sí misma una minuta o acuerdos. Esos datos solo aparecen cuando fueron guardados en una actividad comercial.</p>
           </div>
           <div v-if="agendaParent?.activityId && agendaLinkedActivityNotes.length" class="space-y-2">
-            <h3 class="text-sm font-bold">Minuta y observaciones de la actividad principal</h3>
+            <h3 class="text-sm font-bold">{{ agendaParent.isBitacora ? 'Notas y acuerdos de la bitácora padre' : 'Minuta y observaciones de la actividad principal' }}</h3>
             <article v-for="note in agendaLinkedActivityNotes" :key="String(note.id)"
               class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
               <p class="whitespace-pre-wrap break-words text-sm">{{ note.noteText ?? 'Sin contenido' }}</p>

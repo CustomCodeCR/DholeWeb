@@ -78,7 +78,6 @@ const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
 const rows = ref<CalendarEvent[]>([])
 const agreementDrafts = ref<CrmAgreementDraft[]>([])
-const logTaskKeys = ref<string[]>([])
 const omittedAgreementKeys = ref<string[]>([])
 const attachedDocuments = ref<File[]>([])
 const pendingDocumentRecord = ref<{ kind: 'activity' | 'followup'; id: string } | null>(null)
@@ -265,7 +264,6 @@ const draftHadAttachments = ref(false)
 function captureCalendarDraft() {
   return { fields: editor.value, scheduleReminder: reminderMode.value, contacts: selectedContactIds.value,
     agreements: agreementDrafts.value, omittedAgreements: omittedAgreementKeys.value,
-    selectedLogTaskKeys: logTaskKeys.value,
     pendingRecord: pendingDocumentRecord.value, hadAttachments: attachedDocuments.value.length > 0 }
 }
 const calendarDraft = useCrmDraftAutosave({
@@ -278,7 +276,6 @@ const calendarDraft = useCrmDraftAutosave({
     reminderMode.value = Boolean(snapshot.scheduleReminder)
     selectedContactIds.value = snapshot.contacts ?? []
     agreementDrafts.value = snapshot.agreements ?? []
-    logTaskKeys.value = snapshot.selectedLogTaskKeys ?? []
     omittedAgreementKeys.value = snapshot.omittedAgreements ?? []
     pendingDocumentRecord.value = snapshot.pendingRecord ?? null
     draftHadAttachments.value = Boolean(snapshot.hadAttachments)
@@ -296,8 +293,14 @@ function syncAgreementDrafts(text: string) {
   const parsed = crmAgreementDrafts(text, Number.isFinite(reference.getTime()) ? reference : new Date())
   agreementDrafts.value = crmVisibleAgreementDrafts(parsed, omittedAgreementKeys.value).map(row => {
     const previous = agreementDrafts.value.find(d => d.key === row.key)
+    // Si la fecha es hoy y ya pasó la hora sugerida, proponer la próxima franja futura.
+    const suggested = row.dueLocal && !row.hasExplicitTime &&
+      new Date(row.dueLocal).toDateString() === new Date().toDateString() &&
+      new Date(row.dueLocal).getTime() <= Date.now()
+      ? localInput(new Date(Math.ceil((Date.now() + 15 * 60000) / (15 * 60000)) * 15 * 60000))
+      : row.dueLocal
     return previous ? { ...row, title: previous.title, dueLocal: previous.dueLocal,
-      hasExplicitTime: previous.hasExplicitTime } : row
+      hasExplicitTime: previous.hasExplicitTime } : { ...row, dueLocal: suggested }
   })
 }
 watch(() => editor.value.agreements, syncAgreementDrafts)
@@ -315,10 +318,14 @@ function restoreAgreementDrafts() {
 const userEditedStart = ref(false)
 const reminderMode = ref(false)
 const creatingReminder = computed(() => reminderMode.value || editor.value.type === 'FOLLOWUP')
-// Una bitácora solo genera tareas desde acuerdos seleccionados explícitamente.
+// Cada acuerdo con un vencimiento futuro genera un recordatorio vinculado a la bitácora.
+// Acuerdos sin fecha o con fecha vencida quedan como texto, sin bloquear el guardado.
 const agreementTasksToSave = computed(() => creatingReminder.value
   ? agreementDrafts.value
-  : agreementDrafts.value.filter(item => logTaskKeys.value.includes(item.key)))
+  : agreementDrafts.value.filter(item => {
+      const due = new Date(item.dueLocal).getTime()
+      return Boolean(item.dueLocal) && Number.isFinite(due) && due > Date.now()
+    }))
 const defaultSubjects: Record<string,string> = {
   VISIT: 'Visita comercial', CALL: 'Llamada comercial',
   MEETING: 'Reunión comercial', EMAIL: 'Correo comercial',
@@ -577,7 +584,6 @@ function openCreation(date?: Date, withReminder = false) {
     channel: 'BOTH',
   }
   agreementDrafts.value = []
-  logTaskKeys.value = []
   omittedAgreementKeys.value = []
   attachedDocuments.value = []
   pendingDocumentRecord.value = null
@@ -847,7 +853,7 @@ async function create() {
       !item.title.trim() || !item.dueLocal ||
       !Number.isFinite(new Date(item.dueLocal).getTime()) ||
       new Date(item.dueLocal).getTime() < Date.now())) {
-    error.value = 'Cada tarea seleccionada necesita un nombre y una fecha futura válida; los demás acuerdos seguirán como notas.'
+    error.value = 'Las tareas con vencimiento futuro necesitan un nombre; los demás acuerdos se conservan como notas.'
     return
   }
   if (requiresSchedule && data.type !== 'FOLLOWUP' && data.nextCommitment.trim() &&
@@ -922,7 +928,7 @@ async function create() {
     selected.value = requiresSchedule ? start : new Date()
     notice.value = !requiresSchedule
       ? 'Gestión registrada en bitácora, sin cita ni avisos para la gestión.' +
-        (taskDrafts.length ? ' Se crearon ' + taskDrafts.length + ' tarea(s) con vencimiento y recordatorios propios.' : ' Los acuerdos permanecen como notas.')
+        (taskDrafts.length ? ' Se crearon ' + taskDrafts.length + ' recordatorio(s) vinculados a esta bitácora.' : ' Los acuerdos permanecen como notas.')
       : (adjustedStart ? 'Se actualizó la hora inicial al guardar. ' : '') +
         (historicalActivity
           ? 'Actividad histórica registrada como completada, con su fecha original y sin avisos retroactivos. '
@@ -1475,42 +1481,42 @@ function openEvent(item: CalendarEvent) {
             <textarea v-model.trim="editor.agreements" class="calendar-input min-h-24" maxlength="6000" placeholder="Resumen de acuerdos de la llamada, visita, correo o reunión" />
           </label>
           <div v-if="agreementDrafts.length" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] p-3">
-            <p class="text-sm font-bold">{{ creatingReminder ? 'Compromisos detectados' : 'Tareas opcionales desde acuerdos' }} ({{ agreementDrafts.length }})</p>
+            <p class="text-sm font-bold">{{ creatingReminder ? 'Compromisos detectados' : 'Recordatorios desde acuerdos' }} ({{ agreementDrafts.length }})</p>
             <p class="mb-3 text-xs text-[var(--dh-text-muted)]">
-              {{ creatingReminder ? 'Revisá cada compromiso antes de guardar.' : 'Marcá solo los acuerdos que querés convertir en tareas; el resto se conservará como texto.' }}
-              Cuando no se indicó hora, se propone 09:00, editable. Cada tarea seleccionada necesita fecha futura.
+              {{ creatingReminder ? 'Revisá cada compromiso antes de guardar.' : 'Cada acuerdo con fecha y hora futura crea automáticamente un recordatorio vinculado a esta bitácora. Sin fecha futura permanece como nota.' }}
+              Cuando no se indicó hora, se propone 09:00 (o la siguiente franja disponible si hoy ya pasó), editable.
             </p>
             <div v-for="(item, index) in agreementDrafts" :key="item.key"
               class="mb-3 grid gap-2 rounded-lg border border-[var(--dh-border)] p-2 last:mb-0 sm:grid-cols-[1fr_210px]">
-              <label v-if="!creatingReminder" class="sm:col-span-2 flex items-center gap-2 text-xs font-semibold">
-                <input v-model="logTaskKeys" type="checkbox" :value="item.key" class="h-4 w-4 accent-[var(--dh-primary)]" />
-                Crear tarea y recordatorio desde este acuerdo
-              </label>
               <label class="calendar-label">Acuerdo {{ index + 1 }}
                 <input v-model.trim="item.title" class="calendar-input" maxlength="250"
-                  :disabled="!creatingReminder && !logTaskKeys.includes(item.key)"
-                  :required="creatingReminder || logTaskKeys.includes(item.key)" />
+                  :required="creatingReminder || Boolean(item.dueLocal)" />
               </label>
               <label class="calendar-label">Fecha límite
                 <input v-model="item.dueLocal" type="datetime-local" class="calendar-input"
-                  :disabled="!creatingReminder && !logTaskKeys.includes(item.key)"
-                  :required="creatingReminder || logTaskKeys.includes(item.key)" />
+                  :required="creatingReminder" />
               </label>
-              <div class="sm:col-span-2 flex justify-end">
+              <div v-if="creatingReminder" class="sm:col-span-2 flex justify-end">
                 <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-[var(--dh-border)] px-2.5 py-1.5 text-xs font-semibold hover:bg-[var(--dh-surface-hover)]"
                   :aria-label="'Quitar compromiso de la lista: ' + item.title" @click="removeAgreementDraft(item.key)">
                   <X class="h-3.5 w-3.5" aria-hidden="true" /> Quitar de la lista
                 </button>
               </div>
-              <p v-if="(creatingReminder || logTaskKeys.includes(item.key)) && !item.dueLocal" class="text-xs text-amber-600 sm:col-span-2">
+              <p v-if="creatingReminder && !item.dueLocal" class="text-xs text-amber-600 sm:col-span-2">
                 No se detectó una fecha. Seleccioná cuándo debe cumplirse este acuerdo.
               </p>
-              <p v-else-if="(creatingReminder || logTaskKeys.includes(item.key)) && !item.hasExplicitTime" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
+              <p v-else-if="item.dueLocal && new Date(item.dueLocal).getTime() <= Date.now()" class="text-xs text-amber-600 sm:col-span-2">
+                La fecha ya pasó: este acuerdo quedará como nota hasta que asignés una fecha futura.
+              </p>
+              <p v-else-if="!creatingReminder && !item.dueLocal" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
+                Sin fecha: este acuerdo se conservará como nota, sin recordatorio.
+              </p>
+              <p v-else-if="!item.hasExplicitTime" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">
                 Hora sugerida, no confirmada por el cliente.
               </p>
             </div>
           </div>
-          <div v-if="omittedAgreementKeys.length" class="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+          <div v-if="creatingReminder && omittedAgreementKeys.length" class="sm:col-span-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
             <span>Los compromisos quitados no se programarán. El texto se conserva en «Acuerdos alcanzados».</span>
             <button type="button" class="font-semibold underline" @click="restoreAgreementDrafts">Restaurar compromisos</button>
           </div>

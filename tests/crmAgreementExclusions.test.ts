@@ -20,23 +20,22 @@ test('duplicate text remains individually removable and restorable', () => {
   assert.equal(crmVisibleAgreementDrafts(drafts, []).length, 3)
 })
 
-test('calendar only excludes submitted commitments, never the saved agreements', () => {
+test('agenda still supports exclusion without mutating saved agreement notes', () => {
   const source = readFileSync('src/modules/crm/components/CrmSalesCalendar.vue', 'utf8')
+  assert.match(source, /v-if="creatingReminder" class="sm:col-span-2 flex justify-end"/)
   assert.match(source, /@click="removeAgreementDraft\(item\.key\)"/)
   assert.match(source, /@click="restoreAgreementDrafts"/)
   assert.match(source, /agreements: data\.agreements\.trim\(\) \|\| null/)
-  assert.match(source, /agreementCommitments: taskDrafts\.map/)
-  assert.match(source, /omittedAgreementKeys\.value = \[\]/)
 })
 
-
-test('bitácora only schedules explicit agreement selections', () => {
+test('bitácora turns dated agreements into reminders without extra buttons', () => {
   const source = readFileSync('src/modules/crm/components/CrmSalesCalendar.vue', 'utf8')
-  assert.match(source, /const logTaskKeys = ref<string\[\]>\(\[\]\)/)
-  assert.match(source, /selectedLogTaskKeys: logTaskKeys\.value/)
-  assert.match(source, /logTaskKeys\.value\.includes\(item\.key\)/)
+  assert.match(source, /const agreementTasksToSave = computed/)
+  assert.match(source, /Number\.isFinite\(due\) && due > Date\.now\(\)/)
   assert.match(source, /agreementCommitments: taskDrafts\.map/)
   assert.match(source, /scheduledStartAt: requiresSchedule \? start\.toISOString\(\) : null/)
-  assert.match(source, /reminderLeadMinutes: requiresSchedule \|\| taskDrafts\.length/)
-  assert.match(source, /Cada tarea seleccionada necesita un nombre y una fecha futura/)
+  assert.match(source, /Se crearon ' \+ taskDrafts\.length \+ ' recordatorio/)
+  assert.doesNotMatch(source, /v-model="logTaskKeys"/)
+  assert.doesNotMatch(source, /Crear tarea y recordatorio desde este acuerdo/)
+  assert.match(source, /Sin fecha: este acuerdo se conservará como nota/)
 })
