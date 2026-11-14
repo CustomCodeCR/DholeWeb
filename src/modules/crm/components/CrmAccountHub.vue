@@ -23,6 +23,7 @@ import CrmAccountQuotesDashboard from './CrmAccountQuotesDashboard.vue'
 import CrmQuoteDeliveryPanel from './CrmQuoteDeliveryPanel.vue'
 import CrmLegacyQuoteManager from './CrmLegacyQuoteManager.vue'
 import CrmSalesCalendar from './CrmSalesCalendar.vue'
+import CrmRecordFollowups from './CrmRecordFollowups.vue'
 import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhPagination } from '@/shared/components/molecules'
@@ -33,7 +34,7 @@ import {
 } from 'lucide-vue-next'
 
 // The account route-history tab is a valid destination for sheet navigation.
-type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'log' | 'finance' | 'documents'
+type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'followups' | 'log' | 'finance' | 'documents'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
   id: string
@@ -97,6 +98,8 @@ const tabs = computed(() => [
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'changes' as const, label: locale.value === 'en' ? 'Change history' : 'Historial de cambios', icon: History },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Agenda & reminders' : 'Agenda y recordatorios', icon: CalendarClock },
+  ...(has('crm.activity.read') || has('crm.activity.read-all') || has('crm.task.manage') || has('crm.followup.manage') || has('crm.bitacora.read') || has('crm.bitacora.read-all')
+    ? [{ key: 'followups' as const, label: locale.value === 'en' ? 'Follow-ups' : 'Seguimientos', icon: Activity }] : []),
   ...(has('crm.bitacora.read') || has('crm.bitacora.read-all') || has('crm.activity.read') || has('crm.activity.read-all')
     ? [{ key: 'log' as const, label: locale.value === 'en' ? 'Commercial log' : 'Bitácora', icon: ClipboardList }] : []),
   { key: 'documents' as const, label: locale.value === 'en' ? 'Documents' : 'Documentos', icon: FileText },
@@ -1662,6 +1665,9 @@ async function saveRoute() {
       </div>
     </section>
 
+    <section v-else-if="activeTab === 'followups'" id="crm-account-followups" role="tabpanel" class="hub-panel">
+      <CrmRecordFollowups :account-id="String(account.id)" :account-ids="groupAccountIds" />
+    </section>
     <section v-else-if="activeTab === 'log'" id="crm-account-log" role="tabpanel" class="space-y-4">
       <CrmSalesCalendar view="log" :account-id="String(account.id)"
         :account-name="String(account.displayName || account.legalName)" @changed="load" />
