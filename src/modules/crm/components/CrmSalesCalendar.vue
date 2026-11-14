@@ -1141,35 +1141,52 @@ function openEvent(item: CalendarEvent) {
           {{ day.toLocaleDateString('es-CR',{weekday:'short'}) }}
         </div>
       </div>
-      <div class="grid grid-cols-7">
-        <div v-for="day in visibleDays" :key="dateKey(day)"
-          class="min-w-0 cursor-pointer border-b border-r border-[var(--dh-border)] p-1.5 transition-colors hover:bg-[var(--dh-shell)] sm:p-2"
-          :class="['min-h-[115px]',
-            dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':'']"
-          @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
-          @dragleave="dropKey=''" @drop="onDrop($event,day)"
-          @click.self="selected=day;openCreation(day)">
-          <button type="button" :aria-label="'Crear actividad el '+dateKey(day)"
-            class="mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-            :class="[dateKey(day)===dateKey(new Date())?'bg-[var(--dh-primary)] text-white':'hover:bg-[var(--dh-shell)]',
-              mode==='month'&&day.getMonth()!==selected.getMonth()?'opacity-40':'']"
-            @click="selected=day;openCreation(day)">{{ day.getDate() }}</button>
-          <button v-for="event in (eventsByDay[dateKey(day)] ?? []).slice(0,mode==='month'?3:100)"
-            :key="event.key" type="button" :title="event.subject"
-            :draggable="canMove(event)" :aria-label="event.subject + (canMove(event)?' · arrastrable':'')"
-            @dragstart="onDragStart($event,event)" @dragend="onDragEnd"
-            @click="openEvent(event)"
-            class="mb-1 block w-full truncate rounded-md border px-1.5 py-1 text-left text-[11px] font-semibold"
-            :class="eventTone(event)" :style="sellerEventStyle(event)">
-            <span class="tabular-nums">{{ event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
-            {{ event.subject }}
-            <span v-if="isManagerCalendar" class="block truncate text-[10px] opacity-80">
-              {{ clientName(event) }} · {{ ownerName(event) }}
-            </span>
+      <div v-for="(week, weekIndex) in monthWeeks" :key="'week-'+weekIndex"
+        class="border-b border-[var(--dh-border)] last:border-b-0">
+        <div class="grid grid-cols-7">
+          <div v-for="day in week.days" :key="dateKey(day)"
+            class="min-w-0 border-r border-[var(--dh-border)] px-1.5 pt-1.5 sm:px-2"
+            :class="dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
+            @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
+            @dragleave="dropKey=''" @drop="onDrop($event,day)">
+            <button type="button" :aria-label="'Crear actividad el '+dateKey(day)"
+              class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+              :class="[dateKey(day)===dateKey(new Date())?'bg-[var(--dh-primary)] text-white':'hover:bg-[var(--dh-shell)]',
+                day.getMonth()!==selected.getMonth()?'opacity-40':'']"
+              @click="selected=day;openCreation(day)">{{ day.getDate() }}</button>
+          </div>
+        </div>
+        <div class="relative grid grid-cols-7 gap-y-1 py-1"
+          :style="{ gridTemplateRows: 'repeat(' + week.lanes + ', minmax(28px,auto))' }">
+          <div v-for="(day, dayIndex) in week.days" :key="'drop-'+dateKey(day)"
+            class="z-0 min-h-[28px] border-r border-[var(--dh-border)] hover:bg-[var(--dh-shell)]"
+            :style="{ gridColumn: String(dayIndex+1), gridRow: '1 / span '+week.lanes }"
+            :class="dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15':''"
+            @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
+            @dragleave="dropKey=''" @drop="onDrop($event,day)"
+            @click="selected=day;openCreation(day)"></div>
+          <button v-for="bar in week.bars" :key="bar.event.key" type="button"
+            class="z-10 min-w-0 truncate border-y px-2 py-1 text-left text-[11px] font-semibold"
+            :class="[eventTone(bar.event), bar.begins ? 'rounded-l-md border-l' : 'border-l-0',
+              bar.finishes ? 'rounded-r-md border-r' : 'border-r-0']"
+            :style="{ ...sellerEventStyle(bar.event),
+              gridColumn: (bar.from+1)+' / span '+bar.span, gridRow: String(bar.lane+1) }"
+            :title="bar.event.subject + ' · ' + calendarIntervalLabel(bar.event)"
+            :aria-label="bar.event.subject + ' · ' + calendarIntervalLabel(bar.event)"
+            :draggable="canMove(bar.event)"
+            @dragstart="onDragStart($event,bar.event)" @dragend="onDragEnd" @click="openEvent(bar.event)">
+            <span v-if="bar.begins">{{ bar.event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }} · </span>
+            <span v-else>Continúa · </span>{{ bar.event.subject }}
+            <span v-if="bar.finishes && bar.event.endsAt"> · Fin {{ bar.event.endsAt.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
+            <span v-if="isManagerCalendar"> · {{ clientName(bar.event) }} · {{ ownerName(bar.event) }}</span>
           </button>
-          <button v-if="mode==='month' && (eventsByDay[dateKey(day)] ?? []).length>3"
-            type="button" class="text-xs font-bold text-[var(--dh-primary)]"
-            @click="selected=day;mode='day'">+{{ (eventsByDay[dateKey(day)] ?? []).length-3 }} más</button>
+        </div>
+        <div class="grid grid-cols-7 pb-2">
+          <div v-for="(day, dayIndex) in week.days" :key="'extra-'+dateKey(day)" class="min-w-0 px-1">
+            <button v-if="week.extra[dayIndex]" type="button"
+              class="text-xs font-bold text-[var(--dh-primary)]"
+              @click="selected=day;mode='day'">+{{ week.extra[dayIndex] }} más</button>
+          </div>
         </div>
       </div>
     </div>
