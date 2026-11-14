@@ -1,8 +1,7 @@
-## [1.53.0] - 2026-11-14
+## [1.54.0] - 2026-11-14
 
-- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: barras de actividades y seguimientos durante todo su intervalo, de varios días en vista mensual y con duración proporcional en semana/día. Los recordatorios comerciales permiten guardar inicio y fecha/hora de finalización, y los existentes sin inicio conservan la semántica de vencimiento único.
-- Reprogramación conserva duración, detalle muestra fecha final; filtros de backend retornan intervalos superpuestos. Mantiene permisos CRM, contratos REST, Outbox e integración realtime.
-- Web 1.52.1 → 1.53.0, CRM 1.31.0 → 1.32.0, sistema 1.52.1 → 1.53.0. CI y staging pendientes.
+- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: el calendario CRM muestra barras continuas entre días y bloques de duración real entre horas, y los seguimientos comerciales admiten fecha/hora de inicio y finalización. Los recordatorios mantienen su disparador de vencimiento, permisos y compatibilidad con los registros anteriores.
+- Incremento coordinado desde Web 1.53.0 → 1.54.0, CRM 1.31.0 → 1.32.0 y DholeSystem/ecosistema 1.53.0 → 1.54.0. Migración aditiva StartAt; validación CI y staging antes de master.
 
 ## [1.53.0] - 2026-11-14
 
