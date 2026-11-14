@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RefreshCw, Search, Clock3 } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmError, crmList, crmPath, crmRequest, type CrmRow } from '../services/crmApi'
@@ -63,12 +63,13 @@ function toEntry(item: CrmRow, source: Source): Entry | null {
     ? 'Seguimiento comercial' : 'Gestión comercial'))
   return {
     id, source, subject,
-    notes: String(item.minutes ?? item.noteText ?? item.summary ?? item.description ?? ''),
+    notes: String(item.minutes ?? item.agreements ?? item.noteText ?? item.summary ?? item.description ?? ''),
     type: source === 'followup' ? 'FOLLOWUP' : String(item.type ?? 'OTHER'),
     status: String(item.status ?? (source === 'bitacora' ? 'Completed' : '')),
     date,
     ownerId: String(source === 'followup' ? item.assignedUserId ?? '' : item.ownerUserId ?? ''),
-    href: '/crm/' + (source === 'followup' ? 'followups' : 'activities') + '/' + encodeURIComponent(id),
+    href: '/crm/' + (source === 'followup' ? 'followups' : 'activities') + '/' + encodeURIComponent(id) +
+      (props.accountId ? '?fromAccount=' + encodeURIComponent(props.accountId) : ''),
   }
 }
 async function fetchSource(resource: string, source: Source, accountId: string | undefined) {
@@ -143,6 +144,27 @@ async function load() {
     if (current === generation) loading.value = false
   }
 }
+// The universal CRM hub emits invalidation hints; REST remains authoritative.
+// This also refreshes after local CRM writes without introducing new flags.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
+function onCrmDataChanged(event: Event) {
+  const detail = (event as CustomEvent<{ endpoint?: string; method?: string }>).detail
+  const endpoint = String(detail?.endpoint ?? '')
+  const method = String(detail?.method ?? '')
+  if ((endpoint !== '/api/crm' && !endpoint.startsWith('/api/crm/')) ||
+      !['SIGNALR', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return
+  if (refreshTimer !== null) clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null
+    void load()
+  }, 350)
+}
+onMounted(() => window.addEventListener('dhole:data:changed', onCrmDataChanged))
+onBeforeUnmount(() => {
+  ++generation
+  if (refreshTimer !== null) clearTimeout(refreshTimer)
+  window.removeEventListener('dhole:data:changed', onCrmDataChanged)
+})
 const filtered = computed(() => {
   const term = search.value.trim().toLocaleLowerCase('es')
   return rows.value.filter(item =>
