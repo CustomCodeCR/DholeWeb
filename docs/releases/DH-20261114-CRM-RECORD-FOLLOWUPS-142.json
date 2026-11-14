@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261114-CRM-RECORD-FOLLOWUPS-142",
+  "previousReleaseId": "DH-20261113-PRICING-OWN-LCL-141",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.53.0",
+  "createdAt": "2026-11-14",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.52.1",
+      "version": "1.53.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.52.1",
+      "version": "1.53.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previousVersion": "1.31.0",
+      "version": "1.31.0",
+      "unchanged": true
+    }
+  ],
+  "changes": [
+    "Add independent Seguimientos tabs to accounts and prospects",
+    "Show historical activities, business log entries and scheduled followups using existing permissioned CRM endpoints, with filters and pagination",
+    "Include grouped accounts in followup history without altering existing REST or SignalR contracts"
+  ],
+  "validation": {
+    "unitTests": "pending",
+    "build": "pending",
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
