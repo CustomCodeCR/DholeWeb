@@ -1,3 +1,8 @@
+## [1.52.1] - 2026-11-13
+
+- PATCH DH-20261113-PRICING-OWN-LCL-141: backport coordinado de corrección CFS del LCL propio con cantidad cobrable (mínimo 1 CBM) y proyección comercial de cotizaciones históricas; Precio USD 8/CBM por 0,118 CBM físico corresponde a USD 8.
+- Master Web 1.52.0 → 1.52.1, Pricing 1.18.2. Coloader y Miami CFT intactos. Compatibilidad REST/realtime preservada.
+
 ## [1.52.0] - 2026-11-13
 
 - MINOR DH-20261113-CRM-BITACORA-DIRECT-TASKS-PARENT-141: los acuerdos con vencimiento futuro crean directamente recordatorios desde Bitácora sin seleccionar casillas ni quitar elementos de listas; fecha sin confirmar se mantiene como nota y la hora sugerida vencida de hoy se ajusta a la siguiente franja futura. Edición sincroniza borradores de tareas con acuerdos, sin botón intermedio.
