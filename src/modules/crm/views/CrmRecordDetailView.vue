@@ -124,7 +124,7 @@ const canAddRelation = computed(() => {
   return !!scope && auth.hasScope(scope)
 })
 const drafts = reactive({
-  note: '', reason: '', outcome: 'Completed', date: '',
+  note: '', reason: '', outcome: 'Completed', date: '', endDate: '',
   taxIdTypeCode: '', conversionCustomerType: 'cash', conversionCategoryType: 'CUSTOMER', conversionCategoryCode: 'D',
   stageId: '', status: '', contactName: '', contactEmail: '',
   quoteId: '', pricingRequestId: '', priority: 'Green', shipmentMode: 'Fcl',
@@ -244,7 +244,7 @@ const agendaFields = computed(() => {
     ['Ejecutivo comercial', agendaOwnerName()],
     ['Tipo de gestión', activity ? agendaLabel(item.type, 'type') : 'Seguimiento'],
     ['Estado', agendaLabel(item.status)],
-    ['Inicio programado', agendaDate(activity ? item.scheduledStartAt : item.dueAt)],
+    ['Inicio programado', agendaDate(activity ? item.scheduledStartAt : item.startAt ?? item.dueAt)],
   ]
   if (activity) {
     fields.push(
@@ -253,6 +253,8 @@ const agendaFields = computed(() => {
       ['Ubicación', String(item.locationText || 'No especificada')],
     )
   }
+  if (!activity) fields.push(['Finalización del seguimiento', item.startAt
+    ? agendaDate(item.dueAt) : 'Sin fecha final (registro anterior)'])
   if (item.opportunityId) fields.push(['Oportunidad', agendaOpportunityName.value || 'Oportunidad vinculada'])
   fields.push(
     ['Notificar por', agendaLabel(item.reminderChannelStrategy || 'BOTH', 'channel')],
@@ -374,8 +376,10 @@ async function saveAgendaStatus() {
   } else if (drafts.status === 'Cancelled') {
     if (!drafts.reason.trim()) { error.value = 'Ingresá el motivo de cancelación.'; return }
     await perform('cancel',{expectedVersion:version(),reason:drafts.reason},section.value === 'activities' ? 'crm.activity.update' : 'crm.task.manage')
-  } else if (drafts.date && drafts.date !== fromUtc(
-    section.value === 'activities' ? record.value.scheduledStartAt : record.value.dueAt)) {
+  } else if (drafts.date && (drafts.date !== fromUtc(
+    section.value === 'activities' ? record.value.scheduledStartAt : record.value.startAt ?? record.value.dueAt) ||
+    drafts.endDate !== fromUtc(section.value === 'activities'
+      ? record.value.scheduledEndAt : record.value.startAt ? record.value.dueAt : null))) {
     if (section.value === 'activities') await rescheduleActivity()
     else await rescheduleFollowup()
   } else {
@@ -457,7 +461,8 @@ async function load() {
     if (record.value) await loadAgendaDetails(record.value, section.value)
     if (record.value && (section.value === 'activities' || section.value === 'followups')) {
       drafts.status = String(record.value.status ?? '')
-      drafts.date = fromUtc(section.value === 'activities' ? record.value.scheduledStartAt : record.value.dueAt)
+      drafts.date = fromUtc(section.value === 'activities' ? record.value.scheduledStartAt : record.value.startAt ?? record.value.dueAt)
+      drafts.endDate = fromUtc(section.value === 'activities' ? record.value.scheduledEndAt : record.value.startAt ? record.value.dueAt : null)
       drafts.reason = ''
       drafts.note = ''
     }
@@ -704,8 +709,13 @@ async function completeActivity() {
 }
 async function rescheduleActivity() {
   if (!drafts.date) return
+  if (drafts.endDate && new Date(drafts.endDate) <= new Date(drafts.date)) {
+    error.value = 'La finalización debe ser posterior al inicio.'
+    return
+  }
   await perform('reschedule', { expectedVersion: version(), scheduledStartAt: toUtc(drafts.date),
-    scheduledEndAt: null, reason: drafts.reason || 'Reprogramación comercial' }, 'crm.activity.update')
+    scheduledEndAt: drafts.endDate ? toUtc(drafts.endDate) : null,
+    reason: drafts.reason || 'Reprogramación comercial' }, 'crm.activity.update')
 }
 async function completeFollowup() {
   await perform('complete', { expectedVersion: version(), outcome: drafts.outcome,
@@ -713,8 +723,15 @@ async function completeFollowup() {
 }
 async function rescheduleFollowup() {
   if (!drafts.date) return
-  await perform('reschedule', { expectedVersion: version(), dueAt: toUtc(drafts.date),
-    reason: drafts.reason || 'Reprogramación comercial' }, 'crm.task.manage')
+  if (drafts.endDate && new Date(drafts.endDate) <= new Date(drafts.date)) {
+    error.value = 'La finalización del seguimiento debe ser posterior al inicio.'
+    return
+  }
+  await perform('reschedule', {
+    expectedVersion: version(), startAt: drafts.endDate ? toUtc(drafts.date) : null,
+    dueAt: toUtc(drafts.endDate || drafts.date),
+    reason: drafts.reason || 'Reprogramación comercial',
+  }, 'crm.task.manage')
 }
 async function linkQuote() {
   await createRelation('quotes', {
@@ -1243,9 +1260,13 @@ onMounted(() => { if (crmEnabled()) void load() })
           <DhTextarea v-if="drafts.status === 'Completed' && section === 'activities'"
             v-model="drafts.note" label="Observaciones" />
           <label v-if="drafts.status !== 'Completed' && drafts.status !== 'Cancelled'" class="block space-y-1.5 text-sm font-semibold">
-            Nueva fecha y hora
-            <input v-model="drafts.date" type="datetime-local" class="crm-input w-full" />
-          </label>
+            Nueva fecha y hora de inicio
+             <input v-model="drafts.date" type="datetime-local" class="crm-input w-full" />
+           </label>
+           <label v-if="drafts.status !== 'Completed' && drafts.status !== 'Cancelled'" class="block space-y-1.5 text-sm font-semibold">
+             Fecha y hora de finalización
+             <input v-model="drafts.endDate" type="datetime-local" class="crm-input w-full" />
+           </label>
           <DhTextarea v-if="drafts.status === 'Cancelled' || drafts.status === 'Scheduled' || drafts.status === 'Pending' || drafts.status === 'Overdue'"
             v-model="drafts.reason" :label="drafts.status === 'Cancelled' ? 'Motivo de cancelación' : 'Motivo de reprogramación'" />
           <div class="flex justify-end">

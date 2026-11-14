@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261114-CRM-CALENDAR-SPANS-142",
+  "date": "2026-11-14",
+  "status": "candidate-ci-and-staging-pending",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "previousVersion": "1.53.0",
+      "version": "1.54.0",
+      "from": "1.53.0",
+      "to": "1.54.0"
+    },
+    {
+      "component": "DholeCRMService",
+      "previousVersion": "1.31.0",
+      "version": "1.32.0"
+    },
+    {
+      "component": "DholeSystem",
+      "previousVersion": "1.53.0",
+      "version": "1.54.0",
+      "from": "1.53.0",
+      "to": "1.54.0"
+    }
+  ],
+  "scope": [
+    "Agenda CRM monthly multi-day bars",
+    "Proportional week/day vertical timed blocks",
+    "Followup start/end creation, detail, editing and drag-drop with preserved duration",
+    "Overlap-aware backend reads, additive PostgreSQL migration"
+  ],
+  "tests": [
+    "node --experimental-strip-types --test tests/crmCalendarIntervals.test.ts",
+    "npm run type-check",
+    "npm run build",
+    "npm run test:crm"
+  ],
+  "ci": "pending",
+  "staging": "pending",
+  "master": "blocked-until-validations",
+  "ecosystemVersion": "1.54.0"
+}
