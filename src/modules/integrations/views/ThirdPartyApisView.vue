@@ -541,7 +541,7 @@ onMounted(() => { void load() })
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Dhole · APIs</p>
         <h1 class="mt-1 text-2xl font-black">Dhole API Manager</h1>
-        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Creá y administrá APIs GET, POST, PUT y DELETE con una dirección y clave propias.</p>
+        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Descubrí rutas de los microservicios y publicá únicamente las operaciones y campos que autoricés.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
@@ -609,7 +609,7 @@ onMounted(() => { void load() })
               <h3 class="font-bold">¿Qué querés hacer?</h3>
               <p class="text-xs text-[var(--dh-text-muted)]">Por ejemplo, con POST podés solicitar una tarifa o crear una cotización. Cada acción tiene una función distinta.</p>
             </div>
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
               <button v-for="option in METHODS" :key="option.value" type="button"
                 class="rounded-xl border p-3 text-left transition hover:border-[var(--dh-primary)]"
                 :class="method === option.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
@@ -633,10 +633,27 @@ onMounted(() => { void load() })
               </div>
             </div>
             <div v-if="operations.length > 1">
-              <h3 class="font-bold">¿Qué información querés compartir?</h3>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Elegí lo que necesita consultar el otro sistema. Dhole se ocupa de la conexión.</p>
+              <h3 class="font-bold">Rutas del microservicio</h3>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Elegí la ruta interna y después configurá su contrato público. Ninguna ruta se publica automáticamente.</p>
             </div>
-            <div v-if="operations.length > 1" class="grid gap-2">
+            <div class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+              <div class="flex items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold">Descubrimiento de rutas</h4>
+                <DhButton variant="secondary" size="sm" :icon="RefreshCw" label="Examinar" :loading="discoveryLoading" @click="discoverService(service)" />
+              </div>
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ discoveryMessage || 'Se buscan documentos OpenAPI del servicio conectado a Gateway.' }}</p>
+              <DhInput v-model="routeSearch" type="search" placeholder="Buscar rutas por nombre, URL o descripción..." />
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ operations.length }} rutas disponibles para {{ method }} en {{ service.toUpperCase() }}</p>
+              <div class="space-y-2 border-t border-[var(--dh-border)] pt-3">
+                <h4 class="text-sm font-bold">¿Conocés otra ruta de este microservicio?</h4>
+                <p class="text-xs text-[var(--dh-text-muted)]">Si su OpenAPI no está disponible, podés configurar la ruta manualmente como borrador. Para publicarla necesita una identidad técnica exclusiva.</p>
+                <div class="flex flex-wrap gap-2">
+                  <div class="min-w-[220px] flex-1"><DhInput v-model="manualRoute" placeholder="/api/crm/accounts/{id:guid}" /></div>
+                  <DhButton variant="secondary" size="sm" label="Usar ruta interna" @click="registerManualRoute" />
+                </div>
+              </div>
+            </div>
+            <div v-if="operations.length > 1" class="max-h-[350px] space-y-2 overflow-y-auto pr-1">
               <button v-for="item in operations" :key="item.code" type="button"
                 class="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--dh-primary)]"
                 :class="draft.target === item.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
@@ -646,6 +663,7 @@ onMounted(() => { void load() })
                 </span>
                 <span class="min-w-0 flex-1">
                   <span class="block font-semibold">{{ targetName(item) }}</span>
+                  <code class="mt-1 block break-all text-xs text-[var(--dh-text-muted)]">{{ item.method }} {{ item.path }}</code>
                   <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ targetHelp(item) }}</span>
                 </span>
               </button>
@@ -658,7 +676,7 @@ onMounted(() => { void load() })
               </div>
             </div>
             <div v-else class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-sm text-[var(--dh-text-muted)]">
-              Esta acción todavía no está disponible en el módulo seleccionado. Probá otra combinación.
+              No se encontraron rutas para este método. Si conocés una ruta, ingresala arriba o consultá el OpenAPI del microservicio.
             </div>
           </section>
         </template>
@@ -714,6 +732,19 @@ onMounted(() => { void load() })
               placeholder="Seleccionar campos opcionales"
               search-placeholder="Buscar un dato..."
             />
+            <div v-if="draft.target.startsWith('route.')" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+              <h4 class="font-bold">Mapeo personalizado de entradas</h4>
+              <p class="text-xs text-[var(--dh-text-muted)]">Definí qué nombre recibirá el tercero y dónde irá en el servicio: query.campo, body.campo o body para un objeto JSON completo. Los parámetros path.* se incluyen obligatoriamente.</p>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <DhInput v-model="newInputPublic" placeholder="Nombre público (ej.: cliente)" />
+                <DhInput v-model="newInputInternal" placeholder="Campo de origen (ej.: body.clientId)" />
+              </div>
+              <DhButton variant="secondary" size="sm" :icon="Plus" label="Agregar campo de entrada" @click="addDynamicField('input')" />
+              <div v-for="(field, i) in draft.inputs" :key="field.public" class="flex items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+                <span class="break-all"><strong>{{ field.public }}</strong> → <code>{{ field.internal }}</code>{{ field.required ? ' · obligatorio' : '' }}</span>
+                <DhButton v-if="!field.required" variant="ghost" size="sm" :icon="Trash2" label="Quitar" @click="removeDynamicField('input', i)" />
+              </div>
+            </div>
             <div v-if="nestedStructures.length" class="space-y-2">
               <p class="text-xs font-semibold uppercase text-[var(--dh-text-muted)]">Estructuras internas de los datos JSON</p>
               <details v-for="section in nestedStructures" :key="section.name" class="rounded-xl border border-[var(--dh-border)] p-3">
@@ -757,6 +788,19 @@ onMounted(() => { void load() })
             <p v-else class="text-xs text-[var(--dh-text-muted)]">
               Esta operación no devuelve un cuerpo de respuesta (HTTP 204).
             </p>
+            <div v-if="draft.target.startsWith('route.')" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+              <h4 class="font-bold">Mapeo personalizado de respuestas</h4>
+              <p class="text-xs text-[var(--dh-text-muted)]">Dhole devolverá solo los campos indicados. Podés elegir rutas anidadas como data.items o data.name.</p>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <DhInput v-model="newOutputPublic" placeholder="Nombre público (ej.: nombre)" />
+                <DhInput v-model="newOutputInternal" placeholder="Campo interno (ej.: data.name)" />
+              </div>
+              <DhButton variant="secondary" size="sm" :icon="Plus" label="Agregar campo de respuesta" @click="addDynamicField('output')" />
+              <div v-for="(field, i) in draft.outputs" :key="field.public" class="flex items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+                <span class="break-all"><strong>{{ field.public }}</strong> ← <code>{{ field.internal }}</code></span>
+                <DhButton variant="ghost" size="sm" :icon="Trash2" label="Quitar" @click="removeDynamicField('output', i)" />
+              </div>
+            </div>
             <p v-if="draft.target === 'pricing-rates-list'" class="text-xs text-[var(--dh-text-muted)]">
               La paginación (número de página, tamaño, total de registros) se incluye automáticamente. Los campos elegidos se aplican a cada tarifa de la lista.
             </p>
@@ -773,6 +817,7 @@ onMounted(() => { void load() })
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Nombre</span><strong>{{ draft.name }}</strong></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Operación</span><strong>{{ method }} · {{ methodName(method) }}</strong></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Módulo</span><strong class="uppercase">{{ service }}</strong></div>
+              <div class="col-span-2"><span class="block text-xs text-[var(--dh-text-muted)]">Ruta interna elegida</span><code class="break-all text-xs">{{ selectedTarget?.path }}</code></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Estado</span><strong>{{ draft.enabled ? 'Publicada' : 'Borrador' }}</strong></div>
             </div>
             <div class="rounded-xl border border-[var(--dh-border)] p-3">
