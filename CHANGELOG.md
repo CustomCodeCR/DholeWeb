@@ -1,3 +1,9 @@
+## [1.53.0] - 2026-11-14 (Dhole API Manager promotion)
+
+- MINOR: Promoción a master de API Manager, incluyendo los ocho catálogos de Config y direcciones públicas `/api/external/v1`.
+- Construye sobre la versión 1.52.1 manteniendo cambios recientes de CRM, Pricing y notificaciones.
+- Release candidato coordinado Gateway 1.6.1 / DholeSystem 1.53.0; requiere staging y autorización de producción.
+
 ## [1.52.1] - 2026-11-13
 
 - PATCH DH-20261113-PRICING-OWN-LCL-141: backport coordinado de corrección CFS del LCL propio con cantidad cobrable (mínimo 1 CBM) y proyección comercial de cotizaciones históricas; Precio USD 8/CBM por 0,118 CBM físico corresponde a USD 8.
