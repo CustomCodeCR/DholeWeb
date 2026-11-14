@@ -9,7 +9,6 @@ import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
-import DhDrawer from '@/shared/components/organisms/DhDrawer.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -29,7 +28,7 @@ type ServiceEntry = { service: string; prefix: string }
 type DiscoveryResult = { service: string; documented: boolean; message: string; routes: ApprovedTarget[] }
 type KeyInfo = {
   id: string; label: string; prefix: string; active: boolean; expiresAt: string
-  maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null
+  maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null; endpointIds?: string[]
 }
 
 const root = '/api/integrations/third-party'
@@ -46,7 +45,12 @@ const newInputPublic = ref('')
 const newInputInternal = ref('')
 const newOutputPublic = ref('')
 const newOutputInternal = ref('')
-const keys = ref<KeyInfo[]>([])
+const activePanel = ref<'apis' | 'keys'>('apis')
+const keyRegistry = ref<KeyInfo[]>([])
+const keyLabel = ref('')
+const editingKeyId = ref('')
+const keyEndpointIds = ref<string[]>([])
+const keyBusy = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -141,6 +145,9 @@ const filteredServices = computed(() => services.value.filter(option =>
 const operations = computed(() => catalog.value
   .filter(t => t.service === service.value && t.method === method.value)
   .filter(t => (t.path + ' ' + t.description).toLowerCase().includes(routeSearch.value.toLowerCase())))
+const linkableEndpoints = computed(() => endpoints.value.map(x => ({
+  value: x.id, label: x.name, description: '/api/external/v1/' + x.slug,
+})))
 const filtered = computed(() => endpoints.value.filter(x =>
   [x.name, x.slug, x.target].join(' ').toLowerCase().includes(search.value.toLowerCase())))
 const externalUrl = (x: PublishedEndpoint) => base + '/api/external/v1/' + (x.slug || 'mi-api') +
@@ -364,7 +371,95 @@ async function runApiTest() {
     mutationConfirmed.value = false
   }
 }
+async function loadRegistryKeys() {
+  try {
+    keyRegistry.value = await fetchClient<KeyInfo[]>(root + '/keys', { method: 'GET' })
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudieron cargar las API Keys.' }
+}
+function showKeysPanel() {
+  closeDrawer()
+  activePanel.value = 'keys'
+  error.value = ''
+  void loadRegistryKeys()
+}
+function startKeyLinks(key: KeyInfo) {
+  editingKeyId.value = key.id
+  keyEndpointIds.value = [...(key.endpointIds ?? [])]
+}
+async function saveKeyLinks() {
+  if (!editingKeyId.value) return
+  error.value = ''
+  keyBusy.value = true
+  try {
+    await fetchClient(root + '/keys/' + encodeURIComponent(editingKeyId.value) + '/endpoints', {
+      method: 'PUT', body: { endpointIds: keyEndpointIds.value },
+    })
+    editingKeyId.value = ''
+    keyEndpointIds.value = []
+    await loadRegistryKeys()
+    notice.value = 'Vínculos guardados. La clave solo puede utilizar las APIs seleccionadas cuando estén publicadas.'
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudieron vincular las APIs.' }
+  finally { keyBusy.value = false }
+}
+async function createStandaloneKey() {
+  error.value = ''
+  const label = keyLabel.value.trim()
+  const days = Number(expiresDays.value)
+  const limit = Number(maxPerMinute.value)
+  if (!label || label.length > 100 || !Number.isInteger(days) || days < 1 || days > 365 ||
+    !Number.isInteger(limit) || limit < 1 || limit > 300) {
+    error.value = 'Ingresá el nombre, vigencia válida (1–365 días) y límite (1–300/min).'
+    return
+  }
+  keyBusy.value = true
+  try {
+    const created = await fetchClient<{ id: string; apiKey: string }>(root + '/keys', {
+      method: 'POST', body: { label, expiresInDays: days, maxRequestsPerMinute: limit },
+    })
+    issuedSecret.value = created.apiKey
+    issuedLabel.value = label
+    keyLabel.value = ''
+    secretModal.value = true
+    await loadRegistryKeys()
+    notice.value = 'Clave generada sin APIs vinculadas. Elegí las autorizaciones de esta clave.'
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo generar la clave.' }
+  finally { keyBusy.value = false }
+}
+async function previewApi() {
+  testError.value = ''
+  testResult.value = null
+  testResponse.value = ''
+  if (method.value !== 'GET' || !selectedTarget.value) {
+    testError.value = 'Solo podés previsualizar operaciones GET con tu sesión.'
+    return
+  }
+  let parameters: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(testPayload.value.trim() || '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error('Ingresá parámetros en un objeto JSON.')
+    parameters = parsed as Record<string, unknown>
+  } catch (e) {
+    testError.value = e instanceof Error ? e.message : 'JSON inválido.'
+    return
+  }
+  testRunning.value = true
+  const started = performance.now()
+  try {
+    const result = await fetchClient<{ status: number; data?: unknown; message?: string }>(root + '/preview', {
+      method: 'POST', body: {
+        endpoint: { ...draft.value, id: draft.value.id || '00000000-0000-0000-0000-000000000000', enabled: false },
+        parameters, id: testId.value.trim() || null,
+      },
+    })
+    testResult.value = { status: result.status, durationMs: Math.round(performance.now() - started),
+      ok: result.status >= 200 && result.status < 300 }
+    testResponse.value = JSON.stringify(result.data ?? { message: result.message ?? 'Respuesta vacía' }, null, 2)
+  } catch (e) { testError.value = e instanceof Error ? e.message : 'No se pudo previsualizar la respuesta.' }
+  finally { testRunning.value = false }
+}
 function create() {
+  activePanel.value = 'apis'
   resetApiTest()
   draft.value = blank()
   routeSearch.value = ''
@@ -374,7 +469,6 @@ function create() {
   void discoverService(service.value)
   method.value = 'GET'
   step.value = 1
-  keys.value = []
   error.value = ''
   notice.value = ''
   pickOnlyAvailableAction()
@@ -388,11 +482,9 @@ function edit(row: PublishedEndpoint) {
   manualRoute.value = target?.path || '/api/' + service.value + '/'
   method.value = target?.method || 'GET'
   step.value = 2
-  keys.value = []
   error.value = ''
   drawer.value = true
   if (row.target.startsWith('route.')) void discoverService(service.value)
-  void loadKeys(row.id)
 }
 function pickOnlyAvailableAction() {
   const matches = catalog.value.filter(t => t.service === service.value && t.method === method.value)
@@ -563,10 +655,6 @@ async function load() {
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible cargar las APIs.' }
   finally { loading.value = false }
 }
-async function loadKeys(id: string) {
-  try { keys.value = await fetchClient<KeyInfo[]>(root + '/endpoints/' + encodeURIComponent(id) + '/keys', { method: 'GET' }) }
-  catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible cargar las claves.' }
-}
 async function save() {
   error.value = ''
   const d = draft.value
@@ -591,11 +679,10 @@ async function save() {
     const created = await fetchClient<PublishedEndpoint>(
       root + '/endpoints' + (d.id ? '/' + encodeURIComponent(d.id) : ''), {
         method: d.id ? 'PUT' : 'POST',
-        body: { ...d, responseRoot: d.responseRoot || null },
+        body: { ...d, id: d.id || '00000000-0000-0000-0000-000000000000', responseRoot: d.responseRoot || null },
       })
     draft.value = created
     await load()
-    await loadKeys(created.id)
     step.value = 3
     notice.value = 'Ruta guardada como borrador. Podés publicarla cuando su acceso interno esté configurado.'
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible guardar la API.' }
@@ -616,32 +703,8 @@ async function toggle(row: PublishedEndpoint) {
     const updated = endpoints.value.find(x => x.id === row.id)
     if (updated && draft.value.id === row.id) draft.value = structuredClone(updated)
     if (row.enabled) resetApiTest()
-    notice.value = row.enabled ? 'API desactivada y claves revocadas.' : 'API publicada. Ya podés crear una clave.'
+    notice.value = row.enabled ? 'API desactivada. Se conservaron las vinculaciones de sus claves.' : 'API publicada. Ahora vinculá una API Key desde la pestaña de credenciales.'
   } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo cambiar el estado.' }
-  finally { saving.value = false }
-}
-async function issueKey() {
-  error.value = ''
-  if (!draft.value.id || !draft.value.enabled) {
-    error.value = 'Publicá la API para generar el acceso del tercero.'; return
-  }
-  const days = Number(expiresDays.value)
-  const quota = Number(maxPerMinute.value)
-  if (!Number.isInteger(days) || days < 1 || days > 365 || !Number.isInteger(quota) || quota < 1 || quota > 300) {
-    error.value = 'Vigencia: 1 a 365 días. Solicitudes por minuto: 1 a 300.'; return
-  }
-  saving.value = true
-  try {
-    const issued = await fetchClient<{ id: string; apiKey: string }>(
-      root + '/endpoints/' + encodeURIComponent(draft.value.id) + '/keys', {
-        method: 'POST', body: { label: 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name, expiresInDays: days, maxRequestsPerMinute: quota },
-      })
-    issuedSecret.value = issued.apiKey
-    testApiKey.value = issued.apiKey
-    issuedLabel.value = 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name
-      secretModal.value = true
-    await loadKeys(draft.value.id)
-  } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible emitir la clave.' }
   finally { saving.value = false }
 }
 async function revoke() {
@@ -652,7 +715,7 @@ async function revoke() {
   try {
     await fetchClient(root + '/keys/' + encodeURIComponent(key.id), { method: 'DELETE' })
     notice.value = 'Clave revocada.'
-    await loadKeys(draft.value.id)
+    await loadRegistryKeys()
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible revocar la clave.' }
 }
 async function copy(text: string) {
