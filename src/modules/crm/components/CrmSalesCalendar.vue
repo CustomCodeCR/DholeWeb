@@ -13,6 +13,7 @@ import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmAgreementDrafts, crmVisibleAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
+import { crmCalendarCoversDay, crmCalendarTimedBlock, crmCalendarWeekLayout } from '../model/crmCalendarIntervals'
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
@@ -483,11 +484,6 @@ const timeSlots = Array.from({ length: 28 }, (_, index) => ({
 function slotDate(day: Date, slot: { hour: number; minute: number }): Date {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), slot.hour, slot.minute)
 }
-function slotEvents(day: Date, slot: { hour: number; minute: number }): CalendarEvent[] {
-  return (eventsByDay.value[dateKey(day)] ?? []).filter(item =>
-    item.at.getHours() === slot.hour &&
-    Math.floor(item.at.getMinutes() / 30) === slot.minute / 30)
-}
 const visibleDays = computed(() => {
   const count = mode.value === 'day' ? 1 : mode.value === 'week' ? 7 : 42
   return Array.from({ length: count }, (_, i) => dayOffset(rangeStart.value, i))
@@ -500,10 +496,26 @@ const heading = computed(() => {
 })
 const eventsByDay = computed(() => {
   const result: Record<string, CalendarEvent[]> = {}
-  for (const row of visibleRows.value) (result[dateKey(row.at)] ??= []).push(row)
-  for (const bucket of Object.values(result)) bucket.sort((a, b) => a.at.getTime() - b.at.getTime())
+  for (const day of visibleDays.value) {
+    const events = visibleRows.value.filter(row => crmCalendarCoversDay(row, day))
+    if (events.length) result[dateKey(day)] = events.sort((a,b) => a.at.getTime() - b.at.getTime())
+  }
   return result
 })
+const monthWeeks = computed(() => Array.from({ length: 6 }, (_, index) =>
+  crmCalendarWeekLayout(visibleDays.value.slice(index*7, index*7+7), visibleRows.value)))
+const calendarSlotHeight = 52
+const calendarOfficeHeight = timeSlots.length * calendarSlotHeight
+function timedBlocks(day: Date) {
+  return visibleRows.value.map(event => crmCalendarTimedBlock(event, day, 7, 21, calendarSlotHeight))
+    .filter((block): block is NonNullable<typeof block> => block !== null)
+}
+function calendarIntervalLabel(event: CalendarEvent) {
+  const start = event.at.toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' })
+  const end = event.endsAt && event.endsAt > event.at
+    ? event.endsAt.toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' }) : null
+  return end ? 'Inicio: ' + start + ' · Finalización: ' + end : 'Fecha: ' + start
+}
 const outsideOfficeHours = computed(() => visibleRows.value.filter(item =>
   (item.at.getHours() < 7 || item.at.getHours() >= 21) &&
   item.at >= rangeStart.value && item.at < rangeEnd.value))
@@ -744,7 +756,7 @@ async function load() {
       if (props.leadId && source === 'followup' && String(item.leadId ?? '') !== props.leadId) continue
       const at = normalizeTime(source === 'activity'
         ? (props.view === 'log' ? item.occurredAt ?? item.scheduledEndAt ?? item.createdAt
-          : item.scheduledStartAt ?? item.occurredAt) : item.dueAt)
+          : item.scheduledStartAt ?? item.occurredAt) : item.startAt ?? item.dueAt)
       if (!at) continue
       events.push({
         key: source + ':' + item.id, source, id: String(item.id),
@@ -752,7 +764,8 @@ async function load() {
         notes: String(item.minutes ?? item.agreements ?? ''),
         type: source === 'followup' ? 'FOLLOWUP' : String(item.type ?? 'OTHER'),
         status: String(item.status ?? ''), at,
-        endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt) : null,
+        endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt)
+          : item.startAt ? normalizeTime(item.dueAt) : null,
         accountId: String(item.accountId ?? ''), leadId: String(item.leadId ?? ''),
         ownerId: String(source === 'followup' ? item.assignedUserId ?? '' : item.ownerUserId ?? ''),
         rowVersion: Number(item.rowVersion ?? 0),
@@ -864,10 +877,8 @@ async function create() {
   }
   if (requiresSchedule && (!Number.isFinite(start.getTime()) ||
     (data.type === 'FOLLOWUP' && start.getTime() < Date.now() - 60000) ||
-    (data.type !== 'FOLLOWUP' && (!Number.isFinite(end.getTime()) || end <= start)))) {
-    error.value = data.type === 'FOLLOWUP'
-      ? 'El seguimiento necesita una fecha futura válida.'
-      : 'Ingresá fechas válidas: la finalización debe ser posterior al inicio.'; return
+    (!Number.isFinite(end.getTime()) || end <= start))) {
+    error.value = 'Ingresá fechas válidas: la finalización debe ser posterior al inicio.'; return
   }
   saving.value = true
   error.value = ''
@@ -881,7 +892,8 @@ async function create() {
     if (data.type === 'FOLLOWUP') {
       const createdFollowup = await crmRequest<CrmRow>(crmPath('followups'), 'POST', {
         ...common, subject: data.subject.trim(), channel: 'SYSTEM',
-        assignedUserId: data.ownerId || auth.userId, dueAt: start.toISOString(),
+        assignedUserId: data.ownerId || auth.userId,
+        startAt: start.toISOString(), dueAt: end.toISOString(),
       })
       pendingDocumentRecord.value = { kind: 'followup', id: String(createdFollowup.id) }
     } else {
@@ -994,7 +1006,10 @@ async function reschedule(item: CalendarEvent, proposed: Date) {
       })
     } else {
       await crmRequest(crmPath('followups', item.id, 'reschedule'), 'POST', {
-        expectedVersion: item.rowVersion, dueAt: proposed.toISOString(),
+        expectedVersion: item.rowVersion,
+         startAt: item.endsAt ? proposed.toISOString() : null,
+         dueAt: new Date(proposed.getTime() +
+           (item.endsAt ? Math.max(60000, item.endsAt.getTime() - item.at.getTime()) : 0)).toISOString(),
         reason: 'Reprogramación desde el calendario CRM',
       })
     }
@@ -1428,7 +1443,7 @@ function openEvent(item: CalendarEvent) {
             @input="userEditedStart=true" />
         </label>
         <p v-if="historicalActivityDraft" class="sm:col-span-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs">Esta actividad ya ocurrió: se guardará como completada, conservando la fecha ingresada y sin crear recordatorios atrasados.</p>
-        <label v-if="creatingReminder && editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
+        <label v-if="creatingReminder" class="calendar-label">Finalización
           <input v-model="editor.end" type="datetime-local" class="calendar-input" required />
         </label>
         <div v-if="editor.type === 'VISIT'" class="sm:col-span-2">
