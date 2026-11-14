@@ -1012,12 +1012,13 @@ onMounted(() => { void load() })
           </section>
           <section v-if="draft.id" class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <div><h3 class="font-bold">Publicación</h3><p class="text-xs text-[var(--dh-text-muted)]">Activá la ruta solo después de revisar sus permisos.</p></div>
+              <div><h3 class="text-lg font-bold">Publicación y API Keys</h3><p class="mt-1 text-sm text-[var(--dh-text-muted)]">Dhole genera las API Keys automáticamente; no tenés que inventarlas.</p></div>
               <DhButton :icon="draft.enabled ? Power : CheckCircle2" :label="draft.enabled ? 'Desactivar' : 'Publicar API'" :disabled="saving || (!draft.enabled && !ready)" @click="toggle(draft)" />
             </div>
+            <p v-if="!draft.enabled" class="rounded-xl border border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]">{{ ready ? 'Publicá la API para generar su clave y poder probarla.' : 'Falta configurar la identidad técnica en API Gateway. Por ahora solo podés guardar el borrador.' }}</p>
             <template v-if="draft.enabled">
               <div class="border-t border-[var(--dh-border)] pt-4">
-                <h3 class="flex items-center gap-2 font-bold"><KeyRound class="h-4 w-4" /> Acceso del tercero</h3>
+                <h3 class="flex items-center gap-2 text-base font-bold"><KeyRound class="h-5 w-5 text-[var(--dh-primary)]" /> 1. Generar una API Key</h3>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cada aplicación recibe su propia clave. Se mostrará una sola vez.</p>
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
                   <div>
@@ -1039,11 +1040,55 @@ onMounted(() => { void load() })
                     </div>
                   </div>
                 </div>
-                <DhButton class="mt-3" :icon="KeyRound" label="Generar API Key" :disabled="saving" :loading="saving" @click="issueKey" />
+                <DhButton class="mt-3" :icon="KeyRound" label="Generar API Key automáticamente" :disabled="saving" :loading="saving" @click="issueKey" />
               </div>
               <div v-for="key in keys" :key="key.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3">
                 <div><strong class="block text-sm">{{ key.label }}</strong><code class="text-xs text-[var(--dh-text-muted)]">{{ key.prefix }}… · {{ key.maxRequestsPerMinute }}/min · {{ key.active ? 'Activa' : 'Revocada' }}</code></div>
                 <DhButton v-if="key.active" size="sm" variant="danger" :icon="Trash2" label="Revocar" @click="confirmRevoke = key" />
+              </div>
+            </template>
+          </section>
+
+          <section v-if="draft.id" class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-wider text-[var(--dh-primary)]">Consola de pruebas</p>
+              <h3 class="mt-1 text-lg font-bold">2. Probá qué devuelve esta API</h3>
+              <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Probá la ruta externa y revisá el HTTP status y el JSON real de respuesta.</p>
+            </div>
+            <p v-if="!draft.enabled" class="text-sm text-[var(--dh-text-muted)]">Primero publicá la ruta y generá una API Key.</p>
+            <template v-else>
+              <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 font-mono text-xs font-bold">{{ method }}</span>
+                <code class="min-w-0 flex-1 break-all text-xs">{{ externalUrl(draft) }}</code>
+                <DhButton variant="ghost" size="sm" :icon="Copy" label="Copiar URL" @click="copy(externalUrl(draft))" />
+              </div>
+              <DhInput v-model="testApiKey" type="password" label="API Key activa para esta ruta" placeholder="dh_ext_..." />
+              <p class="text-xs text-[var(--dh-text-muted)]">La nueva clave se carga automáticamente. Si cerraste el formulario, pegá la clave copiada. No queda guardada en el navegador.</p>
+              <DhInput v-if="selectedTarget?.path.includes('{id}') && !draft.target.startsWith('route.')" v-model="testId" label="ID del registro" placeholder="Identificador del registro" />
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-xs font-bold uppercase text-[var(--dh-text-muted)]">{{ method === 'GET' ? 'Parámetros GET (JSON)' : 'Cuerpo de solicitud (JSON)' }}</p>
+                  <DhButton variant="ghost" size="sm" label="Cargar plantilla" @click="fillTestExample" />
+                </div>
+                <DhTextarea v-model="testPayload" :rows="7" placeholder="{}" />
+                <p class="text-xs text-[var(--dh-text-muted)]">Utilizá los nombres públicos configurados en el paso 2. En GET se convierten en parámetros de consulta.</p>
+              </div>
+              <label v-if="method !== 'GET'" class="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+                <input v-model="mutationConfirmed" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" />
+                <span><strong>Autorizo ejecutar {{ method }}.</strong> La prueba usa datos reales y puede crear, modificar o eliminar registros.</span>
+              </label>
+              <div v-if="testError" role="alert" class="rounded-xl border border-red-500/40 bg-red-500/5 p-4 text-sm text-red-500">{{ testError }}</div>
+              <DhButton :icon="ArrowRight" label="Ejecutar prueba" :disabled="testRunning || !testApiKey.trim()" :loading="testRunning" @click="runApiTest" />
+              <div v-if="testResult" class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4" role="status">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div class="flex items-center gap-2">
+                    <span class="rounded-lg border px-2 py-1 font-mono text-xs font-bold" :class="testResult.ok ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-red-500/40 text-red-500'">HTTP {{ testResult.status }}</span>
+                    <span class="text-xs text-[var(--dh-text-muted)]">{{ testResult.durationMs }} ms</span>
+                  </div>
+                  <DhButton variant="ghost" size="sm" :icon="Copy" label="Copiar respuesta" @click="copy(testResponse)" />
+                </div>
+                <h4 class="text-sm font-bold">Respuesta real del servidor</h4>
+                <pre class="max-h-[440px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 font-mono text-xs leading-relaxed">{{ testResponse }}</pre>
               </div>
             </template>
           </section>
