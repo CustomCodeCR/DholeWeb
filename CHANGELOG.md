@@ -1,3 +1,9 @@
+## [1.53.0] - 2026-11-14 (Dhole API Manager promotion)
+
+- Release de coordinación para API Manager. El constructor y los ocho catálogos ya estaban integrados en develop desde el release 1.40.0.
+- Mantiene el diseño, funcionalidades recientes de CRM y Pricing y URLs públicas versionadas; sin retroceder versiones.
+- Empareja DholeWeb con DholeApiGateway 1.6.1 y DholeSystem 1.53.0. Producción no autorizada.
+
 ## [1.52.1] - 2026-11-13
 
 - PATCH DH-20261113-PRICING-OWN-LCL-141: Web 1.52.0 → 1.52.1, Pricing 1.18.2. CFS LCL propio usa CBM cobrable también en cotizaciones históricas; la API y los totales comerciales se corrigen en backend. Coloader y Miami CFT no se alteran.
