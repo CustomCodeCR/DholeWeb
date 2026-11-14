@@ -7,7 +7,9 @@ const view = readFileSync(new URL('../src/modules/crm/components/CrmSalesCalenda
 test('backdated activities are not automatically moved forward', () => {
   assert.match(view, /data\.type === 'FOLLOWUP' && !userEditedStart\.value/)
   assert.match(view, /data\.type === 'FOLLOWUP' && start\.getTime\(\) < Date\.now\(\) - 60000/)
-  assert.match(view, /data\.type !== 'FOLLOWUP' && \(!Number\.isFinite\(end\.getTime\(\)\) \|\| end <= start\)/)
+  // An explicit end time is now required for follow-ups as well as activities.
+  assert.match(view, /\(!Number\.isFinite\(end\.getTime\(\)\) \|\| end <= start\)/)
+  assert.match(view, /startAt: start\.toISOString\(\), dueAt: end\.toISOString\(\)/)
 })
 
 test('completed historical activity sends original end as occurredAt', () => {
