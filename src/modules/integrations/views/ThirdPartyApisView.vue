@@ -570,6 +570,12 @@ async function loadKeys(id: string) {
 async function save() {
   error.value = ''
   const d = draft.value
+  const persisted = endpoints.value.find(endpoint => endpoint.id === d.id)
+  // Avoid a no-op PUT: the backend revokes every active key when a contract is updated.
+  if (persisted && JSON.stringify(persisted) === JSON.stringify(d)) {
+    notice.value = 'No hay cambios por guardar. Tus API Keys siguen activas.'
+    return
+  }
   if (d.target === 'pricing-rate-request-create' &&
       !d.inputs.some(f => f.internal === 'payload' || f.internal.startsWith('payload.'))) {
     error.value = 'Seleccioná los datos de la operación antes de guardar.'; step.value = 2; return
