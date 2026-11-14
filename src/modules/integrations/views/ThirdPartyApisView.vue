@@ -9,7 +9,6 @@ import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
-import DhDrawer from '@/shared/components/organisms/DhDrawer.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -29,7 +28,7 @@ type ServiceEntry = { service: string; prefix: string }
 type DiscoveryResult = { service: string; documented: boolean; message: string; routes: ApprovedTarget[] }
 type KeyInfo = {
   id: string; label: string; prefix: string; active: boolean; expiresAt: string
-  maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null
+  maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null; endpointIds?: string[]
 }
 
 const root = '/api/integrations/third-party'
@@ -46,7 +45,12 @@ const newInputPublic = ref('')
 const newInputInternal = ref('')
 const newOutputPublic = ref('')
 const newOutputInternal = ref('')
-const keys = ref<KeyInfo[]>([])
+const activePanel = ref<'apis' | 'keys'>('apis')
+const keyRegistry = ref<KeyInfo[]>([])
+const keyLabel = ref('')
+const editingKeyId = ref('')
+const keyEndpointIds = ref<string[]>([])
+const keyBusy = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -141,6 +145,9 @@ const filteredServices = computed(() => services.value.filter(option =>
 const operations = computed(() => catalog.value
   .filter(t => t.service === service.value && t.method === method.value)
   .filter(t => (t.path + ' ' + t.description).toLowerCase().includes(routeSearch.value.toLowerCase())))
+const linkableEndpoints = computed(() => endpoints.value.map(x => ({
+  value: x.id, label: x.name, description: '/api/external/v1/' + x.slug,
+})))
 const filtered = computed(() => endpoints.value.filter(x =>
   [x.name, x.slug, x.target].join(' ').toLowerCase().includes(search.value.toLowerCase())))
 const externalUrl = (x: PublishedEndpoint) => base + '/api/external/v1/' + (x.slug || 'mi-api') +
@@ -364,7 +371,95 @@ async function runApiTest() {
     mutationConfirmed.value = false
   }
 }
+async function loadRegistryKeys() {
+  try {
+    keyRegistry.value = await fetchClient<KeyInfo[]>(root + '/keys', { method: 'GET' })
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudieron cargar las API Keys.' }
+}
+function showKeysPanel() {
+  closeDrawer()
+  activePanel.value = 'keys'
+  error.value = ''
+  void loadRegistryKeys()
+}
+function startKeyLinks(key: KeyInfo) {
+  editingKeyId.value = key.id
+  keyEndpointIds.value = [...(key.endpointIds ?? [])]
+}
+async function saveKeyLinks() {
+  if (!editingKeyId.value) return
+  error.value = ''
+  keyBusy.value = true
+  try {
+    await fetchClient(root + '/keys/' + encodeURIComponent(editingKeyId.value) + '/endpoints', {
+      method: 'PUT', body: { endpointIds: keyEndpointIds.value },
+    })
+    editingKeyId.value = ''
+    keyEndpointIds.value = []
+    await loadRegistryKeys()
+    notice.value = 'Vínculos guardados. La clave solo puede utilizar las APIs seleccionadas cuando estén publicadas.'
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudieron vincular las APIs.' }
+  finally { keyBusy.value = false }
+}
+async function createStandaloneKey() {
+  error.value = ''
+  const label = keyLabel.value.trim()
+  const days = Number(expiresDays.value)
+  const limit = Number(maxPerMinute.value)
+  if (!label || label.length > 100 || !Number.isInteger(days) || days < 1 || days > 365 ||
+    !Number.isInteger(limit) || limit < 1 || limit > 300) {
+    error.value = 'Ingresá el nombre, vigencia válida (1–365 días) y límite (1–300/min).'
+    return
+  }
+  keyBusy.value = true
+  try {
+    const created = await fetchClient<{ id: string; apiKey: string }>(root + '/keys', {
+      method: 'POST', body: { label, expiresInDays: days, maxRequestsPerMinute: limit },
+    })
+    issuedSecret.value = created.apiKey
+    issuedLabel.value = label
+    keyLabel.value = ''
+    secretModal.value = true
+    await loadRegistryKeys()
+    notice.value = 'Clave generada sin APIs vinculadas. Elegí las autorizaciones de esta clave.'
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo generar la clave.' }
+  finally { keyBusy.value = false }
+}
+async function previewApi() {
+  testError.value = ''
+  testResult.value = null
+  testResponse.value = ''
+  if (method.value !== 'GET' || !selectedTarget.value) {
+    testError.value = 'Solo podés previsualizar operaciones GET con tu sesión.'
+    return
+  }
+  let parameters: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(testPayload.value.trim() || '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error('Ingresá parámetros en un objeto JSON.')
+    parameters = parsed as Record<string, unknown>
+  } catch (e) {
+    testError.value = e instanceof Error ? e.message : 'JSON inválido.'
+    return
+  }
+  testRunning.value = true
+  const started = performance.now()
+  try {
+    const result = await fetchClient<{ status: number; data?: unknown; message?: string }>(root + '/preview', {
+      method: 'POST', body: {
+        endpoint: { ...draft.value, id: draft.value.id || '00000000-0000-0000-0000-000000000000', enabled: false },
+        parameters, id: testId.value.trim() || null,
+      },
+    })
+    testResult.value = { status: result.status, durationMs: Math.round(performance.now() - started),
+      ok: result.status >= 200 && result.status < 300 }
+    testResponse.value = JSON.stringify(result.data ?? { message: result.message ?? 'Respuesta vacía' }, null, 2)
+  } catch (e) { testError.value = e instanceof Error ? e.message : 'No se pudo previsualizar la respuesta.' }
+  finally { testRunning.value = false }
+}
 function create() {
+  activePanel.value = 'apis'
   resetApiTest()
   draft.value = blank()
   routeSearch.value = ''
@@ -374,7 +469,6 @@ function create() {
   void discoverService(service.value)
   method.value = 'GET'
   step.value = 1
-  keys.value = []
   error.value = ''
   notice.value = ''
   pickOnlyAvailableAction()
@@ -388,11 +482,9 @@ function edit(row: PublishedEndpoint) {
   manualRoute.value = target?.path || '/api/' + service.value + '/'
   method.value = target?.method || 'GET'
   step.value = 2
-  keys.value = []
   error.value = ''
   drawer.value = true
   if (row.target.startsWith('route.')) void discoverService(service.value)
-  void loadKeys(row.id)
 }
 function pickOnlyAvailableAction() {
   const matches = catalog.value.filter(t => t.service === service.value && t.method === method.value)
@@ -563,10 +655,6 @@ async function load() {
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible cargar las APIs.' }
   finally { loading.value = false }
 }
-async function loadKeys(id: string) {
-  try { keys.value = await fetchClient<KeyInfo[]>(root + '/endpoints/' + encodeURIComponent(id) + '/keys', { method: 'GET' }) }
-  catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible cargar las claves.' }
-}
 async function save() {
   error.value = ''
   const d = draft.value
@@ -591,11 +679,10 @@ async function save() {
     const created = await fetchClient<PublishedEndpoint>(
       root + '/endpoints' + (d.id ? '/' + encodeURIComponent(d.id) : ''), {
         method: d.id ? 'PUT' : 'POST',
-        body: { ...d, responseRoot: d.responseRoot || null },
+        body: { ...d, id: d.id || '00000000-0000-0000-0000-000000000000', responseRoot: d.responseRoot || null },
       })
     draft.value = created
     await load()
-    await loadKeys(created.id)
     step.value = 3
     notice.value = 'Ruta guardada como borrador. Podés publicarla cuando su acceso interno esté configurado.'
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible guardar la API.' }
@@ -616,32 +703,8 @@ async function toggle(row: PublishedEndpoint) {
     const updated = endpoints.value.find(x => x.id === row.id)
     if (updated && draft.value.id === row.id) draft.value = structuredClone(updated)
     if (row.enabled) resetApiTest()
-    notice.value = row.enabled ? 'API desactivada y claves revocadas.' : 'API publicada. Ya podés crear una clave.'
+    notice.value = row.enabled ? 'API desactivada. Se conservaron las vinculaciones de sus claves.' : 'API publicada. Ahora vinculá una API Key desde la pestaña de credenciales.'
   } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo cambiar el estado.' }
-  finally { saving.value = false }
-}
-async function issueKey() {
-  error.value = ''
-  if (!draft.value.id || !draft.value.enabled) {
-    error.value = 'Publicá la API para generar el acceso del tercero.'; return
-  }
-  const days = Number(expiresDays.value)
-  const quota = Number(maxPerMinute.value)
-  if (!Number.isInteger(days) || days < 1 || days > 365 || !Number.isInteger(quota) || quota < 1 || quota > 300) {
-    error.value = 'Vigencia: 1 a 365 días. Solicitudes por minuto: 1 a 300.'; return
-  }
-  saving.value = true
-  try {
-    const issued = await fetchClient<{ id: string; apiKey: string }>(
-      root + '/endpoints/' + encodeURIComponent(draft.value.id) + '/keys', {
-        method: 'POST', body: { label: 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name, expiresInDays: days, maxRequestsPerMinute: quota },
-      })
-    issuedSecret.value = issued.apiKey
-    testApiKey.value = issued.apiKey
-    issuedLabel.value = 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name
-      secretModal.value = true
-    await loadKeys(draft.value.id)
-  } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible emitir la clave.' }
   finally { saving.value = false }
 }
 async function revoke() {
@@ -652,7 +715,7 @@ async function revoke() {
   try {
     await fetchClient(root + '/keys/' + encodeURIComponent(key.id), { method: 'DELETE' })
     notice.value = 'Clave revocada.'
-    await loadKeys(draft.value.id)
+    await loadRegistryKeys()
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible revocar la clave.' }
 }
 async function copy(text: string) {
@@ -664,11 +727,11 @@ onMounted(() => { void load() })
 
 <template>
   <main class="mx-auto flex w-full max-w-[1480px] flex-col gap-5 p-4 text-[var(--dh-text)] lg:p-7">
-    <header class="flex flex-wrap items-center justify-between gap-4">
+    <header v-if="!drawer" class="flex flex-col gap-5 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Dhole · APIs</p>
         <h1 class="mt-1 text-2xl font-black">Dhole API Manager</h1>
-        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Descubrí rutas de los microservicios y publicá únicamente las operaciones y campos que autoricés.</p>
+        <p class="mt-1 max-w-xl text-sm text-[var(--dh-text-muted)]">Administrá las rutas públicas y las credenciales de acceso de forma independiente, con permisos por API.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
@@ -676,14 +739,25 @@ onMounted(() => { void load() })
       </div>
     </header>
 
+    <nav v-if="!drawer" aria-label="Administración de integraciones" class="flex flex-wrap gap-2 border-b border-[var(--dh-border)] pb-3">
+      <button type="button" :aria-current="activePanel === 'apis' ? 'page' : undefined"
+        class="rounded-xl px-5 py-3 text-sm font-bold transition-colors"
+        :class="activePanel === 'apis' ? 'bg-[var(--dh-primary)] text-white' : 'bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+        @click="activePanel = 'apis'"><Globe2 class="mr-2 inline h-4 w-4" /> APIs <span class="ml-1 opacity-75">{{ endpoints.length }}</span></button>
+      <button type="button" :aria-current="activePanel === 'keys' ? 'page' : undefined"
+        class="rounded-xl px-5 py-3 text-sm font-bold transition-colors"
+        :class="activePanel === 'keys' ? 'bg-[var(--dh-primary)] text-white' : 'bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+        @click="showKeysPanel"><KeyRound class="mr-2 inline h-4 w-4" /> API Keys</button>
+    </nav>
+
     <div v-if="error && !drawer" role="alert" class="rounded-xl border border-red-400/40 p-3 text-sm text-red-500">{{ error }}</div>
     <div v-if="notice && !drawer" role="status" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">{{ notice }}</div>
 
-    <section class="overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+    <section v-if="!drawer && activePanel === 'apis'" class="overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-4">
         <div>
           <h2 class="font-bold">Mis rutas</h2>
-          <p class="text-xs text-[var(--dh-text-muted)]">Cada ruta tiene un método, un módulo y su propia API Key.</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">Una API puede ser utilizada por diferentes API Keys autorizadas.</p>
         </div>
         <div class="w-full max-w-xs"><DhInput v-model="search" type="search" placeholder="Buscar API..." /></div>
       </div>
@@ -716,10 +790,81 @@ onMounted(() => { void load() })
       </div>
     </section>
 
-    <DhDrawer :open="drawer" :title="isNew ? 'Nueva API' : 'Administrar · ' + draft.name" size="full" @close="closeDrawer">
-      <div class="mx-auto flex w-full max-w-[1280px] flex-col gap-6 pb-2">
+
+    <section v-if="!drawer && activePanel === 'keys'" class="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div class="self-start space-y-5 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 sm:p-6">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-[var(--dh-primary)]">Credenciales</p>
+          <h2 class="mt-2 text-xl font-black">Crear API Key</h2>
+          <p class="mt-2 text-sm leading-relaxed text-[var(--dh-text-muted)]">La clave pertenece a una aplicación externa. Después de crearla podrás vincularla con una o varias APIs, sin compartirla entre clientes.</p>
+        </div>
+        <DhInput v-model="keyLabel" label="Nombre de la aplicación" placeholder="Ej. Portal Galago · Producción" />
+        <div>
+          <p class="mb-2 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Vigencia</p>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="days in ['30','90','180','365']" :key="days" type="button"
+              :aria-pressed="expiresDays === days" class="rounded-xl border px-3 py-2 text-sm font-semibold"
+              :class="expiresDays === days ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+              @click="expiresDays = days">{{ days }} días</button>
+          </div>
+        </div>
+        <div>
+          <p class="mb-2 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Solicitudes por minuto</p>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="quota in ['10','30','60','120']" :key="quota" type="button"
+              :aria-pressed="maxPerMinute === quota" class="rounded-xl border px-3 py-2 text-sm font-semibold"
+              :class="maxPerMinute === quota ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+              @click="maxPerMinute = quota">{{ quota }}</button>
+          </div>
+        </div>
+        <DhButton :icon="KeyRound" label="Generar API Key" :disabled="keyBusy || !keyLabel.trim()" :loading="keyBusy" @click="createStandaloneKey" />
+        <p class="text-xs text-[var(--dh-text-muted)]">El secreto se muestra una sola vez. Las claves no vinculadas a ninguna API no tienen acceso.</p>
+      </div>
+      <div class="min-w-0 overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-5 sm:p-6">
+          <div>
+            <h2 class="text-lg font-bold">Claves y APIs autorizadas</h2>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Vinculá cada clave solamente a las rutas que su aplicación necesita.</p>
+          </div>
+          <DhButton size="sm" variant="secondary" :icon="RefreshCw" label="Actualizar" @click="loadRegistryKeys" />
+        </div>
+        <div v-if="!keyRegistry.length" class="p-9 text-center text-sm text-[var(--dh-text-muted)]">No hay claves registradas. Creá la primera desde el formulario.</div>
+        <div v-for="key in keyRegistry" :key="key.id" class="space-y-3 border-b border-[var(--dh-border)] p-5 last:border-b-0">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 class="font-bold">{{ key.label }}</h3>
+              <p class="mt-1 font-mono text-xs text-[var(--dh-text-muted)]">{{ key.prefix }}…</p>
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ key.endpointIds?.length || 0 }} APIs vinculadas · {{ key.maxRequestsPerMinute }}/min · {{ key.active ? 'Activa' : 'Revocada' }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <DhButton v-if="key.active" variant="secondary" size="sm" label="Vincular APIs" @click="startKeyLinks(key)" />
+              <DhButton v-if="key.active" variant="danger" size="sm" :icon="Trash2" label="Revocar" @click="confirmRevoke = key" />
+            </div>
+          </div>
+          <div v-if="editingKeyId === key.id" class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+            <DhMultiSelect v-model="keyEndpointIds" label="APIs autorizadas para esta clave"
+              :options="linkableEndpoints" placeholder="Elegir APIs" search-placeholder="Buscar API..." />
+            <p class="text-xs text-[var(--dh-text-muted)]">Podés seleccionar varias. Solo se podrán consumir cuando estén publicadas y tengan identidad técnica configurada.</p>
+            <div class="flex flex-wrap gap-2">
+              <DhButton label="Guardar vínculos" :disabled="keyBusy" :loading="keyBusy" @click="saveKeyLinks" />
+              <DhButton variant="secondary" label="Cancelar" @click="editingKeyId = ''; keyEndpointIds = []" />
+            </div>
+          </div>
+          <div v-else class="flex flex-wrap gap-1.5">
+            <span v-for="id in key.endpointIds || []" :key="id" class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">
+              {{ endpoints.find(api => api.id === id)?.name || 'API no disponible' }}
+            </span>
+            <span v-if="!key.endpointIds?.length" class="text-xs text-[var(--dh-text-muted)]">Sin permisos asignados</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="drawer" class="min-w-0 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 shadow-[var(--dh-shadow-sm)] sm:p-6 lg:p-8">
+      <div class="mx-auto flex w-full max-w-[1180px] flex-col gap-5 pb-2">
         <div class="flex flex-col gap-5 border-b border-[var(--dh-border)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div class="space-y-1">
+            <button type="button" class="mb-3 flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)] hover:underline" @click="closeDrawer"><ArrowLeft class="h-4 w-4" /> Volver al listado</button>
             <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--dh-primary)]">DHOLE · API MANAGER</p>
             <h2 class="text-2xl font-black tracking-tight sm:text-3xl">{{ isNew ? 'Configurá una nueva API' : 'Administrá tu API' }}</h2>
             <p class="max-w-2xl text-sm leading-relaxed text-[var(--dh-text-muted)]">
@@ -1016,88 +1161,90 @@ onMounted(() => { void load() })
               La conexión de esta operación todavía no está lista. Podés guardar tu API, pero un administrador debe habilitarla antes de compartirla.
             </div>
           </section>
-          <section v-if="draft.id" class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div><h3 class="text-lg font-bold">Publicación y API Keys</h3><p class="mt-1 text-sm text-[var(--dh-text-muted)]">Dhole genera las API Keys automáticamente; no tenés que inventarlas.</p></div>
-              <DhButton :icon="draft.enabled ? Power : CheckCircle2" :label="draft.enabled ? 'Desactivar' : 'Publicar API'" :disabled="saving || (!draft.enabled && !ready)" @click="toggle(draft)" />
-            </div>
-            <p v-if="!draft.enabled" class="rounded-xl border border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]">{{ ready ? 'Publicá la API para generar su clave y poder probarla.' : 'Falta configurar la identidad técnica en API Gateway. Por ahora solo podés guardar el borrador.' }}</p>
-            <template v-if="draft.enabled">
-              <div class="border-t border-[var(--dh-border)] pt-4">
-                <h3 class="flex items-center gap-2 text-base font-bold"><KeyRound class="h-5 w-5 text-[var(--dh-primary)]" /> 1. Generar una API Key</h3>
-                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cada aplicación recibe su propia clave. Se mostrará una sola vez.</p>
-                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+            <section class="self-start space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 sm:p-6">
+              <div>
+                <h3 class="text-lg font-bold">Publicación</h3>
+                <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Guardá primero el contrato. Las API Keys se administran por separado.</p>
+              </div>
+              <div v-if="!draft.id" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 text-sm text-[var(--dh-text-muted)]">
+                Esta API todavía no se guardó. Podés previsualizar una consulta GET antes de crear el borrador.
+              </div>
+              <template v-else>
+                <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
                   <div>
-                    <p class="mb-2 text-xs font-semibold text-[var(--dh-text-muted)]">Vigencia de la clave</p>
-                    <div class="flex flex-wrap gap-2">
-                      <button v-for="days in ['30','90','180','365']" :key="days" type="button"
-                        class="rounded-xl border px-3 py-2 text-xs font-semibold"
-                        :class="expiresDays === days ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
-                        @click="expiresDays = days">{{ days }} días</button>
-                    </div>
+                    <strong class="block">{{ draft.enabled ? 'API publicada' : 'API en borrador' }}</strong>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ ready ? 'La identidad técnica está disponible.' : 'La identidad técnica de Gateway todavía no está disponible.' }}</p>
                   </div>
-                  <div>
-                    <p class="mb-2 text-xs font-semibold text-[var(--dh-text-muted)]">Límite de solicitudes por minuto</p>
-                    <div class="flex flex-wrap gap-2">
-                      <button v-for="quota in ['10','30','60','120']" :key="quota" type="button"
-                        class="rounded-xl border px-3 py-2 text-xs font-semibold"
-                        :class="maxPerMinute === quota ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
-                        @click="maxPerMinute = quota">{{ quota }}/min</button>
-                    </div>
+                  <DhButton :icon="draft.enabled ? Power : CheckCircle2"
+                    :label="draft.enabled ? 'Desactivar' : 'Publicar API'"
+                    :disabled="saving || (!draft.enabled && !ready)" @click="toggle(draft)" />
+                </div>
+                <p v-if="!ready" class="rounded-xl border border-amber-500/40 p-3 text-xs">
+                  Esta API aún no se puede publicar ni consumir externamente porque le falta una identidad técnica en Gateway. Podés probar su GET con los permisos de tu sesión.
+                </p>
+              </template>
+              <div class="rounded-xl border border-[var(--dh-border)] p-4">
+                <div class="flex items-start gap-3">
+                  <KeyRound class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+                  <div class="min-w-0 space-y-2">
+                    <strong class="block text-sm">API Keys independientes</strong>
+                    <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">Generá una clave por aplicación, vinculala a una o más APIs y revocala desde el panel de credenciales. No se crea una clave por cada ruta.</p>
+                    <DhButton variant="secondary" size="sm" :icon="KeyRound" label="Administrar API Keys" @click="showKeysPanel" />
                   </div>
                 </div>
-                <DhButton class="mt-3" :icon="KeyRound" label="Generar API Key automáticamente" :disabled="saving" :loading="saving" @click="issueKey" />
               </div>
-              <div v-for="key in keys" :key="key.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3">
-                <div><strong class="block text-sm">{{ key.label }}</strong><code class="text-xs text-[var(--dh-text-muted)]">{{ key.prefix }}… · {{ key.maxRequestsPerMinute }}/min · {{ key.active ? 'Activa' : 'Revocada' }}</code></div>
-                <DhButton v-if="key.active" size="sm" variant="danger" :icon="Trash2" label="Revocar" @click="confirmRevoke = key" />
-              </div>
-            </template>
-          </section>
+            </section>
 
-          <section v-if="draft.id" class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
-            <div>
-              <p class="text-xs font-bold uppercase tracking-wider text-[var(--dh-primary)]">Consola de pruebas</p>
-              <h3 class="mt-1 text-lg font-bold">2. Probá qué devuelve esta API</h3>
-              <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Probá la ruta externa y revisá el HTTP status y el JSON real de respuesta.</p>
-            </div>
-            <p v-if="!draft.enabled" class="text-sm text-[var(--dh-text-muted)]">Primero publicá la ruta y generá una API Key.</p>
-            <template v-else>
+            <section class="min-w-0 space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 sm:p-6">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-[var(--dh-primary)]">Consola de pruebas</p>
+                <h3 class="mt-1 text-lg font-bold">Probá los datos que devuelve</h3>
+                <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+                  {{ method === 'GET' ? 'Previsualizá con tu sesión sin publicar ni crear una API Key.' : 'Las operaciones que modifican datos requieren API publicada y API Key vinculada.' }}
+                </p>
+              </div>
               <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
                 <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 font-mono text-xs font-bold">{{ method }}</span>
                 <code class="min-w-0 flex-1 break-all text-xs">{{ externalUrl(draft) }}</code>
                 <DhButton variant="ghost" size="sm" :icon="Copy" label="Copiar URL" @click="copy(externalUrl(draft))" />
               </div>
-              <DhInput v-model="testApiKey" type="password" label="API Key activa para esta ruta" placeholder="dh_ext_..." />
-              <p class="text-xs text-[var(--dh-text-muted)]">La nueva clave se carga automáticamente. Si cerraste el formulario, pegá la clave copiada. No queda guardada en el navegador.</p>
-              <DhInput v-if="selectedTarget?.path.includes('{id}') && !draft.target.startsWith('route.')" v-model="testId" label="ID del registro" placeholder="Identificador del registro" />
+              <DhInput v-if="selectedTarget?.path.includes('{id}') && !draft.target.startsWith('route.')"
+                v-model="testId" label="Identificador del registro" placeholder="ID necesario para la consulta" />
               <div class="space-y-2">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-xs font-bold uppercase text-[var(--dh-text-muted)]">{{ method === 'GET' ? 'Parámetros GET (JSON)' : 'Cuerpo de solicitud (JSON)' }}</p>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">{{ method === 'GET' ? 'Parámetros GET (JSON)' : 'Datos de la solicitud (JSON)' }}</p>
                   <DhButton variant="ghost" size="sm" label="Cargar plantilla" @click="fillTestExample" />
                 </div>
-                <DhTextarea v-model="testPayload" :rows="7" placeholder="{}" />
-                <p class="text-xs text-[var(--dh-text-muted)]">Utilizá los nombres públicos configurados en el paso 2. En GET se convierten en parámetros de consulta.</p>
+                <DhTextarea v-model="testPayload" :rows="6" placeholder="{}" />
+                <p class="text-xs text-[var(--dh-text-muted)]">Utilizá los campos públicos seleccionados en el paso anterior.</p>
               </div>
-              <label v-if="method !== 'GET'" class="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
-                <input v-model="mutationConfirmed" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" />
-                <span><strong>Autorizo ejecutar {{ method }}.</strong> La prueba usa datos reales y puede crear, modificar o eliminar registros.</span>
-              </label>
-              <div v-if="testError" role="alert" class="rounded-xl border border-red-500/40 bg-red-500/5 p-4 text-sm text-red-500">{{ testError }}</div>
-              <DhButton :icon="ArrowRight" label="Ejecutar prueba" :disabled="testRunning || !testApiKey.trim()" :loading="testRunning" @click="runApiTest" />
-              <div v-if="testResult" class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4" role="status">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <div class="flex items-center gap-2">
-                    <span class="rounded-lg border px-2 py-1 font-mono text-xs font-bold" :class="testResult.ok ? 'border-[var(--dh-primary)] text-[var(--dh-primary)]' : 'border-red-500/40 text-red-500'">HTTP {{ testResult.status }}</span>
-                    <span class="text-xs text-[var(--dh-text-muted)]">{{ testResult.durationMs }} ms</span>
-                  </div>
-                  <DhButton variant="ghost" size="sm" :icon="Copy" label="Copiar respuesta" @click="copy(testResponse)" />
+              <div v-if="method === 'GET'" class="flex flex-wrap items-center gap-3">
+                <DhButton :icon="ArrowRight" label="Previsualizar GET" :disabled="testRunning" :loading="testRunning" @click="previewApi" />
+                <span class="text-xs text-[var(--dh-text-muted)]">Lectura real con tu sesión · no modifica datos</span>
+              </div>
+              <div v-if="draft.enabled" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
+                <DhInput v-model="testApiKey" type="password" label="API Key vinculada para probar la ruta pública" placeholder="dh_ext_..." />
+                <p class="text-xs text-[var(--dh-text-muted)]">Para probar la API pública, pegá la clave que guardaste al generarla en API Keys.</p>
+                <label v-if="method !== 'GET'" class="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-500/40 p-3 text-xs">
+                  <input v-model="mutationConfirmed" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[var(--dh-primary)]" />
+                  <span>Autorizo ejecutar {{ method }} sobre datos reales. Puede crear, modificar o eliminar registros.</span>
+                </label>
+                <DhButton variant="secondary" :icon="ArrowRight" label="Probar API pública con clave"
+                  :disabled="testRunning || !testApiKey.trim()" :loading="testRunning" @click="runApiTest" />
+              </div>
+              <div v-if="testError" role="alert" class="rounded-xl border border-red-500/40 p-3 text-sm text-red-500">{{ testError }}</div>
+              <div v-if="testResult" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4" role="status">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="font-mono text-sm font-bold" :class="testResult.ok ? 'text-[var(--dh-primary)]' : 'text-red-500'">
+                    HTTP {{ testResult.status }} · {{ testResult.durationMs }} ms
+                  </span>
+                  <DhButton variant="ghost" size="sm" :icon="Copy" label="Copiar JSON" @click="copy(testResponse)" />
                 </div>
-                <h4 class="text-sm font-bold">Respuesta real del servidor</h4>
-                <pre class="max-h-[440px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 font-mono text-xs leading-relaxed">{{ testResponse }}</pre>
+                <pre class="max-h-[440px] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 font-mono text-xs leading-relaxed">{{ testResponse }}</pre>
               </div>
-            </template>
-          </section>
+            </section>
+          </div>
         </template>
 
         <div class="sticky bottom-0 z-20 flex flex-col gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-lg)] sm:flex-row sm:items-center sm:justify-between sm:p-4">
@@ -1113,7 +1260,7 @@ onMounted(() => { void load() })
           </div>
         </div>
       </div>
-    </DhDrawer>
+    </section>
 
     <DhModal :open="secretModal" title="API Key generada" size="lg" @close="secretModal = false; issuedSecret = ''">
       <div class="space-y-3">
