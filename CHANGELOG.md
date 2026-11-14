@@ -1,5 +1,11 @@
 ## [1.53.0] - 2026-11-14
 
+- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: barras de actividades y seguimientos durante todo su intervalo, de varios días en vista mensual y con duración proporcional en semana/día. Los recordatorios comerciales permiten guardar inicio y fecha/hora de finalización, y los existentes sin inicio conservan la semántica de vencimiento único.
+- Reprogramación conserva duración, detalle muestra fecha final; filtros de backend retornan intervalos superpuestos. Mantiene permisos CRM, contratos REST, Outbox e integración realtime.
+- Web 1.52.1 → 1.53.0, CRM 1.31.0 → 1.32.0, sistema 1.52.1 → 1.53.0. CI y staging pendientes.
+
+## [1.53.0] - 2026-11-14
+
 - MINOR DH-20261114-CRM-RECORD-FOLLOWUPS-142: pestaña «Seguimientos» independiente en las fichas de prospectos y clientes, con historial cronológico de actividades, bitácoras y recordatorios vinculados; búsqueda, filtros, responsables, estados, paginación y acceso al detalle. Reutiliza API CRM y permisos existentes; las cuentas agrupadas comparten el historial.
 - DholeWeb 1.52.1 → 1.53.0; DholeSystem/ecosistema 1.52.1 → 1.53.0; CRM continúa en 1.31.0 sin cambio de contrato. Release en ramas intermedias; CI y staging obligatorios, producción no autorizada.
 
