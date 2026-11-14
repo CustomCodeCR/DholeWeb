@@ -6,8 +6,10 @@
   "components": [
     {
       "component": "DholeWeb",
-      "previousVersion": "1.52.1",
-      "version": "1.53.0"
+      "previousVersion": "1.53.0",
+      "version": "1.54.0",
+      "from": "1.53.0",
+      "to": "1.54.0"
     },
     {
       "component": "DholeCRMService",
@@ -16,8 +18,10 @@
     },
     {
       "component": "DholeSystem",
-      "previousVersion": "1.52.1",
-      "version": "1.53.0"
+      "previousVersion": "1.53.0",
+      "version": "1.54.0",
+      "from": "1.53.0",
+      "to": "1.54.0"
     }
   ],
   "scope": [
