@@ -1,3 +1,9 @@
+## [1.56.0] - 2026-11-14 (API Manager - rutas de microservicios)
+
+- MINOR: lista los servicios registrados, examina endpoints OpenAPI, permite seleccionar rutas internas y asignar contratos Request/Response configurables.
+- Añade búsqueda, registro manual de rutas no documentadas como borradores y parametrización path/query/body sin tocar otras pantallas.
+- Ninguna ruta interna se publica sin API Key y JWT técnico específico. Cobertura OpenAPI pendiente en servicios sin documentación de producción.
+
 ## [1.55.0] - 2026-11-14 (API Manager promotion)
 
 - MINOR: mantiene el API Manager ya integrado en develop y sincroniza este release; conserva todas las mejoras CRM/Pricing de 1.54.0.
