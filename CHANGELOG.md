@@ -1,3 +1,8 @@
+## [1.56.0] - 2026-11-14 (Dhole API Manager universal route discovery)
+
+- MINOR: explorador de todos los servicios registrados, métodos GET/POST/PUT/PATCH/DELETE, rutas descubiertas y mapeo configurable de request/response.
+- Solo permite publicar mediante contratos y API Keys con identidad técnica por ruta, sin cambiar otras pantallas.
+
 ## [1.55.0] - 2026-11-14 (API Manager promotion)
 
 - MINOR: incorpora API Manager, ocho catálogos Config de solo lectura y rutas externas versionadas manteniendo mejoras de CRM/Pricing de 1.54.0.
