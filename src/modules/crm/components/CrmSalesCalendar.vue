@@ -1192,8 +1192,8 @@ function openEvent(item: CalendarEvent) {
     </div>
     <div v-else-if="mode==='week' || mode==='day'"
       class="max-h-[680px] overflow-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
-      <div :class="mode==='week'?'min-w-[750px]':'min-w-[300px]'">
-        <div class="sticky top-0 z-10 grid border-b border-[var(--dh-border)] bg-[var(--dh-card)]"
+      <div :class="mode==='week'?'min-w-[900px]':'min-w-[300px]'">
+        <div class="sticky top-0 z-20 grid border-b border-[var(--dh-border)] bg-[var(--dh-card)]"
           :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
           <div class="border-r border-[var(--dh-border)] p-3 text-xs font-bold text-[var(--dh-text-muted)]">Hora</div>
           <div v-for="day in visibleDays" :key="dateKey(day)"
@@ -1201,36 +1201,47 @@ function openEvent(item: CalendarEvent) {
             {{ day.toLocaleDateString('es-CR',{weekday:'short',day:'numeric',month:'short'}) }}
           </div>
         </div>
-        <div v-for="slot in timeSlots" :key="slot.label" class="grid"
-          :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
-          <div class="border-b border-r border-[var(--dh-border)] p-2 text-right text-[11px] tabular-nums text-[var(--dh-text-muted)]">{{ slot.label }}</div>
+        <div class="grid" :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
+          <div>
+            <div v-for="slot in timeSlots" :key="slot.label"
+              class="box-border border-b border-r border-[var(--dh-border)] p-2 text-right text-[11px] tabular-nums text-[var(--dh-text-muted)]"
+              :style="{ height: calendarSlotHeight + 'px' }">{{ slot.label }}</div>
+          </div>
           <div v-for="day in visibleDays" :key="dateKey(day)"
-            class="min-h-[52px] border-b border-r border-[var(--dh-border)] p-1"
-            :class="dropKey===slotDate(day,slot).toISOString()?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
-            @dragover="onSlotOver($event,slotDate(day,slot))"
-            @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
-            @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))"
-            tabindex="0" :aria-label="'Agendar actividad el '+dateKey(day)+' a las '+slot.label"
-            @click.self="openCreation(slotDate(day,slot))"
-            @keydown.enter.self="openCreation(slotDate(day,slot))">
-            <button v-for="item in slotEvents(day,slot)" :key="item.key" type="button"
-              :draggable="canMove(item)" :title="item.subject"
-              @dragstart="onDragStart($event,item)" @dragend="onDragEnd"
-              @click="openEvent(item)"
-              class="mb-1 block w-full truncate rounded-lg border p-2 text-left text-xs font-bold"
-              :class="eventTone(item)" :style="sellerEventStyle(item)">
-              {{ item.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }} · {{ item.subject }}
-              <span v-if="isManagerCalendar" class="block truncate text-[10px] opacity-80">
-                {{ clientName(item) }} · {{ ownerName(item) }}
+            class="relative min-w-0 border-r border-[var(--dh-border)]"
+            :style="{ height: calendarOfficeHeight + 'px' }">
+            <div v-for="slot in timeSlots" :key="slot.label"
+              class="box-border border-b border-[var(--dh-border)] p-1"
+              :style="{height: calendarSlotHeight + 'px'}"
+              :class="dropKey===slotDate(day,slot).toISOString()?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
+              @dragover="onSlotOver($event,slotDate(day,slot))"
+              @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
+              @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))"
+              @click.self="openCreation(slotDate(day,slot))"></div>
+            <button v-for="block in timedBlocks(day)" :key="block.event.key" type="button"
+              class="absolute left-1 right-1 z-10 overflow-hidden rounded-lg border p-1.5 text-left text-xs font-semibold shadow-sm"
+              :class="eventTone(block.event)" :style="{ ...sellerEventStyle(block.event),
+                top: block.top + 'px', height: block.height + 'px' }"
+              :title="block.event.subject + ' · ' + calendarIntervalLabel(block.event)"
+              :aria-label="block.event.subject + ' · ' + calendarIntervalLabel(block.event)"
+              :draggable="canMove(block.event)"
+              @dragstart="onDragStart($event,block.event)" @dragend="onDragEnd"
+              @click="openEvent(block.event)">
+              <span class="block truncate">{{ block.startsHere ? block.event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) : 'Continúa' }} · {{ block.event.subject }}</span>
+              <span v-if="block.height > 40" class="block text-[10px] opacity-80">
+                {{ block.finishesHere && block.event.endsAt ? 'Finaliza ' + block.event.endsAt.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) : calendarIntervalLabel(block.event) }}
+              </span>
+              <span v-if="isManagerCalendar && block.height > 60" class="block truncate text-[10px] opacity-80">
+                {{ clientName(block.event) }} · {{ ownerName(block.event) }}
               </span>
             </button>
           </div>
         </div>
         <div v-if="outsideOfficeHours.length" class="space-y-2 border-t border-[var(--dh-border)] p-3">
-          <p class="text-xs font-bold">Eventos fuera del horario de 07:00 a 21:00</p>
+          <p class="text-xs font-bold">Eventos que empiezan fuera del horario de 07:00 a 21:00</p>
           <button v-for="item in outsideOfficeHours" :key="item.key" type="button"
             class="calendar-btn mr-2" @click="openEvent(item)">
-            {{ item.at.toLocaleString('es-CR') }} · {{ item.subject }}
+            {{ calendarIntervalLabel(item) }} · {{ item.subject }}
           </button>
         </div>
       </div>
