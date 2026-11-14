@@ -11,7 +11,7 @@ import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
 import DhDrawer from '@/shared/components/organisms/DhDrawer.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 type Mapping = { public: string; internal: string; required: boolean }
 type FieldOption = { public: string; internal: string; label: string; required: boolean; selected: boolean; type?: string; group?: string }
 type ApprovedTarget = {
@@ -24,6 +24,8 @@ type PublishedEndpoint = {
   id: string; name: string; slug: string; target: string
   inputs: Mapping[]; outputs: Mapping[]; responseRoot: string | null; enabled: boolean
 }
+type ServiceEntry = { service: string; prefix: string }
+type DiscoveryResult = { service: string; documented: boolean; message: string; routes: ApprovedTarget[] }
 type KeyInfo = {
   id: string; label: string; prefix: string; active: boolean; expiresAt: string
   maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null
@@ -33,6 +35,15 @@ const root = '/api/integrations/third-party'
 const base = (import.meta.env.VITE_API_URL || 'https://api.logisticacastrofallas.com').replace(/\/+$/, '')
 const endpoints = ref<PublishedEndpoint[]>([])
 const catalog = ref<ApprovedTarget[]>([])
+const serviceInventory = ref<ServiceEntry[]>([])
+const discoveryMessage = ref('')
+const discoveryLoading = ref(false)
+const manualRoute = ref('')
+const routeSearch = ref('')
+const newInputPublic = ref('')
+const newInputInternal = ref('')
+const newOutputPublic = ref('')
+const newOutputInternal = ref('')
 const keys = ref<KeyInfo[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -54,6 +65,7 @@ const METHODS: { value: HttpMethod; label: string; detail: string }[] = [
   { value: 'GET', label: 'Consultar', detail: 'Obtener información' },
   { value: 'POST', label: 'Crear', detail: 'Registrar información nueva' },
   { value: 'PUT', label: 'Actualizar', detail: 'Modificar un registro' },
+  { value: 'PATCH', label: 'Parcial', detail: 'Modificar campos específicos' },
   { value: 'DELETE', label: 'Eliminar', detail: 'Eliminar información' },
 ]
 const blank = (): PublishedEndpoint => ({
@@ -99,25 +111,28 @@ const selectedOptionalInputs = computed<string[]>({
     const selected = granular
       ? values.filter(value => inputCatalog.value.find(f => f.public === value)?.internal !== 'payload')
       : values
-    draft.value.inputs = mapSelected(inputCatalog.value, selected)
+    draft.value.inputs = [...mapSelected(inputCatalog.value, selected),
+      ...draft.value.inputs.filter(f => !inputCatalog.value.some(x => x.public === f.public))]
   },
 })
 const selectedOutputs = computed<string[]>({
   get: () => draft.value.outputs.map(f => f.public),
   set: values => {
-    draft.value.outputs = mapSelected(outputCatalog.value, values)
+    draft.value.outputs = [...mapSelected(outputCatalog.value, values),
+      ...draft.value.outputs.filter(f => !outputCatalog.value.some(x => x.public === f.public))]
   },
 })
 
-const services = computed(() => [...new Set(catalog.value.map(t => t.service))].map(s => ({
-  label: s.toUpperCase(), value: s,
-})))
-const operations = computed(() =>
-  catalog.value.filter(t => t.service === service.value && t.method === method.value))
+const services = computed(() => [...new Set([
+  ...serviceInventory.value.map(x => x.service), ...catalog.value.map(t => t.service),
+])].sort().map(s => ({ label: s.toUpperCase(), value: s })))
+const operations = computed(() => catalog.value
+  .filter(t => t.service === service.value && t.method === method.value)
+  .filter(t => (t.path + ' ' + t.description).toLowerCase().includes(routeSearch.value.toLowerCase())))
 const filtered = computed(() => endpoints.value.filter(x =>
   [x.name, x.slug, x.target].join(' ').toLowerCase().includes(search.value.toLowerCase())))
 const externalUrl = (x: PublishedEndpoint) => base + '/api/external/v1/' + (x.slug || 'mi-api') +
-  (catalog.value.find(t => t.code === x.target)?.path.includes('{id}') ? '/{id}' : '')
+  (catalog.value.find(t => t.code === x.target)?.path.includes('{id}') && !x.target.startsWith('route.') ? '/{id}' : '')
 const example = computed(() => {
   if (!selectedTarget.value) return ''
   const target = selectedTarget.value
@@ -156,6 +171,7 @@ function methodName(value: string) {
   return METHODS.find(m => m.value === value)?.label || value
 }
 function targetName(value: ApprovedTarget): string {
+  if (value.code.startsWith('route.')) return value.description || value.method + ' ' + value.path
   if (value.code.startsWith('config-catalog-')) return value.description.replace(/\s*\(solo lectura.*$/i, '')
   if (value.code === 'pricing-usd-crc') return 'Tipo de cambio USD / CRC'
   if (value.code === 'pricing-rate-detail') return 'Consultar una tarifa por ID'
@@ -236,6 +252,9 @@ function initialOutputs(code: string): Mapping[] {
 }
 function create() {
   draft.value = blank()
+  routeSearch.value = ''
+  manualRoute.value = '/api/' + service.value + '/'
+  void discoverService(service.value)
   service.value = catalog.value[0]?.service || 'pricing'
   method.value = 'GET'
   step.value = 1
@@ -249,11 +268,13 @@ function edit(row: PublishedEndpoint) {
   draft.value = structuredClone(row)
   const target = catalog.value.find(t => t.code === row.target)
   service.value = target?.service || 'pricing'
+  manualRoute.value = target?.path || '/api/' + service.value + '/'
   method.value = target?.method || 'GET'
   step.value = 2
   keys.value = []
   error.value = ''
   drawer.value = true
+  if (row.target.startsWith('route.')) void discoverService(service.value)
   void loadKeys(row.id)
 }
 function pickOnlyAvailableAction() {
@@ -276,6 +297,9 @@ function chooseService(value: string | number) {
   draft.value.inputs = []
   draft.value.outputs = []
   if (isNew.value) { draft.value.name = ''; draft.value.slug = '' }
+  manualRoute.value = '/api/' + service.value + '/'
+  routeSearch.value = ''
+  void discoverService(service.value)
   pickOnlyAvailableAction()
 }
 function chooseTarget(target: ApprovedTarget) {
@@ -292,6 +316,78 @@ function chooseTarget(target: ApprovedTarget) {
     draft.value.slug = slugify(targetName(target)).slice(0, 53).replace(/-+$/, '') +
       '-' + Date.now().toString(36).slice(-7)
   }
+}
+
+async function discoverService(serviceName: string) {
+  if (!serviceInventory.value.some(x => x.service === serviceName)) return
+  discoveryLoading.value = true
+  discoveryMessage.value = ''
+  try {
+    const found = await fetchClient<DiscoveryResult>(
+      root + '/discover/' + encodeURIComponent(serviceName), { method: 'GET' })
+    catalog.value = [...catalog.value.filter(t => !(
+      t.service === serviceName && t.code.startsWith('route.') &&
+      !endpoints.value.some(x => x.target === t.code) &&
+      draft.value.target !== t.code)), ...found.routes.filter(t =>
+      !catalog.value.some(existing => existing.code === t.code))]
+    // Reconcile schema/ready metadata for routes already present.
+    for (const route of found.routes) {
+      const index = catalog.value.findIndex(t => t.code === route.code)
+      if (index >= 0) catalog.value[index] = route
+    }
+    discoveryMessage.value = found.message
+  } catch (e) {
+    discoveryMessage.value = e instanceof Error ? e.message : 'No se pudo consultar el catálogo del servicio.'
+  } finally { discoveryLoading.value = false }
+}
+async function registerManualRoute() {
+  error.value = ''
+  const path = manualRoute.value.trim()
+  if (!path.startsWith('/api/' + service.value + '/')) {
+    error.value = 'La ruta debe pertenecer al módulo seleccionado.'; return
+  }
+  try {
+    const target = await fetchClient<ApprovedTarget>(root + '/resolve', {
+      method: 'POST', body: { service: service.value, method: method.value, path },
+    })
+    if (!catalog.value.some(t => t.code === target.code)) catalog.value.push(target)
+    chooseTarget(target)
+  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo validar la ruta.' }
+}
+function addDynamicField(section: 'input' | 'output') {
+  if (!draft.value.target.startsWith('route.')) return
+  const publicName = (section === 'input' ? newInputPublic.value : newOutputPublic.value).trim()
+  const internalName = (section === 'input' ? newInputInternal.value : newOutputInternal.value).trim()
+  const entry: Mapping = { public: publicName, internal: internalName, required: false }
+  if (!validFields([entry])) { error.value = 'Usá identificadores válidos en nombres y rutas de campos.'; return }
+  const set = section === 'input' ? draft.value.inputs : draft.value.outputs
+  if (set.some(x => x.public === publicName)) { error.value = 'Ese nombre público ya existe.'; return }
+  if (section === 'input' && !/^(query\.[A-Za-z][A-Za-z0-9_]*|body(?:\.[A-Za-z][A-Za-z0-9_.]*)?)$/.test(internalName)) {
+    error.value = 'La entrada debe ser query.campo, body.campo o body completo.'; return
+  }
+  set.push(entry)
+  if (section === 'input') { newInputPublic.value = ''; newInputInternal.value = '' }
+  else { newOutputPublic.value = ''; newOutputInternal.value = '' }
+  error.value = ''
+}
+function removeDynamicField(section: 'input' | 'output', index: number) {
+  const set = section === 'input' ? draft.value.inputs : draft.value.outputs
+  if (set[index]?.required) return
+  set.splice(index, 1)
+}
+function resolveSavedDynamic(targetCode: string, endpoint: PublishedEndpoint): ApprovedTarget | null {
+  const parts = targetCode.split('.')
+  if (parts.length !== 4 || parts[0] !== 'route') return null
+  try {
+    const raw = parts[3]!.replace(/-/g, '+').replace(/_/g, '/')
+    const path = atob(raw.padEnd(Math.ceil(raw.length / 4) * 4, '='))
+    const verb = parts[2]!.toUpperCase() as HttpMethod
+    if (!['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(verb)) return null
+    return { code: targetCode, service: parts[1]!, method: verb, path,
+      description: verb + ' ' + path, ready: false,
+      inputFields: endpoint.inputs.map(x => ({ ...x, label: x.public, selected: true })),
+      outputFields: endpoint.outputs.map(x => ({ ...x, label: x.public, selected: true })) }
+  } catch { return null }
 }
 function validFields(fields: Mapping[]): boolean {
   return fields.every(f => /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(f.public)
@@ -331,12 +427,20 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [saved, targets] = await Promise.all([
+    const [saved, targets, inventory] = await Promise.all([
       fetchClient<PublishedEndpoint[]>(root + '/endpoints', { method: 'GET' }),
       fetchClient<ApprovedTarget[]>(root + '/catalog', { method: 'GET' }),
+      fetchClient<ServiceEntry[]>(root + '/services', { method: 'GET' }),
     ])
     endpoints.value = saved
-    catalog.value = targets
+    serviceInventory.value = inventory
+    catalog.value = [...targets]
+    for (const endpoint of saved) {
+      if (endpoint.target.startsWith('route.') && !catalog.value.some(t => t.code === endpoint.target)) {
+        const item = resolveSavedDynamic(endpoint.target, endpoint)
+        if (item) catalog.value.push(item)
+      }
+    }
   } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible cargar las APIs.' }
   finally { loading.value = false }
 }
