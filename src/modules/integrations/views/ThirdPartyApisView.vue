@@ -7,6 +7,7 @@ import {
 import { fetchClient } from '@/core/api/fetchConfig'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
+import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
 import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
 import DhDrawer from '@/shared/components/organisms/DhDrawer.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
@@ -60,6 +61,14 @@ const maxPerMinute = ref('30')
 const secretModal = ref(false)
 const issuedSecret = ref('')
 const issuedLabel = ref('')
+const testApiKey = ref('')
+const testPayload = ref('{}')
+const testId = ref('')
+const mutationConfirmed = ref(false)
+const testRunning = ref(false)
+const testError = ref('')
+const testResponse = ref('')
+const testResult = ref<{ status: number; durationMs: number; ok: boolean } | null>(null)
 const confirmRevoke = ref<KeyInfo | null>(null)
 
 const METHODS: { value: HttpMethod; label: string; detail: string }[] = [
@@ -253,7 +262,110 @@ function initialOutputs(code: string): Mapping[] {
   ]
   return []
 }
+function resetApiTest() {
+  testApiKey.value = ''
+  testPayload.value = '{}'
+  testId.value = ''
+  mutationConfirmed.value = false
+  testResult.value = null
+  testResponse.value = ''
+  testError.value = ''
+}
+function closeDrawer() {
+  drawer.value = false
+  secretModal.value = false
+  issuedSecret.value = ''
+  resetApiTest()
+}
+function fillTestExample() {
+  testPayload.value = JSON.stringify(Object.fromEntries(
+    draft.value.inputs.filter(f => f.required).map(f => [
+      f.public, f.internal === 'priority' ? 'Green' : f.internal === 'payload' || f.internal === 'body' ? {} : 'valor',
+    ])), null, 2)
+}
+async function runApiTest() {
+  testError.value = ''
+  testResult.value = null
+  testResponse.value = ''
+  if (!draft.value.id || !draft.value.enabled) {
+    testError.value = 'Guardá y publicá la API antes de probarla.'
+    return
+  }
+  const key = testApiKey.value.trim()
+  if (!/^dh_ext_[a-f0-9]{64}$/.test(key)) {
+    testError.value = 'Ingresá una API Key generada por Dhole para esta ruta.'
+    return
+  }
+  if (method.value !== 'GET' && !mutationConfirmed.value) {
+    testError.value = 'Confirmá que autorizás ejecutar esta operación sobre datos reales.'
+    return
+  }
+  let params: Record<string, unknown>
+  try {
+    const parsed: unknown = JSON.parse(testPayload.value.trim() || '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+      throw new Error('Ingresá un objeto JSON con los parámetros de la API.')
+    params = parsed as Record<string, unknown>
+    if (Object.keys(params).some(name => !draft.value.inputs.some(f => f.public === name)))
+      throw new Error('Hay campos que no están publicados en esta API.')
+    const missing = draft.value.inputs.filter(f => f.required &&
+      (params[f.public] === null || params[f.public] === undefined || params[f.public] === ''))
+    if (missing.length) throw new Error('Faltan campos obligatorios: ' + missing.map(f => f.public).join(', '))
+  } catch (e) {
+    testError.value = e instanceof Error ? e.message : 'JSON inválido.'
+    return
+  }
+  const url = new URL(externalUrl(draft.value))
+  if (url.pathname.endsWith('/%7Bid%7D') || url.pathname.endsWith('/{id}')) {
+    const id = testId.value.trim()
+    if (!/^[A-Za-z0-9_.-]{1,128}$/.test(id)) {
+      testError.value = 'Ingresá un identificador válido para esta ruta.'
+      return
+    }
+    url.pathname = url.pathname.replace(/\/(?:%7Bid%7D|\{id\})$/i, '/' + encodeURIComponent(id))
+  }
+  const headers: Record<string, string> = { 'X-Api-Key': key, Accept: 'application/json' }
+  const request: RequestInit = { method: method.value, headers, credentials: 'omit' }
+  if (method.value === 'GET') {
+    for (const [name, input] of Object.entries(params)) {
+      for (const value of Array.isArray(input) ? input : [input]) {
+        if (value === null || value === undefined) continue
+        if (!['string', 'number', 'boolean'].includes(typeof value)) {
+          testError.value = 'Los parámetros GET deben ser valores simples o listas de esos valores.'
+          return
+        }
+        url.searchParams.append(name, String(value))
+      }
+    }
+  } else {
+    if (method.value === 'POST') headers['Idempotency-Key'] = crypto.randomUUID()
+    if (draft.value.inputs.length) {
+      headers['Content-Type'] = 'application/json'
+      request.body = JSON.stringify(params)
+    }
+  }
+  const started = performance.now()
+  testRunning.value = true
+  try {
+    const response = await fetch(url.toString(), request)
+    const content = await response.text()
+    let formatted = content || '(Respuesta sin contenido)'
+    if (content) {
+      try { formatted = JSON.stringify(JSON.parse(content), null, 2) }
+      catch { /* A non-JSON upstream response is displayed as text. */ }
+    }
+    testResult.value = { status: response.status, durationMs: Math.round(performance.now() - started), ok: response.ok }
+    testResponse.value = formatted
+  } catch (e) {
+    testError.value = (e instanceof Error ? e.message : 'No se pudo probar la API.') +
+      ' Revisá la conexión a API Gateway y las reglas CORS.'
+  } finally {
+    testRunning.value = false
+    mutationConfirmed.value = false
+  }
+}
 function create() {
+  resetApiTest()
   draft.value = blank()
   routeSearch.value = ''
   serviceFilter.value = ''
@@ -269,6 +381,7 @@ function create() {
   drawer.value = true
 }
 function edit(row: PublishedEndpoint) {
+  resetApiTest()
   draft.value = structuredClone(row)
   const target = catalog.value.find(t => t.code === row.target)
   service.value = target?.service || 'pricing'
@@ -309,6 +422,7 @@ function chooseService(value: string | number) {
 }
 function chooseTarget(target: ApprovedTarget) {
   if (draft.value.target === target.code) return
+  resetApiTest()
   draft.value.target = target.code
   draft.value.inputs = mapSelected(target.inputFields || [], (target.inputFields || [])
     .filter(field => field.selected).map(field => field.public))
@@ -495,6 +609,7 @@ async function toggle(row: PublishedEndpoint) {
     await load()
     const updated = endpoints.value.find(x => x.id === row.id)
     if (updated && draft.value.id === row.id) draft.value = structuredClone(updated)
+    if (row.enabled) resetApiTest()
     notice.value = row.enabled ? 'API desactivada y claves revocadas.' : 'API publicada. Ya podés crear una clave.'
   } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo cambiar el estado.' }
   finally { saving.value = false }
@@ -516,6 +631,7 @@ async function issueKey() {
         method: 'POST', body: { label: 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name, expiresInDays: days, maxRequestsPerMinute: quota },
       })
     issuedSecret.value = issued.apiKey
+    testApiKey.value = issued.apiKey
     issuedLabel.value = 'Acceso ' + (keys.value.length + 1) + ' · ' + draft.value.name
       secretModal.value = true
     await loadKeys(draft.value.id)
@@ -594,7 +710,7 @@ onMounted(() => { void load() })
       </div>
     </section>
 
-    <DhDrawer :open="drawer" :title="isNew ? 'Nueva API' : 'Administrar · ' + draft.name" size="full" @close="drawer = false">
+    <DhDrawer :open="drawer" :title="isNew ? 'Nueva API' : 'Administrar · ' + draft.name" size="full" @close="closeDrawer">
       <div class="mx-auto flex w-full max-w-[1280px] flex-col gap-6 pb-2">
         <div class="flex flex-col gap-5 border-b border-[var(--dh-border)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div class="space-y-1">
@@ -939,10 +1055,10 @@ onMounted(() => { void load() })
             <span class="block max-w-[540px] truncate text-xs text-[var(--dh-text-muted)]">{{ selectedTarget ? targetName(selectedTarget) : 'Elegí una ruta para continuar' }}</span>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <DhButton variant="secondary" :icon="ArrowLeft" :label="step === 1 ? 'Cerrar' : 'Atrás'" @click="step === 1 ? drawer = false : step--" />
+            <DhButton variant="secondary" :icon="ArrowLeft" :label="step === 1 ? 'Cerrar' : 'Atrás'" @click="step === 1 ? closeDrawer() : step--" />
             <DhButton v-if="step === 1 || step === 2" :icon="ArrowRight" label="Continuar" :disabled="saving || (step === 1 && !selectedTarget)" @click="next" />
             <DhButton v-else :icon="Check" :label="isNew ? 'Guardar borrador' : 'Guardar cambios'" :loading="saving" :disabled="saving" @click="save" />
-            <DhButton v-if="step === 3 && draft.id" variant="secondary" label="Cerrar" @click="drawer = false" />
+            <DhButton v-if="step === 3 && draft.id" variant="secondary" label="Cerrar" @click="closeDrawer" />
           </div>
         </div>
       </div>
