@@ -1,3 +1,11 @@
+## [1.57.0] - 2026-11-14 (API Keys independientes y previsualización segura)
+
+- DH-20261114-API-KEYS-PREVIEW-154
+- MINOR: API Manager reemplaza el drawer translúcido por un área de trabajo integrada y separa APIs y API Keys en pestañas independientes.
+- Creación autónoma de claves por aplicación, vinculación múltiple de APIs, administración de permisos y revocación.
+- Previsualización GET de borradores sin clave ni publicación mediante JWT de sesión; conserva pruebas de rutas públicas con API Key y confirmación explícita de mutaciones.
+- Corrige el GUID enviado al crear borradores y conserva la administración de campos y rutas.
+
 ## [1.56.1] - 2026-11-14 (API Manager: rediseño y consola de pruebas)
 
 - PATCH DH-20261114-API-MANAGER-UI-153: rediseño de Nueva API, pantalla completa y responsive, microservicios con búsqueda, rutas priorizadas, opciones avanzadas plegables y navegación clara.
