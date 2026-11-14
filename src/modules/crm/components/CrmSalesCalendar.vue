@@ -13,6 +13,7 @@ import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmAgreementDrafts, crmVisibleAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
+import { crmCalendarCoversDay, crmCalendarTimedBlock, crmCalendarWeekLayout } from '../model/crmCalendarIntervals'
 
 type CalendarMode = 'month' | 'week' | 'day' | 'list'
 type Source = 'activity' | 'followup'
@@ -482,11 +483,6 @@ const timeSlots = Array.from({ length: 28 }, (_, index) => ({
 function slotDate(day: Date, slot: { hour: number; minute: number }): Date {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), slot.hour, slot.minute)
 }
-function slotEvents(day: Date, slot: { hour: number; minute: number }): CalendarEvent[] {
-  return (eventsByDay.value[dateKey(day)] ?? []).filter(item =>
-    item.at.getHours() === slot.hour &&
-    Math.floor(item.at.getMinutes() / 30) === slot.minute / 30)
-}
 const visibleDays = computed(() => {
   const count = mode.value === 'day' ? 1 : mode.value === 'week' ? 7 : 42
   return Array.from({ length: count }, (_, i) => dayOffset(rangeStart.value, i))
@@ -499,10 +495,26 @@ const heading = computed(() => {
 })
 const eventsByDay = computed(() => {
   const result: Record<string, CalendarEvent[]> = {}
-  for (const row of visibleRows.value) (result[dateKey(row.at)] ??= []).push(row)
-  for (const bucket of Object.values(result)) bucket.sort((a, b) => a.at.getTime() - b.at.getTime())
+  for (const day of visibleDays.value) {
+    const events = visibleRows.value.filter(row => crmCalendarCoversDay(row, day))
+    if (events.length) result[dateKey(day)] = events.sort((a,b) => a.at.getTime() - b.at.getTime())
+  }
   return result
 })
+const monthWeeks = computed(() => Array.from({ length: 6 }, (_, index) =>
+  crmCalendarWeekLayout(visibleDays.value.slice(index*7, index*7+7), visibleRows.value)))
+const calendarSlotHeight = 52
+const calendarOfficeHeight = timeSlots.length * calendarSlotHeight
+function timedBlocks(day: Date) {
+  return visibleRows.value.map(event => crmCalendarTimedBlock(event, day, 7, 21, calendarSlotHeight))
+    .filter((block): block is NonNullable<typeof block> => block !== null)
+}
+function calendarIntervalLabel(event: CalendarEvent) {
+  const start = event.at.toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' })
+  const end = event.endsAt && event.endsAt > event.at
+    ? event.endsAt.toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' }) : null
+  return end ? 'Inicio: ' + start + ' · Finalización: ' + end : 'Fecha: ' + start
+}
 const outsideOfficeHours = computed(() => visibleRows.value.filter(item =>
   (item.at.getHours() < 7 || item.at.getHours() >= 21) &&
   item.at >= rangeStart.value && item.at < rangeEnd.value))
@@ -743,7 +755,7 @@ async function load() {
       if (props.leadId && source === 'followup' && String(item.leadId ?? '') !== props.leadId) continue
       const at = normalizeTime(source === 'activity'
         ? (props.view === 'log' ? item.occurredAt ?? item.scheduledEndAt ?? item.createdAt
-          : item.scheduledStartAt ?? item.occurredAt) : item.dueAt)
+          : item.scheduledStartAt ?? item.occurredAt) : item.startAt ?? item.dueAt)
       if (!at) continue
       events.push({
         key: source + ':' + item.id, source, id: String(item.id),
@@ -751,7 +763,8 @@ async function load() {
         notes: String(item.minutes ?? item.agreements ?? ''),
         type: source === 'followup' ? 'FOLLOWUP' : String(item.type ?? 'OTHER'),
         status: String(item.status ?? ''), at,
-        endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt) : null,
+        endsAt: source === 'activity' ? normalizeTime(item.scheduledEndAt)
+          : item.startAt ? normalizeTime(item.dueAt) : null,
         accountId: String(item.accountId ?? ''), leadId: String(item.leadId ?? ''),
         ownerId: String(source === 'followup' ? item.assignedUserId ?? '' : item.ownerUserId ?? ''),
         rowVersion: Number(item.rowVersion ?? 0),
@@ -863,10 +876,8 @@ async function create() {
   }
   if (requiresSchedule && (!Number.isFinite(start.getTime()) ||
     (data.type === 'FOLLOWUP' && start.getTime() < Date.now() - 60000) ||
-    (data.type !== 'FOLLOWUP' && (!Number.isFinite(end.getTime()) || end <= start)))) {
-    error.value = data.type === 'FOLLOWUP'
-      ? 'El seguimiento necesita una fecha futura válida.'
-      : 'Ingresá fechas válidas: la finalización debe ser posterior al inicio.'; return
+    (!Number.isFinite(end.getTime()) || end <= start))) {
+    error.value = 'Ingresá fechas válidas: la finalización debe ser posterior al inicio.'; return
   }
   saving.value = true
   error.value = ''
@@ -880,7 +891,8 @@ async function create() {
     if (data.type === 'FOLLOWUP') {
       const createdFollowup = await crmRequest<CrmRow>(crmPath('followups'), 'POST', {
         ...common, subject: data.subject.trim(), channel: 'SYSTEM',
-        assignedUserId: data.ownerId || auth.userId, dueAt: start.toISOString(),
+        assignedUserId: data.ownerId || auth.userId,
+        startAt: start.toISOString(), dueAt: end.toISOString(),
       })
       pendingDocumentRecord.value = { kind: 'followup', id: String(createdFollowup.id) }
     } else {
@@ -993,7 +1005,10 @@ async function reschedule(item: CalendarEvent, proposed: Date) {
       })
     } else {
       await crmRequest(crmPath('followups', item.id, 'reschedule'), 'POST', {
-        expectedVersion: item.rowVersion, dueAt: proposed.toISOString(),
+        expectedVersion: item.rowVersion,
+         startAt: item.endsAt ? proposed.toISOString() : null,
+         dueAt: new Date(proposed.getTime() +
+           (item.endsAt ? Math.max(60000, item.endsAt.getTime() - item.at.getTime()) : 0)).toISOString(),
         reason: 'Reprogramación desde el calendario CRM',
       })
     }
@@ -1125,42 +1140,59 @@ function openEvent(item: CalendarEvent) {
           {{ day.toLocaleDateString('es-CR',{weekday:'short'}) }}
         </div>
       </div>
-      <div class="grid grid-cols-7">
-        <div v-for="day in visibleDays" :key="dateKey(day)"
-          class="min-w-0 cursor-pointer border-b border-r border-[var(--dh-border)] p-1.5 transition-colors hover:bg-[var(--dh-shell)] sm:p-2"
-          :class="['min-h-[115px]',
-            dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':'']"
-          @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
-          @dragleave="dropKey=''" @drop="onDrop($event,day)"
-          @click.self="selected=day;openCreation(day)">
-          <button type="button" :aria-label="'Crear actividad el '+dateKey(day)"
-            class="mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-            :class="[dateKey(day)===dateKey(new Date())?'bg-[var(--dh-primary)] text-white':'hover:bg-[var(--dh-shell)]',
-              mode==='month'&&day.getMonth()!==selected.getMonth()?'opacity-40':'']"
-            @click="selected=day;openCreation(day)">{{ day.getDate() }}</button>
-          <button v-for="event in (eventsByDay[dateKey(day)] ?? []).slice(0,mode==='month'?3:100)"
-            :key="event.key" type="button" :title="event.subject"
-            :draggable="canMove(event)" :aria-label="event.subject + (canMove(event)?' · arrastrable':'')"
-            @dragstart="onDragStart($event,event)" @dragend="onDragEnd"
-            @click="openEvent(event)"
-            class="mb-1 block w-full truncate rounded-md border px-1.5 py-1 text-left text-[11px] font-semibold"
-            :class="eventTone(event)" :style="sellerEventStyle(event)">
-            <span class="tabular-nums">{{ event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
-            {{ event.subject }}
-            <span v-if="isManagerCalendar" class="block truncate text-[10px] opacity-80">
-              {{ clientName(event) }} · {{ ownerName(event) }}
-            </span>
+      <div v-for="(week, weekIndex) in monthWeeks" :key="'week-'+weekIndex"
+        class="border-b border-[var(--dh-border)] last:border-b-0">
+        <div class="grid grid-cols-7">
+          <div v-for="day in week.days" :key="dateKey(day)"
+            class="min-w-0 border-r border-[var(--dh-border)] px-1.5 pt-1.5 sm:px-2"
+            :class="dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
+            @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
+            @dragleave="dropKey=''" @drop="onDrop($event,day)">
+            <button type="button" :aria-label="'Crear actividad el '+dateKey(day)"
+              class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+              :class="[dateKey(day)===dateKey(new Date())?'bg-[var(--dh-primary)] text-white':'hover:bg-[var(--dh-shell)]',
+                day.getMonth()!==selected.getMonth()?'opacity-40':'']"
+              @click="selected=day;openCreation(day)">{{ day.getDate() }}</button>
+          </div>
+        </div>
+        <div class="relative grid grid-cols-7 gap-y-1 py-1"
+          :style="{ gridTemplateRows: 'repeat(' + week.lanes + ', minmax(28px,auto))' }">
+          <div v-for="(day, dayIndex) in week.days" :key="'drop-'+dateKey(day)"
+            class="z-0 min-h-[28px] border-r border-[var(--dh-border)] hover:bg-[var(--dh-shell)]"
+            :style="{ gridColumn: String(dayIndex+1), gridRow: '1 / span '+week.lanes }"
+            :class="dropKey===dateKey(day)?'bg-[var(--dh-primary)]/15':''"
+            @dragover="onDragOver($event,day)" @dragenter.prevent="onDragOver($event,day)"
+            @dragleave="dropKey=''" @drop="onDrop($event,day)"
+            @click="selected=day;openCreation(day)"></div>
+          <button v-for="bar in week.bars" :key="bar.event.key" type="button"
+            class="z-10 min-w-0 truncate border-y px-2 py-1 text-left text-[11px] font-semibold"
+            :class="[eventTone(bar.event), bar.begins ? 'rounded-l-md border-l' : 'border-l-0',
+              bar.finishes ? 'rounded-r-md border-r' : 'border-r-0']"
+            :style="{ ...sellerEventStyle(bar.event),
+              gridColumn: (bar.from+1)+' / span '+bar.span, gridRow: String(bar.lane+1) }"
+            :title="bar.event.subject + ' · ' + calendarIntervalLabel(bar.event)"
+            :aria-label="bar.event.subject + ' · ' + calendarIntervalLabel(bar.event)"
+            :draggable="canMove(bar.event)"
+            @dragstart="onDragStart($event,bar.event)" @dragend="onDragEnd" @click="openEvent(bar.event)">
+            <span v-if="bar.begins">{{ bar.event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }} · </span>
+            <span v-else>Continúa · </span>{{ bar.event.subject }}
+            <span v-if="bar.finishes && bar.event.endsAt"> · Fin {{ bar.event.endsAt.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }}</span>
+            <span v-if="isManagerCalendar"> · {{ clientName(bar.event) }} · {{ ownerName(bar.event) }}</span>
           </button>
-          <button v-if="mode==='month' && (eventsByDay[dateKey(day)] ?? []).length>3"
-            type="button" class="text-xs font-bold text-[var(--dh-primary)]"
-            @click="selected=day;mode='day'">+{{ (eventsByDay[dateKey(day)] ?? []).length-3 }} más</button>
+        </div>
+        <div class="grid grid-cols-7 pb-2">
+          <div v-for="(day, dayIndex) in week.days" :key="'extra-'+dateKey(day)" class="min-w-0 px-1">
+            <button v-if="week.extra[dayIndex]" type="button"
+              class="text-xs font-bold text-[var(--dh-primary)]"
+              @click="selected=day;mode='day'">+{{ week.extra[dayIndex] }} más</button>
+          </div>
         </div>
       </div>
     </div>
     <div v-else-if="mode==='week' || mode==='day'"
       class="max-h-[680px] overflow-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
-      <div :class="mode==='week'?'min-w-[750px]':'min-w-[300px]'">
-        <div class="sticky top-0 z-10 grid border-b border-[var(--dh-border)] bg-[var(--dh-card)]"
+      <div :class="mode==='week'?'min-w-[900px]':'min-w-[300px]'">
+        <div class="sticky top-0 z-20 grid border-b border-[var(--dh-border)] bg-[var(--dh-card)]"
           :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
           <div class="border-r border-[var(--dh-border)] p-3 text-xs font-bold text-[var(--dh-text-muted)]">Hora</div>
           <div v-for="day in visibleDays" :key="dateKey(day)"
@@ -1168,36 +1200,47 @@ function openEvent(item: CalendarEvent) {
             {{ day.toLocaleDateString('es-CR',{weekday:'short',day:'numeric',month:'short'}) }}
           </div>
         </div>
-        <div v-for="slot in timeSlots" :key="slot.label" class="grid"
-          :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
-          <div class="border-b border-r border-[var(--dh-border)] p-2 text-right text-[11px] tabular-nums text-[var(--dh-text-muted)]">{{ slot.label }}</div>
+        <div class="grid" :style="{ gridTemplateColumns: '70px repeat(' + (mode==='week'?7:1) + ', minmax(0,1fr))' }">
+          <div>
+            <div v-for="slot in timeSlots" :key="slot.label"
+              class="box-border border-b border-r border-[var(--dh-border)] p-2 text-right text-[11px] tabular-nums text-[var(--dh-text-muted)]"
+              :style="{ height: calendarSlotHeight + 'px' }">{{ slot.label }}</div>
+          </div>
           <div v-for="day in visibleDays" :key="dateKey(day)"
-            class="min-h-[52px] border-b border-r border-[var(--dh-border)] p-1"
-            :class="dropKey===slotDate(day,slot).toISOString()?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
-            @dragover="onSlotOver($event,slotDate(day,slot))"
-            @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
-            @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))"
-            tabindex="0" :aria-label="'Agendar actividad el '+dateKey(day)+' a las '+slot.label"
-            @click.self="openCreation(slotDate(day,slot))"
-            @keydown.enter.self="openCreation(slotDate(day,slot))">
-            <button v-for="item in slotEvents(day,slot)" :key="item.key" type="button"
-              :draggable="canMove(item)" :title="item.subject"
-              @dragstart="onDragStart($event,item)" @dragend="onDragEnd"
-              @click="openEvent(item)"
-              class="mb-1 block w-full truncate rounded-lg border p-2 text-left text-xs font-bold"
-              :class="eventTone(item)" :style="sellerEventStyle(item)">
-              {{ item.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) }} · {{ item.subject }}
-              <span v-if="isManagerCalendar" class="block truncate text-[10px] opacity-80">
-                {{ clientName(item) }} · {{ ownerName(item) }}
+            class="relative min-w-0 border-r border-[var(--dh-border)]"
+            :style="{ height: calendarOfficeHeight + 'px' }">
+            <div v-for="slot in timeSlots" :key="slot.label"
+              class="box-border border-b border-[var(--dh-border)] p-1"
+              :style="{height: calendarSlotHeight + 'px'}"
+              :class="dropKey===slotDate(day,slot).toISOString()?'bg-[var(--dh-primary)]/15 ring-2 ring-inset ring-[var(--dh-primary)]':''"
+              @dragover="onSlotOver($event,slotDate(day,slot))"
+              @dragenter.prevent="onSlotOver($event,slotDate(day,slot))"
+              @dragleave="dropKey=''" @drop="onSlotDrop($event,slotDate(day,slot))"
+              @click.self="openCreation(slotDate(day,slot))"></div>
+            <button v-for="block in timedBlocks(day)" :key="block.event.key" type="button"
+              class="absolute left-1 right-1 z-10 overflow-hidden rounded-lg border p-1.5 text-left text-xs font-semibold shadow-sm"
+              :class="eventTone(block.event)" :style="{ ...sellerEventStyle(block.event),
+                top: block.top + 'px', height: block.height + 'px' }"
+              :title="block.event.subject + ' · ' + calendarIntervalLabel(block.event)"
+              :aria-label="block.event.subject + ' · ' + calendarIntervalLabel(block.event)"
+              :draggable="canMove(block.event)"
+              @dragstart="onDragStart($event,block.event)" @dragend="onDragEnd"
+              @click="openEvent(block.event)">
+              <span class="block truncate">{{ block.startsHere ? block.event.at.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) : 'Continúa' }} · {{ block.event.subject }}</span>
+              <span v-if="block.height > 40" class="block text-[10px] opacity-80">
+                {{ block.finishesHere && block.event.endsAt ? 'Finaliza ' + block.event.endsAt.toLocaleTimeString('es-CR',{hour:'2-digit',minute:'2-digit'}) : calendarIntervalLabel(block.event) }}
+              </span>
+              <span v-if="isManagerCalendar && block.height > 60" class="block truncate text-[10px] opacity-80">
+                {{ clientName(block.event) }} · {{ ownerName(block.event) }}
               </span>
             </button>
           </div>
         </div>
         <div v-if="outsideOfficeHours.length" class="space-y-2 border-t border-[var(--dh-border)] p-3">
-          <p class="text-xs font-bold">Eventos fuera del horario de 07:00 a 21:00</p>
+          <p class="text-xs font-bold">Eventos que empiezan fuera del horario de 07:00 a 21:00</p>
           <button v-for="item in outsideOfficeHours" :key="item.key" type="button"
             class="calendar-btn mr-2" @click="openEvent(item)">
-            {{ item.at.toLocaleString('es-CR') }} · {{ item.subject }}
+            {{ calendarIntervalLabel(item) }} · {{ item.subject }}
           </button>
         </div>
       </div>
@@ -1433,7 +1476,7 @@ function openEvent(item: CalendarEvent) {
             @input="userEditedStart=true" />
         </label>
         <p v-if="historicalActivityDraft" class="sm:col-span-2 rounded-lg border border-[var(--dh-border)] p-3 text-xs">Esta actividad ya ocurrió: se guardará como completada, conservando la fecha ingresada y sin crear recordatorios atrasados.</p>
-        <label v-if="creatingReminder && editor.type!=='FOLLOWUP'" class="calendar-label">Finalización
+        <label v-if="creatingReminder" class="calendar-label">Finalización
           <input v-model="editor.end" type="datetime-local" class="calendar-input" required />
         </label>
         <div v-if="editor.type === 'VISIT'" class="sm:col-span-2">
