@@ -1,3 +1,9 @@
+## [1.56.1] - 2026-11-14 (API Manager: rediseño y consola de pruebas)
+
+- PATCH DH-20261114-API-MANAGER-UI-153: rediseño de Nueva API, pantalla completa y responsive, microservicios con búsqueda, rutas priorizadas, opciones avanzadas plegables y navegación clara.
+- Explica la generación automática de API Keys y añade consola para probar el endpoint público mediante X-Api-Key, con parámetros GET o cuerpo JSON, estado HTTP, tiempo y respuesta real. Confirma explícitamente las operaciones mutantes y evita revocar claves ante guardados sin cambios.
+- Conserva los contratos públicos, políticas de autorización e integraciones existentes; no se agregan flags.
+
 ## [1.56.0] - 2026-11-14 (API Manager - rutas de microservicios)
 
 - MINOR: lista los servicios registrados, examina endpoints OpenAPI, permite seleccionar rutas internas y asignar contratos Request/Response configurables.
