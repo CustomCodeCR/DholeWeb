@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, Database,
-  Globe2, KeyRound, Pencil, Plus, Power, RefreshCw, ShieldCheck, Trash2,
+  Globe2, KeyRound, Pencil, Plus, Power, RefreshCw, Search, ChevronDown, ShieldCheck, Trash2,
 } from 'lucide-vue-next'
 import { fetchClient } from '@/core/api/fetchConfig'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
@@ -40,6 +40,7 @@ const discoveryMessage = ref('')
 const discoveryLoading = ref(false)
 const manualRoute = ref('')
 const routeSearch = ref('')
+const serviceFilter = ref('')
 const newInputPublic = ref('')
 const newInputInternal = ref('')
 const newOutputPublic = ref('')
@@ -126,6 +127,8 @@ const selectedOutputs = computed<string[]>({
 const services = computed(() => [...new Set([
   ...serviceInventory.value.map(x => x.service), ...catalog.value.map(t => t.service),
 ])].sort().map(s => ({ label: s.toUpperCase(), value: s })))
+const filteredServices = computed(() => services.value.filter(option =>
+  option.label.toLowerCase().includes(serviceFilter.value.trim().toLowerCase())))
 const operations = computed(() => catalog.value
   .filter(t => t.service === service.value && t.method === method.value)
   .filter(t => (t.path + ' ' + t.description).toLowerCase().includes(routeSearch.value.toLowerCase())))
@@ -253,9 +256,10 @@ function initialOutputs(code: string): Mapping[] {
 function create() {
   draft.value = blank()
   routeSearch.value = ''
+  serviceFilter.value = ''
+  service.value = catalog.value[0]?.service || 'pricing'
   manualRoute.value = '/api/' + service.value + '/'
   void discoverService(service.value)
-  service.value = catalog.value[0]?.service || 'pricing'
   method.value = 'GET'
   step.value = 1
   keys.value = []
@@ -299,6 +303,7 @@ function chooseService(value: string | number) {
   if (isNew.value) { draft.value.name = ''; draft.value.slug = '' }
   manualRoute.value = '/api/' + service.value + '/'
   routeSearch.value = ''
+  serviceFilter.value = ''
   void discoverService(service.value)
   pickOnlyAvailableAction()
 }
@@ -589,102 +594,154 @@ onMounted(() => { void load() })
       </div>
     </section>
 
-    <DhDrawer :open="drawer" :title="isNew ? 'Nueva API' : 'Administrar · ' + draft.name" size="xl" @close="drawer = false">
-      <div class="flex flex-col gap-5">
-        <div class="grid grid-cols-3 gap-2">
-          <button v-for="item in [{ n: 1, title: 'Operación' }, { n: 2, title: 'Ruta y datos' }, { n: 3, title: 'Revisar' }]"
-            :key="item.n" type="button" class="rounded-xl border px-3 py-3 text-left text-xs transition"
-            :class="step === item.n ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 text-[var(--dh-text)]' : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'"
-            :disabled="item.n > step" @click="step = item.n">
-            <span class="block font-bold">{{ item.n }}. {{ item.title }}</span>
-          </button>
+    <DhDrawer :open="drawer" :title="isNew ? 'Nueva API' : 'Administrar · ' + draft.name" size="full" @close="drawer = false">
+      <div class="mx-auto flex w-full max-w-[1280px] flex-col gap-6 pb-2">
+        <div class="flex flex-col gap-5 border-b border-[var(--dh-border)] pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div class="space-y-1">
+            <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--dh-primary)]">DHOLE · API MANAGER</p>
+            <h2 class="text-2xl font-black tracking-tight sm:text-3xl">{{ isNew ? 'Configurá una nueva API' : 'Administrá tu API' }}</h2>
+            <p class="max-w-2xl text-sm leading-relaxed text-[var(--dh-text-muted)]">
+              Elegí una operación de Dhole, definí los datos que compartirás y revisá la publicación.
+            </p>
+          </div>
+          <span class="self-start rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1.5 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Paso {{ step }} de 3
+          </span>
         </div>
 
-        <div v-if="error" role="alert" class="rounded-xl border border-red-400/40 p-3 text-sm text-red-500">{{ error }}</div>
-        <div v-if="notice" role="status" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">{{ notice }}</div>
+        <nav class="grid grid-cols-3 gap-2 sm:gap-3" aria-label="Pasos para configurar la API">
+          <button v-for="item in [{ n: 1, title: 'Operación', detail: 'Método y ruta' }, { n: 2, title: 'Ruta y datos', detail: 'Contrato público' }, { n: 3, title: 'Revisar', detail: 'Guardar y publicar' }]"
+            :key="item.n" type="button" :disabled="item.n > step"
+            :aria-current="step === item.n ? 'step' : undefined"
+            class="flex min-w-0 items-center gap-3 rounded-2xl border p-3 text-left transition sm:p-4"
+            :class="step === item.n ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 shadow-sm' : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text-muted)]'"
+            @click="step = item.n">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-sm font-black"
+              :class="step === item.n ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)]'">
+              <Check v-if="step > item.n" class="h-4 w-4" />
+              <template v-else>{{ item.n }}</template>
+            </span>
+            <span class="min-w-0">
+              <span class="block truncate text-xs font-bold sm:text-sm">{{ item.title }}</span>
+              <span class="mt-0.5 hidden text-xs opacity-75 sm:block">{{ item.detail }}</span>
+            </span>
+          </button>
+        </nav>
+
+        <div v-if="error" role="alert" class="rounded-2xl border border-red-400/40 bg-red-500/5 p-4 text-sm text-red-500">{{ error }}</div>
+        <div v-if="notice" role="status" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 text-sm">{{ notice }}</div>
 
         <template v-if="step === 1">
-          <section class="space-y-3">
-            <div>
-              <h3 class="font-bold">¿Qué querés hacer?</h3>
-              <p class="text-xs text-[var(--dh-text-muted)]">Por ejemplo, con POST podés solicitar una tarifa o crear una cotización. Cada acción tiene una función distinta.</p>
+          <section class="rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
+            <div class="mb-5">
+              <p class="text-xs font-bold uppercase tracking-[0.13em] text-[var(--dh-primary)]">01 · Tipo de operación</p>
+              <h3 class="mt-1 text-xl font-bold">¿Qué necesitás que haga esta API?</h3>
+              <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Seleccioná el método HTTP. Luego elegí el microservicio y su ruta.</p>
             </div>
-            <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <button v-for="option in METHODS" :key="option.value" type="button"
-                class="rounded-xl border p-3 text-left transition hover:border-[var(--dh-primary)]"
-                :class="method === option.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+                :aria-pressed="method === option.value"
+                class="relative flex min-h-[116px] flex-col rounded-2xl border p-4 text-left transition-colors hover:border-[var(--dh-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                :class="method === option.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)] bg-[var(--dh-shell)]'"
                 @click="chooseMethod(option.value)">
-                <span class="block font-mono text-sm font-black">{{ option.value }}</span>
-                <span class="mt-2 block text-sm font-semibold">{{ option.label }}</span>
-                <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ option.detail }}</span>
+                <CheckCircle2 v-if="method === option.value" class="absolute right-3 top-3 h-5 w-5 text-[var(--dh-primary)]" />
+                <span class="font-mono text-base font-black">{{ option.value }}</span>
+                <span class="mt-3 text-sm font-bold">{{ option.label }}</span>
+                <span class="mt-1 text-xs leading-snug text-[var(--dh-text-muted)]">{{ option.detail }}</span>
               </button>
             </div>
           </section>
-          <section class="space-y-3">
-            <div class="space-y-2">
-              <h3 class="text-xs font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">¿En qué módulo de Dhole?</h3>
-              <div class="flex flex-wrap gap-2">
-                <button v-for="option in services" :key="option.value" type="button"
-                  class="flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition hover:border-[var(--dh-primary)]"
-                  :class="service === option.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+
+          <div class="grid min-w-0 gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <section class="min-w-0 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+              <div class="mb-4">
+                <p class="text-xs font-bold uppercase tracking-[0.13em] text-[var(--dh-primary)]">02 · Microservicio</p>
+                <h3 class="mt-1 text-lg font-bold">Seleccioná un módulo</h3>
+                <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Mostramos los servicios disponibles en Dhole.</p>
+              </div>
+              <DhInput v-model="serviceFilter" type="search" placeholder="Buscar módulo..." />
+              <div class="mt-3 max-h-[400px] space-y-1.5 overflow-y-auto pr-1" role="group" aria-label="Microservicios disponibles">
+                <button v-for="option in filteredServices" :key="option.value" type="button"
+                  :aria-pressed="service === option.value"
+                  class="flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition-colors hover:border-[var(--dh-primary)]"
+                  :class="service === option.value ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 font-bold' : 'border-transparent hover:bg-[var(--dh-shell)]'"
                   @click="chooseService(option.value)">
-                  <Database class="h-4 w-4" />{{ option.label }}
+                  <Database class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
+                  <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
+                  <Check v-if="service === option.value" class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
                 </button>
+                <p v-if="!filteredServices.length" class="px-2 py-5 text-center text-sm text-[var(--dh-text-muted)]">No hay módulos con ese nombre.</p>
               </div>
-            </div>
-            <div v-if="operations.length > 1">
-              <h3 class="font-bold">Rutas del microservicio</h3>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Elegí la ruta interna y después configurá su contrato público. Ninguna ruta se publica automáticamente.</p>
-            </div>
-            <div class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
-              <div class="flex items-center justify-between gap-2">
-                <h4 class="text-sm font-semibold">Descubrimiento de rutas</h4>
-                <DhButton variant="secondary" size="sm" :icon="RefreshCw" label="Examinar" :loading="discoveryLoading" @click="discoverService(service)" />
+            </section>
+
+            <section class="min-w-0 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-[0.13em] text-[var(--dh-primary)]">03 · Ruta interna</p>
+                  <h3 class="mt-1 text-lg font-bold">Elegí el endpoint que vas a compartir</h3>
+                  <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Solo se publicará la operación seleccionada, nunca el microservicio completo.</p>
+                </div>
+                <DhButton variant="secondary" size="sm" :icon="RefreshCw" label="Examinar rutas" :loading="discoveryLoading" @click="discoverService(service)" />
               </div>
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ discoveryMessage || 'Se buscan documentos OpenAPI del servicio conectado a Gateway.' }}</p>
-              <DhInput v-model="routeSearch" type="search" placeholder="Buscar rutas por nombre, URL o descripción..." />
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ operations.length }} rutas disponibles para {{ method }} en {{ service.toUpperCase() }}</p>
-              <div class="space-y-2 border-t border-[var(--dh-border)] pt-3">
-                <h4 class="text-sm font-bold">¿Conocés otra ruta de este microservicio?</h4>
-                <p class="text-xs text-[var(--dh-text-muted)]">Si su OpenAPI no está disponible, podés configurar la ruta manualmente como borrador. Para publicarla necesita una identidad técnica exclusiva.</p>
-                <div class="flex flex-wrap gap-2">
-                  <div class="min-w-[220px] flex-1"><DhInput v-model="manualRoute" placeholder="/api/crm/accounts/{id:guid}" /></div>
-                  <DhButton variant="secondary" size="sm" label="Usar ruta interna" @click="registerManualRoute" />
+
+              <div class="mt-4 flex flex-col gap-3 border-b border-[var(--dh-border)] pb-4 sm:flex-row sm:items-center">
+                <div class="min-w-0 flex-1"><DhInput v-model="routeSearch" type="search" placeholder="Buscar por nombre, URL o descripción..." /></div>
+                <span class="shrink-0 rounded-full border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+                  {{ operations.length }} rutas · {{ method }} · {{ service.toUpperCase() }}
+                </span>
+              </div>
+
+              <div class="mt-4 max-h-[420px] space-y-2 overflow-y-auto pr-1" role="group" aria-label="Rutas del microservicio">
+                <button v-for="item in operations" :key="item.code" type="button"
+                  :aria-pressed="draft.target === item.code"
+                  class="flex w-full min-w-0 items-start gap-3 rounded-2xl border p-4 text-left transition-colors hover:border-[var(--dh-primary)]"
+                  :class="draft.target === item.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)] bg-[var(--dh-shell)]'"
+                  @click="chooseTarget(item)">
+                  <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border"
+                    :class="draft.target === item.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)]'">
+                    <Check v-if="draft.target === item.code" class="h-4 w-4" />
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-bold">{{ targetName(item) }}</span>
+                    <code class="mt-1.5 block break-all text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ item.method }} {{ item.path }}</code>
+                    <span class="mt-1.5 block text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ targetHelp(item) }}</span>
+                  </span>
+                  <span v-if="item.ready" class="hidden shrink-0 rounded-full bg-[var(--dh-primary)]/10 px-2 py-1 text-[10px] font-bold text-[var(--dh-primary)] sm:inline">Disponible</span>
+                </button>
+                <div v-if="!operations.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] p-7 text-center">
+                  <Search class="mx-auto h-6 w-6 text-[var(--dh-text-muted)]" />
+                  <p class="mt-2 text-sm font-semibold">No se encontraron rutas</p>
+                  <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Probá otro método o buscá una ruta diferente. También podés agregar una ruta no documentada abajo.</p>
                 </div>
               </div>
-            </div>
-            <div v-if="operations.length > 1" class="max-h-[350px] space-y-2 overflow-y-auto pr-1">
-              <button v-for="item in operations" :key="item.code" type="button"
-                class="flex w-full items-start gap-3 rounded-xl border p-3 text-left transition hover:border-[var(--dh-primary)]"
-                :class="draft.target === item.code ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
-                @click="chooseTarget(item)">
-                <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--dh-border)]">
-                  <Check v-if="draft.target === item.code" class="h-3.5 w-3.5" />
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block font-semibold">{{ targetName(item) }}</span>
-                  <code class="mt-1 block break-all text-xs text-[var(--dh-text-muted)]">{{ item.method }} {{ item.path }}</code>
-                  <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ targetHelp(item) }}</span>
-                </span>
-              </button>
-            </div>
-            <div v-else-if="operations.length === 1" class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] p-4">
-              <CheckCircle2 class="mt-0.5 h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-              <div>
-                <strong class="block">{{ targetName(operations[0]!) }}</strong>
-                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ targetHelp(operations[0]!) }} No tenés que configurar nada técnico.</p>
-              </div>
-            </div>
-            <div v-else class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-sm text-[var(--dh-text-muted)]">
-              No se encontraron rutas para este método. Si conocés una ruta, ingresala arriba o consultá el OpenAPI del microservicio.
-            </div>
-          </section>
+
+              <details class="group mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
+                  <span>Opciones avanzadas · Ruta no documentada</span>
+                  <ChevronDown class="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+                </summary>
+                <div class="mt-3 space-y-3 border-t border-[var(--dh-border)] pt-3">
+                  <p class="text-xs leading-relaxed text-[var(--dh-text-muted)]">{{ discoveryMessage || 'Si el microservicio no expone OpenAPI, podés registrar una ruta interna conocida como borrador. No se activa sin identidad técnica.' }}</p>
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <div class="min-w-0 flex-1"><DhInput v-model="manualRoute" placeholder="/api/crm/accounts/{id:guid}" /></div>
+                    <DhButton variant="secondary" size="sm" label="Usar ruta interna" @click="registerManualRoute" />
+                  </div>
+                </div>
+              </details>
+              <p v-if="discoveryMessage && operations.length" class="mt-3 text-xs leading-relaxed text-[var(--dh-text-muted)]" role="status">{{ discoveryMessage }}</p>
+            </section>
+          </div>
         </template>
 
         <template v-else-if="step === 2">
-          <section class="space-y-3">
-            <h3 class="font-bold">Tu API</h3>
-            <p class="text-xs text-[var(--dh-text-muted)]">Dhole asigna automáticamente el nombre y la dirección. No necesitás escribir rutas.</p>
+          <div>
+            <p class="text-xs font-bold uppercase tracking-[0.13em] text-[var(--dh-primary)]">02 · Contrato público</p>
+            <h3 class="mt-1 text-xl font-bold">Definí qué información puede compartir tu API</h3>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Elegí los datos que recibirá y devolverá el sistema externo. Los obligatorios ya están incluidos.</p>
+          </div>
+          <section class="space-y-3 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
+            <h3 class="text-lg font-bold">Tu API</h3>
+            <p class="text-sm text-[var(--dh-text-muted)]">Dhole asigna automáticamente el nombre y la dirección. No necesitás escribir rutas.</p>
             <div class="rounded-xl border border-[var(--dh-border)] p-4">
               <strong class="block">{{ draft.name }}</strong>
               <div class="mt-2 flex flex-wrap items-center gap-2">
@@ -700,7 +757,7 @@ onMounted(() => { void load() })
             El listado de campos aún no está disponible. Actualizá la página cuando termine la actualización de API Gateway.
           </div>
 
-          <section v-else class="space-y-4 border-t border-[var(--dh-border)] pt-4">
+          <section v-else class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
             <div>
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <h3 class="font-bold">Request · Datos de entrada</h3>
@@ -767,7 +824,7 @@ onMounted(() => { void load() })
             </p>
           </section>
 
-          <section v-if="fieldCatalogLoaded" class="space-y-3 border-t border-[var(--dh-border)] pt-4">
+          <section v-if="fieldCatalogLoaded" class="space-y-3 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h3 class="font-bold">Response · Datos de salida</h3>
               <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ draft.outputs.length }} de {{ outputCatalog.length }} campos</span>
@@ -811,13 +868,18 @@ onMounted(() => { void load() })
         </template>
 
         <template v-else>
-          <section class="space-y-3">
-            <h3 class="font-bold">Revisá tu ruta</h3>
-            <div class="grid grid-cols-2 gap-3 rounded-xl border border-[var(--dh-border)] p-4 text-sm">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-[0.13em] text-[var(--dh-primary)]">03 · Confirmación</p>
+            <h3 class="mt-1 text-xl font-bold">Revisá la configuración antes de guardarla</h3>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">La API permanecerá como borrador hasta que la publiques con los permisos correspondientes.</p>
+          </div>
+          <section class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
+            <h3 class="text-lg font-bold">Resumen de la API</h3>
+            <div class="grid grid-cols-1 gap-4 rounded-2xl border border-[var(--dh-border)] p-4 text-sm sm:grid-cols-2">
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Nombre</span><strong>{{ draft.name }}</strong></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Operación</span><strong>{{ method }} · {{ methodName(method) }}</strong></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Módulo</span><strong class="uppercase">{{ service }}</strong></div>
-              <div class="col-span-2"><span class="block text-xs text-[var(--dh-text-muted)]">Ruta interna elegida</span><code class="break-all text-xs">{{ selectedTarget?.path }}</code></div>
+              <div class="sm:col-span-2"><span class="block text-xs text-[var(--dh-text-muted)]">Ruta interna elegida</span><code class="break-all text-xs">{{ selectedTarget?.path }}</code></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Estado</span><strong>{{ draft.enabled ? 'Publicada' : 'Borrador' }}</strong></div>
             </div>
             <div class="rounded-xl border border-[var(--dh-border)] p-3">
@@ -832,7 +894,7 @@ onMounted(() => { void load() })
               La conexión de esta operación todavía no está lista. Podés guardar tu API, pero un administrador debe habilitarla antes de compartirla.
             </div>
           </section>
-          <section v-if="draft.id" class="space-y-4 border-t border-[var(--dh-border)] pt-4">
+          <section v-if="draft.id" class="space-y-4 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-6">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div><h3 class="font-bold">Publicación</h3><p class="text-xs text-[var(--dh-text-muted)]">Activá la ruta solo después de revisar sus permisos.</p></div>
               <DhButton :icon="draft.enabled ? Power : CheckCircle2" :label="draft.enabled ? 'Desactivar' : 'Publicar API'" :disabled="saving || (!draft.enabled && !ready)" @click="toggle(draft)" />
@@ -871,10 +933,14 @@ onMounted(() => { void load() })
           </section>
         </template>
 
-        <div class="sticky bottom-0 flex flex-wrap justify-between gap-2 border-t border-[var(--dh-border)] bg-[var(--dh-shell)] py-3">
-          <DhButton variant="secondary" :icon="ArrowLeft" :label="step === 1 ? 'Cerrar' : 'Atrás'" @click="step === 1 ? drawer = false : step--" />
-          <div class="flex flex-wrap gap-2">
-            <DhButton v-if="step === 1 || step === 2" :icon="ArrowRight" label="Continuar" @click="next" />
+        <div class="sticky bottom-0 z-20 flex flex-col gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-[var(--dh-shadow-lg)] sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div class="min-w-0">
+            <span class="block text-xs font-bold text-[var(--dh-text)]">Paso {{ step }} de 3</span>
+            <span class="block max-w-[540px] truncate text-xs text-[var(--dh-text-muted)]">{{ selectedTarget ? targetName(selectedTarget) : 'Elegí una ruta para continuar' }}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <DhButton variant="secondary" :icon="ArrowLeft" :label="step === 1 ? 'Cerrar' : 'Atrás'" @click="step === 1 ? drawer = false : step--" />
+            <DhButton v-if="step === 1 || step === 2" :icon="ArrowRight" label="Continuar" :disabled="saving || (step === 1 && !selectedTarget)" @click="next" />
             <DhButton v-else :icon="Check" :label="isNew ? 'Guardar borrador' : 'Guardar cambios'" :loading="saving" :disabled="saving" @click="save" />
             <DhButton v-if="step === 3 && draft.id" variant="secondary" label="Cerrar" @click="drawer = false" />
           </div>
