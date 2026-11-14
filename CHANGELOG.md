@@ -1,3 +1,9 @@
+## [1.53.0] - 2026-11-14
+
+- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: calendario CRM con barras continuas de varios días en la vista mensual y bloques proporcionales a la duración en vistas de semana/día. Los eventos superpuestos siguen disponibles en Lista, filtros y navegación sin afectar la Bitácora.
+- Los seguimientos permiten registrar y editar inicio y fecha/hora de finalización; `dueAt` se mantiene como plazo de cumplimiento y base de avisos. Las reprogramaciones por arrastre conservan la duración original, y los registros históricos sin fin conservan su representación puntual.
+- Cobertura de cruces de semana, fin exclusivo a medianoche, concurrencia y franjas horarias. Web 1.52.1 → 1.53.0; CRM 1.31.0 → 1.32.0; ecosistema 1.52.1 → 1.53.0. CI y staging pendientes.
+
 ## [1.52.1] - 2026-11-13
 
 - PATCH DH-20261113-PRICING-OWN-LCL-141: backport coordinado de corrección CFS del LCL propio con cantidad cobrable (mínimo 1 CBM) y proyección comercial de cotizaciones históricas; Precio USD 8/CBM por 0,118 CBM físico corresponde a USD 8.
