@@ -1,3 +1,8 @@
+## [1.55.0] - 2026-11-14 (API Manager promotion)
+
+- MINOR: incorpora API Manager, ocho catálogos Config de solo lectura y rutas externas versionadas manteniendo mejoras de CRM/Pricing de 1.54.0.
+- Release coordinado Gateway 1.6.2 / Web y DholeSystem 1.55.0, pendiente de staging y validación.
+
 ## [1.54.0] - 2026-11-14
 
 - MINOR DH-20261114-CRM-CALENDAR-SPANS-142: calendario mensual con barras continuas de varios días; agenda horaria con bloques proporcionales a las horas reales; seguimientos con inicio y fecha/hora de finalización.
