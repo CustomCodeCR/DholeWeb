@@ -1,3 +1,9 @@
+## [1.54.0] - 2026-11-14
+
+- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: calendario mensual con barras continuas de varios días; agenda horaria con bloques proporcionales a las horas reales; seguimientos con inicio y fecha/hora de finalización.
+- Los listados incluyen intervalos superpuestos y preservan la seguridad de los registros, REST, SignalR y avisos de vencimiento. Duplicados y seguimientos históricos sin fin permanecen compatibles.
+- DholeWeb 1.53.0 → 1.54.0, DholeCRMService 1.31.0 → 1.32.0, DholeSystem/ecosistema 1.53.0 → 1.54.0. CI y staging previos a master.
+
 ## [1.53.0] - 2026-11-14
 
 - MINOR DH-20261114-CRM-RECORD-FOLLOWUPS-142: pestaña «Seguimientos» independiente en las fichas de prospectos y clientes, con historial cronológico de actividades, bitácoras y recordatorios vinculados; búsqueda, filtros, responsables, estados, paginación y acceso al detalle. Reutiliza API CRM y permisos existentes; las cuentas agrupadas comparten el historial.
