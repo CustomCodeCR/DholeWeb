@@ -13,11 +13,11 @@ const phone = read('src/modules/crm/utils/crmPhone.ts')
 
 test('Month drag and week/day half-hour drops persist via optimistic concurrency', () => {
   for (const fragment of [
-    "onDragStart($event,event)", "onDrop($event,day)", "onSlotDrop($event,slotDate(day,slot))",
+    "onDragStart($event,bar.event)", "onDrop($event,day)", "onSlotDrop($event,slotDate(day,slot))",
     "crmPath('activities', item.id, 'reschedule')", "crmPath('followups', item.id, 'reschedule')",
     "expectedVersion: item.rowVersion", "scheduledEndAt: new Date(proposed.getTime()",
-    "onDragEnd", "applyManualMove()", "slotEvents(day,slot)",
-    "openCreation(slotDate(day,slot),true)",
+    "onDragEnd", "applyManualMove()", "timedBlocks(day)",
+    "openCreation(slotDate(day,slot))",
   ]) assert.ok(calendar.includes(fragment), fragment)
 })
 
