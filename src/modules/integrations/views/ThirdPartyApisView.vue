@@ -727,11 +727,11 @@ onMounted(() => { void load() })
 
 <template>
   <main class="mx-auto flex w-full max-w-[1480px] flex-col gap-5 p-4 text-[var(--dh-text)] lg:p-7">
-    <header class="flex flex-wrap items-center justify-between gap-4">
+    <header v-if="!drawer" class="flex flex-col gap-5 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-5 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-7">
       <div>
         <p class="text-xs font-bold uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Dhole · APIs</p>
         <h1 class="mt-1 text-2xl font-black">Dhole API Manager</h1>
-        <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Descubrí rutas de los microservicios y publicá únicamente las operaciones y campos que autoricés.</p>
+        <p class="mt-1 max-w-xl text-sm text-[var(--dh-text-muted)]">Administrá las rutas públicas y las credenciales de acceso de forma independiente, con permisos por API.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
@@ -739,14 +739,25 @@ onMounted(() => { void load() })
       </div>
     </header>
 
+    <nav v-if="!drawer" aria-label="Administración de integraciones" class="flex flex-wrap gap-2 border-b border-[var(--dh-border)] pb-3">
+      <button type="button" :aria-current="activePanel === 'apis' ? 'page' : undefined"
+        class="rounded-xl px-5 py-3 text-sm font-bold transition-colors"
+        :class="activePanel === 'apis' ? 'bg-[var(--dh-primary)] text-white' : 'bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+        @click="activePanel = 'apis'"><Globe2 class="mr-2 inline h-4 w-4" /> APIs <span class="ml-1 opacity-75">{{ endpoints.length }}</span></button>
+      <button type="button" :aria-current="activePanel === 'keys' ? 'page' : undefined"
+        class="rounded-xl px-5 py-3 text-sm font-bold transition-colors"
+        :class="activePanel === 'keys' ? 'bg-[var(--dh-primary)] text-white' : 'bg-[var(--dh-card)] text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
+        @click="showKeysPanel"><KeyRound class="mr-2 inline h-4 w-4" /> API Keys</button>
+    </nav>
+
     <div v-if="error && !drawer" role="alert" class="rounded-xl border border-red-400/40 p-3 text-sm text-red-500">{{ error }}</div>
     <div v-if="notice && !drawer" role="status" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">{{ notice }}</div>
 
-    <section class="overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+    <section v-if="!drawer && activePanel === 'apis'" class="overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-4">
         <div>
           <h2 class="font-bold">Mis rutas</h2>
-          <p class="text-xs text-[var(--dh-text-muted)]">Cada ruta tiene un método, un módulo y su propia API Key.</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">Una API puede ser utilizada por diferentes API Keys autorizadas.</p>
         </div>
         <div class="w-full max-w-xs"><DhInput v-model="search" type="search" placeholder="Buscar API..." /></div>
       </div>
@@ -779,10 +790,81 @@ onMounted(() => { void load() })
       </div>
     </section>
 
-    <DhDrawer :open="drawer" :title="isNew ? 'Nueva API' : 'Administrar · ' + draft.name" size="full" @close="closeDrawer">
-      <div class="mx-auto flex w-full max-w-[1280px] flex-col gap-6 pb-2">
+
+    <section v-if="!drawer && activePanel === 'keys'" class="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div class="self-start space-y-5 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-5 sm:p-6">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-widest text-[var(--dh-primary)]">Credenciales</p>
+          <h2 class="mt-2 text-xl font-black">Crear API Key</h2>
+          <p class="mt-2 text-sm leading-relaxed text-[var(--dh-text-muted)]">La clave pertenece a una aplicación externa. Después de crearla podrás vincularla con una o varias APIs, sin compartirla entre clientes.</p>
+        </div>
+        <DhInput v-model="keyLabel" label="Nombre de la aplicación" placeholder="Ej. Portal Galago · Producción" />
+        <div>
+          <p class="mb-2 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Vigencia</p>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="days in ['30','90','180','365']" :key="days" type="button"
+              :aria-pressed="expiresDays === days" class="rounded-xl border px-3 py-2 text-sm font-semibold"
+              :class="expiresDays === days ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+              @click="expiresDays = days">{{ days }} días</button>
+          </div>
+        </div>
+        <div>
+          <p class="mb-2 text-xs font-bold uppercase text-[var(--dh-text-muted)]">Solicitudes por minuto</p>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="quota in ['10','30','60','120']" :key="quota" type="button"
+              :aria-pressed="maxPerMinute === quota" class="rounded-xl border px-3 py-2 text-sm font-semibold"
+              :class="maxPerMinute === quota ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10' : 'border-[var(--dh-border)]'"
+              @click="maxPerMinute = quota">{{ quota }}</button>
+          </div>
+        </div>
+        <DhButton :icon="KeyRound" label="Generar API Key" :disabled="keyBusy || !keyLabel.trim()" :loading="keyBusy" @click="createStandaloneKey" />
+        <p class="text-xs text-[var(--dh-text-muted)]">El secreto se muestra una sola vez. Las claves no vinculadas a ninguna API no tienen acceso.</p>
+      </div>
+      <div class="min-w-0 overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-5 sm:p-6">
+          <div>
+            <h2 class="text-lg font-bold">Claves y APIs autorizadas</h2>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Vinculá cada clave solamente a las rutas que su aplicación necesita.</p>
+          </div>
+          <DhButton size="sm" variant="secondary" :icon="RefreshCw" label="Actualizar" @click="loadRegistryKeys" />
+        </div>
+        <div v-if="!keyRegistry.length" class="p-9 text-center text-sm text-[var(--dh-text-muted)]">No hay claves registradas. Creá la primera desde el formulario.</div>
+        <div v-for="key in keyRegistry" :key="key.id" class="space-y-3 border-b border-[var(--dh-border)] p-5 last:border-b-0">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 class="font-bold">{{ key.label }}</h3>
+              <p class="mt-1 font-mono text-xs text-[var(--dh-text-muted)]">{{ key.prefix }}…</p>
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ key.endpointIds?.length || 0 }} APIs vinculadas · {{ key.maxRequestsPerMinute }}/min · {{ key.active ? 'Activa' : 'Revocada' }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <DhButton v-if="key.active" variant="secondary" size="sm" label="Vincular APIs" @click="startKeyLinks(key)" />
+              <DhButton v-if="key.active" variant="danger" size="sm" :icon="Trash2" label="Revocar" @click="confirmRevoke = key" />
+            </div>
+          </div>
+          <div v-if="editingKeyId === key.id" class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
+            <DhMultiSelect v-model="keyEndpointIds" label="APIs autorizadas para esta clave"
+              :options="linkableEndpoints" placeholder="Elegir APIs" search-placeholder="Buscar API..." />
+            <p class="text-xs text-[var(--dh-text-muted)]">Podés seleccionar varias. Solo se podrán consumir cuando estén publicadas y tengan identidad técnica configurada.</p>
+            <div class="flex flex-wrap gap-2">
+              <DhButton label="Guardar vínculos" :disabled="keyBusy" :loading="keyBusy" @click="saveKeyLinks" />
+              <DhButton variant="secondary" label="Cancelar" @click="editingKeyId = ''; keyEndpointIds = []" />
+            </div>
+          </div>
+          <div v-else class="flex flex-wrap gap-1.5">
+            <span v-for="id in key.endpointIds || []" :key="id" class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">
+              {{ endpoints.find(api => api.id === id)?.name || 'API no disponible' }}
+            </span>
+            <span v-if="!key.endpointIds?.length" class="text-xs text-[var(--dh-text-muted)]">Sin permisos asignados</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="drawer" class="min-w-0 rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 shadow-[var(--dh-shadow-sm)] sm:p-6 lg:p-8">
+      <div class="mx-auto flex w-full max-w-[1180px] flex-col gap-5 pb-2">
         <div class="flex flex-col gap-5 border-b border-[var(--dh-border)] pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div class="space-y-1">
+            <button type="button" class="mb-3 flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)] hover:underline" @click="closeDrawer"><ArrowLeft class="h-4 w-4" /> Volver al listado</button>
             <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--dh-primary)]">DHOLE · API MANAGER</p>
             <h2 class="text-2xl font-black tracking-tight sm:text-3xl">{{ isNew ? 'Configurá una nueva API' : 'Administrá tu API' }}</h2>
             <p class="max-w-2xl text-sm leading-relaxed text-[var(--dh-text-muted)]">
@@ -1176,7 +1258,7 @@ onMounted(() => { void load() })
           </div>
         </div>
       </div>
-    </DhDrawer>
+    </section>
 
     <DhModal :open="secretModal" title="API Key generada" size="lg" @close="secretModal = false; issuedSecret = ''">
       <div class="space-y-3">
