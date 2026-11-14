@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.56.0",
-  "ecosystemVersion": "1.56.0",
-  "releaseId": "DH-20261114-API-MANAGER-ROUTE-DISCOVERY-143",
+  "version": "1.56.1",
+  "ecosystemVersion": "1.56.1",
+  "releaseId": "DH-20261114-API-MANAGER-UI-153",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261114-API-MANAGER-ROUTE-DISCOVERY-143"
+  "businessReleaseId": "DH-20261114-API-MANAGER-UI-153"
 }
