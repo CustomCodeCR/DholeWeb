@@ -1,3 +1,9 @@
+## [1.56.0] - 2026-11-14 (Dhole API Manager: rutas dinámicas)
+
+- MINOR: lista servicios y rutas internas reales con búsqueda, métodos GET/POST/PUT/PATCH/DELETE y mapeo configurable Request/Response.
+- Mantiene pantallas de CRM y Pricing de 1.55.0; API Keys y autorización de publicaciones se mantienen.
+- Pendiente CI y staging completos antes de promoción a producción.
+
 ## [1.55.0] - 2026-11-14 (API Manager promotion)
 
 - MINOR: incorpora API Manager, ocho catálogos Config de solo lectura y rutas externas versionadas manteniendo mejoras de CRM/Pricing de 1.54.0.
