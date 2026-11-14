@@ -11,6 +11,7 @@ import CrmExecutivePicker from '../components/CrmExecutivePicker.vue'
 import CrmAccountHub from '../components/CrmAccountHub.vue'
 import CrmLeadCommercialPanel from '../components/CrmLeadCommercialPanel.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
+import CrmRecordFollowups from '../components/CrmRecordFollowups.vue'
 import CrmLeadLocations from '../components/CrmLeadLocations.vue'
 import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
@@ -191,7 +192,7 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'log' | 'conversion' | 'documents' | 'locations'
+type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'followups' | 'log' | 'conversion' | 'documents' | 'locations'
 const leadTab = ref<LeadTab>('summary')
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
@@ -204,6 +205,8 @@ const leadTabs = computed(() => [
   { key: 'locations' as const, label: 'Ubicaciones', icon: MapPin },
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
     ? [{ key: 'agenda' as const, label: 'Agenda y recordatorios', icon: CalendarClock }] : []),
+  ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage') || can('crm.bitacora.read') || can('crm.bitacora.read-all')
+    ? [{ key: 'followups' as const, label: 'Seguimientos', icon: Activity }] : []),
   ...(can('crm.bitacora.read') || can('crm.bitacora.read-all') || can('crm.activity.read') || can('crm.activity.read-all')
     ? [{ key: 'log' as const, label: 'Bitácora', icon: FileText }] : []),
   ...(can('crm.lead.convert') && can('crm.account.create')
@@ -1296,6 +1299,10 @@ onMounted(() => { if (crmEnabled()) void load() })
             No hay una actividad principal vinculada a este seguimiento.
           </p>
         </template>
+      </section>
+      <section v-if="section === 'leads' && leadTab === 'followups'" id="crm-lead-panel-followups"
+        role="tabpanel" class="crm-panel space-y-3 p-4">
+        <CrmRecordFollowups :lead-id="id" />
       </section>
       <section v-if="section === 'leads' && leadTab === 'log'"
         id="crm-lead-panel-log" role="tabpanel" class="crm-panel space-y-3 p-4">
