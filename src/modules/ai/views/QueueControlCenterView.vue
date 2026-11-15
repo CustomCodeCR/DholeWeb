@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { AlertTriangle, Cpu, Database, ExternalLink, Mail, RefreshCw, RotateCcw, Search, ShieldAlert } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
