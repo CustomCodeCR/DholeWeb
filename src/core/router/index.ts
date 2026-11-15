@@ -809,6 +809,12 @@ export const router = createRouter({
         },
 
         {
+          path: 'ai/queue',
+          name: 'ai-queue-control',
+          component: () => import('@/modules/ai/views/QueueControlCenterView.vue'),
+          meta: { tabTitle: 'Centro de colas', closable: true, requiredScope: VIEW_SCOPES.aiExecutions },
+        },
+        {
           path: 'ai',
           name: 'ai-console',
           component: () => import('@/modules/ai/views/AiConsoleView.vue'),
