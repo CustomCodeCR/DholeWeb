@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Activity, AlertTriangle, Clock3, Cpu, Database, ExternalLink, Mail, RefreshCw, RotateCcw, Search, ShieldAlert, XCircle } from 'lucide-vue-next'
+import { AlertTriangle, Cpu, Database, ExternalLink, Mail, RefreshCw, RotateCcw, Search, ShieldAlert } from 'lucide-vue-next'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { toQueryString } from '@/core/api/queryString'
@@ -110,7 +110,7 @@ function stuck(row: ExtractionRow | AiRow) {
     new Date(row.leaseExpiresAtUtc).getTime() < Date.now() &&
     ['Extracting', 'Processing'].includes(row.status))
 }
-function color(statusValue: string) {
+function color(statusValue: string): 'success' | 'danger' | 'warning' | 'primary' | 'neutral' {
   if (statusValue === 'Completed' || statusValue === 'SentToPricing') return 'success'
   if (statusValue === 'Failed') return 'danger'
   if (statusValue === 'NeedsReview' || statusValue === 'RetryScheduled' || statusValue === 'Pending') return 'warning'
@@ -305,7 +305,7 @@ onBeforeUnmount(() => {
         </div>
       </DhCard>
 
-      <DhCard padding="none">
+      <DhCard padding="sm">
         <div class="overflow-x-auto">
           <table class="min-w-[950px] w-full text-left text-sm">
             <thead class="border-b border-[var(--dh-border)] bg-black/5 text-xs uppercase tracking-wide text-[var(--dh-text-muted)] dark:bg-white/5">
