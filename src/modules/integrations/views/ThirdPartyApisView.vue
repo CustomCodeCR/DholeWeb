@@ -5,6 +5,7 @@ import {
   Globe2, KeyRound, Pencil, Plus, Power, RefreshCw, Search, ChevronDown, ShieldCheck, Trash2,
 } from 'lucide-vue-next'
 import { fetchClient } from '@/core/api/fetchConfig'
+import { ApiError } from '@/core/api/apiErrorHandler'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
@@ -26,6 +27,7 @@ type PublishedEndpoint = {
 }
 type ServiceEntry = { service: string; prefix: string }
 type DiscoveryResult = { service: string; documented: boolean; message: string; routes: ApprovedTarget[] }
+type ManagerStatus = { routesRegistered: boolean; storageReady: boolean; message: string }
 type KeyInfo = {
   id: string; label: string; prefix: string; active: boolean; expiresAt: string
   maxRequestsPerMinute: number; createdAt: string; lastUsedAt: string | null; endpointIds?: string[]
@@ -34,6 +36,9 @@ type KeyInfo = {
 const root = '/api/integrations/third-party'
 const base = (import.meta.env.VITE_API_URL || 'https://api.logisticacastrofallas.com').replace(/\/+$/, '')
 const endpoints = ref<PublishedEndpoint[]>([])
+const endpointsLoaded = ref(false)
+const keyRegistryLoaded = ref(false)
+const managerStatus = ref<ManagerStatus | null>(null)
 const catalog = ref<ApprovedTarget[]>([])
 const serviceInventory = ref<ServiceEntry[]>([])
 const discoveryMessage = ref('')
@@ -371,10 +376,20 @@ async function runApiTest() {
     mutationConfirmed.value = false
   }
 }
+function requestFailure(label: string, endpoint: string, reason: unknown): string {
+  const status = reason instanceof ApiError ? reason.status : undefined
+  if (status === 404)
+    return label + ': Gateway no tiene registrada la ruta GET ' + endpoint +
+      ' (HTTP 404). Verificá que DholeApiGateway esté desplegado y que el módulo esté disponible.'
+  const detail = reason instanceof Error ? reason.message : 'Error de conexión desconocido.'
+  return label + ' (GET ' + endpoint + (status ? ', HTTP ' + status : '') + '): ' + detail
+}
 async function loadRegistryKeys() {
+  keyRegistryLoaded.value = false
   try {
     keyRegistry.value = await fetchClient<KeyInfo[]>(root + '/keys', { method: 'GET' })
-  } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudieron cargar las API Keys.' }
+    keyRegistryLoaded.value = true
+  } catch (e) { error.value = requestFailure('API Keys', root + '/keys', e) }
 }
 function showKeysPanel() {
   closeDrawer()
@@ -637,23 +652,42 @@ function next() {
 async function load() {
   loading.value = true
   error.value = ''
+  endpointsLoaded.value = false
+  managerStatus.value = null
+  const paths = {
+    endpoints: root + '/endpoints', catalog: root + '/catalog',
+    services: root + '/services', status: root + '/status',
+  }
   try {
-    const [saved, targets, inventory] = await Promise.all([
-      fetchClient<PublishedEndpoint[]>(root + '/endpoints', { method: 'GET' }),
-      fetchClient<ApprovedTarget[]>(root + '/catalog', { method: 'GET' }),
-      fetchClient<ServiceEntry[]>(root + '/services', { method: 'GET' }),
+    // Preserve successful catalogs when a single request fails.
+    const [saved, targets, inventory, status] = await Promise.allSettled([
+      fetchClient<PublishedEndpoint[]>(paths.endpoints, { method: 'GET' }),
+      fetchClient<ApprovedTarget[]>(paths.catalog, { method: 'GET' }),
+      fetchClient<ServiceEntry[]>(paths.services, { method: 'GET' }),
+      fetchClient<ManagerStatus>(paths.status, { method: 'GET' }),
     ])
-    endpoints.value = saved
-    serviceInventory.value = inventory
-    catalog.value = [...targets]
-    for (const endpoint of saved) {
+    const problems: string[] = []
+    if (saved.status === 'fulfilled') {
+      endpoints.value = saved.value
+      endpointsLoaded.value = true
+    } else {
+      endpoints.value = []
+      problems.push(requestFailure('Mis APIs', paths.endpoints, saved.reason))
+    }
+    if (targets.status === 'fulfilled') catalog.value = [...targets.value]
+    else { catalog.value = []; problems.push(requestFailure('Catálogo', paths.catalog, targets.reason)) }
+    if (inventory.status === 'fulfilled') serviceInventory.value = inventory.value
+    else { serviceInventory.value = []; problems.push(requestFailure('Microservicios', paths.services, inventory.reason)) }
+    if (status.status === 'fulfilled') managerStatus.value = status.value
+    else if (saved.status === 'rejected') problems.push(requestFailure('Estado de Gateway', paths.status, status.reason))
+    for (const endpoint of endpoints.value) {
       if (endpoint.target.startsWith('route.') && !catalog.value.some(t => t.code === endpoint.target)) {
         const item = resolveSavedDynamic(endpoint.target, endpoint)
         if (item) catalog.value.push(item)
       }
     }
-  } catch (e) { error.value = e instanceof Error ? e.message : 'No fue posible cargar las APIs.' }
-  finally { loading.value = false }
+    error.value = problems.join(' | ')
+  } finally { loading.value = false }
 }
 async function save() {
   error.value = ''
@@ -752,6 +786,12 @@ onMounted(() => { void load() })
 
     <div v-if="error && !drawer" role="alert" class="rounded-xl border border-red-400/40 p-3 text-sm text-red-500">{{ error }}</div>
     <div v-if="notice && !drawer" role="status" class="rounded-xl border border-[var(--dh-border)] p-3 text-sm">{{ notice }}</div>
+    <div v-if="managerStatus && !managerStatus.storageReady && !drawer" role="status"
+      class="rounded-2xl border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm">
+      <strong class="block">API Manager: almacenamiento no disponible</strong>
+      <p class="mt-1 text-[var(--dh-text-muted)]">{{ managerStatus.message }}</p>
+      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Podés examinar rutas, pero para guardar APIs y credenciales se necesita PostgreSQL en Gateway.</p>
+    </div>
 
     <section v-if="!drawer && activePanel === 'apis'" class="overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
       <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] p-4">
@@ -780,9 +820,11 @@ onMounted(() => { void load() })
             <tr v-if="!filtered.length"><td colspan="5" class="p-10 text-center">
               <div class="mx-auto flex max-w-sm flex-col items-center gap-3 text-[var(--dh-text-muted)]">
                 <Globe2 class="h-8 w-8 opacity-60" />
-                <strong class="text-[var(--dh-text)]">{{ loading ? 'Cargando rutas...' : 'Aún no hay APIs creadas' }}</strong>
-                <span v-if="!loading" class="text-xs">Creá una ruta para compartir funciones de Dhole con otro sistema.</span>
-                <DhButton v-if="!loading && !search" :icon="Plus" label="Crear mi primera API" @click="create" />
+                <strong class="text-[var(--dh-text)]">{{ loading ? 'Cargando rutas...' : !endpointsLoaded ? 'No se pudieron cargar las APIs' : search ? 'No hay coincidencias' : 'Aún no hay APIs creadas' }}</strong>
+                <span v-if="!loading && !endpointsLoaded" class="text-xs">Revisá el error de Gateway arriba y volvé a cargar el listado.</span>
+                <span v-else-if="!loading && !search" class="text-xs">Creá una ruta para compartir funciones de Dhole con otro sistema.</span>
+                <DhButton v-if="!loading && !endpointsLoaded" variant="secondary" :icon="RefreshCw" label="Reintentar carga" @click="load" />
+                <DhButton v-if="!loading && endpointsLoaded && !search" :icon="Plus" label="Crear mi primera API" @click="create" />
               </div>
             </td></tr>
           </tbody>
@@ -817,7 +859,7 @@ onMounted(() => { void load() })
               @click="maxPerMinute = quota">{{ quota }}</button>
           </div>
         </div>
-        <DhButton :icon="KeyRound" label="Generar API Key" :disabled="keyBusy || !keyLabel.trim()" :loading="keyBusy" @click="createStandaloneKey" />
+        <DhButton :icon="KeyRound" label="Generar API Key" :disabled="keyBusy || !keyLabel.trim() || managerStatus?.storageReady === false" :loading="keyBusy" @click="createStandaloneKey" />
         <p class="text-xs text-[var(--dh-text-muted)]">El secreto se muestra una sola vez. Las claves no vinculadas a ninguna API no tienen acceso.</p>
       </div>
       <div class="min-w-0 overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
@@ -828,7 +870,9 @@ onMounted(() => { void load() })
           </div>
           <DhButton size="sm" variant="secondary" :icon="RefreshCw" label="Actualizar" @click="loadRegistryKeys" />
         </div>
-        <div v-if="!keyRegistry.length" class="p-9 text-center text-sm text-[var(--dh-text-muted)]">No hay claves registradas. Creá la primera desde el formulario.</div>
+        <div v-if="!keyRegistry.length" class="p-9 text-center text-sm text-[var(--dh-text-muted)]">
+          {{ !keyRegistryLoaded ? 'No se pudo confirmar el listado de claves. Revisá Gateway y reintentá.' : 'No hay claves registradas. Creá la primera desde el formulario.' }}
+        </div>
         <div v-for="key in keyRegistry" :key="key.id" class="space-y-3 border-b border-[var(--dh-border)] p-5 last:border-b-0">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
