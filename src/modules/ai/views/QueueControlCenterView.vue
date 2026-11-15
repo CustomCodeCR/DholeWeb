@@ -214,6 +214,11 @@ function openAi(row: AiRow) {
   selected.value = { source: 'ai', row }
   void openEmailDetails(row.emailMessageId)
 }
+function closeDetails() {
+  selected.value = null
+  detailSerial++
+  emailDetail.value = null
+}
 
 function confirmAction(title: string, message: string, action: () => Promise<void>, danger = false) {
   modalStore.open({
@@ -383,7 +388,7 @@ onBeforeUnmount(() => {
       <DhCard v-if="selected" padding="md">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] pb-3">
           <div><h2 class="font-bold">Trazabilidad completa del trabajo</h2><p class="text-xs text-[var(--dh-text-muted)]">Identificadores, tiempos, error y vínculos entre servicios</p></div>
-          <DhButton variant="secondary" size="sm" @click="selected = null; ++detailSerial; emailDetail = null">Cerrar</DhButton>
+          <DhButton variant="secondary" size="sm" @click="closeDetails">Cerrar</DhButton>
         </div>
         <dl class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[field, value] in Object.entries(selected.row)" :key="field">
