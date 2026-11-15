@@ -1,3 +1,9 @@
+## [1.57.1] - 2026-11-15 (Diagnóstico de API Manager y carga parcial)
+
+- PATCH DH-20261115-THIRD-PARTY-404-155: separa las cargas de APIs, catálogo, módulos y estado de Gateway con Promise.allSettled; un fallo HTTP 404/503 identifica la ruta exacta y conserva el contenido que sí cargó.
+- Ya no presenta una lista vacía como «sin APIs creadas» cuando la consulta falló. Incluye reintento y avisos de almacenamiento no disponible.
+- API Keys respetan la disponibilidad de PostgreSQL y muestran errores de carga específicos, sin alterar los permisos ni la administración de contratos.
+
 ## [1.57.0] - 2026-11-14 (API Keys independientes y previsualización segura)
 
 - DH-20261114-API-KEYS-PREVIEW-154
