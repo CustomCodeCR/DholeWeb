@@ -1076,6 +1076,9 @@ onMounted(() => { void load() })
               </div>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Los campos necesarios se incluyen automáticamente. Solo seleccioná los adicionales que querás permitir.</p>
             </div>
+            <div v-if="draft.target.startsWith('config-catalog-')" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
+              Los filtros son opcionales y se aplican a los metadatos reales de cada registro de Config. Para POL, POE y POD podés filtrar por <strong>CY</strong> (marítimo), <strong>SD</strong> (terrestre/puerta) o <strong>APT</strong> (aéreo), sin alterar el catálogo. Si no seleccionás filtros, la API devuelve todos los tipos.
+            </div>
             <div v-if="draft.target === 'pricing-rate-request-create'" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs text-[var(--dh-text-muted)]">
               Podés permitir que el tercero envíe el <strong>payload completo</strong> como en el JSON original, o seleccionar cada campo de <strong>formulario, contenedores y contextos</strong>. Al elegir campos individuales, Dhole construirá automáticamente el JSON anidado.
             </div>
@@ -1141,6 +1144,10 @@ onMounted(() => { void load() })
               <span class="rounded-lg border border-[var(--dh-border)] px-2 py-1 text-xs">{{ draft.outputs.length }} de {{ outputCatalog.length }} campos</span>
             </div>
             <p class="text-xs text-[var(--dh-text-muted)]">Seleccioná qué información devolverá la API. Solo aparecen datos disponibles para esta operación.</p>
+            <div v-if="draft.target.startsWith('config-catalog-')" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-xs text-[var(--dh-text-muted)]">
+              <strong class="block mb-1 text-[var(--dh-text)]">Metadatos de Config, sin perder información</strong>
+              <span>«Metadatos completos» devuelve el objeto JSON original con todas sus propiedades, incluso las adicionales. También podés escoger campos individuales como <strong>Tipo de terminal (CY / SD / APT)</strong>, modalidad, país, IATA e ICAO. Los valores siempre se toman del registro; si una propiedad no existe, se omite en la respuesta.</span>
+            </div>
             <div v-if="outputOptions.length" class="flex flex-wrap gap-2">
               <DhButton variant="secondary" size="sm" label="Seleccionar todos" @click="selectAllOutputs" />
               <DhButton variant="ghost" size="sm" label="Limpiar selección" @click="clearOutputs" />
