@@ -6,6 +6,7 @@ import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { toQueryString } from '@/core/api/queryString'
 import { AI_SCOPES } from '@/core/auth/scopes'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -224,6 +225,13 @@ function cancelAi(row: AiRow) {
   if (!['Pending', 'RetryScheduled'].includes(row.status)) return
   confirmAction('Retirar trabajo de IA', 'Solo se puede retirar un trabajo no reclamado por el worker. Esta acción afecta el procesamiento del correo.', () => execute('ai', row.jobId, 'cancel'), true)
 }
+useRealtimeListRefresh({
+  prefixes: ['/api/ai', '/api/data-extraction'],
+  refresh: () => refresh(true),
+  isEditing: () => Boolean(actionKey.value),
+  debounceMs: 500,
+})
+
 onMounted(() => {
   void refresh()
   timer = window.setInterval(() => {
