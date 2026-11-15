@@ -1,3 +1,9 @@
+## [1.58.0] - 2026-11-15 (API Manager: metadatos reales y filtros de Config)
+
+- MINOR DH-20261115-API-METADATA-161: el asistente de APIs explica la selección de metadatos completos de Config, propiedades individuales y filtros opcionales de terminal CY/SD/APT, modalidad, país e IATA.
+- El selector recibe el catálogo ampliado de Gateway y preserva campos ya guardados, API Keys y consola de pruebas GET/publicadas. No se agregan flags.
+- Release conjunto Gateway 1.9.0, Web 1.58.0 y System 1.58.0; Config mantiene la metadata original y la clasificación por registro.
+
 ## [1.57.1] - 2026-11-15 (Diagnóstico de API Manager y carga parcial)
 
 - PATCH DH-20261115-THIRD-PARTY-404-155: separa las cargas de APIs, catálogo, módulos y estado de Gateway con Promise.allSettled; un fallo HTTP 404/503 identifica la ruta exacta y conserva el contenido que sí cargó.
