@@ -7,6 +7,8 @@ import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { toQueryString } from '@/core/api/queryString'
 import { AI_SCOPES } from '@/core/auth/scopes'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
+import { EmailExtractionService } from '@/core/services/emailExtractionService'
+import type { EmailMessageDetailDto } from '@/core/interfaces/emailExtraction'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -75,6 +77,10 @@ const loading = ref(false)
 const actionKey = ref('')
 const autoRefresh = ref(true)
 const selected = ref<Selected | null>(null)
+const emailDetail = ref<EmailMessageDetailDto | null>(null)
+const detailsLoading = ref(false)
+const detailError = ref('')
+let detailSerial = 0
 const warnings = ref<string[]>([])
 const lastRefresh = ref('')
 const overview = ref<Overview | null>(null)
@@ -183,6 +189,32 @@ function switchTab(next: Source) {
   selected.value = null
   void refresh()
 }
+async function openEmailDetails(emailMessageId: string) {
+  const generation = ++detailSerial
+  emailDetail.value = null
+  detailError.value = ''
+  detailsLoading.value = true
+  try {
+    const detail = await EmailExtractionService.getMessage(emailMessageId)
+    if (generation === detailSerial) emailDetail.value = detail
+  } catch (error) {
+    if (generation === detailSerial) {
+      detailError.value = 'No se pudo recuperar el correo asociado o faltan permisos.'
+      console.error('[QueueControlCenter] No se pudo recuperar el correo', error)
+    }
+  } finally {
+    if (generation === detailSerial) detailsLoading.value = false
+  }
+}
+function openExtraction(row: ExtractionRow) {
+  selected.value = { source: 'extraction', row }
+  void openEmailDetails(row.emailMessageId)
+}
+function openAi(row: AiRow) {
+  selected.value = { source: 'ai', row }
+  void openEmailDetails(row.emailMessageId)
+}
+
 function confirmAction(title: string, message: string, action: () => Promise<void>, danger = false) {
   modalStore.open({
     title, component: DhConfirmDialog, size: 'md',
@@ -321,22 +353,22 @@ onBeforeUnmount(() => {
             </thead>
             <tbody v-if="active === 'extraction'">
               <tr v-for="job in extractionPage.items" :key="job.id" class="border-b border-[var(--dh-border)] align-top hover:bg-black/5 dark:hover:bg-white/5">
-                <td class="p-3"><button class="max-w-[300px] text-left font-semibold text-[var(--dh-text)] hover:underline" @click="selected = { source: 'extraction', row: job }">{{ job.subject || 'Sin asunto' }}</button><div class="max-w-[300px] truncate text-xs text-[var(--dh-text-muted)]">{{ job.sender }}</div><div class="mt-1 font-mono text-[10px] text-[var(--dh-text-muted)]">{{ job.id }}</div></td>
+                <td class="p-3"><button class="max-w-[300px] text-left font-semibold text-[var(--dh-text)] hover:underline" @click="openExtraction(job)">{{ job.subject || 'Sin asunto' }}</button><div class="max-w-[300px] truncate text-xs text-[var(--dh-text-muted)]">{{ job.sender }}</div><div class="mt-1 font-mono text-[10px] text-[var(--dh-text-muted)]">{{ job.id }}</div></td>
                 <td class="p-3"><DhBadge :variant="color(job.status)">{{ label(job.status) }}</DhBadge><div v-if="stuck(job)" class="mt-1 text-xs font-bold text-red-500">Lease vencido</div></td>
                 <td class="p-3">{{ job.attemptCount }}</td>
                 <td class="p-3 text-xs">{{ formatDate(job.createdAtUtc) }}<div class="mt-1 text-[var(--dh-text-muted)]">{{ elapsed(job.createdAtUtc) }}</div></td>
                 <td class="max-w-[260px] p-3 text-xs"><div class="truncate text-red-500">{{ job.lastErrorCode || job.errorMessage || 'Sin errores' }}</div><div class="mt-1 text-[var(--dh-text-muted)]">AI: {{ job.aiRequestId ? job.aiRequestId.slice(0, 8) : '—' }}</div></td>
-                <td class="p-3 text-right"><DhButton v-if="canOperate && ['Failed', 'NeedsReview'].includes(job.status) && !job.pricingRequestId && !job.pricingImportBatchId" size="sm" variant="secondary" :disabled="!!actionKey" @click="retryExtraction(job)"><RotateCcw class="h-3.5 w-3.5" /> Reintentar</DhButton><DhButton v-else size="sm" variant="secondary" @click="selected = { source: 'extraction', row: job }">Detalles</DhButton></td>
+                <td class="p-3 text-right"><DhButton v-if="canOperate && ['Failed', 'NeedsReview'].includes(job.status) && !job.pricingRequestId && !job.pricingImportBatchId" size="sm" variant="secondary" :disabled="!!actionKey" @click="retryExtraction(job)"><RotateCcw class="h-3.5 w-3.5" /> Reintentar</DhButton><DhButton v-else size="sm" variant="secondary" @click="openExtraction(job)">Detalles</DhButton></td>
               </tr>
             </tbody>
             <tbody v-else>
               <tr v-for="job in aiPage.items" :key="job.jobId" class="border-b border-[var(--dh-border)] align-top hover:bg-black/5 dark:hover:bg-white/5">
-                <td class="p-3"><button class="text-left font-mono text-xs font-semibold text-[var(--dh-text)] hover:underline" @click="selected = { source: 'ai', row: job }">{{ job.jobId }}</button><div class="mt-1 text-xs text-[var(--dh-text-muted)]">Correo: {{ job.emailMessageId }}</div><div class="truncate text-xs text-[var(--dh-text-muted)]">{{ job.correlationId }}</div></td>
+                <td class="p-3"><button class="text-left font-mono text-xs font-semibold text-[var(--dh-text)] hover:underline" @click="openAi(job)">{{ job.jobId }}</button><div class="mt-1 text-xs text-[var(--dh-text-muted)]">Correo: {{ job.emailMessageId }}</div><div class="truncate text-xs text-[var(--dh-text-muted)]">{{ job.correlationId }}</div></td>
                 <td class="p-3"><DhBadge :variant="color(job.status)">{{ label(job.status) }}</DhBadge><div v-if="stuck(job)" class="mt-1 text-xs font-bold text-red-500">Lease vencido</div></td>
                 <td class="p-3">{{ job.attemptCount }} / {{ job.maxAttemptCount }}</td>
                 <td class="p-3 text-xs">{{ formatDate(job.createdAtUtc) }}<div class="mt-1 text-[var(--dh-text-muted)]">{{ elapsed(job.createdAtUtc) }}</div></td>
                 <td class="max-w-[260px] p-3 text-xs"><div class="truncate text-red-500">{{ job.errorCode || job.errorMessage || 'Sin errores' }}</div><div class="mt-1 text-[var(--dh-text-muted)]">Lease: {{ formatDate(job.leaseExpiresAtUtc) }}</div></td>
-                <td class="p-3 text-right"><div class="flex justify-end gap-1"><DhButton v-if="canOperate && job.status === 'Failed'" size="sm" variant="secondary" :disabled="!!actionKey" @click="retryAi(job)">Reintentar</DhButton><DhButton v-if="canOperate && ['Pending','RetryScheduled'].includes(job.status)" size="sm" variant="secondary" :disabled="!!actionKey" @click="cancelAi(job)">Retirar</DhButton><DhButton size="sm" variant="secondary" @click="selected = { source: 'ai', row: job }">Detalles</DhButton></div></td>
+                <td class="p-3 text-right"><div class="flex justify-end gap-1"><DhButton v-if="canOperate && job.status === 'Failed'" size="sm" variant="secondary" :disabled="!!actionKey" @click="retryAi(job)">Reintentar</DhButton><DhButton v-if="canOperate && ['Pending','RetryScheduled'].includes(job.status)" size="sm" variant="secondary" :disabled="!!actionKey" @click="cancelAi(job)">Retirar</DhButton><DhButton size="sm" variant="secondary" @click="openAi(job)">Detalles</DhButton></div></td>
               </tr>
             </tbody>
           </table>
@@ -351,7 +383,7 @@ onBeforeUnmount(() => {
       <DhCard v-if="selected" padding="md">
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] pb-3">
           <div><h2 class="font-bold">Trazabilidad completa del trabajo</h2><p class="text-xs text-[var(--dh-text-muted)]">Identificadores, tiempos, error y vínculos entre servicios</p></div>
-          <DhButton variant="secondary" size="sm" @click="selected = null">Cerrar</DhButton>
+          <DhButton variant="secondary" size="sm" @click="selected = null; ++detailSerial; emailDetail = null">Cerrar</DhButton>
         </div>
         <dl class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <template v-for="[field, value] in Object.entries(selected.row)" :key="field">
@@ -361,6 +393,31 @@ onBeforeUnmount(() => {
             </div>
           </template>
         </dl>
+        <div class="mt-5 border-t border-[var(--dh-border)] pt-4">
+          <h3 class="text-sm font-bold">Correo y archivos de origen</h3>
+          <p v-if="detailsLoading" class="mt-2 text-xs text-[var(--dh-text-muted)]">Consultando correo original...</p>
+          <p v-else-if="detailError" class="mt-2 text-xs text-amber-500">{{ detailError }}</p>
+          <div v-else-if="emailDetail" class="mt-3 space-y-3">
+            <div class="grid gap-3 text-xs sm:grid-cols-2">
+              <div><span class="font-bold text-[var(--dh-text-muted)]">Asunto:</span> {{ emailDetail.subject }}</div>
+              <div><span class="font-bold text-[var(--dh-text-muted)]">Remitente:</span> {{ emailDetail.fromAddress }}</div>
+              <div><span class="font-bold text-[var(--dh-text-muted)]">Recibido:</span> {{ formatDate(emailDetail.receivedAt) }}</div>
+              <div><span class="font-bold text-[var(--dh-text-muted)]">Clasificación:</span> {{ emailDetail.classificationReason || '—' }}</div>
+            </div>
+            <div class="rounded-xl border border-[var(--dh-border)] p-3">
+              <div class="font-semibold">Adjuntos ({{ emailDetail.attachments.length }})</div>
+              <div v-for="attachment in emailDetail.attachments" :key="attachment.id" class="mt-2 flex flex-wrap justify-between gap-2 border-t border-[var(--dh-border)] pt-2 text-xs">
+                <span class="font-medium">{{ attachment.fileName }} · {{ (attachment.sizeBytes / 1024).toFixed(1) }} KB</span>
+                <span class="text-[var(--dh-text-muted)]">{{ attachment.status }} {{ attachment.errorMessage || '' }}</span>
+              </div>
+              <p v-if="!emailDetail.attachments.length" class="mt-1 text-xs text-[var(--dh-text-muted)]">El trabajo fue generado desde el cuerpo del correo.</p>
+            </div>
+            <details class="rounded-xl border border-[var(--dh-border)] p-3">
+              <summary class="cursor-pointer text-sm font-semibold">Ver contenido del correo (solo texto; sin ejecutar HTML)</summary>
+              <pre class="mt-3 max-h-[380px] overflow-auto whitespace-pre-wrap break-words text-xs">{{ emailDetail.bodyText || emailDetail.bodyHtml || 'Sin cuerpo de correo' }}</pre>
+            </details>
+          </div>
+        </div>
         <div class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-4">
           <DhButton variant="secondary" @click="router.push('/pricing/email-imports')"><ExternalLink class="h-4 w-4" /> Historial de correos</DhButton>
           <DhButton v-if="selected.source === 'extraction' && selected.row.pricingImportBatchId" variant="secondary" @click="router.push('/pricing/imports/review/' + selected.row.pricingImportBatchId)">Ver importación Pricing</DhButton>
