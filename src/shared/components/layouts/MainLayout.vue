@@ -496,6 +496,11 @@ const sidebarItems = computed<SidebarItem[]>(() => {
           path: '/ai',
           icon: BrainCircuit,
         },
+        ...(canView(VIEW_SCOPES.aiExecutions) ? [{
+          label: 'Centro de colas',
+          path: '/ai/queue',
+          icon: Activity,
+        }] : []),
       ],
     })
   }
