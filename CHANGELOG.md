@@ -1,3 +1,8 @@
+## [1.59.0] - 2026-11-15 (Centro de colas operativo)
+
+- MINOR: nueva consola de operaciones de DataExtraction y AI con filtros, paginación server-side, estados por etapa, errores, leases, correlación, tiempos, Redis/Ollama, reintentos seguros y permisos AI.
+- Global Dhole 1.60.0, release DH-20261115-QUEUE-CONTROL-145. Pendiente de CI y staging; sin nuevo permiso de producción.
+
 ## [1.58.0] - 2026-11-15 (API Manager: metadatos reales y filtros de Config)
 
 - MINOR DH-20261115-API-METADATA-161: el asistente de APIs explica la selección de metadatos completos de Config, propiedades individuales y filtros opcionales de terminal CY/SD/APT, modalidad, país e IATA.
