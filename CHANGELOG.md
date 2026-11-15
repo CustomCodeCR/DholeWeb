@@ -499,6 +499,11 @@
 
 # Changelog
 
+## [1.59.0] - 2026-11-15 (Centro de colas operativo)
+
+- MINOR: nueva consola de operaciones de DataExtraction y AI con filtros, paginación server-side, estados por etapa, errores, leases, correlación, tiempos, Redis/Ollama, reintentos seguros y permisos AI.
+- Global Dhole 1.60.0, release DH-20261115-QUEUE-CONTROL-145. Pendiente de CI y staging; sin nuevo permiso de producción.
+
 ## [1.17.12] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-REQUEST-IDENTITY-067: solicitudes normales, edición y modificaciones de QUO recuperan el ejecutivo comercial vigente desde el CRM por ID, conservan executiveUserId al enviar y no reemplazan al vendedor con el usuario conectado. Se respetan cuentas Castro Fallas, permisos CRM, delegación y cotizaciones históricas sin vincular. Prueba de regresión pricingCrmRequestCommercialOwner; Pricing 1.9.10 y CRM 1.7.5 en develop / 1.4.2 en master.
