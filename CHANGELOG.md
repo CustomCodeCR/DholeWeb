@@ -1,3 +1,10 @@
+## [1.64.0] - 2026-11-16 (SRM: interfaz CRM y aplicación automática de Hacienda)
+
+- MINOR DH-20261116-SRM-CRM-HACIENDA-UI-178: formulario de proveedores por secciones Identidad/Hacienda, Contactos, Bancos y Crédito; navegación responsive, guardado accesible y errores enfocados en la sección correspondiente.
+- Hacienda CR se consulta automáticamente al ingresar identificación válida, como en CRM: actualiza de inmediato la razón social y la actividad económica principal disponible, sin segundo botón. También muestra tipo de identificación y régimen, conserva evidencia de la respuesta y permite reconsultar.
+- Evita aplicar respuestas obsoletas al cambiar cédula/país; espera consultas pendientes antes del guardado. Mantiene edición manual cuando Hacienda no devuelve un dato o falla; no inventa actividades ni dirección fiscal.
+- Incluye pruebas unitarias de mapeo Hacienda, coincidencia estricta de cédula e integración SRM. Coordinado con DholeSystem 1.65.0; staging y producción sujetos a CI.
+
 ## [1.63.1] - 2026-11-16 (CRM: estado de finalización sincronizado y ficha legible)
 
 - PATCH DH-20261116-CRM-COMPLETION-STATE-SYNC-177: el detalle consulta el registro persistido al regresar a la pestaña o después de fallar una finalización. Solo confirma «Completada» al comprobarlo en CRM, limpia errores anteriores cuando el servidor ya la completó, muestra la hora real y ofrece «Verificar estado en CRM».
