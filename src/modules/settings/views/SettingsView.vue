@@ -99,13 +99,14 @@ const cards = computed(() => {
     <EnvironmentRecoveryView />
   </section>
 
-  <section v-else class="space-y-4 sm:space-y-6">
+  <section v-else class="min-w-0 space-y-4 sm:space-y-6" data-settings-overview>
     <DhPageHeader :title="t('settings.title')" :subtitle="t('settings.subtitle')" :icon="Settings" />
 
-    <div class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+    <div class="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3">
       <DhCard
         v-for="card in cards"
         :key="card.path"
+        class="settings-mobile-card w-full"
         as="button"
         :interactive="true"
         :title="card.title"
@@ -128,9 +129,18 @@ const cards = computed(() => {
         </span>
         <span v-if="APP_COMMIT" class="text-[var(--dh-text-muted)]">
           {{ t('settings.versionCommit') }}:
-          <code class="font-semibold text-[var(--dh-text)]">{{ APP_COMMIT }}</code>
+          <code class="break-all font-semibold text-[var(--dh-text)]">{{ APP_COMMIT }}</code>
         </span>
       </div>
     </DhCard>
   </section>
 </template>
+
+<style scoped>
+@media (max-width: 639px) {
+  .settings-mobile-card { padding: 1rem; overflow-wrap: anywhere; }
+  .settings-mobile-card :deep(header) { align-items: center; gap: .75rem; margin-bottom: 0; }
+  .settings-mobile-card :deep(h2) { font-size: 1rem; line-height: 1.35; }
+  .settings-mobile-card :deep(p) { font-size: .76rem; line-height: 1.4; }
+}
+</style>
