@@ -1,3 +1,9 @@
+## [1.61.1] - 2026-11-16 (API Manager: edición y publicación de catálogos Config)
+
+- PATCH DH-20261116-API-MANAGER-164: corrige DataCloneError al abrir Administrar y al refrescar la API después de publicar, generando copias independientes de los DTO reactivos de Vue.
+- Gateway proporciona una identidad técnica de solo lectura para catálogos Config; las demás operaciones siguen sujetas a credenciales técnicas propias.
+- Mantiene los vínculos de API Keys, los contratos guardados y validaciones de publicación. Añade prueba de regresión.
+
 ## [1.61.0] - 2026-11-16 (Scopes Create/Update/View en LCL propios)
 
 - MINOR DH-20261116-OWN-LCL-SCOPES-163: navegación y listado protegidos por view; creación protegida por create; edición, renombrado y guardados protegidos por update, sin bypass de rol en el cliente.
