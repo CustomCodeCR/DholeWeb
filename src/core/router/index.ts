@@ -354,7 +354,7 @@ export const router = createRouter({
           meta: {
             tabTitleKey: 'routes.ownLcl',
             closable: true,
-            requiredScope: PRICING_SCOPES.ownLclConsolidations.create,
+            requiredScope: PRICING_SCOPES.ownLclConsolidations.view,
           },
         },
         {
