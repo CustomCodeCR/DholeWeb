@@ -20,6 +20,26 @@ export interface SrmLegacyPartner {
   name: string
   imported: boolean
 }
+export interface SrmBankAccount {
+  id: string
+  bankName: string
+  accountHolder: string
+  registration: 'LOCAL' | 'INTERNACIONAL'
+  accountNumber: string
+  swiftBic: string
+  currency: string
+  bankCountryId: string
+  intermediaryBank: string
+  isPrimary: boolean
+}
+export interface SrmHaciendaResult {
+  identification: string
+  name: string
+  identificationType: string | null
+  regime: string | null
+  verifiedAt: string
+  activities: { code: string; description: string; type: string }[]
+}
 const base = '/api/config/srm'
 
 /** Config can return a 200 response carrying an application-level failure. */
@@ -49,6 +69,18 @@ export const SrmApi = {
     const response = await fetchClient<string | ApiResponse<string>>(base + '/' + collection, { method: 'POST', body })
     verifySrmMutation(response)
     return unwrapApiResponse<string>(response)
+  },
+  async lookupHacienda(identificacion: string, countryId: string): Promise<SrmHaciendaResult> {
+    const query = new URLSearchParams({ identificacion, countryId })
+    return fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' })
+  },
+  async listBankAccounts(supplierId: string): Promise<SrmBankAccount[]> {
+    return fetchClient<SrmBankAccount[]>(base + '/suppliers/' +
+      encodeURIComponent(supplierId) + '/bank-accounts', { method: 'GET' })
+  },
+  async saveBankAccounts(supplierId: string, accounts: SrmBankAccount[]): Promise<void> {
+    await fetchClient<unknown>(base + '/suppliers/' +
+      encodeURIComponent(supplierId) + '/bank-accounts', { method: 'PUT', body: accounts })
   },
   async updateSupplier(id: string, body: SrmRecordInput): Promise<void> {
     const response = await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'PUT', body })
