@@ -628,7 +628,12 @@ function openCreation(date?: Date, withReminder = false) {
     }).catch(() => { /* Keep the preselected prospect even if a refresh is denied. */ })
   }
 }
-defineExpose({ openCreation })
+function openFollowupCreation() {
+  openCreation(undefined, true)
+  editor.value.type = 'COMMERCIAL_FOLLOWUP'
+  editor.value.subject = 'Seguimiento comercial'
+}
+defineExpose({ openCreation, openFollowupCreation })
 watch(() => editor.value.start, value => {
   const when = new Date(value)
   if (Number.isFinite(when.getTime()))

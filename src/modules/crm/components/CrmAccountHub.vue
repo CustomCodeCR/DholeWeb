@@ -84,6 +84,13 @@ function openCalendarActivity() {
   activeTab.value = 'agenda'
   void nextTick(() => calendarRef.value?.openCreation())
 }
+function openCalendarFollowup() {
+  activeTab.value = 'agenda'
+  void nextTick(() => {
+    if (has('crm.activity.create')) calendarRef.value?.openFollowupCreation()
+    else calendarRef.value?.openCreation(undefined, true)
+  })
+}
 function returnToAccount(path: string): string {
   return path + (path.includes('?') ? '&' : '?') + 'fromAccount=' + encodeURIComponent(String(props.account.id))
 }
@@ -1666,7 +1673,7 @@ async function saveRoute() {
     </section>
 
     <section v-else-if="activeTab === 'followups'" id="crm-account-followups" role="tabpanel" class="hub-panel">
-      <CrmRecordFollowups :account-id="String(account.id)" :account-ids="groupAccountIds" />
+      <CrmRecordFollowups :account-id="String(account.id)" :account-ids="groupAccountIds" @create="openCalendarFollowup" />
     </section>
     <section v-else-if="activeTab === 'log'" id="crm-account-log" role="tabpanel" class="space-y-4">
       <CrmSalesCalendar view="log" :account-id="String(account.id)"

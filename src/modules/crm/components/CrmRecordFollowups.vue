@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { RefreshCw, Search, Clock3 } from 'lucide-vue-next'
+import { RefreshCw, Search, Clock3, Plus } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmError, crmList, crmPath, crmRequest, type CrmRow } from '../services/crmApi'
 
@@ -23,6 +23,8 @@ const props = withDefaults(defineProps<{
 }>(), { accountId: '', leadId: '', accountIds: () => [] })
 const auth = useAuthStore()
 const can = (scope: string) => auth.hasScope(scope)
+const canCreate = computed(() => can('crm.activity.create') || can('crm.followup.manage') || can('crm.task.manage'))
+const emit = defineEmits<{ create: [] }>()
 const readActivities = computed(() => can('crm.activity.read') || can('crm.activity.read-all'))
 const readBitacora = computed(() => readActivities.value ||
   can('crm.bitacora.read') || can('crm.bitacora.read-all'))
@@ -214,8 +216,13 @@ function formattedDate(value: string) {
           Consultá el detalle sin mezclarlo con la agenda de próximas tareas.
         </p>
       </div>
-      <button type="button" class="inline-flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
-        :disabled="loading" @click="load"><RefreshCw class="h-4 w-4" /> Actualizar</button>
+      <div class="flex flex-wrap items-center gap-2">
+        <button v-if="canCreate" type="button"
+          class="inline-flex items-center gap-2 rounded-lg bg-[var(--dh-primary)] px-3 py-2 text-xs font-bold text-white"
+          @click="emit('create')"><Plus class="h-4 w-4" /> Crear seguimiento</button>
+        <button type="button" class="inline-flex items-center gap-2 rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold"
+          :disabled="loading" @click="load"><RefreshCw class="h-4 w-4" /> Actualizar</button>
+      </div>
     </div>
     <div class="grid gap-3 sm:grid-cols-3">
       <label class="relative block">

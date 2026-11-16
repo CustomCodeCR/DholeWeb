@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.62.3",
-  "ecosystemVersion": "1.63.5",
-  "releaseId": "DH-20261116-CRM-MOBILE-MODALS-170",
+  "version": "1.62.4",
+  "ecosystemVersion": "1.63.6",
+  "releaseId": "DH-20261116-CRM-FOLLOWUPS-CREATE-171",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261116-CRM-MOBILE-MODALS-170"
+  "businessReleaseId": "DH-20261116-CRM-FOLLOWUPS-CREATE-171"
 }

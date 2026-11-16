@@ -194,6 +194,7 @@ const can = (scope: string) => auth.hasScope(scope)
 
 type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'followups' | 'log' | 'conversion' | 'documents' | 'locations'
 const leadTab = ref<LeadTab>('summary')
+const leadCalendarRef = ref<InstanceType<typeof CrmSalesCalendar> | null>(null)
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
   { key: 'profile' as const, label: 'Ficha prospecto', icon: FileText },
@@ -219,6 +220,14 @@ function showLeadTab(tab: LeadTab) {
   if (route.hash === '#crm-lead-conversion' || hash) {
     if (route.hash !== hash) void router.replace({ path: route.path, query: route.query, hash })
   }
+}
+function openLeadFollowup() {
+  if (!leadTabs.value.some(item => item.key === 'agenda')) return
+  showLeadTab('agenda')
+  void nextTick(() => {
+    if (can('crm.activity.create')) leadCalendarRef.value?.openFollowupCreation()
+    else leadCalendarRef.value?.openCreation(undefined, true)
+  })
 }
 
 
@@ -1319,7 +1328,7 @@ onMounted(() => { if (crmEnabled()) void load() })
       </section>
       <section v-if="section === 'leads' && leadTab === 'followups'" id="crm-lead-panel-followups"
         role="tabpanel" class="crm-panel space-y-3 p-4">
-        <CrmRecordFollowups :lead-id="id" />
+        <CrmRecordFollowups :lead-id="id" @create="openLeadFollowup" />
       </section>
       <section v-if="section === 'leads' && leadTab === 'log'"
         id="crm-lead-panel-log" role="tabpanel" class="crm-panel space-y-3 p-4">
@@ -1329,7 +1338,7 @@ onMounted(() => { if (crmEnabled()) void load() })
         id="crm-lead-panel-agenda" role="tabpanel" class="crm-panel space-y-3 p-4">
         <h2 class="text-base font-extrabold">Agenda y seguimiento del prospecto</h2>
         <p class="text-xs text-[var(--dh-text-muted)]">Programá visitas, llamadas, reuniones y seguimientos. Se asocian a este prospecto y se muestran en el calendario comercial, sin volver a ingresar la cédula.</p>
-        <CrmSalesCalendar :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
+        <CrmSalesCalendar ref="leadCalendarRef" :lead-id="id" :lead-name="String(record.name || record.companyName || '')" />
       </section>
       <section id="crm-lead-panel-conversion" v-if="section === 'leads' && leadTab === 'conversion' && can('crm.lead.convert') && can('crm.account.create')"
         role="tabpanel" data-crm-lead-conversion class="crm-panel scroll-mt-32 space-y-3 p-4">
