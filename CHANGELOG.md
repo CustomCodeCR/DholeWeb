@@ -1,3 +1,8 @@
+## [1.62.8] - 2026-11-16 (Completar actividades comerciales sin error)
+
+- PATCH DH-20261116-CRM-ACTIVITY-COMPLETE-175: para completar visitas, tareas y seguimientos comerciales, el detalle CRM presenta resultados activos de Config en lugar de un campo libre y envía occurredAt=null para utilizar la hora UTC del servidor; evita «Invalid occurrence timestamp or outcome» por relojes adelantados o código Completed inválido.
+- Respeta scopes, resultados configurados, historial, acuerdos, REST y realtime. DholeWeb 1.62.7 → 1.62.8; CRM master 1.32.0 → 1.33.1, CRM develop 1.34.0 → 1.34.1; DholeSystem/ecosistema 1.63.9 → 1.63.10. CI, staging y validación multiusuario obligatorios antes de producción.
+
 ## [1.62.7] - 2026-11-16 (Bitácora CRM: reloj autoritativo del servidor)
 
 - PATCH DH-20261116-CRM-BITACORA-SERVER-CLOCK-174: las bitácoras comerciales y las actividades históricas envían occurredAt=null para que CRM determine la hora real UTC desde el servidor. Evita el error «Cannot record future actual occurrence» cuando el reloj del navegador está adelantado.
