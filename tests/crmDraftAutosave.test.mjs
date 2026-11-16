@@ -103,7 +103,7 @@ test('CRM recovery remains above the originating DhModal and saves changes while
   const modal = source('components/CrmDraftRecoveryModal.vue')
   const autosave = source('utils/crmDraftAutosave.ts')
   assert.match(overlay, /priority\?: boolean/)
-  assert.match(overlay, /priority \? 'z-\[110\]' : 'z-\[90\]'/)
+  assert.match(overlay, /priority \? 'z-\[110\] bg-black\/60' : 'z-\[90\] bg-black\/45'/)
   assert.match(modal, /<DhModal[\s\S]*?\spriority\b/)
   assert.match(autosave, /preserveStoredDraft = true\s+\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*active = true\s+const promptKey/)
 })
