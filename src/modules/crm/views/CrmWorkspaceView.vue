@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
-import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight, NotebookPen, ChartNoAxesCombined } from 'lucide-vue-next'
+import { BriefcaseBusiness, Plus, RefreshCw, Building2, ContactRound, Search, CalendarClock, Route, Wallet, ArrowRight, NotebookPen, ChartNoAxesCombined, MapPin, FileCheck2, CreditCard } from 'lucide-vue-next'
 import { DhButton, DhInput, DhMultiSelect, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhPagination, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
@@ -217,6 +217,9 @@ const showForm = ref(false)
 const pendingCreateKey = ref(crmUuid())
 const edited = ref<CrmRow | null>(null)
 const form = reactive<Record<string, unknown>>({})
+type HaciendaLookupHandle = { ensureVerified: () => Promise<boolean> }
+const accountHaciendaLookupRef = ref<HaciendaLookupHandle | null>(null)
+const leadHaciendaLookupRef = ref<HaciendaLookupHandle | null>(null)
 const requiredFields = computed(() => (model.value?.fields ?? [])
   .filter(field => field.required && (form[field.key] == null || String(form[field.key]).trim() === ''))
   .map(field => ({ key: field.key, label: field.label })))
@@ -386,17 +389,17 @@ async function loadCountryLabels() {
     countryLabels.value = Object.fromEntries(items.map(item => [item.id, String(item.label || item.value || item.code)]))
   } catch { countryLabels.value = {} }
 }
-// Navigation shortcuts scroll; all sections stay visible.
+// Keep the SRM tab interaction: only the selected CRM section is visible.
 const accountSections = [
-  { key: 'identity', label: 'Identificación' },
-  { key: 'commercial', label: 'Perfil comercial' },
-  { key: 'contacts', label: 'Contactos (opcional)' },
-  { key: 'addresses', label: 'Direcciones (opcional)' },
+  { key: 'identity', label: 'Identidad y Hacienda', icon: Building2 },
+  { key: 'commercial', label: 'Perfil comercial', icon: CreditCard },
+  { key: 'contacts', label: 'Contactos', icon: ContactRound },
+  { key: 'addresses', label: 'Direcciones', icon: MapPin },
 ] as const
-function focusAccountSection(key: typeof accountFormTab.value) {
+function focusAccountSection(key: AccountFormTab) {
   accountFormTab.value = key
-  void nextTick(() => document.getElementById('crm-account-section-' + key)
-    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  void nextTick(() => document.querySelector('[data-crm-account-tabs]')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
 }
 
 
@@ -637,6 +640,13 @@ function changeCrmPageSize(nextSize: number) {
 }
 async function save() {
   if (!model.value || saving.value) return
+  // Await the same Hacienda lookup shown in SRM. A response that arrives during
+  // submission must apply official values before validation and persistence.
+  if (section.value === 'accounts' && !edited.value) {
+    await accountHaciendaLookupRef.value?.ensureVerified()
+  } else if (section.value === 'leads') {
+    await leadHaciendaLookupRef.value?.ensureVerified()
+  }
   if (section.value === 'accounts') {
     // Normalize the actual values before validation and the API payload, not just the CSS display.
     form.displayName = upperAccountName(form.displayName).trim()
@@ -1090,20 +1100,39 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
           <p class="text-sm font-medium text-[var(--dh-text-muted)]">{{ t('crm.formHint') }}</p>
           <p v-if="error" role="alert" class="rounded-2xl border border-red-500/40 bg-red-500/5 p-3 text-sm text-red-500">{{ error }}</p>
           <template v-if="section === 'accounts'">
-            <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+            <div class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" data-crm-account-form>
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ficha de cuenta comercial</p>
-                  <h2 class="mt-1 text-base font-extrabold">{{ edited ? 'Editar datos de la cuenta' : 'Nueva cuenta · Registrar cliente' }}</h2>
+                <div class="flex min-w-0 items-center gap-3">
+                  <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--dh-shell)] text-[var(--dh-primary)]">
+                    <Building2 class="h-5 w-5" />
+                  </div>
+                  <div class="min-w-0">
+                    <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ficha de cuenta comercial</p>
+                    <h2 class="mt-1 text-base font-extrabold">{{ edited ? 'Editar datos de la cuenta' : 'Nueva cuenta · Registrar cliente' }}</h2>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Completá cada sección y guardá toda la ficha al finalizar.</p>
+                  </div>
                 </div>
                 <span class="text-xs font-medium text-[var(--dh-text-muted)]">{{ edited ? 'Datos existentes' : 'Contactos y direcciones opcionales, sin salir del registro' }}</span>
               </div>
-              <div class="mt-4 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3" aria-label="Ir a sección">
-                <button v-for="item in accountSections" v-show="item.key==='identity' || item.key==='commercial' || (item.key==='contacts' && can('crm.contact.create')) || (item.key==='addresses' && can('crm.account.update'))" :key="item.key" type="button"
-                  class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-xs font-bold hover:text-[var(--dh-primary)]"
-                  @click="focusAccountSection(item.key)">{{ item.label }}</button>
-              </div>
-              <div id="crm-account-section-identity" class="mt-4 scroll-mt-20">
+              <nav role="tablist" data-crm-account-tabs aria-label="Secciones del cliente"
+                class="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-sm sm:flex sm:overflow-x-auto">
+                <button v-for="item in accountSections"
+                  v-show="item.key === 'identity' || item.key === 'commercial' ||
+                    (item.key === 'contacts' && !edited && can('crm.contact.create')) ||
+                    (item.key === 'addresses' && !edited && can('crm.account.update'))"
+                  :key="item.key" type="button" role="tab"
+                  :data-crm-account-tab="item.key" :aria-selected="accountFormTab === item.key"
+                  :class="accountFormTab === item.key
+                    ? 'bg-[var(--dh-primary)] text-white shadow-sm'
+                    : 'text-[var(--dh-text-muted)] hover:bg-[var(--dh-input)] hover:text-[var(--dh-text)]'"
+                  class="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition sm:whitespace-nowrap"
+                  @click="focusAccountSection(item.key)">
+                  <component :is="item.icon" class="h-4 w-4 shrink-0" />{{ item.label }}
+                </button>
+              </nav>
+              <section v-show="accountFormTab === 'identity'" id="crm-account-section-identity"
+                class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 scroll-mt-20"
+                role="tabpanel">
                 <h3 class="mb-1 text-sm font-extrabold">Identificación del cliente</h3>
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Información general de la empresa. La consulta fiscal de Hacienda está disponible para cuentas de Costa Rica.</p>
                 <div class="grid gap-4 md:grid-cols-2">
@@ -1125,10 +1154,13 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                     <p class="mt-1">Al indicar una identificación, debés seleccionar el país y su tipo. La consulta a Hacienda valida los datos costarricenses.</p>
                   </div>
                 </div>
-                <div class="mt-4"><CrmHaciendaLookup v-if="!edited"
+                <div class="mt-4"><CrmHaciendaLookup v-if="!edited" ref="accountHaciendaLookupRef"
+                    :active="showForm && section === 'accounts'"
                     :country-id="String(form.countryId ?? '')" :tax-id="String(form.taxId ?? '')" @resolved="applyHacienda" /></div>
-              </div>
-              <div id="crm-account-section-commercial" class="mt-6 border-t border-[var(--dh-border)] pt-5 scroll-mt-20">
+              </section>
+              <section v-show="accountFormTab === 'commercial'" id="crm-account-section-commercial"
+                class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 scroll-mt-20"
+                role="tabpanel">
                 <h3 class="mb-1 text-sm font-extrabold">Perfil comercial</h3>
                 <p class="mb-4 text-xs text-[var(--dh-text-muted)]">Clasificación, relación, origen y responsable de la cuenta. El historial de asignaciones queda registrado.</p>
                 <div class="grid gap-4 md:grid-cols-2">
@@ -1151,9 +1183,10 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                     @update:model-value="form.executiveUserId=$event" />
                 </div>
                 <p v-if="edited" class="mt-4 text-xs text-[var(--dh-text-muted)]">El tipo y la categoría de cuenta se mantienen según el registro actual. Para reasignar el ejecutivo, utilizá la acción en la ficha.</p>
-              </div>
-              <section v-if="!edited && can('crm.contact.create')" id="crm-account-section-contacts"
-                class="mt-6 scroll-mt-20 border-t border-[var(--dh-border)] pt-5">
+              </section>
+              <section v-if="!edited && can('crm.contact.create')" v-show="accountFormTab === 'contacts'"
+                id="crm-account-section-contacts" role="tabpanel"
+                class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 scroll-mt-20">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div><h3 class="text-sm font-extrabold">Contactos (opcional)</h3>
                     <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Podés crear uno o varios contactos ahora o agregarlos después desde la ficha.</p></div>
@@ -1178,8 +1211,9 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                   </div>
                 </div>
               </section>
-              <section v-if="!edited && can('crm.account.update')" id="crm-account-section-addresses"
-                class="mt-6 scroll-mt-20 border-t border-[var(--dh-border)] pt-5">
+              <section v-if="!edited && can('crm.account.update')" v-show="accountFormTab === 'addresses'"
+                id="crm-account-section-addresses" role="tabpanel"
+                class="space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4 scroll-mt-20">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <div><h3 class="text-sm font-extrabold">Direcciones (opcional)</h3>
                     <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Registrá las direcciones de la cuenta ahora o posteriormente.</p></div>
@@ -1244,14 +1278,15 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
               </p>
             </div>
             <div v-if="section === 'leads'" class="sm:col-span-2">
-              <CrmHaciendaLookup :country-id="String(form.countryId ?? '')"
+              <CrmHaciendaLookup ref="leadHaciendaLookupRef" :active="showForm && section === 'leads'"
+                :country-id="String(form.countryId ?? '')"
                 :tax-id="String(form.taxId ?? '')" @resolved="applyLeadHacienda" />
               <p class="mt-2 text-xs text-[var(--dh-text-muted)]">La razón social se incorpora desde Hacienda. Después de crear el prospecto se puede convertir en cuenta, conservando su identificación y ejecutivo.</p>
             </div>
             <DhInput v-if="section === 'followups'" :label="t('crm.assignedUser')"
               :model-value="String(form.assignedUserId ?? '')" @update:model-value="form.assignedUserId = $event" />
           </div>
-          <div class="mt-6 flex flex-wrap justify-end gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-sm">
+          <div class="sticky bottom-0 z-20 mt-6 flex flex-wrap justify-end gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-lg backdrop-blur">
             <DhButton :label="t('common.cancel')" variant="secondary" @click="showForm = false" />
             <DhButton type="submit" :label="section === 'accounts' ? 'Crear cuenta y abrir ficha' : t('common.save')" :loading="saving" />
           </div>
