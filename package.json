@@ -37,7 +37,8 @@
     "test:crm:intervals": "node --experimental-strip-types --test tests/crmCalendarIntervals.test.ts",
     "test:pricing-own-lcl-links": "node --test tests/pricingOwnLclLinkedQuos.test.mjs",
     "test:pricing-own-lcl-scopes": "node --test tests/pricingOwnLclScopes.test.mjs",
-    "test:api-manager": "node --test tests/thirdPartyApiManagerEditing.test.mjs tests/thirdPartyApiManagerDefaults.test.mjs"
+    "test:api-manager": "node --test tests/thirdPartyApiManagerEditing.test.mjs tests/thirdPartyApiManagerDefaults.test.mjs",
+    "test:third-party-defaults": "node --test tests/thirdPartyFixedInputs.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
