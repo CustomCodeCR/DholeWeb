@@ -142,9 +142,14 @@ async function searchCrmAccounts() {
 }
 async function useCrmAccount(account: CrmAccountChoice) {
   accountError.value = ''
-  if (account.isCastroFallasExecutive || !account.executiveUserId ||
-      !/^[0-9a-f-]{36}$/i.test(account.executiveUserId)) {
-    accountError.value = 'Esta cuenta no tiene un ejecutivo individual asignado. Asignalo en CRM para usarlo como valor fijo.'
+  if (account.isCastroFallasExecutive) {
+    setFixedInternal('clientName', account.displayName)
+    setFixedInternal('executiveName', 'Castro Fallas')
+    accountError.value = 'Cliente y ejecutivo Castro Fallas fijados. Falta elegir en Dhole Auth el UUID del usuario vendedor autorizado y fijarlo en vendedorId; CRM no provee un UUID para la asignación corporativa.'
+    return
+  }
+  if (!account.executiveUserId || !/^[0-9a-f-]{36}$/i.test(account.executiveUserId)) {
+    accountError.value = 'Esta cuenta no tiene un ejecutivo individual asignado. Asignalo en CRM para completar los valores fijos.'
     return
   }
   try {
