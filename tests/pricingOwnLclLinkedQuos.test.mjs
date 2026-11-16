@@ -17,4 +17,11 @@ test('linked quote opens in read-only wizard, respecting rate view scope', () =>
   assert.match(view, /hasScope\(PRICING_SCOPES\.rates\.view\)/)
   assert.match(view, /hasScope\(PRICING_SCOPES\.ownLclConsolidations\.view\)/)
 })
-
+test('linked quotations display real billable and physical CBM without deriving volume from consolidation capacity', () => {
+  assert.match(service, /physicalCbm: number/)
+  assert.match(service, /billableCbm: number/)
+  assert.match(view, /quote\.billableCbm > 0/)
+  assert.match(view, /decimal\(quote\.billableCbm\)/)
+  assert.match(view, /decimal\(quote\.physicalCbm\)/)
+  assert.match(view, /CBM físicos no registrados/)
+})
