@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
   Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
@@ -46,6 +46,7 @@ const error = ref('')
 const success = ref('')
 const loading = ref(false)
 const saving = ref(false)
+const activityStateRefreshing = ref(false)
 // Only a confirmed conversion may navigate while the conversion request is unwinding.
 const conversionRedirectAllowed = ref(false)
 const pendingCreateKeys = new Map<string, string>()
@@ -301,11 +302,12 @@ const agendaFields = computed(() => {
     fields.push(
       ['Repetir actividad', agendaCadence(item.repeatEveryDays, 'días')],
       ['Repetir recordatorios', agendaCadence(item.reminderRepeatMinutes, 'minutos')],
-      ['Finalización real', agendaDate(item.occurredAt)],
     )
   }
+  if (activity && item.occurredAt) fields.push(['Finalización real', agendaDate(item.occurredAt)])
   fields.push(
-    ['Resultado', String(item.outcome || 'Pendiente de completar')],
+    ['Resultado', activity ? activityOutcomeOptions.value.find(option => option.value === item.outcome)?.label ||
+      String(item.outcome || 'Pendiente de completar') : String(item.outcome || 'Pendiente de completar')],
     ['Creada', agendaDate(item.createdAt)],
   )
   return fields
@@ -394,7 +396,9 @@ const agendaStatusChoices = computed(() => section.value === 'activities'
 function agendaLabel(value: unknown, kind: 'status' | 'type' | 'channel' = 'status'): string {
   const labels: Record<string, Record<string,string>> = {
     status: {Scheduled:'Programada',Pending:'Pendiente',Overdue:'Vencida',Completed:'Completada',Cancelled:'Cancelada'},
-    type: {VISIT:'Visita',CALL:'Llamada',EMAIL:'Correo',MEETING:'Reunión',OTHER:'Actividad'},
+    type: {VISIT:'Visita',CALL:'Llamada',EMAIL:'Correo',MEETING:'Reunión',OTHER:'Actividad',
+      COMMERCIAL_FOLLOWUP:'Seguimiento comercial',WHATSAPP:'WhatsApp',
+      RECOMMENDATION:'Recomendación',OFFER:'Oferta'},
     channel: {BOTH:'Correo y sistema',EMAIL:'Correo',SYSTEM:'Sistema'}
   }
   return (labels[kind] ?? {})[String(value ?? '')] || String(value || '—')
@@ -509,6 +513,43 @@ async function load() {
   } catch (e) { record.value = null; error.value = crmError(e) }
   finally { loading.value = false }
 }
+// When another tab or seller completes an activity, reconcile with CRM's persisted state.
+ // Never infer success from a rejected POST: only a successful GET with Completed can confirm it.
+async function refreshActivityState(showFeedback = false): Promise<boolean> {
+  if (section.value !== 'activities' || !id.value || activityStateRefreshing.value) return false
+  const activityId = id.value
+  activityStateRefreshing.value = true
+  try {
+    const updated = await crmGet('activities', activityId)
+    if (section.value !== 'activities' || id.value !== activityId) return false
+    const wasCompleted = record.value?.status === 'Completed'
+    if (record.value?.status !== updated.status ||
+        Number(record.value?.rowVersion) !== Number(updated.rowVersion)) {
+      record.value = updated
+      drafts.status = String(updated.status ?? '')
+      await loadAgendaDetails(updated, 'activities')
+    }
+    if (updated.status === 'Completed') {
+      if (!wasCompleted || showFeedback || error.value) {
+        error.value = ''
+        success.value = 'CRM confirma que esta actividad ya está completada. Finalización real: ' +
+          agendaDate(updated.occurredAt) + '.'
+      }
+      return true
+    }
+    if (showFeedback) {
+      error.value = ''
+      success.value = 'Estado actual en CRM: ' + agendaLabel(updated.status) + '.'
+    }
+    return false
+  } catch (cause) {
+    if (showFeedback) error.value = 'No se pudo verificar el estado en CRM: ' + crmError(cause)
+    return false
+  } finally {
+    activityStateRefreshing.value = false
+  }
+}
+
 async function perform(action: string, body: unknown, scope: string, path?: string) {
   if (!record.value || !can(scope) || saving.value) return
   saving.value = true; error.value = ''; success.value = ''
@@ -516,7 +557,18 @@ async function perform(action: string, body: unknown, scope: string, path?: stri
     await crmRequest(path ?? crmPath(section.value, id.value, action), 'POST', body, crmUuid())
     await load()
     success.value = t('crm.saved')
-  } catch (e) { error.value = crmError(e) }
+  } catch (cause) {
+    if (section.value === 'activities' && action === 'complete') {
+      // A completion can already be persisted (another tab/session) even if this request failed.
+      const confirmed = await refreshActivityState(false)
+      if (!confirmed) {
+        const message = crmError(cause)
+        error.value = /Actual completion time must be UTC|Invalid occurrence timestamp or outcome/i.test(message)
+          ? 'La sesión anterior envió una hora inválida. Actualizá el estado desde CRM y volvé a intentar con la versión actual.'
+          : message
+      }
+    } else error.value = crmError(cause)
+  }
   finally { saving.value = false }
 }
 function closeEditorWithoutPrompt() {
@@ -1019,7 +1071,15 @@ watch(relation, () => { showRelationForm.value = false; if (relation.value) void
 watch(success, value => {
   if (value) { relatedAutosave.commit(); showRelationForm.value = false }
 })
-onMounted(() => { if (crmEnabled()) void load() })
+function syncActivityOnFocus() {
+  if (section.value === 'activities' && record.value && !saving.value && !loading.value)
+    void refreshActivityState()
+}
+onMounted(() => {
+  if (crmEnabled()) void load()
+  window.addEventListener('focus', syncActivityOnFocus)
+})
+onBeforeUnmount(() => window.removeEventListener('focus', syncActivityOnFocus))
 </script>
 
 <template>
@@ -1042,6 +1102,9 @@ onMounted(() => { if (crmEnabled()) void load() })
       <DhButton v-if="record && section === 'leads' && !record.convertedAccountId &&
             can('crm.lead.assign') && can('auth.users.view')"
         label="Asignar vendedor" variant="secondary" @click="openExecutiveDrawer" />
+      <DhButton v-if="section === 'activities' && record" label="Verificar estado en CRM"
+        variant="secondary" :loading="activityStateRefreshing" :disabled="saving || loading"
+        @click="refreshActivityState(true)" />
       <CrmArchiveAction v-if="record && ['accounts','leads','contacts','activities','followups'].includes(section)"
         :resource="section as 'accounts' | 'leads' | 'contacts' | 'activities' | 'followups'"
         :record-id="id" :row-version="Number(record.rowVersion)"
@@ -1061,6 +1124,11 @@ onMounted(() => { if (crmEnabled()) void load() })
         <DhPageHeader v-if="section !== 'accounts'" :icon="BriefcaseBusiness"
           :title="String(record.displayName ?? record.name ?? record.title ?? record.subject ?? record.marketCode ?? record.id)"
           :subtitle="section === 'activities' ? 'Actividad comercial' : section === 'followups' ? 'Seguimiento comercial' : t('crm.version') + ' ' + record.rowVersion + ' · ID ' + record.id" hide-excel-export />
+        <p v-if="section === 'activities' && record.status === 'Completed'"
+          data-crm-completion-confirmed role="status"
+          class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+          Completada y confirmada por CRM · Finalización real: {{ agendaDate(record.occurredAt) }}
+        </p>
         <DhDrawer :open="showExecutiveDrawer" :title="section === 'leads' ? 'Asignar vendedor al prospecto' : 'Asignar ejecutivo comercial'" size="md" @close="showExecutiveDrawer=false">
           <form class="space-y-4" @submit.prevent="reassignExecutive">
             <CrmExecutivePicker :model-value="selectedExecutive" label="Ejecutivo" :allow-institutional="true"
@@ -1324,7 +1392,7 @@ onMounted(() => { if (crmEnabled()) void load() })
               @click="saveAgendaStatus" />
           </div>
         </template>
-        <p v-else class="text-sm text-[var(--dh-text-muted)]">Esta gestión ya está finalizada y no puede modificarse.</p>
+        <p v-else class="text-sm text-[var(--dh-text-muted)]">{{ record.status === 'Completed' ? 'La gestión está completada en CRM. Podés consultar su resultado, documentos y compromisos vinculados.' : 'Esta gestión ya está finalizada y no admite cambios de estado.' }}</p>
       </section>
 
       <section v-if="section === 'accounts' && !showAccountEditor" id="crm-related-management"
