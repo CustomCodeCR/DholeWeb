@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261116-PRICING-CRM-EDIT-HYDRATION-173",
+  "ecosystemVersion": "1.63.8",
+  "releaseType": "PATCH",
+  "createdAt": "2026-11-16",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.62.5",
+      "version": "1.62.6"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.63.7",
+      "version": "1.63.8"
+    }
+  ],
+  "technicalChanges": [
+    "Restore stored historical CRM client label on Pricing quotation edit/reload when CRM IDs are missing without automatic reassignment",
+    "Preserve exact-ID CRM account/lead hydration and seller authorization for linked quotations",
+    "Add regression test for linked and unlinked cases; no REST, database or realtime change"
+  ],
+  "validation": {
+    "tests": "pending-CI",
+    "build": "pending-CI",
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false,
+  "rollback": "Revert PR; no data changes"
+}
