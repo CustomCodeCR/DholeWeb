@@ -1082,12 +1082,7 @@ onMounted(() => {
                 <dd class="whitespace-pre-wrap">{{ String(metadata(selected).observations || '—') }}</dd></div>
             </dl>
           </section>
-          <label class="md:col-span-2 text-sm font-semibold">{{ en ? 'Description (optional)' : 'Descripción (opcional)' }}
-            <input v-model="supplierDescription" maxlength="300"
-              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase" />
-          </label>
-          </section>
-          <section v-if="canReadBanks" v-show="supplierFormTab === 'banks'" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
+          <section v-if="canReadBanks" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h3 class="text-sm font-bold">{{ en ? 'Payment bank accounts' : 'Cuentas bancarias para pagos' }}</h3>
               <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
@@ -1350,7 +1345,14 @@ onMounted(() => {
               </div>
             </div>
           </section>
-          <section v-if="canReadBanks" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4" data-srm-save-section="bank">
+          <label class="md:col-span-2 text-sm font-semibold">{{ en ? 'Description (optional)' : 'Descripción (opcional)' }}
+            <input v-model="supplierDescription" maxlength="300"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase" />
+          </label>
+          </section>
+          <section v-if="canReadBanks" v-show="supplierFormTab === 'banks'"
+            class="md:col-span-2 space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
+            data-srm-save-section="bank" role="tabpanel">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div><h3 class="text-sm font-bold">{{ en ? 'Supplier bank accounts' : 'Cuentas bancarias del proveedor' }}
                 <span class="font-normal text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span></h3>
