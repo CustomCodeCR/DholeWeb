@@ -88,7 +88,7 @@ function openCalendarFollowup() {
   activeTab.value = 'agenda'
   void nextTick(() => {
     if (has('crm.activity.create')) calendarRef.value?.openFollowupCreation()
-    else calendarRef.value?.openCreation(undefined, true)
+    else calendarRef.value?.openReminderCreation()
   })
 }
 function returnToAccount(path: string): string {

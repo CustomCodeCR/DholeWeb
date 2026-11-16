@@ -633,7 +633,12 @@ function openFollowupCreation() {
   editor.value.type = 'COMMERCIAL_FOLLOWUP'
   editor.value.subject = 'Seguimiento comercial'
 }
-defineExpose({ openCreation, openFollowupCreation })
+function openReminderCreation() {
+  openCreation(undefined, true)
+  editor.value.type = 'FOLLOWUP'
+  editor.value.subject = 'Seguimiento comercial'
+}
+defineExpose({ openCreation, openFollowupCreation, openReminderCreation })
 watch(() => editor.value.start, value => {
   const when = new Date(value)
   if (Number.isFinite(when.getTime()))

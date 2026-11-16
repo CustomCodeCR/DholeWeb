@@ -226,7 +226,7 @@ function openLeadFollowup() {
   showLeadTab('agenda')
   void nextTick(() => {
     if (can('crm.activity.create')) leadCalendarRef.value?.openFollowupCreation()
-    else leadCalendarRef.value?.openCreation(undefined, true)
+    else leadCalendarRef.value?.openReminderCreation()
   })
 }
 
