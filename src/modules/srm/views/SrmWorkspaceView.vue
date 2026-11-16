@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Building2, ChevronLeft, ChevronRight, Eye, FolderOpen, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
+import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditCard, Eye, FileCheck2, FolderOpen, Landmark, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DhDrawer } from '@/shared/components/organisms'
@@ -13,6 +13,7 @@ import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
 import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId, srmHaciendaFields } from '../utils/srmHacienda'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
 type Supplier = CatalogItemDto & { category: string }
@@ -76,8 +77,25 @@ const revealBankNumbers = ref(false)
 const haciendaLoading = ref(false)
 const haciendaError = ref('')
 const haciendaResult = ref<SrmHaciendaResult | null>(null)
+const haciendaVerifiedAt = ref('')
+const haciendaIdentificationType = ref('')
+const haciendaRegime = ref('')
+const supplierFormTab = ref<'identity' | 'contacts' | 'banks' | 'credit'>('identity')
+const supplierFormTabs = computed(() => [
+  { value: 'identity' as const, label: en.value ? 'Identity & Hacienda' : 'Identidad y Hacienda', icon: Building2 },
+  { value: 'contacts' as const, label: en.value ? 'Contacts' : 'Contactos', icon: ContactRound },
+  ...(canReadBanks.value ? [{ value: 'banks' as const, label: en.value ? 'Banking' : 'Bancos', icon: Landmark }] : []),
+  { value: 'credit' as const, label: en.value ? 'Credit & terms' : 'Crédito y condiciones', icon: CreditCard },
+])
+let haciendaLookupVersion = 0
+let haciendaDebounce: ReturnType<typeof setTimeout> | null = null
+let pendingHaciendaRequest: { identification: string; countryId: string; promise: Promise<boolean> } | null = null
 let bankLoadRequest = 0
 const upper = (value: string) => value.trim().toUpperCase()
+function onSupplierNameInput(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  supplierName.value = upper(target?.value || '')
+}
 const maskedAccount = (value: string) => value.length <= 4 ? '••••' : '•••• ' + value.slice(-4)
 function supplierFinanceContact(item: Supplier): string {
   const id = String(metadata(item).financeContactId || '')
@@ -219,35 +237,95 @@ const financeContactOptions = computed(() => contacts.value
     (contact.role ? ' · ' + upper(contact.role) : '') })))
 const costaRicaCountryId = computed(() => countryIds.value.find(id => {
   const entry = countries.value.find(row => row.id === id)
-  return entry && [entry.label, entry.value, entry.code, entry.slug]
-    .some(value => ['cr', 'cri', 'crc', 'costa rica', 'costa-rica']
-      .includes(String(value || '').trim().toLowerCase()))
+  return entry && [entry.label, entry.value, entry.code, entry.slug].some(isSrmCostaRicaCountry)
 }) || '')
+const currentTaxId = computed(() => normalizeSrmTaxId(taxId.value))
 const canLookupHacienda = computed(() => !!costaRicaCountryId.value &&
-  /^\d{9,12}$/.test(taxId.value.replace(/[\s-]/g, '')))
-async function lookupHacienda() {
-  if (!canLookupHacienda.value || haciendaLoading.value) return
-  const country = costaRicaCountryId.value
-  const id = taxId.value.replace(/[\s-]/g, '')
+  /^\d{9,12}$/.test(currentTaxId.value))
+const haciendaApplied = computed(() => !!haciendaResult.value &&
+  isSrmHaciendaMatch(haciendaResult.value, currentTaxId.value, currentTaxId.value))
+
+/** Same application contract as CRM: the response immediately updates the supplier. */
+function applyHaciendaResult(result: SrmHaciendaResult, requestedId: string, countryId: string): boolean {
+  if (!formVisible.value || !costaRicaCountryId.value ||
+    countryId !== costaRicaCountryId.value ||
+    !isSrmHaciendaMatch(result, currentTaxId.value, requestedId)) return false
+  const fields = srmHaciendaFields(result)
+  supplierName.value = fields.name
+  if (fields.economicActivityCode) economicActivityCode.value = fields.economicActivityCode
+  haciendaIdentificationType.value = fields.identificationType
+  haciendaRegime.value = fields.regime
+  haciendaVerifiedAt.value = result.verifiedAt
+  haciendaResult.value = result
+  return true
+}
+
+/** Awaitable both by the debounced lookup and by Save, so no save races verification. */
+async function lookupHacienda(force = false): Promise<boolean> {
+  if (!canLookupHacienda.value || !formVisible.value) return false
+  const countryId = costaRicaCountryId.value
+  const identification = currentTaxId.value
+  if (!force && haciendaResult.value &&
+    isSrmHaciendaMatch(haciendaResult.value, identification, identification)) {
+    return true
+  }
+  if (pendingHaciendaRequest?.identification === identification &&
+      pendingHaciendaRequest.countryId === countryId && haciendaLoading.value) {
+    return pendingHaciendaRequest.promise
+  }
+  const version = ++haciendaLookupVersion
   haciendaResult.value = null
   haciendaError.value = ''
   haciendaLoading.value = true
-  try {
-    const response = await SrmApi.lookupHacienda(id, country)
-    if (country !== costaRicaCountryId.value || id !== taxId.value.replace(/[\s-]/g, '')) return
-    haciendaResult.value = response
-  } catch (cause) {
-    haciendaError.value = cause instanceof Error ? cause.message : 'No se pudo consultar Hacienda.'
-  } finally { haciendaLoading.value = false }
+  const task = (async (): Promise<boolean> => {
+    try {
+      const response = await SrmApi.lookupHacienda(identification, countryId)
+      if (version !== haciendaLookupVersion) return false
+      if (!applyHaciendaResult(response, identification, countryId)) return false
+      return true
+    } catch (cause) {
+      if (version === haciendaLookupVersion) {
+        haciendaError.value = cause instanceof Error ? cause.message :
+          (en.value ? 'Hacienda is temporarily unavailable. Complete the fields manually.'
+            : 'Hacienda no está disponible. Completá los datos manualmente.')
+      }
+      return false
+    } finally {
+      if (version === haciendaLookupVersion) {
+        haciendaLoading.value = false
+        pendingHaciendaRequest = null
+      }
+    }
+  })()
+  pendingHaciendaRequest = { identification, countryId, promise: task }
+  return task
 }
-function applyHaciendaResult() {
-  if (!haciendaResult.value ||
-      haciendaResult.value.identification !== taxId.value.replace(/[\s-]/g, '')) return
-  supplierName.value = upper(haciendaResult.value.name)
-  const main = haciendaResult.value.activities.find(a => a.type.toLowerCase().includes('principal'))
-    || haciendaResult.value.activities[0]
-  if (main) economicActivityCode.value = upper(main.code)
-}
+
+/** Revalidate after changing ID or country; discard any in-flight response for old IDs. */
+watch([taxId, costaRicaCountryId, formVisible], (_values, _previous, onCleanup) => {
+  ++haciendaLookupVersion
+  if (haciendaDebounce !== null) clearTimeout(haciendaDebounce)
+  pendingHaciendaRequest = null
+  haciendaResult.value = null
+  haciendaError.value = ''
+  haciendaLoading.value = false
+  haciendaVerifiedAt.value = ''
+  haciendaIdentificationType.value = ''
+  haciendaRegime.value = ''
+  if (formVisible.value && canLookupHacienda.value) {
+    haciendaDebounce = setTimeout(() => {
+      haciendaDebounce = null
+      void lookupHacienda()
+    }, 700)
+  }
+  onCleanup(() => {
+    if (haciendaDebounce !== null) {
+      clearTimeout(haciendaDebounce)
+      haciendaDebounce = null
+    }
+  })
+})
+
 const countryOptions = computed(() => countries.value.map(row => ({
   value: row.id, label: row.label || row.value || row.id,
 })))
@@ -427,6 +505,13 @@ function resetForm() {
   haciendaResult.value = null
   haciendaError.value = ''
   haciendaLoading.value = false
+  haciendaVerifiedAt.value = ''
+  haciendaIdentificationType.value = ''
+  haciendaRegime.value = ''
+  supplierFormTab.value = 'identity'
+  ++haciendaLookupVersion
+  if (haciendaDebounce !== null) clearTimeout(haciendaDebounce)
+  pendingHaciendaRequest = null
   creditEnabled.value = false
   creditDays.value = '30'
   creditLimit.value = ''
@@ -462,6 +547,9 @@ function openEdit(item: Supplier) {
   economicActivityCode.value = String(info.economicActivityCode || '')
   observations.value = String(info.observations || '')
   financeContactId.value = String(info.financeContactId || '')
+  haciendaIdentificationType.value = String(info.haciendaIdentificationType || '')
+  haciendaRegime.value = String(info.haciendaRegime || '')
+  haciendaVerifiedAt.value = String(info.haciendaVerifiedAt || '')
   const terms = supplierCreditTerms(item)
   creditEnabled.value = terms.paymentType === 'credit'
   creditDays.value = terms.days === null ? '30' : String(terms.days)
@@ -500,6 +588,10 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
   error.value = message
   saveErrorSection.value = section
+  if (section === 'contacts') supplierFormTab.value = 'contacts'
+  else if (section === 'bank') supplierFormTab.value = 'banks'
+  else if (section === 'credit') supplierFormTab.value = 'credit'
+  else supplierFormTab.value = 'identity'
   toastStore.warning(en.value ? 'Supplier not saved' : 'Proveedor sin guardar', message)
   await nextTick()
   const anchor = document.querySelector(`[data-srm-save-section="${section}"]`)
@@ -524,6 +616,19 @@ async function saveSupplier() {
   if (!(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) {
     await reportSupplierSaveIssue(en.value ? 'You cannot save suppliers.' : 'No tenés permiso para guardar proveedores.')
     return
+  }
+  // CRM behavior: resolve a valid Costa Rican tax ID and apply the official name
+  // before validating and persisting. A pending automatic lookup is awaited.
+  if (canLookupHacienda.value) {
+    if (haciendaDebounce !== null) { clearTimeout(haciendaDebounce); haciendaDebounce = null }
+    if (pendingHaciendaRequest?.identification === currentTaxId.value) {
+      await pendingHaciendaRequest.promise
+    } else if (!haciendaResult.value && !haciendaError.value) {
+      await lookupHacienda()
+    }
+    if (haciendaResult.value && haciendaApplied.value) {
+      applyHaciendaResult(haciendaResult.value, currentTaxId.value, costaRicaCountryId.value)
+    }
   }
   if (!supplierName.value.trim()) {
     await reportSupplierSaveIssue(en.value ? 'Enter a company name.' : 'Ingresá el nombre de la empresa.')
@@ -628,6 +733,9 @@ async function saveSupplier() {
       economicActivityCode: upper(economicActivityCode.value),
       observations: upper(observations.value),
       financeContactId: financeContactId.value || null,
+      haciendaIdentificationType: haciendaApplied.value ? haciendaIdentificationType.value : null,
+      haciendaRegime: haciendaApplied.value ? haciendaRegime.value : null,
+      haciendaVerifiedAt: haciendaApplied.value ? haciendaVerifiedAt.value : null,
       contacts: filledContacts,
       contactName: filledContacts[0]?.name || '',
       contactEmail: filledContacts[0]?.email || '',
@@ -1093,8 +1201,35 @@ onMounted(() => {
       <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
         size="xl" @close="closeForm">
         <form class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="submitSupplierSafely">
-          <label class="text-sm font-semibold">{{ en ? 'Company name' : 'Nombre de empresa' }}
-            <input v-model="supplierName" required maxlength="220" placeholder="Ej. Transportes Romo" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+          <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+            <div class="flex items-center gap-3">
+              <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
+                <Building2 class="h-5 w-5" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-base font-extrabold">{{ editing ? (en ? 'Supplier profile' : 'Ficha del proveedor') : (en ? 'Register supplier' : 'Registrar proveedor') }}</h3>
+                <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Complete the profile by section. Required fields are marked *.' : 'Completá la ficha por secciones. Los campos obligatorios se identifican con *.' }}</p>
+              </div>
+            </div>
+          </div>
+          <nav role="tablist" :aria-label="en ? 'Supplier form sections' : 'Secciones del proveedor'"
+            class="sticky top-0 z-20 md:col-span-2 grid grid-cols-2 gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-sm sm:flex sm:overflow-x-auto">
+            <button v-for="tab in supplierFormTabs" :key="tab.value" type="button" role="tab"
+              :data-srm-form-tab="tab.value" :aria-selected="supplierFormTab === tab.value"
+              :class="supplierFormTab === tab.value
+                ? 'bg-[var(--dh-primary)] text-white shadow-sm'
+                : 'text-[var(--dh-text-muted)] hover:bg-[var(--dh-input)] hover:text-[var(--dh-text)]'"
+              class="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition sm:flex-1 sm:whitespace-nowrap"
+              @click="supplierFormTab = tab.value">
+              <component :is="tab.icon" class="h-4 w-4 shrink-0" />{{ tab.label }}
+            </button>
+          </nav>
+          <section v-show="supplierFormTab === 'identity'" id="srm-form-identity" data-srm-save-section="general"
+            class="md:col-span-2 grid gap-4 md:grid-cols-2" role="tabpanel">
+          <label class="text-sm font-semibold">{{ en ? 'Company name *' : 'Nombre de empresa *' }}
+            <input :value="supplierName" @input="onSupplierNameInput"
+              required maxlength="220" placeholder="Ej. TRANSPORTES ROMO"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase outline-none focus:border-[var(--dh-primary)]" />
           </label>
           <div class="min-w-0">
             <DhMultiSelect v-model="supplierType" :options="categoryOptions"
@@ -1108,9 +1243,16 @@ onMounted(() => {
               :placeholder="en ? 'Select countries' : 'Seleccionar países'"
               :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
           </div>
-          <section class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4" data-srm-company-fields>
-            <h3 class="text-sm font-bold">{{ en ? 'Company information' : 'Información de la empresa' }}</h3>
-            <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'All new fields are optional unless marked *.' : 'Los campos nuevos son opcionales, salvo los marcados con *.' }}</p>
+          <section class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" data-srm-company-fields>
+            <div class="flex items-center gap-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-input)] text-[var(--dh-primary)]">
+                <FileCheck2 class="h-4 w-4" />
+              </div>
+              <div>
+                <h3 class="text-sm font-extrabold">{{ en ? 'Company & fiscal information' : 'Información fiscal y de la empresa' }}</h3>
+                <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Hacienda fills available official details. The rest are editable.' : 'Hacienda completa los datos oficiales disponibles; el resto se puede editar.' }}</p>
+              </div>
+            </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="min-w-0">
                 <CrmPhoneInput v-model="companyPhone" :country-id="countryIds[0] || ''"
@@ -1140,26 +1282,77 @@ onMounted(() => {
                   class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase"></textarea>
               </label>
             </div>
-            <div v-if="costaRicaCountryId" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3" data-srm-hacienda>
+            <div v-if="costaRicaCountryId" class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4" data-srm-hacienda>
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <div><h4 class="text-sm font-bold">{{ en ? 'Costa Rica · Hacienda' : 'Costa Rica · Hacienda' }}</h4>
-                  <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Verify legal name and economic activities with the official API.' : 'Consulta la razón social y actividades económicas en el API oficial.' }}</p>
+                <div class="flex min-w-0 items-center gap-3">
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
+                    <FileCheck2 class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-extrabold">{{ en ? 'Official Hacienda verification' : 'Verificación oficial de Hacienda' }}</h4>
+                    <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">
+                      {{ en ? 'A valid Costa Rican tax ID automatically fills the name and primary activity, as in CRM.'
+                        : 'Al ingresar una cédula válida, se completa automáticamente la razón social y actividad principal, igual que en CRM.' }}
+                    </p>
+                  </div>
                 </div>
                 <button type="button" :disabled="!canLookupHacienda || haciendaLoading"
-                  class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold disabled:opacity-40" @click="lookupHacienda">
-                  {{ haciendaLoading ? t('common.loading') : (en ? 'Verify tax ID' : 'Consultar cédula') }}
+                  class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-2 text-xs font-bold hover:border-[var(--dh-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+                  @click="lookupHacienda(true)">
+                  <Search class="h-4 w-4" />
+                  {{ haciendaLoading ? (en ? 'Checking...' : 'Consultando...') : (en ? 'Check again' : 'Volver a consultar') }}
                 </button>
               </div>
-              <p v-if="haciendaError" role="alert" class="text-xs text-red-400">{{ haciendaError }}</p>
-              <div v-if="haciendaResult" class="space-y-2 text-xs">
-                <p class="font-bold">{{ haciendaResult.name }}</p>
-                <p>{{ haciendaResult.activities.map(activity => activity.code + ' · ' + activity.description).join('; ') || '—' }}</p>
-                <button type="button" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 font-bold text-white"
-                  @click="applyHaciendaResult">{{ en ? 'Apply official name and main activity' : 'Aplicar razón social y actividad principal' }}</button>
+              <p v-if="!canLookupHacienda" class="text-xs text-[var(--dh-text-muted)]">
+                {{ en ? 'Enter a 9–12 digit tax ID to automatically verify it.' : 'Ingresá una cédula de 9 a 12 dígitos para consultar automáticamente.' }}
+              </p>
+              <p v-else-if="haciendaLoading" role="status" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ en ? 'Verifying taxpayer data with Hacienda...' : 'Verificando datos del contribuyente en Hacienda...' }}
+              </p>
+              <p v-else-if="haciendaError" role="alert" class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-500">
+                {{ haciendaError }}
+                <span class="mt-1 block">{{ en ? 'You can continue entering the details manually.' : 'Podés continuar ingresando los datos manualmente.' }}</span>
+              </p>
+              <div v-if="haciendaApplied && haciendaResult" role="status" class="space-y-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+                <div class="flex items-center gap-2 text-sm font-bold">
+                  <BadgeCheck class="h-4 w-4 shrink-0 text-emerald-500" />
+                  <span class="min-w-0 break-words">{{ haciendaResult.name }}</span>
+                </div>
+                <p class="text-xs text-[var(--dh-text-muted)]">
+                  {{ en ? 'Official values applied to this supplier automatically.' : 'Datos oficiales aplicados automáticamente a este proveedor.' }}
+                </p>
+                <div v-if="haciendaIdentificationType || haciendaRegime" class="flex flex-wrap gap-2 text-xs text-[var(--dh-text-muted)]">
+                  <span v-if="haciendaIdentificationType" class="rounded-lg border border-[var(--dh-border)] px-2 py-1">
+                    {{ en ? 'ID type' : 'Tipo de identificación' }}: {{ haciendaIdentificationType }}
+                  </span>
+                  <span v-if="haciendaRegime" class="rounded-lg border border-[var(--dh-border)] px-2 py-1">
+                    {{ en ? 'Tax regime' : 'Régimen' }}: {{ haciendaRegime }}
+                  </span>
+                </div>
+                <div v-if="haciendaResult.activities.length" class="space-y-2">
+                  <p class="text-xs font-bold">{{ en ? 'Economic activities' : 'Actividades económicas' }} ({{ haciendaResult.activities.length }})</p>
+                  <div class="grid gap-2 sm:grid-cols-2">
+                    <div v-for="activity in haciendaResult.activities" :key="activity.code"
+                      class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2.5 text-xs">
+                      <span class="font-bold text-[var(--dh-primary)]">{{ activity.code }}</span>
+                      <span class="ml-2 break-words">{{ activity.description }}</span>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="text-xs text-[var(--dh-text-muted)]">
+                  {{ en ? 'Hacienda returned no economic activity; you may enter one manually.' : 'Hacienda no devolvió actividades económicas; podés ingresar el código manualmente.' }}
+                </p>
               </div>
             </div>
           </section>
-          <section v-if="canReadBanks" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4" data-srm-save-section="bank">
+          <label class="md:col-span-2 text-sm font-semibold">{{ en ? 'Description (optional)' : 'Descripción (opcional)' }}
+            <input v-model="supplierDescription" maxlength="300"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase" />
+          </label>
+          </section>
+          <section v-if="canReadBanks" v-show="supplierFormTab === 'banks'"
+            class="md:col-span-2 space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
+            data-srm-save-section="bank" role="tabpanel">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div><h3 class="text-sm font-bold">{{ en ? 'Supplier bank accounts' : 'Cuentas bancarias del proveedor' }}
                 <span class="font-normal text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span></h3>
@@ -1224,7 +1417,8 @@ onMounted(() => {
               {{ revealBankNumbers ? (en ? 'Hide account numbers' : 'Ocultar números de cuenta') : (en ? 'Reveal account numbers' : 'Mostrar números de cuenta') }}
             </button>
           </section>
-          <section data-srm-save-section="contacts" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+          <section v-show="supplierFormTab === 'contacts'" data-srm-save-section="contacts"
+            class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" role="tabpanel">
             <p v-if="error && saveErrorSection === 'contacts'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold">Contactos del proveedor <span class="font-medium text-[var(--dh-text-muted)]">(opcional)</span></h3>
@@ -1257,7 +1451,8 @@ onMounted(() => {
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
           </section>
-          <section data-srm-save-section="credit" class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4">
+          <section v-show="supplierFormTab === 'credit'" data-srm-save-section="credit"
+            class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" role="tabpanel">
             <p v-if="error && saveErrorSection === 'credit'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div>
               <h3 class="text-sm font-bold">{{ en ? 'Supplier credit terms' : 'Condiciones de crédito del proveedor' }}
@@ -1310,10 +1505,13 @@ onMounted(() => {
               </label>
             </div>
           </section>
-          <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
-            <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
-          <div class="md:col-span-2 space-y-3">
+          <div class="sticky bottom-0 z-20 md:col-span-2 -mx-3 -mb-3 space-y-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-lg backdrop-blur-xl sm:-mx-5 sm:-mb-5 sm:px-5 sm:py-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Changes are saved for the whole supplier profile.' : 'Los cambios se guardan para toda la ficha del proveedor.' }}</p>
+              <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2 text-xs font-semibold" @click="closeForm">
+                {{ en ? 'Cancel' : 'Cancelar' }}
+              </button>
+            </div>
             <p v-if="error" role="alert" data-srm-save-error
               class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">{{ error }}</p>
             <button type="submit" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
