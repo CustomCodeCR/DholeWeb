@@ -1,3 +1,9 @@
+## [1.62.0] - 2026-11-16 (Descubrimiento y valores fijos de APIs)
+
+- MINOR DH-20261116-API-ROUTES-DEFAULTS-165: el asistente descubre rutas por microservicio y permite fijar valores POST/PUT/PATCH sin exponerlos al consumidor. El ejemplo curl y la consola omiten los campos fijos.
+- En solicitudes de tarifas se puede buscar una cuenta visible de CRM y fijar su nombre, vendedor UUID y nombre del ejecutivo; no inventa identidad cuando falta asignación.
+- Mantiene API Keys y la autorización por scopes; prueba de regresión de formularios y contratos.
+
 ## [1.61.1] - 2026-11-16 (API Manager: edición y publicación de catálogos Config)
 
 - PATCH DH-20261116-API-MANAGER-164: corrige DataCloneError al abrir Administrar y al refrescar la API después de publicar, generando copias independientes de los DTO reactivos de Vue.
