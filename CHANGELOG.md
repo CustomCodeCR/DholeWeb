@@ -1,3 +1,9 @@
+## [1.61.1] - 2026-11-16 (API Manager: edición y publicación de catálogos Config)
+
+- PATCH DH-20261116-API-MANAGER-164: corrige DataCloneError al abrir Administrar y al actualizar una API publicada, generando DTO de edición independiente del proxy reactivo.
+- Gateway emite identidad técnica limitada a lectura para catálogos Config, y mantiene control estricto para otras operaciones, con API Keys existentes preservadas.
+- Añade test de regresión y gate de TypeScript/compilación.
+
 ## [1.61.0] - 2026-11-16 (Scopes Create/Update/View en LCL propios)
 
 - MINOR DH-20261116-OWN-LCL-SCOPES-163: navegación y listado protegidos por view; creación protegida por create; edición, renombrado y guardados protegidos por update, sin bypass de rol en el cliente.
