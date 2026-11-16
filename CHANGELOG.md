@@ -1,3 +1,9 @@
+## [1.62.6] - 2026-11-16 (Restauración de cliente/prospecto al editar QUO)
+
+- PATCH DH-20261116-PRICING-CRM-EDIT-HYDRATION-173: el selector CRM de Pricing conserva el nombre histórico del cliente al editar o recargar una QUO sin ClientAccountId/ClientLeadId; deja visible que requiere vinculación explícita para evitar asociar un tercero por similitud.
+- Las QUO ya vinculadas siguen recuperando cuenta o prospecto por ID, revalidando visibilidad y ejecutivo comercial en CRM sin cambiar el cliente durante la carga. Pruebas de regresión para ambos escenarios; sin cambios REST, permisos, almacenamiento ni SignalR.
+- DholeWeb 1.62.5 → 1.62.6; DholeSystem/ecosistema 1.63.7 → 1.63.8. Requiere CI, build, staging y autorización de producción antes de master.
+
 ## [1.62.5] - 2026-11-16 (CBM por cotización vinculada a consolidado propio)
 
 - PATCH DH-20261116-OWN-LCL-QUO-CBM-172: cada QUO del listado de consolidados LCL propios muestra su CBM cobrable y volumen físico en CBM, con datos del detalle comercial de Pricing; los valores no registrados se identifican sin inventar capacidad.
