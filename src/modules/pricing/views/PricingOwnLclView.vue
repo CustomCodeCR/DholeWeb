@@ -54,19 +54,17 @@ const linkedQuotes = ref<OwnLclLinkedQuoteDto[]>([])
 const linkedQuotesLoading = ref(false)
 const linkedQuotesError = ref('')
 let linkedQuotesRequest = 0
-const canViewLinkedQuotes = computed(() => authStore.hasScope('pricing.rate.view'))
+const canViewConsolidation = computed(() => authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.view))
+const canViewLinkedQuotes = canViewConsolidation
+const canOpenLinkedQuote = computed(() => authStore.hasScope(PRICING_SCOPES.rates.view))
+const canUpdateConsolidation = computed(() => authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.update))
 const editorOpen = ref(false)
 const readOnly = ref(false)
 const selectedAutomation = ref<OwnLclAutomationSnapshotDto | null>(null)
 const profilePreview = ref<OwnLclDestinationProfileDto | null>(null)
 const scenarioMatrix = ref<OwnLclFobScenarioMatrixDto | null>(null)
 
-const canCreateConsolidation = computed(() =>
-  authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.create)
-  || authStore.hasRole('Administrador')
-  || authStore.hasRole('Admin')
-  || authStore.hasRole('Administrator'),
-)
+const canCreateConsolidation = computed(() => authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.create))
 
 const form = reactive({
   name: '',
@@ -313,7 +311,7 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   hydratingPricingEditor.value = true
   selectedId.value = row.id
   if (canViewLinkedQuotes.value) void loadLinkedQuotes(row.id)
-  readOnly.value = mode === 'view'
+  readOnly.value = mode === 'view' || !canUpdateConsolidation.value
   editorOpen.value = true
   profilePreview.value = null
   scenarioMatrix.value = null
@@ -360,6 +358,7 @@ function handleRowClick(row: OwnLclTableRow) {
 }
 
 async function persistConsolidationName(id: string, name: string, showToast = false) {
+  if (!canUpdateConsolidation.value) return
   const normalizedName = name.trim()
   if (!id || !normalizedName) return
 
@@ -389,7 +388,7 @@ async function persistConsolidationName(id: string, name: string, showToast = fa
 }
 
 async function saveConsolidationName() {
-  if (!selectedId.value) return
+  if (!selectedId.value || readOnly.value || !canUpdateConsolidation.value) return
 
   const name = form.name.trim()
   if (!name) {
@@ -408,7 +407,7 @@ async function saveConsolidationName() {
 }
 
 watch(() => form.name, () => {
-  if (hydratingPricingEditor.value || !selectedId.value) return
+  if (hydratingPricingEditor.value || readOnly.value || !canUpdateConsolidation.value || !selectedId.value) return
   if (form.name.trim() === selected.value?.name) return
 
   if (renameTimer) clearTimeout(renameTimer)
@@ -573,7 +572,7 @@ function buildPricingLinesPayload() {
 }
 
 async function savePricingLineRows(showToast = true) {
-  if (!selectedId.value) return
+  if (!selectedId.value || !canUpdateConsolidation.value || readOnly.value) return
   pricingLineSaving.value = true
   try {
     await OwnLclConsolidationService.savePricingLines(selectedId.value, buildPricingLinesPayload())
@@ -587,7 +586,7 @@ async function savePricingLineRows(showToast = true) {
 }
 
 async function saveScenarioRows(showToast = true) {
-  if (isMiamiMatrix.value || !selectedId.value || !scenarioMatrix.value) return
+  if (isMiamiMatrix.value || !selectedId.value || !scenarioMatrix.value || !canUpdateConsolidation.value || readOnly.value) return
   scenarioSaving.value = true
   try {
     await OwnLclConsolidationService.saveFobScenarios(selectedId.value, {
@@ -609,6 +608,13 @@ async function saveScenarioRows(showToast = true) {
 
 async function save() {
   if (readOnly.value) return
+  const requiredScope = selectedId.value
+    ? PRICING_SCOPES.ownLclConsolidations.update
+    : PRICING_SCOPES.ownLclConsolidations.create
+  if (!authStore.hasScope(requiredScope)) {
+    toastStore.warning('Permiso requerido', 'No tiene autorización para guardar esta operación sobre consolidados LCL propios.')
+    return
+  }
 
   if (renameTimer) {
     clearTimeout(renameTimer)
@@ -638,15 +644,18 @@ async function save() {
       selectedId.value = created.id
     }
 
-    await OwnLclConsolidationService.saveCostOverrides(targetId, buildCostOverrides())
-    await OwnLclConsolidationService.savePricingLines(targetId, buildPricingLinesPayload())
+    if (canUpdateConsolidation.value) {
+      await OwnLclConsolidationService.saveCostOverrides(targetId, buildCostOverrides())
+      await OwnLclConsolidationService.savePricingLines(targetId, buildPricingLinesPayload())
+    }
     // Changing POL invalidates the previous origin scenarios; reload them after saving.
     if (!wasNew && selected.value?.polId === form.polId && scenarioMatrix.value)
       await saveScenarioRows(false)
 
     // El nombre se guarda por un endpoint dedicado y se ejecuta al final.
     // Así "Guardar consolidado" nunca puede restaurar el nombre anterior.
-    await persistConsolidationName(targetId, desiredName, false)
+    if (canUpdateConsolidation.value)
+      await persistConsolidationName(targetId, desiredName, false)
 
     toastStore.success(
       wasNew ? 'Consolidado creado' : 'Consolidado actualizado',
@@ -764,7 +773,7 @@ onMounted(load)
           <template #cell-actions="{ row }">
             <div class="flex justify-end gap-1" @click.stop>
               <DhButton :icon="Eye" variant="ghost" size="sm" aria-label="Ver consolidado" @click="openRow(row, 'view')" />
-              <DhButton :icon="Edit3" variant="ghost" size="sm" aria-label="Editar consolidado" @click="openRow(row, 'edit')" />
+              <DhButton v-if="canUpdateConsolidation" :icon="Edit3" variant="ghost" size="sm" aria-label="Editar consolidado" @click="openRow(row, 'edit')" />
             </div>
           </template>
         </DhDataTable>
@@ -797,7 +806,7 @@ onMounted(load)
             <DhButton v-if="canViewLinkedQuotes" label="Actualizar QUOs" :icon="RefreshCcw" size="sm" variant="secondary" :loading="linkedQuotesLoading" @click="loadLinkedQuotes(selectedId)" />
           </div>
         </div>
-        <p v-if="!canViewLinkedQuotes" class="mt-4 text-sm text-[var(--dh-text-muted)]">Se requiere el permiso pricing.rate.view para consultar cotizaciones.</p>
+        <p v-if="!canViewLinkedQuotes" class="mt-4 text-sm text-[var(--dh-text-muted)]">Se requiere el permiso de consulta de consolidados LCL propios.</p>
         <p v-else-if="linkedQuotesLoading" class="mt-4 text-sm text-[var(--dh-text-muted)]" role="status">Consultando QUOs vinculadas...</p>
         <p v-else-if="linkedQuotesError" class="mt-4 text-sm text-rose-500" role="alert">{{ linkedQuotesError }} Utilice «Actualizar QUOs» para reintentar.</p>
         <p v-else-if="linkedQuotes.length === 0" class="mt-4 rounded-xl border border-dashed border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]">No hay cotizaciones con una vinculación registrada a este consolidado.</p>
@@ -809,7 +818,7 @@ onMounted(load)
             </div>
             <div class="flex items-center gap-2">
               <DhBadge :label="quoteStatusLabel(quote.status)" :variant="quote.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
-              <DhButton label="Ver QUO" :icon="ExternalLink" size="sm" variant="secondary" @click="openLinkedQuote(quote)" />
+              <DhButton v-if="canOpenLinkedQuote" label="Ver QUO" :icon="ExternalLink" size="sm" variant="secondary" @click="openLinkedQuote(quote)" />
             </div>
           </div>
         </div>
@@ -820,7 +829,7 @@ onMounted(load)
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <p class="mb-4 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Datos del proyecto y costos</p>
             <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <DhInput v-model="form.name" label="Nombre del consolidado" placeholder="Ej. Consolidado China 1 / Miami 1" />
+              <DhInput v-model="form.name" label="Nombre del consolidado" placeholder="Ej. Consolidado China 1 / Miami 1" :disabled="readOnly" />
               <DhInput v-model.number="form.consolidationNumber" type="number" min="1" step="1" label="Número del consolidado" placeholder="Automático si se deja vacío" :disabled="readOnly" />
               <DhInput v-model="form.booking" label="Booking" placeholder="Booking de naviera" :disabled="readOnly" />
               <DhInput v-model="form.etd" type="date" label="ETD" :disabled="readOnly" />
@@ -967,7 +976,7 @@ onMounted(load)
           </section>
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación · Matriz {{ formMatrixType }}</p><p v-if="isMiamiMatrix" class="mt-2">Miami mantiene su propia matriz por consolidado. Manejos, Forwarding, HBL, Bunker y THC/D se guardan aquí y no heredan cargos, escenarios FOB ni diferenciales de la matriz China. La utilidad/CBM configurada se aplica al Flete Internacional Marítimo.</p><p v-else class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. La utilidad/CBM configurada en este consolidado se aplica al Flete Internacional Marítimo para Panamá, Costa Rica y Centroamérica por igual (USD {{ money(form.freightProfitPerCbm) }} actualmente).</p></section>
           <div v-if="!readOnly" class="flex justify-end gap-2"><DhButton label="Cancelar" variant="secondary" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" /></div>
-          <div v-else class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
+          <div v-else-if="canUpdateConsolidation" class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
         </aside>
       </div>
     </section>
