@@ -6,6 +6,8 @@ import {
 } from 'lucide-vue-next'
 import { fetchClient } from '@/core/api/fetchConfig'
 import { ApiError } from '@/core/api/apiErrorHandler'
+import { accountCommercialPreset, leadCommercialPreset } from '@/modules/integrations/utils/apiManagerCrmPresets'
+import type { CrmAccount, CrmLead } from '@/modules/integrations/utils/apiManagerCrmPresets'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
 import DhInput from '@/shared/components/atoms/DhInput.vue'
 import DhTextarea from '@/shared/components/atoms/DhTextarea.vue'
@@ -80,47 +82,103 @@ const testError = ref('')
 const testResponse = ref('')
 const testResult = ref<{ status: number; durationMs: number; ok: boolean } | null>(null)
 const confirmRevoke = ref<KeyInfo | null>(null)
-type CrmAccount = { id: string; displayName: string; executiveUserId?: string | null; isCastroFallasExecutive?: boolean }
 const crmQuery = ref('')
 const crmAccounts = ref<CrmAccount[]>([])
+const crmLeads = ref<CrmLead[]>([])
 const crmLoading = ref(false)
+const crmSearched = ref(false)
+const crmInfo = ref('')
 const crmSelection = ref('')
+const crmSelectedLabel = ref('')
 const defaultErrors = ref('')
 const defaultDrafts = ref<Record<string, string>>({})
+let crmSearchVersion = 0
+
+// Search each CRM collection through its existing permission-protected route.
+// The two requests are independent: lack of permission to view leads must not
+// hide accounts the current administrator may view, or vice versa.
 async function searchCrmAccounts() {
+  const query = crmQuery.value.trim()
+  if (query.length < 2) {
+    defaultErrors.value = 'Ingresá al menos dos caracteres para buscar en clientes y prospectos.'
+    crmSearched.value = false
+    return
+  }
+  const version = ++crmSearchVersion
   crmLoading.value = true
+  crmSearched.value = false
+  crmInfo.value = ''
   defaultErrors.value = ''
+  const suffix = '?q=' + encodeURIComponent(query) + '&pageSize=30'
   try {
-    const result = await fetchClient<{ items: CrmAccount[] }>(
-      '/api/crm/accounts?q=' + encodeURIComponent(crmQuery.value.trim()) + '&pageSize=30', { method: 'GET' })
-    crmAccounts.value = result.items ?? []
-  } catch (e) { defaultErrors.value = e instanceof Error ? e.message : 'No fue posible consultar CRM.' }
-  finally { crmLoading.value = false }
+    const [accounts, leads] = await Promise.allSettled([
+      fetchClient<{ items: CrmAccount[] }>('/api/crm/accounts' + suffix, { method: 'GET' }),
+      fetchClient<{ items: CrmLead[] }>('/api/crm/leads' + suffix, { method: 'GET' }),
+    ])
+    if (version !== crmSearchVersion) return
+    crmAccounts.value = accounts.status === 'fulfilled' ? accounts.value.items ?? [] : []
+    crmLeads.value = leads.status === 'fulfilled'
+      ? (leads.value.items ?? []).filter(lead => !lead.convertedAt) : []
+    crmSearched.value = true
+    crmInfo.value = crmAccounts.value.length + ' clientes · ' + crmLeads.value.length + ' prospectos'
+    if (accounts.status === 'rejected' || leads.status === 'rejected') {
+      const unavailable = [
+        ...(accounts.status === 'rejected' ? ['cuentas y clientes'] : []),
+        ...(leads.status === 'rejected' ? ['prospectos'] : []),
+      ]
+      defaultErrors.value = 'No se pudo consultar ' + unavailable.join(' ni ') +
+        '. Revisá permisos CRM o el estado del servicio.'
+    }
+  } finally {
+    if (version === crmSearchVersion) crmLoading.value = false
+  }
 }
+
 function setLockedDefault(internal: string, value: unknown) {
   const entries = { ...(draft.value.defaults ?? {}) }
   entries[internal] = value
   draft.value.defaults = entries
   draft.value.inputs = draft.value.inputs.filter(f => f.internal !== internal)
 }
+
+function applyCrmCommercialPreset(preset: { clientName: string; sellerUserId: string; executiveName: string }) {
+  setLockedDefault('clientName', preset.clientName)
+  setLockedDefault('sellerUserId', preset.sellerUserId)
+  setLockedDefault('executiveName', preset.executiveName)
+}
+
 async function useCrmAccount(id: string) {
   const account = crmAccounts.value.find(a => a.id === id)
   if (!account) return
   defaultErrors.value = ''
-  if (!account.executiveUserId || account.executiveUserId === '00000000-0000-0000-0000-000000000000' ||
-    account.isCastroFallasExecutive) {
-    defaultErrors.value = 'La cuenta necesita un ejecutivo de ventas activo asignado en CRM.'
-    return
-  }
   try {
-    const assignment = await fetchClient<{ displayName?: string | null }>(
+    const assignment = await fetchClient<{ displayName?: string | null; institutional?: boolean }>(
       '/api/crm/accounts/' + encodeURIComponent(id) + '/assigned-executive', { method: 'GET' })
-    if (!assignment.displayName) throw new Error('No se pudo resolver el ejecutivo asignado en CRM.')
-    setLockedDefault('clientName', account.displayName)
-    setLockedDefault('sellerUserId', account.executiveUserId)
-    setLockedDefault('executiveName', assignment.displayName)
-    crmSelection.value = id
-  } catch (e) { defaultErrors.value = e instanceof Error ? e.message : 'Ejecutivo no disponible.' }
+    const preset = accountCommercialPreset(account, assignment)
+    applyCrmCommercialPreset(preset)
+    crmSelection.value = 'account:' + id
+    crmSelectedLabel.value = 'Cliente: ' + preset.clientName + ' · Ejecutivo: ' + preset.executiveName
+  } catch (e) {
+    defaultErrors.value = e instanceof Error ? e.message : 'No fue posible validar el ejecutivo de la cuenta.'
+  }
+}
+
+async function useCrmLead(id: string) {
+  const lead = crmLeads.value.find(item => item.id === id)
+  if (!lead) return
+  defaultErrors.value = ''
+  try {
+    // Existing bulk lookup returns the institutional label for Castro Fallas
+    // and resolves ordinary users in Auth, while enforcing lead visibility.
+    const assignment = await fetchClient<{ sellers: Record<string, string> }>(
+      '/api/crm/leads/assigned-executives?ids=' + encodeURIComponent(id), { method: 'GET' })
+    const preset = leadCommercialPreset(lead, assignment.sellers?.[id])
+    applyCrmCommercialPreset(preset)
+    crmSelection.value = 'lead:' + id
+    crmSelectedLabel.value = 'Prospecto: ' + preset.clientName + ' · Ejecutivo: ' + preset.executiveName
+  } catch (e) {
+    defaultErrors.value = e instanceof Error ? e.message : 'No fue posible validar el ejecutivo del prospecto.'
+  }
 }
 function changeDefault(field: FieldOption, value: string) {
   if (!value.trim()) { removeDefault(field.internal); return }
@@ -548,7 +606,12 @@ function create() {
   activePanel.value = 'apis'
   resetApiTest()
   crmSelection.value = ''
+  crmSelectedLabel.value = ''
   crmAccounts.value = []
+  crmLeads.value = []
+  crmSearched.value = false
+  crmInfo.value = ''
+  ++crmSearchVersion
   draft.value = blank()
   routeSearch.value = ''
   serviceFilter.value = ''
@@ -567,6 +630,9 @@ function edit(row: PublishedEndpoint) {
   draft.value = cloneEndpoint(row)
   draft.value.defaults ??= {}
   crmSelection.value = ''
+  crmSelectedLabel.value = ''
+  crmSearched.value = false
+  ++crmSearchVersion
   const target = catalog.value.find(t => t.code === row.target)
   service.value = target?.service || 'pricing'
   manualRoute.value = target?.path || '/api/' + service.value + '/'
@@ -1211,19 +1277,41 @@ onMounted(() => { void load() })
             <section v-if="method !== 'GET'" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
               <h4 class="font-bold">Valores predeterminados de la API</h4>
               <p class="text-xs text-[var(--dh-text-muted)]">Los valores fijos se guardan en Gateway y no los puede cambiar quien consuma esta API. Seleccioná un cliente existente del CRM o configurá campos individuales.</p>
-              <div v-if="draft.target === 'pricing-rate-request-create'" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
-                <strong class="text-sm">Asignar cliente y ejecutivo desde CRM</strong>
+              <div v-if="draft.target === 'pricing-rate-request-create'" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+                <strong class="text-sm">Asignar cliente o prospecto y ejecutivo desde CRM</strong>
+                <p class="text-xs text-[var(--dh-text-muted)]">Busca en las dos listas de CRM. Se respeta el ejecutivo institucional Castro Fallas y el usuario responsable registrado para validar la solicitud en Pricing.</p>
                 <div class="flex flex-wrap gap-2">
-                  <div class="min-w-0 flex-1"><DhInput v-model="crmQuery" placeholder="Buscar cliente genérico del sitio web..." /></div>
-                  <DhButton variant="secondary" label="Buscar CRM" :loading="crmLoading" @click="searchCrmAccounts" />
+                  <div class="min-w-0 flex-1"><DhInput v-model="crmQuery" placeholder="Buscar cliente o prospecto..." /></div>
+                  <DhButton variant="secondary" label="Buscar en CRM" :loading="crmLoading" @click="searchCrmAccounts" />
                 </div>
-                <div v-if="crmAccounts.length" class="max-h-48 overflow-y-auto rounded-lg border border-[var(--dh-border)]">
-                  <button v-for="account in crmAccounts" :key="account.id" type="button"
-                    class="block w-full border-b border-[var(--dh-border)] p-3 text-left text-xs hover:bg-[var(--dh-input)]"
-                    :class="crmSelection === account.id ? 'font-bold text-[var(--dh-primary)]' : ''"
-                    @click="useCrmAccount(account.id)">{{ account.displayName }}</button>
+                <p v-if="crmSearched" class="text-xs text-[var(--dh-text-muted)]">{{ crmInfo }}</p>
+                <div v-if="crmAccounts.length" class="space-y-1">
+                  <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">Cuentas y clientes ({{ crmAccounts.length }})</p>
+                  <div class="max-h-44 overflow-y-auto rounded-lg border border-[var(--dh-border)]">
+                    <button v-for="account in crmAccounts" :key="'account:' + account.id" type="button"
+                      class="flex w-full items-center justify-between gap-2 border-b border-[var(--dh-border)] p-3 text-left text-xs hover:bg-[var(--dh-input)]"
+                      :class="crmSelection === 'account:' + account.id ? 'font-bold text-[var(--dh-primary)]' : ''"
+                      @click="useCrmAccount(account.id)">
+                      <span class="min-w-0 break-words">{{ account.displayName }}</span>
+                      <span v-if="account.isCastroFallasExecutive" class="shrink-0 text-[var(--dh-primary)]">Castro Fallas</span>
+                    </button>
+                  </div>
                 </div>
-                <p v-if="crmSelection" class="text-xs text-[var(--dh-primary)]">Cliente, vendedor y ejecutivo fijados en el contrato.</p>
+                <div v-if="crmLeads.length" class="space-y-1">
+                  <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">Prospectos ({{ crmLeads.length }})</p>
+                  <div class="max-h-44 overflow-y-auto rounded-lg border border-[var(--dh-border)]">
+                    <button v-for="lead in crmLeads" :key="'lead:' + lead.id" type="button"
+                      class="flex w-full items-center justify-between gap-2 border-b border-[var(--dh-border)] p-3 text-left text-xs hover:bg-[var(--dh-input)]"
+                      :class="crmSelection === 'lead:' + lead.id ? 'font-bold text-[var(--dh-primary)]' : ''"
+                      @click="useCrmLead(lead.id)">
+                      <span class="min-w-0 break-words">{{ lead.companyName || lead.name }}<span v-if="lead.companyName && lead.companyName !== lead.name" class="block text-[var(--dh-text-muted)]">{{ lead.name }}</span></span>
+                      <span v-if="lead.isCastroFallasExecutive" class="shrink-0 text-[var(--dh-primary)]">Castro Fallas</span>
+                    </button>
+                  </div>
+                </div>
+                <p v-if="crmSearched && !crmAccounts.length && !crmLeads.length && !defaultErrors"
+                  class="text-xs text-[var(--dh-text-muted)]">No hay clientes ni prospectos que coincidan con la búsqueda y tus permisos de CRM.</p>
+                <p v-if="crmSelectedLabel" class="text-xs font-semibold text-[var(--dh-primary)]">{{ crmSelectedLabel }}</p>
               </div>
               <p v-if="defaultErrors" class="text-xs text-red-500">{{ defaultErrors }}</p>
               <div v-for="(value, internal) in draft.defaults ?? {}" :key="internal" class="flex items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">

@@ -1,3 +1,10 @@
+## [1.62.1] - 2026-11-16 (API Manager: clientes, prospectos y Castro Fallas)
+
+- PATCH DH-20261116-API-MANAGER-166: selector de valores predeterminados de solicitudes de tarifas consulta cuentas y prospectos visibles por separado y presenta el tipo, cantidad y errores parciales; no oculta resultados si falla una de las consultas CRM.
+- Reconoce ejecutivo institucional Castro Fallas para ambos tipos, usando el usuario responsable real almacenado por CRM como sellerUserId y el nombre comercial institucional en executiveName. No se inventan identidades ni se eluden validaciones de Pricing.
+- Resuelve el nombre del ejecutivo desde endpoints autenticados de CRM, excluye prospectos convertidos y rechaza vendedor faltante, inactivo o incoherente. Los valores fijos siguen protegidos en Gateway.
+- CI: pruebas unitarias de mapeo CRM y regresión del formulario, tipado y compilación.
+
 ## [1.62.0] - 2026-11-16 (API Manager: valores fijos por contrato)
 
 - MINOR DH-20261116-API-MANAGER-165: permite configurar valores fijos del lado de Gateway para POST/PUT/PATCH y seleccionar un cliente de CRM para guardar su nombre y ejecutivo en la solicitud de tarifas.
