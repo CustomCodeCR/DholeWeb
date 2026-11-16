@@ -1,3 +1,9 @@
+## [1.62.1] - 2026-11-16 (API Manager: cuentas, prospectos y Castro Fallas)
+
+- PATCH DH-20261116-API-CRM-166: selector de valores predeterminados utiliza el directorio comercial consolidado de CRM para cuentas y prospectos, con filtros de visibilidad ya aplicados por CRM.
+- Conserva la asignación institucional de Castro Fallas sin tratar al creador como ejecutivo. Para el vendedor institucional, la identidad técnica autorizada de Pricing sigue siendo responsable del registro operativo.
+- Revalida el registro seleccionado por ID antes de guardar defaults, distingue Cliente/Prospecto y mantiene la separación de API Keys, operaciones y permisos.
+
 ## [1.62.0] - 2026-11-16 (API Manager: valores fijos por contrato)
 
 - MINOR DH-20261116-API-MANAGER-165: permite configurar valores fijos del lado de Gateway para POST/PUT/PATCH y seleccionar un cliente de CRM para guardar su nombre y ejecutivo en la solicitud de tarifas.
