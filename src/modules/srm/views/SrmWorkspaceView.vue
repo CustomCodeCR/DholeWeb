@@ -92,6 +92,10 @@ let haciendaDebounce: ReturnType<typeof setTimeout> | null = null
 let pendingHaciendaRequest: { identification: string; countryId: string; promise: Promise<boolean> } | null = null
 let bankLoadRequest = 0
 const upper = (value: string) => value.trim().toUpperCase()
+function onSupplierNameInput(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  supplierName.value = upper(target?.value || '')
+}
 const maskedAccount = (value: string) => value.length <= 4 ? '••••' : '•••• ' + value.slice(-4)
 function supplierFinanceContact(item: Supplier): string {
   const id = String(metadata(item).financeContactId || '')
@@ -1228,7 +1232,7 @@ onMounted(() => {
           <section v-show="supplierFormTab === 'identity'" id="srm-form-identity" data-srm-save-section="general"
             class="md:col-span-2 grid gap-4 md:grid-cols-2" role="tabpanel">
           <label class="text-sm font-semibold">{{ en ? 'Company name *' : 'Nombre de empresa *' }}
-            <input :value="supplierName" @input="supplierName = upper(($event.target as HTMLInputElement).value)"
+            <input :value="supplierName" @input="onSupplierNameInput"
               required maxlength="220" placeholder="Ej. TRANSPORTES ROMO"
               class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase outline-none focus:border-[var(--dh-primary)]" />
           </label>
