@@ -107,8 +107,15 @@ async function useCrmAccount(id: string) {
   const account = crmAccounts.value.find(a => a.id === id)
   if (!account) return
   defaultErrors.value = ''
-  if (!account.executiveUserId || account.executiveUserId === '00000000-0000-0000-0000-000000000000' ||
-    account.isCastroFallasExecutive) {
+  if (account.isCastroFallasExecutive) {
+    setLockedDefault('clientName', account.displayName)
+    setLockedDefault('executiveName', 'Castro Fallas')
+    removeDefault('sellerUserId')
+    crmSelection.value = ''
+    defaultErrors.value = 'Cliente genérico asignado a Castro Fallas. Configurá un UUID real de vendedor en los valores predeterminados; CRM no provee un usuario para la asignación corporativa.'
+    return
+  }
+  if (!account.executiveUserId || account.executiveUserId === '00000000-0000-0000-0000-000000000000') {
     defaultErrors.value = 'La cuenta necesita un ejecutivo de ventas activo asignado en CRM.'
     return
   }
@@ -155,7 +162,8 @@ const METHODS: { value: HttpMethod; label: string; detail: string }[] = [
 const blank = (): PublishedEndpoint => ({
   id: '', name: '', slug: '', target: '', inputs: [], outputs: [], responseRoot: null, enabled: false, defaults: {},
 })
-// Vue reactive proxies cannot be passed to structuredClone; keep drafts detached.
+// Vue stores endpoint DTOs in reactive proxies, which structuredClone cannot copy.
+// The contract is JSON-only; detach it before editing so Cancel never mutates the list.
 const cloneEndpoint = (value: PublishedEndpoint): PublishedEndpoint =>
   JSON.parse(JSON.stringify(value)) as PublishedEndpoint
 const draft = ref<PublishedEndpoint>(blank())

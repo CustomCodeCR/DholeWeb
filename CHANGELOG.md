@@ -1,3 +1,9 @@
+## [1.62.0] - 2026-11-16 (API Manager: rutas disponibles y valores predeterminados)
+
+- MINOR DH-20261116-API-ROUTES-DEFAULTS-165: promociona la configuración completa de valores fijos Defaults por API desde develop. POST/PUT/PATCH permite seleccionar cliente CRM y ejecutivo con asignación confirmada, con tratamiento seguro de cuentas corporativas Castro Fallas.
+- Los valores fijos se guardan por Gateway y nunca se envían desde el tercero. Carga rutas de los servicios registrados a través de un catálogo protegido, sin modificar API Keys ni los contratos antiguos.
+- Incluye prueba de regresión, CHANGELOG y manifiesto Dhole 1.63.0.
+
 ## [1.62.0] - 2026-11-16 (API Manager: valores fijos por contrato)
 
 - MINOR DH-20261116-API-MANAGER-165: permite configurar valores fijos del lado de Gateway para POST/PUT/PATCH y seleccionar un cliente de CRM para guardar su nombre y ejecutivo en la solicitud de tarifas.
