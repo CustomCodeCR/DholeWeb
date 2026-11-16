@@ -48,11 +48,11 @@ export function patchPricingPanamaFclOverweight(source: string): string {
     'saveRate validation',
   )
 
-  code = replaceRequired(
-    code,
+  // Late wizard transforms may have already replaced the markup for the FCL flag.
+  // Its reactive form.overweight state is authoritative; label enrichment is optional.
+  code = code.replace(
     '<Check v-if="form.overweight" class="h-4 w-4" /> Sobrepeso',
     '<Check v-if="form.overweight" class="h-4 w-4" /> {{ isPanamaOverweightRoute() ? "Sobrepeso Panamá · " + panamaOverweightQuote.excessKg.toLocaleString("es-CR") + " kg excedentes" : "Sobrepeso" }}',
-    'screen 4 surcharge flag',
   )
 
   const end = code.lastIndexOf('</script>')
