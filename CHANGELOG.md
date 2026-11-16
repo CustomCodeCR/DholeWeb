@@ -1,3 +1,16 @@
+## [1.62.3] - 2026-11-16 (Modales y borradores CRM legibles en móviles)
+
+- PATCH DH-20261116-CRM-MOBILE-MODALS-170: formularios de nueva actividad y recuperación de borrador usan superficie sólida y contraste consistente; el modal prioritario oscurece los modales secundarios para evitar que se vea el calendario a través de la ventana activa.
+- DhModal incorpora modalidad opcional de superficie sólida sin cambiar el modo glass predeterminado; mejora cabecera, cierre táctil, scroll interior y pie de acciones en pantallas pequeñas.
+- Agenda CRM: selector Registro en bitácora / Crear recordatorio en dos columnas móviles con texto legible; botones de guardado adaptables. Recuperación conserva las opciones y la semántica de borradores.
+- Regresiones de maquetación y compatibilidad con el release responsive anterior, sin cambios REST/SignalR/datos/permisos. DholeWeb 1.62.3, ecosistema 1.63.5; CI, staging y posterior promoción coordinada a master.
+
+## [1.62.2] - 2026-11-16 (Responsive móvil en Configuración y CRM)
+
+- PATCH DH-20261116-MOBILE-CRM-SETTINGS-169: tarjetas compactas de Configuración y navegación horizontal desplazable para pestañas de Cliente y Prospecto, conservando roles, autorización y acciones.
+- Agenda comercial: pestañas legibles en pantallas estrechas, controles de fecha en cuadrícula, encabezado sin superposiciones y vista inicial de listado en móviles. El calendario mensual de siete columnas permite desplazamiento horizontal cuando se selecciona.
+- Pruebas estáticas de regresión responsiva, sin cambios REST, realtime, permisos ni datos. DholeWeb 1.62.2; versión global 1.63.4 coordinada con DholeSystem. CI, compilación, validación real en móviles y staging pendientes antes de master/producción.
+
 ## [1.62.1] - 2026-11-16 (API Manager: cuentas, prospectos y Castro Fallas)
 
 - PATCH DH-20261116-API-CRM-166: selector de valores predeterminados utiliza el directorio comercial consolidado de CRM para cuentas y prospectos, con filtros de visibilidad ya aplicados por CRM.
