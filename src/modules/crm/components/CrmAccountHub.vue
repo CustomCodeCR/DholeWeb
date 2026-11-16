@@ -1008,7 +1008,7 @@ async function saveRoute() {
     <CrmAccountGroupManager v-if="!editing" :account-id="rowId(account.id)"
       :can-manage="has('crm.account.update') && has('crm.account.read-all')"
       @changed="groupedAccountChanged" />
-      <nav v-if="!editing" role="tablist" class="hub-sticky-tabs sticky z-20 flex max-w-full flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4"
+      <nav v-if="!editing" role="tablist" class="hub-sticky-tabs relative z-20 flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md lg:sticky lg:flex-wrap lg:overflow-visible sm:px-4"
         :aria-label="locale === 'en' ? 'Account sections' : 'Secciones del cliente'">
         <button v-for="tab in tabs" :key="tab.key" type="button" role="tab"
           :aria-selected="activeTab === tab.key" :aria-controls="'crm-account-' + tab.key"
@@ -1769,9 +1769,10 @@ async function saveRoute() {
 .hub-summary-strip{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1rem;border:1px solid var(--dh-border);border-radius:.8rem;background:var(--dh-card);padding:.85rem 1rem;font-size:.75rem;color:var(--dh-text-muted)}
 .hub-summary-strip>span:first-child{color:var(--dh-text)}
 .hub-record-header{backdrop-filter:blur(16px)}
-.hub-sticky-tabs{top:84px;backdrop-filter:blur(18px)}
-@media(min-width:768px){.hub-sticky-tabs{top:144px}}
-.hub-tab{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;padding:.75rem 1rem;border:1px solid var(--dh-border);border-radius:.7rem;font-size:.8rem;font-weight:800;color:var(--dh-text);background:var(--dh-shell);transition:background .15s,color .15s}
+.hub-sticky-tabs{top:auto;backdrop-filter:blur(18px);scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+@media(min-width:1024px){.hub-sticky-tabs{top:144px}}
+.hub-tab{display:inline-flex;flex-shrink:0;align-items:center;gap:.45rem;white-space:nowrap;padding:.75rem 1rem;border:1px solid var(--dh-border);border-radius:.7rem;font-size:.8rem;font-weight:800;color:var(--dh-text);background:var(--dh-shell);transition:background .15s,color .15s}
+.hub-tab svg{flex-shrink:0}
 .hub-tab:hover,.hub-tab:focus-visible{color:var(--dh-text);background:var(--dh-primary-light,transparent);outline-offset:-2px}
 .hub-tab-active{color:white;background:var(--dh-primary);border-color:var(--dh-primary);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .hub-header-meta{display:inline-flex;align-items:center;gap:.35rem;color:var(--dh-text-muted);font-weight:600}

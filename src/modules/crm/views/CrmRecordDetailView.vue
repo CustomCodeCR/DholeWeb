@@ -1135,7 +1135,7 @@ onMounted(() => { if (crmEnabled()) void load() })
           </form>
         </DhDrawer>
         <nav v-if="section === 'leads'" role="tablist" aria-label="Secciones del prospecto"
-          class="crm-lead-tabs sticky z-20 flex max-w-full flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4"
+          class="crm-lead-tabs relative z-20 flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-md sm:px-4 lg:sticky lg:flex-wrap lg:overflow-visible"
           data-crm-lead-tabs>
           <button v-for="tab in leadTabs" :key="tab.key" type="button" role="tab"
             :aria-selected="leadTab === tab.key" :aria-controls="'crm-lead-panel-' + tab.key"
@@ -1829,9 +1829,10 @@ onMounted(() => { if (crmEnabled()) void load() })
 </template>
 
 <style scoped>
-.crm-lead-tabs{top:84px;backdrop-filter:blur(18px)}
-@media(min-width:768px){.crm-lead-tabs{top:144px}}
-.crm-lead-tab{display:inline-flex;align-items:center;gap:.45rem;white-space:nowrap;padding:.75rem 1rem;border:1px solid var(--dh-border);border-radius:.7rem;font-size:.8rem;font-weight:800;color:var(--dh-text);background:var(--dh-shell);transition:background .15s,color .15s}
+.crm-lead-tabs{top:auto;backdrop-filter:blur(18px);scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+@media(min-width:1024px){.crm-lead-tabs{top:144px}}
+.crm-lead-tab{display:inline-flex;flex-shrink:0;align-items:center;gap:.45rem;white-space:nowrap;padding:.75rem 1rem;border:1px solid var(--dh-border);border-radius:.7rem;font-size:.8rem;font-weight:800;color:var(--dh-text);background:var(--dh-shell);transition:background .15s,color .15s}
+.crm-lead-tab svg{flex-shrink:0}
 .crm-lead-tab:hover,.crm-lead-tab:focus-visible{color:var(--dh-text);background:var(--dh-primary-light,transparent);outline-offset:-2px}
 .crm-lead-tab-active{color:white;background:var(--dh-primary);border-color:var(--dh-primary);box-shadow:0 2px 8px rgba(0,0,0,.12)}
 
