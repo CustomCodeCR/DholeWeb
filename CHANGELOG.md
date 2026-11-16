@@ -1,3 +1,9 @@
+## [1.65.0] - 2026-11-16 (CRM/SRM: pestañas e integración automática Hacienda · backport master)
+
+- MINOR DH-20261116-CRM-SRM-UNIFIED-TABS-HACIENDA-179: formularios de alta y edición de cuentas CRM con pestañas horizontales funcionales estilo SRM, responsive, con control de visibilidad por permisos.
+- Hacienda en CRM: consulta automática de identificación válida de Costa Rica y aplicación directa del nombre/razón social/tipo; visualización de régimen y actividades, reconsulta manual y sincronización de respuestas antes de guardar cuentas y prospectos.
+- Backport selectivo sobre master conservando modificaciones de CRM ajenas a este release. Pruebas específicas y versionado global 1.66.0; producción pendiente de autorización.
+
 ## [1.64.0] - 2026-11-16 (SRM: interfaz CRM y Hacienda automático · backport master)
 
 - MINOR DH-20261116-SRM-CRM-HACIENDA-UI-178: formulario de proveedores por pestañas de Identidad/Hacienda, Contactos, Bancos y Crédito; mejor responsive y errores por sección.

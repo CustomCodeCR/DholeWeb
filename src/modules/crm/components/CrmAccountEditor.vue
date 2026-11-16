@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { Building2, Save, ShieldCheck, UserRound, Wallet, X } from 'lucide-vue-next'
+import { Building2, ContactRound, CreditCard, FileCheck2, MapPin, Save, ShieldCheck, UserRound, Wallet, X } from 'lucide-vue-next'
 import { DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
@@ -26,6 +26,7 @@ const can = (scope: string) => auth.hasScope(scope)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
+const haciendaLookupRef = ref<{ ensureVerified: () => Promise<boolean> } | null>(null)
 function upperAccountName(value: unknown): string {
   return String(value ?? '').toLocaleUpperCase('es-CR')
 }
@@ -68,13 +69,13 @@ const profileDraft = reactive<Record<string, string>>({})
 for (const key of historicalProfileKeys) profileDraft[key] = ''
 type EditorSection = 'identity' | 'commercial' | 'company' | 'contacts' | 'addresses' | 'credit'
 const activeEditorSection = ref<EditorSection>('identity')
-const editorSections: Array<{id: EditorSection; label: string; detail: string}> = [
-  { id: 'identity', label: 'Datos de la cuenta', detail: 'Identificación y datos fiscales' },
-  { id: 'commercial', label: 'Clasificación', detail: 'Tipo, categoría y relaciones' },
-  { id: 'company', label: 'Datos empresariales', detail: 'Información general de la empresa' },
-  { id: 'contacts', label: 'Contactos', detail: 'Personas relacionadas' },
-  { id: 'addresses', label: 'Direcciones', detail: 'Ubicaciones de la cuenta' },
-  { id: 'credit', label: 'Crédito', detail: 'Cobertura y condiciones' },
+const editorSections = [
+  { id: 'identity' as const, label: 'Identidad y Hacienda', icon: Building2 },
+  { id: 'commercial' as const, label: 'Perfil comercial', icon: CreditCard },
+  { id: 'company' as const, label: 'Datos empresariales', icon: FileCheck2 },
+  { id: 'contacts' as const, label: 'Contactos', icon: ContactRound },
+  { id: 'addresses' as const, label: 'Direcciones', icon: MapPin },
+  { id: 'credit' as const, label: 'Crédito y condiciones', icon: Wallet },
 ]
 const activeProfileGroup = computed(() => activeEditorSection.value === 'company' ? profileGroups[0] : null)
 const profileVersion = ref<number | null>(null)
@@ -300,13 +301,16 @@ function resolved(data: HaciendaResult) {
 }
 async function save() {
   if (!can('crm.account.update') || !loadedProfile.value || !canSave.value) return
+  await haciendaLookupRef.value?.ensureVerified()
   accountDraft.displayName = upperAccountName(accountDraft.displayName).trim()
   accountDraft.legalName = upperAccountName(accountDraft.legalName).trim()
   if (!accountDraft.displayName.trim() || !accountDraft.legalName.trim()) {
+    activeEditorSection.value = 'identity'
     error.value = 'Nombre comercial y razón social son obligatorios.'
     return
   }
   if (accountDraft.taxId.trim() && (!accountDraft.countryId || !accountDraft.taxIdTypeCode.trim())) {
+    activeEditorSection.value = 'identity'
     error.value = 'Para modificar la cédula, completá país y tipo de identificación.'
     return
   }
@@ -364,15 +368,19 @@ async function save() {
         <p class="mb-3 text-sm text-[var(--dh-text-muted)]">No se puede editar hasta cargar la versión actual de la cuenta.</p>
         <button type="button" class="crm-editor-secondary" @click="load">Reintentar carga</button>
       </div>
-      <div v-if="!loading && loadedProfile" class="grid gap-4 lg:grid-cols-[235px_minmax(0,1fr)]" data-crm-editor-tabs>
-        <nav class="flex min-w-0 gap-2 overflow-x-auto rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 lg:flex-col lg:overflow-visible lg:self-start" aria-label="Secciones editables">
+      <div v-if="!loading && loadedProfile" class="space-y-4" data-crm-editor-tabs>
+        <nav role="tablist" data-crm-editor-nav
+          class="grid grid-cols-2 gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-sm sm:flex sm:flex-wrap"
+          aria-label="Secciones editables de la cuenta">
           <button v-for="section in editorSections.filter(item=>item.id!=='credit'||can('crm.credit.read'))"
-            :key="section.id" type="button" class="crm-editor-tab"
-            :aria-current="activeEditorSection===section.id?'step':undefined"
-            :class="activeEditorSection===section.id?'crm-editor-tab-active':''"
+            :key="section.id" type="button" role="tab" :aria-selected="activeEditorSection === section.id"
+            :data-crm-editor-tab="section.id"
+            :class="activeEditorSection===section.id
+              ? 'bg-[var(--dh-primary)] text-white shadow-sm'
+              : 'text-[var(--dh-text-muted)] hover:bg-[var(--dh-input)] hover:text-[var(--dh-text)]'"
+            class="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition sm:whitespace-nowrap"
             @click="activeEditorSection=section.id">
-            <span class="block whitespace-nowrap text-left text-sm font-bold">{{ section.label }}</span>
-            <span class="hidden text-left text-[11px] text-[var(--dh-text-muted)] lg:block">{{ section.detail }}</span>
+            <component :is="section.icon" class="h-4 w-4 shrink-0" />{{ section.label }}
           </button>
         </nav>
         <div class="min-w-0">
@@ -396,8 +404,9 @@ async function save() {
             <DhSelect label="Tipo de identificación" :model-value="normalizeIdentificationType(accountDraft.taxIdTypeCode)"
               :disabled="!accountDraft.countryId" placeholder="Seleccionar tipo de identificación"
               :options="accountIdentificationOptions" @update:model-value="accountDraft.taxIdTypeCode=String($event)" />
-            <div class="flex flex-col justify-end"><CrmHaciendaLookup :country-id="accountDraft.countryId"
-              :tax-id="accountDraft.taxId" @resolved="resolved" /></div>
+            <div class="md:col-span-2"><CrmHaciendaLookup ref="haciendaLookupRef"
+              :country-id="accountDraft.countryId" :tax-id="accountDraft.taxId"
+              :active="open && loadedProfile" @resolved="resolved" /></div>
           </div>
         </section>
         <section v-show="activeEditorSection==='commercial'" id="crm-edit-commercial" class="crm-editor-section">
@@ -556,10 +565,6 @@ async function save() {
 
 <style scoped>
 .crm-editor-section{border:1px solid var(--dh-border);border-radius:1.15rem;padding:1.25rem 1.4rem;background:var(--dh-card);box-shadow:var(--dh-shadow-sm)}
-.crm-editor-tab{display:block;min-width:max-content;text-align:left;border:1px solid transparent;border-radius:.8rem;padding:.75rem .9rem;transition:background .15s}
-.crm-editor-tab:hover{background:var(--dh-card-hover)}
-.crm-editor-tab-active{background:var(--dh-primary);color:white;border-color:var(--dh-primary)}
-.crm-editor-tab-active span{color:white}
 .crm-editor-heading{display:flex;align-items:center;gap:.75rem;margin-bottom:1.2rem;color:var(--dh-primary)}
 .crm-editor-heading h3{font-size:.94rem;font-weight:850;color:var(--dh-text)}
 .crm-editor-heading p{font-size:.72rem;color:var(--dh-text-muted);margin-top:.2rem}
