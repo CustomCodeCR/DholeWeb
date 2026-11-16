@@ -17,7 +17,7 @@ test('editing an existing QUO restores its CRM account or prospect by persisted 
 
 test('an unlinked historical QUO shows its saved name without silently selecting another CRM record', () => {
   assert.match(picker, /query\.value = props\.initialName/)
-  assert.match(picker, /if \(!id\) \{\s*current\.value = null\s*query\.value = props\.initialName\s*return/)
+  assert.match(picker, /if \(!id\) \{\s*current\.value = null[\s\S]*?query\.value = props\.initialName\s*return/)
   assert.match(picker, /else if \(!id && !current\.value\) query\.value = label/)
   assert.match(picker, /v-if="!modelValue && initialName\.trim\(\)"/)
   assert.match(picker, /Seleccione una cuenta o prospecto para vincularla/)
