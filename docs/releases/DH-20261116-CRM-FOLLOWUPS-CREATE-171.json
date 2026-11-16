@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261116-CRM-FOLLOWUPS-CREATE-171",
+  "previousReleaseId": "DH-20261116-CRM-MOBILE-MODALS-170",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.63.6",
+  "createdAt": "2026-11-16",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.62.3",
+      "version": "1.62.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.63.5",
+      "version": "1.63.6"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previousVersion": "1.33.0",
+      "version": "1.33.0",
+      "unchanged": true
+    }
+  ],
+  "changes": [
+    "Add create followup action in CRM account/lead followup history",
+    "Reuse scoped CRM calendar form with prefilled account or prospect and commercial followup type",
+    "Preserve CRM scopes, REST, SignalR and grouped account history"
+  ],
+  "validation": {
+    "unitTests": "pending",
+    "build": "pending",
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
