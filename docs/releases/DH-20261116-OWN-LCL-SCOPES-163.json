@@ -1,0 +1,23 @@
+{
+  "releaseId": "DH-20261116-OWN-LCL-SCOPES-163",
+  "date": "2026-11-16",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.62.0",
+  "components": {
+    "DholeAuthService": "1.11.0",
+    "DholePricingService": "1.21.0",
+    "DholeWeb": "1.61.0",
+    "DholeSystem": "1.62.0"
+  },
+  "changes": [
+    "Create/update/view separated in LCL console, sidebar and router",
+    "Read-only users cannot submit writes, direct quotation navigation requires rate.view"
+  ],
+  "restCompatible": true,
+  "realtimeCompatible": true,
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}

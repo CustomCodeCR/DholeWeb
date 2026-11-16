@@ -114,6 +114,8 @@ export const PRICING_SCOPES = {
 
   ownLclConsolidations: {
     create: 'pricing.own-lcl-consolidation.create',
+    update: 'pricing.own-lcl-consolidation.update',
+    view: 'pricing.own-lcl-consolidation.view',
   },
 
   sellerAssignments: {

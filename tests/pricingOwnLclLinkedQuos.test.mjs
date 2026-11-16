@@ -14,6 +14,7 @@ test('consolidado shows linked quotations with stale response guards', () => {
 test('linked quote opens in read-only wizard, respecting rate view scope', () => {
   assert.match(view, /name: 'pricing-rate-wizard', params: \{ rateId: quote\.id \}, query: \{ mode: 'view' \}/)
   assert.match(service, /\/api\/pricing\/own-lcl-consolidations\/\{\{id\}\}\/quotes/)
-  assert.match(view, /hasScope\('pricing\.rate\.view'\)/)
+  assert.match(view, /hasScope\(PRICING_SCOPES\.rates\.view\)/)
+  assert.match(view, /hasScope\(PRICING_SCOPES\.ownLclConsolidations\.view\)/)
 })
 
