@@ -1,3 +1,9 @@
+## [1.60.0] - 2026-11-16 (QUOs vinculadas a consolidados LCL propios)
+
+- MINOR DH-20261116-OWN-LCL-QUOS-162: al abrir el consolidado se muestran QUOs vinculadas (número, cliente, fecha y estado), con actualización y navegación directa al wizard de consulta.
+- Maneja sin cotizaciones, permiso insuficiente y error REST; descarta respuestas tardías al cambiar de consolidado. Sin cambios de costos ni inventario.
+- Web 1.59.0 → 1.60.0, Pricing 1.20.0, Dhole global 1.61.0. CI/staging antes de producción.
+
 ## [1.58.0] - 2026-11-15 (API Manager: metadatos reales y filtros de Config)
 
 - MINOR DH-20261115-API-METADATA-161: el asistente de APIs explica la selección de metadatos completos de Config, propiedades individuales y filtros opcionales de terminal CY/SD/APT, modalidad, país e IATA.
