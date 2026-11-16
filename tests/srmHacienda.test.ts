@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFileSync } from 'node:fs'
 import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId,
   srmHaciendaFields, srmHaciendaMainActivity } from '../src/modules/srm/utils/srmHacienda.ts'
 
@@ -34,4 +35,20 @@ test('countries and missing activities are handled explicitly without fabricated
   const result = { ...verified, activities: [] }
   assert.equal(srmHaciendaMainActivity(result), null)
   assert.equal(srmHaciendaFields(result).economicActivityCode, '')
+})
+
+test('SRM Hacienda interaction follows CRM: resolves automatically without a second Apply action', () => {
+  const view = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
+  assert.match(view, /watch\(\[taxId, costaRicaCountryId, formVisible\]/)
+  assert.match(view, /setTimeout\(\(\) => \{/)
+  assert.match(view, /applyHaciendaResult\(response, identification, countryId\)/)
+  assert.match(view, /if \(version !== haciendaLookupVersion\) return false/)
+  assert.match(view, /await pendingHaciendaRequest\.promise/)
+  assert.match(view, /haciendaVerifiedAt: haciendaApplied\.value/)
+  assert.match(view, /supplierFormTab === 'identity'/)
+  assert.match(view, /supplierFormTab === 'contacts'/)
+  assert.match(view, /supplierFormTab === 'banks'/)
+  assert.match(view, /supplierFormTab === 'credit'/)
+  assert.doesNotMatch(view, /Aplicar razón social y actividad principal/)
+  assert.doesNotMatch(view, /@click="applyHaciendaResult"/)
 })
