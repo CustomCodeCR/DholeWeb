@@ -1,3 +1,9 @@
+## [1.65.1] - 2026-11-16 (FCL multimodal Panamá: sobrepeso mayor a 19.000 kg)
+
+- PATCH DH-20261116-PRICING-PANAMA-OVERWEIGHT-180: FCL multimodal Panamá → Costa Rica activa automáticamente Sobrepeso al superar 19.000 kg por contenedor, conservando el umbral de 21.500 kg para otras rutas.
+- Los kilos excedentes se valoran como LTL/LCL terrestre Panamá → Costa Rica con cuatro costos maestros: Flete Terrestre Internacional, Bunker, Gastos Panamá a Costa Rica y Custodia + Marchamo; se respetan los tramos, mínimos y moneda y se impide guardar tarifas faltantes.
+- Desglose independiente y actualizado al cambiar los pesos por unidad; sin duplicación de fletes FCL ni cargos de sobrepeso genéricos. Pruebas de límites y catálogos incompletos; CI/staging pendientes. DholeWeb 1.65.0 → 1.65.1; ecosistema 1.66.0 → 1.66.1.
+
 ## [1.65.0] - 2026-11-16 · CRM igual a SRM: pestañas e integración Hacienda (DH-179)
 
 - MINOR: formulario de alta de cuentas y editor de cuentas CRM con pestañas funcionales estilo SRM, encabezados claros, navegación responsive, una sección visible por vez y conservación de secciones de contacto, direcciones, clasificación y crédito con sus permisos.
