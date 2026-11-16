@@ -1,3 +1,8 @@
+## [1.62.7] - 2026-11-16 (Bitácora CRM: reloj autoritativo del servidor)
+
+- PATCH DH-20261116-CRM-BITACORA-SERVER-CLOCK-174: las bitácoras comerciales y las actividades históricas envían occurredAt=null para que CRM determine la hora real UTC desde el servidor. Evita el error «Cannot record future actual occurrence» cuando el reloj del navegador está adelantado.
+- Los acuerdos con fecha futura conservan sus recordatorios independientes, las actividades históricas preservan su fecha final, el ACL y la arquitectura REST/realtime no cambian. Regresión para relojes cliente adelantados. Web 1.62.5 → 1.62.7, DholeSystem/ecosistema 1.63.7 → 1.63.9. CI, staging y autorización de producción exigidos antes del merge a master.
+
 ## [1.62.5] - 2026-11-16 (CBM por cotización vinculada a consolidado propio)
 
 - PATCH DH-20261116-OWN-LCL-QUO-CBM-172: cada QUO del listado de consolidados LCL propios muestra su CBM cobrable y volumen físico en CBM, con datos del detalle comercial de Pricing; los valores no registrados se identifican sin inventar capacidad.
