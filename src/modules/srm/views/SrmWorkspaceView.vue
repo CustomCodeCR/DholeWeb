@@ -726,6 +726,7 @@ async function saveSupplier() {
     if (editingId) {
       selected.value = suppliers.value.find(item => item.id === editingId) || selected.value
       detailsVisible.value = Boolean(selected.value)
+      if (detailsVisible.value) void loadBankAccounts(editingId)
     }
     // Secondary data are optional; failures must not mask successful persistence.
     void load()
@@ -956,6 +957,51 @@ onMounted(() => {
               <dd class="text-sm font-semibold">{{ supplierCountries(selected) }}</dd>
             </div>
           </dl>
+          <section class="space-y-3 border-t border-[var(--dh-border)] pt-4">
+            <h3 class="text-sm font-bold">{{ en ? 'Company and tax details' : 'Datos de la empresa y fiscales' }}</h3>
+            <dl class="grid gap-3 text-sm sm:grid-cols-2">
+              <div><dt class="text-xs text-[var(--dh-text-muted)]">RUC / NIT</dt>
+                <dd class="font-semibold">{{ String(metadata(selected).taxId || '—') }}</dd></div>
+              <div><dt class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Company phone' : 'Teléfono de empresa' }}</dt>
+                <dd class="font-semibold">{{ String(metadata(selected).companyPhone || '—') }}</dd></div>
+              <div><dt class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Economic activity' : 'Actividad económica' }}</dt>
+                <dd class="font-semibold">{{ String(metadata(selected).economicActivityCode || '—') }}</dd></div>
+              <div><dt class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Finance contact' : 'Contacto principal de Finanzas' }}</dt>
+                <dd class="font-semibold">{{ supplierFinanceContact(selected) }}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Address' : 'Dirección' }}</dt>
+                <dd class="whitespace-pre-wrap font-semibold">{{ String(metadata(selected).address || '—') }}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Notes' : 'Observaciones generales' }}</dt>
+                <dd class="whitespace-pre-wrap">{{ String(metadata(selected).observations || '—') }}</dd></div>
+            </dl>
+          </section>
+          <section v-if="canReadBanks" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h3 class="text-sm font-bold">{{ en ? 'Payment bank accounts' : 'Cuentas bancarias para pagos' }}</h3>
+              <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
+                @click="revealBankNumbers = !revealBankNumbers">
+                {{ revealBankNumbers ? (en ? 'Hide numbers' : 'Ocultar números') : (en ? 'Show numbers' : 'Mostrar números') }}
+              </button>
+            </div>
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Restricted financial data.' : 'Información financiera de acceso restringido.' }}</p>
+            <p v-if="bankAccountsLoading" class="text-xs">{{ t('common.loading') }}</p>
+            <p v-else-if="bankError" role="alert" class="text-xs text-red-400">{{ bankError }}</p>
+            <p v-else-if="bankAccountsLoaded && !bankAccounts.length" class="text-xs text-[var(--dh-text-muted)]">
+              {{ en ? 'No bank accounts registered.' : 'Sin cuentas bancarias registradas.' }}
+            </p>
+            <div v-for="account in bankAccounts" :key="account.id"
+              class="space-y-1 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <strong>{{ account.bankName }}</strong>
+                <span v-if="account.isPrimary" class="font-bold text-[var(--dh-primary)]">
+                  {{ en ? 'Primary for payments' : 'Principal para pagos' }}</span>
+              </div>
+              <p>{{ account.accountHolder }} · {{ account.currency }} · {{ account.registration }}</p>
+              <p class="font-mono">{{ revealBankNumbers ? account.accountNumber : maskedAccount(account.accountNumber) }}</p>
+              <p v-if="account.swiftBic">{{ en ? 'SWIFT / BIC' : 'SWIFT / BIC' }}: {{ account.swiftBic }}</p>
+              <p>{{ countryLabel(account.bankCountryId) }}</p>
+              <p v-if="account.intermediaryBank">{{ en ? 'Intermediary bank' : 'Banco intermediario' }}: {{ account.intermediaryBank }}</p>
+            </div>
+          </section>
           <section class="border-t border-[var(--dh-border)] pt-4">
             <h3 class="mb-3 text-sm font-bold">{{ en ? 'Contacts' : 'Contactos' }}
               <span class="font-normal text-[var(--dh-text-muted)]">({{ supplierContacts(selected).length }})</span>
@@ -1062,6 +1108,122 @@ onMounted(() => {
               :placeholder="en ? 'Select countries' : 'Seleccionar países'"
               :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
           </div>
+          <section class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4" data-srm-company-fields>
+            <h3 class="text-sm font-bold">{{ en ? 'Company information' : 'Información de la empresa' }}</h3>
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'All new fields are optional unless marked *.' : 'Los campos nuevos son opcionales, salvo los marcados con *.' }}</p>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="min-w-0">
+                <CrmPhoneInput v-model="companyPhone" :country-id="countryIds[0] || ''"
+                  :label="en ? 'Company phone (optional)' : 'Teléfono de la empresa (opcional)'" />
+              </div>
+              <label class="text-xs font-semibold">RUC / NIT <span class="text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span>
+                <input v-model="taxId" type="text" maxlength="80" autocomplete="off"
+                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase" />
+              </label>
+              <label class="text-xs font-semibold">{{ en ? 'Economic activity code (optional)' : 'Código de actividad económica (opcional)' }}
+                <input v-model="economicActivityCode" type="text" maxlength="40"
+                  class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase" />
+              </label>
+              <label class="text-xs font-semibold">{{ en ? 'Primary Finance contact (optional)' : 'Contacto principal de Finanzas (opcional)' }}
+                <select v-model="financeContactId" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                  <option value="">{{ en ? 'No finance contact selected' : 'Sin contacto financiero asignado' }}</option>
+                  <option v-for="option in financeContactOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                </select>
+              </label>
+              <label class="text-xs font-semibold md:col-span-2">{{ en ? 'Physical or fiscal address (optional)' : 'Dirección física o fiscal (opcional)' }}
+                <textarea v-model="address" rows="2" maxlength="500"
+                  class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase"></textarea>
+              </label>
+              <label class="text-xs font-semibold md:col-span-2">{{ en ? 'General notes (optional)' : 'Observaciones generales (opcional)' }}
+                <textarea v-model="observations" rows="3" maxlength="4000"
+                  :placeholder="en ? 'Payment instructions, commercial or operational requirements' : 'Instrucciones especiales, condiciones comerciales o particularidades operativas'"
+                  class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase"></textarea>
+              </label>
+            </div>
+            <div v-if="costaRicaCountryId" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3" data-srm-hacienda>
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div><h4 class="text-sm font-bold">{{ en ? 'Costa Rica · Hacienda' : 'Costa Rica · Hacienda' }}</h4>
+                  <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Verify legal name and economic activities with the official API.' : 'Consulta la razón social y actividades económicas en el API oficial.' }}</p>
+                </div>
+                <button type="button" :disabled="!canLookupHacienda || haciendaLoading"
+                  class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold disabled:opacity-40" @click="lookupHacienda">
+                  {{ haciendaLoading ? t('common.loading') : (en ? 'Verify tax ID' : 'Consultar cédula') }}
+                </button>
+              </div>
+              <p v-if="haciendaError" role="alert" class="text-xs text-red-400">{{ haciendaError }}</p>
+              <div v-if="haciendaResult" class="space-y-2 text-xs">
+                <p class="font-bold">{{ haciendaResult.name }}</p>
+                <p>{{ haciendaResult.activities.map(item => item.code + ' · ' + item.description).join('; ') || '—' }}</p>
+                <button type="button" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 font-bold text-white"
+                  @click="applyHaciendaResult">{{ en ? 'Apply official name and main activity' : 'Aplicar razón social y actividad principal' }}</button>
+              </div>
+            </div>
+          </section>
+          <section v-if="canReadBanks" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4" data-srm-save-section="bank">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div><h3 class="text-sm font-bold">{{ en ? 'Supplier bank accounts' : 'Cuentas bancarias del proveedor' }}
+                <span class="font-normal text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span></h3>
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Restricted financial data; not included in supplier catalog responses.' : 'Datos financieros restringidos; no se incluyen en el catálogo general.' }}</p>
+              </div>
+              <button v-if="canManageBanks" type="button" :disabled="!bankAccountsLoaded || bankAccounts.length >= 20"
+                class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold disabled:opacity-40"
+                @click="bankAccounts.push(newBankAccount())">{{ en ? '+ Add account' : '+ Agregar cuenta' }}</button>
+            </div>
+            <p v-if="bankAccountsLoading" class="text-xs">{{ t('common.loading') }}</p>
+            <p v-if="bankError" role="alert" class="text-xs text-red-400">{{ bankError }}</p>
+            <p v-if="error && saveErrorSection === 'bank'" role="alert" class="text-xs text-red-400">{{ error }}</p>
+            <div v-for="(account, index) in bankAccounts" :key="account.id" class="space-y-3 border-t border-[var(--dh-border)] pt-3">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <label class="flex items-center gap-2 text-xs font-bold">
+                  <input type="radio" name="srm-primary-bank" :checked="account.isPrimary" :disabled="!canManageBanks"
+                    @change="setBankPrimary(index)" />
+                  {{ en ? 'Primary payment account' : 'Cuenta principal para pagos' }}
+                </label>
+                <button v-if="canManageBanks" type="button" class="text-xs font-bold text-red-500"
+                  @click="removeBankAccount(index)">{{ en ? 'Remove account' : 'Eliminar cuenta' }}</button>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="text-xs font-semibold">{{ en ? 'Beneficiary bank *' : 'Banco beneficiario *' }}
+                  <input v-model="account.bankName" :readonly="!canManageBanks" required maxlength="160"
+                    class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase" />
+                </label>
+                <label class="text-xs font-semibold">{{ en ? 'Account holder *' : 'Titular de cuenta *' }}
+                  <input v-model="account.accountHolder" :readonly="!canManageBanks" required maxlength="180"
+                    class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase" />
+                </label>
+                <label class="text-xs font-semibold">{{ en ? 'Registration *' : 'Registro *' }}
+                  <select v-model="account.registration" :disabled="!canManageBanks"
+                    class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                    <option value="LOCAL">{{ en ? 'Local' : 'Local' }}</option>
+                    <option value="INTERNACIONAL">{{ en ? 'International' : 'Internacional' }}</option>
+                  </select>
+                </label>
+                <label class="text-xs font-semibold">{{ en ? 'Account number / IBAN *' : 'Número de cuenta / IBAN *' }}
+                  <input v-model="account.accountNumber" :type="revealBankNumbers ? 'text' : 'password'"
+                    :readonly="!canManageBanks" required maxlength="44" autocomplete="off"
+                    class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 font-mono uppercase" />
+                </label>
+                <label class="text-xs font-semibold">SWIFT / BIC {{ account.registration === 'INTERNACIONAL' ? '*' : '(' + (en ? 'optional' : 'opcional') + ')' }}
+                  <input v-model="account.swiftBic" :readonly="!canManageBanks"
+                    maxlength="11" class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase" />
+                </label>
+                <CrmCatalogPicker v-model="account.currency" :label="en ? 'Currency *' : 'Moneda *'"
+                  catalog-group-slug="currencies" value-kind="value" />
+                <div class="min-w-0">
+                  <DhSelect v-model="account.bankCountryId" :options="countryOptions"
+                    :label="en ? 'Bank country *' : 'País del banco *'" />
+                </div>
+                <label class="text-xs font-semibold">{{ en ? 'Intermediary bank (optional)' : 'Banco intermediario (opcional)' }}
+                  <input v-model="account.intermediaryBank" :readonly="!canManageBanks" maxlength="180"
+                    class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase" />
+                </label>
+              </div>
+            </div>
+            <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
+              @click="revealBankNumbers = !revealBankNumbers">
+              {{ revealBankNumbers ? (en ? 'Hide account numbers' : 'Ocultar números de cuenta') : (en ? 'Reveal account numbers' : 'Mostrar números de cuenta') }}
+            </button>
+          </section>
           <section data-srm-save-section="contacts" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
             <p v-if="error && saveErrorSection === 'contacts'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div class="flex items-center justify-between">
