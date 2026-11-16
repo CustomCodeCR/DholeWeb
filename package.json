@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.62.0",
+  "version": "1.62.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -38,7 +38,7 @@
     "test:crm-drafts": "node --test tests/crmDraftAutosave.test.mjs",
     "test:pricing-own-lcl-links": "node --test tests/pricingOwnLclLinkedQuos.test.mjs",
     "test:pricing-own-lcl-scopes": "node --test tests/pricingOwnLclScopes.test.mjs",
-    "test:api-manager": "node --test tests/thirdPartyApiManagerEditing.test.mjs tests/thirdPartyApiManagerDefaults.test.mjs"
+    "test:api-manager": "node --experimental-strip-types --test tests/thirdPartyApiManagerEditing.test.mjs tests/thirdPartyApiManagerDefaults.test.mjs tests/thirdPartyApiManagerCrmPresets.test.mjs"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
