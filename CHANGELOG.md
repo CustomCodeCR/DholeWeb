@@ -1,3 +1,9 @@
+## [1.61.0] - 2026-11-16 (Scopes Create/Update/View en LCL propios)
+
+- MINOR DH-20261116-OWN-LCL-SCOPES-163: navegación y listado protegidos por view; creación protegida por create; edición, renombrado y guardados protegidos por update, sin bypass de rol en el cliente.
+- La lista de QUOs relacionadas es de consulta; el acceso directo al wizard comercial requiere además pricing.rate.view.
+- Web 1.60.0 → 1.61.0; Auth 1.11.0, Pricing 1.21.0, global 1.62.0. CI y staging requeridos antes de master.
+
 ## [1.60.0] - 2026-11-16 (QUOs vinculadas a consolidados LCL propios)
 
 - MINOR DH-20261116-OWN-LCL-QUOS-162: al abrir el consolidado se muestran QUOs vinculadas (número, cliente, fecha y estado), con actualización y navegación directa al wizard de consulta.
