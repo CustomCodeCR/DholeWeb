@@ -816,7 +816,12 @@ onMounted(load)
               <p class="text-sm font-black text-[var(--dh-text)]">{{ quote.quoNumber }}</p>
               <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ quote.clientName || 'Cliente no indicado' }} · {{ new Date(quote.createdAtUtc).toLocaleDateString('es-CR') }}</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-3 sm:gap-4">
+              <div class="min-w-[128px] sm:text-right" aria-label="Volumen de la cotización">
+                <p v-if="quote.billableCbm > 0" class="text-sm font-black text-[var(--dh-primary)]">{{ decimal(quote.billableCbm) }} CBM cobrables</p>
+                <p v-else class="text-xs font-semibold text-[var(--dh-text-muted)]">CBM por confirmar</p>
+                <p class="text-[11px] text-[var(--dh-text-muted)]">{{ quote.physicalCbm > 0 ? `Físicos: ${decimal(quote.physicalCbm)} CBM` : 'CBM físicos no registrados' }}</p>
+              </div>
               <DhBadge :label="quoteStatusLabel(quote.status)" :variant="quote.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
               <DhButton v-if="canOpenLinkedQuote" label="Ver QUO" :icon="ExternalLink" size="sm" variant="secondary" @click="openLinkedQuote(quote)" />
             </div>
