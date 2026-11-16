@@ -25,6 +25,7 @@ function choose(choice: CrmDraftRecoveryChoice) {
   <DhModal
     :open="Boolean(activeCrmDraftRecovery)"
     priority
+    surface="solid"
     title="Recuperar borrador de CRM"
     size="md"
     @close="choose('later')"
@@ -52,10 +53,10 @@ function choose(choice: CrmDraftRecoveryChoice) {
       </p>
     </div>
     <template #footer>
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <DhButton label="Más tarde" variant="ghost" @click="choose('later')" />
-        <DhButton label="Descartar" variant="secondary" @click="choose('discard')" />
-        <DhButton label="Recuperar borrador" @click="choose('restore')" />
+      <div class="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" data-crm-draft-recovery-actions>
+        <DhButton class="min-w-0" label="Más tarde" variant="ghost" @click="choose('later')" />
+        <DhButton class="min-w-0" label="Descartar" variant="secondary" @click="choose('discard')" />
+        <DhButton class="col-span-2 min-w-0 w-full sm:w-auto" label="Recuperar borrador" @click="choose('restore')" />
       </div>
     </template>
   </DhModal>
