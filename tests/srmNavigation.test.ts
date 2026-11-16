@@ -75,12 +75,16 @@ test('SRM category picker has exactly seven fixed options and safely maps legacy
   assert.match(view, /legacySupplierTypes/)
 })
 
-test('supplier forms hide tax IDs and website without losing historical metadata', () => {
-  assert.doesNotMatch(view, /v-model="taxId"|v-model="website"/)
-  assert.doesNotMatch(view, /Identificación fiscal|Fiscal identification|Sitio web/)
-  assert.doesNotMatch(view, /taxId:\s*taxId\.value|website:\s*website\.value/)
+test('supplier forms expose requested RUC/NIT while preserving old metadata and hiding website', () => {
+  assert.match(view, /v-model="taxId"/)
+  assert.match(view, /taxId: upper\(taxId\.value\)/)
+  assert.match(view, /v-model="companyPhone"/)
+  assert.match(view, /v-model="address"/)
+  assert.match(view, /v-model="observations"/)
+  assert.match(view, /v-model="economicActivityCode"/)
   assert.match(view, /const retained = editing\.value \? metadata\(editing\.value\) : \{\}/)
   assert.match(view, /\.\.\.retained,/)
+  assert.doesNotMatch(view, /v-model="website"/)
 })
 
 test('supplier contacts are optional and empty rows do not block saving', () => {

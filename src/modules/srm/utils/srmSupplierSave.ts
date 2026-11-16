@@ -1,4 +1,4 @@
-export type SupplierSaveSection = 'contacts' | 'credit'
+export type SupplierSaveSection = 'contacts' | 'credit' | 'bank'
 export type SupplierSaveIssue = { section: SupplierSaveSection; message: string }
 type Contact = { name: string; email: string; phone: string; role: string; countryId: string }
 export interface SupplierSaveDraft {
@@ -120,4 +120,47 @@ export function supplierPersistedCreditMatches(metadataJson: string | null | und
   } catch {
     return false
   }
+}
+
+/** Bank records are saved via finance-scoped API, never the ordinary catalog metadata. */
+export interface SupplierBankDraft {
+  id: string
+  bankName: string
+  accountHolder: string
+  registration: string
+  accountNumber: string
+  swiftBic: string
+  currency: string
+  bankCountryId: string
+  intermediaryBank: string
+  isPrimary: boolean
+}
+export function supplierBankSaveIssue(accounts: readonly SupplierBankDraft[], en = false): SupplierSaveIssue | null {
+  const issue = (message: string): SupplierSaveIssue => ({ section: 'bank', message })
+  if (accounts.length > 20) return issue(en ? 'Maximum 20 bank accounts.' : 'Máximo 20 cuentas bancarias.')
+  if (accounts.length && accounts.filter(account => account.isPrimary).length !== 1) {
+    return issue(en ? 'Choose exactly one primary payment account.' : 'Seleccioná una única cuenta principal para pagos.')
+  }
+  const seen = new Set<string>()
+  for (const [index, account] of accounts.entries()) {
+    const number = index + 1
+    const iban = account.accountNumber.trim().replace(/\s/g, '').toUpperCase()
+    const swift = account.swiftBic.trim().toUpperCase()
+    if (!account.bankName.trim() || account.bankName.length > 160 ||
+        !account.accountHolder.trim() || account.accountHolder.length > 180 ||
+        !['LOCAL', 'INTERNACIONAL'].includes(account.registration) ||
+        !/^[A-Z0-9-]{5,44}$/.test(iban) ||
+        !/^[A-Z]{3}$/.test(account.currency.trim().toUpperCase()) ||
+        !account.bankCountryId ||
+        account.intermediaryBank.length > 180 ||
+        (swift && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(swift)) ||
+        (account.registration === 'INTERNACIONAL' && !swift)) {
+      return issue(en ? `Review bank account #${number} and its required fields.`
+        : `Revisá los campos obligatorios de la cuenta bancaria #${number}.`)
+    }
+    const fingerprint = account.bankCountryId + ':' + iban
+    if (seen.has(fingerprint)) return issue(en ? 'Duplicate bank account.' : 'La cuenta bancaria está duplicada.')
+    seen.add(fingerprint)
+  }
+  return null
 }
