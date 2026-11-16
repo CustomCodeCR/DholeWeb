@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect } from '@/shared/components/atoms'
@@ -51,6 +51,11 @@ const calendarAdmin = computed(() => hasCrmCalendarAdministratorRole(role => aut
 const hasBothGlobalCrmScopes = computed(() => can('crm.account.read-all') && can('crm.lead.read-all'))
 const canManageAcrossUsers = computed(() => calendarAdmin.value || can('crm.activity.read-all') || hasBothGlobalCrmScopes.value)
 const mode = ref<CalendarMode>('month')
+// On phones, start with a readable agenda; the month view remains selectable.
+onMounted(() => {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 639px)').matches) mode.value = 'list'
+})
 const logFrom = ref('')
 const logTo = ref('')
 const logType = ref('')
@@ -1050,24 +1055,24 @@ function openEvent(item: CalendarEvent) {
 </script>
 
 <template>
-  <section class="space-y-4" data-crm-sales-calendar>
+  <section class="min-w-0 space-y-4" data-crm-sales-calendar>
     <template v-if="view === 'agenda'">
-    <div class="sticky top-[112px] z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-sm">
+    <div class="relative z-10 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-sm sm:sticky sm:top-[112px] sm:z-30 sm:p-4">
       <div>
         <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-primary)]">Agenda comercial</p>
-        <h2 class="mt-1 text-xl font-extrabold capitalize">{{ heading }}</h2>
+        <h2 class="mt-1 break-words text-lg font-extrabold capitalize sm:text-xl">{{ heading }}</h2>
         <p v-if="scopedAccount" class="mt-1 text-xs font-bold text-[var(--dh-primary)]">Calendario de {{ accountName || 'esta cuenta' }}</p>
         <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ pendingCount }} actividades pendientes en este período · Fechas en tu zona horaria</p>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="grid w-full grid-cols-4 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
         <button type="button" class="calendar-btn" @click="selected=new Date()">Hoy</button>
         <button type="button" class="calendar-btn" aria-label="Período anterior" @click="navigate(-1)"><ChevronLeft class="h-4 w-4" /></button>
         <button type="button" class="calendar-btn" aria-label="Período siguiente" @click="navigate(1)"><ChevronRight class="h-4 w-4" /></button>
         <button type="button" class="calendar-btn" :disabled="pending" @click="load"><RefreshCw class="h-4 w-4" /></button>
-        <button v-if="can('crm.activity.create')" type="button" class="calendar-btn"
+        <button v-if="can('crm.activity.create')" type="button" class="calendar-btn col-span-2 sm:col-auto"
           @click="openCreation()"><Plus class="h-4 w-4" /> Nueva actividad</button>
         <button v-if="can('crm.activity.create') || can('crm.followup.manage') || can('crm.task.manage')"
-          type="button" class="calendar-btn calendar-primary"
+          type="button" class="calendar-btn calendar-primary col-span-2 sm:col-auto"
           @click="openCreation(undefined, true)"><Clock3 class="h-4 w-4" /> Crear recordatorio</button>
       </div>
     </div>
@@ -1107,21 +1112,21 @@ function openEvent(item: CalendarEvent) {
         </span>
       </div>
     </div>
-    <div class="grid gap-3 sm:grid-cols-3">
-      <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+    <div class="grid grid-cols-3 gap-2 sm:gap-3">
+      <div class="min-w-0 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 sm:p-3">
         <p class="text-xs text-[var(--dh-text-muted)]">Compromisos pendientes</p>
         <strong class="mt-1 block text-xl">{{ pendingCount }}</strong>
       </div>
-      <div class="rounded-xl border border-amber-500/30 bg-[var(--dh-card)] p-3">
+      <div class="min-w-0 rounded-xl border border-amber-500/30 bg-[var(--dh-card)] p-2 sm:p-3">
         <p class="text-xs text-[var(--dh-text-muted)]">Sin atender / vencidos</p>
         <strong class="mt-1 block text-xl text-amber-600">{{ overdueCount }}</strong>
       </div>
-      <div class="rounded-xl border border-emerald-500/30 bg-[var(--dh-card)] p-3">
+      <div class="min-w-0 rounded-xl border border-emerald-500/30 bg-[var(--dh-card)] p-2 sm:p-3">
         <p class="text-xs text-[var(--dh-text-muted)]">Completados</p>
         <strong class="mt-1 block text-xl text-emerald-600">{{ completedCount }}</strong>
       </div>
     </div>
-    <div class="flex flex-wrap gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
+    <div class="grid grid-cols-4 gap-1 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 sm:flex sm:flex-wrap sm:gap-2">
       <button v-for="item in [{id:'month',label:'Mes'},{id:'week',label:'Semana'},{id:'day',label:'Día'},{id:'list',label:'Lista'}]"
         :key="item.id" type="button" class="calendar-btn" :aria-pressed="mode===item.id"
         :class="mode===item.id?'bg-[var(--dh-primary)]/15 text-[var(--dh-primary)]':''"
@@ -1131,10 +1136,12 @@ function openEvent(item: CalendarEvent) {
     <p v-if="error && !creationOpen" role="alert" class="rounded-xl border border-red-500/30 px-4 py-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="notice" role="status" class="rounded-xl border border-emerald-500/30 px-4 py-3 text-sm text-emerald-600">{{ notice }}</p>
     <p v-if="partial" role="status" class="text-sm text-amber-500">Hay más de 1000 registros en este período; afiná las fechas para consultar el resto.</p>
-    <p class="text-xs text-[var(--dh-text-muted)]">Arrastrá una visita, llamada o seguimiento pendiente a otro día para reprogramarlo. También podés elegir fecha y hora desde el detalle.</p>
+    <p class="hidden text-xs text-[var(--dh-text-muted)] sm:block">Arrastrá una visita, llamada o seguimiento pendiente a otro día para reprogramarlo. También podés elegir fecha y hora desde el detalle.</p>
     <p v-if="moving" role="status" class="text-sm text-[var(--dh-primary)]">Guardando nueva fecha en CRM…</p>
+    <p v-if="mode==='month'" class="text-xs text-[var(--dh-text-muted)] sm:hidden">Deslizá el calendario horizontalmente para consultar los siete días.</p>
     <div v-if="mode==='month'"
-      class="overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      class="w-full max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]" data-crm-month-scroll>
+      <div class="min-w-[700px] sm:min-w-0">
       <div class="grid grid-cols-7">
         <div v-for="day in visibleDays.slice(0,7)" :key="'header'+dateKey(day)"
           class="border-b border-[var(--dh-border)] p-3 text-center text-xs font-bold capitalize text-[var(--dh-text-muted)]">
@@ -1188,6 +1195,7 @@ function openEvent(item: CalendarEvent) {
               @click="selected=day;mode='day'">+{{ week.extra[dayIndex] }} más</button>
           </div>
         </div>
+      </div>
       </div>
     </div>
     <div v-else-if="mode==='week' || mode==='day'"
@@ -1390,13 +1398,13 @@ function openEvent(item: CalendarEvent) {
       </div>
       </div>
     </DhModal>
-    <DhModal :open="creationOpen" :title="creatingReminder ? 'Nueva actividad comercial' : 'Nueva bitácora comercial'" size="lg" @close="creationOpen=false">
+    <DhModal :open="creationOpen" :title="creatingReminder ? 'Nueva actividad comercial' : 'Nueva bitácora comercial'" size="lg" surface="solid" @close="creationOpen=false">
       <div class="space-y-4">
-      <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] p-2">
-        <button type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': !creatingReminder }"
+      <div class="grid grid-cols-2 gap-2 rounded-xl border border-[var(--dh-border)] p-2" data-crm-calendar-activity-mode>
+        <button type="button" class="calendar-btn calendar-mode-choice" :class="[{ 'calendar-primary': !creatingReminder }, view !== 'agenda' ? 'col-span-2' : '']"
           :disabled="saving || Boolean(pendingDocumentRecord) || !can('crm.activity.create')"
           @click="setReminderMode(false)">Registrar en bitácora</button>
-        <button v-if="view === 'agenda'" type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': creatingReminder }"
+        <button v-if="view === 'agenda'" type="button" class="calendar-btn calendar-mode-choice" :class="{ 'calendar-primary': creatingReminder }"
           :disabled="saving || Boolean(pendingDocumentRecord)"
           @click="setReminderMode(true)">Crear recordatorio</button>
       </div>
@@ -1599,9 +1607,9 @@ function openEvent(item: CalendarEvent) {
       <template #footer>
         <div class="w-full space-y-2">
           <p v-if="error" role="alert" class="text-xs font-semibold text-red-500">{{ error }}</p>
-          <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" data-crm-calendar-create-actions>
             <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
-            <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary"
+            <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary calendar-create-submit"
               :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
               {{ saving ? 'Guardando…' : !creatingReminder ? 'Guardar en bitácora' : historicalActivityDraft ? 'Registrar actividad realizada' : 'Guardar actividad y activar avisos' }}
             </button>
@@ -1613,9 +1621,11 @@ function openEvent(item: CalendarEvent) {
 </template>
 
 <style scoped>
-.calendar-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;border:1px solid var(--dh-border);border-radius:.7rem;padding:.6rem .8rem;font-size:.8rem;font-weight:750;min-height:38px;transition:background .15s}
+.calendar-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;white-space:nowrap;border:1px solid var(--dh-border);border-radius:.7rem;padding:.6rem .8rem;font-size:.8rem;font-weight:750;min-height:38px;transition:background .15s}
 .calendar-btn:hover:not(:disabled){background:var(--dh-card-hover)}
 .calendar-btn:disabled{opacity:.55}
+.calendar-mode-choice{min-width:0;min-height:44px;white-space:normal;overflow-wrap:anywhere;text-align:center}
+.calendar-create-submit{min-width:0;white-space:normal;overflow-wrap:anywhere}
 .calendar-primary{background:var(--dh-primary);border-color:var(--dh-primary);color:white}
 .calendar-primary:hover:not(:disabled){filter:brightness(1.12);background:var(--dh-primary)}
 .calendar-label{display:flex;flex-direction:column;gap:.4rem;font-size:.75rem;font-weight:700;color:var(--dh-text-muted)}
