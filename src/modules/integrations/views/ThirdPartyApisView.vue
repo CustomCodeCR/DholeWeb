@@ -13,7 +13,7 @@ import DhMultiSelect from '@/shared/components/atoms/DhMultiSelect.vue'
 import DhModal from '@/shared/components/organisms/DhModal.vue'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-type Mapping = { public: string; internal: string; required: boolean }
+type Mapping = { public: string; internal: string; required: boolean; defaultValue?: unknown }
 type FieldOption = { public: string; internal: string; label: string; required: boolean; selected: boolean; type?: string; group?: string }
 type ApprovedTarget = {
   code: string; service: string; method: HttpMethod; path: string
@@ -26,6 +26,7 @@ type PublishedEndpoint = {
   inputs: Mapping[]; outputs: Mapping[]; responseRoot: string | null; enabled: boolean
 }
 type ServiceEntry = { service: string; prefix: string }
+type CrmAccountChoice = { id: string; displayName: string; executiveUserId?: string | null; isCastroFallasExecutive?: boolean }
 type DiscoveryResult = { service: string; documented: boolean; message: string; routes: ApprovedTarget[] }
 type ManagerStatus = { routesRegistered: boolean; storageReady: boolean; message: string }
 type KeyInfo = {
@@ -46,6 +47,10 @@ const discoveryLoading = ref(false)
 const manualRoute = ref('')
 const routeSearch = ref('')
 const serviceFilter = ref('')
+const accountSearch = ref('')
+const accountOptions = ref<CrmAccountChoice[]>([])
+const accountBusy = ref(false)
+const accountError = ref('')
 const newInputPublic = ref('')
 const newInputInternal = ref('')
 const newOutputPublic = ref('')
@@ -95,6 +100,67 @@ const blank = (): PublishedEndpoint => ({
 const cloneEndpoint = (value: PublishedEndpoint): PublishedEndpoint =>
   JSON.parse(JSON.stringify(value)) as PublishedEndpoint
 const draft = ref<PublishedEndpoint>(blank())
+const hasFixedInput = computed(() => method.value !== 'GET' && draft.value.inputs.some(f => f.defaultValue !== undefined))
+function defaultText(field: Mapping): string {
+  if (field.defaultValue === undefined) return ''
+  return typeof field.defaultValue === 'string' ? field.defaultValue : JSON.stringify(field.defaultValue)
+}
+function setDefaultText(field: Mapping, text: string) {
+  if (!text.trim()) { delete field.defaultValue; return }
+  const option = inputCatalog.value.find(item => item.public === field.public)
+  if (option?.type === 'número' && Number.isFinite(Number(text))) field.defaultValue = Number(text)
+  else if (option?.type === 'booleano' && /^(true|false)$/i.test(text.trim()))
+    field.defaultValue = text.trim().toLowerCase() === 'true'
+  else if ((option?.type === 'JSON' || option?.type === 'lista') && /^[\[{]/.test(text.trim())) {
+    try { field.defaultValue = JSON.parse(text) } catch { field.defaultValue = text }
+  } else field.defaultValue = text.trim()
+}
+function setFixedInternal(internal: string, value: string) {
+  const option = inputCatalog.value.find(x => x.internal === internal)
+  if (!option) return
+  let mapping = draft.value.inputs.find(x => x.internal === internal)
+  if (!mapping) {
+    mapping = { public: option.public, internal, required: option.required }
+    draft.value.inputs.push(mapping)
+  }
+  mapping.defaultValue = value
+}
+async function searchCrmAccounts() {
+  const q = accountSearch.value.trim()
+  if (q.length < 2) { accountError.value = 'Ingresá al menos dos letras para buscar en CRM.'; return }
+  accountBusy.value = true
+  accountError.value = ''
+  try {
+    const result = await fetchClient<{ items: CrmAccountChoice[] }>(
+      '/api/crm/accounts?q=' + encodeURIComponent(q) + '&pageSize=20', { method: 'GET' })
+    accountOptions.value = result.items || []
+    if (!accountOptions.value.length) accountError.value = 'No hay cuentas visibles con ese nombre.'
+  } catch (err) {
+    accountOptions.value = []
+    accountError.value = err instanceof Error ? err.message : 'No se pudieron consultar cuentas de CRM.'
+  } finally { accountBusy.value = false }
+}
+async function useCrmAccount(account: CrmAccountChoice) {
+  accountError.value = ''
+  if (account.isCastroFallasExecutive || !account.executiveUserId ||
+      !/^[0-9a-f-]{36}$/i.test(account.executiveUserId)) {
+    accountError.value = 'Esta cuenta no tiene un ejecutivo individual asignado. Asignalo en CRM para usarlo como valor fijo.'
+    return
+  }
+  try {
+    const result = await fetchClient<{ sellers: Record<string, string> }>(
+      '/api/crm/accounts/assigned-executives?ids=' + encodeURIComponent(account.id), { method: 'GET' })
+    const executive = result.sellers?.[account.id]
+    if (!executive || executive === 'Vendedor no disponible' || executive === 'Sin asignar') {
+      accountError.value = 'CRM no pudo confirmar un ejecutivo activo para esta cuenta.'
+      return
+    }
+    setFixedInternal('clientName', account.displayName)
+    setFixedInternal('sellerUserId', account.executiveUserId)
+    setFixedInternal('executiveName', executive)
+    notice.value = 'Cliente y ejecutivo obtenidos de CRM; el tercero no podrá modificarlos.'
+  } catch (err) { accountError.value = err instanceof Error ? err.message : 'Error al consultar el ejecutivo.' }
+}
 const isNew = computed(() => !draft.value.id)
 const selectedTarget = computed(() => catalog.value.find(t => t.code === draft.value.target))
 const ready = computed(() => selectedTarget.value?.ready === true)
@@ -119,9 +185,13 @@ function selectAllInputs() {
 function clearOptionalInputs() { selectedOptionalInputs.value = [] }
 function selectAllOutputs() { selectedOutputs.value = outputCatalog.value.map(f => f.public) }
 function clearOutputs() { selectedOutputs.value = [] }
-function mapSelected(options: FieldOption[], selected: string[]): Mapping[] {
+function mapSelected(options: FieldOption[], selected: string[], previous: Mapping[] = []): Mapping[] {
   return options.filter(option => option.required || selected.includes(option.public))
-    .map(option => ({ public: option.public, internal: option.internal, required: option.required }))
+    .map(option => {
+      const existing = previous.find(field => field.public === option.public && field.internal === option.internal)
+      return { public: option.public, internal: option.internal, required: option.required,
+        ...(existing?.defaultValue !== undefined ? { defaultValue: existing.defaultValue } : {}) }
+    })
 }
 const selectedOptionalInputs = computed<string[]>({
   get: () => draft.value.inputs.filter(f => !mandatoryInputs.value.some(x => x.public === f.public))
@@ -134,14 +204,14 @@ const selectedOptionalInputs = computed<string[]>({
     const selected = granular
       ? values.filter(value => inputCatalog.value.find(f => f.public === value)?.internal !== 'payload')
       : values
-    draft.value.inputs = [...mapSelected(inputCatalog.value, selected),
+    draft.value.inputs = [...mapSelected(inputCatalog.value, selected, draft.value.inputs),
       ...draft.value.inputs.filter(f => !inputCatalog.value.some(x => x.public === f.public))]
   },
 })
 const selectedOutputs = computed<string[]>({
   get: () => draft.value.outputs.map(f => f.public),
   set: values => {
-    draft.value.outputs = [...mapSelected(outputCatalog.value, values),
+    draft.value.outputs = [...mapSelected(outputCatalog.value, values, draft.value.outputs),
       ...draft.value.outputs.filter(f => !outputCatalog.value.some(x => x.public === f.public))]
   },
 })
@@ -165,8 +235,9 @@ const example = computed(() => {
   if (!selectedTarget.value) return ''
   const target = selectedTarget.value
   const address = externalUrl(draft.value)
-  const query = target.method === 'GET' && draft.value.inputs.length
-    ? '?' + draft.value.inputs.map(f => encodeURIComponent(f.public) + '=valor').join('&')
+  const exposedInputs = draft.value.inputs.filter(f => f.defaultValue === undefined)
+  const query = target.method === 'GET' && exposedInputs.length
+    ? '?' + exposedInputs.map(f => encodeURIComponent(f.public) + '=valor').join('&')
     : ''
   const requestValue = (f: Mapping): unknown => {
     if (target.code === 'pricing-rate-request-create') {
@@ -180,9 +251,9 @@ const example = computed(() => {
     }
     return f.public === 'ids' ? ['ID_DEL_REGISTRO'] : 'valor'
   }
-  const body = target.method !== 'GET' && draft.value.inputs.length
+  const body = target.method !== 'GET' && exposedInputs.length
     ? ' \\\n  -H "Content-Type: application/json" \\\n  -d ' +
-      "'" + JSON.stringify(Object.fromEntries(draft.value.inputs.map(f =>
+      "'" + JSON.stringify(Object.fromEntries(exposedInputs.map(f =>
         [f.public, requestValue(f)]))) + "'"
     : ''
   const idempotency = target.method === 'POST'
@@ -295,7 +366,7 @@ function closeDrawer() {
 }
 function fillTestExample() {
   testPayload.value = JSON.stringify(Object.fromEntries(
-    draft.value.inputs.filter(f => f.required).map(f => [
+    draft.value.inputs.filter(f => f.required && f.defaultValue === undefined).map(f => [
       f.public, f.internal === 'priority' ? 'Green' : f.internal === 'payload' || f.internal === 'body' ? {} : 'valor',
     ])), null, 2)
 }
@@ -322,9 +393,9 @@ async function runApiTest() {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
       throw new Error('Ingresá un objeto JSON con los parámetros de la API.')
     params = parsed as Record<string, unknown>
-    if (Object.keys(params).some(name => !draft.value.inputs.some(f => f.public === name)))
+    if (Object.keys(params).some(name => !draft.value.inputs.some(f => f.public === name && f.defaultValue === undefined)))
       throw new Error('Hay campos que no están publicados en esta API.')
-    const missing = draft.value.inputs.filter(f => f.required &&
+    const missing = draft.value.inputs.filter(f => f.required && f.defaultValue === undefined &&
       (params[f.public] === null || params[f.public] === undefined || params[f.public] === ''))
     if (missing.length) throw new Error('Faltan campos obligatorios: ' + missing.map(f => f.public).join(', '))
   } catch (e) {
@@ -480,6 +551,9 @@ async function previewApi() {
 function create() {
   activePanel.value = 'apis'
   resetApiTest()
+  accountOptions.value = []
+  accountSearch.value = ''
+  accountError.value = ''
   draft.value = blank()
   routeSearch.value = ''
   serviceFilter.value = ''
@@ -495,6 +569,8 @@ function create() {
 }
 function edit(row: PublishedEndpoint) {
   resetApiTest()
+  accountOptions.value = []
+  accountError.value = ''
   draft.value = cloneEndpoint(row)
   const target = catalog.value.find(t => t.code === row.target)
   service.value = target?.service || 'pricing'
@@ -701,6 +777,9 @@ async function save() {
   if (persisted && JSON.stringify(persisted) === JSON.stringify(d)) {
     notice.value = 'No hay cambios por guardar. Tus API Keys siguen activas.'
     return
+  }
+  if (d.inputs.some(f => f.defaultValue !== undefined && method.value === 'GET')) {
+    error.value = 'Los valores fijos se admiten para POST, PUT y PATCH.'; step.value = 2; return
   }
   if (d.target === 'pricing-rate-request-create' &&
       !d.inputs.some(f => f.internal === 'payload' || f.internal.startsWith('payload.'))) {
@@ -1107,6 +1186,35 @@ onMounted(() => { void load() })
               placeholder="Seleccionar campos opcionales"
               search-placeholder="Buscar un dato..."
             />
+            <div v-if="method === 'POST' || method === 'PUT' || method === 'PATCH'"
+              class="space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+              <div>
+                <h4 class="font-bold">Valores fijos de la API</h4>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Configurá datos que Dhole añadirá automáticamente. Los terceros no los envían ni pueden sobrescribirlos. Dejando el campo vacío vuelve a ser un dato público.</p>
+              </div>
+              <div v-if="draft.target === 'pricing-rate-request-create'" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+                <strong class="text-sm">Cliente del sitio web y ejecutivo asignado en CRM</strong>
+                <div class="flex flex-col gap-2 sm:flex-row">
+                  <div class="min-w-0 flex-1"><DhInput v-model="accountSearch" type="search" placeholder="Buscar cuenta genérica en CRM..." /></div>
+                  <DhButton size="sm" variant="secondary" label="Buscar clientes" :loading="accountBusy" @click="searchCrmAccounts" />
+                </div>
+                <p v-if="accountError" role="alert" class="text-xs text-red-500">{{ accountError }}</p>
+                <div v-for="account in accountOptions" :key="account.id"
+                  class="flex items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+                  <div class="min-w-0"><strong class="block truncate text-xs">{{ account.displayName }}</strong><span class="text-[11px] text-[var(--dh-text-muted)]">{{ account.id }}</span></div>
+                  <DhButton variant="secondary" size="sm" label="Usar cliente" @click="useCrmAccount(account)" />
+                </div>
+              </div>
+              <p v-if="!draft.inputs.length" class="text-xs">Primero seleccioná los datos de entrada.</p>
+              <div v-for="field in draft.inputs" :key="'fixed-' + field.public"
+                class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:items-center">
+                <div><strong class="block text-xs">{{ inputCatalog.find(x => x.internal === field.internal)?.label || field.public }}</strong>
+                  <code class="text-[11px] text-[var(--dh-text-muted)]">{{ field.internal }}</code></div>
+                <DhInput :model-value="defaultText(field)" :placeholder="field.required ? 'Dato requerido del tercero' : 'Opcional; enviar desde cliente'"
+                  @update:model-value="value => setDefaultText(field, value)" />
+              </div>
+              <p v-if="hasFixedInput" class="text-xs font-semibold text-[var(--dh-primary)]">Los campos con valor fijo se inyectan desde Gateway y no aparecen en el JSON público.</p>
+            </div>
             <div v-if="draft.target.startsWith('route.')" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
               <h4 class="font-bold">Mapeo personalizado de entradas</h4>
               <p class="text-xs text-[var(--dh-text-muted)]">Definí qué nombre recibirá el tercero y dónde irá en el servicio: query.campo, body.campo o body para un objeto JSON completo. Los parámetros path.* se incluyen obligatoriamente.</p>
@@ -1203,6 +1311,13 @@ onMounted(() => { void load() })
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Módulo</span><strong class="uppercase">{{ service }}</strong></div>
               <div class="sm:col-span-2"><span class="block text-xs text-[var(--dh-text-muted)]">Ruta interna elegida</span><code class="break-all text-xs">{{ selectedTarget?.path }}</code></div>
               <div><span class="block text-xs text-[var(--dh-text-muted)]">Estado</span><strong>{{ draft.enabled ? 'Publicada' : 'Borrador' }}</strong></div>
+            </div>
+            <div v-if="hasFixedInput" class="rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+              <strong class="block mb-2">Valores fijados por Dhole</strong>
+              <div v-for="field in draft.inputs.filter(f => f.defaultValue !== undefined)" :key="field.public" class="break-all">
+                {{ field.internal }}: <code>{{ defaultText(field) }}</code>
+              </div>
+              <p class="mt-2 text-[var(--dh-text-muted)]">No los incluyás en las solicitudes externas. Para cambiarlos se debe editar esta API.</p>
             </div>
             <div class="rounded-xl border border-[var(--dh-border)] p-3">
               <div class="flex items-center justify-between gap-2"><strong class="text-xs">Ejemplo de solicitud</strong><DhButton size="sm" variant="ghost" :icon="Copy" label="Copiar" @click="copy(example)" /></div>
