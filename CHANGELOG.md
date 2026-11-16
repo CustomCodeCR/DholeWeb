@@ -1,3 +1,9 @@
+## [1.64.0] - 2026-11-16 (SRM: interfaz CRM y Hacienda automático · backport master)
+
+- MINOR DH-20261116-SRM-CRM-HACIENDA-UI-178: formulario de proveedores por pestañas de Identidad/Hacienda, Contactos, Bancos y Crédito; mejor responsive y errores por sección.
+- Verificación automática del RUC/NIT costarricense y aplicación directa de la razón social, tipo de identificación y actividad principal disponible, al igual que CRM, sin segundo botón; control de respuestas obsoletas y espera de consulta antes de guardar.
+- Backport selectivo a master; Config y Auth existentes sin cambio. DholeSystem global 1.65.0. Master pendiente de CI/validación y autorización de producción.
+
 ## [1.63.1] - 2026-11-16 (CRM: estado de finalización sincronizado y ficha legible)
 
 - PATCH DH-20261116-CRM-COMPLETION-STATE-SYNC-177: el detalle consulta el registro persistido al regresar a la pestaña o después de fallar una finalización. Solo confirma «Completada» al comprobarlo en CRM, limpia errores anteriores cuando el servidor ya la completó, muestra la hora real y ofrece «Verificar estado en CRM».
