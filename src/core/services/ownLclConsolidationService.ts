@@ -9,6 +9,7 @@ const acceptJson = { Accept: 'application/json' }
 const endpoints = {
   browse: { method: 'GET', path: '/api/pricing/own-lcl-consolidations', headers: acceptJson },
   get: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}', headers: acceptJson },
+  linkedQuotes: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}/quotes', headers: acceptJson },
   rename: { method: 'PATCH', path: '/api/pricing/own-lcl-consolidations/{{id}}/name', headers: jsonHeaders },
   createAutomatic: { method: 'POST', path: '/api/pricing/own-lcl-automation/consolidations', headers: jsonHeaders },
   updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
@@ -61,6 +62,14 @@ export interface OwnLclConsolidationDto {
   matrixVersion: string
   status: string
   isActive: boolean
+}
+
+export interface OwnLclLinkedQuoteDto {
+  id: string
+  quoNumber: string
+  clientName: string | null
+  status: string
+  createdAtUtc: string
 }
 
 export interface OwnLclDestinationChargeDto {
@@ -336,6 +345,10 @@ export const OwnLclConsolidationService = {
   async get(id: string): Promise<OwnLclConsolidationDto> {
     const response = await callEndpoint<unknown>(endpoints.get, { params: { id } })
     return unwrapApiResponse<OwnLclConsolidationDto>(response as never)
+  },
+  async getLinkedQuotes(id: string): Promise<OwnLclLinkedQuoteDto[]> {
+    const response = await callEndpoint<unknown>(endpoints.linkedQuotes, { params: { id } })
+    return unwrapListResponse<OwnLclLinkedQuoteDto>(response)
   },
   async rename(id: string, name: string): Promise<{ id: string; name: string }> {
     const response = await callEndpoint<unknown, { name: string }>(endpoints.rename, {

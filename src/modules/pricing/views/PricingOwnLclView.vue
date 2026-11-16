@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { Edit3, Eye, Plus, RefreshCcw, Ship, X } from 'lucide-vue-next'
+import { Edit3, ExternalLink, Eye, Plus, RefreshCcw, Ship, X } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -10,6 +11,7 @@ import {
   createDefaultOwnLclPricingLines,
   type OwnLclAutomationSnapshotDto,
   type OwnLclConsolidationDto,
+  type OwnLclLinkedQuoteDto,
   type OwnLclDestinationProfileDto,
   type OwnLclFobScenarioMatrixDto,
   type OwnLclMatrixType,
@@ -25,6 +27,7 @@ import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCata
 
 type OwnLclTableRow = OwnLclConsolidationDto & Record<string, unknown>
 
+const router = useRouter()
 const toastStore = useToastStore()
 const authStore = useAuthStore()
 const pricingCatalogs = usePricingCatalogs()
@@ -47,6 +50,11 @@ const poePorts = ref<CatalogItemSelectDto[]>([])
 const search = ref('')
 const statusFilter = ref('')
 const selectedId = ref('')
+const linkedQuotes = ref<OwnLclLinkedQuoteDto[]>([])
+const linkedQuotesLoading = ref(false)
+const linkedQuotesError = ref('')
+let linkedQuotesRequest = 0
+const canViewLinkedQuotes = computed(() => authStore.hasScope('pricing.rate.view'))
 const editorOpen = ref(false)
 const readOnly = ref(false)
 const selectedAutomation = ref<OwnLclAutomationSnapshotDto | null>(null)
@@ -226,7 +234,45 @@ async function load() {
   }
 }
 
+async function loadLinkedQuotes(consolidationId: string) {
+  const request = ++linkedQuotesRequest
+  linkedQuotes.value = []
+  linkedQuotesError.value = ''
+  linkedQuotesLoading.value = true
+  try {
+    const quotes = await OwnLclConsolidationService.getLinkedQuotes(consolidationId)
+    if (request !== linkedQuotesRequest || selectedId.value !== consolidationId) return
+    linkedQuotes.value = quotes
+  } catch {
+    if (request !== linkedQuotesRequest || selectedId.value !== consolidationId) return
+    linkedQuotesError.value = 'No fue posible consultar las QUOs vinculadas.'
+  } finally {
+    if (request === linkedQuotesRequest) linkedQuotesLoading.value = false
+  }
+}
+
+const quoteStatusLabels: Record<string, string> = {
+  Draft: 'Borrador',
+  Open: 'Abierta',
+  PendingApproval: 'Pendiente aprobación',
+  Sent: 'Enviada',
+  AcceptedByClient: 'Aceptada',
+  RejectedByClient: 'Rechazada',
+  Closed: 'Cerrada',
+  Cancelled: 'Cancelada',
+}
+function quoteStatusLabel(status: string) {
+  return quoteStatusLabels[status] ?? status
+}
+function openLinkedQuote(quote: OwnLclLinkedQuoteDto) {
+  void router.push({ name: 'pricing-rate-wizard', params: { rateId: quote.id }, query: { mode: 'view' } })
+}
+
 function resetForm() {
+  ++linkedQuotesRequest
+  linkedQuotes.value = []
+  linkedQuotesLoading.value = false
+  linkedQuotesError.value = ''
   selectedId.value = ''
   selectedAutomation.value = null
   profilePreview.value = null
@@ -266,6 +312,7 @@ async function loadScenarios(id: string) {
 async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   hydratingPricingEditor.value = true
   selectedId.value = row.id
+  if (canViewLinkedQuotes.value) void loadLinkedQuotes(row.id)
   readOnly.value = mode === 'view'
   editorOpen.value = true
   profilePreview.value = null
@@ -626,6 +673,10 @@ function closeEditor() {
     renameTimer = null
   }
   editorOpen.value = false
+  ++linkedQuotesRequest
+  linkedQuotes.value = []
+  linkedQuotesLoading.value = false
+  linkedQuotesError.value = ''
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
@@ -675,6 +726,7 @@ onMounted(load)
             <div class="min-w-0">
               <p class="font-black text-[var(--dh-text)]">{{ row.name }}</p>
               <p class="mt-0.5 truncate text-[11px] font-semibold text-[var(--dh-text-muted)]">#{{ row.consolidationNumber }} · {{ row.matrixVersion }} · Matriz {{ matrixTypeForRow(row) }}</p>
+              <p class="mt-1 text-[11px] font-bold text-[var(--dh-primary)]">Abrir consolidado y ver QUOs vinculadas</p>
             </div>
           </template>
           <template #cell-route="{ row }">
@@ -732,6 +784,36 @@ onMounted(load)
         </div>
         <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
       </header>
+
+
+      <section v-if="selectedId" class="mx-5 mt-5 rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]" aria-label="Cotizaciones vinculadas">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-black text-[var(--dh-text)]">QUOs vinculadas a este consolidado</h3>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cotizaciones creadas con este consolidado, incluso las que siguen en borrador.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <DhBadge v-if="canViewLinkedQuotes && !linkedQuotesLoading && !linkedQuotesError" :label="linkedQuotes.length + ' QUOs'" variant="neutral" />
+            <DhButton v-if="canViewLinkedQuotes" label="Actualizar QUOs" :icon="RefreshCcw" size="sm" variant="secondary" :loading="linkedQuotesLoading" @click="loadLinkedQuotes(selectedId)" />
+          </div>
+        </div>
+        <p v-if="!canViewLinkedQuotes" class="mt-4 text-sm text-[var(--dh-text-muted)]">Se requiere el permiso pricing.rate.view para consultar cotizaciones.</p>
+        <p v-else-if="linkedQuotesLoading" class="mt-4 text-sm text-[var(--dh-text-muted)]" role="status">Consultando QUOs vinculadas...</p>
+        <p v-else-if="linkedQuotesError" class="mt-4 text-sm text-rose-500" role="alert">{{ linkedQuotesError }} Utilice «Actualizar QUOs» para reintentar.</p>
+        <p v-else-if="linkedQuotes.length === 0" class="mt-4 rounded-xl border border-dashed border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]">No hay cotizaciones con una vinculación registrada a este consolidado.</p>
+        <div v-else class="mt-4 divide-y divide-[var(--dh-border)] overflow-hidden rounded-xl border border-[var(--dh-border)]">
+          <div v-for="quote in linkedQuotes" :key="quote.id" class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            <div class="min-w-0">
+              <p class="text-sm font-black text-[var(--dh-text)]">{{ quote.quoNumber }}</p>
+              <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ quote.clientName || 'Cliente no indicado' }} · {{ new Date(quote.createdAtUtc).toLocaleDateString('es-CR') }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <DhBadge :label="quoteStatusLabel(quote.status)" :variant="quote.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
+              <DhButton label="Ver QUO" :icon="ExternalLink" size="sm" variant="secondary" @click="openLinkedQuote(quote)" />
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
         <div class="space-y-5">
