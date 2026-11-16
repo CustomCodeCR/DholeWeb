@@ -133,7 +133,8 @@ async function nextPage(){
 watch(()=>[props.mode,props.sellerUserId] as const,()=>{
   ++requestId
   if(searchTimer)clearTimeout(searchTimer)
-  query.value=props.modelValue ? props.initialName : ''
+  // Restore the saved commercial label even for legacy QUOs without a CRM ID.
+  query.value = props.initialName
   items.value=[]
   current.value=null
   void load()
@@ -142,14 +143,16 @@ watch(() => [props.modelValue, props.mode, props.sellerUserId] as const, ([id]) 
   ++linkedClientLookupId
   if (!id) {
     current.value = null
-    query.value = ''
+    // Do not make a historical quote look like it never had a client.
+    // An ID-less name is display-only until a real CRM record is chosen.
+    query.value = props.initialName
     return
   }
   if (current.value?.id !== id) void hydrateLinkedClient(id)
 }, { immediate: true })
 watch(() => [props.modelValue, props.initialName] as const, ([id, label]) => {
   if (id && current.value?.id !== id) query.value = label
-  else if (!id && !current.value) query.value = ''
+  else if (!id && !current.value) query.value = label
 })
 function onCrmCollectionChanged(event: Event) {
   const detail = (event as CustomEvent<{ endpoint?: string }>).detail
@@ -184,6 +187,7 @@ onBeforeUnmount(() => {
     </div>
     <p v-if="error" role="alert" class="mt-1 text-xs font-semibold text-red-500">{{error}}</p>
     <p v-if="failure" role="alert" class="mt-1 text-xs text-red-500">{{failure}}</p>
+    <p v-if="!modelValue && initialName.trim()" role="status" class="mt-1 text-xs text-[var(--dh-text-muted)]">Esta QUO conserva el nombre histórico del cliente, pero no tiene un vínculo CRM. Seleccione una cuenta o prospecto para vincularla antes de guardar.</p>
     <div
       v-if="open && !disabled"
       class="mt-2 w-full overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card-solid)] p-1.5 shadow-2xl"
