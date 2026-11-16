@@ -1,3 +1,8 @@
+## [1.62.7] - 2026-11-16 (Bitácora CRM: reloj autoritativo del servidor)
+
+- PATCH DH-20261116-CRM-BITACORA-SERVER-CLOCK-174: las bitácoras comerciales y las actividades históricas envían occurredAt=null para que CRM determine la hora real UTC desde el servidor. Evita el error «Cannot record future actual occurrence» cuando el reloj del navegador está adelantado.
+- Los acuerdos con fecha futura conservan sus recordatorios independientes, las actividades históricas preservan su fecha final, el ACL y la arquitectura REST/realtime no cambian. Regresión para relojes cliente adelantados. Web 1.62.6 → 1.62.7, DholeSystem/ecosistema 1.63.8 → 1.63.9. CI, staging y autorización de producción exigidos antes del merge a master.
+
 ## [1.62.6] - 2026-11-16 (Restauración de cliente/prospecto al editar QUO)
 
 - PATCH DH-20261116-PRICING-CRM-EDIT-HYDRATION-173: el selector CRM de Pricing conserva el nombre histórico del cliente al editar o recargar una QUO sin ClientAccountId/ClientLeadId; deja visible que requiere vinculación explícita para evitar asociar un tercero por similitud.
