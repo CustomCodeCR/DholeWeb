@@ -28,6 +28,7 @@ import CrmCreditCoveragePicker from '../components/CrmCreditCoveragePicker.vue'
 import CrmContractFileDropzone from '../components/CrmContractFileDropzone.vue'
 import { creditCoverageLabel } from '../model/crmCreditCoverage'
 import { StorageService } from '@/core/services/storageService'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useI18n } from 'vue-i18n'
@@ -124,7 +125,7 @@ const canAddRelation = computed(() => {
   return !!scope && auth.hasScope(scope)
 })
 const drafts = reactive({
-  note: '', reason: '', outcome: 'Completed', date: '', endDate: '',
+  note: '', reason: '', outcome: 'COMPLETED', date: '', endDate: '',
   taxIdTypeCode: '', conversionCustomerType: 'cash', conversionCategoryType: 'CUSTOMER', conversionCategoryCode: 'D',
   stageId: '', status: '', contactName: '', contactEmail: '',
   quoteId: '', pricingRequestId: '', priority: 'Green', shipmentMode: 'Fcl',
@@ -138,6 +139,33 @@ const drafts = reactive({
   addressText: '', addressType: 'WORK', transportModeCode: 'SEA', modalityCode: 'FCL',
   summary: '',
 })
+const activityOutcomeOptions = ref<Array<{ value: string; label: string }>>([])
+const activityOutcomesLoading = ref(false)
+const activityOutcomesError = ref('')
+// The CRM backend validates the exact active Config CODE, not the activity status label.
+async function loadActivityOutcomes() {
+  activityOutcomesLoading.value = true
+  activityOutcomesError.value = ''
+  activityOutcomeOptions.value = []
+  try {
+    const items = await CatalogItemsService.select({ catalogGroupSlug: 'crm-activity-outcomes' })
+    const choices = items.filter(item => item.isActive !== false)
+      .map(item => ({
+        value: String(item.code ?? '').trim(),
+        label: String(item.label ?? item.code ?? '').trim(),
+      })).filter(item => Boolean(item.value))
+    activityOutcomeOptions.value = Array.from(new Map(choices.map(x => [x.value, x])).values())
+    if (!activityOutcomeOptions.value.length)
+      activityOutcomesError.value = 'No hay resultados activos en Config para completar actividades. Solicitá que se configure crm-activity-outcomes.'
+    else if (!activityOutcomeOptions.value.some(item => item.value === drafts.outcome))
+      drafts.outcome = activityOutcomeOptions.value.find(item =>
+        item.value.toUpperCase() === 'COMPLETED')?.value ?? activityOutcomeOptions.value[0]!.value
+  } catch {
+    activityOutcomesError.value = 'No fue posible consultar los resultados de actividad en Config. Reintentá al volver a abrir esta gestión.'
+  } finally {
+    activityOutcomesLoading.value = false
+  }
+}
 const addressLocation = ref(emptyAddressLocation())
 function captureRelatedDraft() {
   return { fields: { ...drafts }, address: addressLocation.value,
@@ -474,6 +502,7 @@ async function load() {
       drafts.endDate = fromUtc(section.value === 'activities' ? record.value.scheduledEndAt : record.value.startAt ? record.value.dueAt : null)
       drafts.reason = ''
       drafts.note = ''
+      if (section.value === 'activities') await loadActivityOutcomes()
     }
     if (!tabs.value.includes(relation.value)) relation.value = tabs.value.find(permitted) ?? ''
     if (relation.value) await loadRelation()
@@ -713,8 +742,14 @@ async function closeOpportunity() {
     lossReasonCode: stage.isLost ? 'OTHER' : null, reason: drafts.reason || null }, 'crm.opportunity.close')
 }
 async function completeActivity() {
+  if (activityOutcomesLoading.value || !activityOutcomeOptions.value.some(
+    item => item.value === drafts.outcome)) {
+    error.value = activityOutcomesError.value || 'Seleccioná un resultado válido de Config antes de completar la actividad.'
+    return
+  }
+  // The server is authoritative for the actual completion time. Client clocks may be ahead.
   await perform('complete', { expectedVersion: version(), outcome: drafts.outcome,
-    occurredAt: new Date().toISOString(), note: drafts.note || null }, 'crm.activity.update')
+    occurredAt: null, note: drafts.note || null }, 'crm.activity.update')
 }
 async function rescheduleActivity() {
   if (!drafts.date) return
@@ -1264,8 +1299,12 @@ onMounted(() => { if (crmEnabled()) void load() })
         </div>
         <template v-if="agendaEditable">
           <DhSelect v-model="drafts.status" label="Estado" :options="agendaStatusChoices" />
-          <DhInput v-if="drafts.status === 'Completed' && section === 'activities'"
-            v-model="drafts.outcome" label="Resultado (código configurado)" />
+          <div v-if="drafts.status === 'Completed' && section === 'activities'" class="space-y-1">
+            <DhSelect v-model="drafts.outcome" label="Resultado de la actividad"
+              :options="activityOutcomeOptions" :disabled="activityOutcomesLoading || !activityOutcomeOptions.length" />
+            <p v-if="activityOutcomesLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando resultados de Config…</p>
+            <p v-if="activityOutcomesError" role="alert" class="text-xs text-red-500">{{ activityOutcomesError }}</p>
+          </div>
           <DhTextarea v-if="drafts.status === 'Completed' && section === 'activities'"
             v-model="drafts.note" label="Observaciones" />
           <label v-if="drafts.status !== 'Completed' && drafts.status !== 'Cancelled'" class="block space-y-1.5 text-sm font-semibold">
@@ -1279,7 +1318,10 @@ onMounted(() => { if (crmEnabled()) void load() })
           <DhTextarea v-if="drafts.status === 'Cancelled' || drafts.status === 'Scheduled' || drafts.status === 'Pending' || drafts.status === 'Overdue'"
             v-model="drafts.reason" :label="drafts.status === 'Cancelled' ? 'Motivo de cancelación' : 'Motivo de reprogramación'" />
           <div class="flex justify-end">
-            <DhButton label="Guardar cambios" :loading="saving" :disabled="saving" @click="saveAgendaStatus" />
+            <DhButton label="Guardar cambios" :loading="saving"
+              :disabled="saving || (drafts.status === 'Completed' && section === 'activities' &&
+                (activityOutcomesLoading || !activityOutcomeOptions.some(item => item.value === drafts.outcome)))"
+              @click="saveAgendaStatus" />
           </div>
         </template>
         <p v-else class="text-sm text-[var(--dh-text-muted)]">Esta gestión ya está finalizada y no puede modificarse.</p>
