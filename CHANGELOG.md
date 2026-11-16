@@ -1,3 +1,8 @@
+## [1.63.1] - 2026-11-16 (CRM: estado de finalización sincronizado y ficha legible)
+
+- PATCH DH-20261116-CRM-COMPLETION-STATE-SYNC-177: el detalle consulta el registro persistido al regresar a la pestaña o después de fallar una finalización. Solo confirma «Completada» al comprobarlo en CRM, limpia errores anteriores cuando el servidor ya la completó, muestra la hora real y ofrece «Verificar estado en CRM».
+- Presenta COMMERCIAL_FOLLOWUP como Seguimiento comercial, muestra los resultados activos de Config y oculta la hora real cuando no existe. Sin cambios en permisos, backend, REST, SignalR ni recordatorios. DholeWeb 1.63.0 → 1.63.1, DholeSystem/ecosistema 1.64.0 → 1.64.1; requiere CI y staging multiusuario antes de master y producción.
+
 ## [1.63.0] - 2026-11-16 (SRM: ficha corporativa, Hacienda y cuentas bancarias seguras)
 
 - MINOR DH-20261116-SRM-SUPPLIER-FINANCE-176: teléfono, RUC/NIT, dirección, actividad económica, observaciones y contacto principal de Finanzas para proveedores.
