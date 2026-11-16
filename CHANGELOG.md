@@ -1,3 +1,10 @@
+## [1.65.0] - 2026-11-16 · CRM igual a SRM: pestañas e integración Hacienda (DH-179)
+
+- MINOR: formulario de alta de cuentas y editor de cuentas CRM con pestañas funcionales estilo SRM, encabezados claros, navegación responsive, una sección visible por vez y conservación de secciones de contacto, direcciones, clasificación y crédito con sus permisos.
+- `CrmHaciendaLookup` consulta automáticamente al ingresar una cédula costarricense válida; aplica la razón social y tipo de identificación al recibir respuesta, con panel de actividades, régimen fiscal, reconsulta manual y recuperación ante fallos. No hay segundo botón para aplicar.
+- Creación de cuentas, edición y prospectos esperan consulta pendiente antes de guardar; invalidación de respuestas obsoletas por país/cédula y normalización UPPER CASE.
+- Regresión `crmSrmParity.test.ts`, integración con pruebas CRM/SRM. Ecosistema 1.66.0. Rama intermedia; promoción sujeta a CI, staging y autorización específica de producción.
+
 ## [1.64.0] - 2026-11-16 (SRM: interfaz CRM y aplicación automática de Hacienda)
 
 - MINOR DH-20261116-SRM-CRM-HACIENDA-UI-178: formulario de proveedores por secciones Identidad/Hacienda, Contactos, Bancos y Crédito; navegación responsive, guardado accesible y errores enfocados en la sección correspondiente.
