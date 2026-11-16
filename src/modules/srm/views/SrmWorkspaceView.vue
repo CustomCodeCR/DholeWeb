@@ -1078,7 +1078,12 @@ onMounted(() => {
                 <dd class="whitespace-pre-wrap">{{ String(metadata(selected).observations || '—') }}</dd></div>
             </dl>
           </section>
-          <section v-if="canReadBanks" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
+          <label class="md:col-span-2 text-sm font-semibold">{{ en ? 'Description (optional)' : 'Descripción (opcional)' }}
+            <input v-model="supplierDescription" maxlength="300"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase" />
+          </label>
+          </section>
+          <section v-if="canReadBanks" v-show="supplierFormTab === 'banks'" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h3 class="text-sm font-bold">{{ en ? 'Payment bank accounts' : 'Cuentas bancarias para pagos' }}</h3>
               <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold"
@@ -1197,8 +1202,35 @@ onMounted(() => {
       <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
         size="xl" @close="closeForm">
         <form class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="submitSupplierSafely">
-          <label class="text-sm font-semibold">{{ en ? 'Company name' : 'Nombre de empresa' }}
-            <input v-model="supplierName" required maxlength="220" placeholder="Ej. Transportes Romo" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
+          <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+            <div class="flex items-center gap-3">
+              <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
+                <Building2 class="h-5 w-5" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-base font-extrabold">{{ editing ? (en ? 'Supplier profile' : 'Ficha del proveedor') : (en ? 'Register supplier' : 'Registrar proveedor') }}</h3>
+                <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Complete the profile by section. Required fields are marked *.' : 'Completá la ficha por secciones. Los campos obligatorios se identifican con *.' }}</p>
+              </div>
+            </div>
+          </div>
+          <nav role="tablist" :aria-label="en ? 'Supplier form sections' : 'Secciones del proveedor'"
+            class="sticky top-0 z-20 md:col-span-2 grid grid-cols-2 gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-sm sm:flex sm:overflow-x-auto">
+            <button v-for="tab in supplierFormTabs" :key="tab.value" type="button" role="tab"
+              :data-srm-form-tab="tab.value" :aria-selected="supplierFormTab === tab.value"
+              :class="supplierFormTab === tab.value
+                ? 'bg-[var(--dh-primary)] text-white shadow-sm'
+                : 'text-[var(--dh-text-muted)] hover:bg-[var(--dh-input)] hover:text-[var(--dh-text)]'"
+              class="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition sm:flex-1 sm:whitespace-nowrap"
+              @click="supplierFormTab = tab.value">
+              <component :is="tab.icon" class="h-4 w-4 shrink-0" />{{ tab.label }}
+            </button>
+          </nav>
+          <section v-show="supplierFormTab === 'identity'" id="srm-form-identity" data-srm-save-section="general"
+            class="md:col-span-2 grid gap-4 md:grid-cols-2" role="tabpanel">
+          <label class="text-sm font-semibold">{{ en ? 'Company name *' : 'Nombre de empresa *' }}
+            <input :value="supplierName" @input="supplierName = upper(($event.target as HTMLInputElement).value)"
+              required maxlength="220" placeholder="Ej. TRANSPORTES ROMO"
+              class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase outline-none focus:border-[var(--dh-primary)]" />
           </label>
           <div class="min-w-0">
             <DhMultiSelect v-model="supplierType" :options="categoryOptions"
@@ -1212,9 +1244,16 @@ onMounted(() => {
               :placeholder="en ? 'Select countries' : 'Seleccionar países'"
               :search-placeholder="en ? 'Search countries...' : 'Buscar países...'" />
           </div>
-          <section class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4" data-srm-company-fields>
-            <h3 class="text-sm font-bold">{{ en ? 'Company information' : 'Información de la empresa' }}</h3>
-            <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'All new fields are optional unless marked *.' : 'Los campos nuevos son opcionales, salvo los marcados con *.' }}</p>
+          <section class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" data-srm-company-fields>
+            <div class="flex items-center gap-3">
+              <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--dh-input)] text-[var(--dh-primary)]">
+                <FileCheck2 class="h-4 w-4" />
+              </div>
+              <div>
+                <h3 class="text-sm font-extrabold">{{ en ? 'Company & fiscal information' : 'Información fiscal y de la empresa' }}</h3>
+                <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">{{ en ? 'Hacienda fills available official details. The rest are editable.' : 'Hacienda completa los datos oficiales disponibles; el resto se puede editar.' }}</p>
+              </div>
+            </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="min-w-0">
                 <CrmPhoneInput v-model="companyPhone" :country-id="countryIds[0] || ''"
@@ -1244,22 +1283,66 @@ onMounted(() => {
                   class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 uppercase"></textarea>
               </label>
             </div>
-            <div v-if="costaRicaCountryId" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3" data-srm-hacienda>
+            <div v-if="costaRicaCountryId" class="space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4" data-srm-hacienda>
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <div><h4 class="text-sm font-bold">{{ en ? 'Costa Rica · Hacienda' : 'Costa Rica · Hacienda' }}</h4>
-                  <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Verify legal name and economic activities with the official API.' : 'Consulta la razón social y actividades económicas en el API oficial.' }}</p>
+                <div class="flex min-w-0 items-center gap-3">
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
+                    <FileCheck2 class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 class="text-sm font-extrabold">{{ en ? 'Official Hacienda verification' : 'Verificación oficial de Hacienda' }}</h4>
+                    <p class="mt-0.5 text-xs text-[var(--dh-text-muted)]">
+                      {{ en ? 'A valid Costa Rican tax ID automatically fills the name and primary activity, as in CRM.'
+                        : 'Al ingresar una cédula válida, se completa automáticamente la razón social y actividad principal, igual que en CRM.' }}
+                    </p>
+                  </div>
                 </div>
                 <button type="button" :disabled="!canLookupHacienda || haciendaLoading"
-                  class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-bold disabled:opacity-40" @click="lookupHacienda">
-                  {{ haciendaLoading ? t('common.loading') : (en ? 'Verify tax ID' : 'Consultar cédula') }}
+                  class="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-2 text-xs font-bold hover:border-[var(--dh-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+                  @click="lookupHacienda(true)">
+                  <Search class="h-4 w-4" />
+                  {{ haciendaLoading ? (en ? 'Checking...' : 'Consultando...') : (en ? 'Check again' : 'Volver a consultar') }}
                 </button>
               </div>
-              <p v-if="haciendaError" role="alert" class="text-xs text-red-400">{{ haciendaError }}</p>
-              <div v-if="haciendaResult" class="space-y-2 text-xs">
-                <p class="font-bold">{{ haciendaResult.name }}</p>
-                <p>{{ haciendaResult.activities.map(activity => activity.code + ' · ' + activity.description).join('; ') || '—' }}</p>
-                <button type="button" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 font-bold text-white"
-                  @click="applyHaciendaResult">{{ en ? 'Apply official name and main activity' : 'Aplicar razón social y actividad principal' }}</button>
+              <p v-if="!canLookupHacienda" class="text-xs text-[var(--dh-text-muted)]">
+                {{ en ? 'Enter a 9–12 digit tax ID to automatically verify it.' : 'Ingresá una cédula de 9 a 12 dígitos para consultar automáticamente.' }}
+              </p>
+              <p v-else-if="haciendaLoading" role="status" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ en ? 'Verifying taxpayer data with Hacienda...' : 'Verificando datos del contribuyente en Hacienda...' }}
+              </p>
+              <p v-else-if="haciendaError" role="alert" class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-500">
+                {{ haciendaError }}
+                <span class="mt-1 block">{{ en ? 'You can continue entering the details manually.' : 'Podés continuar ingresando los datos manualmente.' }}</span>
+              </p>
+              <div v-if="haciendaApplied && haciendaResult" role="status" class="space-y-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+                <div class="flex items-center gap-2 text-sm font-bold">
+                  <BadgeCheck class="h-4 w-4 shrink-0 text-emerald-500" />
+                  <span class="min-w-0 break-words">{{ haciendaResult.name }}</span>
+                </div>
+                <p class="text-xs text-[var(--dh-text-muted)]">
+                  {{ en ? 'Official values applied to this supplier automatically.' : 'Datos oficiales aplicados automáticamente a este proveedor.' }}
+                </p>
+                <div v-if="haciendaIdentificationType || haciendaRegime" class="flex flex-wrap gap-2 text-xs text-[var(--dh-text-muted)]">
+                  <span v-if="haciendaIdentificationType" class="rounded-lg border border-[var(--dh-border)] px-2 py-1">
+                    {{ en ? 'ID type' : 'Tipo de identificación' }}: {{ haciendaIdentificationType }}
+                  </span>
+                  <span v-if="haciendaRegime" class="rounded-lg border border-[var(--dh-border)] px-2 py-1">
+                    {{ en ? 'Tax regime' : 'Régimen' }}: {{ haciendaRegime }}
+                  </span>
+                </div>
+                <div v-if="haciendaResult.activities.length" class="space-y-2">
+                  <p class="text-xs font-bold">{{ en ? 'Economic activities' : 'Actividades económicas' }} ({{ haciendaResult.activities.length }})</p>
+                  <div class="grid gap-2 sm:grid-cols-2">
+                    <div v-for="activity in haciendaResult.activities" :key="activity.code"
+                      class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2.5 text-xs">
+                      <span class="font-bold text-[var(--dh-primary)]">{{ activity.code }}</span>
+                      <span class="ml-2 break-words">{{ activity.description }}</span>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="text-xs text-[var(--dh-text-muted)]">
+                  {{ en ? 'Hacienda returned no economic activity; you may enter one manually.' : 'Hacienda no devolvió actividades económicas; podés ingresar el código manualmente.' }}
+                </p>
               </div>
             </div>
           </section>
@@ -1328,7 +1411,8 @@ onMounted(() => {
               {{ revealBankNumbers ? (en ? 'Hide account numbers' : 'Ocultar números de cuenta') : (en ? 'Reveal account numbers' : 'Mostrar números de cuenta') }}
             </button>
           </section>
-          <section data-srm-save-section="contacts" class="md:col-span-2 space-y-3 rounded-xl border border-[var(--dh-border)] p-4">
+          <section v-show="supplierFormTab === 'contacts'" data-srm-save-section="contacts"
+            class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" role="tabpanel">
             <p v-if="error && saveErrorSection === 'contacts'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold">Contactos del proveedor <span class="font-medium text-[var(--dh-text-muted)]">(opcional)</span></h3>
@@ -1361,7 +1445,8 @@ onMounted(() => {
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
           </section>
-          <section data-srm-save-section="credit" class="md:col-span-2 space-y-4 rounded-xl border border-[var(--dh-border)] p-4">
+          <section v-show="supplierFormTab === 'credit'" data-srm-save-section="credit"
+            class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" role="tabpanel">
             <p v-if="error && saveErrorSection === 'credit'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div>
               <h3 class="text-sm font-bold">{{ en ? 'Supplier credit terms' : 'Condiciones de crédito del proveedor' }}
@@ -1414,10 +1499,13 @@ onMounted(() => {
               </label>
             </div>
           </section>
-          <label class="text-sm font-semibold">{{ en ? 'Description' : 'Descripción' }}
-            <input v-model="supplierDescription" maxlength="300" class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3" />
-          </label>
-          <div class="md:col-span-2 space-y-3">
+          <div class="sticky bottom-0 z-20 md:col-span-2 -mx-3 -mb-3 space-y-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-lg backdrop-blur-xl sm:-mx-5 sm:-mb-5 sm:px-5 sm:py-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Changes are saved for the whole supplier profile.' : 'Los cambios se guardan para toda la ficha del proveedor.' }}</p>
+              <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2 text-xs font-semibold" @click="closeForm">
+                {{ en ? 'Cancel' : 'Cancelar' }}
+              </button>
+            </div>
             <p v-if="error" role="alert" data-srm-save-error
               class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">{{ error }}</p>
             <button type="submit" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
