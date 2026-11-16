@@ -1,3 +1,8 @@
+## [1.62.5] - 2026-11-16 (CBM por cotización vinculada a consolidado propio)
+
+- PATCH DH-20261116-OWN-LCL-QUO-CBM-172: cada QUO del listado de consolidados LCL propios muestra su CBM cobrable y volumen físico en CBM, con datos del detalle comercial de Pricing; los valores no registrados se identifican sin inventar capacidad.
+- Vista responsive, acceso «Ver QUO» y controles de lectura actuales intactos. DholeWeb 1.62.4 → 1.62.5, Pricing 1.22.1 → 1.22.2, DholeSystem/ecosistema 1.63.6 → 1.63.7. CI y staging antes de master, producción no autorizada.
+
 ## [1.62.4] - 2026-11-16 (Crear seguimiento desde cuentas y prospectos)
 
 - PATCH DH-20261116-CRM-FOLLOWUPS-CREATE-171: botón «Crear seguimiento» en el historial de la cuenta o prospecto, visible exclusivamente con permisos de creación CRM. Abre el formulario comercial existente con seguimiento programado, cliente/prospecto y responsable precargados; permisos solo de recordatorio mantienen su flujo autorizado.
