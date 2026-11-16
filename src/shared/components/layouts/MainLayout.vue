@@ -220,7 +220,7 @@ const pricingChildren = computed<SidebarItem[]>(() => {
     canView(VIEW_SCOPES.pricingDecisions) ||
     canView(VIEW_SCOPES.pricingCosts) ||
     canView(VIEW_SCOPES.pricingRateTerms) ||
-    canView(PRICING_SCOPES.ownLclConsolidations.create)
+    canView(PRICING_SCOPES.ownLclConsolidations.view)
 
   if (canView(VIEW_SCOPES.pricingImports)) {
     children.push({
@@ -360,7 +360,7 @@ const sidebarItems = computed<SidebarItem[]>(() => {
   }
 
     const ownConsolidationChildren: SidebarItem[] = []
-  if (canView(PRICING_SCOPES.ownLclConsolidations.create)) {
+  if (canView(PRICING_SCOPES.ownLclConsolidations.view)) {
     ownConsolidationChildren.push({
       label: t('sidebar.ownLcl'),
       path: '/pricing/own-lcl',
