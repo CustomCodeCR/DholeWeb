@@ -1,3 +1,8 @@
+## [1.62.4] - 2026-11-16 (Crear seguimiento desde cuentas y prospectos)
+
+- PATCH DH-20261116-CRM-FOLLOWUPS-CREATE-171: botón «Crear seguimiento» en el historial de la cuenta o prospecto, visible exclusivamente con permisos de creación CRM. Abre el formulario comercial existente con seguimiento programado, cliente/prospecto y responsable precargados; permisos solo de recordatorio mantienen su flujo autorizado.
+- Conserva búsqueda, filtros, historial, sincronización realtime y contratos REST sin cambios. DholeWeb 1.62.3 → 1.62.4; DholeSystem/ecosistema 1.63.5 → 1.63.6. CI y staging antes de promoción a master; sin autorización de despliegue a producción.
+
 ## [1.62.3] - 2026-11-16 (Modales y borradores CRM legibles en móviles)
 
 - PATCH DH-20261116-CRM-MOBILE-MODALS-170: formularios de nueva actividad y recuperación de borrador usan superficie sólida y contraste consistente; el modal prioritario oscurece los modales secundarios para evitar que se vea el calendario a través de la ventana activa.
