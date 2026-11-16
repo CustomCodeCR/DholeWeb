@@ -812,27 +812,27 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
         <p class="text-sm text-[var(--dh-text-muted)]">{{ t('crm.dashboardNote') }}</p>
       </template>
 
-      <section v-else-if="section === 'followups'" class="space-y-4">
+      <section v-else-if="section === 'followups'" class="min-w-0 space-y-4" data-crm-agenda-page>
         <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
           <div class="flex min-w-0 items-center gap-3">
-            <div class="rounded-xl bg-[var(--dh-primary)]/10 p-2.5 text-[var(--dh-primary)]"><CalendarClock class="h-6 w-6" /></div>
-            <div>
+            <div class="shrink-0 rounded-xl bg-[var(--dh-primary)]/10 p-2.5 text-[var(--dh-primary)]"><CalendarClock class="h-6 w-6" /></div>
+            <div class="min-w-0">
               <h2 class="text-lg font-extrabold">Agenda comercial</h2>
               <p class="text-xs text-[var(--dh-text-muted)]">Visitas, llamadas, reuniones y tareas en un solo lugar.</p>
             </div>
           </div>
-          <div class="inline-flex rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1">
-            <button type="button" class="rounded-lg px-4 py-2 text-xs font-bold"
+          <div class="flex w-full min-w-0 flex-nowrap gap-1 overflow-x-auto overscroll-x-contain rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-1 sm:w-auto" data-crm-agenda-view-tabs>
+            <button type="button" class="shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-xs font-bold sm:px-4"
               :class="agendaView==='list' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
               @click="agendaView='list'">Listado</button>
-            <button type="button" class="rounded-lg px-4 py-2 text-xs font-bold"
+            <button type="button" class="shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-xs font-bold sm:px-4"
               :class="agendaView==='calendar' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
               @click="agendaView='calendar'">Calendario</button>
-            <button type="button" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"
+            <button type="button" class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-xs font-bold sm:px-4"
               :class="agendaView==='log' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
               :aria-pressed="agendaView==='log'"
               @click="agendaView='log'"><NotebookPen class="h-4 w-4" /> Bitácora · Notas</button>
-            <button type="button" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold"
+            <button type="button" class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-xs font-bold sm:px-4"
               :class="agendaView==='reports' ? 'bg-[var(--dh-primary)] text-white' : 'text-[var(--dh-text-muted)]'"
               :aria-pressed="agendaView==='reports'"
               @click="agendaView='reports'"><ChartNoAxesCombined class="h-4 w-4" /> Reportes</button>
