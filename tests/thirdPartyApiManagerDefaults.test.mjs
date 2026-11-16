@@ -9,9 +9,8 @@ test('POST and PUT preset fields cannot be overridden by public inputs', () => {
   assert.match(source, /method !== 'GET'/)
 })
 test('CRM provides customer, seller and executive for rate requests', () => {
-  assert.match(source, /\/api\/crm\/accounts\?q=/)
-  assert.match(source, /\/assigned-executive/)
-  assert.match(source, /setLockedDefault\('clientName', account\.displayName\)/)
-  assert.match(source, /setLockedDefault\('sellerUserId', account\.executiveUserId\)/)
-  assert.match(source, /setLockedDefault\('executiveName', assignment\.displayName\)/)
+  assert.match(source, /\/api\/crm\/pricing-client-options\?/)
+  assert.match(source, /setLockedDefault\('clientName', record\.displayName\)/)
+  assert.match(source, /setLockedDefault\('sellerUserId', record\.executiveUserId\)/)
+  assert.match(source, /setLockedDefault\('executiveName', executiveName\)/)
 })
