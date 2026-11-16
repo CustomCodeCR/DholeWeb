@@ -1,3 +1,8 @@
+## [1.62.7] - 2026-11-16 (Registro de bitácoras usando reloj UTC del servidor)
+
+- PATCH DH-20261116-CRM-BITACORA-SERVER-CLOCK-174: `CrmSalesCalendar` envía `occurredAt: null` al crear bitácoras sin cita o actividades históricas, y CRM utiliza `ResolveOccurredAt` con reloj UTC del servidor, sin depender de la hora de cada computadora.
+- Se preservan fechas históricas programadas y los acuerdos futuros como recordatorios vinculados. Web 1.62.6 → 1.62.7, ecosistema 1.63.8 → 1.63.9. Pruebas CRM, typecheck/build, CI y staging necesarios antes de master/producción.
+
 ## [1.62.6] - 2026-11-16 (Restauración de cliente/prospecto al editar QUO)
 
 - PATCH DH-20261116-PRICING-CRM-EDIT-HYDRATION-173: el selector CRM de Pricing conserva el nombre histórico del cliente al editar o recargar una QUO sin ClientAccountId/ClientLeadId; deja visible que requiere vinculación explícita para evitar asociar un tercero por similitud.
