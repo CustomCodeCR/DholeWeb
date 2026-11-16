@@ -53,7 +53,8 @@ const canManageAcrossUsers = computed(() => calendarAdmin.value || can('crm.acti
 const mode = ref<CalendarMode>('month')
 // On phones, start with a readable agenda; the month view remains selectable.
 onMounted(() => {
-  if (window.matchMedia('(max-width: 639px)').matches) mode.value = 'list'
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 639px)').matches) mode.value = 'list'
 })
 const logFrom = ref('')
 const logTo = ref('')
