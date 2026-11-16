@@ -11,7 +11,7 @@ import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoverageP
 import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
-import { supplierSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
+import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
@@ -69,6 +69,7 @@ const observations = ref('')
 const financeContactId = ref('')
 const bankAccounts = ref<SrmBankAccount[]>([])
 const bankAccountsLoaded = ref(false)
+const originalBankCount = ref(0)
 const bankAccountsLoading = ref(false)
 const bankError = ref('')
 const revealBankNumbers = ref(false)
@@ -109,6 +110,7 @@ async function loadBankAccounts(id: string) {
   try {
     const records = await SrmApi.listBankAccounts(id)
     if (request !== bankLoadRequest) return
+    originalBankCount.value = records.length
     bankAccounts.value = records.map(account => ({
       ...account, swiftBic: account.swiftBic || '',
       intermediaryBank: account.intermediaryBank || '',
@@ -222,17 +224,17 @@ const costaRicaCountryId = computed(() => countryIds.value.find(id => {
       .includes(String(value || '').trim().toLowerCase()))
 }) || '')
 const canLookupHacienda = computed(() => !!costaRicaCountryId.value &&
-  /^\\d{9,12}$/.test(taxId.value.replace(/[\\s-]/g, '')))
+  /^\d{9,12}$/.test(taxId.value.replace(/[\s-]/g, '')))
 async function lookupHacienda() {
   if (!canLookupHacienda.value || haciendaLoading.value) return
   const country = costaRicaCountryId.value
-  const id = taxId.value.replace(/[\\s-]/g, '')
+  const id = taxId.value.replace(/[\s-]/g, '')
   haciendaResult.value = null
   haciendaError.value = ''
   haciendaLoading.value = true
   try {
     const response = await SrmApi.lookupHacienda(id, country)
-    if (country !== costaRicaCountryId.value || id !== taxId.value.replace(/[\\s-]/g, '')) return
+    if (country !== costaRicaCountryId.value || id !== taxId.value.replace(/[\s-]/g, '')) return
     haciendaResult.value = response
   } catch (cause) {
     haciendaError.value = cause instanceof Error ? cause.message : 'No se pudo consultar Hacienda.'
@@ -240,7 +242,7 @@ async function lookupHacienda() {
 }
 function applyHaciendaResult() {
   if (!haciendaResult.value ||
-      haciendaResult.value.identification !== taxId.value.replace(/[\\s-]/g, '')) return
+      haciendaResult.value.identification !== taxId.value.replace(/[\s-]/g, '')) return
   supplierName.value = upper(haciendaResult.value.name)
   const main = haciendaResult.value.activities.find(a => a.type.toLowerCase().includes('principal'))
     || haciendaResult.value.activities[0]
@@ -418,6 +420,7 @@ function resetForm() {
   bankAccounts.value = []
   bankAccountsLoading.value = false
   bankAccountsLoaded.value = false
+  originalBankCount.value = 0
   bankError.value = ''
   revealBankNumbers.value = false
   ++bankLoadRequest
@@ -534,12 +537,37 @@ async function saveSupplier() {
     await reportSupplierSaveIssue(en.value ? 'Select at least one country.' : 'Seleccioná al menos un país.')
     return
   }
+  if (companyPhone.value.length > 40 || taxId.value.length > 80 ||
+      address.value.length > 500 || economicActivityCode.value.length > 40 ||
+      observations.value.length > 4000) {
+    await reportSupplierSaveIssue(en.value ? 'Some company fields exceed their maximum length.'
+      : 'Revisá la longitud de los datos de la empresa.', 'general')
+    return
+  }
+  if (canManageBanks.value && !bankAccountsLoaded.value) {
+    await reportSupplierSaveIssue(en.value ? 'Load bank accounts before saving.'
+      : 'Cargá las cuentas bancarias antes de guardar.', 'bank')
+    return
+  }
+  if (canManageBanks.value) {
+    const bankIssue = supplierBankSaveIssue(bankAccounts.value, en.value)
+    if (bankIssue) {
+      await reportSupplierSaveIssue(bankIssue.message, 'bank')
+      return
+    }
+  }
   const filledContacts = contacts.value.map(contact => ({
-    name: contact.name.trim(), email: contact.email.trim(),
-    phone: contact.phone.trim(), role: contact.role.trim(),
+    id: contact.id,
+    name: upper(contact.name), email: contact.email.trim(),
+    phone: contact.phone.trim(), role: upper(contact.role),
     countryId: countryIds.value.includes(contact.countryId)
       ? contact.countryId : countryIds.value[0] || '',
   })).filter(contact => contact.name || contact.email || contact.phone || contact.role)
+  if (financeContactId.value && !filledContacts.some(contact => contact.id === financeContactId.value)) {
+    await reportSupplierSaveIssue(en.value ? 'Select a registered finance contact.'
+      : 'Seleccioná un contacto de Finanzas que esté registrado.', 'contacts')
+    return
+  }
   const issue = supplierSaveIssue({
     contacts: filledContacts,
     creditEnabled: creditEnabled.value,
@@ -594,6 +622,12 @@ async function saveSupplier() {
           ? retained.legacySupplierTypes.filter((item): item is string => typeof item === 'string') : []),
           ...previousSpecificTypes])] } : {}),
       creditTerms,
+      companyPhone: companyPhone.value.trim(),
+      taxId: upper(taxId.value),
+      address: upper(address.value),
+      economicActivityCode: upper(economicActivityCode.value),
+      observations: upper(observations.value),
+      financeContactId: financeContactId.value || null,
       contacts: filledContacts,
       contactName: filledContacts[0]?.name || '',
       contactEmail: filledContacts[0]?.email || '',
@@ -604,13 +638,13 @@ async function saveSupplier() {
     let createdId = ''
     if (editing.value) {
       await SrmApi.updateSupplier(editing.value.id, {
-        name: supplierName.value.trim(), description: supplierDescription.value.trim() || null,
-        value: supplierName.value.trim(), metadataJson, sortOrder: editing.value.sortOrder,
+        name: upper(supplierName.value), description: upper(supplierDescription.value) || null,
+        value: upper(supplierName.value), metadataJson, sortOrder: editing.value.sortOrder,
       })
     } else {
       createdId = await SrmApi.create('suppliers', {
-        name: supplierName.value.trim(), description: supplierDescription.value.trim() || null,
-        value: supplierName.value.trim(), metadataJson, sortOrder: suppliers.value.length + 1,
+        name: upper(supplierName.value), description: upper(supplierDescription.value) || null,
+        value: upper(supplierName.value), metadataJson, sortOrder: suppliers.value.length + 1,
       })
     }
     mutationAccepted = true
@@ -619,7 +653,7 @@ async function saveSupplier() {
     const confirmed = await SrmApi.list('suppliers')
     const editingId = editing.value?.id
     const saved = confirmed.find(item => editingId ? item.id === editingId
-      : (createdId && item.id === createdId) || item.name === supplierName.value.trim())
+      : (createdId && item.id === createdId) || item.name === upper(supplierName.value))
     if (!saved) {
       await reportSupplierSaveIssue(en.value
         ? 'The service responded, but the supplier could not be found after saving. Refresh the directory before trying again.'
@@ -654,6 +688,33 @@ async function saveSupplier() {
         : 'El servicio respondió, pero no guardó todos los contactos. Revisá el directorio antes de reintentar.',
         'contacts')
       return
+    }
+    // Bank data is written separately and only by finance-authorized users.
+    // If this second write fails after creating the supplier, switch to edit mode
+    // to avoid a duplicate supplier when the user retries.
+    if (canManageBanks.value && (bankAccounts.value.length > 0 || originalBankCount.value > 0)) {
+      try {
+        await SrmApi.saveBankAccounts(saved.id, bankAccounts.value.map(account => ({
+          ...account,
+          bankName: upper(account.bankName), accountHolder: upper(account.accountHolder),
+          registration: account.registration,
+          accountNumber: upper(account.accountNumber).replace(/\s/g, ''),
+          swiftBic: upper(account.swiftBic), currency: upper(account.currency),
+          intermediaryBank: upper(account.intermediaryBank),
+        })))
+        const persistedBanks = await SrmApi.listBankAccounts(saved.id)
+        if (persistedBanks.length !== bankAccounts.value.length ||
+            persistedBanks.some((record, index) => record.id !== bankAccounts.value[index]?.id ||
+              record.isPrimary !== bankAccounts.value[index]?.isPrimary)) {
+          throw new Error(en.value ? 'Bank accounts did not persist as expected.'
+            : 'Las cuentas bancarias no se guardaron correctamente.')
+        }
+      } catch (bankCause) {
+        editing.value = saved as Supplier
+        await reportSupplierSaveIssue(bankCause instanceof Error ? bankCause.message :
+          'No se pudieron guardar las cuentas bancarias.', 'bank')
+        return
+      }
     }
     suppliers.value = confirmed.map(item => ({ ...item, category: supplierCategory(item) }))
     if (selected.value) selected.value = suppliers.value.find(item => item.id === selected.value?.id) || null
