@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Building2, ChevronLeft, ChevronRight, Eye, FolderOpen, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
+import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditCard, Eye, FileCheck2, FolderOpen, Landmark, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DhDrawer } from '@/shared/components/organisms'
@@ -13,6 +13,7 @@ import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
 import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId, srmHaciendaFields } from '../utils/srmHacienda'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
 type Supplier = CatalogItemDto & { category: string }
@@ -76,6 +77,19 @@ const revealBankNumbers = ref(false)
 const haciendaLoading = ref(false)
 const haciendaError = ref('')
 const haciendaResult = ref<SrmHaciendaResult | null>(null)
+const haciendaVerifiedAt = ref('')
+const haciendaIdentificationType = ref('')
+const haciendaRegime = ref('')
+const supplierFormTab = ref<'identity' | 'contacts' | 'banks' | 'credit'>('identity')
+const supplierFormTabs = computed(() => [
+  { value: 'identity' as const, label: en.value ? 'Identity & Hacienda' : 'Identidad y Hacienda', icon: Building2 },
+  { value: 'contacts' as const, label: en.value ? 'Contacts' : 'Contactos', icon: ContactRound },
+  ...(canReadBanks.value ? [{ value: 'banks' as const, label: en.value ? 'Banking' : 'Bancos', icon: Landmark }] : []),
+  { value: 'credit' as const, label: en.value ? 'Credit & terms' : 'Crédito y condiciones', icon: CreditCard },
+])
+let haciendaLookupVersion = 0
+let haciendaDebounce: ReturnType<typeof setTimeout> | null = null
+let pendingHaciendaRequest: { identification: string; countryId: string; promise: Promise<boolean> } | null = null
 let bankLoadRequest = 0
 const upper = (value: string) => value.trim().toUpperCase()
 const maskedAccount = (value: string) => value.length <= 4 ? '••••' : '•••• ' + value.slice(-4)
@@ -219,35 +233,95 @@ const financeContactOptions = computed(() => contacts.value
     (contact.role ? ' · ' + upper(contact.role) : '') })))
 const costaRicaCountryId = computed(() => countryIds.value.find(id => {
   const entry = countries.value.find(row => row.id === id)
-  return entry && [entry.label, entry.value, entry.code, entry.slug]
-    .some(value => ['cr', 'cri', 'crc', 'costa rica', 'costa-rica']
-      .includes(String(value || '').trim().toLowerCase()))
+  return entry && [entry.label, entry.value, entry.code, entry.slug].some(isSrmCostaRicaCountry)
 }) || '')
+const currentTaxId = computed(() => normalizeSrmTaxId(taxId.value))
 const canLookupHacienda = computed(() => !!costaRicaCountryId.value &&
-  /^\d{9,12}$/.test(taxId.value.replace(/[\s-]/g, '')))
-async function lookupHacienda() {
-  if (!canLookupHacienda.value || haciendaLoading.value) return
-  const country = costaRicaCountryId.value
-  const id = taxId.value.replace(/[\s-]/g, '')
+  /^\d{9,12}$/.test(currentTaxId.value))
+const haciendaApplied = computed(() => !!haciendaResult.value &&
+  isSrmHaciendaMatch(haciendaResult.value, currentTaxId.value, currentTaxId.value))
+
+/** Same application contract as CRM: the response immediately updates the supplier. */
+function applyHaciendaResult(result: SrmHaciendaResult, requestedId: string, countryId: string): boolean {
+  if (!formVisible.value || !costaRicaCountryId.value ||
+    countryId !== costaRicaCountryId.value ||
+    !isSrmHaciendaMatch(result, currentTaxId.value, requestedId)) return false
+  const fields = srmHaciendaFields(result)
+  supplierName.value = fields.name
+  if (fields.economicActivityCode) economicActivityCode.value = fields.economicActivityCode
+  haciendaIdentificationType.value = fields.identificationType
+  haciendaRegime.value = fields.regime
+  haciendaVerifiedAt.value = result.verifiedAt
+  haciendaResult.value = result
+  return true
+}
+
+/** Awaitable both by the debounced lookup and by Save, so no save races verification. */
+async function lookupHacienda(force = false): Promise<boolean> {
+  if (!canLookupHacienda.value || !formVisible.value) return false
+  const countryId = costaRicaCountryId.value
+  const identification = currentTaxId.value
+  if (!force && haciendaResult.value &&
+    isSrmHaciendaMatch(haciendaResult.value, identification, identification)) {
+    return true
+  }
+  if (pendingHaciendaRequest?.identification === identification &&
+      pendingHaciendaRequest.countryId === countryId && haciendaLoading.value) {
+    return pendingHaciendaRequest.promise
+  }
+  const version = ++haciendaLookupVersion
   haciendaResult.value = null
   haciendaError.value = ''
   haciendaLoading.value = true
-  try {
-    const response = await SrmApi.lookupHacienda(id, country)
-    if (country !== costaRicaCountryId.value || id !== taxId.value.replace(/[\s-]/g, '')) return
-    haciendaResult.value = response
-  } catch (cause) {
-    haciendaError.value = cause instanceof Error ? cause.message : 'No se pudo consultar Hacienda.'
-  } finally { haciendaLoading.value = false }
+  const task = (async (): Promise<boolean> => {
+    try {
+      const response = await SrmApi.lookupHacienda(identification, countryId)
+      if (version !== haciendaLookupVersion) return false
+      if (!applyHaciendaResult(response, identification, countryId)) return false
+      return true
+    } catch (cause) {
+      if (version === haciendaLookupVersion) {
+        haciendaError.value = cause instanceof Error ? cause.message :
+          (en.value ? 'Hacienda is temporarily unavailable. Complete the fields manually.'
+            : 'Hacienda no está disponible. Completá los datos manualmente.')
+      }
+      return false
+    } finally {
+      if (version === haciendaLookupVersion) {
+        haciendaLoading.value = false
+        pendingHaciendaRequest = null
+      }
+    }
+  })()
+  pendingHaciendaRequest = { identification, countryId, promise: task }
+  return task
 }
-function applyHaciendaResult() {
-  if (!haciendaResult.value ||
-      haciendaResult.value.identification !== taxId.value.replace(/[\s-]/g, '')) return
-  supplierName.value = upper(haciendaResult.value.name)
-  const main = haciendaResult.value.activities.find(a => a.type.toLowerCase().includes('principal'))
-    || haciendaResult.value.activities[0]
-  if (main) economicActivityCode.value = upper(main.code)
-}
+
+/** Revalidate after changing ID or country; discard any in-flight response for old IDs. */
+watch([taxId, costaRicaCountryId, formVisible], (_values, _previous, onCleanup) => {
+  ++haciendaLookupVersion
+  if (haciendaDebounce !== null) clearTimeout(haciendaDebounce)
+  pendingHaciendaRequest = null
+  haciendaResult.value = null
+  haciendaError.value = ''
+  haciendaLoading.value = false
+  haciendaVerifiedAt.value = ''
+  haciendaIdentificationType.value = ''
+  haciendaRegime.value = ''
+  if (formVisible.value && canLookupHacienda.value) {
+    haciendaDebounce = setTimeout(() => {
+      haciendaDebounce = null
+      void lookupHacienda()
+    }, 700)
+  }
+  onCleanup(() => {
+    if (haciendaDebounce !== null) {
+      clearTimeout(haciendaDebounce)
+      haciendaDebounce = null
+    }
+  })
+})
+
 const countryOptions = computed(() => countries.value.map(row => ({
   value: row.id, label: row.label || row.value || row.id,
 })))
@@ -427,6 +501,13 @@ function resetForm() {
   haciendaResult.value = null
   haciendaError.value = ''
   haciendaLoading.value = false
+  haciendaVerifiedAt.value = ''
+  haciendaIdentificationType.value = ''
+  haciendaRegime.value = ''
+  supplierFormTab.value = 'identity'
+  ++haciendaLookupVersion
+  if (haciendaDebounce !== null) clearTimeout(haciendaDebounce)
+  pendingHaciendaRequest = null
   creditEnabled.value = false
   creditDays.value = '30'
   creditLimit.value = ''
@@ -462,6 +543,9 @@ function openEdit(item: Supplier) {
   economicActivityCode.value = String(info.economicActivityCode || '')
   observations.value = String(info.observations || '')
   financeContactId.value = String(info.financeContactId || '')
+  haciendaIdentificationType.value = String(info.haciendaIdentificationType || '')
+  haciendaRegime.value = String(info.haciendaRegime || '')
+  haciendaVerifiedAt.value = String(info.haciendaVerifiedAt || '')
   const terms = supplierCreditTerms(item)
   creditEnabled.value = terms.paymentType === 'credit'
   creditDays.value = terms.days === null ? '30' : String(terms.days)
@@ -500,6 +584,10 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
   error.value = message
   saveErrorSection.value = section
+  if (section === 'contacts') supplierFormTab.value = 'contacts'
+  else if (section === 'bank') supplierFormTab.value = 'banks'
+  else if (section === 'credit') supplierFormTab.value = 'credit'
+  else supplierFormTab.value = 'identity'
   toastStore.warning(en.value ? 'Supplier not saved' : 'Proveedor sin guardar', message)
   await nextTick()
   const anchor = document.querySelector(`[data-srm-save-section="${section}"]`)
@@ -524,6 +612,19 @@ async function saveSupplier() {
   if (!(editing.value ? canEditSuppliers.value : canCreateSuppliers.value)) {
     await reportSupplierSaveIssue(en.value ? 'You cannot save suppliers.' : 'No tenés permiso para guardar proveedores.')
     return
+  }
+  // CRM behavior: resolve a valid Costa Rican tax ID and apply the official name
+  // before validating and persisting. A pending automatic lookup is awaited.
+  if (canLookupHacienda.value) {
+    if (haciendaDebounce !== null) { clearTimeout(haciendaDebounce); haciendaDebounce = null }
+    if (pendingHaciendaRequest?.identification === currentTaxId.value) {
+      await pendingHaciendaRequest.promise
+    } else if (!haciendaResult.value && !haciendaError.value) {
+      await lookupHacienda()
+    }
+    if (haciendaResult.value && haciendaApplied.value) {
+      applyHaciendaResult(haciendaResult.value, currentTaxId.value, costaRicaCountryId.value)
+    }
   }
   if (!supplierName.value.trim()) {
     await reportSupplierSaveIssue(en.value ? 'Enter a company name.' : 'Ingresá el nombre de la empresa.')
@@ -628,6 +729,9 @@ async function saveSupplier() {
       economicActivityCode: upper(economicActivityCode.value),
       observations: upper(observations.value),
       financeContactId: financeContactId.value || null,
+      haciendaIdentificationType: haciendaApplied.value ? haciendaIdentificationType.value : null,
+      haciendaRegime: haciendaApplied.value ? haciendaRegime.value : null,
+      haciendaVerifiedAt: haciendaApplied.value ? haciendaVerifiedAt.value : null,
       contacts: filledContacts,
       contactName: filledContacts[0]?.name || '',
       contactEmail: filledContacts[0]?.email || '',
