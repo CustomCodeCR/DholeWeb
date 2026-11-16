@@ -80,9 +80,17 @@ const testError = ref('')
 const testResponse = ref('')
 const testResult = ref<{ status: number; durationMs: number; ok: boolean } | null>(null)
 const confirmRevoke = ref<KeyInfo | null>(null)
-type CrmAccount = { id: string; displayName: string; executiveUserId?: string | null; isCastroFallasExecutive?: boolean }
+type CrmCommercialClient = {
+  kind: 'account' | 'lead'
+  id: string
+  displayName: string
+  legalName: string
+  executiveUserId: string
+  isCastroFallasExecutive: boolean
+  executiveName: string
+}
 const crmQuery = ref('')
-const crmAccounts = ref<CrmAccount[]>([])
+const crmAccounts = ref<CrmCommercialClient[]>([])
 const crmLoading = ref(false)
 const crmSelection = ref('')
 const defaultErrors = ref('')
@@ -91,9 +99,15 @@ async function searchCrmAccounts() {
   crmLoading.value = true
   defaultErrors.value = ''
   try {
-    const result = await fetchClient<{ items: CrmAccount[] }>(
-      '/api/crm/accounts?q=' + encodeURIComponent(crmQuery.value.trim()) + '&pageSize=30', { method: 'GET' })
-    crmAccounts.value = result.items ?? []
+    const params = new URLSearchParams({
+      mode: 'create', q: crmQuery.value.trim(), pageSize: '50',
+    })
+    // CRM already provides a unified permission-filtered commercial directory:
+    // active accounts and non-converted leads, including the institutional seller.
+    const result = await fetchClient<{ items: CrmCommercialClient[] }>(
+      '/api/crm/pricing-client-options?' + params.toString(), { method: 'GET' })
+    crmAccounts.value = (result.items ?? []).filter(item =>
+      item.kind === 'account' || item.kind === 'lead')
   } catch (e) { defaultErrors.value = e instanceof Error ? e.message : 'No fue posible consultar CRM.' }
   finally { crmLoading.value = false }
 }
@@ -103,25 +117,41 @@ function setLockedDefault(internal: string, value: unknown) {
   draft.value.defaults = entries
   draft.value.inputs = draft.value.inputs.filter(f => f.internal !== internal)
 }
-async function useCrmAccount(id: string) {
-  const account = crmAccounts.value.find(a => a.id === id)
-  if (!account) return
+async function useCrmAccount(kind: 'account' | 'lead', id: string) {
+  const selected = crmAccounts.value.find(a => a.kind === kind && a.id === id)
+  if (!selected) return
   defaultErrors.value = ''
-  if (!account.executiveUserId || account.executiveUserId === '00000000-0000-0000-0000-000000000000' ||
-    account.isCastroFallasExecutive) {
-    defaultErrors.value = 'La cuenta necesita un ejecutivo de ventas activo asignado en CRM.'
-    return
-  }
+  // Refresh from the authoritative CRM pricing directory, not from cached list values.
+  // This also revalidates CRM visibility, account state and executive assignment.
   try {
-    const assignment = await fetchClient<{ displayName?: string | null }>(
-      '/api/crm/accounts/' + encodeURIComponent(id) + '/assigned-executive', { method: 'GET' })
-    if (!assignment.displayName) throw new Error('No se pudo resolver el ejecutivo asignado en CRM.')
-    setLockedDefault('clientName', account.displayName)
-    setLockedDefault('sellerUserId', account.executiveUserId)
-    setLockedDefault('executiveName', assignment.displayName)
-    crmSelection.value = id
-  } catch (e) { defaultErrors.value = e instanceof Error ? e.message : 'Ejecutivo no disponible.' }
+    const params = new URLSearchParams({ mode: 'create', selectedClientId: id, pageSize: '1' })
+    const result = await fetchClient<{ items: CrmCommercialClient[] }>(
+      '/api/crm/pricing-client-options?' + params.toString(), { method: 'GET' })
+    const record = result.items.find(a => a.id === id && a.kind === kind)
+    if (!record) throw new Error('La cuenta o prospecto ya no está disponible en CRM.')
+    const executiveName = record.isCastroFallasExecutive
+      ? 'Castro Fallas' : record.executiveName?.trim()
+    if (!executiveName || executiveName === 'Vendedor no disponible' || executiveName === 'Sin asignar')
+      throw new Error('El cliente necesita un ejecutivo comercial válido en CRM.')
+
+    // The institutional seller is not an Auth user. Never map its CRM creator to
+    // the commercial seller: Pricing owns the actual technical request actor.
+    if (record.isCastroFallasExecutive) {
+      removeDefault('sellerUserId')
+      draft.value.inputs = draft.value.inputs.filter(f => f.internal !== 'sellerUserId')
+    } else {
+      if (!record.executiveUserId || record.executiveUserId === '00000000-0000-0000-0000-000000000000')
+        throw new Error('El ejecutivo asignado no tiene un identificador válido.')
+      setLockedDefault('sellerUserId', record.executiveUserId)
+    }
+    setLockedDefault('clientName', record.displayName)
+    setLockedDefault('executiveName', executiveName)
+    crmSelection.value = kind + ':' + id
+  } catch (e) {
+    defaultErrors.value = e instanceof Error ? e.message : 'No fue posible validar los datos de CRM.'
+  }
 }
+
 function changeDefault(field: FieldOption, value: string) {
   if (!value.trim()) { removeDefault(field.internal); return }
   if (field.type === 'UUID' && !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value.trim())) {
@@ -548,6 +578,7 @@ function create() {
   resetApiTest()
   crmSelection.value = ''
   crmAccounts.value = []
+  crmQuery.value = ''
   draft.value = blank()
   routeSearch.value = ''
   serviceFilter.value = ''
@@ -1211,18 +1242,22 @@ onMounted(() => { void load() })
               <h4 class="font-bold">Valores predeterminados de la API</h4>
               <p class="text-xs text-[var(--dh-text-muted)]">Los valores fijos se guardan en Gateway y no los puede cambiar quien consuma esta API. Seleccioná un cliente existente del CRM o configurá campos individuales.</p>
               <div v-if="draft.target === 'pricing-rate-request-create'" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
-                <strong class="text-sm">Asignar cliente y ejecutivo desde CRM</strong>
+                <strong class="text-sm">Asignar cliente o prospecto y ejecutivo desde CRM</strong>
                 <div class="flex flex-wrap gap-2">
-                  <div class="min-w-0 flex-1"><DhInput v-model="crmQuery" placeholder="Buscar cliente genérico del sitio web..." /></div>
+                  <div class="min-w-0 flex-1"><DhInput v-model="crmQuery" placeholder="Buscar cuenta o prospecto por nombre o cédula..." /></div>
                   <DhButton variant="secondary" label="Buscar CRM" :loading="crmLoading" @click="searchCrmAccounts" />
                 </div>
                 <div v-if="crmAccounts.length" class="max-h-48 overflow-y-auto rounded-lg border border-[var(--dh-border)]">
                   <button v-for="account in crmAccounts" :key="account.id" type="button"
                     class="block w-full border-b border-[var(--dh-border)] p-3 text-left text-xs hover:bg-[var(--dh-input)]"
-                    :class="crmSelection === account.id ? 'font-bold text-[var(--dh-primary)]' : ''"
-                    @click="useCrmAccount(account.id)">{{ account.displayName }}</button>
+                    :class="crmSelection === account.kind + ':' + account.id ? 'font-bold text-[var(--dh-primary)]' : ''"
+                    @click="useCrmAccount(account.kind, account.id)">
+                    <span class="font-bold">{{ account.displayName }}</span>
+                    <span class="ml-2 rounded-md border border-[var(--dh-border)] px-1.5 py-0.5 text-[10px]">{{ account.kind === 'lead' ? 'Prospecto' : 'Cliente' }}</span>
+                    <span class="mt-1 block text-[var(--dh-text-muted)]">{{ account.executiveName }}</span>
+                  </button>
                 </div>
-                <p v-if="crmSelection" class="text-xs text-[var(--dh-primary)]">Cliente, vendedor y ejecutivo fijados en el contrato.</p>
+                <p v-if="crmSelection" class="text-xs text-[var(--dh-primary)]">Cliente o prospecto y ejecutivo comercial fijados. Castro Fallas se conserva como vendedor institucional.</p>
               </div>
               <p v-if="defaultErrors" class="text-xs text-red-500">{{ defaultErrors }}</p>
               <div v-for="(value, internal) in draft.defaults ?? {}" :key="internal" class="flex items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
