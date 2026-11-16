@@ -1153,7 +1153,7 @@ onMounted(() => {
               <p v-if="haciendaError" role="alert" class="text-xs text-red-400">{{ haciendaError }}</p>
               <div v-if="haciendaResult" class="space-y-2 text-xs">
                 <p class="font-bold">{{ haciendaResult.name }}</p>
-                <p>{{ haciendaResult.activities.map(item => item.code + ' · ' + item.description).join('; ') || '—' }}</p>
+                <p>{{ haciendaResult.activities.map(activity => activity.code + ' · ' + activity.description).join('; ') || '—' }}</p>
                 <button type="button" class="rounded-lg bg-[var(--dh-primary)] px-3 py-2 font-bold text-white"
                   @click="applyHaciendaResult">{{ en ? 'Apply official name and main activity' : 'Aplicar razón social y actividad principal' }}</button>
               </div>
