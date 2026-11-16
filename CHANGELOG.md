@@ -1,3 +1,8 @@
+## [1.62.9] - 2026-11-16 (CRM: estado de finalización sincronizado y ficha legible)
+
+- PATCH DH-20261116-CRM-COMPLETION-STATE-SYNC-177: el detalle consulta el registro persistido al regresar a la pestaña o después de fallar una finalización. Solo confirma «Completada» al comprobarlo en CRM, limpia errores anteriores cuando el servidor ya la completó, muestra la hora real y ofrece «Verificar estado en CRM».
+- Presenta COMMERCIAL_FOLLOWUP como Seguimiento comercial, muestra los resultados activos de Config y oculta la hora real cuando no existe. Sin cambios en permisos, backend, REST, SignalR ni recordatorios. DholeWeb 1.62.8 → 1.62.9, DholeSystem/ecosistema 1.63.10 → 1.63.11; requiere CI y staging multiusuario antes de master y producción.
+
 ## [1.62.8] - 2026-11-16 (Completar actividades comerciales sin error)
 
 - PATCH DH-20261116-CRM-ACTIVITY-COMPLETE-175: para completar visitas, tareas y seguimientos comerciales, el detalle CRM presenta resultados activos de Config en lugar de un campo libre y envía occurredAt=null para utilizar la hora UTC del servidor; evita «Invalid occurrence timestamp or outcome» por relojes adelantados o código Completed inválido.
