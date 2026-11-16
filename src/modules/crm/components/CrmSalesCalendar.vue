@@ -1397,13 +1397,13 @@ function openEvent(item: CalendarEvent) {
       </div>
       </div>
     </DhModal>
-    <DhModal :open="creationOpen" :title="creatingReminder ? 'Nueva actividad comercial' : 'Nueva bitácora comercial'" size="lg" @close="creationOpen=false">
+    <DhModal :open="creationOpen" :title="creatingReminder ? 'Nueva actividad comercial' : 'Nueva bitácora comercial'" size="lg" surface="solid" @close="creationOpen=false">
       <div class="space-y-4">
-      <div class="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] p-2">
-        <button type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': !creatingReminder }"
+      <div class="grid grid-cols-2 gap-2 rounded-xl border border-[var(--dh-border)] p-2" data-crm-calendar-activity-mode>
+        <button type="button" class="calendar-btn calendar-mode-choice" :class="[{ 'calendar-primary': !creatingReminder }, view !== 'agenda' ? 'col-span-2' : '']"
           :disabled="saving || Boolean(pendingDocumentRecord) || !can('crm.activity.create')"
           @click="setReminderMode(false)">Registrar en bitácora</button>
-        <button v-if="view === 'agenda'" type="button" class="calendar-btn flex-1" :class="{ 'calendar-primary': creatingReminder }"
+        <button v-if="view === 'agenda'" type="button" class="calendar-btn calendar-mode-choice" :class="{ 'calendar-primary': creatingReminder }"
           :disabled="saving || Boolean(pendingDocumentRecord)"
           @click="setReminderMode(true)">Crear recordatorio</button>
       </div>
@@ -1605,9 +1605,9 @@ function openEvent(item: CalendarEvent) {
       <template #footer>
         <div class="w-full space-y-2">
           <p v-if="error" role="alert" class="text-xs font-semibold text-red-500">{{ error }}</p>
-          <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end" data-crm-calendar-create-actions>
             <button type="button" class="calendar-btn" @click="creationOpen=false">Cancelar</button>
-            <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary"
+            <button type="submit" form="crm-agenda-create-form" class="calendar-btn calendar-primary calendar-create-submit"
               :disabled="saving || activityTypesLoading || !editor.ownerId || !selectableActivityTypes.some(item => item.value === editor.type)">
               {{ saving ? 'Guardando…' : !creatingReminder ? 'Guardar en bitácora' : historicalActivityDraft ? 'Registrar actividad realizada' : 'Guardar actividad y activar avisos' }}
             </button>
@@ -1622,6 +1622,8 @@ function openEvent(item: CalendarEvent) {
 .calendar-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;white-space:nowrap;border:1px solid var(--dh-border);border-radius:.7rem;padding:.6rem .8rem;font-size:.8rem;font-weight:750;min-height:38px;transition:background .15s}
 .calendar-btn:hover:not(:disabled){background:var(--dh-card-hover)}
 .calendar-btn:disabled{opacity:.55}
+.calendar-mode-choice{min-width:0;min-height:44px;white-space:normal;overflow-wrap:anywhere;text-align:center}
+.calendar-create-submit{min-width:0;white-space:normal;overflow-wrap:anywhere}
 .calendar-primary{background:var(--dh-primary);border-color:var(--dh-primary);color:white}
 .calendar-primary:hover:not(:disabled){filter:brightness(1.12);background:var(--dh-primary)}
 .calendar-label{display:flex;flex-direction:column;gap:.4rem;font-size:.75rem;font-weight:700;color:var(--dh-text-muted)}
