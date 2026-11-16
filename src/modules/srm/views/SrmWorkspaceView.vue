@@ -10,7 +10,7 @@ import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
 import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
-import { SrmApi, type SrmLegacyPartner } from '../services/srmApi'
+import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
 import { supplierSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -24,6 +24,8 @@ const en = computed(() => locale.value === 'en')
 const canReadSection = computed(() => auth.hasScope('srm.supplier.read'))
 const canCreateSuppliers = computed(() => auth.hasScope('srm.supplier.create'))
 const canEditSuppliers = computed(() => auth.hasScope('srm.supplier.update'))
+const canReadBanks = computed(() => auth.hasScope('srm.supplier.bank.read'))
+const canManageBanks = computed(() => canReadBanks.value && auth.hasScope('srm.supplier.bank.manage'))
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -59,6 +61,64 @@ const resolvedSupplierTypes = computed(() =>
 const validSupplierType = computed(() => resolvedSupplierTypes.value.length > 0)
 
 const supplierDescription = ref('')
+const companyPhone = ref('')
+const taxId = ref('')
+const address = ref('')
+const economicActivityCode = ref('')
+const observations = ref('')
+const financeContactId = ref('')
+const bankAccounts = ref<SrmBankAccount[]>([])
+const bankAccountsLoaded = ref(false)
+const bankAccountsLoading = ref(false)
+const bankError = ref('')
+const revealBankNumbers = ref(false)
+const haciendaLoading = ref(false)
+const haciendaError = ref('')
+const haciendaResult = ref<SrmHaciendaResult | null>(null)
+let bankLoadRequest = 0
+const upper = (value: string) => value.trim().toUpperCase()
+const maskedAccount = (value: string) => value.length <= 4 ? '••••' : '•••• ' + value.slice(-4)
+function supplierFinanceContact(item: Supplier): string {
+  const id = String(metadata(item).financeContactId || '')
+  return supplierContacts(item).find(contact => contact.id === id)?.name || '—'
+}
+function newBankAccount(): SrmBankAccount {
+  return { id: crypto.randomUUID(), bankName: '', accountHolder: '', registration: 'LOCAL',
+    accountNumber: '', swiftBic: '', currency: 'USD', bankCountryId: countryIds.value[0] || '',
+    intermediaryBank: '', isPrimary: bankAccounts.value.length === 0 }
+}
+function setBankPrimary(index: number) {
+  bankAccounts.value.forEach((account, i) => { account.isPrimary = i === index })
+}
+function removeBankAccount(index: number) {
+  const removedPrimary = bankAccounts.value[index]?.isPrimary
+  bankAccounts.value.splice(index, 1)
+  if (removedPrimary && bankAccounts.value.length) setBankPrimary(0)
+}
+async function loadBankAccounts(id: string) {
+  const request = ++bankLoadRequest
+  bankAccounts.value = []
+  bankError.value = ''
+  bankAccountsLoaded.value = false
+  bankAccountsLoading.value = canReadBanks.value
+  if (!canReadBanks.value) {
+    bankAccountsLoaded.value = true
+    bankAccountsLoading.value = false
+    return
+  }
+  try {
+    const records = await SrmApi.listBankAccounts(id)
+    if (request !== bankLoadRequest) return
+    bankAccounts.value = records.map(account => ({
+      ...account, swiftBic: account.swiftBic || '',
+      intermediaryBank: account.intermediaryBank || '',
+    }))
+    bankAccountsLoaded.value = true
+  } catch (cause) {
+    if (request !== bankLoadRequest) return
+    bankError.value = cause instanceof Error ? cause.message : 'No se pudieron cargar las cuentas.'
+  } finally { if (request === bankLoadRequest) bankAccountsLoading.value = false }
+}
 type SupplierPaymentType = 'unspecified' | 'cash' | 'advance' | 'credit'
 type SupplierCreditTerms = {
   paymentType: SupplierPaymentType
@@ -117,10 +177,10 @@ function creditReviewDateDisplay(utcDate: string): string {
     ? parsed.toLocaleString(en.value ? 'en-US' : 'es-CR')
     : '—'
 }
-type SupplierContact = { name: string; email: string; phone: string; role: string; countryId: string }
+type SupplierContact = { id: string; name: string; email: string; phone: string; role: string; countryId: string }
 const contacts = ref<SupplierContact[]>([])
 function newContact(): SupplierContact {
-  return { name: '', email: '', phone: '', role: '', countryId: countryIds.value[0] || '' }
+  return { id: crypto.randomUUID(), name: '', email: '', phone: '', role: '', countryId: countryIds.value[0] || '' }
 }
 function supplierContacts(item: Supplier): SupplierContact[] {
   const info = metadata(item)
@@ -130,14 +190,15 @@ function supplierContacts(item: Supplier): SupplierContact[] {
   )
   const mapped = saved.filter((row): row is Record<string, unknown> =>
     !!row && typeof row === 'object' && !Array.isArray(row))
-    .map(row => ({
+    .map((row, index) => ({
+      id: String(row.id || 'LEGACY-' + index),
       name: String(row.name || ''), email: String(row.email || ''),
       phone: String(row.phone || ''), role: String(row.role || ''),
       countryId: String(row.countryId || primaryCountryId),
     })).filter(row => row.name.trim())
   if (mapped.length) return mapped
   if (info.contactName) return [{
-    name: String(info.contactName), email: String(info.contactEmail || ''),
+    id: 'LEGACY-0', name: String(info.contactName), email: String(info.contactEmail || ''),
     phone: String(info.contactPhone || ''), role: '', countryId: primaryCountryId,
   }]
   return []
@@ -150,6 +211,41 @@ const legacyGroup = ref<'all' | 'carriers' | 'agents'>('all')
 const importBusy = ref('')
 const countryIds = ref<string[]>([])
 const countries = ref<CatalogItemSelectDto[]>([])
+const financeContactOptions = computed(() => contacts.value
+  .filter(contact => contact.name.trim())
+  .map(contact => ({ value: contact.id, label: upper(contact.name) +
+    (contact.role ? ' · ' + upper(contact.role) : '') })))
+const costaRicaCountryId = computed(() => countryIds.value.find(id => {
+  const entry = countries.value.find(row => row.id === id)
+  return entry && [entry.label, entry.value, entry.code, entry.slug]
+    .some(value => ['cr', 'cri', 'crc', 'costa rica', 'costa-rica']
+      .includes(String(value || '').trim().toLowerCase()))
+}) || '')
+const canLookupHacienda = computed(() => !!costaRicaCountryId.value &&
+  /^\\d{9,12}$/.test(taxId.value.replace(/[\\s-]/g, '')))
+async function lookupHacienda() {
+  if (!canLookupHacienda.value || haciendaLoading.value) return
+  const country = costaRicaCountryId.value
+  const id = taxId.value.replace(/[\\s-]/g, '')
+  haciendaResult.value = null
+  haciendaError.value = ''
+  haciendaLoading.value = true
+  try {
+    const response = await SrmApi.lookupHacienda(id, country)
+    if (country !== costaRicaCountryId.value || id !== taxId.value.replace(/[\\s-]/g, '')) return
+    haciendaResult.value = response
+  } catch (cause) {
+    haciendaError.value = cause instanceof Error ? cause.message : 'No se pudo consultar Hacienda.'
+  } finally { haciendaLoading.value = false }
+}
+function applyHaciendaResult() {
+  if (!haciendaResult.value ||
+      haciendaResult.value.identification !== taxId.value.replace(/[\\s-]/g, '')) return
+  supplierName.value = upper(haciendaResult.value.name)
+  const main = haciendaResult.value.activities.find(a => a.type.toLowerCase().includes('principal'))
+    || haciendaResult.value.activities[0]
+  if (main) economicActivityCode.value = upper(main.code)
+}
 const countryOptions = computed(() => countries.value.map(row => ({
   value: row.id, label: row.label || row.value || row.id,
 })))
@@ -313,6 +409,21 @@ function resetForm() {
   supplierName.value = ''
   supplierType.value = []
   supplierDescription.value = ''
+  companyPhone.value = ''
+  taxId.value = ''
+  address.value = ''
+  economicActivityCode.value = ''
+  observations.value = ''
+  financeContactId.value = ''
+  bankAccounts.value = []
+  bankAccountsLoading.value = false
+  bankAccountsLoaded.value = false
+  bankError.value = ''
+  revealBankNumbers.value = false
+  ++bankLoadRequest
+  haciendaResult.value = null
+  haciendaError.value = ''
+  haciendaLoading.value = false
   creditEnabled.value = false
   creditDays.value = '30'
   creditLimit.value = ''
@@ -326,7 +437,14 @@ function resetForm() {
   contacts.value = []
   countryIds.value = []
 }
-function openCreate() { resetForm(); detailsVisible.value = false; formVisible.value = true; error.value = ''; success.value = '' }
+function openCreate() {
+  resetForm()
+  bankAccountsLoaded.value = true
+  detailsVisible.value = false
+  formVisible.value = true
+  error.value = ''
+  success.value = ''
+}
 function openEdit(item: Supplier) {
   if (!canEditSuppliers.value) return
   resetForm()
@@ -335,6 +453,12 @@ function openEdit(item: Supplier) {
   supplierType.value = supplierCategories(item)
   supplierDescription.value = item.description || ''
   const info = metadata(item)
+  companyPhone.value = String(info.companyPhone || '')
+  taxId.value = String(info.taxId || '')
+  address.value = String(info.address || '')
+  economicActivityCode.value = String(info.economicActivityCode || '')
+  observations.value = String(info.observations || '')
+  financeContactId.value = String(info.financeContactId || '')
   const terms = supplierCreditTerms(item)
   creditEnabled.value = terms.paymentType === 'credit'
   creditDays.value = terms.days === null ? '30' : String(terms.days)
@@ -354,13 +478,21 @@ function openEdit(item: Supplier) {
   formVisible.value = true
   error.value = ''
   success.value = ''
+  void loadBankAccounts(item.id)
 }
 function openDetails(item: Supplier) {
   selected.value = item
   detailsVisible.value = true
   formVisible.value = false
+  revealBankNumbers.value = false
+  void loadBankAccounts(item.id)
 }
-function closeDetails() { detailsVisible.value = false }
+function closeDetails() {
+  detailsVisible.value = false
+  ++bankLoadRequest
+  bankAccounts.value = []
+  revealBankNumbers.value = false
+}
 function closeForm() { formVisible.value = false; resetForm() }
 async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
   error.value = message
