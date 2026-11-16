@@ -1,3 +1,9 @@
+## [1.62.0] - 2026-11-16 (API Manager: valores fijos por contrato)
+
+- MINOR DH-20261116-API-MANAGER-165: permite configurar valores fijos del lado de Gateway para POST/PUT/PATCH y seleccionar un cliente de CRM para guardar su nombre y ejecutivo en la solicitud de tarifas.
+- El consumidor externo solo envía los datos variables; el backend protege valores fijos y conserva la autorización técnica por operación y API Key.
+- Incorpora prueba de regresión, compatibilidad con contratos anteriores y catálogo de rutas aprobadas como alternativa al inventario en vivo.
+
 ## [1.61.1] - 2026-11-16 (API Manager: edición y publicación de catálogos Config)
 
 - PATCH DH-20261116-API-MANAGER-164: corrige DataCloneError al abrir Administrar y al actualizar una API publicada, generando DTO de edición independiente del proxy reactivo.
