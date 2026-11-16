@@ -1,3 +1,10 @@
+## [1.63.0] - 2026-11-16 (SRM: ficha corporativa, Hacienda y cuentas bancarias seguras)
+
+- MINOR DH-20261116-SRM-SUPPLIER-FINANCE-176: teléfono, RUC/NIT, dirección, actividad económica, observaciones y contacto principal de Finanzas para proveedores.
+- Consulta tributaria oficial de Hacienda para Costa Rica; aplicación explícita de razón social y actividad principal.
+- Cuentas bancarias múltiples con una cuenta de pago principal, separadas del catálogo ordinario por scopes de lectura y administración; validación y confirmación del guardado.
+- Normalización UPPER CASE y pruebas de regresión. Versión ecosistema 1.64.0. CI/staging pendientes.
+
 ## [1.62.8] - 2026-11-16 (Completar actividades comerciales sin error)
 
 - PATCH DH-20261116-CRM-ACTIVITY-COMPLETE-175: para completar visitas, tareas y seguimientos comerciales, el detalle CRM presenta resultados activos de Config en lugar de un campo libre y envía occurredAt=null para utilizar la hora UTC del servidor; evita «Invalid occurrence timestamp or outcome» por relojes adelantados o código Completed inválido.
