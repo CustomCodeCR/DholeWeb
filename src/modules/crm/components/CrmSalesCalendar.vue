@@ -916,7 +916,9 @@ async function create() {
         type: data.type, subject: data.subject.trim(),
         scheduledStartAt: requiresSchedule ? start.toISOString() : null,
         scheduledEndAt: requiresSchedule ? end.toISOString() : null,
-        occurredAt: !requiresSchedule ? new Date().toISOString() : historicalActivity ? end.toISOString() : null,
+        // CRM determines actual occurrence using its UTC server clock (also for historical activities).
+        // Browser clocks can be ahead and must not create a future actual occurrence.
+        occurredAt: null,
         repeatEveryDays: requiresSchedule ? data.repeatEveryDays : null,
         reminderRepeatMinutes: requiresSchedule ? data.reminderRepeatMinutes : null,
         locationText: data.location.trim() || null,

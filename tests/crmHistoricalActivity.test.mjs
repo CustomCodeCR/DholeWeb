@@ -12,10 +12,15 @@ test('backdated activities are not automatically moved forward', () => {
   assert.match(view, /startAt: start\.toISOString\(\), dueAt: end\.toISOString\(\)/)
 })
 
-test('completed historical activity sends original end as occurredAt', () => {
+test('server determines actual occurrence for logs and historical activities', () => {
   assert.match(view, /const historicalActivity = requiresSchedule && data\.type !== 'FOLLOWUP'/)
-  assert.match(view, /occurredAt: !requiresSchedule \? new Date\(\)\.toISOString\(\) : historicalActivity \? end\.toISOString\(\) : null/)
-  assert.match(view, /no generar|sin avisos retroactivos/i)
+  // Explicit null delegates to CRM's UTC clock; scheduled historical dates are
+  // inferred by the API so a fast workstation clock cannot trigger future errors.
+  assert.match(view, /occurredAt: null/)
+  assert.doesNotMatch(view, /occurredAt:\s*!requiresSchedule\s*\?\s*new Date\(\)\.toISOString\(\)/)
+  assert.match(view, /scheduledStartAt: requiresSchedule \? start\.toISOString\(\) : null/)
+  assert.match(view, /scheduledEndAt: requiresSchedule \? end\.toISOString\(\) : null/)
+  assert.match(view, /sin avisos retroactivos/i)
 })
 
 test('past activities are explained in the form; future commitments keep validation', () => {
