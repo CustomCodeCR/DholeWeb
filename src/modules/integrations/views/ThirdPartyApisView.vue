@@ -90,6 +90,9 @@ const METHODS: { value: HttpMethod; label: string; detail: string }[] = [
 const blank = (): PublishedEndpoint => ({
   id: '', name: '', slug: '', target: '', inputs: [], outputs: [], responseRoot: null, enabled: false,
 })
+// Vue reactive proxies cannot be passed to structuredClone; keep drafts detached.
+const cloneEndpoint = (value: PublishedEndpoint): PublishedEndpoint =>
+  JSON.parse(JSON.stringify(value)) as PublishedEndpoint
 const draft = ref<PublishedEndpoint>(blank())
 const isNew = computed(() => !draft.value.id)
 const selectedTarget = computed(() => catalog.value.find(t => t.code === draft.value.target))
@@ -491,7 +494,7 @@ function create() {
 }
 function edit(row: PublishedEndpoint) {
   resetApiTest()
-  draft.value = structuredClone(row)
+  draft.value = cloneEndpoint(row)
   const target = catalog.value.find(t => t.code === row.target)
   service.value = target?.service || 'pricing'
   manualRoute.value = target?.path || '/api/' + service.value + '/'
@@ -735,7 +738,7 @@ async function toggle(row: PublishedEndpoint) {
     })
     await load()
     const updated = endpoints.value.find(x => x.id === row.id)
-    if (updated && draft.value.id === row.id) draft.value = structuredClone(updated)
+    if (updated && draft.value.id === row.id) draft.value = cloneEndpoint(updated)
     if (row.enabled) resetApiTest()
     notice.value = row.enabled ? 'API desactivada. Se conservaron las vinculaciones de sus claves.' : 'API publicada. Ahora vinculá una API Key desde la pestaña de credenciales.'
   } catch (e) { error.value = e instanceof Error ? e.message : 'No se pudo cambiar el estado.' }

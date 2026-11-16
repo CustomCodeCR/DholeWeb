@@ -23,3 +23,11 @@ jobs:
         run: node scripts/versioning.mjs check
       - name: Test SemVer increment rules
         run: node --test tests/versioning.test.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: API Manager regression
+        run: npm run test:api-manager
+      - name: Type-check Vue application
+        run: npm run type-check
+      - name: Build Vue application
+        run: npm run build-only
