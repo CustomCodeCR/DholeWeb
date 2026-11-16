@@ -34,3 +34,20 @@ test('activity completion uses server UTC clock and active configured result cod
   assert.match(detail, /:options="activityOutcomeOptions"/)
   assert.match(detail, /item\.value === drafts\.outcome/)
 })
+
+test('completion status is confirmed from CRM after a rejected request or another tab', () => {
+  assert.match(detail, /async function refreshActivityState\(showFeedback = false\)/)
+  assert.match(detail, /const updated = await crmGet\('activities', activityId\)/)
+  assert.match(detail, /if \(updated.status === 'Completed'\)/)
+  assert.match(detail, /const confirmed = await refreshActivityState\(false\)/)
+  assert.match(detail, /window.addEventListener\('focus', syncActivityOnFocus\)/)
+  assert.match(detail, /window.removeEventListener\('focus', syncActivityOnFocus\)/)
+  assert.match(detail, /data-crm-completion-confirmed/)
+  assert.match(detail, /label="Verificar estado en CRM"/)
+})
+
+test('CRM detail localizes commercial followups and displays real completion date only when saved', () => {
+  assert.match(detail, /COMMERCIAL_FOLLOWUP:'Seguimiento comercial'/)
+  assert.match(detail, /if \(activity && item.occurredAt\) fields.push/)
+  assert.match(detail, /activityOutcomeOptions.value.find\(option => option.value === item.outcome\)/)
+})
