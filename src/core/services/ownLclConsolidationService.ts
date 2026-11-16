@@ -70,6 +70,8 @@ export interface OwnLclLinkedQuoteDto {
   clientName: string | null
   status: string
   createdAtUtc: string
+  physicalCbm: number
+  billableCbm: number
 }
 
 export interface OwnLclDestinationChargeDto {
