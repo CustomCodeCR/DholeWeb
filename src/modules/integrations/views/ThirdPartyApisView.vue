@@ -1236,7 +1236,7 @@ onMounted(() => { void load() })
                 <div class="mt-2 grid gap-2">
                   <div v-for="field in defaultCandidates" :key="field.internal" class="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--dh-border)] p-2">
                     <span class="min-w-40 flex-1 text-xs">{{ field.label }} · {{ field.type }}</span>
-                    <div class="min-w-44 flex-1"><DhInput v-model="defaultDrafts[field.internal]" :placeholder="field.type === 'JSON' ? 'JSON' : 'Valor fijo'" /></div>
+                    <div class="min-w-44 flex-1"><DhInput :model-value="defaultDrafts[field.internal] ?? ''" @update:model-value="value => { defaultDrafts[field.internal] = String(value) }" :placeholder="field.type === 'JSON' ? 'JSON' : 'Valor fijo'" /></div>
                     <DhButton size="sm" variant="secondary" label="Fijar" @click="changeDefault(field, defaultDrafts[field.internal] ?? '')" />
                   </div>
                 </div>
