@@ -23,3 +23,14 @@ test('linked followup exposes its parent activity and the full reminder cadence'
   assert.match(detail, /agendaParent\.activityId/)
   assert.match(detail, /agendaCadence\(item.reminderRepeatMinutes, 'minutos'\)/)
 })
+
+test('activity completion uses server UTC clock and active configured result code', () => {
+  assert.match(detail, /CatalogItemsService\.select\(\{ catalogGroupSlug: 'crm-activity-outcomes' \}\)/)
+  assert.match(detail, /activityOutcomeOptions\.value = Array\.from/)
+  assert.match(detail, /outcome: 'COMPLETED'/)
+  assert.match(detail, /async function completeActivity\(\)/)
+  assert.match(detail, /occurredAt: null, note: drafts\.note \|\| null/)
+  assert.doesNotMatch(detail, /occurredAt: new Date\(\)\.toISOString\(\), note: drafts\.note/)
+  assert.match(detail, /:options="activityOutcomeOptions"/)
+  assert.match(detail, /item\.value === drafts\.outcome/)
+})
