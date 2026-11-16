@@ -142,7 +142,6 @@ function removeDefault(internal: string) {
 }
 const defaultCandidates = computed(() => method.value === 'GET' ? [] : inputCatalog.value.filter(f =>
   f.internal !== 'payload' && !f.internal.startsWith('payload.') &&
-  !draft.value.inputs.some(x => x.internal === f.internal) &&
   !Object.prototype.hasOwnProperty.call(draft.value.defaults ?? {}, f.internal)))
 
 
