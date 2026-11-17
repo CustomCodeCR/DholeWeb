@@ -35,6 +35,12 @@ export function crmHaciendaErrorMessage(cause: unknown): string {
   const status = cause && typeof cause === 'object'
     ? (cause as { status?: number; statusCode?: number }).status ??
       (cause as { statusCode?: number }).statusCode : undefined
+  if (status === 400 && cause && typeof cause === 'object') {
+    const data = (cause as { data?: unknown }).data
+    // HTML from Nginx/Cloudflare must not be treated as a taxpayer validation error.
+    if (typeof data === 'string' && /<(!doctype|html|head|body)/i.test(data.slice(0,600)))
+      return 'El proxy web rechazó la consulta a Hacienda. Volvé a intentarlo o reportá el error'
+  }
   switch (status) {
     case 400: return 'Revisá la identificación y el país seleccionado'
     case 401: return 'La sesión venció. Iniciá sesión nuevamente'

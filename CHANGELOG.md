@@ -1,3 +1,9 @@
+## [1.67.6] - 2026-11-17 (CRM Hacienda: POST fiscal y proxy reforzado)
+
+- PATCH DH-20261117-HACIENDA-POST-197: CRM envía identificación y país mediante POST JSON autenticado, sin identificaciones en la URL; conserva GET únicamente como compatibilidad durante despliegues coordinados. El proxy mismo-origen admite únicamente GET/POST y no reenvía cookies innecesarias.
+- Un HTML 400 del proxy ya no se presenta como identificación inválida. Conserva autocompletado, aislamiento de sesión, scopes y guardado manual. Web 1.67.5 → 1.67.6, CRM 1.34.2 → 1.35.0, ecosistema 1.70.6 → 1.71.0.
+- CI y smoke real en staging pendientes; producción no autorizada.
+
 ## [1.67.5] - 2026-11-17 (LCL propio: seguro de carga y Manejos)
 
 - PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro solicitado y Manejos al abrir, editar, reconstruir y guardar las cotizaciones LCL propias, sin perder Ids, costos ni ventas.
