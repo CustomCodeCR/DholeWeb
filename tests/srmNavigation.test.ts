@@ -162,7 +162,7 @@ test('SRM supplier contact phone follows the selected country', () => {
 })
 test('SRM save button triggers validation and create/update even with invalid HTML inputs', () => {
   assert.ok(view.includes('novalidate @submit.prevent="submitSupplierSafely"'))
-  assert.ok(view.includes('type="submit" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"'))
+  assert.ok(view.includes('type="submit" form="srm-supplier-form" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"'))
   assert.ok(view.includes('data-srm-save-button'))
   assert.ok(view.includes('async function submitSupplierSafely()'))
   assert.ok(view.includes('data-srm-save-error'))
