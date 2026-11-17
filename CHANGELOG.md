@@ -1,3 +1,8 @@
+## [1.67.1] - 2026-11-17 (CRM: consulta Hacienda resistente a fallos de red)
+
+- PATCH DH-20261117-CRM-HACIENDA-NETWORK-192: CRM reintenta una vez un fallo de transporte de Hacienda, nunca repite respuestas HTTP y descarta consultas obsoletas. Mensajes sin cédula, URLs ni trazas; validación estricta de respuesta. No altera scopes, REST, Outbox o SignalR.
+- DholeWeb 1.67.0 → 1.67.1; CRM 1.33.1/1.34.1 → 1.34.2; DholeSystem/ecosistema 1.70.1 → 1.70.2. CI y staging pendientes; no autoriza despliegue de producción.
+
 ## [1.67.0] - 2026-11-17 (SRM: eliminar proveedores)
 
 - MINOR DH-20261117-SRM-SUPPLIER-DELETE-190: habilita Eliminar en listado y ficha SRM, protegido por srm.supplier.archive; confirmación, mensajes de conflicto por referencias y eliminación lógica auditada.
