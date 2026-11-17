@@ -1,3 +1,8 @@
+## [1.67.4] - 2026-11-17 (Dashboard MultiQUO consolidado)
+
+- PATCH DH-20261117-MULTIQUO-DASHBOARD-195: el dashboard de inicio muestra el número comercial del grupo y el indicador de alternativas; desaparecen las QUO técnicas duplicadas tras el filtro en Pricing.
+- No altera la selección exclusiva de una alternativa aceptada ni la lógica de aprobación de márgenes. Web 1.67.3 → 1.67.4; ecosistema 1.70.4 → 1.70.5. Validar CI/staging antes de master.
+
 ## [1.67.3] - 2026-11-17 (MultiQUO: números comerciales, aprobación y PDF)
 
 - PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: títulos y nombres de descarga usan la QUO comercial (672-A / 672-B), no el consecutivo técnico 673.
