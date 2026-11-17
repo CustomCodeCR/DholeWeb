@@ -53,12 +53,22 @@ function patchWizard(source: string) {
     )
   }
 
+  if (!code.includes('async function approveCurrentRate()')) {
   code = replaceOne(
     code,
     "async function markCurrentRateSent() {",
     "async function approveCurrentRate() {\n  if (!editingRate.value || !canApproveCurrentRate.value || approvalSaving.value) return\n  try {\n    approvalSaving.value = true\n    await PricingService.approveRateMargin(editingRate.value.id)\n    toastStore.success('Margen aprobado', 'La tarifa quedó aprobada por gerencia.')\n    await hydrateExistingRate()\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo aprobar el margen de la tarifa.')\n  } finally {\n    approvalSaving.value = false\n  }\n}\n\nasync function openApprovedRate() {\n  if (!editingRate.value || !canOpenApprovedRate.value || commercialStatusSaving.value) return\n  try {\n    commercialStatusSaving.value = true\n    await PricingService.setRateStatus(editingRate.value.id, { status: 'Open' })\n    toastStore.success('Tarifa abierta', 'La tarifa aprobada ya está disponible para el flujo comercial.')\n    await hydrateExistingRate()\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo poner la tarifa en estado Abierta.')\n  } finally {\n    commercialStatusSaving.value = false\n  }\n}\n\nasync function markCurrentRateSent() {",
     'wizard approval actions',
   )
+  } else if (!code.includes('async function openApprovedRate()')) {
+    // Respect the source's group-aware approval handler; only add Open transition.
+    code = replaceOne(
+      code,
+      "async function markCurrentRateSent() {",
+      "async function openApprovedRate() {\n  if (!editingRate.value || !canOpenApprovedRate.value || commercialStatusSaving.value) return\n  try {\n    commercialStatusSaving.value = true\n    await PricingService.setRateStatus(editingRate.value.id, { status: 'Open' })\n    toastStore.success('Tarifa abierta', 'La tarifa aprobada ya está disponible para el flujo comercial.')\n    await hydrateExistingRate()\n  } catch (error) {\n    toastStore.backendError(error, 'No se pudo poner la tarifa en estado Abierta.')\n  } finally {\n    commercialStatusSaving.value = false\n  }\n}\n\nasync function markCurrentRateSent() {",
+      'wizard open approved action',
+    )
+  }
 
   code = replaceOne(
     code,
