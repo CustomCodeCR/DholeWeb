@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 import { CRM_CREDIT_COVERAGE_OPTIONS } from '../model/crmCreditCoverage'
 
@@ -8,6 +8,20 @@ const props = withDefaults(defineProps<{
 }>(), { disabled: false })
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const open = ref(false)
+const root = ref<HTMLElement | null>(null)
+function close() { open.value = false; search.value = '' }
+function closeOnOutsidePointer(event: PointerEvent) {
+  if (root.value && !root.value.contains(event.target as Node)) close()
+}
+function closeOnEscape(event: KeyboardEvent) { if (event.key === 'Escape') close() }
+onMounted(() => {
+  document.addEventListener('pointerdown', closeOnOutsidePointer)
+  document.addEventListener('keydown', closeOnEscape)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', closeOnOutsidePointer)
+  document.removeEventListener('keydown', closeOnEscape)
+})
 const search = ref('')
 const filtered = computed(() => CRM_CREDIT_COVERAGE_OPTIONS.filter(x =>
   x.label.toLocaleLowerCase('es').includes(search.value.toLocaleLowerCase('es'))))
@@ -18,14 +32,14 @@ function toggle(code: string) {
 }
 </script>
 <template>
-  <div class="relative min-w-0 space-y-2" data-crm-credit-multiselect>
+  <div ref="root" class="min-w-0 space-y-2" data-crm-credit-multiselect>
     <label class="block text-xs font-bold text-[var(--dh-text-muted)]">{{ label }}</label>
-    <button type="button" class="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm"
-      :aria-expanded="open" :disabled="disabled" @click="open=!open">
-      <span>{{ modelValue.length ? modelValue.length+' conceptos seleccionados' : 'Seleccionar uno o varios conceptos' }}</span>
+    <button type="button" class="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-left text-sm"
+      :aria-expanded="open" aria-haspopup="listbox" :disabled="disabled" @click="open ? close() : open = true">
+      <span class="min-w-0 flex-1 truncate">{{ modelValue.length ? modelValue.length+' conceptos seleccionados' : 'Seleccionar uno o varios conceptos' }}</span>
       <ChevronDown class="h-4 w-4" />
     </button>
-    <div v-if="open" class="absolute left-0 right-0 top-full z-50 mt-1 space-y-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-xl">
+    <div v-if="open" class="relative z-10 mt-2 space-y-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 shadow-sm">
       <div class="flex items-center gap-2 rounded-lg border border-[var(--dh-border)] p-2">
         <Search class="h-4 w-4" />
         <input v-model="search" type="search" placeholder="Buscar servicio…" class="min-w-0 flex-1 bg-transparent text-sm outline-none" />
@@ -39,7 +53,7 @@ function toggle(code: string) {
           {{ item.label }}
         </button>
       </div>
-      <button type="button" class="w-full rounded-lg border border-[var(--dh-border)] p-2 text-xs" @click="open=false">Listo</button>
+      <button type="button" class="w-full rounded-lg border border-[var(--dh-border)] p-2 text-xs" @click="close()">Listo</button>
     </div>
     <div v-if="modelValue.length" class="flex flex-wrap gap-2">
       <button v-for="code in modelValue" :key="code" type="button" :disabled="disabled"
