@@ -18,8 +18,8 @@ test('runtime version is parsed from health body or headers', () => {
 
 test('registry only accepts known format and never invents missing versions', () => {
   assert.deepEqual(readReleaseVersions({ services: [
-    {key:'gateway',version:'1.3.0'}, {key:'ai',version:'1.3.2'},
+    {key:'gateway',version:'1.3.0'}, {key:'ai',version:'1.3.2'}, {key:'operations',version:'0.3.1'},
     {key:'hermes',version:null}, {key:'bad/key',version:'2.0.0'},
-  ]}), {gateway:'1.3.0',ai:'1.3.2'})
+  ]}), {gateway:'1.3.0',ai:'1.3.2',operations:'0.3.1'})
   assert.deepEqual(readReleaseVersions({}), {})
 })
