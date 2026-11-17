@@ -1,3 +1,9 @@
+## [1.66.0] - 2026-11-17 (DH-184 · Operations en estados de servicios)
+
+- MINOR: Operations Service aparece en Estados/Monitoreo mediante `GET /api/health/operations`, con latencia, código HTTP, versión real o registrada y hora de revisión.
+- Prueba de regresión del monitor y del registro; el Gateway consulta `/ready` del servicio para verificar PostgreSQL y Redis.
+- DholeWeb 1.65.3 → 1.66.0 y ecosistema 1.67.0 → 1.68.0.
+
 ## [1.65.3] - 2026-11-16 (SRM: consulta Hacienda y pie de formulario estable)
 
 - PATCH DH-20261116-SRM-HACIENDA-182: recupera una única falla de transporte al consultar Hacienda con GET (sin repetir 4xx, 429 ni respuestas 5xx), comprueba la respuesta antes de aplicarla y muestra un mensaje claro sin exponer identificaciones ni URLs del contribuyente.
