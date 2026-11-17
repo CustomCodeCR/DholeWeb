@@ -65,3 +65,11 @@ test('final guard is idempotent, narrow and registered after prior pricing trans
   const vue = vite.lastIndexOf('vue(),')
   assert.ok(pluginCall > priorPlugin && vue > pluginCall)
 })
+
+test('the legacy edit wizard receives the same maritime LCL no-naviera rule', () => {
+  const stableSource = fixture.split('\n').slice(0, 2).join('\n')
+  const patched = patchPricingLclNoCarrierCostGuard(stableSource, false)
+  assert.match(patched, /lclNoCarrierRejectCatalogCost\(cost\)/)
+  assert.match(patched, /function applicableCost\(cost: CostSelectDto\)/)
+  assert.doesNotMatch(patched, /function screen7CostMatchesSelectedProviders/)
+})
