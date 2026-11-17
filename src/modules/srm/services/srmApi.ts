@@ -2,6 +2,7 @@ import { fetchClient } from '@/core/api/fetchConfig'
 import { unwrapApiResponse, unwrapListResponse, type ApiResponse } from '@/core/api/apiResponse'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
 import { srmMutationFailure } from '../utils/srmSupplierSave'
+import { retrySrmHaciendaNetwork } from '../utils/srmHacienda'
 
 // Fixed SRM routes are hosted by Config but authorize only their dedicated srm.* scopes.
 // Never expose generic catalog group/item administration to SRM-only users.
@@ -72,7 +73,8 @@ export const SrmApi = {
   },
   async lookupHacienda(identificacion: string, countryId: string): Promise<SrmHaciendaResult> {
     const query = new URLSearchParams({ identificacion, countryId })
-    return fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' })
+    return retrySrmHaciendaNetwork(() =>
+      fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' }))
   },
   async listBankAccounts(supplierId: string): Promise<SrmBankAccount[]> {
     return fetchClient<SrmBankAccount[]>(base + '/suppliers/' +

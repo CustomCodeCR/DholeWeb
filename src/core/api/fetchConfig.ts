@@ -276,7 +276,9 @@ async function getUsableAccessToken(endpoint: string): Promise<string | null> {
 
 function buildRequestConfig(options: RequestOptions, token: string | null): RequestInit {
   const headers: HeadersInit = {
-    ...(options.isFormData ? {} : { 'Content-Type': 'application/json' }),
+    // A bodyless GET must not advertise Content-Type: the Gateway would create
+    // a StreamContent for the forwarded request, triggering unnecessary preflight/body handling.
+    ...(options.isFormData || options.method === 'GET' ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers ?? {}),
   }
