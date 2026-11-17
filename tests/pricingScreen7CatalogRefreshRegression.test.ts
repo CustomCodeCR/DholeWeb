@@ -130,6 +130,18 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     loadApplicableCosts: async () => { env.costs.value = pricingCosts },
     loadAllApplicableOptionalCosts: async () => [],
     isOwnLclMatrixContext: () => own,
+    // This harness evaluates the screen-7 fragment without the preceding
+    // own-LCL persistence plugin that provides the runtime helper.
+    ownLclKeepQuotedLine: (line: any, all: any[]) => {
+      const isMatrix = (item: any) =>
+        /LCL\\s*PROPIO|Consolidado(Id)?:|Fuente LCL:\\s*Propio/i.test(String(item.notes ?? ''))
+      if (isMatrix(line)) return true
+      const name = String(line.name ?? '').toLowerCase()
+      if (line.costDetailType === 'Insurance' || /seguro|insurance/.test(name)) return true
+      if (!name.startsWith('manejos') || !(line.id || line.detailId)) return false
+      return !all.some(item => isMatrix(item)
+        && String(item.name ?? '').toLowerCase().startsWith('manejos'))
+    },
     isLclColoaderAgentCostContext: () => false,
     currentCostContextKey: () => 'route-and-agent',
     PricingService: {
@@ -480,4 +492,20 @@ test('historical Shandong China quote refresh keeps pickup price, CFS chargeable
   assert.equal(env.rateLines.value[3].saleAmount, 55)
   assert.equal(env.rateLines.value.some((line: any) => line.detailId === 'EXTRA'), false)
   assert.ok(events.includes('saved'))
+})
+
+test('own LCL refresh keeps an independently saved cargo-insurance detail', async () => {
+  const { env, runRefresh } = refreshHarness([], true)
+  const original = [{
+    key: 'existing:INS', detailId: 'INS', costId: null, name: 'Seguro de carga',
+    costDetailType: 'Insurance', costType: 'Variable', section: 'destination_charges',
+    costAmount: 8, saleAmount: 12, currencyCode: 'USD', included: true, notes: '',
+  }]
+  env.rateLines.value.push(...original)
+  await runRefresh()
+  const saved = env.rateLines.value.filter((line: any) => line.costDetailType === 'Insurance')
+  assert.equal(saved.length, 1)
+  assert.equal(saved[0].detailId, 'INS')
+  assert.equal(saved[0].costAmount, 8)
+  assert.equal(saved[0].saleAmount, 12)
 })

@@ -160,8 +160,9 @@ function patchWizard(source: string) {
         // The own-LCL persistence plugin now adds a customs exception first.
         // Preserve that exception while including EXW/FCA variable charges.
         patchedBlock = ownBlock.replace(customsFilter, customsFilter.slice(0, -1) + ' || ' + extraFilter + ')')
-      } else if (ownBlock.includes('.filter((line) => !line.costId && ownLclFromMatrix(line.notes))')) {
-        // LCL propio: solo sus líneas de matriz. No incorporar cargos EXW/FCA globales.
+      } else if (ownBlock.includes('.filter((line) => !line.costId && ownLclFromMatrix(line.notes))')
+        || ownBlock.includes('&& ownLclKeepQuotedLine(line, ')) {
+        // LCL propio: matriz + Seguro/Manejos existentes. No importar cargos EXW/FCA globales.
         patchedBlock = ownBlock
       } else if (ownBlock.includes(oldFilter)) {
         patchedBlock = ownBlock.replace(oldFilter, ".filter((line) => !line.costId || " + extraFilter + ")")

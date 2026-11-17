@@ -133,7 +133,7 @@ async function hydratePersistedLclSource(rate: RateDto) {
     const ownMatrixLine = (notes: unknown) =>
       /LCL\s*PROPIO|Fuente LCL:\s*Propio|Consolidado(Id)?:/i.test(String(notes ?? ''))
     rateLines.value = rateLines.value
-      .filter((line) => ownMatrixLine(line.notes))
+      .filter((line) => ownLclKeepQuotedLine(line, rateLines.value))
       .map((line) => ({
         ...line,
         chargeBasis: normalizeCatalogValue(line.name) === 'cfs'

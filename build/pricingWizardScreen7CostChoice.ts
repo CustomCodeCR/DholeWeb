@@ -359,7 +359,14 @@ async function screen7RefreshOwnLclMatrix(previous: RateLine[]) {
   })
   // Own consolidations are authoritative: no inherited generic Cargo en
   // Origen, Recolecta, Manejos or insurance lines from legacy rate snapshots.
-  const supplemental: RateLine[] = []
+  const supplemental: RateLine[] = previous.filter((line) =>
+    !screen7OwnLclMatrixMarker(line)
+    && ownLclKeepQuotedLine(line, [...fresh, ...previous])
+    && !fresh.some((item) =>
+      (line.costDetailType === 'Insurance' && item.costDetailType === 'Insurance')
+      || (normalizeCatalogValue(line.name).startsWith('manejos')
+        && normalizeCatalogValue(item.name).startsWith('manejos'))),
+  )
   return { fresh, next: [...fresh, ...supplemental], calculation }
 }
 
