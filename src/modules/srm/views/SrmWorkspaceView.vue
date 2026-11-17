@@ -1442,7 +1442,7 @@ onMounted(() => {
                   catalog-group-slug="currencies" value-kind="value" />
                 <div class="min-w-0">
                   <DhSelect :model-value="account.bankCountryId" :options="countryOptions"
-                    @update:model-value="onBankCountryChange(account, $event)"
+                    @update:model-value="onBankCountryChange(account, String($event))"
                     :label="en ? 'Bank country *' : 'País del banco *'" />
                 </div>
                 <label class="text-xs font-semibold">{{ en ? 'Intermediary bank (optional)' : 'Banco intermediario (opcional)' }}
