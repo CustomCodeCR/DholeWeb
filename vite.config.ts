@@ -95,6 +95,7 @@ import { pricingWizardLtlProviderParity } from './build/pricingWizardLtlProvider
 import { pricingLtlOptionalEditable } from './build/pricingLtlOptionalEditable'
 import { pricingOwnLtlPanamaCosts } from './build/pricingOwnLtlPanamaCosts'
 import { pricingPanamaFclOverweight } from './build/pricingPanamaFclOverweight'
+import { pricingLclNoCarrierCostGuard } from './build/pricingLclNoCarrierCostGuard'
 import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
 import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules20261002'
@@ -253,6 +254,8 @@ export default defineConfig({
     // Final pricing rule: source Panama -> Costa Rica costs for own CFZ -> San José LTL.
     pricingOwnLtlPanamaCosts(),
     pricingPanamaFclOverweight(),
+    // Final hard business gate: maritime LCL never inherits costs assigned to navieras.
+    pricingLclNoCarrierCostGuard(),
     vue(),
     tailwindcss(),
   ],
