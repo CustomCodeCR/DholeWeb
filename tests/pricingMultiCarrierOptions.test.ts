@@ -297,3 +297,12 @@ test('group margin approval and PDF require all sibling alternatives to be appro
   assert.match(wizard, /savedQuoteGroup\.value\.parentQuoteNumber/)
   assert.match(formatSource, /rate\.quoNumber\?\.trim\(\) \|\| rate\.rateCode/)
 })
+
+test('home dashboard displays MultiQUO only once with commercial base and alternatives', () => {
+  const home = readFileSync(new URL('../src/modules/dashboard/components/PricingRoleDashboard.vue', import.meta.url), 'utf8')
+  const pricingApi = readFileSync(new URL('../src/core/interfaces/pricing.ts', import.meta.url), 'utf8')
+  assert.match(home, /rate\.groupAlternativeCount/)
+  assert.match(home, /rate\.rateCode/)
+  assert.match(home, /alternativas/)
+  assert.match(pricingApi, /groupAlternativeCount\?: number \| null/)
+})
