@@ -25,6 +25,12 @@ export async function crmRequest<T>(path: string, method: CrmMethod = 'GET',
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
   return fetchClient<T>(path, { method, body, headers })
 }
+/** Authenticated Hacienda GET via the SPA's same-origin Nginx/Gateway proxy. */
+export function crmHaciendaRequest<T>(params: URLSearchParams): Promise<T> {
+  return fetchClient<T>('/api/crm/hacienda/lookup?' + params.toString(),
+    { method: 'GET', headers: { Accept: 'application/json' } }, '')
+}
+
 export function crmList(resource: string, query: Record<string, string | number | undefined> = {}) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
