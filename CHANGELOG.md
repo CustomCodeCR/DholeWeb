@@ -1,3 +1,9 @@
+## [1.67.3] - 2026-11-17 (MultiQUO: números comerciales, aprobación y PDF)
+
+- PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: títulos y nombres de descarga usan la QUO comercial (672-A / 672-B), no el consecutivo técnico 673.
+- Pantalla 9: aprobación grupal de márgenes pendientes; refresca todas las alternativas. Solo una alternativa podrá aceptarse comercialmente.
+- Web 1.67.2 → 1.67.3; ecosistema 1.70.3 → 1.70.4. Validaciones pendientes.
+
 ## [1.67.2] - 2026-11-17 (Hacienda: reverse proxy de mismo origen CRM/SRM)
 - PATCH DH-20261117-HACIENDA-SAME-ORIGIN-193: consulta Hacienda autenticada por el origen de DholeWeb y Nginx interno hacia api-gateway (únicamente GET). Evita la segunda ruta por Cloudflare para Hacienda y el bloqueo CORS sobre 502 generados por la ruta externa; conserva JWT, impersonación, ACL y controles de datos oficiales.
 - Incluye conversión de prospectos, SRM y regresión. El proxy suprime el access_log de identificaciones fiscales. Requiere verificación de conectividad interna y smoke de Hacienda en staging antes de producción.
