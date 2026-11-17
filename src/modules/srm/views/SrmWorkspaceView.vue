@@ -12,7 +12,7 @@ import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
 import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
-import { srmCountryIbanFormat, srmIbanInput, type SrmIbanFormat } from '../utils/srmIban'
+import { srmCountryIbanFormat, srmIbanInput, srmIbanValidationError, type SrmIbanFormat } from '../utils/srmIban'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId, srmHaciendaFields, srmHaciendaErrorMessage } from '../utils/srmHacienda'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -104,6 +104,12 @@ function supplierFinanceContact(item: Supplier): string {
 }
 function bankIbanFormat(countryId: string): SrmIbanFormat | null {
   return srmCountryIbanFormat(countries.value.find(item => item.id === countryId))
+}
+/** Avoid alarming users while they type; explain failed check digits once length is complete. */
+function bankIbanError(account: SrmBankAccount): string {
+  const format = bankIbanFormat(account.bankCountryId)
+  if (!format || account.accountNumber.length < format.length) return ''
+  return srmIbanValidationError(account.accountNumber, format, en.value) || ''
 }
 function onBankCountryChange(account: SrmBankAccount, countryId: string) {
   if (account.bankCountryId === countryId) return
@@ -1425,12 +1431,16 @@ onMounted(() => {
                   <input :value="account.accountNumber" :type="revealBankNumbers ? 'text' : 'password'"
                     :readonly="!canManageBanks" required
                     :maxlength="bankIbanFormat(account.bankCountryId)?.length ?? 44"
+                    :aria-invalid="Boolean(bankIbanError(account))"
                     autocomplete="off" @input="onBankNumberInput(account, $event)"
                     class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 font-mono uppercase" />
                   <span v-if="bankIbanFormat(account.bankCountryId)" class="mt-1 block text-[11px] font-normal text-[var(--dh-text-muted)]">
                     {{ en ? 'Prefix' : 'Prefijo' }} {{ bankIbanFormat(account.bankCountryId)?.code }}
                     · {{ account.accountNumber.length }}/{{ bankIbanFormat(account.bankCountryId)?.length }}
                     {{ en ? 'characters' : 'caracteres' }}
+                  </span>
+                  <span v-if="bankIbanError(account)" role="alert" class="mt-1 block text-xs font-medium text-red-400">
+                    {{ bankIbanError(account) }}
                   </span>
                   <span v-else class="mt-1 block text-[11px] font-normal text-[var(--dh-text-muted)]">
                     {{ en ? 'National account (country without registered IBAN format)' : 'Cuenta nacional (país sin formato IBAN registrado)' }}

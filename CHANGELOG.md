@@ -1,3 +1,9 @@
+## [1.66.1] - 2026-11-17 (DH-186 · SRM selects de crédito e IBAN)
+
+- PATCH: «Crédito incluye» y «Crédito NO incluye» expanden su propio espacio en CRM/SRM, sin superponerse entre sí ni sobre «Próxima revisión»; cierre al pulsar fuera o Escape, conservando las selecciones.
+- El IBAN muestra causas precisas por país, longitud y dígitos de control MOD-97. Una cadena de 22 caracteres con checksum inválido continúa rechazándose; se mantiene la seguridad de la API financiera.
+- Mensaje inline al completar el largo por país y pruebas de regresión. Web 1.66.0 → 1.66.1; ecosistema 1.69.0 → 1.69.1. CI/staging y autorización de producción pendientes.
+
 ## [1.66.0] - 2026-11-17 (DH-184 · Operations en estados de servicios)
 
 - MINOR: Operations Service aparece en Estados/Monitoreo mediante `GET /api/health/operations`, con latencia, código HTTP, versión real o registrada y hora de revisión.
