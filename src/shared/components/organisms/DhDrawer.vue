@@ -62,6 +62,11 @@ const { t } = useI18n()
           <main class="dh-scrollbar min-h-0 min-w-0 flex-1 overscroll-contain overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
             <slot />
           </main>
+          <!-- Optional fixed footer lives outside the scrolling content. -->
+          <footer v-if="$slots.footer"
+            class="z-10 shrink-0 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg sm:px-5 sm:py-4">
+            <slot name="footer" />
+          </footer>
         </aside>
       </div>
     </Transition>
