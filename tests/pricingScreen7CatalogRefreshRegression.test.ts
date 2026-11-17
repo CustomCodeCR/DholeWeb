@@ -523,7 +523,7 @@ test('unchanged LCL quote refreshes saved charges without importing other-route 
   ]
   const { env, runRefresh } = refreshHarness(costs)
   Object.assign(env.form, {
-    originId: 'POL', destinationId: 'POE', podId: 'POD',
+    carrierId: '', originId: 'POL', destinationId: 'POE', podId: 'POD',
     incotermId: 'FOB', serviceIds: [],
   })
   env.shipmentModeForApi.value = 'Lcl'
