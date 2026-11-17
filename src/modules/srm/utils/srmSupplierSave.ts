@@ -1,4 +1,4 @@
-import { normalizeSrmIban, srmIbanValidForCountry, type SrmIbanFormat } from './srmIban'
+import { normalizeSrmIban, srmIbanValidForCountry, type SrmIbanFormat } from './srmIban.ts'
 
 export type SupplierSaveSection = 'contacts' | 'credit' | 'bank'
 export type SupplierSaveIssue = { section: SupplierSaveSection; message: string }
