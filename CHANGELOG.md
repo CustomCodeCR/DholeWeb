@@ -1,3 +1,8 @@
+## [1.67.7] - 2026-11-17 (Pricing: cargos persistidos al editar una QUO · backport)
+
+- PATCH DH-20261117-PRICING-EDIT-ITEMS-198: el snapshot guardado controla los rubros de Ver y Editar. No se agregan costos del catálogo durante la hidratación y la navegación; el refresco explícito para el mismo contexto solo actualiza rubros existentes. Conserva IDs, impuestos, seguros, HBL, Manejos, recolectas y gastos manuales.
+- Backport selectivo sobre master Web 1.67.5 → 1.67.7; misma versión objetivo del release en develop (1.67.7). El release de Hacienda 1.67.6 fue integrado solo en develop y no se incorpora mediante este backport. Ecosistema objetivo 1.71.1. Verificar CI y staging antes de producción.
+
 ## [1.67.5] - 2026-11-17 (LCL propio: seguro de carga y Manejos)
 
 - PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro de carga y Manejos al abrir, editar, actualizar matriz y guardar cotizaciones LCL propias, sin perder identificadores, costos ni ventas, evitando duplicados.
