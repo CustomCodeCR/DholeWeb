@@ -1,3 +1,9 @@
+## [1.67.0] - 2026-11-17 (SRM: eliminar proveedores)
+
+- MINOR DH-20261117-SRM-SUPPLIER-DELETE-190: habilita Eliminar en listado y ficha SRM, protegido por srm.supplier.archive; confirmación, mensajes de conflicto por referencias y eliminación lógica auditada.
+- Incorpora DELETE /api/config/srm/suppliers/{id}, sincronización visual y regresión SRM. Sin cambios ajenos de develop.
+- Web 1.66.1 → 1.67.0; ecosistema 1.69.2 → 1.70.0. Backport selectivo a master autorizado por el usuario; CI y validación post-despliegue obligatorias.
+
 ## [1.66.1] - 2026-11-17 (DH-186 · SRM selects de crédito e IBAN)
 
 - PATCH: «Crédito incluye» y «Crédito NO incluye» expanden su propio espacio en CRM/SRM, sin superponerse entre sí ni sobre «Próxima revisión»; cierre al pulsar fuera o Escape, conservando las selecciones.

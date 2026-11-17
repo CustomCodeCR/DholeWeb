@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditCard, Eye, FileCheck2, FolderOpen, Landmark, Pencil, Plus, RefreshCw, Search, ShieldAlert } from 'lucide-vue-next'
+import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditCard, Eye, FileCheck2, FolderOpen, Landmark, Pencil, Plus, RefreshCw, Search, ShieldAlert, Trash2, AlertTriangle } from 'lucide-vue-next'
+import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
-import { DhDrawer } from '@/shared/components/organisms'
+import { DhDrawer, DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
@@ -26,10 +27,14 @@ const en = computed(() => locale.value === 'en')
 const canReadSection = computed(() => auth.hasScope('srm.supplier.read'))
 const canCreateSuppliers = computed(() => auth.hasScope('srm.supplier.create'))
 const canEditSuppliers = computed(() => auth.hasScope('srm.supplier.update'))
+const canArchiveSuppliers = computed(() => auth.hasScope('srm.supplier.archive'))
 const canReadBanks = computed(() => auth.hasScope('srm.supplier.bank.read'))
 const canManageBanks = computed(() => canReadBanks.value && auth.hasScope('srm.supplier.bank.manage'))
 const loading = ref(false)
 const saving = ref(false)
+const deleteTarget = ref<Supplier | null>(null)
+const deleteBusy = ref(false)
+const deleteError = ref('')
 const error = ref('')
 const success = ref('')
 const saveErrorSection = ref<SupplierSaveSection | 'general' | 'server'>('general')
@@ -601,6 +606,48 @@ function openEdit(item: Supplier) {
   success.value = ''
   void loadBankAccounts(item.id)
 }
+function openSupplierDelete(item: Supplier) {
+  if (!canArchiveSuppliers.value || item.isSystem || deleteBusy.value) return
+  deleteError.value = ''
+  deleteTarget.value = item
+}
+function closeSupplierDelete() {
+  if (deleteBusy.value) return
+  deleteTarget.value = null
+  deleteError.value = ''
+}
+async function deleteSupplier() {
+  const supplier = deleteTarget.value
+  if (!supplier || !canArchiveSuppliers.value || supplier.isSystem || deleteBusy.value) return
+  deleteBusy.value = true
+  deleteError.value = ''
+  try {
+    await SrmApi.deleteSupplier(supplier.id)
+    suppliers.value = suppliers.value.filter(item => item.id !== supplier.id)
+    if (selected.value?.id === supplier.id) {
+      closeDetails()
+      selected.value = null
+    }
+    if (editing.value?.id === supplier.id) closeForm()
+    deleteTarget.value = null
+    currentPage.value = Math.min(currentPage.value, totalPages.value)
+    toastStore.success(en.value ? 'Supplier removed' : 'Proveedor eliminado', supplier.name)
+    void load()
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : ''
+    const code = cause instanceof ApiError ? cause.code : null
+    deleteError.value = code === 'srm_supplier_has_dependencies'
+      ? (en.value ? 'This supplier has linked agreements or reviews and cannot be removed.' : 'Este proveedor tiene acuerdos o evaluaciones vinculadas y no se puede eliminar.')
+      : code === 'srm_supplier_not_found'
+        ? (en.value ? 'This supplier is no longer in the directory. Refresh the list.' : 'Este proveedor ya no está en el directorio. Actualizá la lista.')
+        : code === 'srm_system_supplier_cannot_be_deleted'
+          ? (en.value ? 'System suppliers cannot be deleted.' : 'No se pueden eliminar proveedores del sistema.')
+          : detail || (en.value ? 'Could not remove supplier.' : 'No se pudo eliminar el proveedor.')
+  } finally {
+    deleteBusy.value = false
+  }
+}
+
 function openDetails(item: Supplier) {
   selected.value = item
   detailsVisible.value = true
@@ -1013,6 +1060,12 @@ onMounted(() => {
                       :aria-label="(en ? 'Edit ' : 'Editar ') + item.name" @click="openEdit(item)">
                       <Pencil class="h-4 w-4" />
                     </button>
+                    <button v-if="canArchiveSuppliers && !item.isSystem" type="button"
+                      class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-500/25 text-red-500 hover:border-red-500 hover:bg-red-500/10 disabled:opacity-50"
+                      :disabled="deleteBusy" :aria-label="(en ? 'Delete ' : 'Eliminar ') + item.name"
+                      :title="en ? 'Delete supplier' : 'Eliminar proveedor'" @click="openSupplierDelete(item)">
+                      <Trash2 class="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -1081,6 +1134,11 @@ onMounted(() => {
               class="inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--dh-border)] px-3 text-sm font-bold hover:border-[var(--dh-primary)]"
               @click="openEdit(selected)">
               <Pencil class="h-4 w-4" />{{ en ? 'Edit supplier' : 'Editar proveedor' }}
+            </button>
+            <button v-if="canArchiveSuppliers && !selected.isSystem" type="button"
+              class="inline-flex h-10 items-center gap-2 rounded-xl border border-red-500/30 px-3 text-sm font-bold text-red-500 hover:bg-red-500/10"
+              @click="openSupplierDelete(selected)">
+              <Trash2 class="h-4 w-4" />{{ en ? 'Delete supplier' : 'Eliminar proveedor' }}
             </button>
           </div>
           <dl class="grid gap-4 sm:grid-cols-2">
@@ -1576,6 +1634,30 @@ onMounted(() => {
           </div>
         </template>
       </DhDrawer>
+      <DhModal :open="Boolean(deleteTarget)" :title="en ? 'Delete supplier' : 'Eliminar proveedor'"
+        size="md" surface="solid" @close="closeSupplierDelete">
+        <div v-if="deleteTarget" class="space-y-4" data-srm-delete-confirmation>
+          <div class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+            <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+            <div class="space-y-1">
+              <p class="text-sm font-bold">{{ en ? 'Remove this supplier from the directory?' : '¿Eliminar este proveedor del directorio?' }}</p>
+              <p class="break-words text-sm font-semibold">{{ deleteTarget.name }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'The record will be archived, not physically destroyed. Suppliers with linked agreements or reviews cannot be removed.' : 'El registro se archivará, no se destruirá físicamente. No se pueden eliminar proveedores con acuerdos o evaluaciones vinculadas.' }}</p>
+            </div>
+          </div>
+          <p v-if="deleteError" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ deleteError }}</p>
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" :disabled="deleteBusy" class="min-h-10 rounded-xl border border-[var(--dh-border)] px-4 text-sm font-semibold disabled:opacity-50" @click="closeSupplierDelete">
+              {{ en ? 'Cancel' : 'Cancelar' }}
+            </button>
+            <button type="button" :disabled="deleteBusy" data-srm-delete-confirm
+              class="inline-flex min-h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              @click="deleteSupplier">
+              <Trash2 class="h-4 w-4" />{{ deleteBusy ? (en ? 'Deleting...' : 'Eliminando...') : (en ? 'Delete supplier' : 'Eliminar proveedor') }}
+            </button>
+          </div>
+        </div>
+      </DhModal>
     </template>
   </main>
 </template>
