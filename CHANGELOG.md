@@ -1,3 +1,8 @@
+## [1.67.6] - 2026-11-17 (Pricing: cargos correctos al editar y actualizar)
+
+- PATCH DH-20261117-PRICING-EDIT-ITEMS-197: ver y editar conservan RateDetails guardados. Los costos fijos y opcionales del catálogo no se incorporan al abrir ni al navegar por una cotización existente. Actualizar precios en un contexto comercial sin cambios conserva solo los rubros existentes y sus IDs, sin importar cargos ajenos a la ruta y proveedor.
+- Web 1.67.5 → 1.67.6; ecosistema 1.70.6 → 1.70.7. Pruebas de regresión añadidas. Requiere compilación, CI, validación en staging y autorización expresa antes de promover a producción.
+
 ## [1.67.5] - 2026-11-17 (LCL propio: seguro de carga y Manejos)
 
 - PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro de carga y Manejos al abrir, editar, actualizar matriz y guardar cotizaciones LCL propias, sin perder identificadores, costos ni ventas, evitando duplicados.
