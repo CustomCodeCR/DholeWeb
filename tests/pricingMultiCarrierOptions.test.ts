@@ -284,3 +284,16 @@ test('manual FCL alternatives keep saved freight and comments per POE/carrier', 
   assert.ok(plugin.includes('if (multiCarrierSelectionMode.value) rememberCurrentCarrierDraft()'))
   assert.ok(validation.includes('selectedManualOceanFreightPoe.value'))
 })
+
+test('group margin approval and PDF require all sibling alternatives to be approved', () => {
+  const formatSource = readFileSync(new URL('../src/modules/pricing/utils/pricingFormat.ts', import.meta.url), 'utf8')
+  assert.match(wizard, /savedGroupRates\.value\.some\(rate => rate\.status === 'PendingApproval' && rate\.requiredApproval\)/)
+  assert.match(wizard, /async function approveCurrentRate\(\)/)
+  assert.match(wizard, /PricingService\.approveRateMargin\(editingRate\.value\.id\)/)
+  assert.match(wizard, /await hydrateExistingRate\(\)/)
+  assert.match(wizard, /Aprobar margen de todas las alternativas/)
+  assert.match(wizard, /savedGroupRates\.value\.some\(option => option\.requiredApproval/)
+  assert.match(wizard, /:disabled="downloadingQuote \|\| !canDownloadCurrentQuote"/)
+  assert.match(wizard, /savedQuoteGroup\.value\.parentQuoteNumber/)
+  assert.match(formatSource, /rate\.quoNumber\?\.trim\(\) \|\| rate\.rateCode/)
+})
