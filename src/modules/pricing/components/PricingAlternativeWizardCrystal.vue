@@ -3596,7 +3596,9 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   // Una tarifa persistida en modo vista es un snapshot autoritativo del response.
   // No mezclar aquí costos/opcionales del catálogo porque pueden no formar parte
   // de RateDetails y terminar apareciendo visualmente como si estuvieran guardados.
-  if (props.viewOnly && props.rateId) return
+  // Never merge active catalog costs into an existing quotation snapshot.
+  // New charges require explicit selection or a changed route/provider.
+  if (props.rateId) return
 
   const visible = new Set(visibleSections.value)
   const existingCostIds = new Set(
