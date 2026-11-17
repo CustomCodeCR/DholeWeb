@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId,
-  srmHaciendaFields, srmHaciendaMainActivity } from '../src/modules/srm/utils/srmHacienda.ts'
+  srmHaciendaFields, srmHaciendaMainActivity, retrySrmHaciendaNetwork, srmHaciendaErrorMessage } from '../src/modules/srm/utils/srmHacienda.ts'
 
 const verified = {
   identification: '1-1910-0208',
@@ -51,4 +51,58 @@ test('SRM Hacienda interaction follows CRM: resolves automatically without a sec
   assert.match(view, /supplierFormTab === 'credit'/)
   assert.doesNotMatch(view, /Aplicar razón social y actividad principal/)
   assert.doesNotMatch(view, /@click="applyHaciendaResult"/)
+})
+
+test('SRM Hacienda retries one transient browser network failure but never HTTP errors', async () => {
+  let calls = 0
+  const network = new Error('Network error while accessing /api/config/srm/hacienda/lookup?identificacion=123456789')
+  network.name = 'NetworkError'
+  let paused = 0
+  const result = await retrySrmHaciendaNetwork(async () => {
+    calls += 1
+    if (calls === 1) throw network
+    return 'OK'
+  }, async milliseconds => { paused = milliseconds })
+  assert.equal(result, 'OK')
+  assert.equal(calls, 2)
+  assert.equal(paused, 650)
+  for (const status of [400, 401, 403, 404, 429, 502, 503, 504]) {
+    let requests = 0
+    const error = Object.assign(new Error('Request blocked'), { status, name: 'ClientError' })
+    await assert.rejects(retrySrmHaciendaNetwork(async () => {
+      requests += 1
+      throw error
+    }, async () => {}), (value: unknown) => value === error)
+    assert.equal(requests, 1)
+  }
+})
+
+test('Hacienda messages never expose endpoint URLs or tax identification', () => {
+  const raw = new Error('Network error while accessing /api/config/srm/hacienda/lookup?identificacion=123456789')
+  raw.name = 'NetworkError'
+  const message = srmHaciendaErrorMessage(raw)
+  assert.match(message, /API de Dhole/)
+  assert.doesNotMatch(message, /identificacion|123456789|\/api\/config/)
+  assert.match(srmHaciendaErrorMessage(Object.assign(new Error('Blocked'), { status: 403 })), /permiso/)
+  assert.match(srmHaciendaErrorMessage(Object.assign(new Error('Limit'), { status: 429 })), /limitando/)
+  assert.match(srmHaciendaErrorMessage(Object.assign(new Error('Not found'), { status: 404 })), /no figura/)
+  assert.match(srmHaciendaErrorMessage(Object.assign(new Error('Timeout'), { status: 504 })), /temporalmente/)
+})
+
+test('SRM footer stays outside the scroller and submits the supplier form', () => {
+  const view = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
+  const drawer = readFileSync('src/shared/components/organisms/DhDrawer.vue', 'utf8')
+  assert.match(view, /<form id="srm-supplier-form"/)
+  assert.match(view, /<\/form>\s*<template #footer>/)
+  assert.match(view, /type="submit" form="srm-supplier-form"/)
+  assert.match(view, /srmHaciendaErrorMessage\(cause, en.value\)/)
+  assert.doesNotMatch(view, /class="sticky bottom-0 z-20 md:col-span-2/)
+  assert.match(drawer, /<footer v-if="\$slots.footer"/)
+  assert.match(drawer, /<slot name="footer"/)
+})
+
+test('authenticated GET does not send an unnecessary JSON Content-Type to Gateway', () => {
+  const client = readFileSync('src/core/api/fetchConfig.ts', 'utf8')
+  assert.match(client, /options\.isFormData \|\| options\.method === 'GET'/)
+  assert.match(client, /options\.body === undefined/)
 })
