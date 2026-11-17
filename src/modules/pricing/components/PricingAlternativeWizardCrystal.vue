@@ -1007,7 +1007,10 @@ const canDownloadCurrentQuote = computed(() => {
   const rate = editingRate.value
   return Boolean(
     rate
-    && !['PendingApproval', 'RejectedByManagement'].includes(rate.status),
+    && !rate.requiredApproval
+    && !['PendingApproval', 'RejectedByManagement'].includes(rate.status)
+    && !savedGroupRates.value.some(option => option.requiredApproval
+      || ['PendingApproval', 'RejectedByManagement'].includes(option.status)),
   )
 })
 const canMarkSent = computed(() =>
@@ -4842,7 +4845,9 @@ async function downloadCurrentQuote() {
     downloadingQuote.value = true
     await PricingService.downloadRateDocument(
       editingRate.value.id,
-      rateDisplayName(editingRate.value),
+      savedQuoteGroup.value && !savedQuoteGroup.value.selectedRateId
+        ? savedQuoteGroup.value.parentQuoteNumber
+        : rateDisplayName(editingRate.value),
       { format: 'pdf' },
     )
   } catch (error) {
@@ -8220,8 +8225,8 @@ onMounted(async () => {
                   : 'Resumen integral de la revisión actual, decisión comercial, líneas, condiciones y totales.' }}
               </p>
             </div>
-            <DhButton variant="secondary" :loading="downloadingQuote" :disabled="downloadingQuote" @click="downloadCurrentQuote">
-              Descargar cotización PDF
+            <DhButton variant="secondary" :loading="downloadingQuote" :disabled="downloadingQuote || !canDownloadCurrentQuote" @click="downloadCurrentQuote">
+              {{ canDownloadCurrentQuote ? 'Descargar cotización PDF' : 'Apruebe las alternativas para descargar PDF' }}
             </DhButton>
           </div>
           <div v-if="canApproveCurrentRate" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
