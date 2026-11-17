@@ -1,4 +1,4 @@
-import { normalizeSrmIban, srmIbanValidForCountry, type SrmIbanFormat } from './srmIban.ts'
+import { normalizeSrmIban, srmIbanValidationError, type SrmIbanFormat } from './srmIban.ts'
 
 export type SupplierSaveSection = 'contacts' | 'credit' | 'bank'
 export type SupplierSaveIssue = { section: SupplierSaveSection; message: string }
@@ -155,7 +155,7 @@ export function supplierBankSaveIssue(
     if (!account.bankName.trim() || account.bankName.length > 160 ||
         !account.accountHolder.trim() || account.accountHolder.length > 180 ||
         !['LOCAL', 'INTERNACIONAL'].includes(account.registration) ||
-        !/^[A-Z0-9-]{5,44}$/.test(iban) ||
+        (!ibanFormats.has(account.bankCountryId) && !/^[A-Z0-9-]{5,44}$/.test(iban)) ||
         !/^[A-Z]{3}$/.test(account.currency.trim().toUpperCase()) ||
         !account.bankCountryId ||
         account.intermediaryBank.length > 180 ||
@@ -165,10 +165,9 @@ export function supplierBankSaveIssue(
         : `Revisá los campos obligatorios de la cuenta bancaria #${number}.`)
     }
     const ibanFormat = ibanFormats.get(account.bankCountryId)
-    if (ibanFormat && !srmIbanValidForCountry(iban, ibanFormat)) {
-      return issue(en
-        ? `Bank account #${number}: the IBAN must start with ${ibanFormat.code}, have exactly ${ibanFormat.length} characters and pass its check digits.`
-        : `Cuenta bancaria #${number}: el IBAN debe iniciar con ${ibanFormat.code}, tener exactamente ${ibanFormat.length} caracteres y superar la validación de dígitos de control.`)
+    if (ibanFormat) {
+      const ibanError = srmIbanValidationError(iban, ibanFormat, en)
+      if (ibanError) return issue(`${en ? 'Bank account' : 'Cuenta bancaria'} #${number}: ${ibanError}`)
     }
     const fingerprint = account.bankCountryId + ':' + iban
     if (seen.has(fingerprint)) return issue(en ? 'Duplicate bank account.' : 'La cuenta bancaria está duplicada.')
