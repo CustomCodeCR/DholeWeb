@@ -100,3 +100,9 @@ test('SRM footer stays outside the scroller and submits the supplier form', () =
   assert.match(drawer, /<footer v-if="\$slots.footer"/)
   assert.match(drawer, /<slot name="footer"/)
 })
+
+test('authenticated GET does not send an unnecessary JSON Content-Type to Gateway', () => {
+  const client = readFileSync('src/core/api/fetchConfig.ts', 'utf8')
+  assert.match(client, /options\.isFormData \|\| options\.method === 'GET'/)
+  assert.match(client, /options\.body === undefined/)
+})
