@@ -60,7 +60,6 @@ function lclNoCarrierRejectCatalogCost(cost: CostSelectDto): boolean {
 export function pricingLclNoCarrierCostGuard(): Plugin {
   return {
     name: 'dhole-pricing-lcl-no-carrier-cost-guard',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?') || !id.replaceAll('\\', '/').endsWith(WIZARD_PATH)) return null
       return { code: patchPricingLclNoCarrierCostGuard(source), map: null }
