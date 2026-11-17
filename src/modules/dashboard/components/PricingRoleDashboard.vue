@@ -531,6 +531,7 @@ onMounted(loadDashboard)
             <div class="flex min-w-0 items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="break-all text-xs font-black text-[var(--dh-text)]">{{ rate.rateCode }}</p>
+                <DhBadge v-if="Number(rate.groupAlternativeCount || 0) > 1" :label="`${rate.groupAlternativeCount} alternativas`" variant="neutral" />
                 <p class="mt-1 truncate text-[11px] font-semibold text-[var(--dh-text-muted)]">
                   {{ rate.clientName || rate.carrierName || 'Sin cliente' }}
                 </p>
@@ -614,6 +615,7 @@ onMounted(loadDashboard)
               >
                 <td class="px-4 py-3 align-top">
                   <p class="break-all font-black text-[var(--dh-text)]">{{ rate.rateCode }}</p>
+                  <DhBadge v-if="Number(rate.groupAlternativeCount || 0) > 1" :label="`${rate.groupAlternativeCount} alternativas`" variant="neutral" />
                   <p class="mt-1 truncate text-xs font-semibold text-[var(--dh-text-muted)]">{{ rate.clientName || rate.carrierName || 'Sin cliente' }}</p>
                 </td>
                 <td class="px-4 py-3 align-top">
