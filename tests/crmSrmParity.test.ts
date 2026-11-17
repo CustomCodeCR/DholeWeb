@@ -38,7 +38,9 @@ test('CRM account editing uses the same SRM-style top tab strip and keeps scopes
 test('Hacienda lookup is automatic, race-safe, and the API response applies immediately', () => {
   assert.match(lookup, /setTimeout\(\(\) =>/)
   assert.match(lookup, /650/)
-  assert.match(lookup, /await crmRequest<HaciendaResult>/)
+  assert.match(lookup, /retryCrmHaciendaNetwork\(/)
+  assert.match(lookup, /crmRequest<HaciendaResult>/)
+  assert.match(lookup, /crmHaciendaErrorMessage\(cause\)/)
   assert.match(lookup, /'\/api\/crm\/hacienda\/lookup\?'/)
   assert.match(lookup, /version !== lookupVersion/)
   assert.match(lookup, /props.countryId !== countryId/)
