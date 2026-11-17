@@ -94,6 +94,7 @@ import { pricingWizardLclManualColoader } from './build/pricingWizardLclManualCo
 import { pricingWizardLtlProviderParity } from './build/pricingWizardLtlProviderParity'
 import { pricingLtlOptionalEditable } from './build/pricingLtlOptionalEditable'
 import { pricingOwnLtlPanamaCosts } from './build/pricingOwnLtlPanamaCosts'
+import { pricingPanamaFclOverweight } from './build/pricingPanamaFclOverweight'
 import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
 import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules20261002'
@@ -251,6 +252,7 @@ export default defineConfig({
     pricingModificationSaveBindingGuard(),
     // Final pricing rule: source Panama -> Costa Rica costs for own CFZ -> San José LTL.
     pricingOwnLtlPanamaCosts(),
+    pricingPanamaFclOverweight(),
     vue(),
     tailwindcss(),
   ],
