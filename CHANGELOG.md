@@ -1,3 +1,9 @@
+## [1.67.5] - 2026-11-17 (LCL propio: seguro de carga y Manejos)
+
+- PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro solicitado y Manejos al abrir, editar, reconstruir y guardar cotizaciones LCL propias, sin perder Ids ni importes.
+- La matriz es la fuente base; seguro y Manejos único se conservan sin duplicados ni costos ajenos.
+- Web 1.67.3 → 1.67.5; Pricing 1.22.5; ecosistema 1.70.6; CI/staging pendientes, sin despliegue a producción autorizado.
+
 ## [1.67.3] - 2026-11-17 (MultiQUO: números comerciales, aprobación y PDF)
 
 - PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: los títulos y nombres de PDF usan `quoNumber` (672-A/672-B), nunca el consecutivo técnico `rateCode` (673) de cada RateHeader.
