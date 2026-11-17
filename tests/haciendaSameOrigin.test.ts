@@ -15,6 +15,7 @@ test('CRM Hacienda POST and legacy SRM GET use restricted same-origin route with
   assert.ok(api.includes("const endpoint = '/api/crm/hacienda/lookup'"))
   assert.ok(api.includes("return await fetchClient<T>(endpoint"))
   assert.ok(api.includes("method: 'POST'"))
+  assert.ok(api.includes("credentials: 'omit'"))
   assert.ok(api.includes("identificacion: params.get('identificacion')"))
   assert.ok(api.includes("countryId: params.get('countryId')"))
   assert.ok(api.includes('return fetchClient<T>(endpoint +'))
