@@ -34,7 +34,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useAuthStore } from '@/core/stores/authStore'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
 import { useI18n } from 'vue-i18n'
-import { crmEnabled, crmError, crmGet, crmPath, crmRequest,
+import { crmEnabled, crmError, crmGet, crmPath, crmRequest, crmHaciendaRequest,
   crmUuid, toUtc, fromUtc, type CrmRow } from '../services/crmApi'
 
 const auth = useAuthStore()
@@ -817,7 +817,7 @@ async function populateLeadTaxType() {
   leadTaxTypeMessage.value = ''
   try {
     const params = new URLSearchParams({ identificacion: String(lead.taxId).replace(/[\\s-]/g, ''), countryId: String(lead.countryId) })
-    const response = await crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params)
+    const response = await crmHaciendaRequest<HaciendaResult>(params)
     if (record.value?.id !== leadId) return
     if (response.identificationType) drafts.taxIdTypeCode = response.identificationType
     else leadTaxTypeMessage.value = 'Hacienda no devolvió el tipo de identificación. Seleccionalo antes de convertir.'
