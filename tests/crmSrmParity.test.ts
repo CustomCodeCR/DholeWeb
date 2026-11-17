@@ -41,7 +41,7 @@ test('Hacienda lookup is automatic, race-safe, and the API response applies imme
   assert.match(lookup, /retryCrmHaciendaNetwork\(/)
   assert.match(lookup, /crmHaciendaRequest<HaciendaResult>/)
   assert.match(lookup, /crmHaciendaErrorMessage\(cause\)/)
-  assert.match(read('src/modules/crm/services/crmApi.ts'), /'\/api\/crm\/hacienda\/lookup\?'/)
+  assert.match(read('src/modules/crm/services/crmApi.ts'), /method: 'POST'/)
   assert.match(lookup, /version !== lookupVersion/)
   assert.match(lookup, /props.countryId !== countryId/)
   assert.match(lookup, /digits.value !== identification/)
