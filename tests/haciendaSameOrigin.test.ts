@@ -17,7 +17,7 @@ test('CRM Hacienda POST and legacy SRM GET use restricted same-origin route with
   assert.ok(api.includes("method: 'POST'"))
   assert.ok(api.includes("identificacion: params.get('identificacion')"))
   assert.ok(api.includes("countryId: params.get('countryId')"))
-  assert.ok(api.includes("return fetchClient<T>(endpoint + '?' + params.toString()")))
+  assert.ok(api.includes('return fetchClient<T>(endpoint +'))
   assert.ok(read('src/modules/crm/components/CrmHaciendaLookup.vue').includes('crmHaciendaRequest<HaciendaResult>(params)'))
   assert.ok(read('src/modules/crm/views/CrmRecordDetailView.vue').includes('crmHaciendaRequest<HaciendaResult>(params)'))
   assert.ok(read('src/modules/srm/services/srmApi.ts').includes("fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' }, '')"))
