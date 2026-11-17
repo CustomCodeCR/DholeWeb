@@ -293,7 +293,7 @@ test('group margin approval and PDF require all sibling alternatives to be appro
   assert.match(wizard, /await hydrateExistingRate\(\)/)
   assert.match(wizard, /Aprobar margen de todas las alternativas/)
   assert.match(wizard, /savedGroupRates\.value\.some\(option => option\.requiredApproval/)
-  assert.match(wizard, /:disabled="downloadingQuote \|\| !canDownloadCurrentQuote"/)
+  assert.match(wizard, /:disabled="downloadingQuote" @click="downloadCurrentQuote"/)
   assert.match(wizard, /savedQuoteGroup\.value\.parentQuoteNumber/)
   assert.match(formatSource, /rate\.quoNumber\?\.trim\(\) \|\| rate\.rateCode/)
 })
