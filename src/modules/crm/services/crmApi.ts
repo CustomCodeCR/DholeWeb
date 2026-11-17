@@ -31,6 +31,8 @@ export async function crmHaciendaRequest<T>(params: URLSearchParams): Promise<T>
   try {
     return await fetchClient<T>(endpoint, {
       method: 'POST',
+      // The Gateway is authorized by Bearer JWT, not by browser cookies.
+      credentials: 'omit',
       body: {
         identificacion: params.get('identificacion') ?? '',
         countryId: params.get('countryId') ?? '',
@@ -45,7 +47,7 @@ export async function crmHaciendaRequest<T>(params: URLSearchParams): Promise<T>
         (failure.data !== null && typeof failure.data === 'object'))
       throw error
     return fetchClient<T>(endpoint + '?' + params.toString(),
-      { method: 'GET', headers: { Accept: 'application/json' } }, '')
+      { method: 'GET', credentials: 'omit', headers: { Accept: 'application/json' } }, '')
   }
 }
 
