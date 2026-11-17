@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { BadgeCheck, FileCheck2, Search } from 'lucide-vue-next'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { crmRequest } from '../services/crmApi'
+import { crmHaciendaRequest } from '../services/crmApi'
 import { crmHaciendaErrorMessage, isMatchingCrmHaciendaResult, retryCrmHaciendaNetwork } from '../utils/crmHacienda'
 
 export interface HaciendaResult {
@@ -76,7 +76,7 @@ async function lookup(force = false): Promise<boolean> {
     try {
       const params = new URLSearchParams({ identificacion: identification, countryId })
       const response = await retryCrmHaciendaNetwork(
-        () => crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params.toString()),
+        () => crmHaciendaRequest<HaciendaResult>(params),
         () => version === lookupVersion && props.active &&
           props.countryId === countryId && digits.value === identification,
       )
