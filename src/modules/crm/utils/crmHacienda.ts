@@ -23,7 +23,7 @@ export function isMatchingCrmHaciendaResult(
   if (!value || typeof value !== 'object') return false
   const item = value as Record<string, unknown>
   return typeof item.identification === 'string' &&
-    item.identification.replace(/[\\s-]/g, '') === requestedIdentification &&
+    item.identification.replace(/[\s-]/g, '') === requestedIdentification &&
     typeof item.name === 'string' && item.name.trim().length > 0 &&
     Array.isArray(item.activities)
 }
