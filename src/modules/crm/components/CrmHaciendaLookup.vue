@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { BadgeCheck, FileCheck2, Search } from 'lucide-vue-next'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { crmError, crmRequest } from '../services/crmApi'
+import { crmRequest } from '../services/crmApi'
+import { crmHaciendaErrorMessage, isMatchingCrmHaciendaResult, retryCrmHaciendaNetwork } from '../utils/crmHacienda'
 
 export interface HaciendaResult {
   identification: string
@@ -74,7 +75,15 @@ async function lookup(force = false): Promise<boolean> {
   const task = (async () => {
     try {
       const params = new URLSearchParams({ identificacion: identification, countryId })
-      const response = await crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params.toString())
+      const response = await retryCrmHaciendaNetwork(
+        () => crmRequest<HaciendaResult>('/api/crm/hacienda/lookup?' + params.toString()),
+        () => version === lookupVersion && props.active &&
+          props.countryId === countryId && digits.value === identification,
+      )
+      if (!isMatchingCrmHaciendaResult(response, identification)) {
+        if (version === lookupVersion) error.value = 'Hacienda devolvió información incompleta. Volvé a consultar'
+        return false
+      }
       if (version !== lookupVersion || !props.active || props.countryId !== countryId ||
         digits.value !== identification ||
         response.identification.replace(/[\s-]/g, '') !== identification ||
@@ -86,7 +95,7 @@ async function lookup(force = false): Promise<boolean> {
     } catch (cause) {
       if (version === lookupVersion) {
         result.value = null
-        error.value = crmError(cause)
+        error.value = crmHaciendaErrorMessage(cause)
       }
       return false
     } finally {
