@@ -12,6 +12,7 @@ import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
 import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
+import { srmCountryIbanFormat, srmIbanInput, type SrmIbanFormat } from '../utils/srmIban'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId, srmHaciendaFields } from '../utils/srmHacienda'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
@@ -101,10 +102,25 @@ function supplierFinanceContact(item: Supplier): string {
   const id = String(metadata(item).financeContactId || '')
   return supplierContacts(item).find(contact => contact.id === id)?.name || '—'
 }
+function bankIbanFormat(countryId: string): SrmIbanFormat | null {
+  return srmCountryIbanFormat(countries.value.find(item => item.id === countryId))
+}
+function onBankCountryChange(account: SrmBankAccount, countryId: string) {
+  if (account.bankCountryId === countryId) return
+  account.bankCountryId = countryId
+  // Never carry a previous country's account number into a different bank country.
+  account.accountNumber = bankIbanFormat(countryId)?.code || ''
+}
+function onBankNumberInput(account: SrmBankAccount, event: Event) {
+  const input = event.target as HTMLInputElement
+  account.accountNumber = srmIbanInput(input.value, bankIbanFormat(account.bankCountryId))
+  input.value = account.accountNumber
+}
 function newBankAccount(): SrmBankAccount {
+  const countryId = countryIds.value[0] || ''
   return { id: crypto.randomUUID(), bankName: '', accountHolder: '', registration: 'LOCAL',
-    accountNumber: '', swiftBic: '', currency: 'USD', bankCountryId: countryIds.value[0] || '',
-    intermediaryBank: '', isPrimary: bankAccounts.value.length === 0 }
+    accountNumber: bankIbanFormat(countryId)?.code || '', swiftBic: '', currency: 'USD',
+    bankCountryId: countryId, intermediaryBank: '', isPrimary: bankAccounts.value.length === 0 }
 }
 function setBankPrimary(index: number) {
   bankAccounts.value.forEach((account, i) => { account.isPrimary = i === index })
@@ -329,6 +345,11 @@ watch([taxId, costaRicaCountryId, formVisible], (_values, _previous, onCleanup) 
 const countryOptions = computed(() => countries.value.map(row => ({
   value: row.id, label: row.label || row.value || row.id,
 })))
+watch(countries, () => {
+  for (const account of bankAccounts.value) {
+    if (!account.accountNumber) account.accountNumber = bankIbanFormat(account.bankCountryId)?.code || ''
+  }
+})
 watch(countryIds, ids => {
   for (const contact of contacts.value) {
     if (!ids.includes(contact.countryId)) contact.countryId = ids[0] || ''
@@ -655,7 +676,12 @@ async function saveSupplier() {
     return
   }
   if (canManageBanks.value) {
-    const bankIssue = supplierBankSaveIssue(bankAccounts.value, en.value)
+    const ibanFormats = new Map<string, SrmIbanFormat>()
+    for (const country of countries.value) {
+      const format = srmCountryIbanFormat(country)
+      if (format) ibanFormats.set(country.id, format)
+    }
+    const bankIssue = supplierBankSaveIssue(bankAccounts.value, en.value, ibanFormats)
     if (bankIssue) {
       await reportSupplierSaveIssue(bankIssue.message, 'bank')
       return
@@ -1391,10 +1417,22 @@ onMounted(() => {
                     <option value="INTERNACIONAL">{{ en ? 'International' : 'Internacional' }}</option>
                   </select>
                 </label>
-                <label class="text-xs font-semibold">{{ en ? 'Account number / IBAN *' : 'Número de cuenta / IBAN *' }}
-                  <input v-model="account.accountNumber" :type="revealBankNumbers ? 'text' : 'password'"
-                    :readonly="!canManageBanks" required maxlength="44" autocomplete="off"
+                <label class="text-xs font-semibold">
+                  {{ bankIbanFormat(account.bankCountryId) ? 'IBAN *' : (en ? 'Account number *' : 'Número de cuenta *') }}
+                  <input :value="account.accountNumber" :type="revealBankNumbers ? 'text' : 'password'"
+                    :readonly="!canManageBanks" required
+                    :maxlength="bankIbanFormat(account.bankCountryId)?.length ?? 44"
+                    autocomplete="off" @input="onBankNumberInput(account, $event)"
                     class="mt-1 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 font-mono uppercase" />
+                  <span v-if="bankIbanFormat(account.bankCountryId)" class="mt-1 block text-[11px] font-normal text-[var(--dh-text-muted)]">
+                    {{ en ? 'Prefix' : 'Prefijo' }} {{ bankIbanFormat(account.bankCountryId)?.code }}
+                    · {{ account.accountNumber.length }}/{{ bankIbanFormat(account.bankCountryId)?.length }}
+                    {{ en ? 'characters' : 'caracteres' }}
+                  </span>
+                  <span v-else class="mt-1 block text-[11px] font-normal text-[var(--dh-text-muted)]">
+                    {{ en ? 'National account (country without registered IBAN format)' : 'Cuenta nacional (país sin formato IBAN registrado)' }}
+                    · {{ account.accountNumber.length }}/44
+                  </span>
                 </label>
                 <label class="text-xs font-semibold">SWIFT / BIC {{ account.registration === 'INTERNACIONAL' ? '*' : '(' + (en ? 'optional' : 'opcional') + ')' }}
                   <input v-model="account.swiftBic" :readonly="!canManageBanks"
@@ -1403,7 +1441,8 @@ onMounted(() => {
                 <CrmCatalogPicker v-model="account.currency" :label="en ? 'Currency *' : 'Moneda *'"
                   catalog-group-slug="currencies" value-kind="value" />
                 <div class="min-w-0">
-                  <DhSelect v-model="account.bankCountryId" :options="countryOptions"
+                  <DhSelect :model-value="account.bankCountryId" :options="countryOptions"
+                    @update:model-value="onBankCountryChange(account, $event)"
                     :label="en ? 'Bank country *' : 'País del banco *'" />
                 </div>
                 <label class="text-xs font-semibold">{{ en ? 'Intermediary bank (optional)' : 'Banco intermediario (opcional)' }}
