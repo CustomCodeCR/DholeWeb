@@ -3,6 +3,7 @@ import type { Plugin } from 'vite'
 // Final Vite guard: earlier Pricing transforms build their own cost-selection
 // functions and may trust /costs/select even when carrierId was not requested.
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
+const STABLE_PATH = '/src/modules/pricing/components/PricingRateExistingWizardStable.vue'
 const MARKER = '// dhole-lcl-no-carrier-master-cost-guard-20261117'
 
 function injectOnce(source: string, anchor: string, replacement: string, description: string): string {
@@ -13,7 +14,7 @@ function injectOnce(source: string, anchor: string, replacement: string, descrip
   return source.replace(anchor, replacement)
 }
 
-export function patchPricingLclNoCarrierCostGuard(source: string): string {
+export function patchPricingLclNoCarrierCostGuard(source: string, hasScreen7Refresh = true): string {
   if (source.includes(MARKER)) return source
 
   let code = source
@@ -50,9 +51,11 @@ function lclNoCarrierRejectCatalogCost(cost: CostSelectDto): boolean {
     'automatic amount resolver')
 
   const selectedProviders = 'function screen7CostMatchesSelectedProviders(cost: CostSelectDto) {'
-  code = injectOnce(code, selectedProviders,
-    selectedProviders + '\n  if (lclNoCarrierRejectCatalogCost(cost)) return false',
-    'screen 7 refreshed costs')
+  if (hasScreen7Refresh) {
+    code = injectOnce(code, selectedProviders,
+      selectedProviders + '\n  if (lclNoCarrierRejectCatalogCost(cost)) return false',
+      'screen 7 refreshed costs')
+  }
 
   return code
 }
@@ -61,8 +64,11 @@ export function pricingLclNoCarrierCostGuard(): Plugin {
   return {
     name: 'dhole-pricing-lcl-no-carrier-cost-guard',
     transform(source, id) {
-      if (id.includes('?') || !id.replaceAll('\\', '/').endsWith(WIZARD_PATH)) return null
-      return { code: patchPricingLclNoCarrierCostGuard(source), map: null }
+      if (id.includes('?')) return null
+      const path = id.replaceAll('\\', '/')
+      const isCrystal = path.endsWith(WIZARD_PATH)
+      if (!isCrystal && !path.endsWith(STABLE_PATH)) return null
+      return { code: patchPricingLclNoCarrierCostGuard(source, isCrystal), map: null }
     },
   }
 }
