@@ -1,3 +1,10 @@
+## [1.65.3] - 2026-11-16 (SRM: consulta Hacienda y pie de formulario estable)
+
+- PATCH DH-20261116-SRM-HACIENDA-182: recupera una única falla de transporte al consultar Hacienda con GET (sin repetir 4xx, 429 ni respuestas 5xx), comprueba la respuesta antes de aplicarla y muestra un mensaje claro sin exponer identificaciones ni URLs del contribuyente.
+- El proveedor sigue siendo editable si Hacienda no está disponible; conserva datos ingresados y la protección de respuestas obsoletas sin reintentos ilimitados.
+- En SRM, el pie de acciones se representa fuera del área con scroll mediante una ranura opcional de DhDrawer, evitando que «Guardar proveedor» y «Cancelar» tapen Descripción y otros campos. El botón guarda el formulario real mediante su ID. Sin cambios en API/REST, scopes o realtime.
+- Pruebas de red, permisos, límites y diseño; Web 1.65.2 → 1.65.3 y ecosistema 1.66.2 → 1.66.3. CI y staging antes de producción.
+
 ## [1.65.2] - 2026-11-16 (SRM: IBAN por país en cuentas bancarias)
 
 - PATCH DH-20261116-SRM-IBAN-181: las cuentas bancarias del proveedor seleccionan el prefijo ISO 3166 del IBAN según el país y limitan caracteres al largo exacto del registro SWIFT ISO 13616 (por ejemplo CR 22, DE 22, ES 24, NI 28).
