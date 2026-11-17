@@ -1,3 +1,8 @@
+## [1.67.7] - 2026-11-17 (Pricing: los rubros de edición coinciden con la QUO)
+
+- PATCH DH-20261117-PRICING-EDIT-ITEMS-198: edición y vista leen los mismos cargos guardados. No se incorporan costos del catálogo al entrar a editar; refrescar precios sin cambiar el contexto solo actualiza las líneas existentes, con sus IDs, impuestos, HBL, Manejos, seguros y recolectas.
+- Web master 1.67.6 → 1.67.7, ecosistema 1.71.0 → 1.71.1. Conserva el release anterior Hacienda POST 197. CI, despliegue/health staging y regresión de Pricing validados; revisión manual con autenticación no ejecutada.
+
 ## [1.67.6] - 2026-11-17 (CRM Hacienda: POST fiscal y proxy reforzado)
 
 - PATCH DH-20261117-HACIENDA-POST-197: CRM envía identificación y país mediante POST JSON autenticado, sin identificaciones en la URL; conserva GET únicamente como compatibilidad durante despliegues coordinados. El proxy mismo-origen admite únicamente GET/POST y no reenvía cookies innecesarias.
