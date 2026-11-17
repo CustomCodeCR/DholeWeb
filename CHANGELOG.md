@@ -1,3 +1,9 @@
+## [1.67.8] - 2026-11-17 (Hacienda: Nginx accepts large JWT headers)
+
+- PATCH DH-20261117-HACIENDA-HEADER-BUFFERS-199: corregido el 400 HTML "Request Header Or Cookie Too Large" del Nginx de DholeWeb al recibir JWT de autorización de más de 8 KB. Aumenta los buffers de cabecera a 16 KB iniciales y hasta 4 × 32 KB por conexión cuando se requiera; aplica antes del enrutamiento a Hacienda CRM/SRM.
+- Conserva Authorization, scopes, autenticación, ocultación de cookies al Gateway, POST JSON de Hacienda, seguridad, realtime y demás rutas. Regresión automática sobre configuración del servidor.
+- Web 1.67.7 → 1.67.8, ecosistema 1.71.1 → 1.71.2. Validar compilación y smoke staging con JWT largo antes de promover master; producción solo con autorización.
+
 ## [1.67.7] - 2026-11-17 (Pricing: cargos persistidos al editar una QUO)
 
 - PATCH DH-20261117-PRICING-EDIT-ITEMS-198: las líneas de Ver y Editar provienen de los RateDetails guardados; los costes del catálogo ya no se agregan a una cotización existente durante la hidratación, navegación ni actualización de importes para el mismo contexto comercial. Preserva detalle, impuestos, seguro de carga, HBL, Manejos, recolectas y costos manuales.
