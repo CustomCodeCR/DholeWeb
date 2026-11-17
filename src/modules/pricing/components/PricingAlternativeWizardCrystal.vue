@@ -6550,7 +6550,7 @@ onMounted(async () => {
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <DhBadge :label="editingRate.rateCode" variant="primary" />
+            <DhBadge :label="editingRate.quoNumber || editingRate.rateCode" variant="primary" />
             <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
             <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
           </div>
