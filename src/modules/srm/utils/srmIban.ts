@@ -84,8 +84,26 @@ export function srmIbanChecksumValid(value: string): boolean {
   return remainder === 1
 }
 
+/** Explain the precise cause; checksum validation must never be bypassed. */
+export function srmIbanValidationError(value: string, format: SrmIbanFormat, en = false): string | null {
+  const iban = normalizeSrmIban(value)
+  const description = en ? `IBAN ${format.code} (${format.length} characters)`
+    : `IBAN ${format.code} (${format.length} caracteres)`
+  if (!iban.startsWith(format.code)) return en
+    ? `${description}: the country prefix doesn't match the selected bank country.`
+    : `${description}: el prefijo no corresponde al país del banco seleccionado.`
+  if (iban.length !== format.length) return en
+    ? `${description}: enter exactly ${format.length} characters (currently ${iban.length}).`
+    : `${description}: ingresá exactamente ${format.length} caracteres (actualmente ${iban.length}).`
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(iban)) return en
+    ? `${description}: the third and fourth characters must be numeric check digits.`
+    : `${description}: los caracteres tercero y cuarto deben ser dígitos de control numéricos.`
+  if (!srmIbanChecksumValid(iban)) return en
+    ? `${description}: invalid check digits. Copy the complete IBAN provided by the bank.`
+    : `${description}: los dígitos de control son incorrectos. Copiá el IBAN completo emitido por el banco.`
+  return null
+}
+
 export function srmIbanValidForCountry(value: string, format: SrmIbanFormat): boolean {
-  const normalized = normalizeSrmIban(value)
-  return normalized.startsWith(format.code) &&
-    normalized.length === format.length && srmIbanChecksumValid(normalized)
+  return srmIbanValidationError(value, format) === null
 }
