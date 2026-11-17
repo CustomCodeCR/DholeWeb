@@ -88,4 +88,8 @@ export const SrmApi = {
     const response = await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'PUT', body })
     verifySrmMutation(response)
   },
+  async deleteSupplier(id: string): Promise<void> {
+    const response = await fetchClient<unknown>(base + '/suppliers/' + encodeURIComponent(id), { method: 'DELETE' })
+    verifySrmMutation(response)
+  },
 }

@@ -171,3 +171,16 @@ test('SRM save button triggers validation and create/update even with invalid HT
   assert.ok(view.includes("SrmApi.create('suppliers'"))
   assert.ok(view.includes('SrmApi.updateSupplier(editing.value.id'))
 })
+
+test('SRM supplier removal uses scoped soft delete with confirmation and handles linked records', () => {
+  assert.match(view, /srm\.supplier\.archive/)
+  assert.match(view, /canArchiveSuppliers && !item\.isSystem/)
+  assert.match(view, /canArchiveSuppliers && !selected\.isSystem/)
+  assert.match(view, /data-srm-delete-confirmation/)
+  assert.match(view, /data-srm-delete-confirm/)
+  assert.match(view, /SrmApi\.deleteSupplier\(supplier\.id\)/)
+  assert.match(view, /srm_supplier_has_dependencies/)
+  assert.match(client, /async deleteSupplier\(id: string\)/)
+  assert.match(client, /method: 'DELETE'/)
+  assert.doesNotMatch(client, /config\/catalog-items\/.*DELETE/)
+})
