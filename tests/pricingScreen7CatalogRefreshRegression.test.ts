@@ -509,3 +509,56 @@ test('own LCL refresh keeps an independently saved cargo-insurance detail', asyn
   assert.equal(saved[0].costAmount, 8)
   assert.equal(saved[0].saleAmount, 12)
 })
+
+test('unchanged LCL quote refreshes saved charges without importing other-route catalog items', async () => {
+  const costs = [
+    { id: 'C1', name: 'Cargo en destino', costDetailType: 'DestinationCharge',
+      costType: 'Fixed', chargeBasis: 'PerShipment', isActive: true,
+      currencyId: 'USD', currencyCode: 'USD', currencyName: 'USD',
+      costAmount: 135, saleAmount: 175 },
+    { id: 'C-PANAMA', name: 'Bunker Panama a Costa Rica',
+      costDetailType: 'DestinationCharge', costType: 'Fixed',
+      isActive: true, currencyId: 'USD', currencyCode: 'USD',
+      currencyName: 'USD', costAmount: 280, saleAmount: 300 },
+  ]
+  const { env, runRefresh } = refreshHarness(costs)
+  Object.assign(env.form, {
+    originId: 'POL', destinationId: 'POE', podId: 'POD',
+    incotermId: 'FOB', serviceIds: [],
+  })
+  env.shipmentModeForApi.value = 'Lcl'
+  env.editingRate.value = {
+    agentId: 'WWL', carrierId: null,
+    polId: 'POL', poeId: 'POE', podId: 'POD', incotermId: 'FOB',
+    services: [],
+  }
+  env.rebuildRateLines = () => {
+    env.rateLines.value = costs.map((cost) => ({
+      key: 'cost:' + cost.id, costId: cost.id, section: 'destination_charges',
+      name: cost.name, costDetailType: cost.costDetailType, costType: cost.costType,
+      costAmount: cost.costAmount, saleAmount: cost.saleAmount,
+      currencyId: 'USD', currencyCode: 'USD', currencyName: 'USD',
+      included: true, manual: false,
+    }))
+  }
+  await runRefresh()
+  assert.deepEqual(
+    Array.from(env.rateLines.value, (line: any) => line.name),
+    ['Cargo en destino', 'Gestión manual'],
+  )
+  assert.equal(env.rateLines.value[0].detailId, 'D1')
+  assert.equal(env.rateLines.value[0].costAmount, 135)
+  assert.equal(env.rateLines.value[0].saleAmount, 175)
+  assert.equal(env.rateLines.value[1].detailId, 'D2')
+  assert.ok(!env.rateLines.value.some((line: any) => line.costId === 'C-PANAMA'))
+})
+
+test('saved-quote wizards forbid automatic cost-catalog merges', () => {
+  for (const name of ['PricingAlternativeWizardCrystal.vue', 'PricingRateExistingWizardStable.vue']) {
+    const wizard = readFileSync(new URL('../src/modules/pricing/components/' + name, import.meta.url), 'utf8')
+    const start = wizard.indexOf('function mergeConfiguredOptionalCostsIntoRateLines(')
+    const end = wizard.indexOf('function addManualCharge()', start)
+    assert.ok(start >= 0 && end > start)
+    assert.match(wizard.slice(start, end), /if \(props\.rateId\) return/)
+  }
+})
