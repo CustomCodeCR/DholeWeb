@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.65.3",
-  "ecosystemVersion": "1.66.3",
-  "releaseId": "DH-20261116-SRM-HACIENDA-182",
+  "version": "1.66.0",
+  "ecosystemVersion": "1.68.0",
+  "releaseId": "DH-20261117-OPS-GATEWAY-DB-184",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261116-SRM-HACIENDA-182"
+  "businessReleaseId": "DH-20261117-OPS-GATEWAY-DB-184"
 }

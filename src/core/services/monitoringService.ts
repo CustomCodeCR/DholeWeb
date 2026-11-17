@@ -35,6 +35,13 @@ export const serviceMonitors: ServiceMonitorDefinition[] = [
     critical: true,
   },
   {
+    key: 'operations',
+    name: 'Operations Service',
+    description: 'Expedientes operativos, pool de equipos, asignaciones y documentos.',
+    url: buildGatewayHealthUrl('operations'),
+    critical: true,
+  },
+  {
     key: 'config',
     name: 'Config Service',
     description: 'Catálogos y configuración operacional.',
