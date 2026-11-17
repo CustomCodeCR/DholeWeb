@@ -1,3 +1,9 @@
+## [1.67.3] - 2026-11-17 (MultiQUO: números comerciales, aprobación y PDF)
+
+- PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: los títulos y nombres de PDF usan `quoNumber` (672-A/672-B), nunca el consecutivo técnico `rateCode` (673) de cada RateHeader.
+- Pantalla 9: aprobación grupal de márgenes pendientes con un solo clic; se refrescan todas las alternativas guardadas. Se mantiene la elección definitiva exclusiva del cliente.
+- Pricing 1.22.2 → 1.22.3; Web 1.67.2 → 1.67.3; ecosistema 1.70.3 → 1.70.4; validaciones CI/staging pendientes.
+
 ## [1.67.2] - 2026-11-17 (Hacienda CRM/SRM: same-origin Gateway)
 - PATCH DH-20261117-HACIENDA-SAME-ORIGIN-193: reverse proxy Nginx sobre mismo origen para las dos rutas de Hacienda, enviando token autenticado al API Gateway interno. Evita CORS sobre 502 originados en Cloudflare para el subdominio API.
 - GET restringido, consulta sin access_log fiscal, sin cambiar ACL, REST, realtime u otros módulos. CRM conversiones y SRM incluidas. Requiere smoke de red en staging.
