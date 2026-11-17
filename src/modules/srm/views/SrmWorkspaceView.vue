@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditCard, Eye, FileCheck2, FolderOpen, Landmark, Pencil, Plus, RefreshCw, Search, ShieldAlert, Trash2, AlertTriangle } from 'lucide-vue-next'
+import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DhDrawer, DhModal } from '@/shared/components/organisms'
@@ -634,9 +635,14 @@ async function deleteSupplier() {
     void load()
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : ''
-    deleteError.value = detail.includes('srm_supplier_has_dependencies')
+    const code = cause instanceof ApiError ? cause.code : null
+    deleteError.value = code === 'srm_supplier_has_dependencies'
       ? (en.value ? 'This supplier has linked agreements or reviews and cannot be removed.' : 'Este proveedor tiene acuerdos o evaluaciones vinculadas y no se puede eliminar.')
-      : detail || (en.value ? 'Could not remove supplier.' : 'No se pudo eliminar el proveedor.')
+      : code === 'srm_supplier_not_found'
+        ? (en.value ? 'This supplier is no longer in the directory. Refresh the list.' : 'Este proveedor ya no está en el directorio. Actualizá la lista.')
+        : code === 'srm_system_supplier_cannot_be_deleted'
+          ? (en.value ? 'System suppliers cannot be deleted.' : 'No se pueden eliminar proveedores del sistema.')
+          : detail || (en.value ? 'Could not remove supplier.' : 'No se pudo eliminar el proveedor.')
   } finally {
     deleteBusy.value = false
   }
