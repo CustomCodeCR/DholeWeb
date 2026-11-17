@@ -1,3 +1,9 @@
+## [1.65.2] - 2026-11-16 (SRM: IBAN por país en cuentas bancarias)
+
+- PATCH DH-20261116-SRM-IBAN-181: las cuentas bancarias del proveedor seleccionan el prefijo ISO 3166 del IBAN según el país y limitan caracteres al largo exacto del registro SWIFT ISO 13616 (por ejemplo CR 22, DE 22, ES 24, NI 28).
+- En el formulario se ve el prefijo y contador, se normalizan espacios y se restablece la cuenta al cambiar de país; países que no usan IBAN conservan el campo de cuenta nacional sin prefijo inventado.
+- El guardado SRM verifica país, longitud completa y checksum MOD-97 antes de enviar a Config, preservando permisos y almacenamiento financiero; se añaden pruebas de regresión. Web 1.65.1 → 1.65.2; ecosistema 1.66.1 → 1.66.2. CI y staging pendientes antes de producción.
+
 ## [1.65.1] - 2026-11-16 (FCL multimodal Panamá: sobrepeso mayor a 19.000 kg)
 
 - PATCH DH-20261116-PRICING-PANAMA-OVERWEIGHT-180: FCL multimodal Panamá → Costa Rica activa automáticamente Sobrepeso al superar 19.000 kg por contenedor, conservando el umbral de 21.500 kg para otras rutas.
