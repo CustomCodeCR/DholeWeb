@@ -23,18 +23,15 @@ test('CRM Hacienda POST and legacy SRM GET use restricted same-origin route with
   assert.ok(read('src/modules/crm/views/CrmRecordDetailView.vue').includes('crmHaciendaRequest<HaciendaResult>(params)'))
   assert.ok(read('src/modules/srm/services/srmApi.ts').includes("fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' }, '')"))
 })
-test('nginx accepts scoped JWT header lines larger than its default 8 KB before location matching', () => {
+test('nginx accepts large scoped JWT request headers before route matching', () => {
   const nginx = read('nginx.conf')
-  const serverScope = nginx.slice(0, nginx.indexOf('    location ~ ^/api/(crm|config/srm)/hacienda/lookup
-  const client = read('src/core/api/fetchConfig.ts')
-  assert.ok(client.includes('getUsableAccessToken(endpoint)'))
-  assert.ok(client.includes('getTransientAccessToken'))
-  assert.ok(client.includes('fetch(`${baseUrl}${endpoint}`, config)'))
-})
-))
-  assert.match(serverScope, /^    client_header_buffer_size 16k;$/m)
-  assert.match(serverScope, /^    large_client_header_buffers 4 32k;$/m)
-  // The proxy must keep forwarding the original authenticated JWT, not disable it.
+  const route = '    location ~ ^/api/(crm|config/srm)/hacienda/lookup$'
+  const routeOffset = nginx.indexOf(route)
+  assert.ok(routeOffset > 0)
+  const serverSettings = nginx.slice(0, routeOffset)
+  assert.match(serverSettings, /^    client_header_buffer_size 16k;$/m)
+  assert.match(serverSettings, /^    large_client_header_buffers 4 32k;$/m)
+  // Authentication stays enabled and cookies are never forwarded to Gateway.
   assert.ok(nginx.includes('proxy_set_header Authorization $http_authorization;'))
   assert.ok(nginx.includes('proxy_set_header Cookie "";'))
 })
