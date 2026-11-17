@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 import { supplierBankSaveIssue } from '../src/modules/srm/utils/srmSupplierSave.ts'
-import { IBAN_LENGTH_BY_COUNTRY, srmCountryIbanFormat, srmIbanChecksumValid, srmIbanInput, srmIbanValidForCountry } from '../src/modules/srm/utils/srmIban.ts'
+import { IBAN_LENGTH_BY_COUNTRY, srmCountryIbanFormat, srmIbanChecksumValid, srmIbanInput, srmIbanValidForCountry, srmIbanValidationError } from '../src/modules/srm/utils/srmIban.ts'
 
 const bank = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -70,6 +70,10 @@ test('supplier bank IBAN validates country length, prefix and MOD-97 checksum be
   const formats = new Map([[bank.bankCountryId, cr]])
   assert.equal(srmIbanChecksumValid(bank.accountNumber), true)
   assert.equal(srmIbanValidForCountry(bank.accountNumber, cr), true)
+  assert.equal(srmIbanValidationError(bank.accountNumber, cr), null)
+  assert.match(srmIbanValidationError('CR12345678912345678912', cr) || '', /dígitos de control son incorrectos/)
+  assert.match(srmIbanValidationError('CR0501520200102628406', cr) || '', /exactamente 22 caracteres/)
+  assert.match(srmIbanValidationError('DE89370400440532013000', cr) || '', /prefijo no corresponde/)
   assert.equal(srmIbanChecksumValid('DE89370400440532013000'), true)
   assert.equal(srmIbanValidForCountry('DE89370400440532013000', de), true)
   assert.equal(supplierBankSaveIssue([bank], false, formats), null)
@@ -87,4 +91,15 @@ test('SRM bank form enforces country-specific maximum and preserves non-IBAN cou
   assert.match(view, /onBankCountryChange\(account, String\(\$event\)\)/)
   assert.match(view, /onBankNumberInput\(account, \$event\)/)
   assert.match(view, /supplierBankSaveIssue\(bankAccounts.value, en.value, ibanFormats\)/)
+})
+
+
+test('credit coverage dropdown expands in layout and closes outside, not over the next review date', () => {
+  const picker = readFileSync('src/modules/crm/components/CrmCreditCoveragePicker.vue', 'utf8')
+  assert.match(picker, /v-if="open" class="relative z-10/)
+  assert.doesNotMatch(picker, /v-if="open" class="absolute/)
+  assert.match(picker, /document\.addEventListener\('pointerdown', closeOnOutsidePointer\)/)
+  assert.match(picker, /document\.addEventListener\('keydown', closeOnEscape\)/)
+  const view = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
+  assert.match(view, /bankIbanError\(account\)/)
 })
