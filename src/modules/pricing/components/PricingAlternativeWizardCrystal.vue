@@ -8250,8 +8250,8 @@ onMounted(async () => {
                   : 'Resumen integral de la revisión actual, decisión comercial, líneas, condiciones y totales.' }}
               </p>
             </div>
-            <DhButton variant="secondary" :loading="downloadingQuote" :disabled="downloadingQuote || !canDownloadCurrentQuote" @click="downloadCurrentQuote">
-              {{ canDownloadCurrentQuote ? 'Descargar cotización PDF' : 'Apruebe las alternativas para descargar PDF' }}
+            <DhButton variant="secondary" :loading="downloadingQuote" :disabled="downloadingQuote" @click="downloadCurrentQuote">
+              Descargar cotización PDF
             </DhButton>
           </div>
           <div v-if="canApproveCurrentRate" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
