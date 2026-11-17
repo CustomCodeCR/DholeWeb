@@ -74,7 +74,7 @@ export const SrmApi = {
   async lookupHacienda(identificacion: string, countryId: string): Promise<SrmHaciendaResult> {
     const query = new URLSearchParams({ identificacion, countryId })
     return retrySrmHaciendaNetwork(() =>
-      fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' }))
+      fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' }, ''))
   },
   async listBankAccounts(supplierId: string): Promise<SrmBankAccount[]> {
     return fetchClient<SrmBankAccount[]>(base + '/suppliers/' +
