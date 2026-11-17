@@ -84,7 +84,7 @@ test('supplier bank IBAN validates country length, prefix and MOD-97 checksum be
 test('SRM bank form enforces country-specific maximum and preserves non-IBAN countries', () => {
   const view = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
   assert.match(view, /:maxlength="bankIbanFormat\(account.bankCountryId\)\?\.length \?\? 44"/)
-  assert.match(view, /onBankCountryChange\(account, \$event\)/)
+  assert.match(view, /onBankCountryChange\(account, String\(\$event\)\)/)
   assert.match(view, /onBankNumberInput\(account, \$event\)/)
   assert.match(view, /supplierBankSaveIssue\(bankAccounts.value, en.value, ibanFormats\)/)
 })
