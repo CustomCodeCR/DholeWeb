@@ -522,6 +522,7 @@ test('unchanged LCL quote refreshes saved charges without importing other-route 
       currencyName: 'USD', costAmount: 280, saleAmount: 300 },
   ]
   const { env, runRefresh } = refreshHarness(costs)
+  env.props.rateId = 'saved-lcl-coloader'
   Object.assign(env.form, {
     carrierId: '', originId: 'POL', destinationId: 'POE', podId: 'POD',
     incotermId: 'FOB', serviceIds: [],
