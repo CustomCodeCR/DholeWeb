@@ -14,7 +14,7 @@ import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaRes
 import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
 import { srmCountryIbanFormat, srmIbanInput, type SrmIbanFormat } from '../utils/srmIban'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
-import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId, srmHaciendaFields } from '../utils/srmHacienda'
+import { isSrmCostaRicaCountry, isSrmHaciendaMatch, normalizeSrmTaxId, srmHaciendaFields, srmHaciendaErrorMessage } from '../utils/srmHacienda'
 import type { CatalogItemDto, CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 
 type Supplier = CatalogItemDto & { category: string }
@@ -297,13 +297,16 @@ async function lookupHacienda(force = false): Promise<boolean> {
     try {
       const response = await SrmApi.lookupHacienda(identification, countryId)
       if (version !== haciendaLookupVersion) return false
+      if (!response || typeof response.identification !== 'string' ||
+          typeof response.name !== 'string' || !response.name.trim() ||
+          !Array.isArray(response.activities)) {
+        throw new Error('Invalid Hacienda response')
+      }
       if (!applyHaciendaResult(response, identification, countryId)) return false
       return true
     } catch (cause) {
       if (version === haciendaLookupVersion) {
-        haciendaError.value = cause instanceof Error ? cause.message :
-          (en.value ? 'Hacienda is temporarily unavailable. Complete the fields manually.'
-            : 'Hacienda no está disponible. Completá los datos manualmente.')
+        haciendaError.value = srmHaciendaErrorMessage(cause, en.value)
       }
       return false
     } finally {
@@ -1226,7 +1229,7 @@ onMounted(() => {
       </DhDrawer>
       <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
         size="xl" @close="closeForm">
-        <form class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="submitSupplierSafely">
+        <form id="srm-supplier-form" class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="submitSupplierSafely">
           <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
             <div class="flex items-center gap-3">
               <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
@@ -1544,7 +1547,9 @@ onMounted(() => {
               </label>
             </div>
           </section>
-          <div class="sticky bottom-0 z-20 md:col-span-2 -mx-3 -mb-3 space-y-3 border-t border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-3 shadow-lg backdrop-blur-xl sm:-mx-5 sm:-mb-5 sm:px-5 sm:py-4">
+        </form>
+        <template #footer>
+          <div class="space-y-3" data-srm-form-footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Changes are saved for the whole supplier profile.' : 'Los cambios se guardan para toda la ficha del proveedor.' }}</p>
               <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2 text-xs font-semibold" @click="closeForm">
@@ -1553,13 +1558,13 @@ onMounted(() => {
             </div>
             <p v-if="error" role="alert" data-srm-save-error
               class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-400">{{ error }}</p>
-            <button type="submit" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
+            <button type="submit" form="srm-supplier-form" :disabled="saving || !(editing ? canEditSuppliers : canCreateSuppliers)"
               data-srm-save-button
               class="rounded-xl bg-[var(--dh-primary)] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
               {{ saving ? t('common.loading') : (editing ? (en ? 'Update supplier' : 'Actualizar proveedor') : (en ? 'Save supplier' : 'Guardar proveedor')) }}
             </button>
           </div>
-        </form>
+        </template>
       </DhDrawer>
     </template>
   </main>
