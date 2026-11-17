@@ -1,3 +1,8 @@
+## [1.67.5] - 2026-11-17 (LCL propio: seguro de carga y Manejos)
+
+- PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro de carga y Manejos al abrir, editar, actualizar matriz y guardar cotizaciones LCL propias, sin perder identificadores, costos ni ventas, evitando duplicados.
+- Web 1.67.4 → 1.67.5; Pricing 1.22.5; ecosistema 1.70.6; validaciones y staging pendientes; producción no autorizada.
+
 ## [1.67.4] - 2026-11-17 (MultiQUO comercial 672-A/B en lista, dashboard y wizard)
 
 - PATCH DH-20261117-MULTIQUO-VISIBLE-GROUP-PDF-195: las alternativas se presentan individualmente en 4. Tarifas con `quoNumber` antes de `groupQuoteNumber` o el consecutivo técnico `rateCode`; el dashboard muestra 672-A y 672-B en lugar de 672 y 673, y la cabecera del wizard coincide.
