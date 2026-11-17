@@ -1,3 +1,8 @@
+## [1.67.9] - 2026-11-17 (Pricing LCL: no importar cargos de naviera)
+
+- PATCH DH-20261117-PRICING-LCL-CARRIER-200: el wizard no incorpora cargos vinculados a MAERSK ni a ninguna otra naviera en LCL marítimo, aunque el API contextual devuelva el costo o arrastre una relación legacy. Validación obligatoria en aplicación, cálculo de montos y actualización explícita desde base de datos; sin filtrar por texto ni alterar manuales históricos.
+- Preserva los cargos generales/coloader y el comportamiento FCL y aéreo; pruebas de regresión para carrierId, relaciones múltiples, carrierName y carrierCode. Web 1.67.8 → 1.67.9, ecosistema 1.71.2 → 1.71.3. CI y staging pendientes; master solo tras validaciones y autorización.
+
 ## [1.67.8] - 2026-11-17 (Hacienda: Nginx accepts large JWT headers)
 
 - PATCH DH-20261117-HACIENDA-HEADER-BUFFERS-199: corregido el 400 HTML "Request Header Or Cookie Too Large" del Nginx de DholeWeb al recibir JWT de autorización de más de 8 KB. Aumenta los buffers de cabecera a 16 KB iniciales y hasta 4 × 32 KB por conexión cuando se requiera; aplica antes del enrutamiento a Hacienda CRM/SRM.
