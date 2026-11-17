@@ -219,7 +219,7 @@ function rateFinancialSummary(rate: RateDto) {
 }
 
 function visibleQuoteNumber(rate: RateDto) {
-  return rate.groupQuoteNumber || rate.quoNumber || rate.rateCode
+  return rate.quoNumber || rate.groupQuoteNumber || rate.rateCode
 }
 
 const rows = ref<RateDto[]>([])

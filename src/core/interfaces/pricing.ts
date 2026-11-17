@@ -469,6 +469,7 @@ export interface PricingAcceptedModeSummaryDto extends Record<string, unknown> {
 export interface PricingRateDashboardItemDto extends Record<string, unknown> {
   id: string
   rateCode: string
+  quoNumber?: string | null
   rateName: string
   status: RateStatus
   createdByUserId?: string | null

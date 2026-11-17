@@ -1,3 +1,9 @@
+## [1.67.4] - 2026-11-17 (MultiQUO comercial 672-A/B en lista, dashboard y wizard)
+
+- PATCH DH-20261117-MULTIQUO-VISIBLE-GROUP-PDF-195: las alternativas se presentan individualmente en 4. Tarifas con `quoNumber` antes de `groupQuoteNumber` o el consecutivo técnico `rateCode`; el dashboard muestra 672-A y 672-B en lugar de 672 y 673, y la cabecera del wizard coincide.
+- La descarga y el correo comercial utilizan el PDF de grupo generado por Pricing 1.22.4. Se evita adjuntar solamente la ruta activa antes de escoger la definitiva.
+- Web 1.67.3 → 1.67.4; Pricing 1.22.3 → 1.22.4; ecosistema 1.70.4 → 1.70.5. Pruebas y smoke staging previos a master.
+
 ## [1.67.3] - 2026-11-17 (MultiQUO: números comerciales, aprobación y PDF)
 
 - PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: los títulos y nombres de PDF usan `quoNumber` (672-A/672-B), nunca el consecutivo técnico `rateCode` (673) de cada RateHeader.
