@@ -53,3 +53,12 @@ test('CRM Hacienda errors never disclose tax ID, backend URL or browser traces',
   assert.match(crmHaciendaErrorMessage(Object.assign(new Error('Forbidden'), { status: 403 })), /permiso/)
   assert.match(crmHaciendaErrorMessage(Object.assign(new Error('Rate limit'), { status: 429 })), /limitando/)
 })
+
+test('HTML 400 from proxy is never described as an invalid identification', () => {
+  const html = Object.assign(new Error('Bad Request'), {
+    status: 400, data: '<!DOCTYPE html><html><head><title>Bad Request</title></head></html>',
+  })
+  const message = crmHaciendaErrorMessage(html)
+  assert.match(message, /proxy web/)
+  assert.doesNotMatch(message, /identificación y el país/)
+})

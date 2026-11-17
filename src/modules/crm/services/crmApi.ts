@@ -25,10 +25,30 @@ export async function crmRequest<T>(path: string, method: CrmMethod = 'GET',
   if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
   return fetchClient<T>(path, { method, body, headers })
 }
-/** Authenticated Hacienda GET via the SPA's same-origin Nginx/Gateway proxy. */
-export function crmHaciendaRequest<T>(params: URLSearchParams): Promise<T> {
-  return fetchClient<T>('/api/crm/hacienda/lookup?' + params.toString(),
-    { method: 'GET', headers: { Accept: 'application/json' } }, '')
+/** Authenticated, read-only POST via the SPA origin, with no tax ID in the URL. */
+export async function crmHaciendaRequest<T>(params: URLSearchParams): Promise<T> {
+  const endpoint = '/api/crm/hacienda/lookup'
+  try {
+    return await fetchClient<T>(endpoint, {
+      method: 'POST',
+      // The Gateway is authorized by Bearer JWT, not by browser cookies.
+      credentials: 'omit',
+      body: {
+        identificacion: params.get('identificacion') ?? '',
+        countryId: params.get('countryId') ?? '',
+      },
+      headers: { Accept: 'application/json' },
+    }, '')
+  } catch (error) {
+    const failure = error as { status?: number; data?: unknown } | null
+    // Mixed-version rollouts: only retry legacy GET if POST is not implemented.
+    // Never retry valid fiscal JSON errors, authorization failures or Hacienda 429/5xx.
+    if ((failure?.status !== 404 && failure?.status !== 405) ||
+        (failure.data !== null && typeof failure.data === 'object'))
+      throw error
+    return fetchClient<T>(endpoint + '?' + params.toString(),
+      { method: 'GET', credentials: 'omit', headers: { Accept: 'application/json' } }, '')
+  }
 }
 
 export function crmList(resource: string, query: Record<string, string | number | undefined> = {}) {
