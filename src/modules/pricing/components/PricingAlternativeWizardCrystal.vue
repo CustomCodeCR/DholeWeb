@@ -995,9 +995,10 @@ const showAssignIdtra = computed(() => editingRate.value?.status === 'AcceptedBy
 const canAssignIdtra = computed(() => showAssignIdtra.value
   && (canUpdateRateStatus.value || canApproveLowMargin.value))
 const canApproveCurrentRate = computed(() =>
-  canApproveLowMargin.value
-  && editingRate.value?.status === 'PendingApproval'
-  && Boolean(editingRate.value?.requiredApproval),
+  canApproveLowMargin.value && (
+    savedGroupRates.value.some(rate => rate.status === 'PendingApproval' && rate.requiredApproval)
+    || (editingRate.value?.status === 'PendingApproval' && Boolean(editingRate.value?.requiredApproval))
+  ),
 )
 const canOpenApprovedRate = computed(() =>
   canUpdateRateStatus.value && currentCommercialStatus.value === 'ApprovedByManagement',
@@ -4819,6 +4820,22 @@ async function submitCommercialDecision() {
   }
 }
 
+async function approveCurrentRate() {
+  if (!editingRate.value || !canApproveCurrentRate.value || commercialStatusSaving.value) return
+  try {
+    commercialStatusSaving.value = true
+    await PricingService.approveRateMargin(editingRate.value.id)
+    await hydrateExistingRate()
+    toastStore.success('Margen aprobado', savedQuoteGroup.value
+      ? 'Se aprobaron todas las alternativas pendientes de esta QUO.'
+      : 'La cotización quedó aprobada.')
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudo aprobar el margen de la cotización.')
+  } finally {
+    commercialStatusSaving.value = false
+  }
+}
+
 async function downloadCurrentQuote() {
   if (!editingRate.value || downloadingQuote.value) return
   try {
@@ -8207,6 +8224,14 @@ onMounted(async () => {
               Descargar cotización PDF
             </DhButton>
           </div>
+          <div v-if="canApproveCurrentRate" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+            <p class="text-xs font-semibold text-[var(--dh-text)]">
+              La MultiQUO tiene alternativas pendientes de aprobación de margen. Se autorizarán juntas antes de emitir el PDF comercial.
+            </p>
+            <DhButton size="sm" :loading="commercialStatusSaving" :disabled="commercialStatusSaving" @click="approveCurrentRate">
+              Aprobar margen de todas las alternativas
+            </DhButton>
+          </div>
 
           <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
             <div class="crystal-soft p-5">
@@ -8403,7 +8428,7 @@ onMounted(async () => {
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
                 <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">{{ editingRate.otherReferences }}</p>
               </div>
-              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ editingRate.rateName }}</p>
+              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ rateDisplayName(editingRate) }}</p>
             </div>
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
