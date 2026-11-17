@@ -198,7 +198,10 @@ export function rateDisplayName(rate: RateDto) {
           : `${rate.containerQuantity} x ${rate.containerTypeName}`
   const incoterm = rate.incotermName?.trim() || rate.incotermCode?.trim() || 'FOB'
   const route = pricingQuoteRouteName(rate, rateViaLabel)
-  const baseName = `${rate.rateCode} - Tarifa ${shipmentDescription} - ${incoterm} - ${route}`
+  // RateCode is a unique technical sequence; a MultiQUO child is displayed
+  // and downloaded by its commercial QUO-A / QUO-B identifier instead.
+  const commercialNumber = rate.quoNumber?.trim() || rate.rateCode
+  const baseName = `${commercialNumber} - Tarifa ${shipmentDescription} - ${incoterm} - ${route}`
 
   return rate.clientName?.trim() ? `${baseName} - ${rate.clientName.trim()}` : baseName
 }
