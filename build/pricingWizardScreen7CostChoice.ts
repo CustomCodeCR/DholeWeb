@@ -482,6 +482,26 @@ async function applyScreen7DatabaseCosts() {
     rebuildRateLines()
     const generated = rateLines.value.map((line) => ({ ...line }))
     const previousByKey = new Map(previous.map((line) => [screen7CostLineKey(line), line]))
+    // A price refresh on the same saved route updates only existing items.
+    // Unrelated master-catalog rows cannot become quotation items.
+    const originalRate = editingRate.value
+    const originalServiceIds = (originalRate?.services ?? [])
+      .map((service) => String(service.id)).sort().join('|')
+    const currentServiceIds = [...(form.serviceIds ?? [])]
+      .map((id) => String(id)).sort().join('|')
+    const originalContextUnchanged = Boolean(
+      props.rateId && originalRate
+      && String(originalRate.agentId ?? '') === String(form.agentId ?? '')
+      && (
+        String(originalRate.carrierId ?? '') === String(form.carrierId ?? '')
+        || (shipmentModeForApi.value === 'Lcl' && !form.carrierId)
+      )
+      && String(originalRate.polId ?? '') === String(form.originId ?? '')
+      && String(originalRate.poeId ?? '') === String(form.destinationId ?? '')
+      && String(originalRate.podId ?? '') === String(form.podId ?? '')
+      && String(originalRate.incotermId ?? '') === String(form.incotermId ?? '')
+      && originalServiceIds === currentServiceIds
+    )
     const next: RateLine[] = []
     const seenKeys = new Set<string>()
     let refreshed = 0
@@ -499,9 +519,10 @@ async function applyScreen7DatabaseCosts() {
     // catalog costs. Update every CostId from the latest DB snapshot even if
     // a source-specific rebuilder kept the old amounts.
     for (const line of generated) {
-      if (screen7IsFormerProviderCost(line, knownCatalogById)) continue
+      if (!originalContextUnchanged && screen7IsFormerProviderCost(line, knownCatalogById)) continue
       if (line.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const original = previousByKey.get(screen7CostLineKey(line))
+      if (originalContextUnchanged && !original) continue
       const configured = line.costId ? catalogById.get(line.costId) : undefined
       const refreshedLine = configured ? screen7CatalogRateLine(configured, original ?? line) : null
       if (refreshedLine) {
@@ -517,7 +538,7 @@ async function applyScreen7DatabaseCosts() {
     // zero rebuilt lines but still has legitimate destination/customs charges.
     // Do not mistake an empty builder output for permission to delete them.
     for (const original of previous) {
-      if (screen7IsFormerProviderCost(original, knownCatalogById)) {
+      if (!originalContextUnchanged && screen7IsFormerProviderCost(original, knownCatalogById)) {
         if (original.detailId) discardedProviderDetailIds.add(original.detailId)
         continue
       }
