@@ -1,3 +1,8 @@
+## [1.67.7] - 2026-11-17 (Pricing: cargos persistidos al editar una QUO)
+
+- PATCH DH-20261117-PRICING-EDIT-ITEMS-198: las líneas de Ver y Editar provienen de los RateDetails guardados; los costes del catálogo ya no se agregan a una cotización existente durante la hidratación, navegación ni actualización de importes para el mismo contexto comercial. Preserva detalle, impuestos, seguro de carga, HBL, Manejos, recolectas y costos manuales.
+- Se agregan pruebas de regresión para LCL coloader y costos de Panamá que no corresponden. Web 1.67.6 → 1.67.7, ecosistema 1.71.0 → 1.71.1; el release previo de Hacienda se conserva. Sin cambios a REST/SignalR. Validación de staging requerida antes de producción.
+
 ## [1.67.6] - 2026-11-17 (CRM Hacienda: POST fiscal y proxy reforzado)
 
 - PATCH DH-20261117-HACIENDA-POST-197: CRM envía identificación y país mediante POST JSON autenticado, sin identificaciones en la URL; conserva GET únicamente como compatibilidad durante despliegues coordinados. El proxy mismo-origen admite únicamente GET/POST y no reenvía cookies innecesarias.
