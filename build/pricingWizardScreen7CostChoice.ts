@@ -562,6 +562,8 @@ async function applyScreen7DatabaseCosts() {
     // applicable charges. Some legacy wizard rebuild branches produce none,
     // so materialize those items directly without an unrelated freight row.
     for (const cost of costs.value) {
+      // Updating amounts on the same saved quote never adds newly eligible Costs.
+      if (originalContextUnchanged && !previous.some((line) => line.costId === cost.id)) continue
       if (cost.isActive === false || cost.costDetailType === 'Freight') continue
       if (!visibleSections.value.includes(sectionForCost(cost))
           && !previous.some((line) => line.costId === cost.id)) continue
