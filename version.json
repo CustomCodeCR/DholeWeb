@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.66.1",
-  "ecosystemVersion": "1.69.1",
-  "releaseId": "DH-20261117-SRM-CREDIT-IBAN-186",
+  "version": "1.67.0",
+  "ecosystemVersion": "1.70.0",
+  "releaseId": "DH-20261117-SRM-SUPPLIER-DELETE-190",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261117-SRM-CREDIT-IBAN-186"
+  "businessReleaseId": "DH-20261117-SRM-SUPPLIER-DELETE-190"
 }
