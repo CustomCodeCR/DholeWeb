@@ -1,3 +1,5 @@
+import { normalizeSrmIban, srmIbanValidForCountry, type SrmIbanFormat } from './srmIban'
+
 export type SupplierSaveSection = 'contacts' | 'credit' | 'bank'
 export type SupplierSaveIssue = { section: SupplierSaveSection; message: string }
 type Contact = { name: string; email: string; phone: string; role: string; countryId: string }
@@ -135,7 +137,11 @@ export interface SupplierBankDraft {
   intermediaryBank: string
   isPrimary: boolean
 }
-export function supplierBankSaveIssue(accounts: readonly SupplierBankDraft[], en = false): SupplierSaveIssue | null {
+export function supplierBankSaveIssue(
+  accounts: readonly SupplierBankDraft[],
+  en = false,
+  ibanFormats: ReadonlyMap<string, SrmIbanFormat> = new Map(),
+): SupplierSaveIssue | null {
   const issue = (message: string): SupplierSaveIssue => ({ section: 'bank', message })
   if (accounts.length > 20) return issue(en ? 'Maximum 20 bank accounts.' : 'Máximo 20 cuentas bancarias.')
   if (accounts.length && accounts.filter(account => account.isPrimary).length !== 1) {
@@ -144,7 +150,7 @@ export function supplierBankSaveIssue(accounts: readonly SupplierBankDraft[], en
   const seen = new Set<string>()
   for (const [index, account] of accounts.entries()) {
     const number = index + 1
-    const iban = account.accountNumber.trim().replace(/\s/g, '').toUpperCase()
+    const iban = normalizeSrmIban(account.accountNumber.trim())
     const swift = account.swiftBic.trim().toUpperCase()
     if (!account.bankName.trim() || account.bankName.length > 160 ||
         !account.accountHolder.trim() || account.accountHolder.length > 180 ||
@@ -157,6 +163,12 @@ export function supplierBankSaveIssue(accounts: readonly SupplierBankDraft[], en
         (account.registration === 'INTERNACIONAL' && !swift)) {
       return issue(en ? `Review bank account #${number} and its required fields.`
         : `Revisá los campos obligatorios de la cuenta bancaria #${number}.`)
+    }
+    const ibanFormat = ibanFormats.get(account.bankCountryId)
+    if (ibanFormat && !srmIbanValidForCountry(iban, ibanFormat)) {
+      return issue(en
+        ? `Bank account #${number}: the IBAN must start with ${ibanFormat.code}, have exactly ${ibanFormat.length} characters and pass its check digits.`
+        : `Cuenta bancaria #${number}: el IBAN debe iniciar con ${ibanFormat.code}, tener exactamente ${ibanFormat.length} caracteres y superar la validación de dígitos de control.`)
     }
     const fingerprint = account.bankCountryId + ':' + iban
     if (seen.has(fingerprint)) return issue(en ? 'Duplicate bank account.' : 'La cuenta bancaria está duplicada.')
