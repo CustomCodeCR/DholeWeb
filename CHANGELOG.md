@@ -1,3 +1,9 @@
+## [1.81.3] - 2026-11-18 (EXW LCL: preservar recolecta con CostId en guardados posteriores)
+
+- PATCH DH-20261118-EXW-LCL-PICKUP-SAVE-228: corrige el filtro final de guardado de LCL propio para conservar una recolecta EXW ya persistida y vinculada a un CostId, aunque su clave cambie de exw-fca-variable-cost a existing:detailId al reabrir la cotización.
+- El detalle continúa guardando y recuperando la misma recolecta y los montos tras múltiples ediciones; regresión añadida. Complementa el release 227. Sin cambios REST, scopes, auditoría ni SignalR.
+- Web develop 1.81.2→1.81.3, System/ecosistema 1.85.2→1.85.3, Pricing 1.24.6 sin cambios. CI y staging obligatorios.
+
 ## [1.81.2] - 2026-11-18 (EXW LCL propio: recolecta persistente en vista y edición)
 
 - PATCH DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227: corregir la causa real de recolectas no visibles aun tras el release previo. La rehidratación LCL propia descartaba rubros manuales o perdía su identidad al abrir la cotización y mezclaba suplementos con la matriz.
