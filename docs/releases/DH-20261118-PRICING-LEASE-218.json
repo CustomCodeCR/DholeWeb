@@ -1,0 +1,20 @@
+{
+  "releaseId": "DH-20261118-PRICING-LEASE-218",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.83.2",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "previousVersion": "1.79.1",
+  "version": "1.79.2",
+  "changes": [
+    "Remove heartbeat automatic reclaim",
+    "Explicit same-user release action",
+    "Scope lease tokens to authenticated identity",
+    "Use unique idempotency keys for lease operations"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-approved"
+  }
+}

@@ -1,5 +1,7 @@
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
+import { useAuthStore } from '@/core/stores/authStore'
+import { createUuid } from '@/core/utils/id'
 
 export interface RateRequestLease {
   token: string
@@ -7,7 +9,10 @@ export interface RateRequestLease {
   expiresAtUtc: string
 }
 
-const key = (id: string) => `dhole:pricing:rate-request:lease:${id}`
+// A token from an impersonated or previous account must never be reused for
+// another authenticated identity in the same browser session.
+const key = (id: string) =>
+  `dhole:pricing:rate-request:lease:${useAuthStore().userId?.toLowerCase() ?? 'anonymous'}:${id}`
 const path = (id: string, operation: string) =>
   `/api/pricing/rate-requests/${encodeURIComponent(id)}/${operation}`
 
@@ -20,7 +25,7 @@ export const RateRequestLeaseService = {
       method: 'POST',
       path: path(id, 'claim'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    }, { body: { token: this.tokenFor(id), recoverOwnLease: options?.recoverOwnLease === true } })
+    }, { body: { token: this.tokenFor(id), recoverOwnLease: options?.recoverOwnLease === true }, idempotencyKey: createUuid() })
     const lease = unwrapApiResponse<RateRequestLease>(response as never)
     sessionStorage.setItem(key(id), lease.token)
     return lease
@@ -57,7 +62,7 @@ export const RateRequestLeaseService = {
       method: 'POST',
       path: path(id, 'heartbeat'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    }, { body: { token } })
+    }, { body: { token }, idempotencyKey: createUuid() })
   },
   async release(id: string): Promise<void> {
     const token = this.tokenFor(id)
@@ -66,8 +71,14 @@ export const RateRequestLeaseService = {
       method: 'POST',
       path: path(id, 'release'),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    }, { body: { token } })
+    }, { body: { token }, idempotencyKey: createUuid() })
     if (sessionStorage.getItem(key(id)) === token) sessionStorage.removeItem(key(id))
+  },
+  // Explicit repair for an orphaned reservation owned by the same user.
+  // API ownership validation prevents releasing somebody else's work.
+  async releaseOwn(id: string): Promise<void> {
+    await this.claim(id, { recoverOwnLease: true })
+    await this.release(id)
   },
   async attachRate(id: string, rateId: string): Promise<void> {
     const token = this.tokenFor(id)
