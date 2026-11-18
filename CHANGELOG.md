@@ -1,3 +1,9 @@
+## [1.76.0] - 2026-11-18 (Blobatar: probador de expresiones al pulsar el avatar)
+
+- MINOR DH-20261118-BLOBATAR-EXPRESSIONS-210: el avatar superior muestra Enojado (mad) al primer clic y recorre las catorce expresiones de Blobatar 2.7.0 en sucesivos clics, manteniendo cada pose y su etiqueta visible para pruebas. Los demás DhAvatar mantienen la animación temporal existente por compatibilidad.
+- Conserva fondo negro en modo oscuro, movimientos de rebote, seguimiento de ojos, identidad estable y funcionamiento con teclado; reduced-motion respetado. No cambia APIs, datos ni eventos SignalR.
+- DholeWeb 1.75.0 → 1.76.0; DholeSystem/ecosistema 1.79.0 → 1.80.0; versiones de los otros quince componentes intactas. CI, pruebas SSR, build y smoke staging antes de master.
+
 ## [1.75.0] - 2026-11-18 (Blobatar: fondo negro y animación al tocar)
 
 - MINOR DH-20261118-BLOBATAR-DARK-TAP-209: la tarjeta de usuario y el fondo del avatar son negros en modo oscuro; el modo claro mantiene su estilo. El avatar responde a clic, toque o teclado con sorpresa, guiño y sonrisa, además de rebote y halo; repetir el toque reinicia correctamente la reacción.

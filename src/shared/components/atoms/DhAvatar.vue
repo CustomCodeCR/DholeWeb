@@ -2,12 +2,32 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Blobatar } from '@blobatar/vue'
 import { useGaze } from '@blobatar/vue/gaze'
-import { happy, idle, love, sleepy, surprised, thinking, wink } from 'blobatar/expression'
+import { happy, idle, love, mad, sad, scared, shy, sick, sleepy, smug, surprised, thinking, unsure, wink } from 'blobatar/expression'
 import 'blobatar/motion.css'
 import 'blobatar/gaze.css'
 
 type AvatarSize = 'sm' | 'md' | 'lg'
-type AvatarMood = 'auto' | 'idle' | 'happy' | 'thinking' | 'sleepy' | 'wink' | 'love' | 'surprised'
+type AvatarMood = 'auto' | 'idle' | 'happy' | 'sad' | 'mad' | 'surprised' | 'wink' | 'sleepy' | 'smug' | 'unsure' | 'scared' | 'love' | 'shy' | 'sick' | 'thinking'
+type PreviewMood = Exclude<AvatarMood, 'auto'>
+
+// The pinned Blobatar 2.7 roster; the first click deliberately shows "mad".
+const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle'] as const satisfies readonly PreviewMood[]
+const previewLabels: Record<PreviewMood, string> = {
+  mad: 'Enojado',
+  happy: 'Feliz',
+  sad: 'Triste',
+  surprised: 'Sorprendido',
+  wink: 'Guiño',
+  sleepy: 'Dormido',
+  smug: 'Satisfecho',
+  unsure: 'Indeciso',
+  scared: 'Asustado',
+  love: 'Enamorado',
+  shy: 'Tímido',
+  sick: 'Enfermo',
+  thinking: 'Pensativo',
+  idle: 'Neutral',
+}
 
 const props = withDefaults(
   defineProps<{
@@ -22,6 +42,7 @@ const props = withDefaults(
     mood?: AvatarMood
     darkBackdrop?: boolean
     tapTrigger?: number
+    previewExpressions?: boolean
   }>(),
   {
     size: 'md',
@@ -32,12 +53,15 @@ const props = withDefaults(
     mood: 'auto',
     darkBackdrop: false,
     tapTrigger: 0,
+    previewExpressions: false,
   },
 )
 
 const photoFailed = ref(false)
 const hovered = ref(false)
-const tapMood = ref<'surprised' | 'wink' | 'happy' | null>(null)
+const tapMood = ref<PreviewMood | null>(null)
+const previewIndex = ref(-1)
+const previewLabel = computed(() => tapMood.value ? previewLabels[tapMood.value] : '')
 const tapActive = ref(false)
 const tapVariant = ref(false)
 const tapTimers: ReturnType<typeof setTimeout>[] = []
@@ -51,6 +75,13 @@ function playTapReaction() {
   clearTapTimers()
   tapVariant.value = !tapVariant.value
   tapActive.value = true
+  if (props.previewExpressions) {
+    previewIndex.value = (previewIndex.value + 1) % previewMoods.length
+    tapMood.value = previewMoods[previewIndex.value] ?? 'mad'
+    // Keep the selected pose until the next click; only stop the bounce.
+    tapTimers.push(setTimeout(() => { tapActive.value = false }, 720))
+    return
+  }
   tapMood.value = 'surprised'
   tapTimers.push(setTimeout(() => { tapMood.value = 'wink' }, 330))
   tapTimers.push(setTimeout(() => { tapMood.value = 'happy' }, 750))
@@ -77,7 +108,7 @@ const showMotionAura = computed(() =>
   Boolean(animationMode.value),
 )
 
-const expressions = { idle, happy, thinking, sleepy, wink, love, surprised }
+const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking }
 const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
   if (tapMood.value) return tapMood.value
   if (props.mood !== 'auto') return props.mood
@@ -139,6 +170,13 @@ function handlePointerEnter(event: PointerEvent) {
     @pointerleave="hovered = false"
   >
     <span v-if="showMotionAura" class="dh-avatar__aura" aria-hidden="true" />
+    <span
+      v-if="previewExpressions"
+      aria-live="polite"
+      role="status"
+      class="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-zinc-900 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg"
+      :class="{ invisible: !previewLabel }"
+    >{{ previewLabel }}</span>
 
     <img
       v-if="src && !photoFailed"
