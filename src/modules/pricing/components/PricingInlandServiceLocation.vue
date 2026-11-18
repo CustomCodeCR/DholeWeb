@@ -8,8 +8,8 @@ import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingIntera
 
 interface InlandServiceLocation {
   address: string
-  latitude: number | null
-  longitude: number | null
+  latitude?: number | null
+  longitude?: number | null
   cargoCondition?: 'FiscalCargo' | 'NationalizedCargo' | null
   billingParty?: 'Exporter' | 'Importer' | 'Both' | 'ByAgreement' | null
 }
@@ -117,7 +117,7 @@ function saveLocation() {
   if (editingIndex.value == null) current.push(nextPoint)
   else current.splice(editingIndex.value, 1, nextPoint)
   emit('update:locations', current)
-  emit('update:modelValue', current[0])
+  emit('update:modelValue', current[0] ?? emptyLocation())
   confirmedAddress.value = writtenAddress
   error.value = ''
   resetEditor()
