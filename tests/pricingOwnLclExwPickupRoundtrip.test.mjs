@@ -99,10 +99,10 @@ test('editing own LCL keeps manual pickup identity and amounts after reload', as
 test('manual and configured pickup survive source-aware save and fixed-price lookup', () => {
   assert.match(persistence, /cargo manual agregado desde el wizard de pricing/)
   assert.match(persistence, /const isPickup = line.section === 'pickup_origin'/)
-  assert.match(persistence, /ownLclKeepQuotedLine\\(line, \\$\\{detailsMapperAnchor\\}\\)/)
+  assert.ok(persistence.includes('ownLclKeepQuotedLine(line, ${detailsMapperAnchor})'))
   assert.match(costs, /costType: cost.costType/)
   assert.match(costs, /costType: 'Fixed'/)
-  assert.match(costs, /sectionForCost\\(cost\\) === 'pickup_origin'/)
+  assert.ok(costs.includes("sectionForCost(cost) === 'pickup_origin'"))
   assert.match(wizard, /Recolecta EXW pendiente de cotizar/)
   assert.match(src, /kind === 'Own' && !props.viewOnly/)
 })
