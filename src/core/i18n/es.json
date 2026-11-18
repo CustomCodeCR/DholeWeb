@@ -511,7 +511,10 @@
       "shy": "Tímido",
       "sick": "Enfermo",
       "thinking": "Pensativo",
-      "idle": "Neutral"
+      "idle": "Neutral",
+      "stressed": "Estresado",
+      "tired": "Cansado",
+      "resigned": "Resignado"
     }
   },
   "tabs": {
