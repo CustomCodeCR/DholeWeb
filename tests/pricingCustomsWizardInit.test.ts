@@ -12,23 +12,27 @@ test('customs-only wizard registers commercial watch after computed service is i
     'do not insert watch into the earlier draft ref initialization')
 })
 
-test('CFR through DDP skip tariff selection and never require a freight line', () => {
+test('freight selection follows the quoted party, not an unconditional CFR-through-DDP exclusion', () => {
   const plugin = readFileSync(new URL('../build/pricingCustomsOnlyWizard.ts', import.meta.url), 'utf8')
   for (const incoterm of ['CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']) {
-    assert.ok(plugin.includes(incoterm), incoterm + ' must be excluded from freight pricing')
+    assert.ok(plugin.includes(incoterm), incoterm + ' must be recognized by the commercial responsibility rule')
   }
-  assert.ok(plugin.includes('freightNotRequiredByIncoterm.value && selectedServices.value.some'),
-    'the Incoterm exclusion must participate in the service-based freight calculation')
+  assert.ok(plugin.includes("!incotermClientPaysMainTransport(perspective, match[2].toUpperCase())"),
+    'commercial freight follows exporter/importer perspective rather than excluding DDP exports')
+  assert.ok(plugin.includes('!freightNotRequiredByIncoterm.value && ('),
+    'service selection still considers the correctly computed Incoterm responsibility')
+  assert.ok(plugin.includes("  const destination = selectedPod.value ?? selectedDestination.value"),
+    'the destination country determines the direction of an international operation')
   assert.ok(plugin.includes("form.selectedImportRateId = ''"),
-    'a prepaid Incoterm must not retain a selected imported tariff')
+    'a no-freight operation must not retain a selected imported tariff')
   assert.ok(plugin.includes("'    form.freightCost = 0'"),
-    'freight cost must be reset when the Incoterm switches to no-freight')
+    'freight cost must reset only when the operation has no contracted freight')
   assert.ok(plugin.includes("'    form.freightSale = 0'"),
-    'freight sale must be reset when the Incoterm switches to no-freight')
+    'freight sale must reset only when the operation has no contracted freight')
   assert.ok(plugin.includes("'  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6'"),
     'Tarifas (step 5) must be skipped')
   assert.ok(plugin.includes("(hasInternationalTransportService.value || line.costDetailType !== 'Freight')"),
-    'submitted detail lines must omit freight when the Incoterm has no freight')
+    'submitted detail lines must omit freight only when there is no contracted freight')
   assert.ok(plugin.includes("&& shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))"),
     'screen 8 must include selectable insurance and obey pickup rules on other charges')
   assert.ok(plugin.includes("rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight')"),
