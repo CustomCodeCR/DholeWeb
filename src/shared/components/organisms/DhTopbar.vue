@@ -337,7 +337,7 @@ onBeforeUnmount(() => {
       </Teleport>
 
       <div class="flex items-center gap-1 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-1 shadow-[var(--dh-shadow-sm)] sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2">
-        <DhAvatar :id="authStore.userId" :name="displayName" status="online" :animate="true" class="hidden sm:flex" />
+        <DhAvatar :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" class="hidden sm:flex" />
         <div class="hidden min-w-0 xl:block">
           <p class="max-w-40 truncate text-sm font-black text-[var(--dh-text)]">{{ displayName }}</p>
           <p class="max-w-40 truncate text-xs font-semibold text-[var(--dh-text-muted)]">{{ displayEmail }}</p>
