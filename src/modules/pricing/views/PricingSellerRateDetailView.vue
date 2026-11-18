@@ -244,6 +244,7 @@ onBeforeUnmount(() => {
         <div data-seller-guide="detail-modify" class="mt-4 flex flex-wrap gap-2">
           <DhButton variant="secondary" label="Descargar cotización PDF" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
           <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
+          <DhButton v-if="canCancelRate" label="Cancelar cotización" variant="danger" @click="cancelRate" />
         </div>
         <div v-if="revisionPending || pendingModification" class="mt-3 space-y-1 text-xs font-semibold text-amber-500">
           <p v-if="revisionPending">{{ revisionWorkActive
@@ -295,7 +296,6 @@ onBeforeUnmount(() => {
                 <DhButton label="Aceptada" @click="clientDecision('AcceptedByClient')" />
                 <DhButton label="Rechazada" variant="danger" @click="clientDecision('RejectedByClient')" />
               </template>
-              <DhButton v-if="canCancelRate" label="Cancelar cotización" variant="danger" @click="cancelRate" />
             </div>
           </div>
           <p v-if="canReceive" class="mt-3 text-xs text-[var(--dh-text-muted)]">Confirmar la recepción no significa aceptar la cotización por parte del cliente.</p>
