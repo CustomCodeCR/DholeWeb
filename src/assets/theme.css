@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind dark utilities must follow the actual Dhole theme, not OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --dh-primary: #fc2800;
   --dh-primary-rgb: 252 40 0;
@@ -72,6 +75,11 @@
   --dh-shadow-sm: 0 10px 25px rgb(0 0 0 / 0.28);
   --dh-shadow-md: 0 20px 55px rgb(0 0 0 / 0.44);
   --dh-shadow-lg: 0 34px 100px rgb(0 0 0 / 0.62);
+
+  --dh-scrollbar-track: rgb(255 255 255 / 0.07);
+  --dh-scrollbar-thumb: rgb(var(--dh-primary-rgb) / 0.60);
+  --dh-scrollbar-thumb-hover: rgb(var(--dh-primary-rgb) / 0.76);
+  --dh-scrollbar-thumb-active: rgb(var(--dh-primary-rgb) / 0.90);
 }
 
 body {
@@ -193,15 +201,100 @@ body.dh-has-client-background {
   box-shadow: var(--dh-shadow-lg);
 }
 
-.dh-scrollbar {
+/* FASE 56 — One Dhole scrollbar contract for every scrollable surface.
+   The 10px hit area stays easy to drag while the transparent inset keeps
+   the visible thumb compact. Low-specificity selectors allow functional
+   exceptions (for example a deliberately hidden mobile stepbar) without
+   creating a different visual scrollbar per screen. */
+:where(html, body, body *, .dh-scrollbar) {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--dh-primary-rgb) / 0.42) transparent;
+  scrollbar-color: var(--dh-scrollbar-thumb) var(--dh-scrollbar-track);
 }
 
-.dh-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-.dh-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.dh-scrollbar::-webkit-scrollbar-thumb { background: rgb(var(--dh-primary-rgb) / 0.42); border-radius: 999px; }
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar {
+  width: var(--dh-scrollbar-size);
+  height: var(--dh-scrollbar-size);
+}
 
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-track {
+  background: var(--dh-scrollbar-track);
+  border-radius: var(--dh-scrollbar-radius);
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-thumb {
+  min-width: 36px;
+  min-height: 36px;
+  border: 2px solid transparent;
+  border-radius: var(--dh-scrollbar-radius);
+  background: var(--dh-scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-thumb:hover {
+  background: var(--dh-scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-thumb:active {
+  background: var(--dh-scrollbar-thumb-active);
+  background-clip: padding-box;
+}
+
+:where(html, body, body *, .dh-scrollbar)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* FASE 54 — The visual editor owns its viewport. Blocks, Canvas and
+   Properties scroll independently instead of growing the application page. */
+.visual-editor-shell {
+  height: calc(100dvh - 7rem);
+  max-height: calc(100dvh - 7rem);
+  min-height: 0 !important;
+  overscroll-behavior: none;
+}
+
+.visual-editor-shell > .visual-editor-toolbar {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.visual-editor-shell > .visual-editor-grid {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visual-editor-shell .visual-editor-side {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visual-editor-shell .visual-editor-side .dh-scrollbar,
+.visual-editor-shell .visual-editor-grid > aside:last-child .dh-scrollbar {
+  scrollbar-gutter: stable;
+}
+
+.visual-editor-shell .visual-editor-canvas-wrap {
+  min-height: 0;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+/* The Canvas wrapper is the only vertical scroller in the center zone. */
+.visual-editor-shell .visual-editor-canvas {
+  overflow: visible !important;
+}
+
+.visual-editor-shell .visual-editor-grid > aside:last-child {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visual-editor-shell .visual-editor-grid > aside:last-child > .h-full {
+  height: 100%;
+  min-height: 0;
+}
 
 .dh-bg-primary-soft {
   background-color: rgb(var(--dh-primary-rgb) / 0.10);
@@ -266,6 +359,13 @@ textarea {
 
   .dh-card-hover:hover {
     transform: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .visual-editor-shell {
+    height: calc(100dvh - 5rem);
+    max-height: calc(100dvh - 5rem);
   }
 }
 
