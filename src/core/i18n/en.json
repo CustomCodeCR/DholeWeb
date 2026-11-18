@@ -511,7 +511,10 @@
       "shy": "Shy",
       "sick": "Sick",
       "thinking": "Thinking",
-      "idle": "Neutral"
+      "idle": "Neutral",
+      "stressed": "Stressed",
+      "tired": "Tired",
+      "resigned": "Resigned"
     }
   },
   "tabs": {
