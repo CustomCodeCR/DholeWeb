@@ -66,6 +66,7 @@ test('Variable catalog matching honors EXW/FCA, multi-party assignments, modalit
     operationalConditionsSatisfied: (cost: { operationalConditions?: string[] }) =>
       !cost.operationalConditions?.includes('Unselected'),
     sectionForCost: () => 'origin_charges',
+    resolvedConditionalCost: () => ({ costAmount: 0, saleAmount: 0 }),
   }
   const match = vm.runInNewContext(javascript + '\ndholeExwFcaMatch', context) as
     (cost: Record<string, unknown>) => boolean
@@ -89,6 +90,14 @@ test('Variable catalog matching honors EXW/FCA, multi-party assignments, modalit
   assert.equal(match({ ...generic, shipmentModes: ['AirConsol'] }), true)
   context.form.modality = 'Maritime'
   assert.equal(match({ ...generic, shipmentModes: ['AirConsol'] }), false)
+  // Fixed pickup is valid for EXW when its scope is the origin pickup section.
+  // A fixed global cost in any other section must never leak into own LCL.
+  context.incotermResponsibilitySections.value = ['origin_charges', 'pickup_origin']
+  context.sectionForCost = () => 'pickup_origin'
+  assert.equal(match({ ...generic, costType: 'Fixed' }), true)
+  context.sectionForCost = () => 'origin_charges'
+  assert.equal(match({ ...generic, costType: 'Fixed' }), false)
+  context.sectionForCost = () => 'pickup_origin'
   context.form.incotermId = 'FCA1'
   context.selectedIncotermCode.value = 'FCA'
   assert.equal(match({ ...generic, incoterms: [{ id: 'FCA1' }] }), true)
