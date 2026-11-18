@@ -25,12 +25,14 @@ test('supplier directory uses fixed categories, persists in Config and retains l
   assert.match(view, /resolvedSupplierTypes/)
   assert.match(view, /SrmApi.importLegacyPartner/)
 })
-test('SRM supplier pages require dedicated scopes and Dhole drawers', () => {
+test('SRM supplier pages require dedicated scopes and centered dialogs', () => {
   assert.match(view, /srm.supplier.read/)
   assert.match(view, /srm.supplier.create/)
   assert.match(view, /srm.supplier.update/)
   assert.match(client, /fetchClient/)
-  assert.match(view, /<DhDrawer :open="formVisible"/)
+  assert.match(view, /<DhModal :open="formVisible"/)
+  assert.match(view, /<DhModal :open="detailsVisible/)
+  assert.doesNotMatch(view, /<DhDrawer/)
 })
 
 test('SRM uses Dhole multi-selects for categories and countries and preserves legacy fields', () => {
@@ -105,7 +107,9 @@ test('SRM has a clean directory layout without visible internal codes or dashboa
   assert.match(template, /openDetails\(item\)/)
   assert.doesNotMatch(template, /selected\.code|item\.code|row\.code|legacyCode/)
   assert.doesNotMatch(template, /Origen de la información|Proveedores disponibles|Incorporación a SRM|<nav(?! role="tablist")/)
-  assert.match(template, /<nav role="tablist"/)
+  assert.doesNotMatch(template, /<nav role="tablist"/)
+  assert.match(template, /data-srm-accordion="identity"/)
+  assert.match(template, /data-srm-accordion="tariffs"/)
   assert.doesNotMatch(template, /Condiciones comerciales|Ficha proveedor/)
   assert.match(template, /Historial comercial/)
   assert.match(view, /SrmApi\.importLegacyPartner/)
