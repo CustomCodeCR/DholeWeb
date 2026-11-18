@@ -471,7 +471,7 @@ function canRespondToRate(rate: RateDto) {
 
 function canCancelRate(rate: RateDto): boolean {
   return canActOnRate(rate) && !rate.revisionPending
-    && ['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'].includes(rate.status)
+    && rate.status === 'AcceptedByClient'
 }
 
 function pendingModification(rate: RateDto): boolean {
