@@ -1,3 +1,8 @@
+## [1.71.0] - 2026-11-17 (CRM: encargados de operaciones por cliente)
+
+- MINOR DH-20261117-CRM-OPS-CONTACTS-204: se permite identificar uno o varios encargados operativos por cuenta de CRM, independientes del único contacto principal. Formularios de creación y edición de contactos/cliente enlazados con la API CRM; integración de consulta desde Operations.
+- Preserva los cambios de Seller Cancel Accepted y SRM del master vigente. Web 1.70.1 → 1.71.0; ecosistema 1.73.2 → 1.74.0. Validar staging y CI antes de promoción; producción solo si se autoriza.
+
 ## [1.70.1] - 2026-11-17 (Ventas: cancelar solo cotizaciones aceptadas)
 
 - PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: el botón de cancelación solo aparece con status AcceptedByClient en dashboard y detalle, nunca mientras está enviada, vencida, abierta o rechazada; la API y el dominio aplican la misma protección.
