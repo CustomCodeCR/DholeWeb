@@ -82,13 +82,15 @@ async function upload() {
     error.value = 'Usá documentos o imágenes PDF, JPG, PNG, WEBP, Word, Excel, CSV o TXT (máximo 100 MB).'
     return
   }
+  const targetId = props.supplierId
+  const targetEntity = entityType.value
   uploading.value = true
   error.value = ''
   notice.value = ''
   try {
     for (const file of [...selectedFiles.value]) {
       await StorageService.uploadFile({
-        file, sourceService: 'DholeConfigService', entityType: entityType.value, entityId: props.supplierId,
+        file, sourceService: 'DholeConfigService', entityType: targetEntity, entityId: targetId,
         metadataJson: JSON.stringify({
           description: description.value.trim().slice(0, 500),
           validFrom: isTariff.value ? validFrom.value || null : null,
@@ -100,8 +102,10 @@ async function upload() {
     description.value = ''
     validFrom.value = ''
     validTo.value = ''
-    await refresh()
-    notice.value = en.value ? 'Files attached successfully.' : 'Archivos adjuntados correctamente.'
+    if (targetId === props.supplierId && targetEntity === entityType.value) {
+      await refresh()
+      notice.value = en.value ? 'Files attached successfully.' : 'Archivos adjuntados correctamente.'
+    }
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Error al adjuntar archivos.' }
   finally { uploading.value = false }
 }
