@@ -2,7 +2,7 @@
 
 - MINOR DH-20261117-BLOBATAR-MOTION-207: animación ambiental de respiración, flotación, parpadeo y miradas, expresión happy al hover, thinking en busy y sleepy en offline; poses configurables sin cambiar la semilla estable ni la prioridad de fotografías.
 - Topbar usa animación continua y ojos que siguen el cursor únicamente en punteros finos, con protección de prefers-reduced-motion. Halo sutil azul/violeta y reacción de elevación; avatares de tablas sin animación por defecto para mantener rendimiento.
-- DholeWeb 1.72.0 → 1.73.0; DholeSystem/ecosistema 1.75.0 → 1.76.0; demás servicios intactos. API REST, SignalR, sesiones y persistencia sin modificaciones; regresiones de componentes SSR y CI obligatorias.
+- DholeWeb 1.72.0 → 1.73.0; DholeSystem/ecosistema 1.76.0 → 1.77.0; demás servicios intactos. API REST, SignalR, sesiones y persistencia sin modificaciones; regresiones de componentes SSR y CI obligatorias.
 
 ## [1.72.0] - 2026-11-17 (Dhole UI: avatares Blobatar locales)
 
