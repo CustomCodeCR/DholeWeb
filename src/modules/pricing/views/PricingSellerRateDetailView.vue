@@ -38,6 +38,8 @@ const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => N
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
 const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
+const canCancelRate = computed(() => Boolean(rate.value && !revisionPending.value
+  && ['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'].includes(rate.value.status)))
 const canRespondToRate = computed(() => rate.value
   ? canDecideSellerQuote(rate.value, revisionWorkActive.value) : false)
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
@@ -180,6 +182,16 @@ function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
   })
 }
 
+function cancelRate() {
+  if (!rate.value || !canCancelRate.value) return
+  modal.open({
+    title: 'Cancelar cotización',
+    component: SellerRateDecisionModal,
+    size: 'md',
+    props: { rate: rate.value, decision: 'Cancelled', onSaved: load },
+  })
+}
+
 watch(rateId, () => { activeStep.value = 9; rate.value = null; void load() })
 function refreshSellerRateOnFocus() {
   if (!document.hidden && !loading.value) void load()
@@ -283,6 +295,7 @@ onBeforeUnmount(() => {
                 <DhButton label="Aceptada" @click="clientDecision('AcceptedByClient')" />
                 <DhButton label="Rechazada" variant="danger" @click="clientDecision('RejectedByClient')" />
               </template>
+              <DhButton v-if="canCancelRate" label="Cancelar cotización" variant="danger" @click="cancelRate" />
             </div>
           </div>
           <p v-if="canReceive" class="mt-3 text-xs text-[var(--dh-text-muted)]">Confirmar la recepción no significa aceptar la cotización por parte del cliente.</p>
