@@ -1,3 +1,9 @@
+## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
+
+- MINOR DH-20261117-SELLER-CANCEL-202: botón de cancelación en dashboard de ventas (móvil y escritorio) y detalle de QUO; motivo obligatorio (1-1000 caracteres), confirmación y refresco del estado.
+- Cancelación autorizada de tarifas enviadas, vencidas o aceptadas, sin ofrecer la acción a tarifas terminales o revisiones no publicadas. Reutiliza el endpoint de Pricing y conserva aceptar/rechazar.
+- Web 1.68.0 → 1.69.0; ecosistema 1.71.4 → 1.72.0. Integración y pruebas CI/staging pendientes.
+
 ## [1.68.0] - 2026-11-17 (SRM · bitácora, crédito y tarifas adjuntas)
 
 - MINOR DH-20261117-SRM-RECORDS-201: seguimiento y bitácora por proveedor dentro de Identidad y Hacienda, con gestiones de llamada, correo, reunión, visita, nota y próximo contacto; historial permanente con autor y fecha de servidor.
