@@ -44,7 +44,7 @@ const saveErrorSection = ref<SupplierSaveSection | 'general' | 'server'>('genera
 const formVisible = ref(false)
 const detailsVisible = ref(false)
 const detailsTab = ref<'profile' | 'routes'>('profile')
-const formTab = ref<'profile' | 'routes'>('profile')
+const formTab = ref<'identity' | 'followups' | 'banks' | 'contacts' | 'credit' | 'tariffs' | 'routes'>('identity')
 const suppliers = ref<Supplier[]>([])
 const evaluations = ref<SrmRecord[]>([])
 const contracts = ref<SrmRecord[]>([])
@@ -572,7 +572,7 @@ function resetForm() {
   countryIds.value = []
 }
 function openCreate() {
-  formTab.value = 'profile'
+  formTab.value = 'identity'
   resetForm()
   bankAccountsLoaded.value = true
   detailsVisible.value = false
@@ -582,7 +582,7 @@ function openCreate() {
 }
 function openEdit(item: Supplier) {
   if (!canEditSuppliers.value) return
-  formTab.value = 'profile'
+  formTab.value = 'identity'
   resetForm()
   editing.value = item
   supplierName.value = item.name
@@ -677,7 +677,7 @@ function closeDetails() {
 }
 function closeForm() { formVisible.value = false; resetForm() }
 async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
-  formTab.value = 'profile'
+  formTab.value = section === 'contacts' ? 'contacts' : section === 'bank' ? 'banks' : section === 'credit' ? 'credit' : 'identity'
   error.value = message
   saveErrorSection.value = section
   // Accordion sections are native details, not mutually exclusive tabs.
@@ -1364,17 +1364,22 @@ onMounted(() => {
         size="xl" @close="closeForm">
         <nav role="tablist" :aria-label="en ? 'Supplier editing sections' : 'Secciones de edición del proveedor'"
           class="mb-4 flex flex-wrap gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
-          <button type="button" role="tab" :aria-selected="formTab === 'profile'"
+          <button v-for="tab in ([
+            { id: 'identity', label: en ? 'Identity & taxes' : 'Identidad y Hacienda' },
+            { id: 'contacts', label: en ? 'Contacts' : 'Contactos' },
+            { id: 'banks', label: en ? 'Bank accounts' : 'Cuentas bancarias', visible: canReadBanks },
+            { id: 'credit', label: en ? 'Credit' : 'Crédito' },
+            { id: 'followups', label: en ? 'Activity log' : 'Bitácora', visible: Boolean(editing) },
+            { id: 'tariffs', label: en ? 'Tariffs' : 'Tarifas' },
+            { id: 'routes', label: en ? 'Routes' : 'RUTAS', visible: Boolean(editing) },
+          ] as const).filter(item => item.visible !== false)" :key="tab.id" type="button"
+            role="tab" :aria-selected="formTab === tab.id"
             class="rounded-xl px-4 py-2 text-sm font-bold"
-            :class="formTab === 'profile' ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
-            @click="formTab = 'profile'">{{ en ? 'Supplier profile' : 'Ficha del proveedor' }}</button>
-          <button v-if="editing" type="button" role="tab" :aria-selected="formTab === 'routes'"
-            class="rounded-xl px-4 py-2 text-sm font-bold"
-            :class="formTab === 'routes' ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
-            @click="formTab = 'routes'">{{ en ? 'Routes' : 'RUTAS' }}</button>
+            :class="formTab === tab.id ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
+            @click="formTab = tab.id">{{ tab.label }}</button>
         </nav>
-        <form v-show="formTab === 'profile'" id="srm-supplier-form" class="grid gap-3 md:grid-cols-2" data-srm-accordion-form novalidate @submit.prevent="submitSupplierSafely">
-          <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+        <form v-show="formTab !== 'routes'" id="srm-supplier-form" class="grid gap-3 md:grid-cols-2" data-srm-accordion-form novalidate @submit.prevent="submitSupplierSafely">
+          <div v-show="formTab === 'identity'" class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
             <div class="flex items-center gap-3">
               <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
                 <Building2 class="h-5 w-5" />
@@ -1385,11 +1390,11 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <p class="md:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
+          <p v-show="formTab === 'identity'" class="md:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
             {{ en ? 'Each section expands independently. Review what you need, then save the complete profile.' :
-              'Cada sección se puede abrir por separado. Revisá los datos necesarios y guardá la ficha completa.' }}
+              'Usá las pestañas para completar cada sección y guardá la ficha completa al finalizar.' }}
           </p>
-          <details open data-srm-accordion="identity" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'identity'" open data-srm-accordion="identity" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><Building2 class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1525,8 +1530,8 @@ onMounted(() => {
           </label>
           </section>
           </details>
-          <div v-if="editing" class="md:col-span-2">
-            <details data-srm-accordion="followups" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <div v-if="editing" v-show="formTab === 'followups'" class="md:col-span-2">
+            <details open data-srm-accordion="followups" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1540,7 +1545,7 @@ onMounted(() => {
               </div>
             </details>
           </div>
-                    <details data-srm-accordion="banks" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+                    <details v-show="formTab === 'banks'" open data-srm-accordion="banks" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><Landmark class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1632,7 +1637,7 @@ onMounted(() => {
             </button>
           </section>
           </details>
-          <details data-srm-accordion="contacts" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'contacts'" open data-srm-accordion="contacts" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><ContactRound class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1676,7 +1681,7 @@ onMounted(() => {
             </div>
           </section>
           </details>
-          <details data-srm-accordion="credit" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'credit'" open data-srm-accordion="credit" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><CreditCard class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1743,7 +1748,7 @@ onMounted(() => {
               <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="credit" :language="locale" />
             </div>
           </details>
-          <details data-srm-accordion="tariffs" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'tariffs'" open data-srm-accordion="tariffs" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1760,7 +1765,7 @@ onMounted(() => {
         <SrmSupplierRoutesPanel v-if="editing && formTab === 'routes'"
           :supplier-id="editing.id" :language="locale" :can-manage="canEditSuppliers" />
         <template #footer>
-          <div v-if="formTab === 'profile'" class="space-y-3" data-srm-form-footer>
+          <div v-if="formTab !== 'routes'" class="space-y-3" data-srm-form-footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Changes are saved for the whole supplier profile.' : 'Los cambios se guardan para toda la ficha del proveedor.' }}</p>
               <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2 text-xs font-semibold" @click="closeForm">
