@@ -1,3 +1,9 @@
+## [1.78.0] - 2026-11-18 (Blobatar: guardar expresiones y modo Auto)
+
+- MINOR DH-20261118-BLOBATAR-PREFERENCES-214: se conserva la expresión seleccionada entre sesiones mediante localStorage por ID de usuario y se añade el conmutador Auto/Fijo al perfil, con preferencia también persistente. Auto cambia la cara cada 30 segundos y se pausa con la pestaña oculta o prefers-reduced-motion.
+- El clic sigue recorriendo las 14 caras de Blobatar. El modo Fijo mantiene la elegida. Conserva el fondo claro/oscuro, nombre y correo legibles, estados y animación, sin cambios de Auth, API REST ni SignalR.
+- DholeWeb 1.77.2 → 1.78.0; DholeSystem/ecosistema 1.81.1 → 1.82.0. Se preservan todos los cambios y versiones del release Pricing 213 incorporado a master.
+
 ## [1.77.2] - 2026-11-18 (Ventas: cotización aceptada, edición exclusiva de Pricing)
 
 - PATCH DH-20261118-SELLER-ACCEPTED-213: el dashboard comercial de escritorio y móvil y el detalle no permiten solicitar una modificación en una cotización aceptada, ni mientras Pricing gestiona su revisión posterior.

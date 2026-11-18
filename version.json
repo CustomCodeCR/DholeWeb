@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.77.2",
-  "ecosystemVersion": "1.81.2",
-  "releaseId": "DH-20261118-SELLER-ACCEPTED-213",
+  "version": "1.78.0",
+  "ecosystemVersion": "1.82.0",
+  "releaseId": "DH-20261118-BLOBATAR-PREFERENCES-214",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261118-SELLER-ACCEPTED-213"
+  "businessReleaseId": "DH-20261118-BLOBATAR-PREFERENCES-214"
 }

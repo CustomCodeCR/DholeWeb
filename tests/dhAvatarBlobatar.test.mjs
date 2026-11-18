@@ -125,3 +125,32 @@ test('Profile and expression badge contrast are readable in light and dark theme
   assert.ok(avatar.includes(':background="darkBackdrop ? false : \'circle\'"'))
   assert.ok(topbar.includes(':preview-expressions="true"'))
 })
+
+test('Selected expression is stored per user and restored when the avatar mounts', () => {
+  assert.ok(avatar.includes('dhole.blobatar.expression.v1:'))
+  assert.ok(avatar.includes('encodeURIComponent(id)'))
+  assert.ok(avatar.includes('window.localStorage.setItem(key, mood)'))
+  assert.ok(avatar.includes('window.localStorage.getItem(key)'))
+  assert.ok(avatar.includes('previewMoods.indexOf(saved as PreviewMood)'))
+  assert.ok(avatar.includes('restoreMood()'))
+  assert.ok(avatar.includes('watch(() => props.id'))
+})
+
+test('Automatic expressions cycle every 30 seconds and pause on hidden or reduced-motion pages', () => {
+  assert.ok(avatar.includes('AUTO_MOOD_INTERVAL_MS = 30_000'))
+  assert.ok(avatar.includes('setInterval(advancePreviewMood, AUTO_MOOD_INTERVAL_MS)'))
+  assert.ok(avatar.includes('document.hidden'))
+  assert.ok(avatar.includes('reducedMotion?.matches'))
+  assert.ok(avatar.includes('visibilitychange'))
+  assert.ok(avatar.includes('stopAutoMoodTimer()'))
+  assert.ok(avatar.includes('rememberMood(tapMood.value)'))
+})
+
+test('Topbar persists accessible per-user Auto / Fixed selection', () => {
+  assert.ok(topbar.includes('dhole.blobatar.mode.v1:'))
+  assert.ok(topbar.includes("window.localStorage.getItem(key) !== 'fixed'"))
+  assert.ok(topbar.includes("avatarAutoExpressions.value ? 'auto' : 'fixed'"))
+  assert.ok(topbar.includes(':aria-pressed="avatarAutoExpressions"'))
+  assert.ok(topbar.includes('@click="toggleAvatarAutoExpressions"'))
+  assert.ok(topbar.includes(':auto-expressions="avatarAutoExpressions"'))
+})
