@@ -1,3 +1,9 @@
+## [1.78.1] - 2026-11-18 (Pricing: liberar reservas al cerrar solicitudes)
+
+- PATCH DH-20261118-PRICING-LEASE-214: detener la renovación, esperar peticiones de lease en curso y liberar la solicitud antes de salir de la vista; impedir un re-claim tardío después de cerrar. Conserva las expresiones y preferencias Blobatar 1.78.0.
+- Tests de regresión de cierre de pestaña, carga asincrónica y heartbeat en CI. Backend Pricing refuerza los tokens liberados; sin cambios en REST, SignalR ni scopes.
+- DholeWeb 1.78.0 → 1.78.1; PricingService 1.23.3 → 1.23.4; DholeSystem/ecosistema 1.82.0 → 1.82.1. CI y staging del cambio 214 en develop aprobados; validar el candidato de master antes del merge.
+
 ## [1.78.0] - 2026-11-18 (Blobatar: conservar expresiones y modo automático)
 
 - MINOR DH-20261118-BLOBATAR-PREFERENCES-215: la última expresión de Blobatar y el modo Auto/Fijo del encabezado se guardan en localStorage por ID de usuario. Auto rota entre 14 caras cada 30 segundos y se pausa en pestañas ocultas o con movimiento reducido. Fijo preserva la expresión elegida entre recargas.

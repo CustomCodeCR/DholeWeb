@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapApiResponse } from '@/core/api/apiResponse'
@@ -110,26 +110,35 @@ const leaseWarning = ref('')
 let heartbeatTimer: number | undefined
 let currentId = ''
 let generation = 0
-let heartbeatInFlight = false
+let heartbeatInFlight: Promise<void> | null = null
+let beginInFlight: Promise<void> | null = null
+let stopInFlight: Promise<void> | null = null
 
 // Renew while the user is working. Background tabs may throttle timers; if
 // our lease expired, reclaim it with the same token only when nobody else
 // took the request. Keep the wizard mounted to preserve unsaved work.
 async function renewLease(id: string, version: number) {
   if (heartbeatInFlight || version !== generation || currentId !== id || !ready.value) return
-  heartbeatInFlight = true
-  try {
+  const renewal = (async () => {
     try {
-      await RateRequestLeaseService.heartbeat(id)
+      try {
+        await RateRequestLeaseService.heartbeat(id)
+      } catch {
+        // A delayed heartbeat must never reacquire a request after navigation.
+        if (version !== generation || currentId !== id || !ready.value) return
+        await RateRequestLeaseService.claim(id)
+      }
+      if (version === generation && currentId === id) leaseWarning.value = ''
     } catch {
-      await RateRequestLeaseService.claim(id)
+      if (version === generation && currentId === id)
+        leaseWarning.value = 'La reserva no pudo renovarse. El formulario permanece abierto. Compruebe la conexión y recupere la reserva antes de guardar.'
     }
-    if (version === generation && currentId === id) leaseWarning.value = ''
-  } catch {
-    if (version === generation && currentId === id)
-      leaseWarning.value = 'La reserva no pudo renovarse. El formulario permanece abierto. Compruebe la conexión y recupere la reserva antes de guardar.'
+  })()
+  heartbeatInFlight = renewal
+  try {
+    await renewal
   } finally {
-    heartbeatInFlight = false
+    if (heartbeatInFlight === renewal) heartbeatInFlight = null
   }
 }
 function renewOnFocus() {
@@ -210,7 +219,7 @@ async function begin(id: string) {
   try {
     const lease = await RateRequestLeaseService.claim(id, { recoverOwnLease: true })
     if (version !== generation) {
-      void RateRequestLeaseService.release(id).catch(() => undefined)
+      await RateRequestLeaseService.release(id).catch(() => undefined)
       return
     }
     currentId = id
@@ -218,6 +227,11 @@ async function begin(id: string) {
       method: 'GET', path: `/api/pricing/rate-requests/${encodeURIComponent(id)}`,
       headers: { Accept: 'application/json' },
     })
+    // The user may have closed the workspace tab while the GET was pending.
+    if (version !== generation) {
+      await RateRequestLeaseService.release(id).catch(() => undefined)
+      return
+    }
     workRequest.value = unwrapApiResponse<WorkRequest>(response as never)
     ownerName.value = lease.ownerName
     ready.value = true
@@ -236,7 +250,8 @@ async function begin(id: string) {
   }
 }
 
-function stop() {
+async function stop() {
+  if (stopInFlight) return stopInFlight
   ++generation
   if (heartbeatTimer) window.clearInterval(heartbeatTimer)
   heartbeatTimer = undefined
@@ -245,23 +260,60 @@ function stop() {
   savedRevisionAvailable.value = null
   const id = currentId
   currentId = ''
-  if (id) void RateRequestLeaseService.release(id).catch(() => undefined)
+  // Wait for any in-flight claim/heartbeat before releasing. Releasing first
+  // allows a stale retry to re-claim the request after the user closes it.
+  const pendingClaim = beginInFlight
+  const pendingHeartbeat = heartbeatInFlight
+  const cleanup = (async () => {
+    await Promise.all([
+      pendingClaim?.catch(() => undefined),
+      pendingHeartbeat?.catch(() => undefined),
+    ])
+    if (id) await RateRequestLeaseService.release(id)
+  })()
+  stopInFlight = cleanup
+  try {
+    await cleanup
+  } finally {
+    if (stopInFlight === cleanup) stopInFlight = null
+  }
+}
+
+function start(id: string) {
+  const operation = begin(id)
+  beginInFlight = operation
+  void operation.finally(() => {
+    if (beginInFlight === operation) beginInFlight = null
+  })
 }
 
 onMounted(() => {
   window.addEventListener('focus', renewOnFocus)
   document.addEventListener('visibilitychange', renewOnVisibilityChange)
-  void begin(requestId.value)
+  start(requestId.value)
 })
-watch(requestId, (next, previous) => {
+// Await unlock before moving to another workspace tab.
+onBeforeRouteLeave(async () => {
+  try {
+    await stop()
+  } catch (cause) {
+    toast.backendError(cause, 'No se pudo liberar la solicitud. Intente nuevamente.')
+    return false
+  }
+})
+watch(requestId, async (next, previous) => {
   if (next === previous) return
-  stop()
-  void begin(next)
+  try {
+    await stop()
+    start(next)
+  } catch (cause) {
+    toast.backendError(cause, 'No se pudo liberar la solicitud anterior.')
+  }
 })
 onBeforeUnmount(() => {
   window.removeEventListener('focus', renewOnFocus)
   document.removeEventListener('visibilitychange', renewOnVisibilityChange)
-  stop()
+  void stop().catch(() => undefined)
 })
 </script>
 
