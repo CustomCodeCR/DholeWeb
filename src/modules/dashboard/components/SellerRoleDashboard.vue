@@ -16,6 +16,7 @@ import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
+import { canSellerRequestRateModification } from '@/modules/pricing/utils/sellerRateModificationPolicy'
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
 // Los endpoints personales y la autorización de Pricing determinan las acciones propias.
@@ -480,9 +481,7 @@ function pendingModification(rate: RateDto): boolean {
 }
 
 function canRequestModification(rate: RateDto): boolean {
-  if (!canActOnRate(rate) || rate.revisionPending || ['Cancelled', 'Closed'].includes(rate.status)) return false
-  return Boolean(rate.sellerReceivedAtUtc)
-    || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.status)
+  return canActOnRate(rate) && canSellerRequestRateModification(rate)
 }
 
 function openModification(rate: RateDto) {

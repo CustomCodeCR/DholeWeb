@@ -1,3 +1,9 @@
+## [1.77.1] - 2026-11-18 (Ventas: modificaciones de cotizaciones aceptadas solo por Pricing)
+
+- PATCH DH-20261118-SELLER-ACCEPTED-212: se oculta la acción Solicitar modificación en las vistas de escritorio/móvil del dashboard comercial y en el detalle cuando la QUO está aceptada; también durante una revisión posterior a la aceptación.
+- Se mantiene la descarga de PDF, la cancelación de cotizaciones aceptadas y la solicitud de modificaciones en tarifas todavía no aceptadas. El backend protege GET/POST de modificación del vendedor con HTTP 409; Pricing conserva su editor bajo pricing.rate.update.
+- Tests de estados y vistas. Sin cambios a REST exitoso, esquemas, auditoría ni SignalR. DholeWeb 1.77.0 → 1.77.1, Pricing 1.23.2 → 1.23.3, ecosistema 1.81.0 → 1.81.1. Requiere CI y staging antes de master.
+
 ## [1.77.0] - 2026-11-18 (Operations: rediseño uniforme del workspace Dh)
 
 - MINOR DH-20261118-OPS-DH-UI-211: Aperturas y Equipos utilizan DhPageHeader, DhCard, DhDataTable, DhModal, DhInput, DhSelect, DhButton, DhBadge, DhEmptyState, búsqueda y paneles de indicadores, conservando REST, scopes y auditoría.
