@@ -8,8 +8,10 @@ const edit = read('src/modules/crm/components/CrmAccountEditor.vue')
 const lookup = read('src/modules/crm/components/CrmHaciendaLookup.vue')
 const supplier = read('src/modules/srm/views/SrmWorkspaceView.vue')
 
-test('CRM account creation mirrors SRM functional tab navigation without stacked sections', () => {
-  assert.match(supplier, /role="tablist"/)
+test('CRM retains its tabbed account flow while SRM suppliers use centered accordions', () => {
+  assert.match(supplier, /data-srm-accordion="identity"/)
+  assert.match(supplier, /<DhModal :open="formVisible"/)
+  assert.doesNotMatch(supplier, /role="tablist"|<DhDrawer/)
   assert.match(create, /data-crm-account-tabs/)
   assert.match(create, /role="tablist"/)
   for (const tab of ['identity', 'commercial', 'contacts', 'addresses']) {

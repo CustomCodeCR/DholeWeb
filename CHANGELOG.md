@@ -1,7 +1,13 @@
-## [1.70.0] - 2026-11-17 (Contactos operativos de clientes)
+## [1.71.0] - 2026-11-17 (CRM: encargados de operaciones por cliente)
 
-- MINOR DH-20261117-CRM-OPS-CONTACTS-204: indicador independiente «Encargado de operaciones» en formularios de CRM y detalle, con edición por cuenta sin duplicar registros. Un contacto principal por cuenta.
-- Web 1.69.0 → 1.70.0; ecosistema 1.72.0 → 1.73.0. Requiere CI, staging y release coordinado antes de master.
+- MINOR DH-20261117-CRM-OPS-CONTACTS-204: dos indicadores independientes por contacto, con principal único por cuenta y múltiples responsables operativos. CRM Web se vincula a la API para trámites.
+- Conserva el release concurrente SRM 1.70.0; Web 1.70.0 → 1.71.0, ecosistema 1.73.0 → 1.74.0. Requiere CI y staging antes de master.
+
+## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
+
+- MINOR DH-20261117-SRM-ARCHIVE-UI-203: creación/edición y detalle del proveedor pasan de drawer lateral a diálogos centrados de ancho amplio; identidad, contactos, bancos, crédito, bitácora y tarifas usan bloques plegables claros, sin pestañas.
+- El guardado de la ficha sigue siendo único; los errores abren su bloque correspondiente y conservan el pie fijo. Las secciones de seguimiento/documentos se mantienen vinculadas al ID correcto.
+- Web 1.69.0 → 1.70.0, ecosistema 1.72.0 → 1.73.0. Validar CI y staging antes de master.
 
 ## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
 
