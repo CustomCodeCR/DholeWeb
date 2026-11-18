@@ -39,7 +39,7 @@ const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
 const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
 const canCancelRate = computed(() => Boolean(rate.value && !revisionPending.value
-  && ['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'].includes(rate.value.status)))
+  && rate.value.status === 'AcceptedByClient'))
 const canRespondToRate = computed(() => rate.value
   ? canDecideSellerQuote(rate.value, revisionWorkActive.value) : false)
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
