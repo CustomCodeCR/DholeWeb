@@ -5,6 +5,18 @@
 - API REST retrocompatible, outbox/inbox/SignalR y scopes existentes sin cambios; CI/staging pendientes, sin despliegue a producción.
 - DholeWeb 1.79.2 → 1.80.0; DholePricingService 1.23.6 → 1.24.0; ecosistema 1.83.2 → 1.84.0.
 
+## [1.79.5] - 2026-11-18 (MultiQUO: detalle con alternativas internas)
+
+- PATCH DH-20261118-MULTIQUO-SINGLE-223: listado y búsqueda muestran una sola QUO base; dentro del wizard y modal vendedor se comparan A/B y se acepta una opción del grupo.
+- La otra alternativa queda como No seleccionada en historial, sin cotización comercial extra. Conserva mejoras de error de reservas, Dh componentes, scopes y sincronización en tiempo real.
+- Web 1.79.4 → 1.79.5; Pricing 1.23.9 → 1.23.10; ecosistema 1.83.5 → 1.83.6. CI/staging previos a master.
+
+## [1.79.4] - 2026-11-18 (Pricing: apertura de solicitudes con errores legibles)
+
+- PATCH DH-20261118-PRICING-LEASE-220: el wizard distingue el error de reserva del de lectura y muestra el código HTTP y TraceId disponible; Reintentar reutiliza el control de operaciones pendientes y no duplica claims.
+- El backend obtiene el resultado del advisory lock PostgreSQL de forma tipada y devuelve 409 de contención o 503 con identificador de diagnóstico. Se conservan la seguridad, auditoría, heartbeat y SignalR.
+- DholeWeb 1.79.3 → 1.79.4; Pricing 1.23.7 → 1.23.8; ecosistema 1.83.3 → 1.83.4. CI/staging antes del merge a master.
+
 ## [1.79.3] - 2026-11-18 (Pricing: liberación de reservas bloqueadas)
 
 - PATCH DH-20261118-PRICING-LEASE-219: «Liberar mi reserva» utiliza un release directo del backend y nunca vuelve a hacer claim; usuarios autorizados pueden liberar explícitamente reservas ajenas solo tras 45 segundos sin heartbeat, con validación atómica del servidor.

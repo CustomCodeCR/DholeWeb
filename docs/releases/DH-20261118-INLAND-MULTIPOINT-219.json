@@ -4,7 +4,7 @@
   "ecosystem": "Dhole",
   "ecosystemVersion": "1.84.0",
   "releaseType": "MINOR",
-  "previousVersion": "1.79.2",
+  "previousVersion": "1.79.5",
   "version": "1.80.0",
   "changes": [
     "Recolección y entrega con múltiples ubicaciones, tipo de carga por parada y responsable de costo",

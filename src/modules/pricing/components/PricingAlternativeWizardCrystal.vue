@@ -295,6 +295,33 @@ const primarySavedGroupAlternative = computed(() => {
     ?? group?.alternatives[0] ?? null
 })
 const finalizedSavedGroup = computed(() => Boolean(savedQuoteGroup.value?.selectedRateId))
+const groupedCommercialNumber = computed(() =>
+  savedQuoteGroup.value?.parentQuoteNumber || editingRate.value?.quoNumber || editingRate.value?.rateCode || '')
+function groupedRateDisplayName(rate: RateDto) {
+  const fullName = rateDisplayName(rate)
+  const original = rate.quoNumber?.trim() || rate.rateCode
+  return savedQuoteGroup.value && fullName.startsWith(original)
+    ? groupedCommercialNumber.value + fullName.slice(original.length)
+    : fullName
+}
+function canAcceptSavedAlternative(rateId: string) {
+  const group = savedQuoteGroup.value
+  const option = savedGroupRates.value.find(rate => rate.id === rateId)
+  if (!group || !option || isMasterTariff.value) return false
+  if (group.selectedRateId && group.selectedRateId !== rateId) return false
+  const status = option.status
+  return (canUpdateRateStatus.value && ['Sent', 'RequestedByClient', 'Expired'].includes(status))
+    || (canApproveLowMargin.value && ['Open', 'Sent', 'RequestedByClient', 'Expired'].includes(status))
+}
+function startGroupedAcceptance(rateId: string) {
+  if (!canAcceptSavedAlternative(rateId)) return
+  groupedAcceptanceRateId.value = rateId
+  commercialAction.value = 'accept'
+  commercialActionError.value = ''
+  const rate = savedGroupRates.value.find(item => item.id === rateId)
+  commercialIdtra.value = rate?.idtraNumber ?? ''
+  commercialOtherReferences.value = rate?.otherReferences ?? ''
+}
 const isDiscardedSavedAlternative = computed(() => Boolean(
   savedQuoteGroup.value?.selectedRateId && editingRate.value
   && savedQuoteGroup.value.selectedRateId !== editingRate.value.id,
@@ -312,6 +339,7 @@ function toggleSavedQuotePanel(rateId: string) {
 const loadingExistingRate = ref(false)
 const hydratingExistingRate = ref(false)
 const commercialAction = ref<'accept' | 'reject' | null>(null)
+const groupedAcceptanceRateId = ref<string | null>(null)
 // Same CSV contract used by the acceptance and assignment modals.
 const wizardIdtraIdentifiers = computed(() => {
   const seen = new Set<string>()
@@ -4412,12 +4440,14 @@ async function selectCommercialGroupAlternative(rateId: string) {
     }
     await PricingService.selectRateGroup(rateId)
     const refreshed = await PricingService.getRateGroup(rateId)
-    if (!refreshed || refreshed.selectedRateId !== rateId || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected' && option.quoteNumber === refreshed.parentQuoteNumber)) {
+    if (!refreshed || refreshed.selectedRateId !== rateId || !refreshed.alternatives.some((option) =>
+      option.rateId === rateId && option.status === 'Selected'
+      && option.quoteNumber === `${refreshed.parentQuoteNumber}-${option.suffix}`)) {
       throw new Error('Pricing no confirmó la sub-QUO principal seleccionada.')
     }
     savedQuoteGroup.value = refreshed
     expandedSavedQuotePanels.value = { ...expandedSavedQuotePanels.value, [rateId]: true }
-    toastStore.success('Cotización definitiva seleccionada', 'Se conservará una única QUO comercial sin sufijo; las demás alternativas quedan solo como historial.')
+    toastStore.success('Opción seleccionada', 'La QUO conserva el número del grupo; la otra alternativa no es una cotización rechazada.')
     if (props.rateId !== rateId) {
       await router.push({
         name: 'pricing-rate-wizard',
@@ -4745,6 +4775,7 @@ function openLinkedQuoteModal(rateId: string) {
 
 function startCommercialDecision(action: 'accept' | 'reject') {
   if (!canAcceptOrReject.value) return
+  groupedAcceptanceRateId.value = null
   commercialAction.value = action
   commercialActionError.value = ''
   if (action === 'accept') {
@@ -4798,7 +4829,9 @@ function startAcceptedRateCancellation() {
 }
 
 async function submitCommercialDecision() {
-  if (!editingRate.value || !commercialAction.value || !canAcceptOrReject.value) return
+  if (!editingRate.value || !commercialAction.value) return
+  const alternativeId = groupedAcceptanceRateId.value
+  if (!canAcceptOrReject.value && !(commercialAction.value === 'accept' && alternativeId && canAcceptSavedAlternative(alternativeId))) return
   if (commercialAction.value === 'reject' && !commercialRejectionReason.value.trim()) {
     commercialActionError.value = 'El motivo de rechazo es obligatorio.'
     return
@@ -4812,7 +4845,11 @@ async function submitCommercialDecision() {
     commercialStatusSaving.value = true
     commercialActionError.value = ''
     if (commercialAction.value === 'accept') {
-      await PricingService.setRateStatus(editingRate.value.id, {
+      const rateId = alternativeId ?? editingRate.value.id
+      if (alternativeId && savedQuoteGroup.value && !savedQuoteGroup.value.selectedRateId) {
+        await PricingService.selectRateGroup(rateId)
+      }
+      await PricingService.setRateStatus(rateId, {
         status: 'AcceptedByClient',
         idtraNumber: commercialNormalizedIdtra.value || null,
         otherReferences: commercialOtherReferences.value.trim(),
@@ -4827,7 +4864,14 @@ async function submitCommercialDecision() {
       })
       toastStore.success('Tarifa marcada como rechazada.')
     }
-    await hydrateExistingRate()
+    const chosenRateId = commercialAction.value === 'accept' ? alternativeId : null
+    groupedAcceptanceRateId.value = null
+    commercialAction.value = null
+    if (chosenRateId && chosenRateId !== props.rateId) {
+      await router.push({ name: 'pricing-rate-wizard', params: { rateId: chosenRateId }, query: { mode: 'view' } })
+    } else {
+      await hydrateExistingRate()
+    }
   } catch (error) {
     commercialActionError.value = commercialAction.value === 'accept'
       ? 'No se pudo aceptar la tarifa.'
@@ -6550,12 +6594,12 @@ onMounted(async () => {
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <DhBadge :label="editingRate.quoNumber || editingRate.rateCode" variant="primary" />
+            <DhBadge :label="groupedCommercialNumber" variant="primary" />
             <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
             <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
           </div>
-          <p class="mt-3 text-lg font-black">{{ rateDisplayName(editingRate) }}</p>
-          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
+          <p class="mt-3 text-lg font-black">{{ groupedRateDisplayName(editingRate) }}</p>
+          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ groupedCommercialNumber || '—' }}</p>
           <p v-if="editingRate.otherReferences?.trim()" class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text-muted)]">
             <span class="font-black text-[var(--dh-text)]">Otras referencias (solo Dhole):</span> {{ editingRate.otherReferences }}
           </p>
@@ -6567,7 +6611,7 @@ onMounted(async () => {
       </div>
       <div v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p class="text-sm font-black">Alternativa seleccionada: {{ primarySavedGroupAlternative?.quoteNumber || 'Pendiente' }} · Grupo {{ savedQuoteGroup.parentQuoteNumber }}</p>
+          <p class="text-sm font-black">Cotización {{ savedQuoteGroup.parentQuoteNumber }} · {{ finalizedSavedGroup ? 'Opción elegida: ' + (primarySavedGroupAlternative?.suffix || '—') : 'Seleccione una de las opciones' }}</p>
           <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
         </div>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -6582,7 +6626,7 @@ onMounted(async () => {
               <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
             </button>
             <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Sub-QUO principal seleccionada</span>
-            <span v-else-if="finalizedSavedGroup" class="mt-2 block text-xs font-semibold text-[var(--dh-text-muted)]">Descartada · Solo historial</span>
+            <span v-else-if="finalizedSavedGroup" class="mt-2 block text-xs font-semibold text-[var(--dh-text-muted)]">No seleccionada · Alternativa del mismo grupo</span>
             <button v-else-if="authStore.hasScope('pricing.rate.update')" type="button"
               class="mt-2 rounded-lg border border-[var(--dh-border)] px-2 py-1.5 font-bold hover:border-[var(--dh-primary)]"
               @click="selectCommercialGroupAlternative(option.rateId)">
@@ -8275,8 +8319,8 @@ onMounted(async () => {
           <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ finalizedSavedGroup ? 'Cotización definitiva' : 'Cotización multiQUO pendiente' }}</p>
-              <h3 class="mt-1 text-xl font-black">Alternativa seleccionada: {{ primarySavedGroupAlternative?.quoteNumber || 'Pendiente' }}</h3>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
+              <h3 class="mt-1 text-xl font-black">Cotización {{ savedQuoteGroup.parentQuoteNumber }}</h3>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} opciones dentro de una sola QUO · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
             <div v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft overflow-hidden">
               <button type="button" class="saved-quote-accordion-toggle flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 p-4 text-left md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click="toggleSavedQuotePanel(subRate.id)">
@@ -8310,7 +8354,9 @@ onMounted(async () => {
                   </table>
                 </div>
                 <div class="mt-4 flex justify-end">
-                  <DhButton size="sm" variant="secondary" @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: subRate.id }, query: { mode: 'view' } })">Ver subQUO individual</DhButton>
+                  <DhButton v-if="canAcceptSavedAlternative(subRate.id)" size="sm" :disabled="commercialStatusSaving"
+                    @click="startGroupedAcceptance(subRate.id)">Aceptar esta opción ({{ savedQuoteGroup.alternatives.find(item => item.rateId === subRate.id)?.suffix }})</DhButton>
+                  <DhButton size="sm" variant="secondary" @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: subRate.id }, query: { mode: 'view' } })">Ver detalles de esta opción</DhButton>
                 </div>
               </div>
             </div>
@@ -8341,7 +8387,8 @@ onMounted(async () => {
                 </template>
                 <template v-else>
                   <DhButton size="sm" variant="secondary" :disabled="(!canMarkSent && !canResendPendingReapproval) || commercialStatusSaving" @click="markCurrentRateSent">{{ canResendPendingReapproval ? 'Reenviar al vendedor' : editingRate.pendingReapproval ? 'Enviar revisión' : 'Enviada' }}</DhButton>
-                  <DhButton size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                  <DhButton v-if="!savedQuoteGroup" size="sm" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('accept')">Aceptada</DhButton>
+                  <span v-else-if="!finalizedSavedGroup" class="text-xs font-semibold text-[var(--dh-text-muted)]">Elija una de las opciones de esta QUO para aceptar.</span>
                   <DhButton size="sm" variant="danger" :disabled="!canAcceptOrReject || commercialStatusSaving" @click="startCommercialDecision('reject')">Rechazada</DhButton>
                   <DhButton size="sm" variant="secondary" :disabled="!canLinkAnotherQuote || commercialStatusSaving" @click="openLinkedQuoteModal(editingRate.id)">Cliente aceptó otra QUO</DhButton>
                   <DhButton
@@ -8383,6 +8430,10 @@ onMounted(async () => {
             </p>
 
             <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+              <p v-if="groupedAcceptanceRateId" class="mb-3 text-sm font-black">
+                Aceptar opción {{ savedQuoteGroup?.alternatives.find(option => option.rateId === groupedAcceptanceRateId)?.suffix }} de {{ savedQuoteGroup?.parentQuoteNumber }}.
+                La otra opción no se marcará como rechazada.
+              </p>
               <p class="text-sm font-black">Aceptar tarifa</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
                 Puede registrar varios IDTRA separados por comas o agregarlos posteriormente.
