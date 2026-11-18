@@ -4,6 +4,7 @@ import { ref } from 'vue'
 export const AVATAR_EXPRESSIONS = [
   'mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug',
   'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle',
+  'stressed', 'tired', 'resigned',
 ] as const
 
 export type AvatarExpression = (typeof AVATAR_EXPRESSIONS)[number]
