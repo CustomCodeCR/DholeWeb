@@ -340,17 +340,17 @@ const miamiLittleIssues = computed(() => {
 
   code = replaceRequired(
     code,
-    `                    <DhInput v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />`,
+    `                    <DhInput v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso unitario (kg)" />`,
     `                    <DhInput
                       v-if="usesSelectableCargoUnits"
                       :model-value="miamiWeightInputValue(line.weightKg)"
                       type="number"
                       min="0"
                       step="0.01"
-                      :label="'Peso total (' + form.miamiWeightInputUnit + ')'"
+                      :label="'Peso unitario (' + form.miamiWeightInputUnit + ')'"
                       @update:model-value="setMiamiWeightInputValue(line, $event)"
                     />
-                    <DhInput v-else v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso total (kg)" />`,
+                    <DhInput v-else v-model.number="line.weightKg" type="number" min="0" step="0.01" label="Peso unitario (kg)" />`,
     'Miami selectable weight input',
   )
 
