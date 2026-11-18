@@ -1,3 +1,9 @@
+## [1.77.2] - 2026-11-18 (Ventas: cotización aceptada, edición exclusiva de Pricing)
+
+- PATCH DH-20261118-SELLER-ACCEPTED-213: el dashboard comercial de escritorio y móvil y el detalle no permiten solicitar una modificación en una cotización aceptada, ni mientras Pricing gestiona su revisión posterior.
+- La API valida también el estado real y la aceptación histórica y devuelve 409 (Pricing.SellerModificationRequiresPricing), aun si se abre la URL directamente; Pricing mantiene su edición autorizada por pricing.rate.update. Se conservan las solicitudes de tarifas no aceptadas, PDF y cancelación de aceptadas.
+- Regresiones de estados y de ambas vistas, sin cambios de esquema, auditoría ni SignalR. DholeWeb 1.77.1 → 1.77.2, Pricing 1.23.2 → 1.23.3, ecosistema 1.81.1 → 1.81.2. CI y staging obligatorios antes de master.
+
 ## [1.77.1] - 2026-11-18 (Corrección: contraste del perfil en modo claro)
 
 - PATCH DH-20261118-LIGHT-MODE-AVATAR-212: las variantes dark: de Tailwind 4 ahora siguen html.dark (tema de Dhole) y no la preferencia oscura del sistema. El perfil usa fondo blanco, borde claro, nombre y correo con contraste alto y etiqueta de expresión clara en modo claro; modo oscuro conserva fondo negro, textos blancos y etiqueta oscura.
