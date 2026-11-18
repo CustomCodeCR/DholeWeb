@@ -99,7 +99,7 @@ export async function searchGlobalRecords(
         return response.items.map((rate) => ({
           id: `rate:${rate.id}`,
           title: rate.quoNumber || rate.groupQuoteNumber || rate.rateCode || rate.rateName,
-          description: [rate.clientName, rate.rateName, rate.polName, rate.podName].filter(Boolean).join(' · '),
+          description: [rate.clientName, rate.quoNumber ? '' : rate.rateName, rate.polName, rate.podName].filter(Boolean).join(' · '),
           category: rate.rateType === 'Tariff' ? 'Tarifario' : 'Tarifa / cotización',
           path: `/pricing/rates/${encodeURIComponent(rate.id)}/wizard?mode=view`,
         }))
