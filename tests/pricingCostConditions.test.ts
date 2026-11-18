@@ -125,7 +125,7 @@ test('missing cargo band never dereferences null in either quotation wizard', as
   assert.match(landTransform, /function applicableCost\(cost: CostSelectDto\) \{\s*\/\/[^]*?if \(!resolvedConditionalCost\(cost\)\) return false/)
   const exwTransform = await readFile(new URL('../build/pricingExwFcaVariableCosts.ts', import.meta.url), 'utf8')
   assert.match(exwTransform, /if \(!resolvedConditionalCost\(cost\)\) return false/)
-  assert.match(exwTransform, /costAmount: resolvedAmount\.costAmount/)
+  assert.match(exwTransform, /costAmount: (?:editedPickup\?\.costAmount \?\? )?resolvedAmount\.costAmount/)
 })
 
 test('storage days appear on screen 3 for Almacenamiento and the recorded days drive storage charges', async () => {
