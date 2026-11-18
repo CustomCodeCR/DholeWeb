@@ -1485,7 +1485,7 @@ function openEvent(item: CalendarEvent) {
         <DhMultiSelect v-model="detailInviteeIds" label="Usuarios internos"
           :options="inviteeChoices.filter(x => x.value!==active?.ownerId)"
           placeholder="Seleccionar invitadas" search-placeholder="Buscar…" empty-text="Buscá usuarios activos." />
-        <p v-if="error" role="alert" class="text-xs text-amber-600">{{ error }}</p>
+        <div v-if="error" role="alert" class="text-xs text-amber-600">{{ error }}</div>
         <button type="button" class="calendar-btn calendar-primary" :disabled="detailInviteesBusy"
           @click="saveDetailInvitees">Actualizar invitados</button>
       </div>
