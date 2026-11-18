@@ -1,3 +1,9 @@
+## [1.79.0] - 2026-11-18 (Avatar: vista grande y controles en Apariencia)
+
+- MINOR DH-20261118-BLOBATAR-APPEARANCE-216: mueve Auto/Fijo del topbar a Configuración → Apariencia y agrega un avatar grande de 160 px con expresión y botón para cambiarla. Componentes Dhole compartidos y traducciones ES/EN.
+- Nuevo estado centralizado Pinia sincroniza el avatar pequeño y grande, mantiene la misma expresión, previene temporizadores duplicados y conserva preferencias locales por usuario (también entre pestañas). Continúa el ciclo de 30 segundos con pausa al ocultar la pestaña y con prefers-reduced-motion.
+- DholeWeb 1.78.1 → 1.79.0, DholeSystem/ecosistema 1.82.1 → 1.83.0. Preserva cambios de Pricing Lease 214 y los 15 componentes restantes; API, SignalR y esquema sin cambios. CI y staging obligatorios.
+
 ## [1.78.1] - 2026-11-18 (Pricing: liberar reservas al cerrar solicitudes)
 
 - PATCH DH-20261118-PRICING-LEASE-214: detener la renovación, esperar peticiones de lease en curso y liberar la solicitud antes de salir de la vista; impedir un re-claim tardío después de cerrar. Conserva las expresiones y preferencias Blobatar 1.78.0.
