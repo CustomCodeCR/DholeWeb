@@ -1,3 +1,9 @@
+## [1.77.1] - 2026-11-18 (Corrección: contraste del perfil en modo claro)
+
+- PATCH DH-20261118-LIGHT-MODE-AVATAR-212: las variantes dark: de Tailwind 4 ahora siguen html.dark (tema de Dhole) y no la preferencia oscura del sistema. El perfil usa fondo blanco, borde claro, nombre y correo con contraste alto y etiqueta de expresión clara en modo claro; modo oscuro conserva fondo negro, textos blancos y etiqueta oscura.
+- Preserva las 14 expresiones Blobatar, la animación, los estados, fotografía/iniciales, accesibilidad, permisos y realtime sin cambios de contrato. Incluye pruebas de regresión del tema, SSR, compilación y staging.
+- DholeWeb 1.77.0 → 1.77.1; DholeSystem/ecosistema 1.81.0 → 1.81.1. Los otros 15 componentes conservan sus versiones.
+
 ## [1.77.0] - 2026-11-18 (Operations: rediseño uniforme del workspace Dh)
 
 - MINOR DH-20261118-OPS-DH-UI-211: Aperturas y Equipos ahora usan DhPageHeader, DhCard, DhDataTable, DhModal, DhInput, DhSelect, DhButton, DhBadge, DhEmptyState y búsqueda coherente con el diseño compartido, en escritorio y móvil.
