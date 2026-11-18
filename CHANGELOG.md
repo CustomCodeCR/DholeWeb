@@ -1,3 +1,9 @@
+## [1.71.1] - 2026-11-17 (Solicitudes de tarifa: propietario CRM y watcher seguro)
+
+- PATCH DH-20261117-CRM-RATE-OWNER-PROD-205: al crear solicitudes delegadas para cuenta/prospecto, la propiedad pertenece al ejecutivo comercial de CRM, independientemente del creador. Backend valida CRM; el frontend sincroniza owner.
+- El observador de propietario se registra en onMounted para evitar acceso a form antes de inicializarlo en builds de producción.
+- Web 1.71.0 → 1.71.1; ecosistema 1.74.0 → 1.74.1. CI, staging y master coordinados; REST, outbox y SignalR sin cambios.
+
 ## [1.71.0] - 2026-11-17 (CRM: contactos operativos por cuenta)
 
 - MINOR DH-20261117-CRM-OPS-CONTACTS-204: campos independientes «Contacto principal» y «Encargado de operaciones» para clientes; Operations obtiene los responsables actuales desde CRM.
