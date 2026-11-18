@@ -8561,6 +8561,25 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- A historical EXW quotation without a persisted pickup must never
+               pretend that a synthetic zero-price row was already quoted. -->
+          <div
+            v-if="editingRate.shipmentMode === 'Lcl'
+              && /EXW/i.test(String(editingRate.incotermName ?? editingRate.incotermCode ?? ''))
+              && !includedLines.some((line) => line.section === 'pickup_origin')"
+            class="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4"
+            role="status"
+          >
+            <p class="text-sm font-black text-amber-600">Recolecta EXW pendiente de cotizar</p>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-soft)]">
+              Esta tarifa guardada no contiene un cargo de recolecta. Edítela, registre costo y venta en Pantalla 7
+              y guárdela para incorporar el rubro al detalle, totales y PDF. No se agrega un precio ficticio.
+            </p>
+            <DhButton v-if="canUpdateRateStatus" class="mt-3" variant="secondary" size="sm" @click="editCurrentRate">
+              Editar recolecta
+            </DhButton>
+          </div>
+
           <PricingRateAttachments :rate-id="editingRate.id" :final-documents="finalBackupDocuments" />
 
           <div class="crystal-soft overflow-hidden p-0">
