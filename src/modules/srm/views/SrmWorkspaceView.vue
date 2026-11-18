@@ -44,7 +44,20 @@ const saveErrorSection = ref<SupplierSaveSection | 'general' | 'server'>('genera
 const formVisible = ref(false)
 const detailsVisible = ref(false)
 const detailsTab = ref<'profile' | 'routes'>('profile')
-const formTab = ref<'identity' | 'followups' | 'banks' | 'contacts' | 'credit' | 'tariffs' | 'routes'>('identity')
+type SrmFormTab = 'identity' | 'followups' | 'banks' | 'contacts' | 'credit' | 'tariffs' | 'routes'
+const formTab = ref<SrmFormTab>('identity')
+const formTabs = computed(() => {
+  const tabs: Array<{ id: SrmFormTab; label: string; visible?: boolean }> = [
+    { id: 'identity', label: en.value ? 'Identity & taxes' : 'Identidad y Hacienda' },
+    { id: 'contacts', label: en.value ? 'Contacts' : 'Contactos' },
+    { id: 'banks', label: en.value ? 'Bank accounts' : 'Cuentas bancarias', visible: canReadBanks.value },
+    { id: 'credit', label: en.value ? 'Credit' : 'Crédito' },
+    { id: 'followups', label: en.value ? 'Activity log' : 'Bitácora', visible: Boolean(editing.value) },
+    { id: 'tariffs', label: en.value ? 'Tariffs' : 'Tarifas' },
+    { id: 'routes', label: en.value ? 'Routes' : 'RUTAS', visible: Boolean(editing.value) },
+  ]
+  return tabs.filter(tab => tab.visible !== false)
+})
 const suppliers = ref<Supplier[]>([])
 const evaluations = ref<SrmRecord[]>([])
 const contracts = ref<SrmRecord[]>([])
@@ -1364,15 +1377,7 @@ onMounted(() => {
         size="xl" @close="closeForm">
         <nav role="tablist" :aria-label="en ? 'Supplier editing sections' : 'Secciones de edición del proveedor'"
           class="mb-4 flex flex-wrap gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
-          <button v-for="tab in ([
-            { id: 'identity', label: en ? 'Identity & taxes' : 'Identidad y Hacienda' },
-            { id: 'contacts', label: en ? 'Contacts' : 'Contactos' },
-            { id: 'banks', label: en ? 'Bank accounts' : 'Cuentas bancarias', visible: canReadBanks },
-            { id: 'credit', label: en ? 'Credit' : 'Crédito' },
-            { id: 'followups', label: en ? 'Activity log' : 'Bitácora', visible: Boolean(editing) },
-            { id: 'tariffs', label: en ? 'Tariffs' : 'Tarifas' },
-            { id: 'routes', label: en ? 'Routes' : 'RUTAS', visible: Boolean(editing) },
-          ] as const).filter(item => item.visible !== false)" :key="tab.id" type="button"
+          <button v-for="tab in formTabs" :key="tab.id" type="button"
             role="tab" :aria-selected="formTab === tab.id"
             class="rounded-xl px-4 py-2 text-sm font-bold"
             :class="formTab === tab.id ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
