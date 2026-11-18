@@ -81,3 +81,28 @@ test('Avatar reacts on tap, click and keyboard with replayable expressions', () 
   assert.match(avatar, /dh-avatar--tap-b/)
   assert.match(avatar, /prefers-reduced-motion: reduce/)
 })
+
+test('Expression preview starts angry, cycles the 14 supported poses and retains the selected one', () => {
+  assert.match(avatar, /const previewMoods = \['mad', 'happy', 'sad'/)
+  assert.match(avatar, /previewIndex = ref\(-1\)/)
+  assert.match(avatar, /previewIndex\.value = \(previewIndex\.value \+ 1\) % previewMoods\.length/)
+  assert.match(avatar, /tapMood\.value = previewMoods\[previewIndex\.value\]/)
+  assert.match(avatar, /Keep the selected pose until the next click/)
+  assert.match(avatar, /tapActive\.value = false }, 720/)
+  assert.match(avatar, /role="status"/)
+  assert.match(avatar, /\{\{ previewLabel \}\}/)
+  assert.match(topbar, /:preview-expressions="true"/)
+  assert.match(topbar, /Cambiar expresión del avatar/)
+})
+
+test('Blobatar 2.7.0 renders an angry face and all distinct preview expressions locally', async () => {
+  const { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking } = await import('blobatar/expression')
+  const poses = [mad, happy, sad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking, idle]
+  const output = await Promise.all(poses.map(expression =>
+    renderToString(createSSRApp({ render: () =>
+      h(Blobatar, { name: 'dhole-user-42', size: 40, animate: 'always', expression }) })),
+  ))
+  assert.equal(output.length, 14)
+  assert.equal(new Set(output).size, 14)
+  assert.ok(output.every(markup => markup.includes('<svg')))
+})
