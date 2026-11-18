@@ -9,7 +9,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 
 const props = defineProps<{
   rate: RateDto
-  decision: 'AcceptedByClient' | 'RejectedByClient'
+  decision: 'AcceptedByClient' | 'RejectedByClient' | 'Cancelled'
   onSaved?: () => void | Promise<void>
 }>()
 
@@ -23,13 +23,14 @@ const form = reactive({
 })
 
 const isAccept = computed(() => props.decision === 'AcceptedByClient')
+const isCancel = computed(() => props.decision === 'Cancelled')
 const reference = computed(() => props.rate.quoNumber || props.rate.rateCode || 'Tarifa')
 
 async function submit() {
   form.submitted = true
 
   const reason = form.reason.trim()
-  if (!isAccept.value && !reason) return
+  if (!isAccept.value && (!reason || reason.length > 1000)) return
   if (isAccept.value && form.observations.trim().length > 2000) return
 
   try {
@@ -52,12 +53,14 @@ async function submit() {
     )
 
     toastStore.success(
-      isAccept.value ? 'Tarifa aceptada por el cliente' : 'Tarifa no aceptada por el cliente',
+      isAccept.value ? 'Tarifa aceptada por el cliente' : isCancel.value ? 'Cotización cancelada' : 'Tarifa no aceptada por el cliente',
       isAccept.value
         ? result?.openingNotificationDeferred
           ? 'Aceptación registrada sobre la última revisión enviada. La notificación con PDF para Apertura queda pendiente de validación por Pricing; no se enviará el borrador.'
           : 'La aceptación quedó registrada y las observaciones se incluirán en el aviso de apertura de trámite cuando corresponda. El IDTRA podrá agregarse posteriormente.'
-        : 'El motivo de rechazo quedó registrado para seguimiento.',
+        : isCancel.value
+          ? 'La cotización quedó cancelada y el motivo se registró para seguimiento y auditoría.'
+          : 'El motivo de rechazo quedó registrado para seguimiento.',
     )
 
     modalStore.close()
@@ -67,7 +70,9 @@ async function submit() {
       error,
       isAccept.value
         ? 'No se pudo registrar la aceptación del cliente.'
-        : 'No se pudo registrar el rechazo del cliente.',
+        : isCancel.value
+          ? 'No se pudo cancelar la cotización.'
+          : 'No se pudo registrar el rechazo del cliente.',
     )
   } finally {
     form.saving = false
@@ -96,7 +101,7 @@ async function submit() {
 
         <div class="min-w-0">
           <p class="text-sm font-black text-[var(--dh-text)]">
-            {{ isAccept ? 'Confirmar aceptación del cliente' : 'Registrar rechazo del cliente' }}
+            {{ isAccept ? 'Confirmar aceptación del cliente' : isCancel ? 'Confirmar cancelación de cotización' : 'Registrar rechazo del cliente' }}
           </p>
           <p v-if="rate.revisionPending && rate.currentRateStatus === 'Open'" class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
             La decisión se registra sobre la última revisión enviada, no sobre el borrador que todavía no ha sido publicado.
@@ -104,7 +109,9 @@ async function submit() {
           <p class="mt-1 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
             {{ isAccept
               ? 'La tarifa pasará a Aceptadas. No necesita tener el IDTRA para registrar la aceptación; podrá agregarse posteriormente.'
-              : 'La tarifa pasará a No aceptadas y el motivo quedará disponible para seguimiento y auditoría.' }}
+              : isCancel
+                ? 'Esta cotización pasará a Canceladas. El motivo será obligatorio y quedará registrado en la auditoría. Esta acción no equivale a un rechazo del cliente.'
+                : 'La tarifa pasará a No aceptadas y el motivo quedará disponible para seguimiento y auditoría.' }}
           </p>
         </div>
       </div>
@@ -141,24 +148,25 @@ async function submit() {
       <DhTextarea
         v-else
         v-model="form.reason"
-        label="Motivo del rechazo"
+         :label="isCancel ? 'Motivo de cancelación' : 'Motivo del rechazo'"
         :rows="4"
-        placeholder="Explique por qué el cliente no aceptó la tarifa..."
-        :error="form.submitted && !form.reason.trim() ? 'El motivo es obligatorio.' : undefined"
+        :placeholder="isCancel ? 'Explique por qué se cancela esta cotización...' : 'Explique por qué el cliente no aceptó la tarifa...'"
+        maxlength="1000"
+        :error="form.submitted && !form.reason.trim() ? 'El motivo es obligatorio.' : form.reason.trim().length > 1000 ? 'Máximo 1000 caracteres.' : undefined"
       />
     </div>
 
     <div class="flex justify-end gap-2">
       <DhButton
         type="button"
-        label="Cancelar"
+        label="Volver"
         variant="secondary"
         :disabled="form.saving"
         @click="modalStore.close()"
       />
       <DhButton
         type="submit"
-        :label="isAccept ? 'Aceptar tarifa' : 'Registrar rechazo'"
+        :label="isAccept ? 'Aceptar tarifa' : isCancel ? 'Cancelar cotización' : 'Registrar rechazo'"
         :variant="isAccept ? undefined : 'danger'"
         :loading="form.saving"
       />
