@@ -3,15 +3,17 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Blobatar } from '@blobatar/vue'
 import { useGaze } from '@blobatar/vue/gaze'
 import { happy, idle, love, mad, sad, scared, shy, sick, sleepy, smug, surprised, thinking, unsure, wink } from 'blobatar/expression'
+import { stressed, tired, resigned } from './blobatarExpressions'
+import type { AvatarExpression } from '@/core/stores/avatarAppearanceStore'
 import 'blobatar/motion.css'
 import 'blobatar/gaze.css'
 
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl'
-type AvatarMood = 'auto' | 'idle' | 'happy' | 'sad' | 'mad' | 'surprised' | 'wink' | 'sleepy' | 'smug' | 'unsure' | 'scared' | 'love' | 'shy' | 'sick' | 'thinking'
+type AvatarMood = 'auto' | AvatarExpression
 type PreviewMood = Exclude<AvatarMood, 'auto'>
 
 // Blobatar 2.7 roster: the first manual click without a saved preference shows "mad".
-const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle'] as const satisfies readonly PreviewMood[]
+const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle', 'stressed', 'tired', 'resigned'] as const satisfies readonly PreviewMood[]
 const AUTO_MOOD_INTERVAL_MS = 30_000
 const previewLabels: Record<PreviewMood, string> = {
   mad: 'Enojado',
@@ -28,6 +30,9 @@ const previewLabels: Record<PreviewMood, string> = {
   sick: 'Enfermo',
   thinking: 'Pensativo',
   idle: 'Neutral',
+  stressed: 'Estresado',
+  tired: 'Cansado',
+  resigned: 'Resignado',
 }
 
 const props = withDefaults(
@@ -175,7 +180,7 @@ const showMotionAura = computed(() =>
   Boolean(animationMode.value),
 )
 
-const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking }
+const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking, stressed, tired, resigned }
 const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
   if (props.controlledExpressions && props.mood !== 'auto') return props.mood
   if (tapMood.value && !props.controlledExpressions) return tapMood.value
