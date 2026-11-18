@@ -246,17 +246,21 @@ test('LCL y LTL tienen una sola cantidad editable por línea y ocultan el campo 
   assert.match(cargo, /Tipo de unidad/)
 })
 
-test('totales de LCL y LTL salen de las líneas, sin multiplicar el peso', () => {
+test('totales de LCL y LTL multiplican peso unitario y dimensiones por cantidad', () => {
   const cargo = readFileSync(new URL('../build/pricingConsolidatedCargo20261001.ts', import.meta.url), 'utf8')
   assert.match(cargo, /form\.cargoPackages = consolidatedTotalPackages\.value/)
   assert.match(cargo, /form\.cargoPallets = consolidatedTotalPallets\.value/)
   assert.match(cargo, /watch\(consolidatedCargoMode/)
   assert.match(cargo, /line\.unitType === 'Pallet' \? 0 : cargoLineQuantity\(line\)/)
   assert.match(cargo, /line\.unitType === 'Pallet' \? cargoLineQuantity\(line\) : 0/)
-  assert.match(cargo, /sum \+ Math\.max\(0, number\(line\.weightKg\)\)/)
+  assert.match(cargo, /sum \+ cargoLineTotalWeightKg\(line\)/)
   assert.match(cargo, /lengthCm \* widthCm \* heightCm \* quantity \/ 1_000_000/)
   assert.equal(1 * 165 * 140 * 130 / 1_000_000, 3.003)
   assert.equal(3 * 165 * 140 * 130 / 1_000_000, 9.009)
+  assert.match(cargo, /Math\.max\(0, number\(line\.weightKg\)\) \* cargoLineQuantity\(line\)/)
+  assert.match(cargo, /weightKg: cargoLineTotalWeightKg\(line\)/)
+  assert.equal(100 * 2, 200)
+  assert.equal(749 * 2, 1498)
 })
 
 test('captura y resumen LCL LTL son responsivos y sin cantidades duplicadas', () => {
@@ -270,7 +274,7 @@ test('captura y resumen LCL LTL son responsivos y sin cantidades duplicadas', ()
   assert.match(wizard, /label="Observaciones de la carga" :rows="4" class="col-span-full w-full"/)
   assert.match(cargo, /Unidades de carga: /)
   assert.doesNotMatch(cargo, /Bultos declarados: \{\{ form\.cargoPackages/)
-  assert.match(units, /Peso sumado de las líneas/)
+  assert.match(units, /Peso unitario × cantidad por línea/)
   assert.match(miami, /return kg\.toFixed\(2\) \+ ' kg → ' \+ lb\.toFixed\(2\)/)
   assert.match(summary, /sellerCargoLines\.reduce\(\(total, line\) => total \+ line\.quantity, 0\)/)
   assert.match(summary, /Bultos registrados \(histórico\)/)
