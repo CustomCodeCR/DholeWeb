@@ -98,7 +98,7 @@ export async function searchGlobalRecords(
         const response = await PricingService.browseRates({ ...page, groupQuotes: true })
         return response.items.map((rate) => ({
           id: `rate:${rate.id}`,
-          title: rate.quoNumber || rate.groupQuoteNumber || rate.rateCode || rate.rateName,
+          title: rate.groupQuoteNumber || rate.quoNumber || rate.rateCode || rate.rateName,
           description: [rate.clientName, rate.quoNumber ? '' : rate.rateName, rate.polName, rate.podName].filter(Boolean).join(' · '),
           category: rate.rateType === 'Tariff' ? 'Tarifario' : 'Tarifa / cotización',
           path: `/pricing/rates/${encodeURIComponent(rate.id)}/wizard?mode=view`,
