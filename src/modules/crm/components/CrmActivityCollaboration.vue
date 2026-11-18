@@ -42,6 +42,18 @@ async function searchInternalUsers() {
   } catch (cause) { error.value = crmError(cause) }
   finally { internalLoading.value = false }
 }
+async function removeInternalInvitee(participant: CrmRow) {
+  if (!props.canManage || saving.value || !participant.userId) return
+  saving.value = true
+  error.value = ''
+  try {
+    await crmRequest(crmPath('activities', props.activityId,
+      'participants/' + String(participant.id)), 'DELETE')
+    message.value = 'Invitación retirada. Ya no se enviarán sus recordatorios.'
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { saving.value = false }
+}
 async function inviteInternalUsers() {
   if (!props.canManage || saving.value || !selectedInternalIds.value.length) return
   saving.value = true
@@ -364,6 +376,9 @@ watch(() => [props.activityId, props.accountId], () => {
               <strong class="block truncate text-sm">{{ participantLabel(person) }}</strong>
               <span class="text-xs text-[var(--dh-text-muted)]">{{ roleLabel(person.role) }}</span>
             </span>
+            <DhButton v-if="canManage && person.userId" label="Retirar invitación"
+              size="sm" variant="secondary" :disabled="saving"
+              @click="removeInternalInvitee(person)" />
           </li>
         </ul>
       </article>
