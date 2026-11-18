@@ -228,6 +228,7 @@ async function begin(id: string) {
   error.value = ''
   leaseWarning.value = ''
   savedRevisionAvailable.value = null
+  let stage: 'claim' | 'load' = 'claim'
   try {
     const lease = await RateRequestLeaseService.claim(id, { recoverOwnLease: true })
     if (version !== generation) {
@@ -235,6 +236,7 @@ async function begin(id: string) {
       return
     }
     currentId = id
+    stage = 'load'
     const response = await callEndpoint<unknown>({
       method: 'GET', path: `/api/pricing/rate-requests/${encodeURIComponent(id)}`,
       headers: { Accept: 'application/json' },
@@ -255,8 +257,21 @@ async function begin(id: string) {
       await RateRequestLeaseService.release(id).catch(() => undefined)
       currentId = ''
     }
-    const serverMessage = (cause as { message?: string })?.message
-    error.value = serverMessage || 'Otro usuario está atendiendo esta solicitud.'
+    const failure = cause as {
+      message?: string
+      status?: number
+      data?: { traceId?: string; code?: string }
+    }
+    const title = stage === 'claim'
+      ? 'No se pudo reservar la solicitud'
+      : 'La reserva se obtuvo, pero no se pudieron cargar los datos'
+    const status = failure.status ? ` (HTTP ${failure.status})` : ''
+    const generic = !failure.message || /an unexpected error occurred|error interno del servidor/i.test(failure.message)
+    const detail = generic
+      ? 'El servidor devolvió un error. Intente nuevamente o comunique el código de seguimiento a soporte.'
+      : failure.message
+    const reference = failure.data?.traceId ? ` Referencia: ${failure.data.traceId}.` : ''
+    error.value = `${title}${status}. ${detail}${reference}`
   } finally {
     if (version === generation) checking.value = false
   }
@@ -292,6 +307,7 @@ async function stop() {
 }
 
 function start(id: string) {
+  if (beginInFlight || stopInFlight) return
   pendingRequestId = id
   const operation = begin(id)
   beginInFlight = operation
@@ -341,7 +357,7 @@ onBeforeUnmount(() => {
     <h2 class="text-lg font-black">Solicitud no disponible</h2>
     <p class="mt-2 text-sm">{{ error || 'No fue posible obtener la reserva.' }}</p>
     <div class="mt-4 flex flex-wrap gap-2">
-      <DhButton @click="begin(requestId)">Reintentar</DhButton>
+      <DhButton @click="start(requestId)">Reintentar</DhButton>
       <DhButton variant="secondary" @click="router.push('/home')">Volver al dashboard</DhButton>
     </div>
   </section>
