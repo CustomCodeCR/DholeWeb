@@ -294,6 +294,20 @@ const primarySavedGroupAlternative = computed(() => {
     ?? group?.alternatives.find((option) => option.status === 'Selected')
     ?? group?.alternatives[0] ?? null
 })
+const selectedSavedGroupAlternative = computed(() =>
+  savedQuoteGroup.value?.alternatives.find(option => option.rateId === savedQuoteGroup.value?.selectedRateId) ?? null,
+)
+const acceptedSavedGroup = computed(() => Boolean(
+  savedGroupRates.value.find(rate => rate.id === savedQuoteGroup.value?.selectedRateId)?.status === 'AcceptedByClient',
+))
+const commercialGroupNumber = computed(() =>
+  savedQuoteGroup.value?.parentQuoteNumber || editingRate.value?.quoNumber || editingRate.value?.rateCode || '',
+)
+function commercialGroupRateDisplayName(rate: RateDto) {
+  return rateDisplayName(savedQuoteGroup.value?.parentQuoteNumber
+    ? { ...rate, quoNumber: savedQuoteGroup.value.parentQuoteNumber }
+    : rate)
+}
 const finalizedSavedGroup = computed(() => Boolean(savedQuoteGroup.value?.selectedRateId))
 const isDiscardedSavedAlternative = computed(() => Boolean(
   savedQuoteGroup.value?.selectedRateId && editingRate.value
@@ -4399,18 +4413,18 @@ function hydratePersistedCargoDescription(rawDescription: string | null | undefi
 async function selectCommercialGroupAlternative(rateId: string) {
   if (!savedQuoteGroup.value) return
   try {
-    if (savedQuoteGroup.value.selectedRateId && savedQuoteGroup.value.selectedRateId !== rateId) {
-      toastStore.warning('Cotización finalizada', 'La sub-QUO definitiva ya fue elegida; no se puede reemplazar.')
+    if (acceptedSavedGroup.value && savedQuoteGroup.value.selectedRateId !== rateId) {
+      toastStore.warning('Cotización aceptada', 'La alternativa elegida ya fue aceptada por el cliente; no puede sustituirse.')
       return
     }
     await PricingService.selectRateGroup(rateId)
     const refreshed = await PricingService.getRateGroup(rateId)
-    if (!refreshed || refreshed.selectedRateId !== rateId || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected' && option.quoteNumber === refreshed.parentQuoteNumber)) {
+    if (!refreshed || refreshed.selectedRateId !== rateId || !refreshed.alternatives.some((option) => option.rateId === rateId && option.status === 'Selected' && option.quoteNumber === `${refreshed.parentQuoteNumber}-${option.suffix}`)) {
       throw new Error('Pricing no confirmó la sub-QUO principal seleccionada.')
     }
     savedQuoteGroup.value = refreshed
     expandedSavedQuotePanels.value = { ...expandedSavedQuotePanels.value, [rateId]: true }
-    toastStore.success('Cotización definitiva seleccionada', 'Se conservará una única QUO comercial sin sufijo; las demás alternativas quedan solo como historial.')
+    toastStore.success('Alternativa elegida', `La cotización comercial sigue siendo ${refreshed.parentQuoteNumber}. Puede aceptar la opción elegida desde Estado comercial.`)
     if (props.rateId !== rateId) {
       await router.push({
         name: 'pricing-rate-wizard',
@@ -6527,12 +6541,12 @@ onMounted(async () => {
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div class="flex flex-wrap items-center gap-2">
-            <DhBadge :label="editingRate.quoNumber || editingRate.rateCode" variant="primary" />
+            <DhBadge :label="commercialGroupNumber" variant="primary" />
             <DhBadge :label="`Revisión ${editingRate.revisionNumber || 1}`" variant="neutral" />
             <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
           </div>
-          <p class="mt-3 text-lg font-black">{{ rateDisplayName(editingRate) }}</p>
-          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ editingRate.quoNumber || '—' }}</p>
+          <p class="mt-3 text-lg font-black">{{ commercialGroupRateDisplayName(editingRate) }}</p>
+          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ commercialGroupNumber || '—' }}</p>
           <p v-if="editingRate.otherReferences?.trim()" class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text-muted)]">
             <span class="font-black text-[var(--dh-text)]">Otras referencias (solo Dhole):</span> {{ editingRate.otherReferences }}
           </p>
@@ -6544,7 +6558,7 @@ onMounted(async () => {
       </div>
       <div v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p class="text-sm font-black">Alternativa seleccionada: {{ primarySavedGroupAlternative?.quoteNumber || 'Pendiente' }} · Grupo {{ savedQuoteGroup.parentQuoteNumber }}</p>
+          <p class="text-sm font-black">QUO {{ savedQuoteGroup.parentQuoteNumber }} · Alternativa elegida: {{ selectedSavedGroupAlternative?.quoteNumber || 'Pendiente' }}</p>
           <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
         </div>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -6552,18 +6566,18 @@ onMounted(async () => {
             class="min-w-0 rounded-xl border border-[var(--dh-border)] p-3 text-left text-xs"
             :class="option.rateId === primarySavedGroupAlternative?.rateId ? 'border-[var(--dh-primary)] bg-[var(--dh-card)]' : 'bg-[var(--dh-input)]'">
             <button type="button" class="block w-full text-left hover:text-[var(--dh-primary)] disabled:cursor-default disabled:opacity-75"
-              :disabled="finalizedSavedGroup && option.rateId !== savedQuoteGroup?.selectedRateId"
+              :disabled="acceptedSavedGroup && option.rateId !== savedQuoteGroup?.selectedRateId"
               @click="router.push({ name: 'pricing-rate-wizard', params: { rateId: option.rateId }, query: { mode: 'view' } })">
               <strong class="block truncate text-[var(--dh-text)]">{{ option.quoteNumber }}</strong>
               <span class="mt-1 block truncate text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'POD pendiente' }}</span>
               <span class="mt-1 block truncate">{{ option.carrierName }} · {{ option.haulageMode }}</span>
             </button>
             <span v-if="option.status === 'Selected'" class="mt-2 block text-xs font-bold text-[var(--dh-primary)]">Sub-QUO principal seleccionada</span>
-            <span v-else-if="finalizedSavedGroup" class="mt-2 block text-xs font-semibold text-[var(--dh-text-muted)]">Descartada · Solo historial</span>
+            <span v-else-if="acceptedSavedGroup" class="mt-2 block text-xs font-semibold text-[var(--dh-text-muted)]">Opción no elegida · Historial de la misma QUO</span>
             <button v-else-if="authStore.hasScope('pricing.rate.update')" type="button"
               class="mt-2 rounded-lg border border-[var(--dh-border)] px-2 py-1.5 font-bold hover:border-[var(--dh-primary)]"
               @click="selectCommercialGroupAlternative(option.rateId)">
-              Elegir como QUO definitiva
+              Elegir esta alternativa
             </button>
           </div>
         </div>
@@ -7862,8 +7876,8 @@ onMounted(async () => {
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ finalizedSavedGroup ? 'Cotización definitiva · FCL' : 'Alternativas FCL pendientes de elegir' }}</p>
-                  <h3 class="mt-1 text-xl font-black">{{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup?.parentQuoteNumber }}</h3>
-                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ finalizedSavedGroup ? 'La ruta elegida es la única cotización comercial; las demás quedan en historial.' : 'La elección de la sub-QUO será definitiva.' }} · {{ savedQuoteGroup?.alternatives.length }} alternativas registradas</p>
+                  <h3 class="mt-1 text-xl font-black">{{ savedQuoteGroup?.parentQuoteNumber }}</h3>
+                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ acceptedSavedGroup ? 'Esta QUO fue aceptada con la alternativa elegida; las otras opciones son solo historial.' : 'Elija la alternativa que el cliente aceptará. Puede cambiarla antes de la aceptación.' }} · {{ savedQuoteGroup?.alternatives.length }} alternativas registradas</p>
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Despliegue cada alternativa guardada para consultar sus líneas y totales. Las alternativas son independientes; sus montos no se suman.</p>
                 </div>
                 <DhBadge variant="primary">{{ selectedPoeIds.length }} POE</DhBadge>
@@ -8243,8 +8257,8 @@ onMounted(async () => {
           <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ finalizedSavedGroup ? 'Cotización definitiva' : 'Cotización multiQUO pendiente' }}</p>
-              <h3 class="mt-1 text-xl font-black">Alternativa seleccionada: {{ primarySavedGroupAlternative?.quoteNumber || 'Pendiente' }}</h3>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
+              <h3 class="mt-1 text-xl font-black">QUO {{ savedQuoteGroup.parentQuoteNumber }} · {{ selectedSavedGroupAlternative?.quoteNumber || 'Alternativa por elegir' }}</h3>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} alternativas de una única QUO · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
             <div v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft overflow-hidden">
               <button type="button" class="saved-quote-accordion-toggle flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 p-4 text-left md:p-5" :aria-expanded="Boolean(expandedSavedQuotePanels[subRate.id])" @click="toggleSavedQuotePanel(subRate.id)">
@@ -8435,7 +8449,7 @@ onMounted(async () => {
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
                 <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">{{ editingRate.otherReferences }}</p>
               </div>
-              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ rateDisplayName(editingRate) }}</p>
+              <p class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">{{ commercialGroupRateDisplayName(editingRate) }}</p>
             </div>
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Cliente y operación</p>
