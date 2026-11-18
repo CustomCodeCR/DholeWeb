@@ -1,3 +1,9 @@
+## [1.77.0] - 2026-11-18 (Operations: rediseño uniforme del workspace Dh)
+
+- MINOR DH-20261118-OPS-DH-UI-211: Aperturas y Equipos ahora usan DhPageHeader, DhCard, DhDataTable, DhModal, DhInput, DhSelect, DhButton, DhBadge, DhEmptyState y búsqueda coherente con el diseño compartido, en escritorio y móvil.
+- Bandeja con búsqueda, filtros, paginación de aperturas y métricas; detalles de doble validación, asignación, integrantes, disponibilidad, cambios de equipo y audit log legibles, preservando los scopes existentes y el contrato REST.
+- DholeWeb 1.76.0 → 1.77.0, DholeSystem/ecosistema 1.80.0 → 1.81.0; los 15 microservicios restantes no cambian. CI, compilación y staging obligatorios antes de master; sin despliegue de producción autorizado.
+
 ## [1.76.0] - 2026-11-18 (Blobatar: probador de expresiones al pulsar el avatar)
 
 - MINOR DH-20261118-BLOBATAR-EXPRESSIONS-210: el avatar superior muestra Enojado (mad) al primer clic y recorre las catorce expresiones de Blobatar 2.7.0 en sucesivos clics, manteniendo cada pose y su etiqueta visible para pruebas. Los demás DhAvatar mantienen la animación temporal existente por compatibilidad.
