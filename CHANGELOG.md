@@ -1,3 +1,8 @@
+## [1.70.0] - 2026-11-17 (Contactos operativos de clientes)
+
+- MINOR DH-20261117-CRM-OPS-CONTACTS-204: indicador independiente «Encargado de operaciones» en formularios de CRM y detalle, con edición por cuenta sin duplicar registros. Un contacto principal por cuenta.
+- Web 1.69.0 → 1.70.0; ecosistema 1.72.0 → 1.73.0. Requiere CI, staging y release coordinado antes de master.
+
 ## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
 
 - MINOR DH-20261117-SELLER-CANCEL-202: botón de cancelación en dashboard de ventas (móvil y escritorio) y detalle de QUO; motivo obligatorio (1-1000 caracteres), confirmación y refresco del estado.

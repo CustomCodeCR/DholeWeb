@@ -287,7 +287,7 @@ function refreshWorkspace() {
 type AccountFormTab = 'identity' | 'commercial' | 'contacts' | 'addresses'
 type OptionalContact = {
   key: string; firstName: string; lastName: string; jobTitle: string
-  email: string; phone: string; countryId: string; isPrimary: boolean
+  email: string; phone: string; countryId: string; isPrimary: boolean; isOperationsContact: boolean
 }
 type OptionalAddress = CrmAddressLocation & {
   key: string; addressType: string; addressText: string; location: string
@@ -313,7 +313,7 @@ const workspaceDraft = useCrmDraftAutosave({
 })
 function addAccountContact() {
   optionalContacts.value.push({ key: crmUuid(), firstName: '', lastName: '',
-    jobTitle: '', email: '', phone: '', countryId: '', isPrimary: false })
+    jobTitle: '', email: '', phone: '', countryId: '', isPrimary: false, isOperationsContact: false })
   accountFormTab.value = 'contacts'
 }
 function addAccountAddress() {
@@ -1217,7 +1217,8 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                     <CrmPhoneInput v-model="contact.phone" label="Teléfono" :country-id="contact.countryId || String(form.countryId ?? '')" />
                     <CrmCatalogPicker v-model="contact.countryId" label="País del contacto (opcional)" catalog-group-slug="countries" value-kind="id" />
                     <div class="md:col-span-2"><DhSwitch :model-value="contact.isPrimary"
-                      label="Contacto principal" @update:model-value="setAccountPrimaryContact(contact.key, $event)" /></div>
+                      label="Contacto principal" @update:model-value="setAccountPrimaryContact(contact.key, $event)" />
+                      <DhSwitch v-model="contact.isOperationsContact" label="Encargado de operaciones" /></div>
                   </div>
                 </div>
               </section>
