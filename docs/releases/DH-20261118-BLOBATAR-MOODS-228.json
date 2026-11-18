@@ -1,0 +1,26 @@
+{
+  "releaseId": "DH-20261118-BLOBATAR-MOODS-228",
+  "date": "2026-11-18",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.86.0",
+  "scope": "Three additional distinct Blobatar poses, stressed, tired and resigned",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "version": "1.82.0"
+    },
+    {
+      "component": "DholeSystem",
+      "version": "1.86.0"
+    }
+  ],
+  "unchangedComponents": "Remaining 15 components preserve versions in DholeSystem/release-manifest.json",
+  "requirements": [
+    "Three distinct native Blobatar Expression objects",
+    "17 expressions shared between topbar and Appearance via Pinia",
+    "Persist Auto/Fixed and user expression",
+    "ES/EN translations, deterministic SSR and reduced-motion support"
+  ],
+  "validation": "CI and staging required before master integration",
+  "productionDeployment": "not-authorized"
+}
