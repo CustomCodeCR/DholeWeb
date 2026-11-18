@@ -33,6 +33,23 @@ export interface SrmBankAccount {
   intermediaryBank: string
   isPrimary: boolean
 }
+export interface SrmSupplierFollowup {
+  id: string
+  supplierId: string
+  kind: 'call' | 'email' | 'meeting' | 'visit' | 'note' | 'other'
+  title: string
+  details: string
+  nextActionAtUtc: string | null
+  createdAtUtc: string
+  createdById: string
+  createdByName: string
+}
+export interface SrmFollowupInput {
+  kind: SrmSupplierFollowup['kind']
+  title: string
+  details: string
+  nextActionAt: string | null
+}
 export interface SrmHaciendaResult {
   identification: string
   name: string
@@ -75,6 +92,15 @@ export const SrmApi = {
     const query = new URLSearchParams({ identificacion, countryId })
     return retrySrmHaciendaNetwork(() =>
       fetchClient<SrmHaciendaResult>(base + '/hacienda/lookup?' + query, { method: 'GET' }, ''))
+  },
+  async listFollowups(supplierId: string): Promise<SrmSupplierFollowup[]> {
+    return fetchClient<SrmSupplierFollowup[]>(
+      base + '/suppliers/' + encodeURIComponent(supplierId) + '/followups', { method: 'GET' })
+  },
+  async createFollowup(supplierId: string, input: SrmFollowupInput): Promise<SrmSupplierFollowup> {
+    return fetchClient<SrmSupplierFollowup>(
+      base + '/suppliers/' + encodeURIComponent(supplierId) + '/followups',
+      { method: 'POST', body: input })
   },
   async listBankAccounts(supplierId: string): Promise<SrmBankAccount[]> {
     return fetchClient<SrmBankAccount[]>(base + '/suppliers/' +
