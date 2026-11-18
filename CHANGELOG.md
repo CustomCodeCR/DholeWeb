@@ -1,3 +1,9 @@
+## [1.78.0] - 2026-11-18 (Blobatar: expresiones guardadas y modo automático)
+
+- MINOR DH-20261118-BLOBATAR-PREFERENCES-214: DhAvatar ahora guarda la última expresión por ID de usuario en localStorage y la restaura al volver a entrar; el encabezado añade selector Auto/Fijo, también persistido por usuario. Auto alterna las 14 expresiones cada 30 segundos y se pausa en pestañas ocultas y con prefers-reduced-motion.
+- Clic en el avatar sigue recorriendo las caras; modo Fijo conserva la cara elegida indefinidamente. Se mantienen modo claro/oscuro, estados, gaze y funcionamiento sin conexión backend.
+- DholeWeb 1.77.2 → 1.78.0; DholeSystem/ecosistema 1.81.2 (Pricing 213 pendiente) → 1.82.0. Sin cambios en REST, SignalR o bases de datos; se preservan versiones de microservicios no afectados.
+
 ## [1.77.2] - 2026-11-18 (Ventas: cotización aceptada, edición exclusiva de Pricing)
 
 - PATCH DH-20261118-SELLER-ACCEPTED-213: el dashboard comercial de escritorio y móvil y el detalle no permiten solicitar una modificación en una cotización aceptada, ni mientras Pricing gestiona su revisión posterior.

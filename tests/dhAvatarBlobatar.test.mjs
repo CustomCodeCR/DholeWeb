@@ -125,3 +125,32 @@ test('Profile and expression badge contrast are readable in light and dark theme
   assert.ok(avatar.includes(':background="darkBackdrop ? false : \'circle\'"'))
   assert.ok(topbar.includes(':preview-expressions="true"'))
 })
+
+test('Selected Blobatar expression is saved per authenticated user and restored on mount', () => {
+  assert.match(avatar, /dhole\\.blobatar\\.expression\\.v1:/)
+  assert.match(avatar, /encodeURIComponent\\(id\\)/)
+  assert.match(avatar, /window\\.localStorage\\.setItem\\(key, mood\\)/)
+  assert.match(avatar, /window\\.localStorage\\.getItem\\(key\\)/)
+  assert.match(avatar, /previewMoods\\.indexOf\\(saved as PreviewMood\\)/)
+  assert.match(avatar, /restoreMood\\(\\)/)
+  assert.match(avatar, /watch\\(\\(\\) => props\\.id/)
+})
+
+test('Auto expressions change every 30 seconds and pause for hidden tabs and reduced motion', () => {
+  assert.match(avatar, /AUTO_MOOD_INTERVAL_MS = 30_000/)
+  assert.match(avatar, /setInterval\\(advancePreviewMood, AUTO_MOOD_INTERVAL_MS\\)/)
+  assert.match(avatar, /document\\.hidden/)
+  assert.match(avatar, /reducedMotion\\?\\.matches/)
+  assert.match(avatar, /visibilitychange/)
+  assert.match(avatar, /stopAutoMoodTimer\\(\\)/)
+  assert.match(avatar, /rememberMood\\(tapMood\\.value\\)/)
+})
+
+test('Topbar exposes persistent, accessible per-user Auto / Fixed selection', () => {
+  assert.match(topbar, /dhole\\.blobatar\\.mode\\.v1:/)
+  assert.match(topbar, /window\\.localStorage\\.getItem\\(key\\) !== 'fixed'/)
+  assert.match(topbar, /avatarAutoExpressions\\.value \\? 'auto' : 'fixed'/)
+  assert.match(topbar, /:aria-pressed="avatarAutoExpressions"/)
+  assert.match(topbar, /@click="toggleAvatarAutoExpressions"/)
+  assert.match(topbar, /:auto-expressions="avatarAutoExpressions"/)
+})
