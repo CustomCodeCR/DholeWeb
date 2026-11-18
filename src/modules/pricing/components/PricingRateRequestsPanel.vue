@@ -259,6 +259,12 @@ function isLocked(request: RateRequestDto): boolean {
     && new Date(request.lockExpiresAtUtc).getTime() > now.value)
 }
 
+function isStaleLock(request: RateRequestDto): boolean {
+  // TTL is 120 seconds; absence of renewal for 45 seconds makes it recoverable.
+  return isLocked(request) && !isOwnLock(request)
+    && new Date(request.lockExpiresAtUtc!).getTime() <= now.value + 75000
+}
+
 function isOwnLock(request: RateRequestDto): boolean {
   return isLocked(request) && Boolean(authStore.userId)
     && request.lockedByUserId?.toLowerCase() === authStore.userId?.toLowerCase()
@@ -273,6 +279,21 @@ async function releaseOwnRequest(request: RateRequestDto) {
     await load()
   } catch (cause) {
     toast.backendError(cause, 'No se pudo liberar su reserva. Intente nuevamente.')
+    await load()
+  } finally {
+    releasingRequestId.value = null
+  }
+}
+
+async function releaseStaleRequest(request: RateRequestDto) {
+  if (releasingRequestId.value || !isStaleLock(request)) return
+  releasingRequestId.value = request.id
+  try {
+    await RateRequestLeaseService.releaseStale(request.id)
+    toast.success('Reserva inactiva liberada', 'La solicitud vuelve a estar disponible para el equipo de Pricing.')
+    await load()
+  } catch (cause) {
+    toast.backendError(cause, 'Esta reserva se renovó o ya fue liberada. Actualice la bandeja.')
     await load()
   } finally {
     releasingRequestId.value = null
@@ -593,6 +614,11 @@ onBeforeUnmount(() => {
                 <DhButton :disabled="(isLocked(request) && !isOwnLock(request)) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)" @click="continueRequest(request)">
                   <PlayCircle class="h-4 w-4" />
                   {{ claimingRequestId === request.id ? 'Abriendo…' : isOwnLock(request) ? 'Retomar mi trabajo' : isLocked(request) ? 'En proceso' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
+                </DhButton>
+                <DhButton v-if="isStaleLock(request)" variant="secondary"
+                  :disabled="Boolean(releasingRequestId) || Boolean(claimingRequestId)"
+                  @click="releaseStaleRequest(request)">
+                  {{ releasingRequestId === request.id ? 'Liberando…' : 'Liberar reserva inactiva' }}
                 </DhButton>
                 <DhButton v-if="isOwnLock(request)" variant="secondary"
                   :disabled="Boolean(releasingRequestId) || Boolean(claimingRequestId) || Boolean(cancellingRequestId)"

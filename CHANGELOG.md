@@ -1,3 +1,9 @@
+## [1.79.3] - 2026-11-18 (Pricing: liberación de reservas bloqueadas)
+
+- PATCH DH-20261118-PRICING-LEASE-219: «Liberar mi reserva» utiliza un release directo del backend y nunca vuelve a hacer claim; usuarios autorizados pueden liberar explícitamente reservas ajenas solo tras 45 segundos sin heartbeat, con validación atómica del servidor.
+- Las reservas activas no se pueden quitar; UI refresca el estado real tras cada intento. Se preserva la exclusividad, identidad/impersonación, estado Trabajando, componentes Dh, SignalR y permisos pricing.rate.update.
+- Pruebas de no re-claim, de umbral de inactividad y de consistencia del dashboard en CI. Web 1.79.2 → 1.79.3; Pricing 1.23.6 → 1.23.7; ecosistema 1.83.2 → 1.83.3.
+
 ## [1.79.2] - 2026-11-18 (Pricing: no re-bloquear al soltar una solicitud)
 
 - PATCH DH-20261118-PRICING-LEASE-218: elimina por completo el claim automático tras heartbeat fallido; recuperar solamente con botón explícito. Token de lease aislado por usuario, idempotency keys nuevas y acción Liberar mi reserva para solicitudes propias. Otras cuentas no pueden liberar reservas ajenas.
