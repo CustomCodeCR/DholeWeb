@@ -1,3 +1,9 @@
+## [1.79.2] - 2026-11-18 (Pricing: evitar bloqueo fantasma de solicitudes)
+
+- PATCH DH-20261118-PRICING-LEASE-218: ningún fallo del heartbeat puede volver a tomar automáticamente una solicitud. El usuario debe seleccionar Recuperar reserva; token aislado por cuenta (incluye impersonación), idempotency keys únicas para claim/heartbeat/release y botón Liberar mi reserva solo para sus propias solicitudes.
+- Backend revoca otras reservas del mismo operador durante claim/heartbeat. Respeta todas las reservas de otros usuarios; REST, scopes y SignalR compatibles. Regresiones UI y build.
+- DholeWeb 1.79.1 → 1.79.2; Pricing 1.23.5 → 1.23.6; ecosistema 1.83.1 → 1.83.2.
+
 ## [1.79.1] - 2026-11-18 (MultiQUO: las dos opciones son 672-A/B, sin 673 comercial)
 
 - PATCH DH-20261118-MULTIQUO-IDENTITY-217: buscador global usa números comerciales reales, evita el consecutivo técnico 673 en descripción, resultados y búsquedas de cotización; lista y wizard conservan sufijos de alternativas seleccionadas.
