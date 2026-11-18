@@ -11,6 +11,7 @@ const users = ref<OperationsUser[]>([])
 const selectedId = ref('')
 const selected = computed(() => teams.value.find(t => t.id === selectedId.value))
 const busy = ref(false)
+const removingMemberId = ref('')
 const error = ref('')
 const success = ref('')
 const newName = ref('')
@@ -77,9 +78,16 @@ async function saveMember() {
   finally { busy.value = false }
 }
 async function removeMember(userId: string) {
-  if (!selected.value || !canManage.value || !window.confirm('¿Retirar este usuario del equipo?')) return
-  try { await operationsApi.removeMember(selected.value.id, userId); await reload() }
-  catch (e) { report(e) }
+  if (!selected.value || !canManage.value) return
+  if (removingMemberId.value !== userId) {
+    removingMemberId.value = userId
+    return
+  }
+  try {
+    await operationsApi.removeMember(selected.value.id, userId)
+    removingMemberId.value = ''
+    await reload()
+  } catch (e) { report(e) }
 }
 async function toggleTeam() {
   if (!selected.value || !canManage.value) return
@@ -148,7 +156,8 @@ onMounted(async () => { await Promise.all([reload(), searchUsers()]) })
                 <td class="py-3 font-medium">{{ nameFor(member.userId) }}</td><td>{{ member.capacityPoints }} pts</td>
                 <td>{{ member.isSupervisor ? 'Supervisor' : 'Operador' }}</td>
                 <td>{{ member.isAvailable ? 'Disponible' : 'No disponible' }}</td>
-                <td><button v-if="canManage" class="text-xs text-red-600 hover:underline" @click="removeMember(member.userId)">Retirar</button></td>
+                <td><button v-if="canManage" class="text-xs text-red-600 hover:underline" @click="removeMember(member.userId)">{{ removingMemberId === member.userId ? 'Confirmar retiro' : 'Retirar' }}</button>
+                  <button v-if="removingMemberId === member.userId" class="ml-2 text-xs hover:underline" @click="removingMemberId = ''">Cancelar</button></td>
               </tr></tbody>
             </table>
             <p v-if="!selected.members.length" class="py-4 text-sm text-slate-500">Todavía no se han asignado usuarios.</p>
