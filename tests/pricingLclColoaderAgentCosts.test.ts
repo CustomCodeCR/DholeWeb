@@ -161,12 +161,12 @@ test('LCL coloader loader supplements contextual response with missing Pier17 or
   }
 })
 
-test('incoterm responsibility uses normalized EXW/FCA/FOB value, not opaque config CODE', async () => {
+test('incoterm responsibility uses operation and normalized EXW/FCA/FOB value, not opaque config CODE', async () => {
   const wizard = await readFile(
     new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
     'utf8',
   )
-  assert.match(wizard, /incotermRateSections\(selectedIncotermCode\.value, configured\)/)
+  assert.match(wizard, /incotermClientSections\(operationType\.value, selectedIncotermCode\.value, configured\)/)
 })
 
 test('real Pier17 contextual response: all 8 costs survive FOB-style display section filtering', async () => {

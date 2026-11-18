@@ -839,6 +839,8 @@ export interface RateDto extends Record<string, unknown> {
   pickupLocations?: RatePickupLocationDto[]
   inlandPickupLocation?: RateInlandServiceLocation | null
   inlandDeliveryLocation?: RateInlandServiceLocation | null
+  inlandPickupLocations?: RateInlandServiceLocation[]
+  inlandDeliveryLocations?: RateInlandServiceLocation[]
   containerQuantity: number
   currencyId: string
   currencyName: string
@@ -985,6 +987,8 @@ export interface RateInlandServiceLocation {
   address: string
   latitude?: number | null
   longitude?: number | null
+  cargoCondition?: PickupCargoCondition | null
+  billingParty?: 'Exporter' | 'Importer' | 'Both' | 'ByAgreement' | null
 }
 
 export interface CreateRateRequest extends Record<string, unknown> {
@@ -1018,6 +1022,8 @@ export interface CreateRateRequest extends Record<string, unknown> {
   pickupLocations?: RatePickupLocationDto[]
   inlandPickupLocation?: RateInlandServiceLocation | null
   inlandDeliveryLocation?: RateInlandServiceLocation | null
+  inlandPickupLocations?: RateInlandServiceLocation[]
+  inlandDeliveryLocations?: RateInlandServiceLocation[]
   exchangeRatePurchase?: number | null
   exchangeRateSale?: number | null
   exchangeRateApplied?: number | null

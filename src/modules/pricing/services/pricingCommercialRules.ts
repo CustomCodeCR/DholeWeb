@@ -166,6 +166,17 @@ export function buildOperationalLines(context: {
       add('Impuestos de exportación', 'origin_charges', 'OriginCharge', 28)
   }
 
+  // DDP export: the quoted exporter/vendor normally covers the full route.
+  // This is the seller-side counterpart to an importing buyer's EXW exposure,
+  // without changing either ICC Incoterm.
+  if (incoterm === 'DDP' && isExport) {
+    add('Recolección', 'pickup_origin', 'InlandTransport')
+    add('Trámite de exportación', 'origin_charges', 'CustomsCharge')
+    add('Cargos en origen', 'origin_charges', 'OriginCharge')
+    add('Cargos en destino', 'destination_charges', 'DestinationCharge')
+    add('Entrega a destino acordado', 'delivery_destination', 'InlandTransport')
+  }
+
   if (incoterm === 'FCA') {
     add(
       context.modality === 'Air' ? 'Cargos en origen de la línea aérea' : 'Cargos en origen',
@@ -275,7 +286,13 @@ function buildFallbackCommercialTerms(query: {
   }
 
   if (incoterm === 'EXW') {
-    add(includes, 'Recolección', 'Trámite de exportación', 'Cargos en origen')
+    if (isImport || (!isImport && !isExport)) add(includes, 'Recolección', 'Trámite de exportación', 'Cargos en origen')
+    if (isExport) add(excludes, 'Recolección', 'Trámite de exportación', 'Cargos en origen')
+  } else if (incoterm === 'DDP' && isExport) {
+    add(includes, 'Recolección', 'Trámite de exportación', 'Cargos en origen',
+      'Flete internacional', 'Cargos en destino', 'Entrega a destino acordado')
+    removeNormalized(excludes, 'Impuestos')
+    removeNormalized(excludes, 'Trámites de aduanas')
   } else if (incoterm === 'FCA') {
     add(includes, modality === 'Air' ? 'Cargos en origen de la línea aérea' : 'Cargos en origen')
     add(excludes, 'Recolección')

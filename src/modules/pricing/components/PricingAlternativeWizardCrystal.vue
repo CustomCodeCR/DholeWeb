@@ -40,6 +40,7 @@ import type {
   ImportRateSelectDto,
   RateDto,
   RatePickupLocationDto,
+  RateInlandServiceLocation,
   PickupCargoCondition,
   RateRevisionDto,
   UpdateRateRequest,
@@ -57,6 +58,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
+import { incotermClientSections, incotermClientPaysMainTransport, incotermOperationExplanation } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -99,8 +101,6 @@ import {
   canonicalServiceLine,
   cargoInsuranceNote,
   commercialTermKey,
-  incotermBuyerPaysMainTransport,
-  incotermRateSections,
   resolveCommercialTerms,
 } from '@/modules/pricing/services/pricingCommercialRules'
 
@@ -300,6 +300,8 @@ const form = reactive({
   pickupLongitude: null as number | null,
   inlandPickupLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
   inlandDeliveryLocation: { address: '', latitude: null as number | null, longitude: null as number | null },
+  inlandPickupLocations: [] as RateInlandServiceLocation[],
+  inlandDeliveryLocations: [] as RateInlandServiceLocation[],
   freeDays: 0,
   transitDays: 0,
   carrierRoute: '',
@@ -1720,9 +1722,14 @@ const inlandPickupServiceSelected = computed(() => selectedServices.value.some(s
 const inlandDeliveryServiceSelected = computed(() => selectedServices.value.some(service =>
   /transporte.*entrega|entrega.*transporte|delivery/.test(inlandServiceName(service)),
 ))
+const inlandStopListReady = (locations: RateInlandServiceLocation[]) =>
+  locations.length > 0 && locations.every(point =>
+    Boolean(point.address?.trim())
+    && (point.cargoCondition === 'FiscalCargo' || point.cargoCondition === 'NationalizedCargo'),
+  )
 const inlandServiceLocationsReady = computed(() =>
-  (!inlandPickupServiceSelected.value || Boolean(form.inlandPickupLocation?.address?.trim()))
-  && (!inlandDeliveryServiceSelected.value || Boolean(form.inlandDeliveryLocation?.address?.trim())),
+  (!inlandPickupServiceSelected.value || (Boolean(form.inlandPickupLocation?.address?.trim()) && inlandStopListReady(form.inlandPickupLocations)))
+  && (!inlandDeliveryServiceSelected.value || (Boolean(form.inlandDeliveryLocation?.address?.trim()) && inlandStopListReady(form.inlandDeliveryLocations))),
 )
 function isStorageService(value: string) {
   const normalized = normalizeCatalogValue(value)
@@ -2067,7 +2074,7 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
   // Config's `code` can be an opaque catalog identifier. Use the normalized
   // EXW/FCA/FOB term resolved from its display value instead.
-  return incotermRateSections(selectedIncotermCode.value, configured) as RateSection[]
+  return incotermClientSections(operationType.value, selectedIncotermCode.value, configured) as RateSection[]
 })
 
 const visibleSections = computed<RateSection[]>(() => {
@@ -4527,6 +4534,12 @@ async function hydrateExistingRate() {
       form.inlandDeliveryLocation = rate.inlandDeliveryLocation
         ? { address: rate.inlandDeliveryLocation.address ?? '', latitude: rate.inlandDeliveryLocation.latitude ?? null, longitude: rate.inlandDeliveryLocation.longitude ?? null }
         : { address: '', latitude: null, longitude: null }
+      form.inlandPickupLocations = (rate.inlandPickupLocations?.length
+        ? rate.inlandPickupLocations : rate.inlandPickupLocation ? [rate.inlandPickupLocation] : [])
+        .map(point => ({ ...point }))
+      form.inlandDeliveryLocations = (rate.inlandDeliveryLocations?.length
+        ? rate.inlandDeliveryLocations : rate.inlandDeliveryLocation ? [rate.inlandDeliveryLocation] : [])
+        .map(point => ({ ...point }))
     // Tarifas nuevas persisten WarehouseId. Para tarifas históricas, resolver por
     // dirección/coordenadas evita que una revisión FCA pierda el WHS seleccionado.
     form.warehouseId = selectedIncotermCode.value === 'FCA' ? resolvePersistedWarehouseId(rate) : ''
@@ -5305,6 +5318,10 @@ async function saveOpenRequest() {
         ? { ...form.inlandPickupLocation, address: form.inlandPickupLocation.address.trim() } : null,
       inlandDeliveryLocation: inlandDeliveryServiceSelected.value && form.inlandDeliveryLocation.address.trim()
         ? { ...form.inlandDeliveryLocation, address: form.inlandDeliveryLocation.address.trim() } : null,
+      inlandPickupLocations: inlandPickupServiceSelected.value
+        ? form.inlandPickupLocations.map(point => ({ ...point, address: point.address.trim() })) : [],
+      inlandDeliveryLocations: inlandDeliveryServiceSelected.value
+        ? form.inlandDeliveryLocations.map(point => ({ ...point, address: point.address.trim() })) : [],
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -5473,7 +5490,7 @@ async function saveRate() {
     ? editingRate.value.rateDetails.find(detail => detail.costDetailType === 'Freight')
     : null
   if (persistedFreight && shipmentModeForApi.value === 'Lcl'
-    && incotermBuyerPaysMainTransport(selectedIncotermCode.value)
+    && incotermClientPaysMainTransport(operationType.value, selectedIncotermCode.value)
     && !includedLines.value.some(line => line.costDetailType === 'Freight')) {
     rateLines.value = [{
       key: `existing:${persistedFreight.id}`, detailId: persistedFreight.id,
@@ -5665,7 +5682,7 @@ async function saveRate() {
     serviceCodes.add(code)
     if (isCrcCustomsService(service)) serviceCodes.add('CUSTOMS_CR')
   })
-  if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  if (!incotermClientPaysMainTransport(operationType.value, incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
   if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
     serviceCodes.add('CARGO_INSURANCE')
   else
@@ -5771,6 +5788,10 @@ async function saveRate() {
         ? { ...form.inlandPickupLocation, address: form.inlandPickupLocation.address.trim() } : null,
       inlandDeliveryLocation: inlandDeliveryServiceSelected.value && form.inlandDeliveryLocation.address.trim()
         ? { ...form.inlandDeliveryLocation, address: form.inlandDeliveryLocation.address.trim() } : null,
+      inlandPickupLocations: inlandPickupServiceSelected.value
+        ? form.inlandPickupLocations.map(point => ({ ...point, address: point.address.trim() })) : [],
+      inlandDeliveryLocations: inlandDeliveryServiceSelected.value
+        ? form.inlandDeliveryLocations.map(point => ({ ...point, address: point.address.trim() })) : [],
       exchangeRatePurchase: exchangeRatePurchase.value,
       exchangeRateSale: exchangeRateSale.value,
       exchangeRateApplied: exchangeRateSale.value,
@@ -6259,6 +6280,8 @@ function resetWizard() {
     pickupLongitude: null,
     inlandPickupLocation: { address: '', latitude: null, longitude: null },
     inlandDeliveryLocation: { address: '', latitude: null, longitude: null },
+    inlandPickupLocations: [],
+    inlandDeliveryLocations: [],
     freeDays: 0,
     transitDays: 0,
     carrierRoute: '',
@@ -6970,6 +6993,9 @@ onMounted(async () => {
               <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
 
+            <p v-if="form.incotermId" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ incotermOperationExplanation(operationType, selectedIncotermCode) }}
+            </p>
             <PricingCrystalMultiSelect
               v-model="form.serviceIds"
               data-required-field="serviceIds" :error="fieldError('serviceIds')"
@@ -6981,12 +7007,18 @@ onMounted(async () => {
             <PricingInlandServiceLocation
               v-if="inlandPickupServiceSelected"
               v-model="form.inlandPickupLocation"
+              v-model:locations="form.inlandPickupLocations"
+              :operation-type="operationType"
+              :incoterm-code="selectedIncotermCode"
               data-required-field="inlandPickupLocation" :error="fieldError('inlandPickupLocation')"
               kind="pickup"
             />
             <PricingInlandServiceLocation
               v-if="inlandDeliveryServiceSelected"
               v-model="form.inlandDeliveryLocation"
+              v-model:locations="form.inlandDeliveryLocations"
+              :operation-type="operationType"
+              :incoterm-code="selectedIncotermCode"
               data-required-field="inlandDeliveryLocation" :error="fieldError('inlandDeliveryLocation')"
               kind="delivery"
             />
