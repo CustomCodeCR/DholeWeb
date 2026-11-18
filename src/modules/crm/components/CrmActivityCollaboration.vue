@@ -22,6 +22,54 @@ const updatingCommitmentId = ref('')
 const notes = ref<CrmRow[]>([])
 const participants = ref<CrmRow[]>([])
 const contacts = ref<CrmRow[]>([])
+const internalDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const internalQuery = ref('')
+const selectedInternalIds = ref<string[]>([])
+const internalLoading = ref(false)
+const internalChoices = computed(() => internalDirectory.value
+  .filter(user => !participants.value.some(p => String(p.userId ?? '') === user.id))
+  .map(user => ({ value: user.id, label: user.displayName || user.userName || user.id })))
+async function searchInternalUsers() {
+  if (internalLoading.value) return
+  internalLoading.value = true
+  try {
+    const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }> }>(
+      crmPath('calendar/invitees') + '?page=1&pageSize=100&search=' +
+      encodeURIComponent(internalQuery.value.trim()))
+    const map = new Map(internalDirectory.value.map(user => [user.id, user]))
+    for (const item of result.items ?? []) map.set(item.id, item)
+    internalDirectory.value = [...map.values()]
+  } catch (cause) { error.value = crmError(cause) }
+  finally { internalLoading.value = false }
+}
+async function removeInternalInvitee(participant: CrmRow) {
+  if (!props.canManage || saving.value || !participant.userId) return
+  saving.value = true
+  error.value = ''
+  try {
+    await crmRequest(crmPath('activities', props.activityId,
+      'participants/' + String(participant.id)), 'DELETE')
+    message.value = 'Invitación retirada. Ya no se enviarán sus recordatorios.'
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { saving.value = false }
+}
+async function inviteInternalUsers() {
+  if (!props.canManage || saving.value || !selectedInternalIds.value.length) return
+  saving.value = true
+  error.value = ''
+  try {
+    for (const userId of selectedInternalIds.value) {
+      await crmRequest(crmPath('activities',props.activityId,'participants'), 'POST', {
+        contactId: null, userId, participantName: null, role: 'RESPONSIBLE',
+      }, crmUuid())
+    }
+    selectedInternalIds.value = []
+    message.value = 'Usuarios invitados a esta actividad.'
+    await load()
+  } catch (cause) { error.value = crmError(cause); await load() }
+  finally { saving.value = false }
+}
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -123,7 +171,7 @@ const roleLabel = (value: unknown) =>
   ({ORGANIZER:'Organizador',RESPONSIBLE:'Responsable',ATTENDEE:'Asistente',GUEST:'Invitado'} as Record<string,string>)[String(value)] ?? String(value ?? 'Participante')
 const participantLabel = (row: CrmRow) =>
   String(row.participantName ?? (row.contactId ? labelForContact(row.contactId) : null) ??
-    (row.userId ? 'Usuario interno' : 'Participante'))
+    (row.userId ? internalDirectory.value.find(x => x.id === String(row.userId))?.displayName || 'Usuario interno' : 'Participante'))
 const initials = (name: string) => name.trim().split(/\s+/).slice(0,2).map(x => x.slice(0,1)).join('').toLocaleUpperCase('es')
 const formattedDate = (value: unknown) => {
   const time = value ? new Date(String(value)) : null
@@ -253,7 +301,7 @@ async function addNote() {
 watch(() => [props.activityId, props.accountId], () => {
   noteAutosave.stop(); participantAutosave.stop()
   note.value = ''; noteCommitments.value = []
-  participantName.value = ''; selectedContactIds.value = []; role.value = 'ATTENDEE'
+  participantName.value = ''; selectedContactIds.value = []; selectedInternalIds.value = []; role.value = 'ATTENDEE'
   noteAutosave.begin()
   void load()
 }, { immediate: true })
@@ -298,6 +346,23 @@ watch(() => [props.activityId, props.accountId], () => {
             <DhButton :label="accountId ? 'Guardar participantes' : 'Guardar participante'" size="sm" type="submit" :loading="saving" />
           </div>
         </form>
+        <form v-if="canManage && (auth.hasScope('crm.activity.create') || auth.hasScope('crm.followup.manage'))"
+          class="mt-3 space-y-2 rounded-xl border border-[var(--dh-border)] p-3"
+          @submit.prevent="inviteInternalUsers">
+          <p class="text-sm font-semibold">Invitar usuarios del sistema</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">Las asistentes invitadas tendrán esta actividad en su agenda y recibirán sus recordatorios.</p>
+          <div class="flex gap-2">
+            <input v-model.trim="internalQuery" class="crm-input min-w-0 flex-1" placeholder="Nombre de la asistente o compañero"
+              @keyup.enter.prevent="searchInternalUsers" />
+            <DhButton label="Buscar" size="sm" variant="secondary" :loading="internalLoading"
+              @click="searchInternalUsers" />
+          </div>
+          <DhMultiSelect v-model="selectedInternalIds" label="Usuarios internos" :options="internalChoices"
+            placeholder="Seleccionar usuarios" search-placeholder="Buscar usuarios..."
+            empty-text="Buscá usuarios activos de Auth." />
+          <DhButton label="Enviar invitaciones" size="sm" type="submit"
+            :disabled="!selectedInternalIds.length" :loading="saving" />
+        </form>
         <p v-if="!participants.length && !loading" class="mt-5 rounded-xl border border-dashed border-[var(--dh-border)] px-4 py-7 text-center text-sm text-[var(--dh-text-muted)]">
           No hay participantes todavía. Usá «Añadir» para registrar al primero.
         </p>
@@ -311,6 +376,9 @@ watch(() => [props.activityId, props.accountId], () => {
               <strong class="block truncate text-sm">{{ participantLabel(person) }}</strong>
               <span class="text-xs text-[var(--dh-text-muted)]">{{ roleLabel(person.role) }}</span>
             </span>
+            <DhButton v-if="canManage && person.userId" label="Retirar invitación"
+              size="sm" variant="secondary" :disabled="saving"
+              @click="removeInternalInvitee(person)" />
           </li>
         </ul>
       </article>

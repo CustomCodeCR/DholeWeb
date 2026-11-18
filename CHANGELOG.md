@@ -1,3 +1,9 @@
+## [1.83.0] - 2026-11-18 (CRM: agenda compartida e invitados internos)
+
+- MINOR DH-20261118-CRM-SHARED-AGENDA-229: selección múltiple de empleados de Auth como invitados a llamadas, citas, reuniones y seguimientos. Misma actividad visible en sus calendarios y recordatorios individuales Email/System mediante Outbox.
+- Cambios de invitados en detalle, roles y scopes conservados, REST compatible; controles idempotentes. DholeWeb 1.82.1 → 1.83.0; DholeCRMService 1.36.0 → 1.37.0, DholeSystem/ecosistema 1.86.1 → 1.87.0.
+- CI/staging pendientes; producción no autorizada.
+
 ## [1.82.1] - 2026-11-18 (LCL/LTL: peso por unidad de carga)
 
 - PATCH DH-20261118-CARGO-WEIGHT-PER-UNIT-229: el peso introducido en cada línea ahora es unitario y se multiplica por cantidad; el peso consolidado, el equivalente por peso y el resumen de Ventas se calculan desde todas las unidades, igual que los CBM/CFT.
