@@ -1,3 +1,9 @@
+## [1.70.3] - 2026-11-17 (Solicitudes de tarifa: protección de inicialización del wizard)
+
+- PATCH DH-20261117-RATE-REQUEST-WATCH-TDZ-204: registra el observador del propietario comercial CRM después de inicializar el formulario Vue para evitar el error de navegador «Cannot access before initialization» en la compilación de producción.
+- Se conserva la asignación de solicitudes delegadas al vendedor real del cliente, el aislamiento de solicitudes /mine, el outbox y SignalR. Prueba de regresión asegura que no exista observador reactivo prematuro.
+- Web 1.70.2 → 1.70.3; ecosistema 1.73.2 → 1.73.3. Requiere CI y staging antes de promoción a master.
+
 ## [1.70.2] - 2026-11-17 (Cancelar cotizaciones solo si fueron aceptadas)
 
 - PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: mostrar Cancelar cotización únicamente en estado AcceptedByClient (dashboard móvil/escritorio y detalle). Pricing bloquea llamadas directas al endpoint si no fue aceptada, con auditoría e idempotencia preservadas.
