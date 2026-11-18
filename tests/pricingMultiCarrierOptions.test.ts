@@ -298,11 +298,11 @@ test('group margin approval and PDF require all sibling alternatives to be appro
   assert.match(formatSource, /rate\.quoNumber\?\.trim\(\) \|\| rate\.rateCode/)
 })
 
-test('MultiQUO list and dashboard expose both commercial subquotes, not technical rate codes', () => {
+test('MultiQUO list, dashboard and wizard show one parent QUO with nested alternatives', () => {
   const rates = readFileSync(new URL('../src/modules/pricing/views/PricingRatesView.vue', import.meta.url), 'utf8')
   const dashboard = readFileSync(new URL('../src/modules/dashboard/components/PricingRoleDashboard.vue', import.meta.url), 'utf8')
   const crystal = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
-  assert.match(rates, /rate\.quoNumber \|\| rate\.groupQuoteNumber \|\| rate\.rateCode/)
+  assert.match(rates, /rate\.groupQuoteNumber \|\| rate\.quoNumber \|\| rate\.rateCode/)
   assert.match(dashboard, /rate\.quoNumber \|\| rate\.rateCode/)
-  assert.match(crystal, /:label="editingRate\.quoNumber \|\| editingRate\.rateCode"/)
+  assert.match(crystal, /:label="groupedCommercialNumber"/)
 })

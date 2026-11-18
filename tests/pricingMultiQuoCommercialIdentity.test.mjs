@@ -8,7 +8,7 @@ const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAl
 
 test('global search uses commercial QUO, not historical per-child consecutive', () => {
   assert.match(search, /PricingService\.browseRates\(\{ \.\.\.page, groupQuotes: true \}\)/)
-  assert.match(search, /title: rate\.quoNumber \|\| rate\.groupQuoteNumber \|\| rate\.rateCode/)
+  assert.match(search, /title: rate\.groupQuoteNumber \|\| rate\.quoNumber \|\| rate\.rateCode/)
   assert.doesNotMatch(search, /title: rate\.rateCode \|\| rate\.rateName/)
   assert.match(search, /rate\.quoNumber \? undefined : rate\.rateCode/)
 })
