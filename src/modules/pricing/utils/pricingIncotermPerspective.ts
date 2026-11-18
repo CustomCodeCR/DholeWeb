@@ -37,3 +37,43 @@ export function incotermOperationExplanation(
     return 'DDP: el vendedor normalmente asume la entrega. Cotizar como importación no cambia esa obligación.'
   return 'La operación define la perspectiva comercial; distribuya los cargos según el Incoterm pactado y el tramo contratado.'
 }
+
+export type IncotermCostSection =
+  | 'pickup_origin' | 'origin_charges' | 'international_freight'
+  | 'destination_charges' | 'delivery_destination'
+const SECTIONS: IncotermCostSection[] = [
+  'pickup_origin', 'origin_charges', 'international_freight',
+  'destination_charges', 'delivery_destination',
+]
+const BUYER_SECTIONS: Record<string, IncotermCostSection[]> = {
+  EXW: SECTIONS,
+  FCA: ['international_freight', 'destination_charges', 'delivery_destination'],
+  FAS: ['international_freight', 'destination_charges', 'delivery_destination'],
+  FOB: ['international_freight', 'destination_charges', 'delivery_destination'],
+  CFR: ['destination_charges', 'delivery_destination'],
+  CIF: ['destination_charges', 'delivery_destination'],
+  CPT: ['destination_charges', 'delivery_destination'],
+  CIP: ['destination_charges', 'delivery_destination'],
+  DAP: ['destination_charges'], // Import clearance/duties remain buyer obligations.
+  DPU: ['destination_charges'],
+  DDP: [],
+}
+
+/** Cost sections for the party being quoted, not a renamed or inverted Incoterm. */
+export function incotermClientSections(
+  operation: RateOperationType,
+  code: string,
+  fallback: IncotermCostSection[] = ['international_freight'],
+): IncotermCostSection[] {
+  if (operation === 'TransitDomestic') return [...SECTIONS] // Hybrid, manually split costs.
+  const buyerSections = BUYER_SECTIONS[code.trim().toUpperCase()] ?? fallback
+  if (operation === 'Import') return [...buyerSections]
+  return SECTIONS.filter(section => !buyerSections.includes(section))
+}
+
+export function incotermClientPaysMainTransport(
+  operation: RateOperationType,
+  code: string,
+): boolean {
+  return incotermClientSections(operation, code).includes('international_freight')
+}
