@@ -24,6 +24,13 @@ test('Normal seller requests do not discard the CRM executive before POST', () =
   assert.match(identity, /Seleccione una cuenta o prospecto del CRM con un ejecutivo comercial asignado/)
 })
 
+test('Delegated requests belong to the CRM seller and never to the accidental creator', () => {
+  assert.match(delegated, /sellerRequestOwnerId\.value = form\.clientId && form\.crmClientKind/)
+  assert.match(delegated, /sellerRequestOwnerId\.value = executiveId \|\| ''/)
+  assert.match(delegated, /sellerUserId: form\.clientId && form\.crmClientKind/)
+  assert.match(delegated, /\(form\.executiveId \|\| null\)/)
+})
+
 test('Multimodal requests retain their CRM seller and historical unlinked quotes can be amended', () => {
   assert.match(multimodal, /if \(form\.clientId\) \{/)
   assert.match(multimodal, /name\.toLowerCase\(\) === 'castro fallas'/)

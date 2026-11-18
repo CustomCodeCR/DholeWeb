@@ -1,0 +1,28 @@
+{
+  "releaseId": "DH-20261117-CRM-RATE-REQUEST-OWNER-203",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.73.1",
+  "date": "2026-11-17",
+  "type": "PATCH",
+  "status": "candidate-ci-and-staging-pending",
+  "branches": [
+    "fix/rate-request-crm-owner-web-rebase-20261117",
+    "develop",
+    "master"
+  ],
+  "summary": "Asignar solicitudes de tarifa a vendedor responsable de cuenta o prospecto CRM independientemente del usuario creador.",
+  "restCompatibility": "El POST de rate-requests continúa compatible. El cliente autoritativo de CRM determina SellerUserId y las consultas/ediciones /mine permanecen por propietario.",
+  "realtimeCompatibility": "Se conservan outbox e integraciones SignalR existentes.",
+  "tests": [
+    "pricingCrmRequestCommercialOwner.test.mjs",
+    "CI type-check and build passed on former candidate; re-run after rebase",
+    "Staging pending"
+  ],
+  "component": "DholeWeb",
+  "previousVersion": "1.70.0",
+  "version": "1.70.1",
+  "relatedComponents": {
+    "DholePricingService": "1.23.1",
+    "DholeWeb": "1.70.1"
+  }
+}

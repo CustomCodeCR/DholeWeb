@@ -1,7 +1,13 @@
-## [1.71.0] - 2026-11-17 (CRM: encargados de operaciones por cliente)
+## [1.71.0] - 2026-11-17 (Contactos operativos de clientes)
 
-- MINOR DH-20261117-CRM-OPS-CONTACTS-204: dos indicadores independientes por contacto, con principal único por cuenta y múltiples responsables operativos. CRM Web se vincula a la API para trámites.
-- Conserva el release concurrente SRM 1.70.0; Web 1.70.0 → 1.71.0, ecosistema 1.73.0 → 1.74.0. Requiere CI y staging antes de master.
+- MINOR DH-20261117-CRM-OPS-CONTACTS-204: contacto principal único y múltiples encargados de operaciones por cuenta. Pantallas de creación/edición de CRM con banderas independientes.
+- Preserva SRM 1.70.0 y Pricing CRM ownership 1.70.1; ecosistema 1.73.1 → 1.74.0. CI y staging antes de master.
+
+## [1.70.1] - 2026-11-17 (Solicitudes de tarifa: ejecutivo comercial CRM)
+
+- PATCH DH-20261117-CRM-RATE-REQUEST-OWNER-203: al crear una solicitud para una cuenta/prospecto, SellerUserId coincide con el vendedor real asignado en CRM, independientemente del usuario creador. El selector alternativo solo aplica a clientes históricos sin vínculo CRM.
+- Preserva vendedores institucionales Castro Fallas, notificaciones realtime y rutas REST. El backend valida de nuevo la propiedad en CRM, sin confiar en identidades del navegador.
+- Web 1.70.0 → 1.70.1; Pricing 1.23.0 → 1.23.1; ecosistema 1.73.0 → 1.73.1. CI y staging previos a master.
 
 ## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
 
