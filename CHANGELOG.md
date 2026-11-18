@@ -1,8 +1,8 @@
 ## [1.83.0] - 2026-11-18 (CRM: agenda compartida e invitados internos)
 
-- MINOR DH-20261118-CRM-SHARED-AGENDA-229: agenda comercial compartida con usuarios internos de Auth. Al agendar llamadas, citas, visitas y recordatorios se pueden invitar múltiples asistentes; cada invitado ve el mismo registro y recibe avisos propios por sistema y correo.
-- Nueva consulta de usuarios invitables y edición de invitados desde el detalle; permisos de lectura por pertenencia explícita, control de responsabilidades y estado compartido. Contratos REST compatibles, deduplicación/outbox y sincronización de recordatorios.
-- DholeWeb 1.82.0 → 1.83.0; DholeCRMService 1.36.0 → 1.37.0; ecosistema 1.86.0 → 1.87.0. Requiere CI/staging; sin autorización de producción.
+- MINOR DH-20261118-CRM-SHARED-AGENDA-229: selección múltiple de empleados de Auth como invitados a llamadas, citas, reuniones y seguimientos. Misma actividad visible en sus calendarios y recordatorios individuales Email/System mediante Outbox.
+- Cambios de invitados en detalle, roles y scopes conservados, REST compatible; controles idempotentes. DholeWeb 1.82.0 → 1.83.0; DholeCRMService 1.36.0 → 1.37.0, DholeSystem/ecosistema 1.86.0 → 1.87.0.
+- CI/staging pendientes; producción no autorizada.
 
 ## [1.82.0] - 2026-11-18 (Blobatar: estresado, cansado y resignado)
 
