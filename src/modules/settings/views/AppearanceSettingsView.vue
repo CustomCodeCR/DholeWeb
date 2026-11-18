@@ -8,16 +8,20 @@ import {
   Palette,
   RotateCcw,
   Save,
+  Smile,
   Sun,
   Trash2,
   Upload,
 } from 'lucide-vue-next'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhColorPicker, DhRange } from '@/shared/components/atoms'
+import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useThemeStore, type ThemeMode } from '@/core/stores/themeStore'
+import { useAuthStore } from '@/core/stores/authStore'
+import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
 import { useLocale, type LocaleCode } from '@/core/stores/locale'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
@@ -28,6 +32,20 @@ import { useViewShortcuts } from '@/core/composables/useViewShortcuts'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
+const authStore = useAuthStore()
+const avatarAppearance = useAvatarAppearanceStore()
+const avatarPreviewTrigger = ref(0)
+const avatarMoodLabel = computed(() => avatarAppearance.expression
+  ? t('appearance.avatarMoods.' + avatarAppearance.expression)
+  : t('appearance.avatarNeutral'),
+)
+watch(() => authStore.userId, (id) => avatarAppearance.selectUser(id), { immediate: true })
+onMounted(() => avatarAppearance.start())
+onBeforeUnmount(() => avatarAppearance.stop())
+function cycleAvatarExpression() {
+  avatarPreviewTrigger.value += 1
+  avatarAppearance.nextExpression()
+}
 const localeStore = useLocale()
 const shortcutStore = useShortcutStore()
 const tabsStore = useWorkspaceTabsStore()
@@ -272,6 +290,66 @@ onMounted(refreshAppearanceSettings)
         </div>
       </DhCard>
     </section>
+
+    <DhCard :title="t('appearance.avatarTitle')" :subtitle="t('appearance.avatarHelp')" :icon="Smile">
+      <div class="grid items-center gap-6 lg:grid-cols-[minmax(15rem,19rem)_minmax(0,1fr)]">
+        <div class="flex min-w-0 flex-col items-center gap-4 rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-6">
+          <button
+            type="button"
+            class="relative flex h-48 w-48 touch-manipulation items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dh-primary)] focus-visible:ring-offset-4"
+            :aria-label="t('appearance.avatarNext')"
+            :title="t('appearance.avatarNext')"
+            @click="cycleAvatarExpression"
+          >
+            <DhAvatar
+              :id="authStore.userId"
+              :name="authStore.userDisplayName || t('topbar.unknownUser')"
+              size="xl"
+              status="online"
+              animate="always"
+              :follow-cursor="true"
+              :dark-backdrop="themeStore.resolvedTheme === 'dark'"
+              :mood="avatarAppearance.expression ?? 'auto'"
+              :controlled-expressions="true"
+              :tap-trigger="avatarPreviewTrigger"
+            />
+          </button>
+          <div class="text-center">
+            <p class="text-base font-black text-[var(--dh-text)]" aria-live="polite">{{ avatarMoodLabel }}</p>
+            <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.avatarPreviewHelp') }}</p>
+          </div>
+        </div>
+        <div class="min-w-0 space-y-4">
+          <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
+            {{ t('appearance.avatarBehavior') }}
+          </p>
+          <div class="flex flex-wrap gap-3" role="group" :aria-label="t('appearance.avatarBehavior')">
+            <DhButton
+              :label="t('appearance.avatarAuto')"
+              :variant="avatarAppearance.automatic ? 'primary' : 'secondary'"
+              :aria-pressed="avatarAppearance.automatic"
+              @click="avatarAppearance.setAutomatic(true)"
+            />
+            <DhButton
+              :label="t('appearance.avatarFixed')"
+              :variant="!avatarAppearance.automatic ? 'primary' : 'secondary'"
+              :aria-pressed="!avatarAppearance.automatic"
+              @click="avatarAppearance.setAutomatic(false)"
+            />
+          </div>
+          <p class="max-w-xl text-sm font-semibold leading-6 text-[var(--dh-text-muted)]">
+            {{ avatarAppearance.automatic ? t('appearance.avatarAutoHelp') : t('appearance.avatarFixedHelp') }}
+          </p>
+          <DhButton
+            :label="t('appearance.avatarNext')"
+            :icon="RotateCcw"
+            variant="secondary"
+            @click="cycleAvatarExpression"
+          />
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.avatarStorageHelp') }}</p>
+        </div>
+      </div>
+    </DhCard>
 
     <DhCard
       :title="t('appearance.liquidCrystal')"
