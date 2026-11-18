@@ -58,6 +58,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
+import { incotermClientSections, incotermClientPaysMainTransport, incotermOperationExplanation } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -2075,7 +2076,7 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
   // Config's `code` can be an opaque catalog identifier. Use the normalized
   // EXW/FCA/FOB term resolved from its display value instead.
-  return incotermRateSections(selectedIncotermCode.value, configured) as RateSection[]
+  return incotermClientSections(operationType.value, selectedIncotermCode.value, configured) as RateSection[]
 })
 
 const visibleSections = computed<RateSection[]>(() => {
@@ -5491,7 +5492,7 @@ async function saveRate() {
     ? editingRate.value.rateDetails.find(detail => detail.costDetailType === 'Freight')
     : null
   if (persistedFreight && shipmentModeForApi.value === 'Lcl'
-    && incotermBuyerPaysMainTransport(selectedIncotermCode.value)
+    && incotermClientPaysMainTransport(operationType.value, selectedIncotermCode.value)
     && !includedLines.value.some(line => line.costDetailType === 'Freight')) {
     rateLines.value = [{
       key: `existing:${persistedFreight.id}`, detailId: persistedFreight.id,
@@ -5683,7 +5684,7 @@ async function saveRate() {
     serviceCodes.add(code)
     if (isCrcCustomsService(service)) serviceCodes.add('CUSTOMS_CR')
   })
-  if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  if (!incotermClientPaysMainTransport(operationType.value, incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
   if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
     serviceCodes.add('CARGO_INSURANCE')
   else
@@ -6994,6 +6995,9 @@ onMounted(async () => {
               <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
 
+            <p v-if="form.incotermId" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              {{ incotermOperationExplanation(operationType, selectedIncotermCode) }}
+            </p>
             <PricingCrystalMultiSelect
               v-model="form.serviceIds"
               data-required-field="serviceIds" :error="fieldError('serviceIds')"
