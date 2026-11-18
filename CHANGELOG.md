@@ -1,3 +1,9 @@
+## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
+
+- MINOR DH-20261117-SRM-ARCHIVE-UI-203: creación/edición y detalle del proveedor pasan de drawer lateral a diálogos centrados de ancho amplio; identidad, contactos, bancos, crédito, bitácora y tarifas usan bloques plegables claros, sin pestañas.
+- El guardado de la ficha sigue siendo único; los errores abren su bloque correspondiente y conservan el pie fijo. Las secciones de seguimiento/documentos se mantienen vinculadas al ID correcto.
+- Web 1.69.0 → 1.70.0, ecosistema 1.72.0 → 1.73.0. Validar CI y staging antes de master.
+
 ## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
 
 - MINOR DH-20261117-SELLER-CANCEL-202: botón de cancelación en dashboard de ventas (móvil y escritorio) y detalle de QUO; motivo obligatorio (1-1000 caracteres), confirmación y refresco del estado.
