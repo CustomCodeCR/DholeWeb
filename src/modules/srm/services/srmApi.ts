@@ -50,6 +50,26 @@ export interface SrmFollowupInput {
   details: string
   nextActionAt: string | null
 }
+export type SrmTransportMode = 'maritime' | 'air' | 'land'
+export interface SrmSupplierRoute {
+  id: string
+  supplierId: string
+  transportMode: SrmTransportMode
+  originIds: string[]
+  destinationIds: string[]
+  createdAtUtc: string
+  updatedAtUtc: string
+}
+export interface SrmSupplierRouteInput {
+  transportMode: SrmTransportMode
+  originIds: string[]
+  destinationIds: string[]
+}
+export interface SrmPricingSupplierCoverage extends SrmSupplierRouteInput {
+  supplierId: string
+  supplierName: string
+  routeId: string
+}
 export interface SrmHaciendaResult {
   identification: string
   name: string
@@ -101,6 +121,27 @@ export const SrmApi = {
     return fetchClient<SrmSupplierFollowup>(
       base + '/suppliers/' + encodeURIComponent(supplierId) + '/followups',
       { method: 'POST', body: input })
+  },
+  async listSupplierRoutes(supplierId: string): Promise<SrmSupplierRoute[]> {
+    return fetchClient<SrmSupplierRoute[]>(base + '/suppliers/' +
+      encodeURIComponent(supplierId) + '/routes', { method: 'GET' })
+  },
+  async createSupplierRoute(supplierId: string, input: SrmSupplierRouteInput): Promise<SrmSupplierRoute> {
+    return fetchClient<SrmSupplierRoute>(base + '/suppliers/' +
+      encodeURIComponent(supplierId) + '/routes', { method: 'POST', body: input })
+  },
+  async updateSupplierRoute(supplierId: string, routeId: string, input: SrmSupplierRouteInput): Promise<SrmSupplierRoute> {
+    return fetchClient<SrmSupplierRoute>(base + '/suppliers/' +
+      encodeURIComponent(supplierId) + '/routes/' + encodeURIComponent(routeId),
+      { method: 'PUT', body: input })
+  },
+  async deleteSupplierRoute(supplierId: string, routeId: string): Promise<void> {
+    await fetchClient<unknown>(base + '/suppliers/' +
+      encodeURIComponent(supplierId) + '/routes/' + encodeURIComponent(routeId), { method: 'DELETE' })
+  },
+  async pricingSupplierCoverage(mode: SrmTransportMode, originId: string, destinationId: string): Promise<SrmPricingSupplierCoverage[]> {
+    const query = new URLSearchParams({ transportMode: mode, originId, destinationId })
+    return fetchClient<SrmPricingSupplierCoverage[]>(base + '/pricing-supplier-coverage?' + query, { method: 'GET' })
   },
   async listBankAccounts(supplierId: string): Promise<SrmBankAccount[]> {
     return fetchClient<SrmBankAccount[]>(base + '/suppliers/' +
