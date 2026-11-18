@@ -16,7 +16,7 @@ test('EXW own LCL exposes editable pickup even without a configured cost', () =>
 })
 
 test('own LCL preserves manual pickup prices through matrix rebuild and save', () => {
-  assert.match(own, /if \(line\.manual === true && !line\.costId\) return true/)
+  assert.match(own, /if \(operatorEntered && !line\.costId\) return true/)
   assert.match(own, /Boolean\(line\.detailId\) \|\| line\.manual/)
   assert.match(own, /line\.key === 'variable-section:pickup_origin'/)
   assert.match(own, /ownLclKeepQuotedLine\(line, \$\{detailsMapperAnchor\}\)/)

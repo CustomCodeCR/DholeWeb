@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.81.0",
-  "ecosystemVersion": "1.85.0",
-  "releaseId": "DH-20261118-SRM-ROUTES-225",
+  "version": "1.81.1",
+  "ecosystemVersion": "1.85.2",
+  "releaseId": "DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261118-SRM-ROUTES-225"
+  "businessReleaseId": "DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227"
 }
