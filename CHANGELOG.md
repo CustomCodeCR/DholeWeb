@@ -1,8 +1,15 @@
-## [1.79.4] - 2026-11-18 (MultiQUO: 672 con dos opciones internas)
+## [1.80.1] - 2026-11-18 (MultiQUO: QUO base única con opciones A/B dentro)
 
-- PATCH DH-20261118-MULTIQUO-SINGLE-220: listado, buscador y wizard presentan una sola QUO base. Dentro de la QUO se despliegan A/B y se acepta la opción elegida; la otra no se muestra como "No aceptada".
-- Dashboard/modal de vendedor muestran opciones y permiten seleccionarlas sin revelar costos internos. Se conservan PDF, historial, IDTRA, autorización y llamadas existentes.
-- Web 1.79.3 → 1.79.4, Pricing 1.23.7 → 1.23.8, ecosistema 1.83.3 → 1.83.4. CI y staging requeridos.
+- PATCH DH-20261118-MULTIQUO-SINGLE-220: el listado, la búsqueda y la pantalla 9 representan una sola cotización, permitiendo aceptar la alternativa elegida dentro del grupo. La alternativa restante figura como no seleccionada, no como una QUO rechazada.
+- El dashboard y el modal vendedor agrupan las opciones y solicitan una elección explícita. Se conservan los costos, rutas e importes propios de cada alternativa y se impide exponer precios de compra al vendedor.
+- Preserva íntegramente el release multipunto 1.80.0. Web 1.80.0 → 1.80.1; Pricing 1.24.0 → 1.24.1; ecosistema 1.84.0 → 1.84.1. CI y staging antes de master.
+
+## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
+
+- MINOR DH-20261118-INLAND-MULTIPOINT-219: recolección y entrega registran múltiples paradas con tipo de carga y responsable de costos por punto. Se conservan coordenadas opcionales y soporte a solicitudes históricas de un solo punto.
+- Incoterms EXW y DDP mantienen significado ICC; importación/exportación cambian la perspectiva de quién contrata/paga y tránsito doméstico permite responsable híbrido por tramo.
+- API REST retrocompatible, outbox/inbox/SignalR y scopes existentes sin cambios; CI/staging pendientes, sin despliegue a producción.
+- DholeWeb 1.79.2 → 1.80.0; DholePricingService 1.23.6 → 1.24.0; ecosistema 1.83.2 → 1.84.0.
 
 ## [1.79.3] - 2026-11-18 (Pricing: liberación de reservas bloqueadas)
 
