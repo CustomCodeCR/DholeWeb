@@ -1,3 +1,8 @@
+## [1.70.2] - 2026-11-17 (Cancelar cotizaciones solo si fueron aceptadas)
+
+- PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: mostrar Cancelar cotización únicamente en estado AcceptedByClient (dashboard móvil/escritorio y detalle). Pricing bloquea llamadas directas al endpoint si no fue aceptada, con auditoría e idempotencia preservadas.
+- Se conserva la asignación comercial de solicitudes desde CRM introducida en Web 1.70.1. Web 1.70.1 → 1.70.2, global 1.73.1 → 1.73.2.
+
 ## [1.70.1] - 2026-11-17 (Solicitudes de tarifa: ejecutivo comercial CRM)
 
 - PATCH DH-20261117-CRM-RATE-REQUEST-OWNER-203: al crear una solicitud para una cuenta/prospecto, SellerUserId coincide con el vendedor real asignado en CRM, independientemente del usuario creador. El selector alternativo solo aplica a clientes históricos sin vínculo CRM.
