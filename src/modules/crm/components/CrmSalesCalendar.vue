@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect } from '@/shared/components/atoms'
@@ -9,7 +9,7 @@ import CrmFileDropzone from './CrmFileDropzone.vue'
 import CrmVisitMapPicker from './CrmVisitMapPicker.vue'
 import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 import { ChevronLeft, ChevronRight, Clock3, Plus, RefreshCw, Search, X, NotebookPen } from 'lucide-vue-next'
-import { crmList, crmPath, crmRequest, crmError, type CrmRow } from '../services/crmApi'
+import { crmList, crmPath, crmRequest, crmError, crmUuid, type CrmRow } from '../services/crmApi'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { crmAgreementDrafts, crmVisibleAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
 import { hasCrmCalendarAdministratorRole } from '../model/crmCalendarAdministrator'
@@ -79,9 +79,57 @@ function logDateBoundary(value: string, exclusive = false): string | undefined {
   if (exclusive) date.setDate(date.getDate() + 1)
   return date.toISOString()
 }
+// Reconcile after SignalR data changes and reconnects, keeping REST authoritative.
+function reconcileCrmCalendar(event: Event) {
+  const detail = (event as CustomEvent<{ endpoint?: string; entityType?: string }>).detail
+  const endpoint = String(detail?.endpoint ?? '').toLowerCase()
+  const entityType = String(detail?.entityType ?? '').toLowerCase()
+  if (event.type === 'dhole:notification:realtime-connected' ||
+      event.type === 'dhole:notification:received' && ['activity', 'followup'].includes(entityType) ||
+      event.type === 'dhole:data:changed' && /\/api\/crm\/(activities|followups|calendar)/.test(endpoint)) {
+    void load()
+  }
+}
+onMounted(() => {
+  window.addEventListener('dhole:data:changed', reconcileCrmCalendar)
+  window.addEventListener('dhole:notification:received', reconcileCrmCalendar)
+  window.addEventListener('dhole:notification:realtime-connected', reconcileCrmCalendar)
+})
+onUnmounted(() => {
+  window.removeEventListener('dhole:data:changed', reconcileCrmCalendar)
+  window.removeEventListener('dhole:notification:received', reconcileCrmCalendar)
+  window.removeEventListener('dhole:notification:realtime-connected', reconcileCrmCalendar)
+})
 const selected = ref(new Date())
 const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
+const detailInviteeIds = ref<string[]>([])
+const detailInviteesBusy = ref(false)
+watch(active, async item => {
+  detailInviteeIds.value = []
+  if (!item || item.source !== 'followup') return
+  void searchInvitees()
+  try {
+    const list = await crmRequest<Array<{ userId: string }>>(
+      crmPath('followups', item.id, 'invitees'))
+    if (active.value?.id === item.id) detailInviteeIds.value = list.map(x => x.userId)
+  } catch { /* Read-only detail is still available without invitee listing. */ }
+})
+async function saveDetailInvitees() {
+  const item = active.value
+  if (!item || item.source !== 'followup' || detailInviteesBusy.value) return
+  detailInviteesBusy.value = true
+  error.value = ''
+  try {
+    await crmRequest(crmPath('followups', item.id, 'invitees'), 'PUT', {
+      userIds: detailInviteeIds.value.filter(id => id !== item.ownerId),
+    }, crmUuid())
+    notice.value = 'Invitados actualizados y recordatorios sincronizados.'
+    active.value = null
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { detailInviteesBusy.value = false }
+}
 const rows = ref<CalendarEvent[]>([])
 const agreementDrafts = ref<CrmAgreementDraft[]>([])
 const omittedAgreementKeys = ref<string[]>([])
@@ -172,10 +220,32 @@ const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
 const selectedContactIds = ref<string[]>([])
+const selectedInviteeIds = ref<string[]>([])
+const inviteeDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const inviteeQuery = ref('')
+const inviteesBusy = ref(false)
+const inviteesError = ref('')
+const inviteeChoices = computed(() => inviteeDirectory.value
+  .filter(user => user.id !== editor.value.ownerId)
+  .map(user => ({ value: user.id, label: user.displayName || user.userName || user.id })))
+async function searchInvitees() {
+  if (inviteesBusy.value) return
+  inviteesBusy.value = true
+  inviteesError.value = ''
+  try {
+    const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+      crmPath('calendar/invitees') + '?page=1&pageSize=100&search=' +
+      encodeURIComponent(inviteeQuery.value.trim()))
+    const merged = new Map(inviteeDirectory.value.map(x => [x.id, x]))
+    for (const item of result.items ?? []) merged.set(item.id, item)
+    inviteeDirectory.value = [...merged.values()].sort((a, b) =>
+      (a.displayName || a.userName).localeCompare(b.displayName || b.userName, 'es'))
+  } catch (cause) { inviteesError.value = crmError(cause) }
+  finally { inviteesBusy.value = false }
+}
 const contactChoices = computed(() => contactRows.value.map(contact => ({
   value: String(contact.contactId ?? contact.id),
   label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
-  description: String(contact.email ?? '') || undefined,
 })).filter(option => option.value && option.value !== 'undefined'))
 const sellerDirectory = calendarDirectory
 const sellerLoading = calendarDirectoryLoading
@@ -270,6 +340,7 @@ const editor = ref({
 const draftHadAttachments = ref(false)
 function captureCalendarDraft() {
   return { fields: editor.value, scheduleReminder: reminderMode.value, contacts: selectedContactIds.value,
+    invitees: selectedInviteeIds.value,
     agreements: agreementDrafts.value, omittedAgreements: omittedAgreementKeys.value,
     pendingRecord: pendingDocumentRecord.value, hadAttachments: attachedDocuments.value.length > 0 }
 }
@@ -282,6 +353,7 @@ const calendarDraft = useCrmDraftAutosave({
     editor.value = { ...editor.value, ...snapshot.fields }
     reminderMode.value = Boolean(snapshot.scheduleReminder)
     selectedContactIds.value = snapshot.contacts ?? []
+    selectedInviteeIds.value = snapshot.invitees ?? []
     agreementDrafts.value = snapshot.agreements ?? []
     omittedAgreementKeys.value = snapshot.omittedAgreements ?? []
     pendingDocumentRecord.value = snapshot.pendingRecord ?? null
@@ -606,6 +678,10 @@ function openCreation(date?: Date, withReminder = false) {
   attachedDocuments.value = []
   pendingDocumentRecord.value = null
   selectedContactIds.value = []
+  selectedInviteeIds.value = []
+  inviteeDirectory.value = []
+  inviteeQuery.value = ''
+  if (reminderMode.value) void searchInvitees()
   void loadSellerDirectory()
   userEditedStart.value = false
   error.value = ''
@@ -909,6 +985,7 @@ async function create() {
         ...common, subject: data.subject.trim(), channel: 'SYSTEM',
         assignedUserId: data.ownerId || auth.userId,
         startAt: start.toISOString(), dueAt: end.toISOString(),
+        inviteeUserIds: selectedInviteeIds.value.filter(id => id !== data.ownerId),
       })
       pendingDocumentRecord.value = { kind: 'followup', id: String(createdFollowup.id) }
     } else {
@@ -926,10 +1003,11 @@ async function create() {
         locationLatitude: data.type === 'VISIT' ? data.locationLatitude : null,
         locationLongitude: data.type === 'VISIT' ? data.locationLongitude : null,
         involved: selectedContactIds.value
-          .map(id => contactChoices.value.find(x => x.value === id)?.label)
+          .map(id => contactChoices.value.find(contact => contact.value === id)?.label)
           .filter(Boolean).join(', ') || null,
         minutes: data.minutes.trim() || null,
         participantContactIds: selectedContactIds.value,
+        participantUserIds: requiresSchedule ? selectedInviteeIds.value.filter(id => id !== data.ownerId) : [],
         agreements: data.agreements.trim() || null,
         nextCommitment: requiresSchedule ? data.nextCommitment.trim() || null : null,
         commitmentDueAt: requiresSchedule ? commitmentDue?.toISOString() ?? null : null,
@@ -1396,6 +1474,21 @@ function openEvent(item: CalendarEvent) {
         </div>
         <button type="button" aria-label="Cerrar detalle" @click="active=null"><X class="h-4 w-4" /></button>
       </div>
+      <div v-if="active.source==='followup' && (active.ownerId===auth.userId || canManageAcrossUsers)"
+        class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+        <p class="text-sm font-semibold">Usuarios invitados</p>
+        <div class="flex gap-2">
+          <input v-model.trim="inviteeQuery" class="calendar-input min-w-0 flex-1"
+            placeholder="Buscar asistentes…" @keyup.enter.prevent="searchInvitees" />
+          <button type="button" class="calendar-btn" @click="searchInvitees" :disabled="inviteesBusy">Buscar</button>
+        </div>
+        <DhMultiSelect v-model="detailInviteeIds" label="Usuarios internos"
+          :options="inviteeChoices.filter(x => x.value!==active?.ownerId)"
+          placeholder="Seleccionar invitadas" search-placeholder="Buscar…" empty-text="Buscá usuarios activos." />
+        <div v-if="error" role="alert" class="text-xs text-amber-600">{{ error }}</div>
+        <button type="button" class="calendar-btn calendar-primary" :disabled="detailInviteesBusy"
+          @click="saveDetailInvitees">Actualizar invitados</button>
+      </div>
       <div v-if="canMove(active)" class="mt-3 flex flex-wrap items-end gap-2">
         <label class="calendar-label">Cambiar fecha y hora
           <input v-model="moveAt" class="calendar-input" type="datetime-local" />
@@ -1476,6 +1569,12 @@ function openEvent(item: CalendarEvent) {
         <div v-if="scopedLead" class="sm:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3 text-xs">
           Prospecto: <strong>{{ leadName || selectedLead?.name || 'Prospecto actual' }}</strong>. 
         </div>
+        <DhMultiSelect v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')"
+          v-model="selectedContactIds" class="sm:col-span-2"
+          label="Personas involucradas · contactos de la cuenta"
+          :options="contactChoices" placeholder="Seleccionar contactos"
+          search-placeholder="Buscar contactos de esta cuenta..."
+          empty-text="No hay contactos disponibles en esta cuenta." />
         <label class="calendar-label">Responsable
           <select v-model="editor.ownerId" class="calendar-input" required>
             <option v-for="owner in assignees" :key="owner" :value="owner">
@@ -1486,6 +1585,24 @@ function openEvent(item: CalendarEvent) {
         <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando responsables disponibles…</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
         <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay responsables activos con los scopes requeridos para esta actividad.</p>
+        <section v-if="creatingReminder" class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3" data-crm-internal-invitees>
+          <div>
+            <p class="text-sm font-bold">Invitar usuarios internos</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">Agregá asistentes o compañeros. La misma actividad aparecerá en sus agendas y cada uno recibirá avisos por sistema y correo.</p>
+          </div>
+          <div class="flex gap-2">
+            <input v-model.trim="inviteeQuery" type="search" class="calendar-input min-w-0 flex-1"
+              placeholder="Buscar asistentes o usuarios por nombre…" @keyup.enter.prevent="searchInvitees" />
+            <button type="button" class="calendar-btn" :disabled="inviteesBusy" @click="searchInvitees">
+              <Search class="h-4 w-4" /> {{ inviteesBusy ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+          <DhMultiSelect v-model="selectedInviteeIds" label="Usuarios invitados"
+            :options="inviteeChoices" placeholder="Seleccionar uno o varios usuarios"
+            search-placeholder="Buscar personas disponibles…" empty-text="No hay usuarios disponibles. Buscá por nombre." />
+          <p v-if="inviteesError" role="alert" class="text-xs text-amber-600">{{ inviteesError }}</p>
+          <p v-if="selectedInviteeIds.includes(editor.ownerId)" class="text-xs text-[var(--dh-text-muted)]">El responsable principal ya está incluido en esta actividad.</p>
+        </section>
         <label v-if="creatingReminder" class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
@@ -1529,13 +1646,6 @@ function openEvent(item: CalendarEvent) {
           </p>
         </div>
         <template v-if="editor.type!=='FOLLOWUP'">
-          <DhMultiSelect v-if="editor.accountId && editor.type!=='FOLLOWUP' && can('crm.contact.read')"
-            v-model="selectedContactIds" class="sm:col-span-2"
-            label="Personas involucradas · contactos de la cuenta"
-            :options="contactChoices"
-            placeholder="Seleccionar contactos"
-            search-placeholder="Buscar contactos de esta cuenta..."
-            empty-text="No hay contactos disponibles en esta cuenta." />
           <p v-if="editor.accountId && !can('crm.contact.read')" class="sm:col-span-2 text-xs text-amber-600">Necesitás permiso de lectura de contactos para seleccionar participantes.</p>
           <label class="calendar-label sm:col-span-2">{{ creatingReminder ? 'Minuta de la actividad' : 'Detalle de la gestión / bitácora' }}
             <textarea v-model="editor.minutes" rows="9" maxlength="20000"

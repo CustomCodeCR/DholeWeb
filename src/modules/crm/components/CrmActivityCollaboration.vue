@@ -1,20 +1,75 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { MessageSquareText, Plus, UsersRound, RefreshCw } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhTextarea, DhMultiSelect } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect, DhMultiSelect } from '@/shared/components/atoms'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
 import { crmAgreementDrafts, type CrmAgreementDraft } from '../model/crmAgreementParser'
+import { useAuthStore } from '@/core/stores/authStore'
 import { useCrmDraftAutosave } from '../utils/crmDraftAutosave'
 
 const props = defineProps<{
   activityId: string
   accountId?: string | null
   canManage: boolean
+  parentSubject?: string
 }>()
 
+const auth = useAuthStore()
+const canCompleteCommitments = computed(() => props.canManage &&
+  (auth.hasScope('crm.followup.manage') || auth.hasScope('crm.task.manage')))
+const commitments = ref<CrmRow[]>([])
+const updatingCommitmentId = ref('')
 const notes = ref<CrmRow[]>([])
 const participants = ref<CrmRow[]>([])
 const contacts = ref<CrmRow[]>([])
+const internalDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const internalQuery = ref('')
+const selectedInternalIds = ref<string[]>([])
+const internalLoading = ref(false)
+const internalChoices = computed(() => internalDirectory.value
+  .filter(user => !participants.value.some(p => String(p.userId ?? '') === user.id))
+  .map(user => ({ value: user.id, label: user.displayName || user.userName || user.id })))
+async function searchInternalUsers() {
+  if (internalLoading.value) return
+  internalLoading.value = true
+  try {
+    const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }> }>(
+      crmPath('calendar/invitees') + '?page=1&pageSize=100&search=' +
+      encodeURIComponent(internalQuery.value.trim()))
+    const map = new Map(internalDirectory.value.map(user => [user.id, user]))
+    for (const item of result.items ?? []) map.set(item.id, item)
+    internalDirectory.value = [...map.values()]
+  } catch (cause) { error.value = crmError(cause) }
+  finally { internalLoading.value = false }
+}
+async function removeInternalInvitee(participant: CrmRow) {
+  if (!props.canManage || saving.value || !participant.userId) return
+  saving.value = true
+  error.value = ''
+  try {
+    await crmRequest(crmPath('activities', props.activityId,
+      'participants/' + String(participant.id)), 'DELETE')
+    message.value = 'Invitación retirada. Ya no se enviarán sus recordatorios.'
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { saving.value = false }
+}
+async function inviteInternalUsers() {
+  if (!props.canManage || saving.value || !selectedInternalIds.value.length) return
+  saving.value = true
+  error.value = ''
+  try {
+    for (const userId of selectedInternalIds.value) {
+      await crmRequest(crmPath('activities',props.activityId,'participants'), 'POST', {
+        contactId: null, userId, participantName: null, role: 'RESPONSIBLE',
+      }, crmUuid())
+    }
+    selectedInternalIds.value = []
+    message.value = 'Usuarios invitados a esta actividad.'
+    await load()
+  } catch (cause) { error.value = crmError(cause); await load() }
+  finally { saving.value = false }
+}
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -102,19 +157,21 @@ watch(showParticipantForm, opened => {
 let generation = 0
 
 const linkedContactIds = computed(() =>
-  new Set(participants.value.map(x => String(x.contactId ?? '')).filter(Boolean)))
-const contactChoices = computed(() => contacts.value.map(contact => ({
-  value: String(contact.contactId ?? contact.id),
-  label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
-})).filter(option => option.value && option.value !== 'undefined' &&
-  !linkedContactIds.value.has(option.value)))
+  new Set(participants.value.map(participant => String(participant.contactId ?? '')).filter(Boolean)))
+const contactChoices = computed(() => contacts.value
+  .map(contact => ({
+    value: String(contact.contactId ?? contact.id),
+    label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
+  }))
+  .filter(option => option.value && option.value !== 'undefined' &&
+    !linkedContactIds.value.has(option.value)))
 const labelForContact = (id: unknown) =>
   contacts.value.find(x => String(x.contactId ?? x.id) === String(id))?.name ?? 'Contacto de la cuenta'
 const roleLabel = (value: unknown) =>
   ({ORGANIZER:'Organizador',RESPONSIBLE:'Responsable',ATTENDEE:'Asistente',GUEST:'Invitado'} as Record<string,string>)[String(value)] ?? String(value ?? 'Participante')
 const participantLabel = (row: CrmRow) =>
   String(row.participantName ?? (row.contactId ? labelForContact(row.contactId) : null) ??
-    (row.userId ? 'Usuario interno' : 'Participante'))
+    (row.userId ? internalDirectory.value.find(x => x.id === String(row.userId))?.displayName || 'Usuario interno' : 'Participante'))
 const initials = (name: string) => name.trim().split(/\s+/).slice(0,2).map(x => x.slice(0,1)).join('').toLocaleUpperCase('es')
 const formattedDate = (value: unknown) => {
   const time = value ? new Date(String(value)) : null
@@ -134,12 +191,14 @@ async function load() {
     props.accountId
       ? crmRequest<CrmRow[]>(crmPath('accounts',props.accountId,'contacts'))
       : Promise.resolve([] as CrmRow[]),
+    crmRequest<CrmRow[]>(crmPath('activities',props.activityId,'commitments')),
   ]
   const results = await Promise.allSettled(calls)
   if (request !== generation) return
   if (results[0]?.status === 'fulfilled') notes.value = results[0].value
   if (results[1]?.status === 'fulfilled') participants.value = results[1].value
   if (results[2]?.status === 'fulfilled') contacts.value = results[2].value.map(row => row.contact ? row.contact as CrmRow : row)
+  if (results[3]?.status === 'fulfilled') commitments.value = results[3].value
   if (results.some(x => x.status === 'rejected'))
     error.value = 'No se pudo consultar toda la información. Revisá tus permisos y actualizá.'
   loading.value = false
@@ -156,18 +215,21 @@ async function addParticipant() {
     error.value = 'Seleccioná contactos de la cuenta o ingresá el nombre del participante.'
     return
   }
-  if (byContact && ids.some(id => !contactChoices.value.some(x => x.value === id))) {
-    error.value = 'Todos los contactos deben pertenecer a esta cuenta.'
+  if (byContact && ids.some(id => !contactChoices.value.some(option => option.value === id))) {
+    error.value = 'Los contactos seleccionados deben pertenecer a esta cuenta.'
     return
   }
   saving.value = true
   let added = 0
   try {
+    // The existing CRM endpoint creates one participant per request.
+    // Persist each selected contact without duplicating an existing participant.
     for (const id of (byContact ? ids : [null])) {
-      await crmRequest<CrmRow>(crmPath('activities', props.activityId, 'participants'), 'POST', {
-        contactId: byContact ? id : null, userId: null,
+      await crmRequest<CrmRow>(crmPath('activities',props.activityId,'participants'), 'POST', {
+        contactId: byContact ? id : null,
+        userId: null,
         participantName: byContact ? null : participantName.value.trim(),
-        role: role.value,
+        role: role.value
       }, crmUuid())
       added++
     }
@@ -180,10 +242,31 @@ async function addParticipant() {
     message.value = added === 1 ? 'Participante agregado a la actividad.' :
       added + ' participantes agregados a la actividad.'
   } catch (cause) {
+    // Preserve successful writes and reflect partial completion to avoid retries
+    // that would create duplicate participants.
     if (added) await load()
-    error.value = crmError(cause) + (added ? ' Se agregaron ' + added + ' participantes antes del error.' : '')
-    selectedContactIds.value = selectedContactIds.value.filter(id => !linkedContactIds.value.has(id))
+    error.value = crmError(cause) +
+      (added ? ' Se agregaron ' + added + ' participantes antes del error.' : '')
+    selectedContactIds.value = selectedContactIds.value
+      .filter(id => !linkedContactIds.value.has(id))
   } finally { saving.value = false }
+}
+async function toggleCommitment(item: CrmRow) {
+  if (!canCompleteCommitments.value || updatingCommitmentId.value) return
+  updatingCommitmentId.value = String(item.id)
+  error.value = ''
+  message.value = ''
+  try {
+    const completed = item.status === 'Completed'
+    await crmRequest(crmPath('followups', String(item.id), completed ? 'reopen' : 'complete'), 'POST',
+      completed
+        ? { expectedVersion: item.rowVersion, reason: 'Reapertura del compromiso desde la actividad principal' }
+        : { expectedVersion: item.rowVersion, outcome: 'Compromiso cumplido', nextFollowupAt: null },
+      crmUuid())
+    message.value = completed ? 'Compromiso reabierto.' : 'Compromiso completado.'
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { updatingCommitmentId.value = '' }
 }
 async function addNote() {
   if (saving.value || !props.canManage || !note.value.trim()) return
@@ -218,7 +301,7 @@ async function addNote() {
 watch(() => [props.activityId, props.accountId], () => {
   noteAutosave.stop(); participantAutosave.stop()
   note.value = ''; noteCommitments.value = []
-  participantName.value = ''; selectedContactIds.value = []; role.value = 'ATTENDEE'
+  participantName.value = ''; selectedContactIds.value = []; selectedInternalIds.value = []; role.value = 'ATTENDEE'
   noteAutosave.begin()
   void load()
 }, { immediate: true })
@@ -253,7 +336,7 @@ watch(() => [props.activityId, props.accountId], () => {
             v-model="selectedContactIds" label="Contactos de la cuenta"
             :options="contactChoices" placeholder="Seleccionar participantes"
             search-placeholder="Buscar contacto..."
-            empty-text="Todos los contactos ya están vinculados." />
+            empty-text="Todos los contactos de la cuenta ya están vinculados." />
           <p v-else-if="accountId" class="text-xs text-amber-600">Agregá contactos a esta cuenta para seleccionarlos.</p>
           <DhInput v-else v-model="participantName" label="Nombre del participante" placeholder="Nombre y apellidos" />
           <DhSelect v-model="role" label="Participación"
@@ -262,6 +345,23 @@ watch(() => [props.activityId, props.accountId], () => {
             <DhButton label="Cancelar" variant="secondary" size="sm" @click="showParticipantForm=false" />
             <DhButton :label="accountId ? 'Guardar participantes' : 'Guardar participante'" size="sm" type="submit" :loading="saving" />
           </div>
+        </form>
+        <form v-if="canManage && (auth.hasScope('crm.activity.create') || auth.hasScope('crm.followup.manage'))"
+          class="mt-3 space-y-2 rounded-xl border border-[var(--dh-border)] p-3"
+          @submit.prevent="inviteInternalUsers">
+          <p class="text-sm font-semibold">Invitar usuarios del sistema</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">Las asistentes invitadas tendrán esta actividad en su agenda y recibirán sus recordatorios.</p>
+          <div class="flex gap-2">
+            <input v-model.trim="internalQuery" class="crm-input min-w-0 flex-1" placeholder="Nombre de la asistente o compañero"
+              @keyup.enter.prevent="searchInternalUsers" />
+            <DhButton label="Buscar" size="sm" variant="secondary" :loading="internalLoading"
+              @click="searchInternalUsers" />
+          </div>
+          <DhMultiSelect v-model="selectedInternalIds" label="Usuarios internos" :options="internalChoices"
+            placeholder="Seleccionar usuarios" search-placeholder="Buscar usuarios..."
+            empty-text="Buscá usuarios activos de Auth." />
+          <DhButton label="Enviar invitaciones" size="sm" type="submit"
+            :disabled="!selectedInternalIds.length" :loading="saving" />
         </form>
         <p v-if="!participants.length && !loading" class="mt-5 rounded-xl border border-dashed border-[var(--dh-border)] px-4 py-7 text-center text-sm text-[var(--dh-text-muted)]">
           No hay participantes todavía. Usá «Añadir» para registrar al primero.
@@ -276,6 +376,9 @@ watch(() => [props.activityId, props.accountId], () => {
               <strong class="block truncate text-sm">{{ participantLabel(person) }}</strong>
               <span class="text-xs text-[var(--dh-text-muted)]">{{ roleLabel(person.role) }}</span>
             </span>
+            <DhButton v-if="canManage && person.userId" label="Retirar invitación"
+              size="sm" variant="secondary" :disabled="saving"
+              @click="removeInternalInvitee(person)" />
           </li>
         </ul>
       </article>
@@ -286,7 +389,11 @@ watch(() => [props.activityId, props.accountId], () => {
           <span class="rounded-full bg-[var(--dh-shell)] px-2 py-0.5 text-xs">{{ notes.length }}</span>
         </div>
         <form v-if="canManage" class="mt-4 space-y-3" @submit.prevent="addNote">
-          <DhTextarea v-model="note" label="Nueva observación o acuerdos" placeholder="Ej. Acuerdos: entregar contenedor el 10 de noviembre" />
+          <label class="block space-y-2 text-sm font-semibold">Minuta y observaciones
+            <textarea v-model="note" rows="10" maxlength="20000"
+              class="w-full min-h-52 resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-sm text-[var(--dh-text)]"
+              placeholder="Redactá la minuta de la reunión, acuerdos y notas de seguimiento." />
+          </label>
           <div v-if="noteCommitments.length" class="space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
             <p class="text-sm font-bold">Registrar acuerdos como compromisos</p>
             <p class="text-xs text-[var(--dh-text-muted)]">
@@ -337,5 +444,24 @@ watch(() => [props.activityId, props.accountId], () => {
         </ol>
       </article>
     </div>
+    <article class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+      <h3 class="text-base font-bold">Compromisos derivados de esta actividad</h3>
+      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Actividad principal: {{ parentSubject || activityId }}.</p>
+      <p v-if="!commitments.length" class="mt-3 text-sm text-[var(--dh-text-muted)]">No hay compromisos vinculados todavía.</p>
+      <ul v-else class="mt-3 space-y-2">
+        <li v-for="item in commitments" :key="item.id" class="flex items-start gap-3 rounded-xl border border-[var(--dh-border)] p-3">
+          <input type="checkbox" class="mt-1 h-4 w-4 accent-[var(--dh-primary)]"
+            :aria-label="'Marcar compromiso '+item.subject" :checked="item.status === 'Completed'"
+            :disabled="!canCompleteCommitments || !!updatingCommitmentId || item.status === 'Cancelled'"
+            @change="toggleCommitment(item)" />
+          <div class="min-w-0 flex-1">
+            <RouterLink :to="'/crm/followups/'+encodeURIComponent(String(item.id))" class="text-sm font-bold hover:text-[var(--dh-primary)]">{{ item.subject }}</RouterLink>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+              {{ formattedDate(item.dueAt) }} · {{ item.status === 'Completed' ? 'Completado' : item.status === 'Overdue' ? 'Vencido' : item.status === 'Cancelled' ? 'Cancelado' : 'Pendiente' }}
+            </p>
+          </div>
+        </li>
+      </ul>
+    </article>
   </section>
 </template>
