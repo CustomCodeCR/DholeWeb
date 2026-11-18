@@ -82,6 +82,32 @@ function logDateBoundary(value: string, exclusive = false): string | undefined {
 const selected = ref(new Date())
 const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
+const detailInviteeIds = ref<string[]>([])
+const detailInviteesBusy = ref(false)
+watch(active, async item => {
+  detailInviteeIds.value = []
+  if (!item || item.source !== 'followup') return
+  try {
+    const list = await crmRequest<Array<{ userId: string }>>(
+      crmPath('followups', item.id, 'invitees'))
+    if (active.value?.id === item.id) detailInviteeIds.value = list.map(x => x.userId)
+  } catch { /* Read-only detail is still available without invitee listing. */ }
+})
+async function saveDetailInvitees() {
+  const item = active.value
+  if (!item || item.source !== 'followup' || detailInviteesBusy.value) return
+  detailInviteesBusy.value = true
+  error.value = ''
+  try {
+    await crmRequest(crmPath('followups', item.id, 'invitees'), 'PUT', {
+      userIds: detailInviteeIds.value.filter(id => id !== item.ownerId),
+    }, crmUuid())
+    notice.value = 'Invitados actualizados y recordatorios sincronizados.'
+    active.value = null
+    await load()
+  } catch (cause) { error.value = crmError(cause) }
+  finally { detailInviteesBusy.value = false }
+}
 const rows = ref<CalendarEvent[]>([])
 const agreementDrafts = ref<CrmAgreementDraft[]>([])
 const omittedAgreementKeys = ref<string[]>([])
@@ -1425,6 +1451,21 @@ function openEvent(item: CalendarEvent) {
           </p>
         </div>
         <button type="button" aria-label="Cerrar detalle" @click="active=null"><X class="h-4 w-4" /></button>
+      </div>
+      <div v-if="active.source==='followup' && (active.ownerId===auth.userId || canManageAcrossUsers)"
+        class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3">
+        <p class="text-sm font-semibold">Usuarios invitados</p>
+        <div class="flex gap-2">
+          <input v-model.trim="inviteeQuery" class="calendar-input min-w-0 flex-1"
+            placeholder="Buscar asistentes…" @keyup.enter.prevent="searchInvitees" />
+          <button type="button" class="calendar-btn" @click="searchInvitees" :disabled="inviteesBusy">Buscar</button>
+        </div>
+        <DhMultiSelect v-model="detailInviteeIds" label="Usuarios internos"
+          :options="inviteeChoices.filter(x => x.value!==active?.ownerId)"
+          placeholder="Seleccionar invitadas" search-placeholder="Buscar…" empty-text="Buscá usuarios activos." />
+        <p v-if="error" role="alert" class="text-xs text-amber-600">{{ error }}</p>
+        <button type="button" class="calendar-btn calendar-primary" :disabled="detailInviteesBusy"
+          @click="saveDetailInvitees">Actualizar invitados</button>
       </div>
       <div v-if="canMove(active)" class="mt-3 flex flex-wrap items-end gap-2">
         <label class="calendar-label">Cambiar fecha y hora
