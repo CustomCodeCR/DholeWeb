@@ -1,3 +1,9 @@
+## [1.79.1] - 2026-11-18 (MultiQUO: números comerciales 672-A y 672-B)
+
+- PATCH DH-20261118-MULTIQUO-IDENTITY-217: en buscador global, listados y wizard, cada alternativa FCL usa su QuoNumber, nunca el consecutivo técnico interno. Las alternativas seleccionadas mantienen su sufijo.
+- Se preservan las funcionalidades Blobatar/Apariencia de 1.79.0 y se integra PricingService 1.23.5 con migración de subcotizaciones anteriores, conservando historial, auditoría, Outbox/SignalR y permisos.
+- DholeWeb 1.79.0 → 1.79.1; DholePricingService 1.23.4 → 1.23.5; DholeSystem/ecosistema 1.83.0 → 1.83.1. Validaciones CI y staging aprobadas en develop.
+
 ## [1.79.0] - 2026-11-18 (Avatar: vista grande y controles en Apariencia)
 
 - MINOR DH-20261118-BLOBATAR-APPEARANCE-216: mueve Auto/Fijo del topbar a Configuración → Apariencia y agrega un avatar grande de 160 px con expresión y botón para cambiarla. Componentes Dhole compartidos y traducciones ES/EN.

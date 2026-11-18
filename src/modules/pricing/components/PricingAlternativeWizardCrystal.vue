@@ -6544,7 +6544,7 @@ onMounted(async () => {
       </div>
       <div v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
         <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p class="text-sm font-black">Principal: {{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup.parentQuoteNumber }} · Grupo {{ savedQuoteGroup.parentQuoteNumber }}</p>
+          <p class="text-sm font-black">Alternativa seleccionada: {{ primarySavedGroupAlternative?.quoteNumber || 'Pendiente' }} · Grupo {{ savedQuoteGroup.parentQuoteNumber }}</p>
           <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ savedQuoteGroup.alternatives.length }} opciones FCL</span>
         </div>
         <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -8243,7 +8243,7 @@ onMounted(async () => {
           <section v-if="savedQuoteGroup && savedQuoteGroup.alternatives.length > 1" class="space-y-3" aria-label="Subcotizaciones FCL guardadas">
             <div class="crystal-soft p-5">
               <p class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">{{ finalizedSavedGroup ? 'Cotización definitiva' : 'Cotización multiQUO pendiente' }}</p>
-              <h3 class="mt-1 text-xl font-black">Principal: {{ primarySavedGroupAlternative?.quoteNumber || savedQuoteGroup.parentQuoteNumber }}</h3>
+              <h3 class="mt-1 text-xl font-black">Alternativa seleccionada: {{ primarySavedGroupAlternative?.quoteNumber || 'Pendiente' }}</h3>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Grupo {{ savedQuoteGroup.parentQuoteNumber }} · {{ savedQuoteGroup.alternatives.length }} subQUO independientes · {{ selectedPoeIds.length }} POE. Despliegue cada alternativa para consultar el flete, cargos opcionales y totales guardados.</p>
             </div>
             <div v-for="subRate in orderedSavedGroupRates" :key="subRate.id" class="crystal-soft overflow-hidden">

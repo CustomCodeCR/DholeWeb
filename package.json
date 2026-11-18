@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.79.0",
+  "version": "1.79.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -30,7 +30,7 @@
     "test:mobile-i18n": "node --test tests/mobileI18nGuards.test.mjs tests/operationalLabels.test.ts",
     "test:email-mobile-i18n": "node --test tests/emailInboxMobileI18n.test.mjs",
     "test:ai-operations": "node --test tests/aiQueueCompletedReview.test.mjs",
-    "test:multi-quo": "node --test tests/pricingQuoteAlternatives.test.ts tests/pricingFclFreightDeduplication.test.ts tests/pricingRateDisplayDedup.test.ts tests/pricingCommercialTermLines.test.ts",
+    "test:multi-quo": "node --test tests/pricingQuoteAlternatives.test.ts tests/pricingFclFreightDeduplication.test.ts tests/pricingRateDisplayDedup.test.ts tests/pricingCommercialTermLines.test.ts tests/pricingMultiQuoCommercialIdentity.test.mjs",
     "test:pricing-multi-poe": "node --test tests/pricingMultiPoeSelection.test.ts",
     "test:pricing-multi-carriers": "node --test tests/pricingMultiCarrierOptions.test.ts",
     "test:crm-drafts": "node --test tests/crmDraftAutosave.test.mjs",
