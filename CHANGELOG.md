@@ -1,3 +1,9 @@
+## [1.78.2] - 2026-11-18 (MultiQUO: 672-A y 672-B siempre)
+
+- PATCH DH-20261118-MULTIQUO-IDENTITY-216: el buscador global muestra QuoNumber en vez de RateCode para subcotizaciones; evita incluir el consecutivo técnico como identidad visible, usa groupQuotes para no mostrar copias históricas huérfanas y mantiene búsquedas de vendedor con identidad comercial.
+- El listado de tarifas y el wizard muestran la alternativa seleccionada mediante su número sufijado; seleccionar/aceptar una opción no convierte 672-B en 672. La migración correspondiente vive en DholePricingService.
+- DholeWeb 1.78.0/1.78.1 → 1.78.2; DholePricingService 1.23.3/1.23.4 → 1.23.5; ecosistema 1.82.0/1.82.1 → 1.82.2. Build, pruebas y staging requeridos antes de master; producción no autorizada.
+
 ## [1.78.1] - 2026-11-18 (Pricing: liberar reservas al cerrar solicitudes)
 
 - PATCH DH-20261118-PRICING-LEASE-214: detener la renovación, esperar peticiones de lease en curso y liberar la solicitud antes de salir de la vista; impedir un re-claim tardío después de cerrar. Conserva las expresiones y preferencias Blobatar 1.78.0.
