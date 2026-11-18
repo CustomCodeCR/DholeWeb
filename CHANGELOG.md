@@ -1,3 +1,9 @@
+## [1.79.4] - 2026-11-18 (MultiQUO: 672 con dos opciones internas)
+
+- PATCH DH-20261118-MULTIQUO-SINGLE-220: listado, buscador y wizard presentan una sola QUO base. Dentro de la QUO se despliegan A/B y se acepta la opción elegida; la otra no se muestra como "No aceptada".
+- Dashboard/modal de vendedor muestran opciones y permiten seleccionarlas sin revelar costos internos. Se conservan PDF, historial, IDTRA, autorización y llamadas existentes.
+- Web 1.79.3 → 1.79.4, Pricing 1.23.7 → 1.23.8, ecosistema 1.83.3 → 1.83.4. CI y staging requeridos.
+
 ## [1.79.2] - 2026-11-18 (Pricing: no re-bloquear al soltar una solicitud)
 
 - PATCH DH-20261118-PRICING-LEASE-218: elimina por completo el claim automático tras heartbeat fallido; recuperar solamente con botón explícito. Token de lease aislado por usuario, idempotency keys nuevas y acción Liberar mi reserva para solicitudes propias. Otras cuentas no pueden liberar reservas ajenas.
