@@ -24,6 +24,8 @@ jobs:
       # develop continues running their complete suites.
       - name: Public origin coloader contact tests
         run: node --test tests/publicOriginContactPolicy.test.ts tests/publicOriginDirectory.test.ts
+      - name: Avatar integration and SSR tests
+        run: pnpm run test:avatar
       - name: Agent module tests
         run: pnpm run test:agent
       # Build before older unrelated Pricing regressions so CI always verifies this UI.
