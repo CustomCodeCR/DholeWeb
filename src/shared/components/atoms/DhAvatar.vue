@@ -1,27 +1,38 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { Blobatar } from '@blobatar/vue'
+import 'blobatar/motion.css'
 
 const props = withDefaults(
   defineProps<{
     src?: string | null
+    id?: string | number | null
     name?: string
     size?: 'sm' | 'md' | 'lg'
     status?: 'online' | 'offline' | 'busy' | 'none'
+    fallback?: 'blobatar' | 'initials'
+    animate?: boolean
   }>(),
   {
     size: 'md',
     status: 'none',
+    fallback: 'blobatar',
+    animate: false,
   },
 )
 
-const initials = computed(() => {
-  if (!props.name) return '?'
+const photoFailed = ref(false)
+watch(() => props.src, () => { photoFailed.value = false })
 
+const avatarSeed = computed(() => String(props.id ?? '').trim() || props.name?.trim() || '')
+const pixelSize = computed(() => ({ sm: 32, md: 40, lg: 56 })[props.size])
+const initials = computed(() => {
+  if (!props.name?.trim()) return '?'
   return props.name
-    .split(' ')
-    .filter(Boolean)
+    .trim()
+    .split(/\s+/)
     .slice(0, 2)
-    .map((x) => x[0]?.toUpperCase())
+    .map((part) => part[0]?.toUpperCase() ?? '')
     .join('')
 })
 </script>
@@ -29,15 +40,27 @@ const initials = computed(() => {
 <template>
   <div class="relative inline-flex shrink-0">
     <img
-      v-if="src"
+      v-if="src && !photoFailed"
       :src="src"
-      :alt="name"
+      :alt="name || ''"
       class="rounded-full object-cover ring-2 ring-white/70 dark:ring-white/10"
       :class="[
         size === 'sm' && 'h-8 w-8',
         size === 'md' && 'h-10 w-10',
         size === 'lg' && 'h-14 w-14',
       ]"
+      @error="photoFailed = true"
+    />
+
+    <Blobatar
+      v-else-if="fallback === 'blobatar' && avatarSeed"
+      :name="avatarSeed"
+      :size="pixelSize"
+      background="circle"
+      :hue="210"
+      :animate="animate ? 'hover' : undefined"
+      :alt="name || ''"
+      class="rounded-full ring-2 ring-white/70 dark:ring-white/10"
     />
 
     <span
