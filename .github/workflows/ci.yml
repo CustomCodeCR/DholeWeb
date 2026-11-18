@@ -22,6 +22,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       # Develop has no SEO/marketing scripts or public origin test files.
       # Existing agent, Pricing, CRM, locale and build validations run below.
+      - name: Avatar integration and SSR tests
+        run: pnpm run test:avatar
       - name: Agent module tests
         run: pnpm run test:agent
       - name: Pricing rate update regression tests
