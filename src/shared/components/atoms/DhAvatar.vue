@@ -10,8 +10,9 @@ type AvatarSize = 'sm' | 'md' | 'lg'
 type AvatarMood = 'auto' | 'idle' | 'happy' | 'sad' | 'mad' | 'surprised' | 'wink' | 'sleepy' | 'smug' | 'unsure' | 'scared' | 'love' | 'shy' | 'sick' | 'thinking'
 type PreviewMood = Exclude<AvatarMood, 'auto'>
 
-// The pinned Blobatar 2.7 roster; the first click deliberately shows "mad".
+// Blobatar 2.7 roster: the first manual click without a saved preference shows "mad".
 const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle'] as const satisfies readonly PreviewMood[]
+const AUTO_MOOD_INTERVAL_MS = 30_000
 const previewLabels: Record<PreviewMood, string> = {
   mad: 'Enojado',
   happy: 'Feliz',
@@ -43,6 +44,7 @@ const props = withDefaults(
     darkBackdrop?: boolean
     tapTrigger?: number
     previewExpressions?: boolean
+    autoExpressions?: boolean
   }>(),
   {
     size: 'md',
@@ -54,6 +56,7 @@ const props = withDefaults(
     darkBackdrop: false,
     tapTrigger: 0,
     previewExpressions: false,
+    autoExpressions: false,
   },
 )
 
@@ -65,6 +68,52 @@ const previewLabel = computed(() => tapMood.value ? previewLabels[tapMood.value]
 const tapActive = ref(false)
 const tapVariant = ref(false)
 const tapTimers: ReturnType<typeof setTimeout>[] = []
+let autoMoodTimer: ReturnType<typeof setInterval> | null = null
+let avatarMounted = false
+
+function avatarMoodStorageKey(): string | null {
+  const id = String(props.id ?? '').trim()
+  return id ? `dhole.blobatar.expression.v1:${encodeURIComponent(id)}` : null
+}
+
+function rememberMood(mood: PreviewMood) {
+  const key = avatarMoodStorageKey()
+  if (!key) return
+  try { window.localStorage.setItem(key, mood) } catch { /* Storage can be disabled. */ }
+}
+
+function restoreMood() {
+  tapMood.value = null
+  previewIndex.value = -1
+  const key = avatarMoodStorageKey()
+  if (!key) return
+  try {
+    const saved = window.localStorage.getItem(key)
+    const index = previewMoods.indexOf(saved as PreviewMood)
+    if (index >= 0) {
+      previewIndex.value = index
+      tapMood.value = previewMoods[index] ?? null
+    }
+  } catch { /* Fall back to the default expression. */ }
+}
+
+function advancePreviewMood() {
+  previewIndex.value = (previewIndex.value + 1) % previewMoods.length
+  tapMood.value = previewMoods[previewIndex.value] ?? 'mad'
+  rememberMood(tapMood.value)
+}
+
+function stopAutoMoodTimer() {
+  if (autoMoodTimer !== null) clearInterval(autoMoodTimer)
+  autoMoodTimer = null
+}
+
+function syncAutoMoodTimer() {
+  stopAutoMoodTimer()
+  if (!avatarMounted || !props.previewExpressions || !props.autoExpressions ||
+      document.hidden || Boolean(reducedMotion?.matches)) return
+  autoMoodTimer = setInterval(advancePreviewMood, AUTO_MOOD_INTERVAL_MS)
+}
 
 function clearTapTimers() {
   for (const timer of tapTimers) clearTimeout(timer)
@@ -76,8 +125,8 @@ function playTapReaction() {
   tapVariant.value = !tapVariant.value
   tapActive.value = true
   if (props.previewExpressions) {
-    previewIndex.value = (previewIndex.value + 1) % previewMoods.length
-    tapMood.value = previewMoods[previewIndex.value] ?? 'mad'
+    advancePreviewMood()
+    syncAutoMoodTimer()
     // Keep the selected pose until the next click; only stop the bounce.
     tapTimers.push(setTimeout(() => { tapActive.value = false }, 720))
     return
@@ -92,6 +141,14 @@ watch(() => props.tapTrigger, (value, previous) => {
   if (value > 0 && value !== previous) playTapReaction()
 })
 watch(() => props.src, () => { photoFailed.value = false })
+watch(() => props.id, () => {
+  if (!avatarMounted || !props.previewExpressions) return
+  restoreMood()
+  syncAutoMoodTimer()
+})
+watch(() => props.autoExpressions, () => {
+  if (avatarMounted) syncAutoMoodTimer()
+})
 
 const avatarSeed = computed(() => String(props.id ?? '').trim() || props.name?.trim() || '')
 const pixelSize = computed(() => ({ sm: 32, md: 40, lg: 56 })[props.size])
@@ -139,15 +196,29 @@ function syncPointerSupport() {
 }
 useGaze(trackedBlob, { travel: 3, target: 'pointer' })
 onMounted(() => {
-  if (!props.followCursor) return
-  reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-  finePointer = window.matchMedia('(hover: hover) and (pointer: fine)')
-  reducedMotion.addEventListener('change', syncPointerSupport)
-  finePointer.addEventListener('change', syncPointerSupport)
-  syncPointerSupport()
+  avatarMounted = true
+  if (props.previewExpressions) {
+    restoreMood()
+    document.addEventListener('visibilitychange', syncAutoMoodTimer)
+  }
+  if (props.followCursor || props.previewExpressions) {
+    reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reducedMotion.addEventListener('change', syncAutoMoodTimer)
+  }
+  if (props.followCursor) {
+    finePointer = window.matchMedia('(hover: hover) and (pointer: fine)')
+    reducedMotion?.addEventListener('change', syncPointerSupport)
+    finePointer.addEventListener('change', syncPointerSupport)
+    syncPointerSupport()
+  }
+  syncAutoMoodTimer()
 })
 onBeforeUnmount(() => {
+  avatarMounted = false
   clearTapTimers()
+  stopAutoMoodTimer()
+  document.removeEventListener('visibilitychange', syncAutoMoodTimer)
+  reducedMotion?.removeEventListener('change', syncAutoMoodTimer)
   reducedMotion?.removeEventListener('change', syncPointerSupport)
   finePointer?.removeEventListener('change', syncPointerSupport)
 })
