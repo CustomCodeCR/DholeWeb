@@ -1,3 +1,9 @@
+## [1.69.1] - 2026-11-17 (Solicitudes de tarifa: propietario comercial CRM)
+
+- PATCH DH-20261117-CRM-RATE-REQUEST-OWNER-203: al seleccionar una cuenta/prospecto, el formulario de solicitud delegada sincroniza SellerUserId con executiveUserId de CRM, en lugar del primer usuario disponible o el creador. El selector de vendedor alternativo solo aplica a registros sin vínculo CRM.
+- Se mantiene el vendedor institucional Castro Fallas sin asignarle indebidamente el usuario operativo; los permisos de /mine y edición dependen del propietario definitivo validado por Pricing.
+- Web 1.69.0 → 1.69.1; Pricing 1.23.0 → 1.23.1; ecosistema 1.72.0 → 1.72.1. CI y staging pendientes; producción no autorizada.
+
 ## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
 
 - MINOR DH-20261117-SELLER-CANCEL-202: botón de cancelación en dashboard de ventas (móvil y escritorio) y detalle de QUO; motivo obligatorio (1-1000 caracteres), confirmación y refresco del estado.
