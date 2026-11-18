@@ -1,3 +1,10 @@
+## [1.81.0] - 2026-11-18 (SRM · clasificación logística y cobertura de rutas)
+
+- MINOR DH-20261118-SRM-ROUTES-225: categorías de servicios logísticos granulares y selección múltiple, sin pérdida de categorías heredadas.
+- Ficha del proveedor en DhDrawer con navegación por pestañas; cobertura RUTAS con orígenes POL y destinos POE/POD, selección múltiple marítima/aérea/terrestre y operaciones de alta, edición y eliminación.
+- Catálogos Config como fuente de ubicaciones; API SRM con scopes, auditoría y Outbox realtime. Consulta de cobertura mínima para uso futuro de Pricing, sin exponer datos sensibles.
+- Web 1.80.0 → 1.81.0; Config 1.10.1 → 1.11.0; ecosistema 1.84.0 → 1.85.0. Release candidato; CI/staging pendientes; producción no autorizada.
+
 ## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
 
 - MINOR DH-20261118-INLAND-MULTIPOINT-219: recolección y entrega registran múltiples paradas con tipo de carga y responsable de costos por punto. Se conservan coordenadas opcionales y soporte a solicitudes históricas de un solo punto.
