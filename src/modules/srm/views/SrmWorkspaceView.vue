@@ -5,7 +5,7 @@ import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditC
 import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
-import { DhDrawer, DhModal } from '@/shared/components/organisms'
+import { DhDrawer } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
@@ -1777,8 +1777,8 @@ onMounted(() => {
           </div>
         </template>
       </DhDrawer>
-      <DhModal :open="Boolean(deleteTarget)" :title="en ? 'Delete supplier' : 'Eliminar proveedor'"
-        size="md" surface="solid" @close="closeSupplierDelete">
+      <DhDrawer :open="Boolean(deleteTarget)" :title="en ? 'Delete supplier' : 'Eliminar proveedor'"
+        size="md" @close="closeSupplierDelete">
         <div v-if="deleteTarget" class="space-y-4" data-srm-delete-confirmation>
           <div class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
             <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
@@ -1800,7 +1800,7 @@ onMounted(() => {
             </button>
           </div>
         </div>
-      </DhModal>
+      </DhDrawer>
     </template>
   </main>
 </template>
