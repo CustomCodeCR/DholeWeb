@@ -4,12 +4,12 @@
   "ecosystem": "Dhole",
   "ecosystemVersion": "1.85.0",
   "releaseType": "MINOR",
-  "previousVersion": "1.80.0",
+  "previousVersion": "1.80.4",
   "version": "1.81.0",
   "relatedComponents": [
     {
       "component": "DholeWeb",
-      "previousVersion": "1.80.0",
+      "previousVersion": "1.80.4",
       "version": "1.81.0"
     },
     {
@@ -37,5 +37,6 @@
     "staging": "pending",
     "production": "not-approved"
   },
-  "releaseBranch": "feature/DH-20261118-SRM-ROUTES-225-master"
+  "releaseBranch": "feature/DH-20261118-SRM-ROUTES-225-master",
+  "notes": "Integración sobre master 1.80.4 conservando el backport de Pricing EXW/LCL; funcionalidad SRM idéntica a develop/staging."
 }

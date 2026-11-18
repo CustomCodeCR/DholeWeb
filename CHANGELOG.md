@@ -1,9 +1,23 @@
-## [1.81.0] - 2026-11-18 (SRM · clasificación logística y cobertura de rutas)
+## [1.81.0] - 2026-11-18 (SRM · categorías y rutas de proveedores)
 
-- MINOR DH-20261118-SRM-ROUTES-225: categorías de servicios logísticos granulares y selección múltiple, sin pérdida de categorías heredadas.
-- Ficha del proveedor en DhDrawer con navegación por pestañas; cobertura RUTAS con orígenes POL y destinos POE/POD, selección múltiple marítima/aérea/terrestre y operaciones de alta, edición y eliminación.
-- Catálogos Config como fuente de ubicaciones; API SRM con scopes, auditoría y Outbox realtime. Consulta de cobertura mínima para uso futuro de Pricing, sin exponer datos sensibles.
-- Web 1.80.0 → 1.81.0; Config 1.10.1 → 1.11.0; ecosistema 1.84.0 → 1.85.0. Release candidato; CI/staging pendientes; producción no autorizada.
+- MINOR DH-20261118-SRM-ROUTES-225: diez categorías logísticas de proveedor, multiselección y conservación de clasificaciones históricas.
+- DhDrawer con pestañas de ficha, contactos, bancos, crédito, tarifas, bitácora y rutas; cobertura POL/POE/POD multiorigen/destino y CRUD auditado en Config.
+- Config 1.10.1 → 1.11.0; Web master 1.80.4 → 1.81.0; ecosistema master 1.84.4 → 1.85.0. Conserva el backport EXW/LCL de Pricing. CI y staging validados en develop; verificar candidate master antes del merge.
+
+## [1.80.4] - 2026-11-18 (Pricing: recolecta EXW en LCL propio)
+
+- PATCH DH-20261118-PRICING-EXW-PICKUP-226: backport sobre master del ajuste validado en develop para mostrar recolecta EXW editable aun sin costo maestro, conservar precios manuales y reflejar rubros al guardar.
+- Vincula únicamente costos EXW de recolecta aplicables a la ruta y evita sobrescribir los importes negociados al actualizar matriz; vista conserva el snapshot histórico sin regeneración.
+- DholeWeb 1.80.3 → 1.80.4, DholePricingService 1.24.4 → 1.24.5, DholeSystem 1.83.6 → 1.84.4. Ecosistema master 1.84.3 → 1.84.4; release funcional equivalente al develop Web 1.81.1, Pricing 1.24.5, System 1.85.1.
+- CI del backport pendiente; staging del release develop aprobó despliegue y health/bundle. No hay aún smoke autenticado del caso real.
+- Staging comprobado: Pricing https://github.com/CustomCodeCR/DholePricingService/actions/runs/44381748194 y Web https://github.com/CustomCodeCR/DholeWeb/actions/runs/44381755824 (ambos success). CI de backport debe superar controles propios de master antes de integrar.
+
+## [1.80.3] - 2026-11-18 (Pricing: flete DDP exportación terrestre LTL/FTL)
+
+- PATCH DH-20261118-DDP-EXPORT-FREIGHT-225: corregir el filtrado de flete internacional por Incoterm para distinguir exportador/importador. DDP en exportación y EXW en importación conservan flete cuando el servicio internacional está contratado.
+- La pantalla de proveedor ya no oculta ni borra costo/venta o líneas de Freight para DDP exportación; mantiene la protección contra reinicios transitorios durante carga de catálogos. Importación DDP continúa sin cargar automáticamente el flete al importador; doméstico permite tramos contratados.
+- Regresiones de tipos de operación y flujo de cotización; sin migraciones, nuevos scopes ni cambios de contrato REST o eventos SignalR.
+- DholeWeb 1.80.2 → 1.80.3; DholePricingService 1.24.3 → 1.24.4; ecosistema 1.84.2 → 1.84.3. CI y staging requeridos antes de master.
 
 ## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
 
