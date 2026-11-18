@@ -1,3 +1,9 @@
+## [1.79.1] - 2026-11-18 (MultiQUO: las dos opciones son 672-A/B, sin 673 comercial)
+
+- PATCH DH-20261118-MULTIQUO-IDENTITY-217: buscador global usa números comerciales reales, evita el consecutivo técnico 673 en descripción, resultados y búsquedas de cotización; lista y wizard conservan sufijos de alternativas seleccionadas.
+- Compatible con Blobatar/Apariencia 1.79.0 y con la migración de PricingService 1.23.5 que repara grupos históricos sin modificar cifras ni auditoría.
+- DholeWeb 1.79.0 → 1.79.1; Pricing 1.23.4 → 1.23.5; ecosistema 1.83.0 → 1.83.1. CI + staging obligatorios antes de master. Sin autorización de producción.
+
 ## [1.79.0] - 2026-11-18 (Avatar: configuración y vista previa en Apariencia)
 
 - MINOR DH-20261118-BLOBATAR-APPEARANCE-216: mueve Auto/Fijo fuera de DhTopbar y lo coloca en Apariencia junto a una vista previa interactiva de 160 px del avatar. Incorpora textos ES/EN y componentes Dhole (DhCard/DhButton).

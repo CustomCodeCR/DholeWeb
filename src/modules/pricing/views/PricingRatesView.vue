@@ -485,7 +485,7 @@ async function load() {
 
         if (!searchValue) return true
         return [
-          rate.rateCode,
+          rate.quoNumber ? '' : rate.rateCode,
           rate.quoNumber,
           rate.clientName,
           rate.executiveName,

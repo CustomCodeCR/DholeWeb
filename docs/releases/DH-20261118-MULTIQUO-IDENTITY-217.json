@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261118-MULTIQUO-IDENTITY-217",
+  "date": "2026-11-18",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.83.1",
+  "components": [
+    {
+      "name": "DholeWeb",
+      "version": "1.79.1"
+    },
+    {
+      "name": "DholePricingService",
+      "version": "1.23.5"
+    }
+  ],
+  "changes": [
+    "Federated search displays commercial alternative numbers, not technical codes",
+    "Pricing browse in global search groups commercial alternatives without orphans",
+    "Seller quote search excludes technical codes when a commercial quote exists",
+    "Saved multi-quote wizard identifies the chosen option by its stable suffix"
+  ],
+  "validation": "CI and staging before master merge",
+  "productionDeployment": "not-authorized"
+}
