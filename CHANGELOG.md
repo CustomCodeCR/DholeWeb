@@ -1,3 +1,9 @@
+## [1.75.0] - 2026-11-18 (Blobatar: fondo negro y animación al tocar)
+
+- MINOR DH-20261118-BLOBATAR-DARK-TAP-209: en modo oscuro el fondo de la tarjeta de usuario y avatar pasa a negro, manteniendo el modo claro. Clic, toque, Enter o Espacio activan sorpresa, guiño, sonrisa, rebote y halo repetibles; se conserva reduced-motion, fotografía, iniciales, identidad y presencia.
+- DholeWeb 1.74.0 → 1.75.0, DholeSystem/ecosistema 1.78.0 → 1.79.0. Se preservan todas las funciones de Operations 208 y los restantes componentes. Sin cambios en REST, SignalR, Outbox/Inbox ni BD.
+- CI y staging DholeWeb previamente aprobados; promoción a master expresamente solicitada el 18/11/2026. Verificar publicación automática y health check de producción; UAT visual con sesión autenticada aún pendiente.
+
 ## [1.74.0] - 2026-11-17 (DH-20261117-OPS-DUAL-VALIDATION-208 · Operations Aperturas y equipos)
 
 - MINOR: navegación Operations con equipos, selección manual de usuarios Auth, capacidades y bitácora de equipo.

@@ -23,6 +23,7 @@ const emit = defineEmits<{ search: []; logout: []; navigation: [] }>()
 
 const displayName = computed(() => authStore.userDisplayName || t('topbar.unknownUser'))
 const displayEmail = computed(() => authStore.email || t('topbar.activeSession'))
+const avatarTapTrigger = ref(0)
 const searchShortcut = computed(() => shortcutStore.byAction('global.search')?.keys ?? 'ctrl+k')
 
 const inboxRoot = ref<HTMLElement | null>(null)
@@ -336,8 +337,16 @@ onBeforeUnmount(() => {
         </section>
       </Teleport>
 
-      <div class="flex items-center gap-1 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-1 shadow-[var(--dh-shadow-sm)] sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2">
-        <DhAvatar :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" class="hidden sm:flex" />
+      <div class="flex items-center gap-1 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-1 shadow-[var(--dh-shadow-sm)] sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2 dark:border-white/15 dark:bg-black dark:shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+        <button
+          type="button"
+          :aria-label="displayName"
+          :title="displayName"
+          class="hidden shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dh-primary)] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-black sm:inline-flex"
+          @click="avatarTapTrigger += 1"
+        >
+          <DhAvatar :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" :dark-backdrop="themeStore.resolvedTheme === 'dark'" :tap-trigger="avatarTapTrigger" />
+        </button>
         <div class="hidden min-w-0 xl:block">
           <p class="max-w-40 truncate text-sm font-black text-[var(--dh-text)]">{{ displayName }}</p>
           <p class="max-w-40 truncate text-xs font-semibold text-[var(--dh-text-muted)]">{{ displayEmail }}</p>

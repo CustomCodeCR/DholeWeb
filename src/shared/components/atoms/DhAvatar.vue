@@ -20,6 +20,8 @@ const props = withDefaults(
     animate?: boolean | 'hover' | 'always'
     followCursor?: boolean
     mood?: AvatarMood
+    darkBackdrop?: boolean
+    tapTrigger?: number
   }>(),
   {
     size: 'md',
@@ -28,11 +30,36 @@ const props = withDefaults(
     animate: false,
     followCursor: false,
     mood: 'auto',
+    darkBackdrop: false,
+    tapTrigger: 0,
   },
 )
 
 const photoFailed = ref(false)
 const hovered = ref(false)
+const tapMood = ref<'surprised' | 'wink' | 'happy' | null>(null)
+const tapActive = ref(false)
+const tapVariant = ref(false)
+const tapTimers: ReturnType<typeof setTimeout>[] = []
+
+function clearTapTimers() {
+  for (const timer of tapTimers) clearTimeout(timer)
+  tapTimers.length = 0
+}
+
+function playTapReaction() {
+  clearTapTimers()
+  tapVariant.value = !tapVariant.value
+  tapActive.value = true
+  tapMood.value = 'surprised'
+  tapTimers.push(setTimeout(() => { tapMood.value = 'wink' }, 330))
+  tapTimers.push(setTimeout(() => { tapMood.value = 'happy' }, 750))
+  tapTimers.push(setTimeout(() => { tapMood.value = null; tapActive.value = false }, 1600))
+}
+
+watch(() => props.tapTrigger, (value, previous) => {
+  if (value > 0 && value !== previous) playTapReaction()
+})
 watch(() => props.src, () => { photoFailed.value = false })
 
 const avatarSeed = computed(() => String(props.id ?? '').trim() || props.name?.trim() || '')
@@ -52,6 +79,7 @@ const showMotionAura = computed(() =>
 
 const expressions = { idle, happy, thinking, sleepy, wink, love, surprised }
 const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
+  if (tapMood.value) return tapMood.value
   if (props.mood !== 'auto') return props.mood
   if (props.status === 'busy') return 'thinking'
   if (props.status === 'offline') return 'sleepy'
@@ -88,6 +116,7 @@ onMounted(() => {
   syncPointerSupport()
 })
 onBeforeUnmount(() => {
+  clearTapTimers()
   reducedMotion?.removeEventListener('change', syncPointerSupport)
   finePointer?.removeEventListener('change', syncPointerSupport)
 })
@@ -99,7 +128,13 @@ function handlePointerEnter(event: PointerEvent) {
 <template>
   <div
     class="dh-avatar relative isolate inline-flex shrink-0 items-center justify-center"
-    :class="{ 'dh-avatar--alive': showMotionAura, 'dh-avatar--hero': animationMode === 'always' }"
+    :class="{
+      'dh-avatar--alive': showMotionAura,
+      'dh-avatar--hero': animationMode === 'always',
+      'dh-avatar--dark': darkBackdrop,
+      'dh-avatar--tap-a': tapActive && tapVariant,
+      'dh-avatar--tap-b': tapActive && !tapVariant,
+    }"
     @pointerenter="handlePointerEnter"
     @pointerleave="hovered = false"
   >
@@ -119,7 +154,7 @@ function handlePointerEnter(event: PointerEvent) {
       ref="trackedBlob"
       :name="avatarSeed"
       :size="pixelSize"
-      background="circle"
+      :background="darkBackdrop ? false : 'circle'"
       :hue="210"
       animate="always"
       :expression="expression"
@@ -132,7 +167,7 @@ function handlePointerEnter(event: PointerEvent) {
       v-else-if="fallback === 'blobatar' && avatarSeed"
       :name="avatarSeed"
       :size="pixelSize"
-      background="circle"
+      :background="darkBackdrop ? false : 'circle'"
       :hue="210"
       :animate="animationMode"
       :expression="expression"
@@ -171,6 +206,13 @@ function handlePointerEnter(event: PointerEvent) {
 </template>
 
 <style scoped>
+.dh-avatar--dark {
+  background: #000;
+  border-radius: 9999px;
+}
+.dh-avatar--dark .dh-avatar__aura {
+  background: radial-gradient(circle, rgba(103, 232, 249, 0.24), rgba(56, 189, 248, 0.08) 55%, transparent 80%);
+}
 .dh-avatar__aura {
   position: absolute;
   z-index: 0;
@@ -206,6 +248,20 @@ function handlePointerEnter(event: PointerEvent) {
     filter: drop-shadow(0 3px 5px rgba(38, 99, 200, 0.2));
   }
 }
+@keyframes dh-avatar-tap-a {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.16) rotate(-9deg); }
+  65% { transform: scale(0.96) rotate(5deg); }
+}
+@keyframes dh-avatar-tap-b {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.16) rotate(9deg); }
+  65% { transform: scale(0.96) rotate(-5deg); }
+}
+.dh-avatar--tap-a .dh-avatar__face { animation: dh-avatar-tap-a 710ms cubic-bezier(0.2, 1, 0.25, 1); }
+.dh-avatar--tap-b .dh-avatar__face { animation: dh-avatar-tap-b 710ms cubic-bezier(0.2, 1, 0.25, 1); }
+.dh-avatar--tap-a .dh-avatar__aura,
+.dh-avatar--tap-b .dh-avatar__aura { opacity: 0.95; transform: scale(1.3); }
 @keyframes dh-avatar-aura {
   0%, 100% { opacity: 0.33; transform: scale(0.93); }
   50% { opacity: 0.64; transform: scale(1.12); }

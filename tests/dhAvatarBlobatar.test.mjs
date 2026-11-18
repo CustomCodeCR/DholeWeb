@@ -61,3 +61,23 @@ test('Local Blobatar SSR is deterministic and each mood changes the face', async
   assert.notEqual(neutral, await render('dhole-user-42', { animate: 'always', expression: thinking }))
   assert.notEqual(neutral, await render('dhole-user-42', { animate: 'always', expression: sleepy }))
 })
+
+test('Dark mode profile uses a true black backdrop without changing light mode', () => {
+  assert.match(topbar, /dark:bg-black/)
+  assert.match(topbar, /:dark-backdrop="themeStore\.resolvedTheme === 'dark'"/)
+  assert.match(avatar, /:background="darkBackdrop \? false : 'circle'"/)
+  assert.match(avatar, /background: #000/)
+})
+
+test('Avatar reacts on tap, click and keyboard with replayable expressions', () => {
+  assert.match(topbar, /<button[\s\S]*?type="button"[\s\S]*?@click="avatarTapTrigger \+= 1"/)
+  assert.match(topbar, /:tap-trigger="avatarTapTrigger"/)
+  assert.match(avatar, /watch\(\(\) => props\.tapTrigger/)
+  assert.match(avatar, /tapMood\.value = 'surprised'/)
+  assert.match(avatar, /tapMood\.value = 'wink'/)
+  assert.match(avatar, /tapMood\.value = 'happy'/)
+  assert.match(avatar, /clearTapTimers\(\)/)
+  assert.match(avatar, /dh-avatar--tap-a/)
+  assert.match(avatar, /dh-avatar--tap-b/)
+  assert.match(avatar, /prefers-reduced-motion: reduce/)
+})
