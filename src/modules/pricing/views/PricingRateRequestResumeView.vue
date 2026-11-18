@@ -112,6 +112,7 @@ let currentId = ''
 let generation = 0
 let heartbeatInFlight: Promise<void> | null = null
 let beginInFlight: Promise<void> | null = null
+let pendingRequestId = ''
 let stopInFlight: Promise<void> | null = null
 
 // Renew while the user is working. Background tabs may throttle timers; if
@@ -119,19 +120,15 @@ let stopInFlight: Promise<void> | null = null
 // took the request. Keep the wizard mounted to preserve unsaved work.
 async function renewLease(id: string, version: number) {
   if (heartbeatInFlight || version !== generation || currentId !== id || !ready.value) return
+  // A failed heartbeat NEVER triggers an automatic claim. Re-claiming a
+  // released request was the cause of phantom locks on the Pricing dashboard.
   const renewal = (async () => {
     try {
-      try {
-        await RateRequestLeaseService.heartbeat(id)
-      } catch {
-        // A delayed heartbeat must never reacquire a request after navigation.
-        if (version !== generation || currentId !== id || !ready.value) return
-        await RateRequestLeaseService.claim(id)
-      }
+      await RateRequestLeaseService.heartbeat(id)
       if (version === generation && currentId === id) leaseWarning.value = ''
     } catch {
       if (version === generation && currentId === id)
-        leaseWarning.value = 'La reserva no pudo renovarse. El formulario permanece abierto. Compruebe la conexión y recupere la reserva antes de guardar.'
+        leaseWarning.value = 'La reserva ya no está vigente o falló la conexión. Recupérela manualmente antes de guardar.'
     }
   })()
   heartbeatInFlight = renewal
@@ -139,6 +136,21 @@ async function renewLease(id: string, version: number) {
     await renewal
   } finally {
     if (heartbeatInFlight === renewal) heartbeatInFlight = null
+  }
+}
+async function recoverLease() {
+  const id = currentId
+  const version = generation
+  if (!id || !ready.value) return
+  try {
+    await RateRequestLeaseService.claim(id, { recoverOwnLease: true })
+    if (version !== generation || currentId !== id) {
+      await RateRequestLeaseService.release(id)
+      return
+    }
+    leaseWarning.value = ''
+  } catch (cause) {
+    toast.backendError(cause, 'No se pudo recuperar la reserva. Otra persona podría estar atendiendo la solicitud.')
   }
 }
 function renewOnFocus() {
@@ -258,7 +270,7 @@ async function stop() {
   ready.value = false
   workRequest.value = null
   savedRevisionAvailable.value = null
-  const id = currentId
+  const id = currentId || pendingRequestId
   currentId = ''
   // Wait for any in-flight claim/heartbeat before releasing. Releasing first
   // allows a stale retry to re-claim the request after the user closes it.
@@ -280,10 +292,14 @@ async function stop() {
 }
 
 function start(id: string) {
+  pendingRequestId = id
   const operation = begin(id)
   beginInFlight = operation
   void operation.finally(() => {
-    if (beginInFlight === operation) beginInFlight = null
+    if (beginInFlight === operation) {
+      beginInFlight = null
+      pendingRequestId = ''
+    }
   })
 }
 
@@ -335,7 +351,7 @@ onBeforeUnmount(() => {
     </div>
     <div v-if="leaseWarning" role="alert" class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-sm font-semibold">
       <span>{{ leaseWarning }}</span>
-      <DhButton variant="secondary" size="sm" label="Recuperar reserva" @click="renewOnFocus" />
+      <DhButton variant="secondary" size="sm" label="Recuperar reserva" @click="recoverLease" />
     </div>
 
     <section class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3">

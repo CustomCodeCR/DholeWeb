@@ -1,3 +1,9 @@
+## [1.79.2] - 2026-11-18 (Pricing: no re-bloquear al soltar una solicitud)
+
+- PATCH DH-20261118-PRICING-LEASE-218: elimina por completo el claim automático tras heartbeat fallido; recuperar solamente con botón explícito. Token de lease aislado por usuario, idempotency keys nuevas y acción Liberar mi reserva para solicitudes propias. Otras cuentas no pueden liberar reservas ajenas.
+- El backend conserva una sola reserva activa por operador y limpia otras reservas del mismo usuario, preservando workStatus, scopes, REST y realtime. Tests de ciclo de vida y modificación comercial.
+- Web 1.79.1 → 1.79.2; Pricing 1.23.5 → 1.23.6; DholeSystem 1.83.1 → 1.83.2.
+
 ## [1.79.1] - 2026-11-18 (MultiQUO: números comerciales 672-A y 672-B)
 
 - PATCH DH-20261118-MULTIQUO-IDENTITY-217: en buscador global, listados y wizard, cada alternativa FCL usa su QuoNumber, nunca el consecutivo técnico interno. Las alternativas seleccionadas mantienen su sufijo.
