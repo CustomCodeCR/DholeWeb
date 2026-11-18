@@ -63,8 +63,11 @@ async function loadSellerRequestOwnerOptions() {
       ? sellerRequestOwnerOptions.value.find((option) => option.value === sellerRequestOwnerId.value)
       : undefined
     const selected = savedSelection ?? sellerRequestOwnerOptions.value[0]
-    sellerRequestOwnerId.value = selected?.value ?? ''
-    // The delegated request owner is independent from the CRM account's executive.
+    sellerRequestOwnerId.value = form.clientId && form.crmClientKind
+      ? form.executiveId || ''
+      : selected?.value ?? ''
+    // For linked clients the CRM executive is the request owner; the fallback
+    // selection only applies when there is no CRM client.
     if (!form.clientId) {
       form.executiveId = selected?.value ?? ''
       form.executiveName = selected?.label ?? ''
@@ -80,6 +83,20 @@ async function loadSellerRequestOwnerOptions() {
 
 onMounted(async () => {
   if (props.sellerRequestMode) await loadSellerRequestOwnerOptions()
+})
+
+// Selecting a CRM account or prospect must switch ownership immediately,
+// including when the assigned seller is not in the creator's visibility list.
+// Register after setup: form can be declared after this injected code in
+// release builds. A top-level watch eagerly evaluates its getter (TDZ).
+onMounted(() => {
+  watch(
+    () => [form.clientId, form.crmClientKind, form.executiveId] as const,
+    ([clientId, kind, executiveId]) => {
+      if (!props.sellerRequestMode || !clientId || !kind) return
+      sellerRequestOwnerId.value = executiveId || ''
+    },
+  )
 })`,
     'seller request priority state',
   )
@@ -89,7 +106,9 @@ onMounted(async () => {
     `          priority: rateRequestPriority.value,
           clientName: form.clientName.trim() || null,`,
     `          priority: rateRequestPriority.value,
-          sellerUserId: sellerRequestOwnerId.value || null,
+          sellerUserId: form.clientId && form.crmClientKind
+            ? (form.executiveId || null)
+            : (sellerRequestOwnerId.value || null),
           clientName: form.clientName.trim() || null,`,
     'delegated seller payload',
   )
