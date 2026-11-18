@@ -1,0 +1,25 @@
+{
+  "releaseId": "DH-20261117-RATE-REQUEST-WATCH-TDZ-204",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.73.3",
+  "date": "2026-11-17",
+  "type": "PATCH",
+  "status": "candidate-ci-and-staging-pending",
+  "branches": [
+    "fix/rate-request-owner-watch-tdz-20261117",
+    "develop",
+    "master"
+  ],
+  "summary": "No permitir que el watcher de vendedor CRM se ejecute antes de inicializar form en el wizard de Pricing. Mantiene delegación al vendedor del cliente.",
+  "restCompatibility": "Sin cambios a rutas ni contratos REST; POST /api/pricing/rate-requests conserva propietario CRM validado por backend.",
+  "realtimeCompatibility": "Outbox y SignalR sin cambios.",
+  "tests": [
+    "pricingCrmRequestCommercialOwner.test.mjs (TDZ regression)",
+    "Production-browser Pricing wizard smoke",
+    "CI/build/type-check",
+    "staging"
+  ],
+  "component": "DholeWeb",
+  "previousVersion": "1.70.2",
+  "version": "1.70.3"
+}
