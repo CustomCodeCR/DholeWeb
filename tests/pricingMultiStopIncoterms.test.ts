@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { inlandBillingParty, incotermOperationExplanation } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
+import { inlandBillingParty, incotermOperationExplanation, incotermClientSections, incotermClientPaysMainTransport } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const wizard = read('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
@@ -46,4 +46,16 @@ test('each stop requires cargo type and preserves map optionality', () => {
   assert.match(input, /PricingInteractiveOsmMap/)
   assert.match(preview, /inlandPickups.length/)
   assert.match(preview, /inlandDeliveries.length/)
+})
+
+test('cost sections change with the party receiving the quotation', () => {
+  assert.equal(incotermClientSections('Import', 'EXW').length, 5)
+  assert.equal(incotermClientSections('Export', 'DDP').length, 5)
+  assert.equal(incotermClientSections('Import', 'DDP').length, 0)
+  assert.equal(incotermClientSections('Export', 'EXW').length, 0)
+  assert.equal(incotermClientSections('TransitDomestic', 'DDP').length, 5)
+  assert.equal(incotermClientPaysMainTransport('Import', 'EXW'), true)
+  assert.equal(incotermClientPaysMainTransport('Export', 'DDP'), true)
+  assert.equal(incotermClientPaysMainTransport('Import', 'DDP'), false)
+  assert.equal(incotermClientPaysMainTransport('Export', 'EXW'), false)
 })
