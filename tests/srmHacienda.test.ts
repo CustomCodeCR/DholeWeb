@@ -45,10 +45,10 @@ test('SRM Hacienda interaction follows CRM: resolves automatically without a sec
   assert.match(view, /if \(version !== haciendaLookupVersion\) return false/)
   assert.match(view, /await pendingHaciendaRequest\.promise/)
   assert.match(view, /haciendaVerifiedAt: haciendaApplied\.value/)
-  assert.match(view, /supplierFormTab === 'identity'/)
-  assert.match(view, /supplierFormTab === 'contacts'/)
-  assert.match(view, /supplierFormTab === 'banks'/)
-  assert.match(view, /supplierFormTab === 'credit'/)
+  assert.match(view, /data-srm-accordion="identity"/)
+  assert.match(view, /data-srm-accordion="contacts"/)
+  assert.match(view, /data-srm-accordion="banks"/)
+  assert.match(view, /data-srm-accordion="credit"/)
   assert.doesNotMatch(view, /Aplicar razón social y actividad principal/)
   assert.doesNotMatch(view, /@click="applyHaciendaResult"/)
 })
@@ -91,14 +91,14 @@ test('Hacienda messages never expose endpoint URLs or tax identification', () =>
 
 test('SRM footer stays outside the scroller and submits the supplier form', () => {
   const view = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
-  const drawer = readFileSync('src/shared/components/organisms/DhDrawer.vue', 'utf8')
+  const modal = readFileSync('src/shared/components/organisms/DhModal.vue', 'utf8')
   assert.match(view, /<form id="srm-supplier-form"/)
   assert.match(view, /<\/form>\s*<template #footer>/)
   assert.match(view, /type="submit" form="srm-supplier-form"/)
   assert.match(view, /srmHaciendaErrorMessage\(cause, en.value\)/)
   assert.doesNotMatch(view, /class="sticky bottom-0 z-20 md:col-span-2/)
-  assert.match(drawer, /<footer v-if="\$slots.footer"/)
-  assert.match(drawer, /<slot name="footer"/)
+  assert.match(modal, /<footer v-if="\$slots.footer"/)
+  assert.match(modal, /<slot name="footer"/)
 })
 
 test('authenticated GET does not send an unnecessary JSON Content-Type to Gateway', () => {
