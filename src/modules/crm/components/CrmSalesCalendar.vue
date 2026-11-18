@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect } from '@/shared/components/atoms'
@@ -79,6 +79,27 @@ function logDateBoundary(value: string, exclusive = false): string | undefined {
   if (exclusive) date.setDate(date.getDate() + 1)
   return date.toISOString()
 }
+// Reconcile after SignalR data changes and reconnects, keeping REST authoritative.
+function reconcileCrmCalendar(event: Event) {
+  const detail = (event as CustomEvent<{ endpoint?: string; entityType?: string }>).detail
+  const endpoint = String(detail?.endpoint ?? '').toLowerCase()
+  const entityType = String(detail?.entityType ?? '').toLowerCase()
+  if (event.type === 'dhole:notification:realtime-connected' ||
+      event.type === 'dhole:notification:received' && ['activity', 'followup'].includes(entityType) ||
+      event.type === 'dhole:data:changed' && /\\/api\\/crm\\/(activities|followups|calendar)/.test(endpoint)) {
+    void load()
+  }
+}
+onMounted(() => {
+  window.addEventListener('dhole:data:changed', reconcileCrmCalendar)
+  window.addEventListener('dhole:notification:received', reconcileCrmCalendar)
+  window.addEventListener('dhole:notification:realtime-connected', reconcileCrmCalendar)
+})
+onUnmounted(() => {
+  window.removeEventListener('dhole:data:changed', reconcileCrmCalendar)
+  window.removeEventListener('dhole:notification:received', reconcileCrmCalendar)
+  window.removeEventListener('dhole:notification:realtime-connected', reconcileCrmCalendar)
+})
 const selected = ref(new Date())
 const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
@@ -87,6 +108,7 @@ const detailInviteesBusy = ref(false)
 watch(active, async item => {
   detailInviteeIds.value = []
   if (!item || item.source !== 'followup') return
+  void searchInvitees()
   try {
     const list = await crmRequest<Array<{ userId: string }>>(
       crmPath('followups', item.id, 'invitees'))
