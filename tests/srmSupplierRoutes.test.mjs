@@ -39,6 +39,6 @@ test('route editor binds Config POL, POE and POD with typed CRUD', () => {
   assert.match(panel, /SrmApi\.createSupplierRoute/)
   assert.match(panel, /SrmApi\.updateSupplierRoute/)
   assert.match(panel, /SrmApi\.deleteSupplierRoute/)
-  assert.match(panel, /:can-manage="canEditSuppliers"/)
+  assert.match(view, /:can-manage="canEditSuppliers"/)
   assert.match(api, /async pricingSupplierCoverage/)
 })
