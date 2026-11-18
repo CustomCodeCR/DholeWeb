@@ -1,0 +1,38 @@
+{
+  "releaseId": "DH-20261118-SELLER-ACCEPTED-213",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.81.2",
+  "component": "DholeWeb",
+  "previousVersion": "1.77.1",
+  "version": "1.77.2",
+  "type": "PATCH",
+  "date": "2026-11-18",
+  "status": "candidate-ci-and-staging-pending",
+  "candidateBranch": "fix/DH-20261118-SELLER-ACCEPTED-213-master",
+  "targetBranch": "master",
+  "summary": "Aceptada por cliente: solo Pricing modifica; vendedores no solicitan modificaciones",
+  "validation": [
+    "Ambas vistas y tamaños ocultan Solicitar modificación",
+    "Aceptación histórica y revisión bloqueadas",
+    "Otras tarifas mantienen solicitud de modificación",
+    "Backend HTTP 409 y scope Pricing preservado",
+    "Tests, CI y staging antes de master"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.77.1",
+      "version": "1.77.2"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "previousVersion": "1.23.2",
+      "version": "1.23.3"
+    }
+  ],
+  "compatibility": {
+    "rest": "Respuesta 409 solo para solicitudes no permitidas",
+    "realtime": "Eventos/outbox/SignalR existentes sin cambio",
+    "databaseMigration": false
+  }
+}
