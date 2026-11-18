@@ -1,3 +1,9 @@
+## [1.75.0] - 2026-11-18 (Blobatar: fondo negro y animación al tocar)
+
+- MINOR DH-20261118-BLOBATAR-DARK-TAP-209: la tarjeta de usuario y el fondo del avatar son negros en modo oscuro; el modo claro mantiene su estilo. El avatar responde a clic, toque o teclado con sorpresa, guiño y sonrisa, además de rebote y halo; repetir el toque reinicia correctamente la reacción.
+- Preserva fotografías, iniciales, estados online/busy/offline, seguimiento de mirada, animación ambiental y reduced-motion. No modifica endpoints REST, SignalR, permisos ni persistencia.
+- DholeWeb 1.74.0 → 1.75.0; DholeSystem/ecosistema 1.78.0 → 1.79.0; los demás componentes conservan versiones. CI, SSR, compilación y staging antes de master.
+
 ## [1.74.0] - 2026-11-17 (DH-20261117-OPS-DUAL-VALIDATION-208 · Operations Aperturas y equipos)
 
 - MINOR: navegación Operations con equipos, selección manual de usuarios Auth, capacidades y bitácora de equipo.
