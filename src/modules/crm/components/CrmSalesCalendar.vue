@@ -172,6 +172,29 @@ const accounts = ref<CrmRow[]>([])
 const leads = ref<CrmRow[]>([])
 const contactRows = ref<CrmRow[]>([])
 const selectedContactIds = ref<string[]>([])
+const selectedInviteeIds = ref<string[]>([])
+const inviteeDirectory = ref<Array<{ id: string; displayName: string; userName: string }>>([])
+const inviteeQuery = ref('')
+const inviteesBusy = ref(false)
+const inviteesError = ref('')
+const inviteeChoices = computed(() => inviteeDirectory.value
+  .filter(user => user.id !== editor.value.ownerId)
+  .map(user => ({ value: user.id, label: user.displayName || user.userName || user.id })))
+async function searchInvitees() {
+  if (inviteesBusy.value) return
+  inviteesBusy.value = true
+  inviteesError.value = ''
+  try {
+    const result = await crmRequest<{ items: Array<{ id: string; displayName: string; userName: string }>; total: number }>(
+      crmPath('calendar/invitees') + '?page=1&pageSize=100&search=' +
+      encodeURIComponent(inviteeQuery.value.trim()))
+    const merged = new Map(inviteeDirectory.value.map(x => [x.id, x]))
+    for (const item of result.items ?? []) merged.set(item.id, item)
+    inviteeDirectory.value = [...merged.values()].sort((a, b) =>
+      (a.displayName || a.userName).localeCompare(b.displayName || b.userName, 'es'))
+  } catch (cause) { inviteesError.value = crmError(cause) }
+  finally { inviteesBusy.value = false }
+}
 const contactChoices = computed(() => contactRows.value.map(contact => ({
   value: String(contact.contactId ?? contact.id),
   label: String(contact.name ?? contact.fullName ?? contact.displayName ?? 'Contacto'),
@@ -269,6 +292,7 @@ const editor = ref({
 const draftHadAttachments = ref(false)
 function captureCalendarDraft() {
   return { fields: editor.value, scheduleReminder: reminderMode.value, contacts: selectedContactIds.value,
+    invitees: selectedInviteeIds.value,
     agreements: agreementDrafts.value, omittedAgreements: omittedAgreementKeys.value,
     pendingRecord: pendingDocumentRecord.value, hadAttachments: attachedDocuments.value.length > 0 }
 }
@@ -281,6 +305,7 @@ const calendarDraft = useCrmDraftAutosave({
     editor.value = { ...editor.value, ...snapshot.fields }
     reminderMode.value = Boolean(snapshot.scheduleReminder)
     selectedContactIds.value = snapshot.contacts ?? []
+    selectedInviteeIds.value = snapshot.invitees ?? []
     agreementDrafts.value = snapshot.agreements ?? []
     omittedAgreementKeys.value = snapshot.omittedAgreements ?? []
     pendingDocumentRecord.value = snapshot.pendingRecord ?? null
@@ -605,6 +630,10 @@ function openCreation(date?: Date, withReminder = false) {
   attachedDocuments.value = []
   pendingDocumentRecord.value = null
   selectedContactIds.value = []
+  selectedInviteeIds.value = []
+  inviteeDirectory.value = []
+  inviteeQuery.value = ''
+  if (reminderMode.value) void searchInvitees()
   void loadSellerDirectory()
   userEditedStart.value = false
   error.value = ''
@@ -908,6 +937,7 @@ async function create() {
         ...common, subject: data.subject.trim(), channel: 'SYSTEM',
         assignedUserId: data.ownerId || auth.userId,
         startAt: start.toISOString(), dueAt: end.toISOString(),
+        inviteeUserIds: selectedInviteeIds.value.filter(id => id !== data.ownerId),
       })
       pendingDocumentRecord.value = { kind: 'followup', id: String(createdFollowup.id) }
     } else {
@@ -929,6 +959,7 @@ async function create() {
           .filter(Boolean).join(', ') || null,
         minutes: data.minutes.trim() || null,
         participantContactIds: selectedContactIds.value,
+        participantUserIds: requiresSchedule ? selectedInviteeIds.value.filter(id => id !== data.ownerId) : [],
         agreements: data.agreements.trim() || null,
         nextCommitment: requiresSchedule ? data.nextCommitment.trim() || null : null,
         commitmentDueAt: requiresSchedule ? commitmentDue?.toISOString() ?? null : null,
@@ -1491,6 +1522,24 @@ function openEvent(item: CalendarEvent) {
         <p v-if="canAssignOtherSellers && sellerLoading" class="text-xs text-[var(--dh-text-muted)] sm:col-span-2">Cargando responsables disponibles…</p>
         <p v-if="canAssignOtherSellers && sellerError" role="status" class="text-xs text-amber-600 sm:col-span-2">{{ sellerError }}</p>
         <p v-if="!assignees.length && !sellerLoading" role="alert" class="text-xs text-amber-600 sm:col-span-2">No hay responsables activos con los scopes requeridos para esta actividad.</p>
+        <section v-if="creatingReminder" class="sm:col-span-2 space-y-2 rounded-xl border border-[var(--dh-border)] p-3" data-crm-internal-invitees>
+          <div>
+            <p class="text-sm font-bold">Invitar usuarios internos</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">Agregá asistentes o compañeros. La misma actividad aparecerá en sus agendas y cada uno recibirá avisos por sistema y correo.</p>
+          </div>
+          <div class="flex gap-2">
+            <input v-model.trim="inviteeQuery" type="search" class="calendar-input min-w-0 flex-1"
+              placeholder="Buscar asistentes o usuarios por nombre…" @keyup.enter.prevent="searchInvitees" />
+            <button type="button" class="calendar-btn" :disabled="inviteesBusy" @click="searchInvitees">
+              <Search class="h-4 w-4" /> {{ inviteesBusy ? 'Buscando…' : 'Buscar' }}
+            </button>
+          </div>
+          <DhMultiSelect v-model="selectedInviteeIds" label="Usuarios invitados"
+            :options="inviteeChoices" placeholder="Seleccionar uno o varios usuarios"
+            search-placeholder="Buscar personas disponibles…" empty-text="No hay usuarios disponibles. Buscá por nombre." />
+          <p v-if="inviteesError" role="alert" class="text-xs text-amber-600">{{ inviteesError }}</p>
+          <p v-if="selectedInviteeIds.includes(editor.ownerId)" class="text-xs text-[var(--dh-text-muted)]">El responsable principal ya está incluido en esta actividad.</p>
+        </section>
         <label v-if="creatingReminder" class="calendar-label">Inicio
           <input v-model="editor.start" type="datetime-local" class="calendar-input" required
             @input="userEditedStart=true" />
