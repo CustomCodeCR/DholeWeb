@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
+import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -24,29 +25,10 @@ const emit = defineEmits<{ search: []; logout: []; navigation: [] }>()
 const displayName = computed(() => authStore.userDisplayName || t('topbar.unknownUser'))
 const displayEmail = computed(() => authStore.email || t('topbar.activeSession'))
 const avatarTapTrigger = ref(0)
-const avatarAutoExpressions = ref(true)
-
-function avatarModeStorageKey(id: string | number | null | undefined): string | null {
-  const userId = String(id ?? '').trim()
-  return userId ? `dhole.blobatar.mode.v1:${encodeURIComponent(userId)}` : null
-}
-
-watch(() => authStore.userId, (id) => {
-  const key = avatarModeStorageKey(id)
-  if (!key) { avatarAutoExpressions.value = true; return }
-  try {
-    avatarAutoExpressions.value = window.localStorage.getItem(key) !== 'fixed'
-  } catch { avatarAutoExpressions.value = true }
-}, { immediate: true })
-
-function toggleAvatarAutoExpressions() {
-  avatarAutoExpressions.value = !avatarAutoExpressions.value
-  const key = avatarModeStorageKey(authStore.userId)
-  if (!key) return
-  try {
-    window.localStorage.setItem(key, avatarAutoExpressions.value ? 'auto' : 'fixed')
-  } catch { /* Private browsing may block local storage. */ }
-}
+const avatarAppearance = useAvatarAppearanceStore()
+watch(() => authStore.userId, (id) => avatarAppearance.selectUser(id), { immediate: true })
+onMounted(() => avatarAppearance.start())
+onBeforeUnmount(() => avatarAppearance.stop())
 const searchShortcut = computed(() => shortcutStore.byAction('global.search')?.keys ?? 'ctrl+k')
 
 const inboxRoot = ref<HTMLElement | null>(null)
@@ -370,21 +352,10 @@ onBeforeUnmount(() => {
           :title="`${displayName} · Clic para cambiar expresión`"
           class="hidden shrink-0 cursor-pointer items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dh-primary)] focus-visible:ring-offset-2 sm:inline-flex"
           :class="themeStore.resolvedTheme === 'dark' ? 'focus-visible:ring-offset-black' : 'focus-visible:ring-offset-white'"
-          @click="avatarTapTrigger += 1"
+          @click="avatarTapTrigger += 1; avatarAppearance.nextExpression()"
         >
-          <DhAvatar :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" :dark-backdrop="themeStore.resolvedTheme === 'dark'" :tap-trigger="avatarTapTrigger" :preview-expressions="true" :auto-expressions="avatarAutoExpressions" />
+          <DhAvatar :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" :dark-backdrop="themeStore.resolvedTheme === 'dark'" :tap-trigger="avatarTapTrigger" :preview-expressions="true" :controlled-expressions="true" :mood="avatarAppearance.expression ?? 'auto'" />
         </button>
-        <button
-          type="button"
-          :aria-pressed="avatarAutoExpressions"
-          :aria-label="avatarAutoExpressions ? 'Desactivar cambio automático de expresiones' : 'Activar cambio automático de expresiones'"
-          :title="avatarAutoExpressions ? 'Auto: cambia cada 30 segundos. Clic para fijar la expresión.' : 'Fijo: expresión guardada. Clic para activar Auto.'"
-          class="hidden shrink-0 rounded-full border px-2 py-1 text-[10px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dh-primary)] sm:inline-flex"
-          :class="avatarAutoExpressions
-            ? (themeStore.resolvedTheme === 'dark' ? 'border-cyan-300/40 bg-cyan-300/15 text-cyan-100' : 'border-sky-300 bg-sky-50 text-sky-800')
-            : (themeStore.resolvedTheme === 'dark' ? 'border-white/20 text-white/70' : 'border-slate-200 text-slate-600')"
-          @click="toggleAvatarAutoExpressions"
-        >{{ avatarAutoExpressions ? 'Auto' : 'Fijo' }}</button>
         <div class="hidden min-w-0 xl:block">
           <p class="max-w-40 truncate text-sm font-black" :class="themeStore.resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'">{{ displayName }}</p>
           <p class="max-w-40 truncate text-xs font-semibold" :class="themeStore.resolvedTheme === 'dark' ? 'text-white/65' : 'text-slate-600'">{{ displayEmail }}</p>

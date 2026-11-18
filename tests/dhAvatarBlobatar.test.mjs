@@ -73,7 +73,7 @@ test('Dark mode profile uses a true black backdrop without changing light mode',
 })
 
 test('Avatar reacts on tap, click and keyboard with replayable expressions', () => {
-  assert.match(topbar, /<button[\s\S]*?type="button"[\s\S]*?@click="avatarTapTrigger \+= 1"/)
+  assert.ok(topbar.includes('@click="avatarTapTrigger += 1; avatarAppearance.nextExpression()"'))
   assert.match(topbar, /:tap-trigger="avatarTapTrigger"/)
   assert.match(avatar, /watch\(\(\) => props\.tapTrigger/)
   assert.match(avatar, /tapMood\.value = 'surprised'/)
@@ -146,11 +146,47 @@ test('Automatic expressions cycle every 30 seconds and pause on hidden or reduce
   assert.ok(avatar.includes('rememberMood(tapMood.value)'))
 })
 
-test('Topbar persists accessible per-user Auto / Fixed selection', () => {
-  assert.ok(topbar.includes('dhole.blobatar.mode.v1:'))
-  assert.ok(topbar.includes("window.localStorage.getItem(key) !== 'fixed'"))
-  assert.ok(topbar.includes("avatarAutoExpressions.value ? 'auto' : 'fixed'"))
-  assert.ok(topbar.includes(':aria-pressed="avatarAutoExpressions"'))
-  assert.ok(topbar.includes('@click="toggleAvatarAutoExpressions"'))
-  assert.ok(topbar.includes(':auto-expressions="avatarAutoExpressions"'))
+test('Topbar delegates expressions to shared Pinia state without an Auto/Fixed button', () => {
+  assert.ok(topbar.includes('useAvatarAppearanceStore'))
+  assert.ok(topbar.includes('avatarAppearance.nextExpression()'))
+  assert.ok(topbar.includes(':controlled-expressions="true"'))
+  assert.ok(topbar.includes(':mood="avatarAppearance.expression'))
+  assert.ok(!topbar.includes('toggleAvatarAutoExpressions'))
+  assert.ok(!topbar.includes("{{ avatarAutoExpressions ? 'Auto' : 'Fijo' }}"))
+})
+
+test('Appearance has a large interactive avatar preview and Dhole Auto/Fixed buttons', () => {
+  const appearance = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
+  assert.ok(appearance.includes('size="xl"'))
+  assert.ok(appearance.includes('<DhCard :title="t(\'appearance.avatarTitle\')"'))
+  assert.ok(appearance.includes(':controlled-expressions="true"'))
+  assert.ok(appearance.includes('avatarAppearance.setAutomatic(true)'))
+  assert.ok(appearance.includes('avatarAppearance.setAutomatic(false)'))
+  assert.ok(appearance.includes('avatarAppearance.nextExpression()'))
+  assert.ok(appearance.includes('useAvatarAppearanceStore'))
+  assert.ok(avatar.includes("xl: 'h-40 w-40'"))
+})
+
+test('Shared avatar store has one 30-second timer, persists user preferences and synchronizes tabs', () => {
+  const shared = readFileSync(new URL('../src/core/stores/avatarAppearanceStore.ts', import.meta.url), 'utf8')
+  assert.ok(shared.includes("defineStore('avatarAppearance'"))
+  assert.ok(shared.includes('AVATAR_AUTO_INTERVAL_MS = 30_000'))
+  assert.ok(shared.includes('setInterval(rotate, AVATAR_AUTO_INTERVAL_MS)'))
+  assert.ok(shared.includes('consumers === 1'))
+  assert.ok(shared.includes("'dhole.blobatar.' + kind + '.v1:'"))
+  assert.ok(shared.includes("event.key === keyFor('mode')"))
+  assert.ok(shared.includes("event.key === keyFor('expression')"))
+  assert.ok(shared.includes("document.addEventListener('visibilitychange'"))
+  assert.ok(shared.includes("window.addEventListener('storage'"))
+  assert.ok(avatar.includes('controlledExpressions?: boolean'))
+})
+
+test('Avatar appearance translations are complete in English and Spanish', () => {
+  for (const lang of ['es', 'en']) {
+    const data = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
+    for (const label of ['avatarTitle', 'avatarAuto', 'avatarFixed', 'avatarNext', 'avatarHelp']) {
+      assert.ok(data.appearance[label])
+    }
+    assert.equal(Object.keys(data.appearance.avatarMoods).length, 14)
+  }
 })

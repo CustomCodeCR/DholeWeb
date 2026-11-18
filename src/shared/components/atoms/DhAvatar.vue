@@ -6,7 +6,7 @@ import { happy, idle, love, mad, sad, scared, shy, sick, sleepy, smug, surprised
 import 'blobatar/motion.css'
 import 'blobatar/gaze.css'
 
-type AvatarSize = 'sm' | 'md' | 'lg'
+type AvatarSize = 'sm' | 'md' | 'lg' | 'xl'
 type AvatarMood = 'auto' | 'idle' | 'happy' | 'sad' | 'mad' | 'surprised' | 'wink' | 'sleepy' | 'smug' | 'unsure' | 'scared' | 'love' | 'shy' | 'sick' | 'thinking'
 type PreviewMood = Exclude<AvatarMood, 'auto'>
 
@@ -45,6 +45,7 @@ const props = withDefaults(
     tapTrigger?: number
     previewExpressions?: boolean
     autoExpressions?: boolean
+    controlledExpressions?: boolean
   }>(),
   {
     size: 'md',
@@ -57,6 +58,7 @@ const props = withDefaults(
     tapTrigger: 0,
     previewExpressions: false,
     autoExpressions: false,
+    controlledExpressions: false,
   },
 )
 
@@ -64,7 +66,10 @@ const photoFailed = ref(false)
 const hovered = ref(false)
 const tapMood = ref<PreviewMood | null>(null)
 const previewIndex = ref(-1)
-const previewLabel = computed(() => tapMood.value ? previewLabels[tapMood.value] : '')
+const previewLabel = computed(() => {
+  const selected = props.controlledExpressions && props.mood !== 'auto' ? props.mood : tapMood.value
+  return selected ? previewLabels[selected] : ''
+})
 const tapActive = ref(false)
 const tapVariant = ref(false)
 const tapTimers: ReturnType<typeof setTimeout>[] = []
@@ -110,7 +115,7 @@ function stopAutoMoodTimer() {
 
 function syncAutoMoodTimer() {
   stopAutoMoodTimer()
-  if (!avatarMounted || !props.previewExpressions || !props.autoExpressions ||
+  if (!avatarMounted || !props.previewExpressions || props.controlledExpressions || !props.autoExpressions ||
       document.hidden || Boolean(reducedMotion?.matches)) return
   autoMoodTimer = setInterval(advancePreviewMood, AUTO_MOOD_INTERVAL_MS)
 }
@@ -124,6 +129,10 @@ function playTapReaction() {
   clearTapTimers()
   tapVariant.value = !tapVariant.value
   tapActive.value = true
+  if (props.controlledExpressions) {
+    tapTimers.push(setTimeout(() => { tapActive.value = false }, 720))
+    return
+  }
   if (props.previewExpressions) {
     advancePreviewMood()
     syncAutoMoodTimer()
@@ -142,7 +151,7 @@ watch(() => props.tapTrigger, (value, previous) => {
 })
 watch(() => props.src, () => { photoFailed.value = false })
 watch(() => props.id, () => {
-  if (!avatarMounted || !props.previewExpressions) return
+  if (!avatarMounted || !props.previewExpressions || props.controlledExpressions) return
   restoreMood()
   syncAutoMoodTimer()
 })
@@ -151,11 +160,12 @@ watch(() => props.autoExpressions, () => {
 })
 
 const avatarSeed = computed(() => String(props.id ?? '').trim() || props.name?.trim() || '')
-const pixelSize = computed(() => ({ sm: 32, md: 40, lg: 56 })[props.size])
+const pixelSize = computed(() => ({ sm: 32, md: 40, lg: 56, xl: 160 })[props.size])
 const sizeClass = computed(() => ({
   sm: 'h-8 w-8',
   md: 'h-10 w-10',
   lg: 'h-14 w-14',
+  xl: 'h-40 w-40',
 })[props.size])
 const animationMode = computed(() => props.animate === true ? 'hover' : props.animate || undefined)
 const showMotionAura = computed(() =>
@@ -167,7 +177,8 @@ const showMotionAura = computed(() =>
 
 const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking }
 const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
-  if (tapMood.value) return tapMood.value
+  if (props.controlledExpressions && props.mood !== 'auto') return props.mood
+  if (tapMood.value && !props.controlledExpressions) return tapMood.value
   if (props.mood !== 'auto') return props.mood
   if (props.status === 'busy') return 'thinking'
   if (props.status === 'offline') return 'sleepy'
@@ -197,11 +208,11 @@ function syncPointerSupport() {
 useGaze(trackedBlob, { travel: 3, target: 'pointer' })
 onMounted(() => {
   avatarMounted = true
-  if (props.previewExpressions) {
+  if (props.previewExpressions && !props.controlledExpressions) {
     restoreMood()
     document.addEventListener('visibilitychange', syncAutoMoodTimer)
   }
-  if (props.followCursor || props.previewExpressions) {
+  if (props.followCursor || (props.previewExpressions && !props.controlledExpressions)) {
     reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
     reducedMotion.addEventListener('change', syncAutoMoodTimer)
   }

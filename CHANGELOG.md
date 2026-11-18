@@ -1,3 +1,9 @@
+## [1.79.0] - 2026-11-18 (Avatar: configuración y vista previa en Apariencia)
+
+- MINOR DH-20261118-BLOBATAR-APPEARANCE-216: mueve Auto/Fijo fuera de DhTopbar y lo coloca en Apariencia junto a una vista previa interactiva de 160 px del avatar. Incorpora textos ES/EN y componentes Dhole (DhCard/DhButton).
+- Unifica expresión, usuario y temporizador de 30 segundos entre el encabezado y la vista previa mediante una store Pinia. Conserva las preferencias existentes en localStorage, la sincronización entre pestañas, la pausa por visibilidad/movimiento reducido y el fondo claro/oscuro.
+- DholeWeb 1.78.0 → 1.79.0; DholeSystem/ecosistema 1.82.0 → 1.83.0; otros 15 componentes sin cambios. No modifica REST, SignalR ni datos. CI, compilación y staging pendientes.
+
 ## [1.78.0] - 2026-11-18 (Blobatar: conservar expresiones y cambiarlas automáticamente)
 
 - MINOR DH-20261118-BLOBATAR-PREFERENCES-215: guarda la última cara seleccionada para cada usuario en localStorage y permite alternar modo Auto/Fijo desde el perfil; también guarda la elección de modo. Auto cambia entre las 14 caras cada 30 segundos, se pausa cuando la pestaña está oculta o con movimiento reducido, y Fijo conserva la cara elegida tras recargas.
