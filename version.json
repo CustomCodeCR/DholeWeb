@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.70.0",
-  "ecosystemVersion": "1.73.0",
-  "releaseId": "DH-20261117-SRM-ARCHIVE-UI-203",
+  "version": "1.70.1",
+  "ecosystemVersion": "1.73.1",
+  "releaseId": "DH-20261117-SELLER-CANCEL-ACCEPTED-203",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261117-SRM-ARCHIVE-UI-203"
+  "businessReleaseId": "DH-20261117-SELLER-CANCEL-ACCEPTED-203"
 }
