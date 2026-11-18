@@ -174,8 +174,8 @@ function handlePointerEnter(event: PointerEvent) {
       v-if="previewExpressions"
       aria-live="polite"
       role="status"
-      class="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-zinc-900 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg"
-      :class="{ invisible: !previewLabel }"
+      class="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold shadow-lg"
+      :class="[darkBackdrop ? 'border-white/15 bg-zinc-950 text-white' : 'border-slate-200 bg-white text-slate-900', { invisible: !previewLabel }]"
     >{{ previewLabel }}</span>
 
     <img
