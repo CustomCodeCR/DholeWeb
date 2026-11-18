@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { CheckCircle2, FileCheck2, XCircle } from 'lucide-vue-next'
 import { DhButton, DhTextarea } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
+import { unwrapApiResponse } from '@/core/api/apiResponse'
 import type { RateDto } from '@/core/interfaces/pricing'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -22,6 +23,49 @@ const form = reactive({
   saving: false,
 })
 
+type SellerGroupOption = {
+  rateId: string
+  suffix: string
+  status: string
+  rateStatus: string
+  poeName: string
+  podName?: string | null
+  carrierName: string
+}
+type SellerGroupSnapshot = {
+  parentQuoteNumber: string
+  selectedRateId?: string | null
+  alternatives: SellerGroupOption[]
+}
+const quoteGroup = ref<SellerGroupSnapshot | null>(null)
+const selectedOptionId = ref('')
+const optionsLoading = ref(false)
+const optionsError = ref('')
+const groupedQuote = computed(() => (props.rate.groupAlternativeCount ?? 0) > 1)
+const optionsReady = computed(() =>
+  !groupedQuote.value || (!!quoteGroup.value && quoteGroup.value.alternatives.length > 1))
+const quoteOptionRequired = computed(() =>
+  props.decision === 'AcceptedByClient' && groupedQuote.value)
+onMounted(async () => {
+  if (!groupedQuote.value) return
+  optionsLoading.value = true
+  try {
+    const response = await callEndpoint<SellerGroupSnapshot>({
+      method: 'GET',
+      path: `/api/pricing/seller-rates/${encodeURIComponent(props.rate.id)}/options`,
+      headers: { Accept: 'application/json' },
+    })
+    quoteGroup.value = unwrapApiResponse<SellerGroupSnapshot>(response as never)
+    selectedOptionId.value = quoteGroup.value.selectedRateId || ''
+    if (quoteGroup.value.alternatives.length < 2)
+      optionsError.value = 'No se pudieron cargar todas las opciones de la cotización.'
+  } catch (error) {
+    optionsError.value = 'No se pudieron consultar las opciones de la cotización. Intente nuevamente.'
+    toastStore.backendError(error, optionsError.value)
+  } finally {
+    optionsLoading.value = false
+  }
+})
 const isAccept = computed(() => props.decision === 'AcceptedByClient')
 const isCancel = computed(() => props.decision === 'Cancelled')
 const reference = computed(() => props.rate.quoNumber || props.rate.rateCode || 'Tarifa')
@@ -32,14 +76,28 @@ async function submit() {
   const reason = form.reason.trim()
   if (!isAccept.value && (!reason || reason.length > 1000)) return
   if (isAccept.value && form.observations.trim().length > 2000) return
+  if (quoteOptionRequired.value && (!optionsReady.value || !selectedOptionId.value)) {
+    optionsError.value = 'Elija una de las opciones de esta misma cotización antes de aceptarla.'
+    return
+  }
 
   try {
     form.saving = true
 
+    const chosenRateId = quoteOptionRequired.value ? selectedOptionId.value : props.rate.id
+    if (quoteOptionRequired.value && !quoteGroup.value?.selectedRateId) {
+      // Seller ownership is checked on this endpoint; it uses the same
+      // serializable parent-row lock as Pricing's group selector.
+      await callEndpoint<unknown>({
+        method: 'POST',
+        path: `/api/pricing/seller-rates/${encodeURIComponent(chosenRateId)}/group-select`,
+        headers: { Accept: 'application/json' },
+      })
+    }
     const result = await callEndpoint<{ openingNotificationDeferred?: boolean }>(
       {
         method: 'PATCH',
-        path: `/api/pricing/seller-rates/${props.rate.id}/status`,
+        path: `/api/pricing/seller-rates/${encodeURIComponent(chosenRateId)}/status`,
         headers: { Accept: 'application/json' },
       },
       {
@@ -127,6 +185,29 @@ async function submit() {
         {{ reference }}
       </div>
 
+      <div v-if="quoteOptionRequired" class="mt-4 space-y-3">
+        <p class="text-sm font-bold text-[var(--dh-text)]">
+          Cotización {{ quoteGroup?.parentQuoteNumber || reference }}: seleccione la opción aceptada
+        </p>
+        <p v-if="optionsLoading" class="text-xs text-[var(--dh-text-muted)]">Cargando opciones de la QUO…</p>
+        <div v-for="option in quoteGroup?.alternatives || []" :key="option.rateId"
+          class="rounded-xl border p-3 transition-colors"
+          :class="selectedOptionId === option.rateId
+            ? 'border-[var(--dh-primary)] bg-[var(--dh-card-hover)]'
+            : 'border-[var(--dh-border)] bg-[var(--dh-card)]'">
+          <button type="button" class="w-full text-left"
+            :disabled="!!quoteGroup?.selectedRateId && quoteGroup.selectedRateId !== option.rateId"
+            :aria-pressed="selectedOptionId === option.rateId"
+            @click="selectedOptionId = option.rateId; optionsError = ''">
+            <span class="block text-sm font-black text-[var(--dh-text)]">Opción {{ option.suffix }} · {{ option.carrierName }}</span>
+            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ option.poeName }} → {{ option.podName || 'Destino por confirmar' }}</span>
+            <span v-if="quoteGroup?.selectedRateId === option.rateId" class="mt-1 block text-xs font-bold text-[var(--dh-primary)]">Opción elegida</span>
+            <span v-else-if="quoteGroup?.selectedRateId" class="mt-1 block text-xs text-[var(--dh-text-muted)]">No seleccionada, no rechazada</span>
+          </button>
+        </div>
+        <p v-if="optionsError" role="alert" class="text-xs font-semibold text-red-600 dark:text-red-400">{{ optionsError }}</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">Se aceptará una sola QUO. La otra opción no se registrará como rechazada.</p>
+      </div>
       <p
         v-if="isAccept"
         class="mt-3 text-sm font-semibold leading-6 text-[var(--dh-text-muted)]"
@@ -148,7 +229,7 @@ async function submit() {
       <DhTextarea
         v-else
         v-model="form.reason"
-         :label="isCancel ? 'Motivo de cancelación' : 'Motivo del rechazo'"
+        :label="isCancel ? 'Motivo de cancelación' : 'Motivo del rechazo'"
         :rows="4"
         :placeholder="isCancel ? 'Explique por qué se cancela esta cotización...' : 'Explique por qué el cliente no aceptó la tarifa...'"
         maxlength="1000"
@@ -169,6 +250,7 @@ async function submit() {
         :label="isAccept ? 'Aceptar tarifa' : isCancel ? 'Cancelar cotización' : 'Registrar rechazo'"
         :variant="isAccept ? undefined : 'danger'"
         :loading="form.saving"
+        :disabled="form.saving || (quoteOptionRequired && (optionsLoading || !optionsReady || !selectedOptionId))"
       />
     </div>
   </form>
