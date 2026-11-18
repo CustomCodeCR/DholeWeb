@@ -1,3 +1,10 @@
+## [1.74.0] - 2026-11-17 (DH-20261117-OPS-DUAL-VALIDATION-208 · Operations Aperturas y equipos)
+
+- MINOR: navegación Operations con equipos, selección manual de usuarios Auth, capacidades y bitácora de equipo.
+- Primer workspace de Aperturas: creación manual, cola, pool automático de dos validadores, decisiones independientes y audit log por expediente.
+- Scopes estrictos para lectura, administración, asignación, revisión y auditoría. Usuarios y scopes se gestionan en Auth.
+- DholeWeb 1.73.0 → 1.74.0, ecosistema 1.77.1 → 1.78.0. Sin autorización de producción.
+
 ## [1.73.0] - 2026-11-17 (Blobatar: animaciones expresivas y seguimiento de ojos)
 
 - MINOR DH-20261117-BLOBATAR-MOTION-207: animación ambiental de respiración, flotación, parpadeo y miradas, expresión happy al hover, thinking en busy y sleepy en offline; poses configurables sin cambiar la semilla estable ni la prioridad de fotografías.

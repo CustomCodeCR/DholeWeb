@@ -99,6 +99,20 @@ export const router = createRouter({
         },
 
         {
+          path: 'operations/teams',
+          name: 'operations-teams',
+          component: () => import('@/modules/operations/views/OperationsTeamsView.vue'),
+          meta: { tabTitle: 'Operations · Equipos', closable: true,
+            requiredScope: 'operations.team.manage' },
+        },
+        {
+          path: 'operations/apertures',
+          name: 'operations-apertures',
+          component: () => import('@/modules/operations/views/OperationsAperturesView.vue'),
+          meta: { tabTitle: 'Operations · Aperturas', closable: true,
+            requiredScope: 'operations.case.read' },
+        },
+        {
           path: 'crm',
           name: 'crm-home',
           component: () => import('@/modules/crm/views/CrmLandingView.vue'),
