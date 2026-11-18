@@ -30,7 +30,7 @@ test('account edit supports creating contacts without leaving the existing edito
   assert.match(edition, /@click="beginNewContact"/)
   assert.match(edition, /@click="saveContact">Crear contacto/)
   assert.match(edition, /crmPath\('accounts', String\(props\.account\.id\), 'contacts'\)/)
-  assert.match(edition, /isPrimary: contactDraft\\.isPrimary, isOperationsContact: contactDraft\\.isOperationsContact/)
+  assert.ok(edition.includes('isPrimary: contactDraft.isPrimary, isOperationsContact: contactDraft.isOperationsContact'))
   assert.match(edition, /role-flags/)
   assert.match(edition, /relatedContacts\.value = previous/)
   assert.match(edition, /relatedSuccess\.value = previous \?/)
