@@ -1,3 +1,9 @@
+## [1.79.4] - 2026-11-18 (Pricing: apertura de solicitudes con errores legibles)
+
+- PATCH DH-20261118-PRICING-LEASE-220: el wizard distingue el error de reserva del de lectura y muestra el código HTTP y TraceId disponible; Reintentar reutiliza el control de operaciones pendientes y no duplica claims.
+- El backend obtiene el resultado del advisory lock PostgreSQL de forma tipada y devuelve 409 de contención o 503 con identificador de diagnóstico. Se conservan la seguridad, auditoría, heartbeat y SignalR.
+- DholeWeb 1.79.3 → 1.79.4; Pricing 1.23.7 → 1.23.8; ecosistema 1.83.3 → 1.83.4. CI/staging antes del merge a master.
+
 ## [1.79.3] - 2026-11-18 (Pricing: liberación de reservas bloqueadas)
 
 - PATCH DH-20261118-PRICING-LEASE-219: «Liberar mi reserva» utiliza un release directo del backend y nunca vuelve a hacer claim; usuarios autorizados pueden liberar explícitamente reservas ajenas solo tras 45 segundos sin heartbeat, con validación atómica del servidor.
