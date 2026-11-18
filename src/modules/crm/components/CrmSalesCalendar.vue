@@ -86,7 +86,7 @@ function reconcileCrmCalendar(event: Event) {
   const entityType = String(detail?.entityType ?? '').toLowerCase()
   if (event.type === 'dhole:notification:realtime-connected' ||
       event.type === 'dhole:notification:received' && ['activity', 'followup'].includes(entityType) ||
-      event.type === 'dhole:data:changed' && /\\/api\\/crm\\/(activities|followups|calendar)/.test(endpoint)) {
+      event.type === 'dhole:data:changed' && /\/api\/crm\/(activities|followups|calendar)/.test(endpoint)) {
     void load()
   }
 }
