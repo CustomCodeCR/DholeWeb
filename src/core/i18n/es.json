@@ -485,6 +485,33 @@
       "backgroundRemovedMessage": "La imagen local se eliminó de este navegador.",
       "backgroundRemoveErrorTitle": "No se pudo eliminar el fondo",
       "backgroundRemoveErrorMessage": "El navegador no pudo borrar la imagen local."
+    },
+    "avatarTitle": "Avatar y expresiones",
+    "avatarHelp": "Personalice su avatar y vea sus expresiones en tamaño grande.",
+    "avatarBehavior": "Comportamiento",
+    "avatarAuto": "Auto",
+    "avatarFixed": "Fijo",
+    "avatarAutoHelp": "Cambia automáticamente de expresión cada 30 segundos mientras esta pestaña está activa.",
+    "avatarFixedHelp": "Mantiene la expresión seleccionada hasta que usted la cambie.",
+    "avatarNext": "Cambiar expresión",
+    "avatarPreviewHelp": "Haga clic en el avatar para probar otra expresión.",
+    "avatarStorageHelp": "La expresión y el modo se guardan para su usuario en este navegador.",
+    "avatarNeutral": "Neutral",
+    "avatarMoods": {
+      "mad": "Enojado",
+      "happy": "Feliz",
+      "sad": "Triste",
+      "surprised": "Sorprendido",
+      "wink": "Guiño",
+      "sleepy": "Dormido",
+      "smug": "Satisfecho",
+      "unsure": "Indeciso",
+      "scared": "Asustado",
+      "love": "Enamorado",
+      "shy": "Tímido",
+      "sick": "Enfermo",
+      "thinking": "Pensativo",
+      "idle": "Neutral"
     }
   },
   "tabs": {

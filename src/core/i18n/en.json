@@ -485,6 +485,33 @@
       "backgroundRemovedMessage": "The local image was removed from this browser.",
       "backgroundRemoveErrorTitle": "Could not remove background",
       "backgroundRemoveErrorMessage": "The browser could not delete the local image."
+    },
+    "avatarTitle": "Avatar and expressions",
+    "avatarHelp": "Customize your avatar and preview expressions at a larger size.",
+    "avatarBehavior": "Behavior",
+    "avatarAuto": "Auto",
+    "avatarFixed": "Fixed",
+    "avatarAutoHelp": "Automatically changes expression every 30 seconds while this tab is active.",
+    "avatarFixedHelp": "Keeps the selected expression until you change it.",
+    "avatarNext": "Change expression",
+    "avatarPreviewHelp": "Click the avatar to try another expression.",
+    "avatarStorageHelp": "Your expression and mode are saved for your account in this browser.",
+    "avatarNeutral": "Neutral",
+    "avatarMoods": {
+      "mad": "Angry",
+      "happy": "Happy",
+      "sad": "Sad",
+      "surprised": "Surprised",
+      "wink": "Winking",
+      "sleepy": "Sleepy",
+      "smug": "Smug",
+      "unsure": "Unsure",
+      "scared": "Scared",
+      "love": "In love",
+      "shy": "Shy",
+      "sick": "Sick",
+      "thinking": "Thinking",
+      "idle": "Neutral"
     }
   },
   "tabs": {

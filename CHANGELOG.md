@@ -1,8 +1,14 @@
-## [1.79.1] - 2026-11-18 (MultiQUO: 672-A y 672-B siempre)
+## [1.79.1] - 2026-11-18 (MultiQUO: números comerciales 672-A y 672-B)
 
-- PATCH DH-20261118-MULTIQUO-IDENTITY-217: el buscador global muestra QuoNumber en vez de RateCode para subcotizaciones; evita incluir el consecutivo técnico como identidad visible, usa groupQuotes para no mostrar copias históricas huérfanas y mantiene búsquedas de vendedor con identidad comercial.
-- El listado de tarifas y el wizard muestran la alternativa seleccionada mediante su número sufijado; seleccionar/aceptar una opción no convierte 672-B en 672. La migración correspondiente vive en DholePricingService.
-- DholeWeb 1.78.0/1.78.1 → 1.79.1; DholePricingService 1.23.3/1.23.4 → 1.23.5; ecosistema 1.82.0/1.82.1 → 1.83.1. Build, pruebas y staging requeridos antes de master; producción no autorizada.
+- PATCH DH-20261118-MULTIQUO-IDENTITY-217: en buscador global, listados y wizard, cada alternativa FCL usa su QuoNumber, nunca el consecutivo técnico interno. Las alternativas seleccionadas mantienen su sufijo.
+- Se preservan las funcionalidades Blobatar/Apariencia de 1.79.0 y se integra PricingService 1.23.5 con migración de subcotizaciones anteriores, conservando historial, auditoría, Outbox/SignalR y permisos.
+- DholeWeb 1.79.0 → 1.79.1; DholePricingService 1.23.4 → 1.23.5; DholeSystem/ecosistema 1.83.0 → 1.83.1. Validaciones CI y staging aprobadas en develop.
+
+## [1.79.0] - 2026-11-18 (Avatar: vista grande y controles en Apariencia)
+
+- MINOR DH-20261118-BLOBATAR-APPEARANCE-216: mueve Auto/Fijo del topbar a Configuración → Apariencia y agrega un avatar grande de 160 px con expresión y botón para cambiarla. Componentes Dhole compartidos y traducciones ES/EN.
+- Nuevo estado centralizado Pinia sincroniza el avatar pequeño y grande, mantiene la misma expresión, previene temporizadores duplicados y conserva preferencias locales por usuario (también entre pestañas). Continúa el ciclo de 30 segundos con pausa al ocultar la pestaña y con prefers-reduced-motion.
+- DholeWeb 1.78.1 → 1.79.0, DholeSystem/ecosistema 1.82.1 → 1.83.0. Preserva cambios de Pricing Lease 214 y los 15 componentes restantes; API, SignalR y esquema sin cambios. CI y staging obligatorios.
 
 ## [1.78.1] - 2026-11-18 (Pricing: liberar reservas al cerrar solicitudes)
 
