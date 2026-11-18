@@ -74,11 +74,23 @@ export const RateRequestLeaseService = {
     }, { body: { token }, idempotencyKey: createUuid() })
     if (sessionStorage.getItem(key(id)) === token) sessionStorage.removeItem(key(id))
   },
-  // Explicit repair for an orphaned reservation owned by the same user.
-  // API ownership validation prevents releasing somebody else's work.
+  // Release by authenticated owner: NEVER claim first or rotate another tab's token.
   async releaseOwn(id: string): Promise<void> {
-    await this.claim(id, { recoverOwnLease: true })
-    await this.release(id)
+    await callEndpoint<unknown>({
+      method: 'POST',
+      path: path(id, 'release-own'),
+      headers: { Accept: 'application/json' },
+    }, { idempotencyKey: createUuid() })
+    sessionStorage.removeItem(key(id))
+  },
+  // A different operator may release only an inactive lease: API requires
+  // 45 seconds without a successful heartbeat and audits the action.
+  async releaseStale(id: string): Promise<void> {
+    await callEndpoint<unknown>({
+      method: 'POST',
+      path: path(id, 'release-stale'),
+      headers: { Accept: 'application/json' },
+    }, { idempotencyKey: createUuid() })
   },
   async attachRate(id: string, rateId: string): Promise<void> {
     const token = this.tokenFor(id)
