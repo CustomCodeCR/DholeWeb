@@ -1,3 +1,9 @@
+## [1.72.0] - 2026-11-17 (Dhole UI: avatares Blobatar locales)
+
+- MINOR DH-20261117-BLOBATAR-206: DhAvatar usa @blobatar/vue + blobatar 2.7.0 con avatares SVG determinísticos y misma identidad por ID de usuario. Fotos existentes prevalecen; fallback configurable a iniciales; estados online/busy/offline sin cambios.
+- DhTopbar utiliza ID de Auth y animación al pasar el cursor; tablas conservan la generación estática. Render local, sin llamadas a servidores de terceros, sin cambios a REST ni SignalR.
+- DholeWeb 1.71.1 → 1.72.0; DholeSystem/ecosistema 1.74.0 → 1.75.0. CI de instalación frozen-lockfile, regresión SSR, typecheck, build y smoke staging obligatorios antes de promoción a master.
+
 ## [1.71.1] - 2026-11-17 (Solicitudes de tarifa: propietario CRM y watcher seguro)
 
 - PATCH DH-20261117-CRM-RATE-OWNER-PROD-205: al crear solicitudes delegadas para cuenta/prospecto, la propiedad pertenece al ejecutivo comercial de CRM, independientemente del creador. Backend valida CRM; el frontend sincroniza owner.

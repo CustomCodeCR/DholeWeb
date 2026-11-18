@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@blobatar/vue':
+        specifier: 2.7.0
+        version: 2.7.0(blobatar@2.7.0(vue@3.5.39(typescript@6.0.3)))(vue@3.5.39(typescript@6.0.3))
+      blobatar:
+        specifier: 2.7.0
+        version: 2.7.0(vue@3.5.39(typescript@6.0.3))
       chart.js:
         specifier: ^4.5.1
         version: 4.5.1
@@ -65,6 +71,23 @@ importers:
         version: 3.3.5(typescript@6.0.3)
 
 packages:
+
+  '@blobatar/vue@2.7.0':
+    resolution: {integrity: sha512-sE417mbyV8cCevxek3LN0M6vx5lCvjjf6wChEE9Fmc3QuMEN6M8yQHM0egMTERVwdAJV+zT78Y4BTiwyxzFEyA==}
+    peerDependencies:
+      blobatar: 2.x
+      vue: '>=3'
+
+  blobatar@2.7.0:
+    resolution: {integrity: sha512-tL1p2J3dXE/Z9U/ITwHqU7HBHmTH+Am+hif1J1hWAhvFT1VYC2HG+eXtN7081yuY+L2lrp9bs/VaF7dVH3S2jw==}
+    peerDependencies:
+      react: '>=18'
+      vue: '>=3'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      vue:
+        optional: true
 
   '@kurkle/color@0.3.4':
     resolution: {integrity: sha512-M5UknZPHRu3DEDWoipU6sE8PdkZ6Z/S+v4dD+Ke8IaNlpdSQah50lz1KtcFBa2vsdOnwbbnxJwVM4wty6udA5w==}
@@ -1268,6 +1291,15 @@ packages:
     hasBin: true
 
 snapshots:
+
+  '@blobatar/vue@2.7.0(blobatar@2.7.0(vue@3.5.39(typescript@6.0.3)))(vue@3.5.39(typescript@6.0.3))':
+    dependencies:
+      blobatar: 2.7.0(vue@3.5.39(typescript@6.0.3))
+      vue: 3.5.39(typescript@6.0.3)
+
+  blobatar@2.7.0(vue@3.5.39(typescript@6.0.3)):
+    dependencies:
+      vue: 3.5.39(typescript@6.0.3)
 
   '@kurkle/color@0.3.4': {}
 
