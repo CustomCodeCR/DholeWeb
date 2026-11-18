@@ -1,3 +1,9 @@
+## [1.69.1] - 2026-11-17 (Ventas: cancelar solo cotizaciones aceptadas)
+
+- PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: el botón Cancelar cotización solo se muestra para estado AcceptedByClient en dashboard de Ventas (móvil/escritorio) y detalle de QUO; se conserva el bloqueo de revisiones no publicadas y la titularidad comercial.
+- La API de Pricing valida la aceptación previamente persistida; se mantienen motivo obligatorio, auditoría, idempotencia, REST y eventos de dominio existentes.
+- DholeWeb 1.69.0 → 1.69.1; ecosistema 1.72.0 → 1.72.1. CI y staging pendientes.
+
 ## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
 
 - MINOR DH-20261117-SELLER-CANCEL-202: botón de cancelación en dashboard de ventas (móvil y escritorio) y detalle de QUO; motivo obligatorio (1-1000 caracteres), confirmación y refresco del estado.
