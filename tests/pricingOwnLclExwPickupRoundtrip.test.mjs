@@ -99,6 +99,7 @@ test('editing own LCL keeps manual pickup identity and amounts after reload', as
 test('manual and configured pickup survive source-aware save and fixed-price lookup', () => {
   assert.match(persistence, /cargo manual agregado desde el wizard de pricing/)
   assert.ok(persistence.includes('if (Boolean(line.detailId || line.id)) return true'), 'Saved EXW pickup must survive with CostId')
+  assert.ok(persistence.includes("Boolean(line.detailId) || String(line.key ?? '').startsWith('exw-fca-variable-cost:')"), 'Persisted linked pickup must be included in the PUT snapshot')
   assert.match(persistence, /const isPickup = line.section === 'pickup_origin'/)
   assert.ok(persistence.includes('ownLclKeepQuotedLine(line, ${detailsMapperAnchor})'))
   assert.match(costs, /costType: cost.costType/)
