@@ -85,7 +85,7 @@ test('Avatar reacts on tap, click and keyboard with replayable expressions', () 
   assert.match(avatar, /prefers-reduced-motion: reduce/)
 })
 
-test('Expression preview starts angry, cycles the 14 supported poses and retains the selected one', () => {
+test('Expression preview starts angry, cycles the supported poses and retains the selected one', () => {
   assert.match(avatar, /const previewMoods = \['mad', 'happy', 'sad'/)
   assert.match(avatar, /previewIndex = ref\(-1\)/)
   assert.match(avatar, /previewIndex\.value = \(previewIndex\.value \+ 1\) % previewMoods\.length/)
@@ -187,6 +187,27 @@ test('Avatar appearance translations are complete in English and Spanish', () =>
     for (const label of ['avatarTitle', 'avatarAuto', 'avatarFixed', 'avatarNext', 'avatarHelp']) {
       assert.ok(data.appearance[label])
     }
-    assert.equal(Object.keys(data.appearance.avatarMoods).length, 14)
+    assert.equal(Object.keys(data.appearance.avatarMoods).length, 17)
   }
+})
+
+
+test('Dhole adds three distinct native Blobatar poses, synchronized with shared rotation', async () => {
+  const { stressed, tired, resigned } = await import('../src/shared/components/atoms/blobatarExpressions.ts')
+  const { mad, sleepy, sad } = await import('blobatar/expression')
+  const faces = await Promise.all([stressed, tired, resigned, mad, sleepy, sad].map(expression =>
+    renderToString(createSSRApp({ render: () =>
+      h(Blobatar, { name: 'dhole-user-42', size: 160, animate: 'always', expression }) })),
+  ))
+  assert.equal(new Set(faces).size, 6)
+  const store = readFileSync(new URL('../src/core/stores/avatarAppearanceStore.ts', import.meta.url), 'utf8')
+  for (const mood of ['stressed', 'tired', 'resigned']) {
+    assert.ok(store.includes(`'${mood}'`))
+    assert.ok(avatar.includes(mood))
+    for (const lang of ['es', 'en']) {
+      const data = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
+      assert.ok(data.appearance.avatarMoods[mood])
+    }
+  }
+  assert.ok(avatar.includes('controlledExpressions'))
 })
