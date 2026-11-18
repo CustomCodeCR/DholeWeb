@@ -27,6 +27,10 @@ test('Normal seller requests do not discard the CRM executive before POST', () =
 test('Delegated requests belong to the CRM seller and never to the accidental creator', () => {
   assert.match(delegated, /sellerRequestOwnerId\.value = form\.clientId && form\.crmClientKind/)
   assert.match(delegated, /sellerRequestOwnerId\.value = executiveId \|\| ''/)
+  // Build transforms can inject seller state before form is declared.
+  // A top-level watch would eagerly read form and crash the production wizard.
+  assert.match(delegated, /onMounted\(\(\) => \{\s*watch\(/)
+  assert.doesNotMatch(delegated, /\nwatch\(\s*\(\) => \[form\.clientId/)
   assert.match(delegated, /sellerUserId: form\.clientId && form\.crmClientKind/)
   assert.match(delegated, /\(form\.executiveId \|\| null\)/)
 })
