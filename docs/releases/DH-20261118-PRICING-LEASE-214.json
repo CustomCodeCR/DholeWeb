@@ -1,0 +1,33 @@
+{
+  "releaseId": "DH-20261118-PRICING-LEASE-214",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.82.1",
+  "date": "2026-11-18",
+  "type": "PATCH",
+  "status": "candidate-ci-and-staging-pending",
+  "summary": "Release rate request leases before navigation; suppress late heartbeat reclaim attempts and reject stale tokens in Pricing API.",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "from": "1.78.0",
+      "to": "1.78.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "from": "1.23.3",
+      "to": "1.23.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "from": "1.82.0",
+      "to": "1.82.1"
+    }
+  ],
+  "restCompatibility": "Existing routes and API payloads preserved",
+  "realtimeCompatibility": "SignalR and outbox unchanged",
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  }
+}
