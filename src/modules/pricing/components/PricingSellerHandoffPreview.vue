@@ -209,7 +209,10 @@ const cargoVolume = computed(() => {
     physicalCbm = positive(context.physicalVolumeCbm) || physicalCbm
     billableCbm = positive(context.billableVolumeCbm) || billableCbm
   }
-  const weightCbm = positive(raw('cargoWeightKg')) / (shipmentMode.value === 'LTL' ? 330 : 500)
+  const totalWeightKg = sellerCargoLines.value.length
+    ? sellerCargoLines.value.reduce((sum, line) => sum + line.quantity * line.weightKg, 0)
+    : positive(raw('cargoWeightKg'))
+  const weightCbm = totalWeightKg / (shipmentMode.value === 'LTL' ? 330 : 500)
   const calculatedChargeable = Math.max(billableCbm, weightCbm) > 0 ? Math.max(1, billableCbm, weightCbm) : 0
   const chargeableCbm = sellerCargoLines.value.length ? calculatedChargeable
     : positive(context.chargeableVolumeCbm) || calculatedChargeable
@@ -313,7 +316,9 @@ function cargoDisplayNumber(value: number): string {
   return value.toLocaleString('es-CR', { maximumFractionDigits: 4 })
 }
 const cargoWeight = computed(() => {
-  const weightKg = cargoNumericValue(raw('cargoWeightKg'))
+  const weightKg = isConsolidated.value && sellerCargoLines.value.length
+    ? sellerCargoLines.value.reduce((sum, line) => sum + line.quantity * line.weightKg, 0)
+    : cargoNumericValue(raw('cargoWeightKg'))
   if (weightKg === null) return 'No indicado'
   const value = cargoWeightUnit.value === 'lb' ? weightKg * 2.2046226218 : weightKg
   return cargoDisplayNumber(value) + ' ' + cargoWeightUnit.value
@@ -463,7 +468,7 @@ function fileKind(fileName: string): string {
               <div><dt class="mb-1 text-xs text-[var(--dh-text-muted)]">No estibable / almacenaje</dt><dd class="font-semibold">{{ label('nonStackable') }} / {{ label('storageDays') }} días</dd></div>
             </dl>
             <div v-if="isConsolidated" class="space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
-              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Cada línea indica un tipo de unidad de carga y su cantidad. Solo esa cantidad multiplica las dimensiones por unidad; el peso corresponde a toda la línea. Las solicitudes históricas conservan sus datos originales.</p>
+              <p class="text-xs font-bold text-[var(--dh-text-muted)]">Cada línea indica un tipo de unidad de carga y su cantidad. La cantidad multiplica las dimensiones y el peso por unidad. En solicitudes anteriores, confirme el peso con Ventas antes de cotizar.</p>
               <div v-if="sellerVolumeMismatch" class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs font-semibold text-amber-700 dark:text-amber-300">
                 La solicitud original tiene un volumen guardado distinto del calculado con sus líneas. Se muestra el cálculo de las líneas; confirme la carga antes de cotizar. No se modificó la solicitud histórica.
               </div>
@@ -472,7 +477,7 @@ function fileKind(fileName: string): string {
                   <p class="text-sm font-bold">{{ line.description }} · {{ line.quantity }} × {{ line.unitName }}</p>
                   <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
                     Dimensiones exteriores por embalaje: {{ cargoDisplayNumber(line.lengthCm) }} × {{ cargoDisplayNumber(line.widthCm) }} × {{ cargoDisplayNumber(line.heightCm) }} cm
-                    · Peso total de línea: {{ cargoDisplayNumber(line.weightKg) }} kg
+                    · Peso: {{ cargoDisplayNumber(line.weightKg) }} kg × {{ line.quantity }} = {{ cargoDisplayNumber(line.weightKg * line.quantity) }} kg
                     · Volumen físico: {{ line.physicalCbm.toFixed(3) }} CBM
                   </p>
                 </article>
