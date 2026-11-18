@@ -1,3 +1,9 @@
+## [1.78.2] - 2026-11-18 (MultiQUO: 672-A y 672-B siempre)
+
+- PATCH DH-20261118-MULTIQUO-IDENTITY-216: el buscador global muestra QuoNumber en vez de RateCode para subcotizaciones; evita incluir el consecutivo técnico como identidad visible, usa groupQuotes para no mostrar copias históricas huérfanas y mantiene búsquedas de vendedor con identidad comercial.
+- El listado de tarifas y el wizard muestran la alternativa seleccionada mediante su número sufijado; seleccionar/aceptar una opción no convierte 672-B en 672. La migración correspondiente vive en DholePricingService.
+- DholeWeb 1.78.0/1.78.1 → 1.78.2; DholePricingService 1.23.3/1.23.4 → 1.23.5; ecosistema 1.82.0/1.82.1 → 1.82.2. Build, pruebas y staging requeridos antes de master; producción no autorizada.
+
 ## [1.78.0] - 2026-11-18 (Blobatar: conservar expresiones y cambiarlas automáticamente)
 
 - MINOR DH-20261118-BLOBATAR-PREFERENCES-215: guarda la última cara seleccionada para cada usuario en localStorage y permite alternar modo Auto/Fijo desde el perfil; también guarda la elección de modo. Auto cambia entre las 14 caras cada 30 segundos, se pausa cuando la pestaña está oculta o con movimiento reducido, y Fijo conserva la cara elegida tras recargas.
