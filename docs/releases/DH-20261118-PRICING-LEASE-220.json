@@ -1,0 +1,16 @@
+{
+  "releaseId": "DH-20261118-PRICING-LEASE-220",
+  "component": "DholeWeb",
+  "ecosystemVersion": "1.83.4",
+  "from": "1.80.0",
+  "to": "1.80.1",
+  "changeType": "PATCH",
+  "summary": "Show claim vs read failure and HTTP trace; serialize retry through beginInFlight.",
+  "authorization": "unchanged",
+  "realtime": "unchanged",
+  "status": "candidate-ci-and-staging-pending",
+  "validation": {
+    "ci": "pending",
+    "staging": "pending"
+  }
+}
