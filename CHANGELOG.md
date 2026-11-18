@@ -1,3 +1,9 @@
+## [1.70.1] - 2026-11-17 (Solicitudes de tarifa: ejecutivo comercial CRM)
+
+- PATCH DH-20261117-CRM-RATE-REQUEST-OWNER-203: al crear una solicitud para una cuenta/prospecto, SellerUserId coincide con el vendedor real asignado en CRM, independientemente del usuario creador. El selector alternativo solo aplica a clientes históricos sin vínculo CRM.
+- Preserva vendedores institucionales Castro Fallas, notificaciones realtime y rutas REST. El backend valida de nuevo la propiedad en CRM, sin confiar en identidades del navegador.
+- Web 1.70.0 → 1.70.1; Pricing 1.23.0 → 1.23.1; ecosistema 1.73.0 → 1.73.1. CI y staging previos a master.
+
 ## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
 
 - MINOR DH-20261117-SRM-ARCHIVE-UI-203: creación/edición y detalle del proveedor pasan de drawer lateral a diálogos centrados de ancho amplio; identidad, contactos, bancos, crédito, bitácora y tarifas usan bloques plegables claros, sin pestañas.
