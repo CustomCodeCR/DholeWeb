@@ -1,3 +1,9 @@
+## [1.81.1] - 2026-11-18 (Pricing: recolecta EXW en LCL propio)
+
+- PATCH DH-20261118-PRICING-EXW-PICKUP-226: recolecta editable en cotizaciones EXW/LCL propio aunque falte en el catálogo, conservando sus costos/ventas manuales al actualizar la matriz y guardar.
+- Los costos EXW de recolección del catálogo se incorporan por ruta, preservando cambios del operador sin introducir cargos de otros proveedores. Modo vista solo refleja detalles persistidos.
+- Regresiones añadidas. DholeWeb 1.81.0 → 1.81.1; DholePricingService 1.24.4 → 1.24.5; DholeSystem 1.84.2 → 1.85.1; ecosistema 1.85.0 → 1.85.1; CI/staging pendientes, producción no autorizada.
+
 ## [1.81.0] - 2026-11-18 (SRM · clasificación logística y cobertura de rutas)
 
 - MINOR DH-20261118-SRM-ROUTES-225: diez nuevas categorías específicas con selección múltiple y reclasificación de antiguas categorías de transporte sin pérdida de historial.

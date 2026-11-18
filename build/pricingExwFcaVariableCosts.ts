@@ -20,7 +20,11 @@ function patchWizard(source: string) {
     '  if (!resolvedConditionalCost(cost)) return false',
     '  if (!incotermResponsibilitySections.value.includes(sectionForCost(cost))) return false',
     '  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId)) return false',
-    '  if (cost.services?.length && !cost.services.some((item) => form.serviceIds.includes(item.id))) return false',
+    '  if (cost.services?.length && !cost.services.some((item) => form.serviceIds.includes(item.id))) {',
+    '    // An EXW pickup is part of the requested door-origin operation even',
+    '    // when the separate pickup service was not checked explicitly.',
+    "    if (!(selectedIncotermCode.value === 'EXW' && sectionForCost(cost) === 'pickup_origin')) return false",
+    '  }',
     '  if (!operationalConditionsSatisfied(cost)) return false',
     "",
     "  const mode = String(shipmentModeForApi.value).toLowerCase()",
@@ -81,8 +85,11 @@ function patchWizard(source: string) {
     "    const section = sectionForCost(cost)",
     "    const placeholders = rateLines.value.filter((line) =>",
     "      (line.key.startsWith('variable-section:') || line.key.startsWith('edit-incoterm-fallback:'))",
-    "      && line.section === section && line.costDetailType === cost.costDetailType && !line.costId)",
-    "    if (placeholders.length) {",
+    "      && line.section === section && (line.costDetailType === cost.costDetailType || section === 'pickup_origin') && !line.costId)",
+        "    // Preserve an operator-priced EXW pickup if the matching catalog arrives later.",
+    "    const editedPickup = section === 'pickup_origin'"
+      + " ? placeholders.find((line) => number(line.costAmount) > 0 || number(line.saleAmount) > 0) : null",
+"    if (placeholders.length) {",
     "      const keys = new Set(placeholders.map((line) => line.key))",
     "      rateLines.value = rateLines.value.filter((line) => !keys.has(line.key))",
     "    }",
@@ -92,17 +99,17 @@ function patchWizard(source: string) {
     "      name: cost.name,",
     "      costDetailType: cost.costDetailType,",
     "      costType: 'Variable',",
-    "      chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),",
+    "      chargeBasis: editedPickup?.chargeBasis ?? cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),",
     "      costId: cost.id,",
     "      contextLabel: costContextLabel(cost),",
     "      notes: cost.notes?.trim() || null,",
     "      serviceIds: cost.services?.map((service) => service.id) ?? [],",
-    "      currencyId: cost.currencyId,",
-    "      currencyName: cost.currencyName,",
-    "      currencyCode: cost.currencyCode,",
-    "      amountCurrencyCode: cost.currencyCode,",
-    "      costAmount: resolvedAmount.costAmount,",
-    "      saleAmount: resolvedAmount.saleAmount,",
+    "      currencyId: editedPickup?.currencyId ?? cost.currencyId,",
+    "      currencyName: editedPickup?.currencyName ?? cost.currencyName,",
+    "      currencyCode: editedPickup?.currencyCode ?? cost.currencyCode,",
+    "      amountCurrencyCode: editedPickup?.amountCurrencyCode ?? editedPickup?.currencyCode ?? cost.currencyCode,",
+    "      costAmount: editedPickup?.costAmount ?? resolvedAmount.costAmount,",
+    "      saleAmount: editedPickup?.saleAmount ?? resolvedAmount.saleAmount,",
     "      included: true,",
     "      optional: false,",
     "      manual: false,",
@@ -162,7 +169,7 @@ function patchWizard(source: string) {
         patchedBlock = ownBlock.replace(customsFilter, customsFilter.slice(0, -1) + ' || ' + extraFilter + ')')
       } else if (ownBlock.includes('.filter((line) => !line.costId && ownLclFromMatrix(line.notes))')
         || ownBlock.includes('&& ownLclKeepQuotedLine(line, ')) {
-        // LCL propio: matriz + Seguro/Manejos existentes. No importar cargos EXW/FCA globales.
+        // Own LCL accepts only explicit route-matched EXW pickup costs, not unrelated catalog rows.
         patchedBlock = ownBlock
       } else if (ownBlock.includes(oldFilter)) {
         patchedBlock = ownBlock.replace(oldFilter, ".filter((line) => !line.costId || " + extraFilter + ")")
