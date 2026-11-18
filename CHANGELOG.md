@@ -1,3 +1,8 @@
+## [1.70.1] - 2026-11-17 (Ventas: cancelar solo cotizaciones aceptadas)
+
+- PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: el botón de cancelación solo se ofrece con estado AcceptedByClient; protege también la API y el dominio, no permite cancelar tarifas enviadas, vencidas o abiertas.
+- Preserva motivo obligatorio, auditoría, reintentos idempotentes, eventos realtime y modificación de cotizaciones. Web 1.70.0 → 1.70.1; ecosistema 1.73.0 → 1.73.1.
+
 ## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
 
 - MINOR DH-20261117-SRM-ARCHIVE-UI-203: creación/edición y detalle del proveedor pasan de drawer lateral a diálogos centrados de ancho amplio; identidad, contactos, bancos, crédito, bitácora y tarifas usan bloques plegables claros, sin pestañas.
