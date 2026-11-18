@@ -10,7 +10,8 @@ const modal = source('src/modules/dashboard/components/SellerRateDecisionModal.v
 test('sales dashboard provides cancellation for eligible own quotes on desktop and mobile', () => {
   assert.match(dashboard, /function canCancelRate\(rate: RateDto\)/)
   assert.match(dashboard, /canActOnRate\(rate\) && !rate\.revisionPending/)
-  assert.match(dashboard, /\['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'\]\.includes\(rate\.status\)/)
+  assert.match(dashboard, /rate\.status === 'AcceptedByClient'/)
+  assert.doesNotMatch(dashboard, /\['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'\]\.includes\(rate\.status\)/)
   assert.equal((dashboard.match(/label="Cancelar cotización"/g) || []).length, 2)
   assert.match(dashboard, /function openCancelRate\(rate: RateDto\)/)
   assert.match(dashboard, /decision: 'Cancelled', onSaved: load/)
@@ -18,6 +19,8 @@ test('sales dashboard provides cancellation for eligible own quotes on desktop a
 
 test('sales quote detail exposes cancellation in the header and refreshes on success', () => {
   assert.match(detail, /const canCancelRate = computed\(/)
+  assert.match(detail, /rate\.value\.status === 'AcceptedByClient'/)
+  assert.doesNotMatch(detail, /\['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'\]\.includes\(rate\.value\.status\)/)
   assert.match(detail, /label="Cancelar cotización" variant="danger" @click="cancelRate"/)
   assert.match(detail, /decision: 'Cancelled', onSaved: load/)
 })
