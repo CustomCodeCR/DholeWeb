@@ -1,8 +1,7 @@
-## [1.80.1] - 2026-11-18 (MultiQUO: QUO base única con opciones A/B dentro)
+## [1.80.2] - 2026-11-18 (MultiQUO: una QUO comercial con alternativas A/B)
 
-- PATCH DH-20261118-MULTIQUO-SINGLE-220: el listado, la búsqueda y la pantalla 9 representan una sola cotización, permitiendo aceptar la alternativa elegida dentro del grupo. La alternativa restante figura como no seleccionada, no como una QUO rechazada.
-- El dashboard y el modal vendedor agrupan las opciones y solicitan una elección explícita. Se conservan los costos, rutas e importes propios de cada alternativa y se impide exponer precios de compra al vendedor.
-- Preserva íntegramente el release multipunto 1.80.0. Web 1.80.0 → 1.80.1; Pricing 1.24.0 → 1.24.1; ecosistema 1.84.0 → 1.84.1. CI y staging antes de master.
+- PATCH DH-20261118-MULTIQUO-SINGLE-221: lista, búsqueda y dashboard muestran una sola QUO con dos opciones internas; aceptar la opción ganadora no rechaza la otra. El vendedor elige la opción desde su cotización sin acceder a costos internos.
+- Preserva rutas multipunto 1.80.0 y liberación de reservas 1.80.1. Web 1.80.1 → 1.80.2, Pricing 1.24.1 → 1.24.2, ecosistema 1.83.4 → 1.84.1. Validar CI y staging antes de master.
 
 ## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
 
