@@ -1,3 +1,11 @@
+## [1.80.4] - 2026-11-18 (Pricing: recolecta EXW en LCL propio)
+
+- PATCH DH-20261118-PRICING-EXW-PICKUP-226: backport sobre master del ajuste validado en develop para mostrar recolecta EXW editable aun sin costo maestro, conservar precios manuales y reflejar rubros al guardar.
+- Vincula únicamente costos EXW de recolecta aplicables a la ruta y evita sobrescribir los importes negociados al actualizar matriz; vista conserva el snapshot histórico sin regeneración.
+- DholeWeb 1.80.3 → 1.80.4, DholePricingService 1.24.4 → 1.24.5, DholeSystem 1.83.6 → 1.84.4. Ecosistema master 1.84.3 → 1.84.4; release funcional equivalente al develop Web 1.81.1, Pricing 1.24.5, System 1.85.1.
+- CI del backport pendiente; staging del release develop aprobó despliegue y health/bundle. No hay aún smoke autenticado del caso real.
+- Staging comprobado: Pricing https://github.com/CustomCodeCR/DholePricingService/actions/runs/44381748194 y Web https://github.com/CustomCodeCR/DholeWeb/actions/runs/44381755824 (ambos success). CI de backport debe superar controles propios de master antes de integrar.
+
 ## [1.80.3] - 2026-11-18 (Pricing: flete DDP exportación terrestre LTL/FTL)
 
 - PATCH DH-20261118-DDP-EXPORT-FREIGHT-225: corregir el filtrado de flete internacional por Incoterm para distinguir exportador/importador. DDP en exportación y EXW en importación conservan flete cuando el servicio internacional está contratado.
