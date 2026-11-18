@@ -245,7 +245,7 @@ function addSellerHandoffPreview(source: string): string {
     "    ...createConsolidatedCargoLine(),",
     "    description: String(sourceForm.cargoDescription ?? ''),",
     "    quantity: Math.max(1, Math.trunc(number(sourceForm.cargoPallets) || 1)),",
-    "    weightKg: Math.max(0, number(sourceForm.cargoWeightKg)),",
+    "    weightKg: Math.max(0, number(sourceForm.cargoWeightKg)) / Math.max(1, Math.trunc(number(sourceForm.cargoPallets) || 1)),",
     "    length: fromCm(lengthCm),",
     "    width: fromCm(widthCm),",
     "    height: fromCm(heightCm),",
