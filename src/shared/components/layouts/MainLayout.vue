@@ -353,6 +353,15 @@ const sidebarItems = computed<SidebarItem[]>(() => {
       items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
   }
 
+  if (canView('operations.team.manage') || canView('operations.case.read')) {
+    const operationsChildren: SidebarItem[] = []
+    if (canView('operations.case.read'))
+      operationsChildren.push({ label: 'Aperturas', path: '/operations/apertures', icon: ClipboardList })
+    if (canView('operations.team.manage'))
+      operationsChildren.push({ label: 'Equipos', path: '/operations/teams', icon: Users })
+    items.push({ label: 'Operations', icon: Workflow, children: operationsChildren })
+  }
+
   if (canView('srm.supplier.read')) {
     items.push({ label: t('srm.title'), icon: Truck, children: [
       { label: t('srm.suppliers'), path: '/srm/suppliers', icon: Users },

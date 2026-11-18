@@ -379,3 +379,20 @@ export const CRM_WORKSPACE_SCOPES = [
   'crm.credit.read', 'crm.contract.read',
   'crm.settings.manage',
 ] as const
+
+export const OPERATIONS_SCOPES = {
+  cases: { create: 'operations.case.create', read: 'operations.case.read', readAll: 'operations.case.read-all' },
+  teams: { manage: 'operations.team.manage' },
+  assignments: { manage: 'operations.assignment.manage' },
+  apertureValidations: {
+    assign: 'operations.aperture.validation.assign',
+    review: 'operations.aperture.validation.review',
+  },
+  audit: { read: 'operations.audit.read' },
+  origin: { read: 'operations.origin.read', departureConfirm: 'operations.origin.departure.confirm' },
+  internalNotes: { read: 'operations.internal-note.read', create: 'operations.internal-note.create' },
+  carrierConnections: {
+    read: 'operations.carrier.connection.read', manage: 'operations.carrier.connection.manage',
+  },
+  realtime: { read: 'operations.realtime.read' },
+} as const
