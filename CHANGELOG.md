@@ -1,3 +1,9 @@
+## [1.79.4] - 2026-11-18 (MultiQUO: 672 con dos opciones internas)
+
+- PATCH DH-20261118-MULTIQUO-SINGLE-220: listado, buscador y wizard presentan una sola QUO base. Dentro de la QUO se despliegan A/B y se acepta la opción elegida; la otra no se muestra como "No aceptada".
+- Dashboard/modal de vendedor muestran opciones y permiten seleccionarlas sin revelar costos internos. Se conservan PDF, historial, IDTRA, autorización y llamadas existentes.
+- Web 1.79.3 → 1.79.4, Pricing 1.23.7 → 1.23.8, ecosistema 1.83.3 → 1.83.4. CI y staging requeridos.
+
 ## [1.79.3] - 2026-11-18 (Pricing: liberación de reservas bloqueadas)
 
 - PATCH DH-20261118-PRICING-LEASE-219: «Liberar mi reserva» utiliza un release directo del backend y nunca vuelve a hacer claim; usuarios autorizados pueden liberar explícitamente reservas ajenas solo tras 45 segundos sin heartbeat, con validación atómica del servidor.
