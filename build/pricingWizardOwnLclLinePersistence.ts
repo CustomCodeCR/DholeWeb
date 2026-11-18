@@ -351,7 +351,7 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
   code = replaceOne(
     code,
     `  const details: CreateRateDetailRequest[] = ${detailsMapperAnchor}.map((line) => ({`,
-    `  const sourceDetails = isOwnLclMatrixContext()\n    ? ${detailsMapperAnchor}.filter((line) => (!line.costId || (selectedIncotermCode.value === 'EXW' && line.section === 'pickup_origin'\n        && String(line.key ?? '').startsWith('exw-fca-variable-cost:')))\n      && ownLclKeepQuotedLine(line, ${detailsMapperAnchor}))\n    : ${detailsMapperAnchor}\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
+    `  const sourceDetails = isOwnLclMatrixContext()\n    ? ${detailsMapperAnchor}.filter((line) => (!line.costId || (selectedIncotermCode.value === 'EXW' && line.section === 'pickup_origin'\n        && (Boolean(line.detailId) || String(line.key ?? '').startsWith('exw-fca-variable-cost:'))))\n      && ownLclKeepQuotedLine(line, ${detailsMapperAnchor}))\n    : ${detailsMapperAnchor}\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
     'own LCL persisted detail guard',
   )
 
