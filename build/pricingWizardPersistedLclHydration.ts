@@ -127,22 +127,27 @@ async function hydratePersistedLclSource(rate: RateDto) {
   }
   if (!kind || !sourceId) return
 
-  if (kind === 'Own') {
-    // Historical quotations contain generic charges saved by earlier wizards.
-    // Only the consolidated matrix rows may be loaded or sent again.
-    const ownMatrixLine = (notes: unknown) =>
-      /LCL\s*PROPIO|Fuente LCL:\s*Propio|Consolidado(Id)?:/i.test(String(notes ?? ''))
-    rateLines.value = rateLines.value
-      .filter((line) => ownLclKeepQuotedLine(line, rateLines.value))
-      .map((line) => ({
-        ...line,
-        chargeBasis: normalizeCatalogValue(line.name) === 'cfs'
-          ? 'PerChargeableCbm' : line.chargeBasis,
-        costId: null,
-        included: true,
-        optional: false,
-        manual: false,
-      }))
+  const ownMatrixLine = (notes: unknown) =>
+    /LCL\s*PROPIO|Fuente LCL:\s*Propio|Consolidado(Id)?:/i.test(String(notes ?? ''))
+  if (kind === 'Own' && !props.viewOnly) {
+    // A saved quote is authoritative. Never erase its independent EXW pickups
+    // or operator-entered charges when the consolidation source is rehydrated.
+    // Preserve CostId and manual identity for non-matrix supplemental rows.
+    const persisted = rateLines.value
+    rateLines.value = persisted
+      .filter((line) => ownLclKeepQuotedLine(line, persisted))
+      .map((line) => {
+        const fromMatrix = ownMatrixLine(line.notes)
+        return {
+          ...line,
+          chargeBasis: normalizeCatalogValue(line.name) === 'cfs'
+            ? 'PerChargeableCbm' : line.chargeBasis,
+          costId: fromMatrix ? null : line.costId,
+          included: true,
+          optional: false,
+          manual: fromMatrix ? false : line.manual,
+        }
+      })
   }
 
   lclSelectedSourceKey.value = \`\${kind}:\${sourceId}\`
@@ -172,7 +177,11 @@ async function hydratePersistedLclSource(rate: RateDto) {
     includes: splitPersistedLclTerms(rate.includes),
     subjectTo: splitPersistedLclTerms(rate.subjectTo),
     excludes: splitPersistedLclTerms(rate.excludes),
-    lines: rateLines.value.map((line) => {
+    // The provider source contains the matrix, not separately quoted manual
+    // pickup/insurance. Those remain as independent supplemental RateDetails.
+    lines: (kind === 'Own'
+      ? rateLines.value.filter((line) => ownMatrixLine(line.notes))
+      : rateLines.value).map((line) => {
       const normalizedName = normalizeCatalogValue(line.name)
       const isPickup = /pick\s*up|recole/.test(normalizedName)
       return {
