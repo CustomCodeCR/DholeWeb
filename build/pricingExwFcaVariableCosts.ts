@@ -109,7 +109,7 @@ function patchWizard(source: string) {
     "      chargeBasis: editedPickup?.chargeBasis ?? cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),",
     "      costId: cost.id,",
     "      contextLabel: costContextLabel(cost),",
-    "      notes: selectedIncotermCode.value === 'EXW' && section === 'pickup_origin' && cost.costType === 'Fixed' ? [cost.notes?.trim(), 'Recolecta EXW: precio autorizado en Pricing'].filter(Boolean).join(' · ') : cost.notes?.trim() || null",
+    "      notes: selectedIncotermCode.value === 'EXW' && section === 'pickup_origin' && cost.costType === 'Fixed' ? [cost.notes?.trim(), 'Recolecta EXW: precio autorizado en Pricing'].filter(Boolean).join(' · ') : cost.notes?.trim() || null,",
     "      serviceIds: cost.services?.map((service) => service.id) ?? [],",
     "      currencyId: editedPickup?.currencyId ?? cost.currencyId,",
     "      currencyName: editedPickup?.currencyName ?? cost.currencyName,",
