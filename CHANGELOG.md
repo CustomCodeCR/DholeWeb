@@ -1,3 +1,10 @@
+## [1.81.1] - 2026-11-18 (EXW LCL propio: recolecta restaurada en tarifas guardadas)
+
+- PATCH DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227: se corrige la rehidratación de LCL propio: las recolectas manuales o vinculadas con CostId siguen visibles, con identidad, moneda, costo y venta originales al reabrir y editar una QUO.
+- La fuente del consolidado contiene solo sus rubros matriciales. Recolectas EXW de catálogo Fixed y Variable coinciden por ruta; las fijas con precio autorizado manual conservan sus importes en Pricing.
+- Si una cotización histórica no tiene recolecta guardada, su vista lo advierte y permite cotizarla mediante edición, sin inventar importes. Pruebas del transform Vue, backend y regresión de CI.
+- Web master 1.81.0 → 1.81.1; Pricing 1.24.5 → 1.24.6; System/ecosistema 1.85.0 → 1.85.2. Staging desarrolla Web 1.81.2 y Pricing 1.24.6. Sin afectar otros componentes.
+
 ## [1.81.0] - 2026-11-18 (SRM · categorías y rutas de proveedores)
 
 - MINOR DH-20261118-SRM-ROUTES-225: diez categorías logísticas de proveedor, multiselección y conservación de clasificaciones históricas.
