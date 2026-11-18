@@ -1,0 +1,28 @@
+{
+  "releaseId": "DH-20261117-SELLER-CANCEL-ACCEPTED-203",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.73.2",
+  "component": "DholeWeb",
+  "previousVersion": "1.70.0",
+  "version": "1.70.1",
+  "type": "PATCH",
+  "date": "2026-11-17",
+  "status": "candidate-ci-and-staging-pending",
+  "branch": "fix/DH-20261117-SELLER-CANCEL-ACCEPTED-203-master-v2",
+  "targetBranch": "master",
+  "change": "Cancelar solo cotizaciones aceptadas. Dashboard, detalle, backend y dominio. Conserva motivo, auditoría y realtime.",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "version": "1.70.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "version": "1.23.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "version": "1.73.1"
+    }
+  ]
+}

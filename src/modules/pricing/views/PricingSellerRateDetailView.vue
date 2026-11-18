@@ -38,7 +38,7 @@ const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => N
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
 const canCancelRate = computed(() => Boolean(rate.value && !revisionPending.value
-  && ['Sent', 'RequestedByClient', 'Expired', 'AcceptedByClient'].includes(rate.value.status)))
+  && rate.value.status === 'AcceptedByClient'))
 const canRespondToRate = computed(() => Boolean(rate.value && !revisionPending.value
   && ['Sent', 'RequestedByClient', 'Expired'].includes(rate.value.status)))
 const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
