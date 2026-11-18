@@ -12,6 +12,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { sellerRateCurrencyValue, type SellerRateCurrency } from '@/modules/pricing/utils/sellerRateCurrency'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { canDecideSellerQuote, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
+import { canSellerRequestRateModification } from '@/modules/pricing/utils/sellerRateModificationPolicy'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from '@/modules/dashboard/components/SellerRateDecisionModal.vue'
@@ -45,10 +46,7 @@ const canRespondToRate = computed(() => rate.value
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
 const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocaleLowerCase() === 'castro fallas')
 const canReceive = computed(() => isSent.value && !revisionPending.value && !isReceived.value && !isCastroFallas.value)
-const canRequestModification = computed(() => Boolean(rate.value
-  && !revisionPending.value && rate.value.status !== 'Closed' && rate.value.status !== 'Cancelled'
-  && (rate.value.sellerReceivedAtUtc
-    || ['Sent', 'RequestedByClient', 'AcceptedByClient', 'RejectedByClient', 'Expired'].includes(rate.value.status))))
+const canRequestModification = computed(() => Boolean(rate.value && canSellerRequestRateModification(rate.value)))
 
 function requestModification() {
   if (!rate.value || !canRequestModification.value || pendingModification.value) return
