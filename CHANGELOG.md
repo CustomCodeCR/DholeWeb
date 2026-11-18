@@ -1,8 +1,7 @@
-## [1.80.1] - 2026-11-18 (Pricing: diagnóstico y reintento de solicitudes)
+## [1.80.2] - 2026-11-18 (MultiQUO: una QUO comercial con alternativas A/B)
 
-- PATCH DH-20261118-PRICING-LEASE-220: el wizard distingue un fallo al obtener la reserva de un fallo al consultar la solicitud. Muestra el HTTP y referencia del backend sin revelar detalles internos; Reintentar comparte el control de operaciones pendientes para evitar claims concurrentes.
-- Mantiene la liberación automática, heartbeat, estado «Trabajando», componentes Dh y exclusividad entre usuarios. Integración con el endpoint de claim corregido en Pricing.
-- Pruebas de diagnóstico de etapa y reintentos en CI. DholeWeb 1.80.0 → 1.80.1; Pricing y ecosistema coordinados por rama en release 220.
+- PATCH DH-20261118-MULTIQUO-SINGLE-221: lista, búsqueda y dashboard muestran una sola QUO con dos opciones internas; aceptar la opción ganadora no rechaza la otra. El vendedor elige la opción desde su cotización sin acceder a costos internos.
+- Preserva rutas multipunto 1.80.0 y liberación de reservas 1.80.1. Web 1.80.1 → 1.80.2, Pricing 1.24.1 → 1.24.2, ecosistema 1.83.4 → 1.84.1. Validar CI y staging antes de master.
 
 ## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
 
