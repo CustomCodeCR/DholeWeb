@@ -1,3 +1,10 @@
+## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
+
+- MINOR DH-20261118-INLAND-MULTIPOINT-219: recolección y entrega registran múltiples paradas con tipo de carga y responsable de costos por punto. Se conservan coordenadas opcionales y soporte a solicitudes históricas de un solo punto.
+- Incoterms EXW y DDP mantienen significado ICC; importación/exportación cambian la perspectiva de quién contrata/paga y tránsito doméstico permite responsable híbrido por tramo.
+- API REST retrocompatible, outbox/inbox/SignalR y scopes existentes sin cambios; CI/staging pendientes, sin despliegue a producción.
+- DholeWeb 1.79.2 → 1.80.0; DholePricingService 1.23.6 → 1.24.0; ecosistema 1.83.2 → 1.84.0.
+
 ## [1.79.5] - 2026-11-18 (MultiQUO: detalle con alternativas internas)
 
 - PATCH DH-20261118-MULTIQUO-SINGLE-223: listado y búsqueda muestran una sola QUO base; dentro del wizard y modal vendedor se comparan A/B y se acepta una opción del grupo.

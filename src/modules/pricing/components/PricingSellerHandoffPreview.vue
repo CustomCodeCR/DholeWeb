@@ -271,6 +271,25 @@ function inlandLocation(kind: 'pickup' | 'delivery') {
 }
 const inlandPickup = computed(() => inlandLocation('pickup'))
 const inlandDelivery = computed(() => inlandLocation('delivery'))
+function inlandLocations(kind: 'pickup' | 'delivery') {
+  const saved = raw(kind === 'pickup' ? 'inlandPickupLocations' : 'inlandDeliveryLocations')
+  const rows = Array.isArray(saved) ? saved : []
+  return rows.flatMap(item => {
+    if (!item || typeof item !== 'object') return []
+    const point = item as Record<string, unknown>
+    const address = String(point.address ?? '').trim()
+    if (!address) return []
+    const condition = point.cargoCondition === 'FiscalCargo' ? 'Carga fiscal'
+      : point.cargoCondition === 'NationalizedCargo' ? 'Carga nacionalizada' : 'Tipo de carga pendiente'
+    const responsible = point.billingParty === 'Exporter' ? 'Exportador'
+      : point.billingParty === 'Importer' ? 'Importador'
+        : point.billingParty === 'Both' ? 'Ambos' : 'Según acuerdo comercial'
+    return [{ address, condition, responsible }]
+  })
+}
+const inlandPickups = computed(() => inlandLocations('pickup'))
+const inlandDeliveries = computed(() => inlandLocations('delivery'))
+
 // Las magnitudes del formulario se conservan normalizadas para los cálculos,
  // pero Ventas debe ver las unidades elegidas al registrar la solicitud.
 const cargoWeightUnit = computed(() => {
@@ -400,8 +419,10 @@ function fileKind(fileName: string): string {
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Incoterm</dt><dd class="font-bold">{{ incotermLabel || label('incotermCode') }}</dd></div>
             <div><dt class="mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-text-muted)]"><CalendarDays class="h-3.5 w-3.5" /> Carga lista</dt><dd class="font-bold">{{ readyDate }}</dd></div>
             <div><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Dirección de recolecta EXW / FCA</dt><dd class="break-words font-semibold">{{ label('pickupAddress') }}</dd></div>
-            <div v-if="inlandPickup"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Transporte de recolección · Ubicación</dt><dd class="break-words font-semibold">{{ inlandPickup.address }}<span v-if="inlandPickup.coordinates" class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ inlandPickup.coordinates }}</span></dd></div>
-            <div v-if="inlandDelivery"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Transporte de entrega · Ubicación</dt><dd class="break-words font-semibold">{{ inlandDelivery.address }}<span v-if="inlandDelivery.coordinates" class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ inlandDelivery.coordinates }}</span></dd></div>
+            <div v-if="inlandPickups.length" class="sm:col-span-2"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Recolecciones ({{ inlandPickups.length }})</dt><dd v-for="(point, index) in inlandPickups" :key="index" class="break-words text-sm"><strong>{{ index + 1 }}.</strong> {{ point.address }} · {{ point.condition }} · {{ point.responsible }}</dd></div>
+            <div v-if="inlandDeliveries.length" class="sm:col-span-2"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Entregas ({{ inlandDeliveries.length }})</dt><dd v-for="(point, index) in inlandDeliveries" :key="index" class="break-words text-sm"><strong>{{ index + 1 }}.</strong> {{ point.address }} · {{ point.condition }} · {{ point.responsible }}</dd></div>
+            <div v-if="inlandPickup && !inlandPickups.length"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Transporte de recolección · Ubicación</dt><dd class="break-words font-semibold">{{ inlandPickup.address }}<span v-if="inlandPickup.coordinates" class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ inlandPickup.coordinates }}</span></dd></div>
+            <div v-if="inlandDelivery && !inlandDeliveries.length"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Transporte de entrega · Ubicación</dt><dd class="break-words font-semibold">{{ inlandDelivery.address }}<span v-if="inlandDelivery.coordinates" class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ inlandDelivery.coordinates }}</span></dd></div>
             <div><dt class="mb-1 flex items-center gap-1 text-xs font-semibold text-[var(--dh-text-muted)]"><Warehouse class="h-3.5 w-3.5" /> Almacén / WHS</dt><dd class="font-semibold">{{ firstProvided(label('warehouseName'), label('warehouseLabel')) }}</dd></div>
             <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Destino final (POD)</dt><dd class="font-semibold">{{ firstProvided(snapshot.podName, podLabel) }}</dd></div>
             <div v-if="!isLand"><dt class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Muellaje</dt><dd class="font-semibold">{{ portHandling || 'No indicado' }}</dd></div>
