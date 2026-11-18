@@ -1,7 +1,7 @@
 ## [1.70.1] - 2026-11-17 (Ventas: cancelar solo cotizaciones aceptadas)
 
 - PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: el botón de cancelación solo aparece con status AcceptedByClient en dashboard y detalle, nunca mientras está enviada, vencida, abierta o rechazada; la API y el dominio aplican la misma protección.
-- Motivo obligatorio, auditoría, idempotencia y realtime existentes sin cambios. Web 1.70.0 → 1.70.1; ecosistema 1.73.0 → 1.73.1. Se conserva la interfaz SRM de la versión 1.70.0.
+- Motivo obligatorio, auditoría, idempotencia y realtime existentes sin cambios. Web 1.70.0 → 1.70.1; ecosistema 1.73.0 → 1.73.2. Se conserva la interfaz SRM de la versión 1.70.0.
 
 ## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
 
