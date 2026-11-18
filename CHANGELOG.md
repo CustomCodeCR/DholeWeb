@@ -1,3 +1,9 @@
+## [1.82.0] - 2026-11-18 (Blobatar: estresado, cansado y resignado)
+
+- MINOR DH-20261118-BLOBATAR-MOODS-228: tres nuevas expresiones propias para Blobatar 2.7.0: Estresado (temblor y mirada inquieta), Cansado (ojos vencidos) y Resignado (mirada caída, asimétrica).
+- Las 17 poses se comparten entre el encabezado y Configuración → Apariencia; se conservan el ciclo Auto de 30 segundos, Fijo, persistencia por usuario, animaciones, mirada y movimiento reducido. Traducciones ES/EN y regresión SSR.
+- DholeWeb 1.81.x → 1.82.0; DholeSystem/ecosistema → 1.86.0. Otros 15 componentes sin cambios. Sin cambios REST, SignalR o scopes; CI y staging obligatorios antes de promover master.
+
 ## [1.81.2] - 2026-11-18 (EXW LCL propio: recolecta persistente en vista y edición)
 
 - PATCH DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227: corregir la causa real de recolectas no visibles aun tras el release previo. La rehidratación LCL propia descartaba rubros manuales o perdía su identidad al abrir la cotización y mezclaba suplementos con la matriz.
