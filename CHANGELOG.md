@@ -1,3 +1,9 @@
+## [1.80.1] - 2026-11-18 (Pricing: diagnóstico y reintento de solicitudes)
+
+- PATCH DH-20261118-PRICING-LEASE-220: el wizard distingue un fallo al obtener la reserva de un fallo al consultar la solicitud. Muestra el HTTP y referencia del backend sin revelar detalles internos; Reintentar comparte el control de operaciones pendientes para evitar claims concurrentes.
+- Mantiene la liberación automática, heartbeat, estado «Trabajando», componentes Dh y exclusividad entre usuarios. Integración con el endpoint de claim corregido en Pricing.
+- Pruebas de diagnóstico de etapa y reintentos en CI. DholeWeb 1.80.0 → 1.80.1; Pricing y ecosistema coordinados por rama en release 220.
+
 ## [1.80.0] - 2026-11-18 (Pricing: múltiples puntos y perspectiva comercial)
 
 - MINOR DH-20261118-INLAND-MULTIPOINT-219: recolección y entrega registran múltiples paradas con tipo de carga y responsable de costos por punto. Se conservan coordenadas opcionales y soporte a solicitudes históricas de un solo punto.
