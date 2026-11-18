@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, ContactRound, Mail, Pencil, Phone, RefreshCw, ShieldCheck, Building2, UserRound } from 'lucide-vue-next'
-import { DhButton, DhInput } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
 import { DhDrawer } from '@/shared/components/organisms'
 import CrmCatalogPicker from '../components/CrmCatalogPicker.vue'
 import CrmPhoneInput from '../components/CrmPhoneInput.vue'
@@ -20,7 +20,7 @@ const auth = useAuthStore()
 const { locale } = useI18n()
 const en = computed(() => locale.value === 'en')
 const contact = ref<CrmRow | null>(null)
-const linkedAccounts = ref<Array<{ accountId: string; accountName: string }>>([])
+const linkedAccounts = ref<Array<{ accountId: string; accountName: string; isPrimary?: boolean; isOperationsContact?: boolean }>>([])
 const preferences = ref<CrmRow | null>(null)
 const linkedAccountCountryId = ref('')
 const contactDialPrefix = ref<string | null>(null)
@@ -29,7 +29,7 @@ const saving = ref(false)
 const editOpen = ref(false)
 const error = ref('')
 const success = ref('')
-const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
+const draft = ref({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '', isPrimary: false, isOperationsContact: false })
 const contactId = computed(() => String(route.params.id ?? ''))
 function captureContactEdit() { return { ...draft.value } }
 const contactAutosave = useCrmDraftAutosave({
@@ -51,7 +51,7 @@ async function load() {
     if (!loadedContact) throw new Error('Contacto no encontrado')
     contact.value = loadedContact
     try {
-      linkedAccounts.value = await crmRequest<Array<{ accountId: string; accountName: string }>>(
+      linkedAccounts.value = await crmRequest<Array<{ accountId: string; accountName: string; isPrimary?: boolean; isOperationsContact?: boolean }>>(
         '/api/crm/contacts/' + encodeURIComponent(contactId.value) + '/accounts')
     } catch { linkedAccounts.value = [] }
     // Older contacts may have no country; inherit the linked account country.
@@ -72,6 +72,7 @@ async function load() {
   } catch (e) { contact.value = null; linkedAccounts.value = []; error.value = crmError(e) }
   finally { loading.value = false }
 }
+const roleAccount = computed(() => linkedAccounts.value.find(x => x.accountId === sourceAccount.value) ?? linkedAccounts.value[0] ?? null)
 function edit() {
   contactAutosave.stop()
   if (!contact.value) return
@@ -79,7 +80,8 @@ function edit() {
   draft.value = { firstName: String(contact.value.firstName || ''), lastName: String(contact.value.lastName || ''),
     jobTitle: String(contact.value.jobTitle || ''),
     email: String(contact.value.email || ''), phone: String(contact.value.phone || ''),
-    countryId: String(contact.value.countryId || linkedAccountCountryId.value || '') }
+    countryId: String(contact.value.countryId || linkedAccountCountryId.value || ''),
+    isPrimary: Boolean(roleAccount.value?.isPrimary), isOperationsContact: Boolean(roleAccount.value?.isOperationsContact) }
   editOpen.value = true
   contactAutosave.begin()
 }
@@ -96,6 +98,13 @@ async function save() {
       phone: draft.value.phone.trim() || null,
       countryId: draft.value.countryId || null,
     })
+    if (roleAccount.value && (draft.value.isPrimary !== Boolean(roleAccount.value.isPrimary) ||
+        draft.value.isOperationsContact !== Boolean(roleAccount.value.isOperationsContact))) {
+      await crmRequest('/api/crm/accounts/' + encodeURIComponent(roleAccount.value.accountId) +
+        '/contacts/' + encodeURIComponent(contactId.value) + '/role-flags', 'PATCH', {
+          isPrimary: draft.value.isPrimary, isOperationsContact: draft.value.isOperationsContact,
+        })
+    }
     contactAutosave.commit()
     editOpen.value = false
     await load()
@@ -151,6 +160,8 @@ watch(contactId, load)
               {label:'Nombre completo',value:contact.name}, {label:'Puesto',value:contact.jobTitle},
               {label:'Correo',value:contact.email}, {label:'Teléfono',value:displayedPhone},
               {label:'Estado',value:contact.status},
+              {label:'Contacto principal',value:roleAccount?.isPrimary ? 'Sí' : 'No'},
+              {label:'Encargado de operaciones',value:roleAccount?.isOperationsContact ? 'Sí' : 'No'},
             ]" :key="item.label" class="grid grid-cols-[42%_minmax(0,1fr)] gap-3 py-3 text-xs">
               <dt class="font-semibold text-[var(--dh-text-muted)]">{{ item.label }}</dt><dd class="break-words font-semibold">{{ display(item.value) }}</dd>
             </div>
@@ -209,6 +220,11 @@ watch(contactId, load)
         <div class="grid gap-3 sm:grid-cols-2">
           <CrmPhoneInput v-model="draft.phone" :country-id="draft.countryId" label="Teléfono" />
           <CrmCatalogPicker v-model="draft.countryId" label="País" catalog-group-slug="countries" />
+          <div v-if="roleAccount" class="flex flex-wrap gap-4 rounded-xl border border-[var(--dh-border)] p-3 sm:col-span-2">
+            <DhSwitch v-model="draft.isPrimary" label="Contacto principal" />
+            <DhSwitch v-model="draft.isOperationsContact" label="Encargado de operaciones" />
+            <p class="w-full text-xs text-[var(--dh-text-muted)]">Indicadores de {{ roleAccount.accountName }}. Solo un principal por cuenta.</p>
+          </div>
         </div>
         <div class="flex justify-end gap-2 border-t border-[var(--dh-border)] py-3">
           <DhButton variant="secondary" label="Cancelar" @click="editOpen=false" />

@@ -19,7 +19,7 @@ const { locale } = useI18n()
 const en = computed(() => locale.value === 'en')
 const draft = reactive({
   accountId: props.accountId, firstName: '', lastName: '', jobTitle: '',
-  email: '', phone: '', countryId: '', relationRole: 'CONTACT', isPrimary: false,
+  email: '', phone: '', countryId: '', relationRole: 'CONTACT', isPrimary: false, isOperationsContact: false,
 })
 const error = ref('')
 const saving = ref(false)
@@ -63,7 +63,7 @@ async function save() {
         jobTitle: draft.jobTitle.trim() || null,
         email: draft.email.trim() || null, phone: draft.phone.trim() || null,
         countryId: draft.countryId || null, relationRole: draft.relationRole,
-        isPrimary: draft.isPrimary,
+        isPrimary: draft.isPrimary, isOperationsContact: draft.isOperationsContact,
       }, operationKey.value)
     contactAutosave.commit()
     operationKey.value = crmUuid()
@@ -118,6 +118,7 @@ async function save() {
         </label>
         <div class="flex items-center sm:col-span-2">
           <DhSwitch v-model="draft.isPrimary" :label="en ? 'Primary contact' : 'Contacto principal'" />
+          <DhSwitch v-model="draft.isOperationsContact" :label="en ? 'Operations contact' : 'Encargado de operaciones'" />
         </div>
       </div>
     </section>

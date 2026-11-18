@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { Building2, ContactRound, CreditCard, FileCheck2, MapPin, Save, ShieldCheck, UserRound, Wallet, X } from 'lucide-vue-next'
-import { DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhInput, DhSelect, DhSwitch, DhTextarea } from '@/shared/components/atoms'
 import { useAuthStore } from '@/core/stores/authStore'
 import CrmCatalogPicker from './CrmCatalogPicker.vue'
 import CrmRelationshipPicker from './CrmRelationshipPicker.vue'
@@ -86,7 +86,8 @@ const creatingContact = ref(false)
 function beginNewContact() {
   accountContactAutosave.stop()
   Object.assign(contactDraft, { firstName: '', lastName: '', jobTitle: '',
-    email: '', phone: '', countryId: accountDraft.countryId || String(props.account.countryId ?? '') })
+    email: '', phone: '', countryId: accountDraft.countryId || String(props.account.countryId ?? ''),
+    isPrimary: false, isOperationsContact: false })
   editingContactId.value = ''
   creatingContact.value = true
   accountContactAutosave.begin()
@@ -94,7 +95,8 @@ function beginNewContact() {
   relatedSuccess.value = ''
 }
 const editingAddressId = ref('')
-const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '' })
+const contactDraft = reactive({ firstName: '', lastName: '', jobTitle: '', email: '', phone: '', countryId: '',
+  isPrimary: false, isOperationsContact: false })
 const addressDraft = reactive({
   addressType: 'WORK', addressText: '', location: '',
   countryId: '', countryCode: '', admin1Code: '', admin1Name: '',
@@ -137,7 +139,8 @@ function beginContactEdit(contact: CrmRow) {
   Object.assign(contactDraft, { firstName: String(contact.firstName ?? ''),
     lastName: String(contact.lastName ?? ''), jobTitle: String(contact.jobTitle ?? ''),
     email: String(contact.email ?? ''), phone: String(contact.phone ?? ''),
-    countryId: String(contact.countryId || props.account.countryId || '') })
+    countryId: String(contact.countryId || props.account.countryId || ''),
+    isPrimary: Boolean(contact.isPrimary), isOperationsContact: Boolean(contact.isOperationsContact) })
   editingAddressId.value = ''
   accountContactAutosave.begin()
   relatedError.value = ''
@@ -180,10 +183,20 @@ async function saveContact() {
           ...payload, expectedVersion: previous.rowVersion,
         })
       : await crmRequest<CrmRow>(crmPath('accounts', String(props.account.id), 'contacts'),
-          'POST', { ...payload, relationRole: 'CONTACT', isPrimary: false })
+          'POST', { ...payload, relationRole: 'CONTACT',
+             isPrimary: contactDraft.isPrimary, isOperationsContact: contactDraft.isOperationsContact })
+    if (previous && (Boolean(previous.isPrimary) !== contactDraft.isPrimary ||
+        Boolean(previous.isOperationsContact) !== contactDraft.isOperationsContact)) {
+      await crmRequest(crmPath('accounts', String(props.account.id),
+        'contacts/' + encodeURIComponent(String(previous.id)) + '/role-flags'), 'PATCH', {
+          isPrimary: contactDraft.isPrimary, isOperationsContact: contactDraft.isOperationsContact,
+        })
+    }
+    const displayRow = { ...updated, isPrimary: contactDraft.isPrimary,
+      isOperationsContact: contactDraft.isOperationsContact }
     relatedContacts.value = previous
-      ? relatedContacts.value.map(c => c.id === updated.id ? updated : c)
-      : [...relatedContacts.value, updated]
+      ? relatedContacts.value.map(c => c.id === updated.id ? displayRow : c)
+      : [...relatedContacts.value, displayRow]
     accountContactAutosave.commit()
     editingContactId.value = ''
     creatingContact.value = false
@@ -275,7 +288,8 @@ async function load() {
         .then(rows => {
           if (props.open && expectedId === props.account.id) {
             relatedContacts.value = rows.map(x => x.contact && typeof x.contact === 'object'
-              ? x.contact as CrmRow : x)
+              ? { ...(x.contact as CrmRow), isPrimary: x.isPrimary ?? x.IsPrimary,
+                  isOperationsContact: x.isOperationsContact ?? x.IsOperationsContact } : x)
           }
         }).catch(() => { relatedError.value = 'No fue posible consultar los contactos relacionados.' }))
     if (can('crm.account.read') || can('crm.account.read-all')) requests.push(
@@ -458,6 +472,10 @@ async function save() {
             <DhInput v-model="contactDraft.email" label="Correo electrónico" type="email" />
             <CrmPhoneInput v-model="contactDraft.phone" :country-id="contactDraft.countryId" label="Teléfono" />
             <CrmCatalogPicker v-model="contactDraft.countryId" label="País" catalog-group-slug="countries" value-kind="id" />
+            <div class="flex flex-wrap gap-4 md:col-span-2">
+              <DhSwitch v-model="contactDraft.isPrimary" label="Contacto principal" />
+              <DhSwitch v-model="contactDraft.isOperationsContact" label="Encargado de operaciones" />
+            </div>
             <div class="flex gap-2 md:col-span-2">
               <button type="button" class="crm-editor-secondary" @click="creatingContact=false">Cancelar</button>
               <button type="button" class="crm-editor-primary" :disabled="relationSaving" @click="saveContact">Crear contacto</button>
@@ -469,6 +487,7 @@ async function save() {
             <div class="flex items-center justify-between gap-2">
               <div><p class="text-sm font-bold">{{ contact.name }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ contact.email || contact.phone || 'Sin medios de contacto' }}</p>
+                <p v-if="contact.isPrimary || contact.isOperationsContact" class="text-xs font-semibold text-[var(--dh-primary)]">{{ [contact.isPrimary ? 'Principal' : '', contact.isOperationsContact ? 'Operaciones' : ''].filter(Boolean).join(' · ') }}</p>
               </div>
               <button v-if="can('crm.contact.update')" type="button" class="crm-editor-link"
                 @click="beginContactEdit(contact)">Editar</button>
@@ -480,6 +499,10 @@ async function save() {
               <DhInput v-model="contactDraft.email" label="Correo electrónico" />
               <CrmPhoneInput v-model="contactDraft.phone" :country-id="contactDraft.countryId" label="Teléfono" />
               <CrmCatalogPicker v-model="contactDraft.countryId" label="País" catalog-group-slug="countries" />
+              <div class="flex flex-wrap gap-4 md:col-span-2">
+                <DhSwitch v-model="contactDraft.isPrimary" label="Contacto principal" />
+                <DhSwitch v-model="contactDraft.isOperationsContact" label="Encargado de operaciones" />
+              </div>
               <p v-if="!contact.firstName && !contact.lastName"
                 class="text-xs text-[var(--dh-text-muted)] md:col-span-2">
                 Este contacto antiguo requiere ingresar los nombres y apellidos reales antes de guardar.
