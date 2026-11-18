@@ -5,12 +5,13 @@ import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditC
 import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
-import { DhModal } from '@/shared/components/organisms'
+import { DhDrawer } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
 import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
 import SrmSupplierFollowupsPanel from '../components/SrmSupplierFollowupsPanel.vue'
+import SrmSupplierRoutesPanel from '../components/SrmSupplierRoutesPanel.vue'
 import SrmSupplierFilesPanel from '../components/SrmSupplierFilesPanel.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
@@ -42,6 +43,21 @@ const success = ref('')
 const saveErrorSection = ref<SupplierSaveSection | 'general' | 'server'>('general')
 const formVisible = ref(false)
 const detailsVisible = ref(false)
+const detailsTab = ref<'profile' | 'routes'>('profile')
+type SrmFormTab = 'identity' | 'followups' | 'banks' | 'contacts' | 'credit' | 'tariffs' | 'routes'
+const formTab = ref<SrmFormTab>('identity')
+const formTabs = computed(() => {
+  const tabs: Array<{ id: SrmFormTab; label: string; visible?: boolean }> = [
+    { id: 'identity', label: en.value ? 'Identity & taxes' : 'Identidad y Hacienda' },
+    { id: 'contacts', label: en.value ? 'Contacts' : 'Contactos' },
+    { id: 'banks', label: en.value ? 'Bank accounts' : 'Cuentas bancarias', visible: canReadBanks.value },
+    { id: 'credit', label: en.value ? 'Credit' : 'Crédito' },
+    { id: 'followups', label: en.value ? 'Activity log' : 'Bitácora', visible: Boolean(editing.value) },
+    { id: 'tariffs', label: en.value ? 'Tariffs' : 'Tarifas' },
+    { id: 'routes', label: en.value ? 'Routes' : 'RUTAS', visible: Boolean(editing.value) },
+  ]
+  return tabs.filter(tab => tab.visible !== false)
+})
 const suppliers = ref<Supplier[]>([])
 const evaluations = ref<SrmRecord[]>([])
 const contracts = ref<SrmRecord[]>([])
@@ -56,15 +72,25 @@ const supplierType = ref<string[]>([])
 const categoryOptions = [
   { value: 'agent', label: 'Agente' },
   { value: 'coloader', label: 'Coloader' },
-  { value: 'road', label: 'Transportista' },
   { value: 'carrier', label: 'Naviera' },
   { value: 'airline', label: 'Aerolínea' },
   { value: 'sister-company', label: 'Empresa hermana' },
   { value: 'other', label: 'Otros' },
+  { value: 'international-air', label: 'Transporte Internacional Aéreo' },
+  { value: 'international-maritime', label: 'Transporte Internacional Marítimo' },
+  { value: 'international-land', label: 'Transporte Internacional Terrestre' },
+  { value: 'fiscal-warehouse', label: 'Almacén Fiscal' },
+  { value: 'general-warehouse', label: 'Almacén General' },
+  { value: 'lawyer', label: 'Abogado' },
+  { value: 'local-land', label: 'Transporte Local Terrestre' },
+  { value: 'customs-agency', label: 'Agencia de Aduanas' },
+  { value: 'freight-consolidator', label: 'Consolidadora de Carga' },
+  { value: 'inventory-control', label: 'Control de Inventario' },
 ]
 const categoryValues = new Set(categoryOptions.map(option => option.value))
 const typeLabel = (value: string) =>
-  categoryOptions.find(item => item.value === value)?.label || 'Otros'
+  value === 'road-legacy' ? 'Transporte (pendiente de reclasificar)' :
+    categoryOptions.find(item => item.value === value)?.label || 'Otros'
 const resolvedSupplierTypes = computed(() =>
   [...new Set(supplierType.value.filter(value => categoryValues.has(value)))])
 const validSupplierType = computed(() => resolvedSupplierTypes.value.length > 0)
@@ -413,10 +439,10 @@ function normalizeSupplierCategory(value: string): string {
   const slug = value.trim().toLowerCase()
   // Preserve existing internal slugs for Pricing and map former specific types to "Otros".
   const aliases: Record<string, string> = {
-    transportista: 'road',
-    transporter: 'road',
-    'road-carrier': 'road',
-    'transportista-terrestre': 'road',
+    transportista: 'road-legacy',
+    transporter: 'road-legacy',
+    'road-carrier': 'road-legacy',
+    'transportista-terrestre': 'road-legacy',
     naviera: 'carrier',
     agente: 'agent',
     'agente-de-carga': 'agent',
@@ -424,10 +450,13 @@ function normalizeSupplierCategory(value: string): string {
     'aerolínea': 'airline',
     'empresa-hermana': 'sister-company',
     consolidador: 'coloader',
+    road: 'road-legacy',
+    transport: 'road-legacy',
+    'road-transport': 'road-legacy',
     otros: 'other',
   }
   const resolved = aliases[slug] || slug
-  return categoryValues.has(resolved) ? resolved : 'other'
+  return resolved === 'road-legacy' ? resolved : categoryValues.has(resolved) ? resolved : 'other'
 }
 function rawSupplierCategories(row: CatalogItemDto): string[] {
   const info = metadata(row)
@@ -556,6 +585,7 @@ function resetForm() {
   countryIds.value = []
 }
 function openCreate() {
+  formTab.value = 'identity'
   resetForm()
   bankAccountsLoaded.value = true
   detailsVisible.value = false
@@ -565,6 +595,7 @@ function openCreate() {
 }
 function openEdit(item: Supplier) {
   if (!canEditSuppliers.value) return
+  formTab.value = 'identity'
   resetForm()
   editing.value = item
   supplierName.value = item.name
@@ -644,6 +675,7 @@ async function deleteSupplier() {
 }
 
 function openDetails(item: Supplier) {
+  detailsTab.value = 'profile'
   selected.value = item
   detailsVisible.value = true
   formVisible.value = false
@@ -658,6 +690,7 @@ function closeDetails() {
 }
 function closeForm() { formVisible.value = false; resetForm() }
 async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
+  formTab.value = section === 'contacts' ? 'contacts' : section === 'bank' ? 'banks' : section === 'credit' ? 'credit' : 'identity'
   error.value = message
   saveErrorSection.value = section
   // Accordion sections are native details, not mutually exclusive tabs.
@@ -1112,8 +1145,8 @@ onMounted(() => {
         </details>
       </section>
 
-      <DhModal :open="detailsVisible && !!selected" :title="selected?.name || (en ? 'Supplier details' : 'Detalle del proveedor')"
-        size="xl" surface="solid" @close="closeDetails">
+      <DhDrawer :open="detailsVisible && !!selected" :title="selected?.name || (en ? 'Supplier details' : 'Detalle del proveedor')"
+        size="xl" @close="closeDetails">
         <div v-if="selected" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] pb-4">
             <div class="flex items-center gap-3">
@@ -1136,6 +1169,18 @@ onMounted(() => {
               <Trash2 class="h-4 w-4" />{{ en ? 'Delete supplier' : 'Eliminar proveedor' }}
             </button>
           </div>
+          <nav role="tablist" :aria-label="en ? 'Supplier sections' : 'Secciones del proveedor'"
+            class="flex flex-wrap gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
+            <button type="button" role="tab" :aria-selected="detailsTab === 'profile'"
+              class="rounded-xl px-4 py-2 text-sm font-bold"
+              :class="detailsTab === 'profile' ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
+              @click="detailsTab = 'profile'">{{ en ? 'Supplier profile' : 'Ficha del proveedor' }}</button>
+            <button type="button" role="tab" :aria-selected="detailsTab === 'routes'"
+              class="rounded-xl px-4 py-2 text-sm font-bold"
+              :class="detailsTab === 'routes' ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
+              @click="detailsTab = 'routes'">{{ en ? 'Routes' : 'RUTAS' }}</button>
+          </nav>
+          <div v-show="detailsTab === 'profile'" role="tabpanel" class="space-y-5">
           <dl class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-1">
               <dt class="text-xs font-bold text-[var(--dh-text-muted)]">{{ en ? 'Categories' : 'Categorías' }}</dt>
@@ -1323,12 +1368,23 @@ onMounted(() => {
               </div>
             </div>
           </details>
+          </div>
+          <SrmSupplierRoutesPanel v-if="detailsTab === 'routes'"
+            :supplier-id="selected.id" :language="locale" :can-manage="canEditSuppliers" />
         </div>
-      </DhModal>
-      <DhModal :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
-        size="xl" surface="solid" @close="closeForm">
-        <form id="srm-supplier-form" class="grid gap-3 md:grid-cols-2" data-srm-accordion-form novalidate @submit.prevent="submitSupplierSafely">
-          <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+      </DhDrawer>
+      <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
+        size="xl" @close="closeForm">
+        <nav role="tablist" :aria-label="en ? 'Supplier editing sections' : 'Secciones de edición del proveedor'"
+          class="mb-4 flex flex-wrap gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
+          <button v-for="tab in formTabs" :key="tab.id" type="button"
+            role="tab" :aria-selected="formTab === tab.id"
+            class="rounded-xl px-4 py-2 text-sm font-bold"
+            :class="formTab === tab.id ? 'bg-[var(--dh-primary)] text-white' : 'hover:bg-[var(--dh-input)]'"
+            @click="formTab = tab.id">{{ tab.label }}</button>
+        </nav>
+        <form v-show="formTab !== 'routes'" id="srm-supplier-form" class="grid gap-3 md:grid-cols-2" data-srm-accordion-form novalidate @submit.prevent="submitSupplierSafely">
+          <div v-show="formTab === 'identity'" class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
             <div class="flex items-center gap-3">
               <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
                 <Building2 class="h-5 w-5" />
@@ -1339,11 +1395,11 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <p class="md:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
+          <p v-show="formTab === 'identity'" class="md:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
             {{ en ? 'Each section expands independently. Review what you need, then save the complete profile.' :
-              'Cada sección se puede abrir por separado. Revisá los datos necesarios y guardá la ficha completa.' }}
+              'Usá las pestañas para completar cada sección y guardá la ficha completa al finalizar.' }}
           </p>
-          <details open data-srm-accordion="identity" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'identity'" open data-srm-accordion="identity" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><Building2 class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1479,8 +1535,8 @@ onMounted(() => {
           </label>
           </section>
           </details>
-          <div v-if="editing" class="md:col-span-2">
-            <details data-srm-accordion="followups" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <div v-if="editing" v-show="formTab === 'followups'" class="md:col-span-2">
+            <details open data-srm-accordion="followups" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1494,7 +1550,7 @@ onMounted(() => {
               </div>
             </details>
           </div>
-                    <details data-srm-accordion="banks" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+                    <details v-show="formTab === 'banks'" open data-srm-accordion="banks" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><Landmark class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1586,7 +1642,7 @@ onMounted(() => {
             </button>
           </section>
           </details>
-          <details data-srm-accordion="contacts" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'contacts'" open data-srm-accordion="contacts" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><ContactRound class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1630,7 +1686,7 @@ onMounted(() => {
             </div>
           </section>
           </details>
-          <details data-srm-accordion="credit" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'credit'" open data-srm-accordion="credit" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><CreditCard class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1697,7 +1753,7 @@ onMounted(() => {
               <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="credit" :language="locale" />
             </div>
           </details>
-          <details data-srm-accordion="tariffs" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+          <details v-show="formTab === 'tariffs'" open data-srm-accordion="tariffs" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
             <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
               <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
               <span class="min-w-0 flex-1">
@@ -1711,8 +1767,10 @@ onMounted(() => {
             </div>
           </details>
         </form>
+        <SrmSupplierRoutesPanel v-if="editing && formTab === 'routes'"
+          :supplier-id="editing.id" :language="locale" :can-manage="canEditSuppliers" />
         <template #footer>
-          <div class="space-y-3" data-srm-form-footer>
+          <div v-if="formTab !== 'routes'" class="space-y-3" data-srm-form-footer>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-xs text-[var(--dh-text-muted)]">{{ en ? 'Changes are saved for the whole supplier profile.' : 'Los cambios se guardan para toda la ficha del proveedor.' }}</p>
               <button type="button" class="rounded-xl border border-[var(--dh-border)] px-4 py-2 text-xs font-semibold" @click="closeForm">
@@ -1728,9 +1786,9 @@ onMounted(() => {
             </button>
           </div>
         </template>
-      </DhModal>
-      <DhModal :open="Boolean(deleteTarget)" :title="en ? 'Delete supplier' : 'Eliminar proveedor'"
-        size="md" surface="solid" @close="closeSupplierDelete">
+      </DhDrawer>
+      <DhDrawer :open="Boolean(deleteTarget)" :title="en ? 'Delete supplier' : 'Eliminar proveedor'"
+        size="md" @close="closeSupplierDelete">
         <div v-if="deleteTarget" class="space-y-4" data-srm-delete-confirmation>
           <div class="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
             <AlertTriangle class="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
@@ -1752,7 +1810,7 @@ onMounted(() => {
             </button>
           </div>
         </div>
-      </DhModal>
+      </DhDrawer>
     </template>
   </main>
 </template>

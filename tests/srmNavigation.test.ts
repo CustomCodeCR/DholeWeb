@@ -25,14 +25,14 @@ test('supplier directory uses fixed categories, persists in Config and retains l
   assert.match(view, /resolvedSupplierTypes/)
   assert.match(view, /SrmApi.importLegacyPartner/)
 })
-test('SRM supplier pages require dedicated scopes and centered dialogs', () => {
+test('SRM supplier pages require dedicated scopes and use DhDrawer tabs', () => {
   assert.match(view, /srm.supplier.read/)
   assert.match(view, /srm.supplier.create/)
   assert.match(view, /srm.supplier.update/)
   assert.match(client, /fetchClient/)
-  assert.match(view, /<DhModal :open="formVisible"/)
-  assert.match(view, /<DhModal :open="detailsVisible/)
-  assert.doesNotMatch(view, /<DhDrawer/)
+  assert.match(view, /<DhDrawer :open="formVisible"/)
+  assert.match(view, /<DhDrawer :open="detailsVisible/)
+  assert.match(view, /role="tablist"/)
 })
 
 test('SRM uses Dhole multi-selects for categories and countries and preserves legacy fields', () => {
@@ -58,15 +58,24 @@ test('SRM does not request or render shipment modes and retains historical metad
   assert.match(view, /if \(!countryIds\.value\.length\)/)
 })
 
-test('SRM category picker has exactly seven fixed options and safely maps legacy categories', () => {
+test('SRM categorizes each logistics service precisely without retaining generic transport as a selectable type', () => {
   const expected = [
     ['agent', 'Agente'],
     ['coloader', 'Coloader'],
-    ['road', 'Transportista'],
     ['carrier', 'Naviera'],
     ['airline', 'Aerolínea'],
     ['sister-company', 'Empresa hermana'],
     ['other', 'Otros'],
+    ['international-air', 'Transporte Internacional Aéreo'],
+    ['international-maritime', 'Transporte Internacional Marítimo'],
+    ['international-land', 'Transporte Internacional Terrestre'],
+    ['fiscal-warehouse', 'Almacén Fiscal'],
+    ['general-warehouse', 'Almacén General'],
+    ['lawyer', 'Abogado'],
+    ['local-land', 'Transporte Local Terrestre'],
+    ['customs-agency', 'Agencia de Aduanas'],
+    ['freight-consolidator', 'Consolidadora de Carga'],
+    ['inventory-control', 'Control de Inventario'],
   ]
   const categoryList = view.match(/const categoryOptions = \[([\s\S]*?)\]/)?.[1] ?? ''
   const values = [...categoryList.matchAll(/\{ value: '([^']+)', label: '([^']+)' \}/g)]
@@ -107,7 +116,7 @@ test('SRM has a clean directory layout without visible internal codes or dashboa
   assert.match(template, /openDetails\(item\)/)
   assert.doesNotMatch(template, /selected\.code|item\.code|row\.code|legacyCode/)
   assert.doesNotMatch(template, /Origen de la información|Proveedores disponibles|Incorporación a SRM|<nav(?! role="tablist")/)
-  assert.doesNotMatch(template, /<nav role="tablist"/)
+  assert.match(template, /<nav role="tablist"/)
   assert.match(template, /data-srm-accordion="identity"/)
   assert.match(template, /data-srm-accordion="tariffs"/)
   assert.doesNotMatch(template, /Condiciones comerciales|Ficha proveedor/)

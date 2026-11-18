@@ -8,10 +8,11 @@ const edit = read('src/modules/crm/components/CrmAccountEditor.vue')
 const lookup = read('src/modules/crm/components/CrmHaciendaLookup.vue')
 const supplier = read('src/modules/srm/views/SrmWorkspaceView.vue')
 
-test('CRM retains its tabbed account flow while SRM suppliers use centered accordions', () => {
+test('CRM and SRM both expose tabbed profiles without discarding existing accordions', () => {
   assert.match(supplier, /data-srm-accordion="identity"/)
-  assert.match(supplier, /<DhModal :open="formVisible"/)
-  assert.doesNotMatch(supplier, /role="tablist"|<DhDrawer/)
+  assert.match(supplier, /<DhDrawer :open="formVisible"/)
+  assert.match(supplier, /role="tablist"/)
+  assert.match(supplier, /SrmSupplierRoutesPanel/)
   assert.match(create, /data-crm-account-tabs/)
   assert.match(create, /role="tablist"/)
   for (const tab of ['identity', 'commercial', 'contacts', 'addresses']) {

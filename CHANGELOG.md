@@ -1,3 +1,9 @@
+## [1.81.0] - 2026-11-18 (SRM · categorías y rutas de proveedores)
+
+- MINOR DH-20261118-SRM-ROUTES-225: diez categorías logísticas de proveedor, multiselección y conservación de clasificaciones históricas.
+- DhDrawer con pestañas de ficha, contactos, bancos, crédito, tarifas, bitácora y rutas; cobertura POL/POE/POD multiorigen/destino y CRUD auditado en Config.
+- Config 1.10.1 → 1.11.0; Web master 1.80.4 → 1.81.0; ecosistema master 1.84.4 → 1.85.0. Conserva el backport EXW/LCL de Pricing. CI y staging validados en develop; verificar candidate master antes del merge.
+
 ## [1.80.4] - 2026-11-18 (Pricing: recolecta EXW en LCL propio)
 
 - PATCH DH-20261118-PRICING-EXW-PICKUP-226: backport sobre master del ajuste validado en develop para mostrar recolecta EXW editable aun sin costo maestro, conservar precios manuales y reflejar rubros al guardar.
