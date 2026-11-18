@@ -101,8 +101,6 @@ import {
   canonicalServiceLine,
   cargoInsuranceNote,
   commercialTermKey,
-  incotermBuyerPaysMainTransport,
-  incotermRateSections,
   resolveCommercialTerms,
 } from '@/modules/pricing/services/pricingCommercialRules'
 
