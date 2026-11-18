@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.80.3",
-  "ecosystemVersion": "1.84.3",
-  "releaseId": "DH-20261118-DDP-EXPORT-FREIGHT-225",
+  "version": "1.81.0",
+  "ecosystemVersion": "1.85.0",
+  "releaseId": "DH-20261118-SRM-ROUTES-225",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261118-DDP-EXPORT-FREIGHT-225"
+  "businessReleaseId": "DH-20261118-SRM-ROUTES-225"
 }

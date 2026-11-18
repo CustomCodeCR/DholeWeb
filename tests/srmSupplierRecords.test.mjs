@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
-test('supplier form includes expandable followups, credit and tariffs in a centered dialog', () => {
+test('supplier drawer retains followups, credit, tariffs and adds routes', () => {
   const view = read('src/modules/srm/views/SrmWorkspaceView.vue')
   assert.match(view, /SrmSupplierFollowupsPanel/)
   assert.match(view, /data-srm-accordion="tariffs"/)
   assert.match(view, /data-srm-accordion="followups"/)
-  assert.match(view, /<DhModal :open="formVisible"/)
-  assert.doesNotMatch(view, /role="tablist"|<DhDrawer/)
+  assert.match(view, /<DhDrawer :open="formVisible"/)
+  assert.match(view, /role="tablist"/)
+  assert.match(view, /SrmSupplierRoutesPanel/)
   assert.match(view, /kind="credit"/)
   assert.match(view, /kind="tariff"/)
 })
