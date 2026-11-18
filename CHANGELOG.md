@@ -1,3 +1,9 @@
+## [1.70.1] - 2026-11-17 (Solicitudes de tarifa: ejecutivo comercial CRM)
+
+- PATCH DH-20261117-CRM-RATE-REQUEST-OWNER-203: al crear una solicitud para una cuenta/prospecto, SellerUserId coincide con el vendedor real asignado en CRM, independientemente del usuario creador. El selector alternativo solo aplica a clientes históricos sin vínculo CRM.
+- Preserva vendedores institucionales Castro Fallas, notificaciones realtime y rutas REST. El backend valida de nuevo la propiedad en CRM, sin confiar en identidades del navegador.
+- Web 1.70.0 → 1.70.1; Pricing 1.23.0 → 1.23.1; ecosistema 1.73.0 → 1.73.1. CI y staging previos a master.
+
 ## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
 
 - MINOR DH-20261117-SRM-ARCHIVE-UI-203: creación/edición y detalle del proveedor pasan de drawer lateral a diálogos centrados de ancho amplio; identidad, contactos, bancos, crédito, bitácora y tarifas usan bloques plegables claros, sin pestañas.
@@ -27,11 +33,10 @@
 - Conserva Authorization, scopes, autenticación, ocultación de cookies al Gateway, POST JSON de Hacienda, seguridad, realtime y demás rutas. Regresión automática sobre configuración del servidor.
 - Web 1.67.7 → 1.67.8, ecosistema 1.71.1 → 1.71.2. Validar compilación y smoke staging con JWT largo antes de promover master; producción solo con autorización.
 
+## [1.67.7] - 2026-11-17 (Pricing: cargos persistidos al editar una QUO)
 
-## [1.67.7] - 2026-11-17 (Pricing: los rubros de edición coinciden con la QUO)
-
-- PATCH DH-20261117-PRICING-EDIT-ITEMS-198: edición y vista leen los mismos cargos guardados. No se incorporan costos del catálogo al entrar a editar; refrescar precios sin cambiar el contexto solo actualiza las líneas existentes, con sus IDs, impuestos, HBL, Manejos, seguros y recolectas.
-- Web master 1.67.6 → 1.67.7, ecosistema 1.71.0 → 1.71.1. Conserva el release anterior Hacienda POST 197. CI, despliegue/health staging y regresión de Pricing validados; revisión manual con autenticación no ejecutada.
+- PATCH DH-20261117-PRICING-EDIT-ITEMS-198: las líneas de Ver y Editar provienen de los RateDetails guardados; los costes del catálogo ya no se agregan a una cotización existente durante la hidratación, navegación ni actualización de importes para el mismo contexto comercial. Preserva detalle, impuestos, seguro de carga, HBL, Manejos, recolectas y costos manuales.
+- Se agregan pruebas de regresión para LCL coloader y costos de Panamá que no corresponden. Web 1.67.6 → 1.67.7, ecosistema 1.71.0 → 1.71.1; el release previo de Hacienda se conserva. Sin cambios a REST/SignalR. Validación de staging requerida antes de producción.
 
 ## [1.67.6] - 2026-11-17 (CRM Hacienda: POST fiscal y proxy reforzado)
 
@@ -39,11 +44,11 @@
 - Un HTML 400 del proxy ya no se presenta como identificación inválida. Conserva autocompletado, aislamiento de sesión, scopes y guardado manual. Web 1.67.5 → 1.67.6, CRM 1.34.2 → 1.35.0, ecosistema 1.70.6 → 1.71.0.
 - CI y smoke real en staging pendientes; producción no autorizada.
 
-
 ## [1.67.5] - 2026-11-17 (LCL propio: seguro de carga y Manejos)
 
-- PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro de carga y Manejos al abrir, editar, actualizar matriz y guardar cotizaciones LCL propias, sin perder identificadores, costos ni ventas, evitando duplicados.
-- Web 1.67.4 → 1.67.5; Pricing 1.22.5; ecosistema 1.70.6; validaciones y staging pendientes; producción no autorizada.
+- PATCH DH-20261117-OWN-LCL-INSURANCE-196: conservar seguro solicitado y Manejos al abrir, editar, reconstruir y guardar las cotizaciones LCL propias, sin perder Ids, costos ni ventas.
+- La matriz es la fuente base; seguro independiente y Manejos histórico único se preservan evitando duplicados y sin importar cargos ajenos del catálogo.
+- Web 1.67.4 → 1.67.5; Pricing 1.22.5; ecosistema 1.70.6; CI/staging pendientes, sin despliegue a producción autorizado.
 
 ## [1.67.4] - 2026-11-17 (MultiQUO comercial 672-A/B en lista, dashboard y wizard)
 
@@ -53,25 +58,26 @@
 
 ## [1.67.3] - 2026-11-17 (MultiQUO: números comerciales, aprobación y PDF)
 
-- PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: los títulos y nombres de PDF usan `quoNumber` (672-A/672-B), nunca el consecutivo técnico `rateCode` (673) de cada RateHeader.
-- Pantalla 9: aprobación grupal de márgenes pendientes con un solo clic; se refrescan todas las alternativas guardadas. Se mantiene la elección definitiva exclusiva del cliente.
-- Pricing 1.22.2 → 1.22.3; Web 1.67.2 → 1.67.3; ecosistema 1.70.3 → 1.70.4; validaciones CI/staging pendientes.
+- PATCH DH-20261117-MULTIQUO-APPROVAL-PDF-194: títulos y nombres de descarga usan la QUO comercial (672-A / 672-B), no el consecutivo técnico 673.
+- Pantalla 9: aprobación grupal de márgenes pendientes; refresca todas las alternativas. Solo una alternativa podrá aceptarse comercialmente.
+- Web 1.67.2 → 1.67.3; ecosistema 1.70.3 → 1.70.4. Validaciones pendientes.
 
-## [1.67.2] - 2026-11-17 (Hacienda CRM/SRM: same-origin Gateway)
-- PATCH DH-20261117-HACIENDA-SAME-ORIGIN-193: reverse proxy Nginx sobre mismo origen para las dos rutas de Hacienda, enviando token autenticado al API Gateway interno. Evita CORS sobre 502 originados en Cloudflare para el subdominio API.
-- GET restringido, consulta sin access_log fiscal, sin cambiar ACL, REST, realtime u otros módulos. CRM conversiones y SRM incluidas. Requiere smoke de red en staging.
-- Web 1.67.1 → 1.67.2; DholeSystem/ecosistema 1.70.2 → 1.70.3. CI/staging antes de producción.
+## [1.67.2] - 2026-11-17 (Hacienda: reverse proxy de mismo origen CRM/SRM)
+- PATCH DH-20261117-HACIENDA-SAME-ORIGIN-193: consulta Hacienda autenticada por el origen de DholeWeb y Nginx interno hacia api-gateway (únicamente GET). Evita la segunda ruta por Cloudflare para Hacienda y el bloqueo CORS sobre 502 generados por la ruta externa; conserva JWT, impersonación, ACL y controles de datos oficiales.
+- Incluye conversión de prospectos, SRM y regresión. El proxy suprime el access_log de identificaciones fiscales. Requiere verificación de conectividad interna y smoke de Hacienda en staging antes de producción.
+- Web 1.67.1 → 1.67.2; DholeSystem/ecosistema 1.70.2 → 1.70.3. CRM sigue en 1.34.2; sin cambios REST, migraciones, Outbox o SignalR.
 
 ## [1.67.1] - 2026-11-17 (CRM: consulta Hacienda resistente a fallos de red)
 
-- PATCH DH-20261117-CRM-HACIENDA-NETWORK-192: CRM reintenta una vez un fallo de transporte de Hacienda, nunca repite respuestas HTTP y descarta consultas obsoletas. Mensajes sin cédula, URLs ni trazas; validación estricta de respuesta. No altera scopes, REST, Outbox o SignalR.
-- DholeWeb 1.67.0 → 1.67.1; CRM 1.33.1/1.34.1 → 1.34.2; DholeSystem/ecosistema 1.70.1 → 1.70.2. CI y staging pendientes; no autoriza despliegue de producción.
+- PATCH DH-20261117-CRM-HACIENDA-NETWORK-192: CRM reintenta una sola vez el GET a Hacienda cuando el navegador presenta NetworkError, sin repetir fallos HTTP 4xx/5xx ni solicitudes obsoletas.
+- Los errores de verificación muestran mensajes seguros (sin cédula, URL ni trazas), comprueban identificación, nombre y actividades antes de aplicar los datos y conservan la edición/guardado manual. No modifica scopes, contratos REST, Outbox ni SignalR.
+- DholeWeb 1.67.0 → 1.67.1; CRM 1.33.1/1.34.1 → 1.34.2; DholeSystem/ecosistema 1.70.1 → 1.70.2. CI y staging son requisitos previos a promover producción.
 
 ## [1.67.0] - 2026-11-17 (SRM: eliminar proveedores)
 
-- MINOR DH-20261117-SRM-SUPPLIER-DELETE-190: habilita Eliminar en listado y ficha SRM, protegido por srm.supplier.archive; confirmación, mensajes de conflicto por referencias y eliminación lógica auditada.
-- Incorpora DELETE /api/config/srm/suppliers/{id}, sincronización visual y regresión SRM. Sin cambios ajenos de develop.
-- Web 1.66.1 → 1.67.0; ecosistema 1.69.2 → 1.70.0. Backport selectivo a master autorizado por el usuario; CI y validación post-despliegue obligatorias.
+- MINOR DH-20261117-SRM-SUPPLIER-DELETE-190: acción Eliminar en las filas y el panel de detalles de proveedores, visible solo con srm.supplier.archive; modal de confirmación, estado de carga y errores de relaciones vinculadas.
+- DELETE /api/config/srm/suppliers/{id} con eliminación lógica auditada; se conserva el histórico y la banca cifrada. Prueba de regresión del directorio.
+- Web 1.66.1 → 1.67.0; ecosistema 1.69.1 → 1.70.0; CI/staging pendientes y producción no autorizada.
 
 ## [1.66.1] - 2026-11-17 (DH-186 · SRM selects de crédito e IBAN)
 
@@ -104,40 +110,41 @@
 - Los kilos excedentes se valoran como LTL/LCL terrestre Panamá → Costa Rica con cuatro costos maestros: Flete Terrestre Internacional, Bunker, Gastos Panamá a Costa Rica y Custodia + Marchamo; se respetan los tramos, mínimos y moneda y se impide guardar tarifas faltantes.
 - Desglose independiente y actualizado al cambiar los pesos por unidad; sin duplicación de fletes FCL ni cargos de sobrepeso genéricos. Pruebas de límites y catálogos incompletos; CI/staging pendientes. DholeWeb 1.65.0 → 1.65.1; ecosistema 1.66.0 → 1.66.1.
 
-## [1.65.0] - 2026-11-16 (CRM/SRM: pestañas e integración automática Hacienda · backport master)
+## [1.65.0] - 2026-11-16 · CRM igual a SRM: pestañas e integración Hacienda (DH-179)
 
-- MINOR DH-20261116-CRM-SRM-UNIFIED-TABS-HACIENDA-179: formularios de alta y edición de cuentas CRM con pestañas horizontales funcionales estilo SRM, responsive, con control de visibilidad por permisos.
-- Hacienda en CRM: consulta automática de identificación válida de Costa Rica y aplicación directa del nombre/razón social/tipo; visualización de régimen y actividades, reconsulta manual y sincronización de respuestas antes de guardar cuentas y prospectos.
-- Backport selectivo sobre master conservando modificaciones de CRM ajenas a este release. Pruebas específicas y versionado global 1.66.0; producción pendiente de autorización.
+- MINOR: formulario de alta de cuentas y editor de cuentas CRM con pestañas funcionales estilo SRM, encabezados claros, navegación responsive, una sección visible por vez y conservación de secciones de contacto, direcciones, clasificación y crédito con sus permisos.
+- `CrmHaciendaLookup` consulta automáticamente al ingresar una cédula costarricense válida; aplica la razón social y tipo de identificación al recibir respuesta, con panel de actividades, régimen fiscal, reconsulta manual y recuperación ante fallos. No hay segundo botón para aplicar.
+- Creación de cuentas, edición y prospectos esperan consulta pendiente antes de guardar; invalidación de respuestas obsoletas por país/cédula y normalización UPPER CASE.
+- Regresión `crmSrmParity.test.ts`, integración con pruebas CRM/SRM. Ecosistema 1.66.0. Rama intermedia; promoción sujeta a CI, staging y autorización específica de producción.
 
-## [1.64.0] - 2026-11-16 (SRM: interfaz CRM y Hacienda automático · backport master)
+## [1.64.0] - 2026-11-16 (SRM: interfaz CRM y aplicación automática de Hacienda)
 
-- MINOR DH-20261116-SRM-CRM-HACIENDA-UI-178: formulario de proveedores por pestañas de Identidad/Hacienda, Contactos, Bancos y Crédito; mejor responsive y errores por sección.
-- Verificación automática del RUC/NIT costarricense y aplicación directa de la razón social, tipo de identificación y actividad principal disponible, al igual que CRM, sin segundo botón; control de respuestas obsoletas y espera de consulta antes de guardar.
-- Backport selectivo a master; Config y Auth existentes sin cambio. DholeSystem global 1.65.0. Master pendiente de CI/validación y autorización de producción.
+- MINOR DH-20261116-SRM-CRM-HACIENDA-UI-178: formulario de proveedores por secciones Identidad/Hacienda, Contactos, Bancos y Crédito; navegación responsive, guardado accesible y errores enfocados en la sección correspondiente.
+- Hacienda CR se consulta automáticamente al ingresar identificación válida, como en CRM: actualiza de inmediato la razón social y la actividad económica principal disponible, sin segundo botón. También muestra tipo de identificación y régimen, conserva evidencia de la respuesta y permite reconsultar.
+- Evita aplicar respuestas obsoletas al cambiar cédula/país; espera consultas pendientes antes del guardado. Mantiene edición manual cuando Hacienda no devuelve un dato o falla; no inventa actividades ni dirección fiscal.
+- Incluye pruebas unitarias de mapeo Hacienda, coincidencia estricta de cédula e integración SRM. Coordinado con DholeSystem 1.65.0; staging y producción sujetos a CI.
 
 ## [1.63.1] - 2026-11-16 (CRM: estado de finalización sincronizado y ficha legible)
 
 - PATCH DH-20261116-CRM-COMPLETION-STATE-SYNC-177: el detalle consulta el registro persistido al regresar a la pestaña o después de fallar una finalización. Solo confirma «Completada» al comprobarlo en CRM, limpia errores anteriores cuando el servidor ya la completó, muestra la hora real y ofrece «Verificar estado en CRM».
 - Presenta COMMERCIAL_FOLLOWUP como Seguimiento comercial, muestra los resultados activos de Config y oculta la hora real cuando no existe. Sin cambios en permisos, backend, REST, SignalR ni recordatorios. DholeWeb 1.63.0 → 1.63.1, DholeSystem/ecosistema 1.64.0 → 1.64.1; requiere CI y staging multiusuario antes de master y producción.
 
-
-## [1.63.0] - 2026-11-16 (SRM: ficha corporativa, Hacienda y banca cifrada · master backport)
+## [1.63.0] - 2026-11-16 (SRM: ficha corporativa, Hacienda y cuentas bancarias seguras)
 
 - MINOR DH-20261116-SRM-SUPPLIER-FINANCE-176: teléfono, RUC/NIT, dirección, actividad económica, observaciones y contacto principal de Finanzas para proveedores.
-- Hacienda Costa Rica por identificación fiscal; confirmación explícita de razón social y actividad principal.
-- Cuentas bancarias múltiples con principal única y permisos financieros, cifrado en Config y confirmación del guardado. UPPER CASE en datos descriptivos.
-- Backport a master del release que pasó CI en develop y staging; incluye regresiones SRM. Ecosistema 1.64.0.
+- Consulta tributaria oficial de Hacienda para Costa Rica; aplicación explícita de razón social y actividad principal.
+- Cuentas bancarias múltiples con una cuenta de pago principal, separadas del catálogo ordinario por scopes de lectura y administración; validación y confirmación del guardado.
+- Normalización UPPER CASE y pruebas de regresión. Versión ecosistema 1.64.0. CI/staging pendientes.
 
 ## [1.62.8] - 2026-11-16 (Completar actividades comerciales sin error)
 
 - PATCH DH-20261116-CRM-ACTIVITY-COMPLETE-175: para completar visitas, tareas y seguimientos comerciales, el detalle CRM presenta resultados activos de Config en lugar de un campo libre y envía occurredAt=null para utilizar la hora UTC del servidor; evita «Invalid occurrence timestamp or outcome» por relojes adelantados o código Completed inválido.
 - Respeta scopes, resultados configurados, historial, acuerdos, REST y realtime. DholeWeb 1.62.7 → 1.62.8; CRM master 1.32.0 → 1.33.1, CRM develop 1.34.0 → 1.34.1; DholeSystem/ecosistema 1.63.9 → 1.63.10. CI, staging y validación multiusuario obligatorios antes de producción.
 
-## [1.62.7] - 2026-11-16 (Registro de bitácoras usando reloj UTC del servidor)
+## [1.62.7] - 2026-11-16 (Bitácora CRM: reloj autoritativo del servidor)
 
-- PATCH DH-20261116-CRM-BITACORA-SERVER-CLOCK-174: `CrmSalesCalendar` envía `occurredAt: null` al crear bitácoras sin cita o actividades históricas, y CRM utiliza `ResolveOccurredAt` con reloj UTC del servidor, sin depender de la hora de cada computadora.
-- Se preservan fechas históricas programadas y los acuerdos futuros como recordatorios vinculados. Web 1.62.6 → 1.62.7, ecosistema 1.63.8 → 1.63.9. Pruebas CRM, typecheck/build, CI y staging necesarios antes de master/producción.
+- PATCH DH-20261116-CRM-BITACORA-SERVER-CLOCK-174: las bitácoras comerciales y las actividades históricas envían occurredAt=null para que CRM determine la hora real UTC desde el servidor. Evita el error «Cannot record future actual occurrence» cuando el reloj del navegador está adelantado.
+- Los acuerdos con fecha futura conservan sus recordatorios independientes, las actividades históricas preservan su fecha final, el ACL y la arquitectura REST/realtime no cambian. Regresión para relojes cliente adelantados. Web 1.62.6 → 1.62.7, DholeSystem/ecosistema 1.63.8 → 1.63.9. CI, staging y autorización de producción exigidos antes del merge a master.
 
 ## [1.62.6] - 2026-11-16 (Restauración de cliente/prospecto al editar QUO)
 
@@ -182,9 +189,9 @@
 
 ## [1.61.1] - 2026-11-16 (API Manager: edición y publicación de catálogos Config)
 
-- PATCH DH-20261116-API-MANAGER-164: corrige DataCloneError al abrir Administrar y al actualizar una API publicada, generando DTO de edición independiente del proxy reactivo.
-- Gateway emite identidad técnica limitada a lectura para catálogos Config, y mantiene control estricto para otras operaciones, con API Keys existentes preservadas.
-- Añade test de regresión y gate de TypeScript/compilación.
+- PATCH DH-20261116-API-MANAGER-164: corrige DataCloneError al abrir Administrar y al refrescar la API después de publicar, generando copias independientes de los DTO reactivos de Vue.
+- Gateway proporciona una identidad técnica de solo lectura para catálogos Config; las demás operaciones siguen sujetas a credenciales técnicas propias.
+- Mantiene los vínculos de API Keys, los contratos guardados y validaciones de publicación. Añade prueba de regresión.
 
 ## [1.61.0] - 2026-11-16 (Scopes Create/Update/View en LCL propios)
 
@@ -197,11 +204,6 @@
 - MINOR DH-20261116-OWN-LCL-QUOS-162: al abrir el consolidado se muestran QUOs vinculadas (número, cliente, fecha y estado), con actualización y navegación directa al wizard de consulta.
 - Maneja sin cotizaciones, permiso insuficiente y error REST; descarta respuestas tardías al cambiar de consolidado. Sin cambios de costos ni inventario.
 - Web 1.59.0 → 1.60.0, Pricing 1.20.0, Dhole global 1.61.0. CI/staging antes de producción.
-
-## [1.59.0] - 2026-11-15 (Centro de colas operativo)
-
-- MINOR: nueva consola de operaciones de DataExtraction y AI con filtros, paginación server-side, estados por etapa, errores, leases, correlación, tiempos, Redis/Ollama, reintentos seguros y permisos AI.
-- Global Dhole 1.60.0, release DH-20261115-QUEUE-CONTROL-145. Pendiente de CI y staging; sin nuevo permiso de producción.
 
 ## [1.58.0] - 2026-11-15 (API Manager: metadatos reales y filtros de Config)
 
@@ -229,31 +231,31 @@
 - Explica la generación automática de API Keys y añade consola para probar el endpoint público mediante X-Api-Key, con parámetros GET o cuerpo JSON, estado HTTP, tiempo y respuesta real. Confirma explícitamente las operaciones mutantes y evita revocar claves ante guardados sin cambios.
 - Conserva los contratos públicos, políticas de autorización e integraciones existentes; no se agregan flags.
 
-## [1.56.0] - 2026-11-14 (Dhole API Manager universal route discovery)
+## [1.56.0] - 2026-11-14 (API Manager - rutas de microservicios)
 
-- MINOR: explorador de todos los servicios registrados, métodos GET/POST/PUT/PATCH/DELETE, rutas descubiertas y mapeo configurable de request/response.
-- Solo permite publicar mediante contratos y API Keys con identidad técnica por ruta, sin cambiar otras pantallas.
+- MINOR: lista los servicios registrados, examina endpoints OpenAPI, permite seleccionar rutas internas y asignar contratos Request/Response configurables.
+- Añade búsqueda, registro manual de rutas no documentadas como borradores y parametrización path/query/body sin tocar otras pantallas.
+- Ninguna ruta interna se publica sin API Key y JWT técnico específico. Cobertura OpenAPI pendiente en servicios sin documentación de producción.
 
 ## [1.55.0] - 2026-11-14 (API Manager promotion)
 
-- MINOR: incorpora API Manager, ocho catálogos Config de solo lectura y rutas externas versionadas manteniendo mejoras de CRM/Pricing de 1.54.0.
-- Release coordinado Gateway 1.6.2 / Web y DholeSystem 1.55.0, pendiente de staging y validación.
+- MINOR: mantiene el API Manager ya integrado en develop y sincroniza este release; conserva todas las mejoras CRM/Pricing de 1.54.0.
+- Release coordinado Gateway 1.6.2, Web y DholeSystem 1.55.0; despliegue a producción condicionado a CI y staging.
 
 ## [1.54.0] - 2026-11-14
 
-- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: calendario mensual con barras continuas de varios días; agenda horaria con bloques proporcionales a las horas reales; seguimientos con inicio y fecha/hora de finalización.
-- Los listados incluyen intervalos superpuestos y preservan la seguridad de los registros, REST, SignalR y avisos de vencimiento. Duplicados y seguimientos históricos sin fin permanecen compatibles.
-- DholeWeb 1.53.0 → 1.54.0, DholeCRMService 1.31.0 → 1.32.0, DholeSystem/ecosistema 1.53.0 → 1.54.0. CI y staging previos a master.
+- MINOR DH-20261114-CRM-CALENDAR-SPANS-142: el calendario CRM muestra barras continuas entre días y bloques de duración real entre horas, y los seguimientos comerciales admiten fecha/hora de inicio y finalización. Los recordatorios mantienen su disparador de vencimiento, permisos y compatibilidad con los registros anteriores.
+- Incremento coordinado desde Web 1.53.0 → 1.54.0, CRM 1.31.0 → 1.32.0 y DholeSystem/ecosistema 1.53.0 → 1.54.0. Migración aditiva StartAt; validación CI y staging antes de master.
 
 ## [1.53.0] - 2026-11-14
 
 - MINOR DH-20261114-CRM-RECORD-FOLLOWUPS-142: pestaña «Seguimientos» independiente en las fichas de prospectos y clientes, con historial cronológico de actividades, bitácoras y recordatorios vinculados; búsqueda, filtros, responsables, estados, paginación y acceso al detalle. Reutiliza API CRM y permisos existentes; las cuentas agrupadas comparten el historial.
-- DholeWeb 1.52.1 → 1.53.0; DholeSystem/ecosistema 1.52.1 → 1.53.0; CRM continúa en 1.31.0 sin cambio de contrato. Promoción desde develop, con CI y staging antes de producción.
+- DholeWeb 1.52.1 → 1.53.0; DholeSystem/ecosistema 1.52.1 → 1.53.0; CRM continúa en 1.31.0 sin cambio de contrato. Release en ramas intermedias; CI y staging obligatorios, producción no autorizada.
 
 ## [1.52.1] - 2026-11-13
 
-- PATCH DH-20261113-PRICING-OWN-LCL-141: backport coordinado de corrección CFS del LCL propio con cantidad cobrable (mínimo 1 CBM) y proyección comercial de cotizaciones históricas; Precio USD 8/CBM por 0,118 CBM físico corresponde a USD 8.
-- Master Web 1.52.0 → 1.52.1, Pricing 1.18.2. Coloader y Miami CFT intactos. Compatibilidad REST/realtime preservada.
+- PATCH DH-20261113-PRICING-OWN-LCL-141: Web 1.52.0 → 1.52.1, Pricing 1.18.2. CFS LCL propio usa CBM cobrable también en cotizaciones históricas; la API y los totales comerciales se corrigen en backend. Coloader y Miami CFT no se alteran.
+- Preserva nuevas funcionalidades compatibles de develop 1.52.0; CI y staging requeridos antes de master.
 
 ## [1.52.0] - 2026-11-13
 
@@ -703,6 +705,11 @@
 - Release Dhole 1.17.13, sin migraciones de datos.
 
 # Changelog
+
+## [1.59.0] - 2026-11-15 (Centro de colas operativo)
+
+- MINOR: nueva consola de operaciones de DataExtraction y AI con filtros, paginación server-side, estados por etapa, errores, leases, correlación, tiempos, Redis/Ollama, reintentos seguros y permisos AI.
+- Global Dhole 1.60.0, release DH-20261115-QUEUE-CONTROL-145. Pendiente de CI y staging; sin nuevo permiso de producción.
 
 ## [1.17.12] - 2026-11-10
 
