@@ -87,13 +87,17 @@ onMounted(async () => {
 
 // Selecting a CRM account or prospect must switch ownership immediately,
 // including when the assigned seller is not in the creator's visibility list.
-watch(
-  () => [form.clientId, form.crmClientKind, form.executiveId] as const,
-  ([clientId, kind, executiveId]) => {
-    if (!props.sellerRequestMode || !clientId || !kind) return
-    sellerRequestOwnerId.value = executiveId || ''
-  },
-)`,
+// Register after setup: form can be declared after this injected code in
+// release builds. A top-level watch eagerly evaluates its getter (TDZ).
+onMounted(() => {
+  watch(
+    () => [form.clientId, form.crmClientKind, form.executiveId] as const,
+    ([clientId, kind, executiveId]) => {
+      if (!props.sellerRequestMode || !clientId || !kind) return
+      sellerRequestOwnerId.value = executiveId || ''
+    },
+  )
+})`,
     'seller request priority state',
   )
 
