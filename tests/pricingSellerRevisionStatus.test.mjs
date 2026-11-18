@@ -25,7 +25,7 @@ test('seller detail distinguishes active work and blocks unreleased draft action
   assert.match(detail, /unpublishedSellerWorkflowLabel/)
   assert.match(workflow, /case 'Open': return 'Abierta'/)
   assert.match(detail, /const canReceive = computed\(\(\) => isSent\.value && !revisionPending\.value/)
-  assert.match(detail, /&& !revisionPending\.value && rate\.value\.status !== 'Closed'/)
+  assert.match(detail, /canSellerRequestRateModification\(rate\.value\)/)
   assert.match(detail, /function refreshSellerRateOnFocus\(/)
 })
 
