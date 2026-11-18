@@ -1,7 +1,12 @@
-## [1.71.0] - 2026-11-17 (Contactos operativos de clientes)
+## [1.71.0] - 2026-11-17 (CRM: contactos operativos por cuenta)
 
-- MINOR DH-20261117-CRM-OPS-CONTACTS-204: contacto principal único y múltiples encargados de operaciones por cuenta. Pantallas de creación/edición de CRM con banderas independientes.
-- Preserva SRM 1.70.0 y Pricing CRM ownership 1.70.1; ecosistema 1.73.1 → 1.74.0. CI y staging antes de master.
+- MINOR DH-20261117-CRM-OPS-CONTACTS-204: campos independientes «Contacto principal» y «Encargado de operaciones» para clientes; Operations obtiene los responsables actuales desde CRM.
+- Conserva 1.70.0 SRM, 1.70.1 Pricing CRM y 1.70.2 Seller cancel updates; versión de ecosistema 1.73.2 → 1.74.0. Pendientes CI y staging.
+
+## [1.70.2] - 2026-11-17 (Cancelar cotizaciones solo si fueron aceptadas)
+
+- PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: mostrar Cancelar cotización únicamente en estado AcceptedByClient (dashboard móvil/escritorio y detalle). Pricing bloquea llamadas directas al endpoint si no fue aceptada, con auditoría e idempotencia preservadas.
+- Se conserva la asignación comercial de solicitudes desde CRM introducida en Web 1.70.1. Web 1.70.1 → 1.70.2, global 1.73.1 → 1.73.2.
 
 ## [1.70.1] - 2026-11-17 (Solicitudes de tarifa: ejecutivo comercial CRM)
 
