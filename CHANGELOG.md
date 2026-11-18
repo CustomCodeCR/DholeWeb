@@ -1,7 +1,18 @@
-## [1.71.0] - 2026-11-17 (Contactos operativos de clientes)
+## [1.71.0] - 2026-11-17 (CRM: encargados de operaciones por cliente)
 
-- MINOR DH-20261117-CRM-OPS-CONTACTS-204: indicador independiente «Encargado de operaciones» en formularios de CRM y detalle, con edición por cuenta sin duplicar registros. Un contacto principal por cuenta.
-- Web 1.69.0 → 1.71.0; ecosistema 1.72.0 → 1.74.0. Requiere CI, staging y release coordinado antes de master.
+- MINOR DH-20261117-CRM-OPS-CONTACTS-204: se permite identificar uno o varios encargados operativos por cuenta de CRM, independientes del único contacto principal. Formularios de creación y edición de contactos/cliente enlazados con la API CRM; integración de consulta desde Operations.
+- Preserva los cambios de Seller Cancel Accepted y SRM del master vigente. Web 1.70.1 → 1.71.0; ecosistema 1.73.2 → 1.74.0. Validar staging y CI antes de promoción; producción solo si se autoriza.
+
+## [1.70.1] - 2026-11-17 (Ventas: cancelar solo cotizaciones aceptadas)
+
+- PATCH DH-20261117-SELLER-CANCEL-ACCEPTED-203: el botón de cancelación solo aparece con status AcceptedByClient en dashboard y detalle, nunca mientras está enviada, vencida, abierta o rechazada; la API y el dominio aplican la misma protección.
+- Motivo obligatorio, auditoría, idempotencia y realtime existentes sin cambios. Web 1.70.0 → 1.70.1; ecosistema 1.73.0 → 1.73.2. Se conserva la interfaz SRM de la versión 1.70.0.
+
+## [1.70.0] - 2026-11-17 (SRM · ficha sin drawer ni tabs)
+
+- MINOR DH-20261117-SRM-ARCHIVE-UI-203: creación/edición y detalle del proveedor pasan de drawer lateral a diálogos centrados de ancho amplio; identidad, contactos, bancos, crédito, bitácora y tarifas usan bloques plegables claros, sin pestañas.
+- El guardado de la ficha sigue siendo único; los errores abren su bloque correspondiente y conservan el pie fijo. Las secciones de seguimiento/documentos se mantienen vinculadas al ID correcto.
+- Web 1.69.0 → 1.70.0, ecosistema 1.72.0 → 1.73.0. Validar CI y staging antes de master.
 
 ## [1.69.0] - 2026-11-17 (Ventas: cancelar cotizaciones)
 

@@ -5,7 +5,7 @@ import { BadgeCheck, Building2, ChevronLeft, ChevronRight, ContactRound, CreditC
 import { ApiError } from '@/core/api/apiErrorHandler'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useToastStore } from '@/core/stores/toastStore'
-import { DhDrawer, DhModal } from '@/shared/components/organisms'
+import { DhModal } from '@/shared/components/organisms'
 import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
@@ -88,14 +88,6 @@ const haciendaResult = ref<SrmHaciendaResult | null>(null)
 const haciendaVerifiedAt = ref('')
 const haciendaIdentificationType = ref('')
 const haciendaRegime = ref('')
-const supplierFormTab = ref<'identity' | 'contacts' | 'banks' | 'credit' | 'tariffs'>('identity')
-const supplierFormTabs = computed(() => [
-  { value: 'identity' as const, label: en.value ? 'Identity & Hacienda' : 'Identidad y Hacienda', icon: Building2 },
-  { value: 'contacts' as const, label: en.value ? 'Contacts' : 'Contactos', icon: ContactRound },
-  ...(canReadBanks.value ? [{ value: 'banks' as const, label: en.value ? 'Banking' : 'Bancos', icon: Landmark }] : []),
-  { value: 'credit' as const, label: en.value ? 'Credit & terms' : 'Crédito y condiciones', icon: CreditCard },
-  { value: 'tariffs' as const, label: en.value ? 'Agreed tariffs' : 'Tarifas', icon: FileCheck2 },
-])
 let haciendaLookupVersion = 0
 let haciendaDebounce: ReturnType<typeof setTimeout> | null = null
 let pendingHaciendaRequest: { identification: string; countryId: string; promise: Promise<boolean> } | null = null
@@ -546,7 +538,7 @@ function resetForm() {
   haciendaVerifiedAt.value = ''
   haciendaIdentificationType.value = ''
   haciendaRegime.value = ''
-  supplierFormTab.value = 'identity'
+  // Sections reset when the centered dialog is mounted.
   ++haciendaLookupVersion
   if (haciendaDebounce !== null) clearTimeout(haciendaDebounce)
   pendingHaciendaRequest = null
@@ -668,14 +660,14 @@ function closeForm() { formVisible.value = false; resetForm() }
 async function reportSupplierSaveIssue(message: string, section: SupplierSaveSection | 'general' | 'server' = 'general') {
   error.value = message
   saveErrorSection.value = section
-  if (section === 'contacts') supplierFormTab.value = 'contacts'
-  else if (section === 'bank') supplierFormTab.value = 'banks'
-  else if (section === 'credit') supplierFormTab.value = 'credit'
-  else supplierFormTab.value = 'identity'
+  // Accordion sections are native details, not mutually exclusive tabs.
   toastStore.warning(en.value ? 'Supplier not saved' : 'Proveedor sin guardar', message)
   await nextTick()
   const anchor = document.querySelector(`[data-srm-save-section="${section}"]`)
     || document.querySelector('[data-srm-save-error]')
+  const accordion = anchor?.closest('details')
+  if (accordion) accordion.open = true
+  await nextTick()
   anchor?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 /** Catch unexpected form errors as well as API errors, including failures before any request. */
@@ -1120,8 +1112,8 @@ onMounted(() => {
         </details>
       </section>
 
-      <DhDrawer :open="detailsVisible && !!selected" :title="selected?.name || (en ? 'Supplier details' : 'Detalle del proveedor')"
-        size="lg" @close="closeDetails">
+      <DhModal :open="detailsVisible && !!selected" :title="selected?.name || (en ? 'Supplier details' : 'Detalle del proveedor')"
+        size="xl" surface="solid" @close="closeDetails">
         <div v-if="selected" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] pb-4">
             <div class="flex items-center gap-3">
@@ -1178,7 +1170,19 @@ onMounted(() => {
                 <dd class="whitespace-pre-wrap">{{ String(metadata(selected).observations || '—') }}</dd></div>
             </dl>
           </section>
-          <SrmSupplierFollowupsPanel :supplier-id="selected.id" :language="locale" />
+          <details data-srm-accordion="detail-followups" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Follow-up history' : 'Seguimientos y bitácora' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Activity records' : 'Registro de gestiones' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <div class="border-t border-[var(--dh-border)] p-3">
+              <SrmSupplierFollowupsPanel :supplier-id="selected.id" :language="locale" />
+            </div>
+          </details>
           <section v-if="canReadBanks" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h3 class="text-sm font-bold">{{ en ? 'Payment bank accounts' : 'Cuentas bancarias para pagos' }}</h3>
@@ -1271,8 +1275,32 @@ onMounted(() => {
               </div>
             </dl>
           </section>
-          <SrmSupplierFilesPanel :supplier-id="selected.id" kind="credit" :language="locale" />
-          <SrmSupplierFilesPanel :supplier-id="selected.id" kind="tariff" :language="locale" />
+          <details data-srm-accordion="detail-credit" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><CreditCard class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Credit documents' : 'Documentos de crédito' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Supporting files' : 'Archivos de respaldo' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <div class="border-t border-[var(--dh-border)] p-3">
+              <SrmSupplierFilesPanel :supplier-id="selected.id" kind="credit" :language="locale" />
+            </div>
+          </details>
+          <details data-srm-accordion="detail-tariffs" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Tariffs and agreements' : 'Tarifas y documentos' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Rate sheets and images' : 'Tarifarios e imágenes' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <div class="border-t border-[var(--dh-border)] p-3">
+              <SrmSupplierFilesPanel :supplier-id="selected.id" kind="tariff" :language="locale" />
+            </div>
+          </details>
           <section v-if="selected.description" class="border-t border-[var(--dh-border)] pt-4">
             <h3 class="mb-2 text-sm font-bold">{{ en ? 'Description' : 'Descripción' }}</h3>
             <p class="whitespace-pre-wrap text-sm text-[var(--dh-text-muted)]">{{ selected.description }}</p>
@@ -1296,10 +1324,10 @@ onMounted(() => {
             </div>
           </details>
         </div>
-      </DhDrawer>
-      <DhDrawer :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
-        size="xl" @close="closeForm">
-        <form id="srm-supplier-form" class="grid gap-4 md:grid-cols-2" novalidate @submit.prevent="submitSupplierSafely">
+      </DhModal>
+      <DhModal :open="formVisible" :title="editing ? (en ? 'Edit supplier' : 'Editar proveedor') : (en ? 'New supplier' : 'Nuevo proveedor')"
+        size="xl" surface="solid" @close="closeForm">
+        <form id="srm-supplier-form" class="grid gap-3 md:grid-cols-2" data-srm-accordion-form novalidate @submit.prevent="submitSupplierSafely">
           <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
             <div class="flex items-center gap-3">
               <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]">
@@ -1311,20 +1339,21 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <nav role="tablist" :aria-label="en ? 'Supplier form sections' : 'Secciones del proveedor'"
-            class="sticky top-0 z-20 md:col-span-2 grid grid-cols-2 gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2 shadow-sm sm:flex sm:overflow-x-auto">
-            <button v-for="tab in supplierFormTabs" :key="tab.value" type="button" role="tab"
-              :data-srm-form-tab="tab.value" :aria-selected="supplierFormTab === tab.value"
-              :class="supplierFormTab === tab.value
-                ? 'bg-[var(--dh-primary)] text-white shadow-sm'
-                : 'text-[var(--dh-text-muted)] hover:bg-[var(--dh-input)] hover:text-[var(--dh-text)]'"
-              class="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition sm:flex-1 sm:whitespace-nowrap"
-              @click="supplierFormTab = tab.value">
-              <component :is="tab.icon" class="h-4 w-4 shrink-0" />{{ tab.label }}
-            </button>
-          </nav>
-          <section v-show="supplierFormTab === 'identity'" id="srm-form-identity" data-srm-save-section="general"
-            class="md:col-span-2 grid gap-4 md:grid-cols-2" role="tabpanel">
+          <p class="md:col-span-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] px-4 py-3 text-xs text-[var(--dh-text-muted)]">
+            {{ en ? 'Each section expands independently. Review what you need, then save the complete profile.' :
+              'Cada sección se puede abrir por separado. Revisá los datos necesarios y guardá la ficha completa.' }}
+          </p>
+          <details open data-srm-accordion="identity" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><Building2 class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Identity and Hacienda' : 'Identidad y Hacienda' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'General and tax information' : 'Datos generales y fiscales' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <section id="srm-form-identity" data-srm-save-section="general"
+              class="grid gap-4 border-t border-[var(--dh-border)] p-4 md:grid-cols-2 sm:p-5">
           <label class="text-sm font-semibold">{{ en ? 'Company name *' : 'Nombre de empresa *' }}
             <input :value="supplierName" @input="onSupplierNameInput"
               required maxlength="220" placeholder="Ej. TRANSPORTES ROMO"
@@ -1449,12 +1478,32 @@ onMounted(() => {
               class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase" />
           </label>
           </section>
-          <div v-show="supplierFormTab === 'identity'" class="md:col-span-2">
-            <SrmSupplierFollowupsPanel :supplier-id="editing?.id || ''" :language="locale" />
+          </details>
+          <div v-if="editing" class="md:col-span-2">
+            <details data-srm-accordion="followups" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Follow-ups and activity log' : 'Seguimiento y bitácora' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'History of calls, emails and commitments' : 'Historial de llamadas, correos y compromisos' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+              <div class="border-t border-[var(--dh-border)] p-4">
+                <SrmSupplierFollowupsPanel :supplier-id="editing.id" :language="locale" />
+              </div>
+            </details>
           </div>
-          <section v-if="canReadBanks" v-show="supplierFormTab === 'banks'"
-            class="md:col-span-2 space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
-            data-srm-save-section="bank" role="tabpanel">
+                    <details data-srm-accordion="banks" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><Landmark class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Bank accounts' : 'Cuentas bancarias' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Restricted financial records' : 'Datos financieros restringidos' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <section class="space-y-3 border-t border-[var(--dh-border)] p-4 sm:p-5" data-srm-save-section="bank">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div><h3 class="text-sm font-bold">{{ en ? 'Supplier bank accounts' : 'Cuentas bancarias del proveedor' }}
                 <span class="font-normal text-[var(--dh-text-muted)]">({{ en ? 'optional' : 'opcional' }})</span></h3>
@@ -1536,8 +1585,18 @@ onMounted(() => {
               {{ revealBankNumbers ? (en ? 'Hide account numbers' : 'Ocultar números de cuenta') : (en ? 'Reveal account numbers' : 'Mostrar números de cuenta') }}
             </button>
           </section>
-          <section v-show="supplierFormTab === 'contacts'" data-srm-save-section="contacts"
-            class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" role="tabpanel">
+          </details>
+          <details data-srm-accordion="contacts" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><ContactRound class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Supplier contacts' : 'Contactos del proveedor' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Representatives, phones and emails' : 'Responsables, teléfonos y correos' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <section data-srm-save-section="contacts"
+              class="space-y-4 border-t border-[var(--dh-border)] p-4 sm:p-5">
             <p v-if="error && saveErrorSection === 'contacts'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold">Contactos del proveedor <span class="font-medium text-[var(--dh-text-muted)]">(opcional)</span></h3>
@@ -1570,8 +1629,18 @@ onMounted(() => {
               <button type="button" class="justify-self-start text-xs font-bold text-red-500" @click="contacts.splice(index, 1)">Eliminar contacto</button>
             </div>
           </section>
-          <section v-show="supplierFormTab === 'credit'" data-srm-save-section="credit"
-            class="md:col-span-2 space-y-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" role="tabpanel">
+          </details>
+          <details data-srm-accordion="credit" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><CreditCard class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Credit and payment terms' : 'Crédito y condiciones' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Terms, amounts and supporting files' : 'Plazos, montos y documentación de respaldo' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <section data-srm-save-section="credit"
+              class="space-y-4 border-t border-[var(--dh-border)] p-4 sm:p-5">
             <p v-if="error && saveErrorSection === 'credit'" role="alert" class="text-sm font-semibold text-red-400">{{ error }}</p>
             <div>
               <h3 class="text-sm font-bold">{{ en ? 'Supplier credit terms' : 'Condiciones de crédito del proveedor' }}
@@ -1623,13 +1692,24 @@ onMounted(() => {
                   class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-3 text-sm" />
               </label>
             </div>
-          </section>
-          <div v-show="supplierFormTab === 'credit'" class="md:col-span-2">
-            <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="credit" :language="locale" />
-          </div>
-          <div v-show="supplierFormTab === 'tariffs'" class="md:col-span-2">
-            <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="tariff" :language="locale" />
-          </div>
+            </section>
+            <div class="border-t border-[var(--dh-border)] p-4">
+              <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="credit" :language="locale" />
+            </div>
+          </details>
+          <details data-srm-accordion="tariffs" class="group md:col-span-2 overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-sm">
+            <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-4 hover:bg-[var(--dh-shell)] sm:px-5">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-primary)]"><FileCheck2 class="h-5 w-5" /></span>
+              <span class="min-w-0 flex-1">
+                <strong class="block text-sm">{{ en ? 'Agreed tariffs' : 'Tarifas y acuerdos' }}</strong>
+                <span class="block text-xs text-[var(--dh-text-muted)]">{{ en ? 'Documents, images and validity periods' : 'Documentos, imágenes y vigencias' }}</span>
+              </span>
+              <ChevronRight class="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <div class="border-t border-[var(--dh-border)] p-4">
+              <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="tariff" :language="locale" />
+            </div>
+          </details>
         </form>
         <template #footer>
           <div class="space-y-3" data-srm-form-footer>
@@ -1648,7 +1728,7 @@ onMounted(() => {
             </button>
           </div>
         </template>
-      </DhDrawer>
+      </DhModal>
       <DhModal :open="Boolean(deleteTarget)" :title="en ? 'Delete supplier' : 'Eliminar proveedor'"
         size="md" surface="solid" @close="closeSupplierDelete">
         <div v-if="deleteTarget" class="space-y-4" data-srm-delete-confirmation>
