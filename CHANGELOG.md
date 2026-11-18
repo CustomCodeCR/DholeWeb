@@ -1,3 +1,10 @@
+## [1.77.3] - 2026-11-18 (Pricing: liberar reservas al cerrar solicitudes)
+
+- PATCH DH-20261118-PRICING-LEASE-214: detener el heartbeat al cerrar, esperar las operaciones pendientes y liberar la reserva antes de navegar; impedir que un reintento tardío vuelva a tomar el bloqueo.
+- Estado «Trabajando» independiente del bloqueo. Protección contra tokens obsoletos en Pricing; sin cambios de scopes, contratos REST ni SignalR.
+- Pruebas de cierre, carga tardía, heartbeat y navegación. CI y staging pendientes; producción sin autorización.
+- DholeWeb 1.77.2 → 1.77.3; DholePricingService 1.23.3 → 1.23.4; ecosistema 1.81.2 → 1.81.3.
+
 ## [1.77.2] - 2026-11-18 (Ventas: cotización aceptada, edición exclusiva de Pricing)
 
 - PATCH DH-20261118-SELLER-ACCEPTED-213: el dashboard comercial de escritorio y móvil y el detalle no permiten solicitar una modificación en una cotización aceptada, ni mientras Pricing gestiona su revisión posterior.
