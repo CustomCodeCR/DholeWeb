@@ -1,0 +1,23 @@
+{
+  "releaseId": "DH-20261118-PRICING-LEASE-219",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.83.3",
+  "date": "2026-11-18",
+  "type": "PATCH",
+  "status": "candidate-ci-and-staging-pending",
+  "component": "DholeWeb",
+  "previousVersion": "1.79.2",
+  "version": "1.79.3",
+  "relatedComponents": {
+    "DholePricingService": "1.23.7",
+    "DholeSystem": "1.83.3"
+  },
+  "authorization": "pricing.rate.update",
+  "restCompatibility": "additive",
+  "realtime": "unchanged",
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  }
+}
