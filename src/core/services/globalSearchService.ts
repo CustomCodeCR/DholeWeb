@@ -79,7 +79,8 @@ export async function searchGlobalRecords(
         })
         return unwrapListResponse<RateDto>(response)
           .filter((rate) => matchesQuery(query,
-            rate.quoNumber, rate.idtraNumber, rate.rateCode,
+            rate.quoNumber, rate.idtraNumber,
+            rate.quoNumber ? undefined : rate.rateCode,
             rate.clientName, rate.executiveName, rate.polName, rate.poeName, rate.podName))
           .slice(0, SEARCH_PAGE_SIZE)
           .map((rate) => ({
@@ -94,10 +95,10 @@ export async function searchGlobalRecords(
     {
       scope: VIEW_SCOPES.pricingRates,
       run: async () => {
-        const response = await PricingService.browseRates(page)
+        const response = await PricingService.browseRates({ ...page, groupQuotes: true })
         return response.items.map((rate) => ({
           id: `rate:${rate.id}`,
-          title: rate.rateCode || rate.rateName,
+          title: rate.quoNumber || rate.groupQuoteNumber || rate.rateCode || rate.rateName,
           description: [rate.clientName, rate.rateName, rate.polName, rate.podName].filter(Boolean).join(' · '),
           category: rate.rateType === 'Tariff' ? 'Tarifario' : 'Tarifa / cotización',
           path: `/pricing/rates/${encodeURIComponent(rate.id)}/wizard?mode=view`,
