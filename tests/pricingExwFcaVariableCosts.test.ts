@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { pricingExwFcaVariableCosts } from '../build/pricingExwFcaVariableCosts'
+import { pricingExwFcaVariableCosts } from '../build/pricingExwFcaVariableCosts.ts'
 
 const wizardPath = '/project/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 const fixture = [
