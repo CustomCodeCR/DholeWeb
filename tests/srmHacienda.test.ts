@@ -91,14 +91,14 @@ test('Hacienda messages never expose endpoint URLs or tax identification', () =>
 
 test('SRM footer stays outside the scroller and submits the supplier form', () => {
   const view = readFileSync('src/modules/srm/views/SrmWorkspaceView.vue', 'utf8')
-  const modal = readFileSync('src/shared/components/organisms/DhModal.vue', 'utf8')
-  assert.match(view, /<form id="srm-supplier-form"/)
-  assert.match(view, /<\/form>\s*<template #footer>/)
+  const drawer = readFileSync('src/shared/components/organisms/DhDrawer.vue', 'utf8')
+  assert.match(view, /<form v-show="formTab !== 'routes'" id="srm-supplier-form"/)
+  assert.match(view, /<\/form>[\s\S]*<template #footer>/)
   assert.match(view, /type="submit" form="srm-supplier-form"/)
   assert.match(view, /srmHaciendaErrorMessage\(cause, en.value\)/)
   assert.doesNotMatch(view, /class="sticky bottom-0 z-20 md:col-span-2/)
-  assert.match(modal, /<footer v-if="\$slots.footer"/)
-  assert.match(modal, /<slot name="footer"/)
+  assert.match(drawer, /<footer v-if="\$slots.footer"/)
+  assert.match(drawer, /<slot name="footer"/)
 })
 
 test('authenticated GET does not send an unnecessary JSON Content-Type to Gateway', () => {
