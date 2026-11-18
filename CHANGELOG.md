@@ -1,3 +1,9 @@
+## [1.82.1] - 2026-11-18 (LCL/LTL: peso por unidad de carga · master)
+
+- PATCH DH-20261118-CARGO-WEIGHT-PER-UNIT-229: backport selectivo de develop a master. El peso ingresado se interpreta por unidad y se multiplica por cantidad, como el CBM/CFT. El resumen de Ventas y los equivalentes por peso respetan todas las unidades.
+- El API continúa recibiendo peso total por línea; la rehidratación en Pricing restaura peso unitario sin duplicaciones. Solicitudes históricas con desglose deben validarse con Ventas antes de rehacer la cotización.
+- Web 1.82.0 → 1.82.1; Pricing 1.24.5 → 1.24.7; DholeSystem/ecosistema 1.86.0 → 1.86.1. Se preservan cambios específicos de master. Staging Web/Pricing desplegado correctamente; CI de master y prueba autenticada aún por verificar.
+
 ## [1.82.0] - 2026-11-18 (Blobatar: estresado, cansado y resignado)
 
 - MINOR DH-20261118-BLOBATAR-MOODS-228: tres nuevas expresiones propias para Blobatar 2.7.0: Estresado (temblor y mirada inquieta), Cansado (ojos vencidos) y Resignado (mirada caída, asimétrica).
