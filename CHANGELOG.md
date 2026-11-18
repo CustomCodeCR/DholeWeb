@@ -1,3 +1,15 @@
+## [1.83.0] - 2026-11-18 (CRM: agenda compartida e invitados internos)
+
+- MINOR DH-20261118-CRM-SHARED-AGENDA-229: agenda comercial compartida con usuarios internos de Auth. Al agendar llamadas, citas, visitas y recordatorios se pueden invitar múltiples asistentes; cada invitado ve el mismo registro y recibe avisos propios por sistema y correo.
+- Nueva consulta de usuarios invitables y edición de invitados desde el detalle; permisos de lectura por pertenencia explícita, control de responsabilidades y estado compartido. Contratos REST compatibles, deduplicación/outbox y sincronización de recordatorios.
+- DholeWeb 1.82.0 → 1.83.0; DholeCRMService 1.36.0 → 1.37.0; ecosistema 1.86.0 → 1.87.0. Requiere CI/staging; sin autorización de producción.
+
+## [1.82.0] - 2026-11-18 (Blobatar: estresado, cansado y resignado)
+
+- MINOR DH-20261118-BLOBATAR-MOODS-228: tres nuevas expresiones propias para Blobatar 2.7.0: Estresado (temblor y mirada inquieta), Cansado (ojos vencidos) y Resignado (mirada caída, asimétrica).
+- Las 17 poses se comparten entre el encabezado y Configuración → Apariencia; se conservan el ciclo Auto de 30 segundos, Fijo, persistencia por usuario, animaciones, mirada y movimiento reducido. Traducciones ES/EN y regresión SSR.
+- DholeWeb 1.81.x → 1.82.0; DholeSystem/ecosistema → 1.86.0. Otros 15 componentes sin cambios. Sin cambios REST, SignalR o scopes; CI y staging obligatorios antes de promover master.
+
 ## [1.81.2] - 2026-11-18 (EXW LCL propio: recolecta persistente en vista y edición)
 
 - PATCH DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227: corregir la causa real de recolectas no visibles aun tras el release previo. La rehidratación LCL propia descartaba rubros manuales o perdía su identidad al abrir la cotización y mezclaba suplementos con la matriz.
