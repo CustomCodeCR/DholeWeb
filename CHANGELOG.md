@@ -1,3 +1,9 @@
+## [1.81.0] - 2026-11-18 (SRM · clasificación logística y cobertura de rutas)
+
+- MINOR DH-20261118-SRM-ROUTES-225: diez nuevas categorías específicas con selección múltiple y reclasificación de antiguas categorías de transporte sin pérdida de historial.
+- DhDrawer con tabs de ficha/RUTAS, cobertura de proveedores marítimos, aéreos y terrestres mediante POL/POE/POD Config, altas, edición, eliminación.
+- Config aporta API de cobertura para Pricing con scopes, bitácora y realtime Outbox. Web 1.80.3 → 1.81.0; Config 1.10.1 → 1.11.0; ecosistema 1.84.3 → 1.85.0. CI/staging pendientes; no producción.
+
 ## [1.80.3] - 2026-11-18 (Pricing: flete DDP exportación terrestre LTL/FTL)
 
 - PATCH DH-20261118-DDP-EXPORT-FREIGHT-225: corregir el filtrado de flete internacional por Incoterm para distinguir exportador/importador. DDP en exportación y EXW en importación conservan flete cuando el servicio internacional está contratado.
