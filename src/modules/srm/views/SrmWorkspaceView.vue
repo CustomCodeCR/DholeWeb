@@ -10,6 +10,8 @@ import { DhMultiSelect, DhSelect } from '@/shared/components/atoms'
 import CrmCatalogPicker from '@/modules/crm/components/CrmCatalogPicker.vue'
 import CrmCreditCoveragePicker from '@/modules/crm/components/CrmCreditCoveragePicker.vue'
 import CrmPhoneInput from '@/modules/crm/components/CrmPhoneInput.vue'
+import SrmSupplierFollowupsPanel from '../components/SrmSupplierFollowupsPanel.vue'
+import SrmSupplierFilesPanel from '../components/SrmSupplierFilesPanel.vue'
 import { creditCoverageLabel } from '@/modules/crm/model/crmCreditCoverage'
 import { SrmApi, type SrmLegacyPartner, type SrmBankAccount, type SrmHaciendaResult } from '../services/srmApi'
 import { supplierSaveIssue, supplierBankSaveIssue, supplierPersistedCreditMatches, type SupplierSaveSection } from '../utils/srmSupplierSave'
@@ -86,12 +88,13 @@ const haciendaResult = ref<SrmHaciendaResult | null>(null)
 const haciendaVerifiedAt = ref('')
 const haciendaIdentificationType = ref('')
 const haciendaRegime = ref('')
-const supplierFormTab = ref<'identity' | 'contacts' | 'banks' | 'credit'>('identity')
+const supplierFormTab = ref<'identity' | 'contacts' | 'banks' | 'credit' | 'tariffs'>('identity')
 const supplierFormTabs = computed(() => [
   { value: 'identity' as const, label: en.value ? 'Identity & Hacienda' : 'Identidad y Hacienda', icon: Building2 },
   { value: 'contacts' as const, label: en.value ? 'Contacts' : 'Contactos', icon: ContactRound },
   ...(canReadBanks.value ? [{ value: 'banks' as const, label: en.value ? 'Banking' : 'Bancos', icon: Landmark }] : []),
   { value: 'credit' as const, label: en.value ? 'Credit & terms' : 'Crédito y condiciones', icon: CreditCard },
+  { value: 'tariffs' as const, label: en.value ? 'Agreed tariffs' : 'Tarifas', icon: FileCheck2 },
 ])
 let haciendaLookupVersion = 0
 let haciendaDebounce: ReturnType<typeof setTimeout> | null = null
@@ -1175,6 +1178,7 @@ onMounted(() => {
                 <dd class="whitespace-pre-wrap">{{ String(metadata(selected).observations || '—') }}</dd></div>
             </dl>
           </section>
+          <SrmSupplierFollowupsPanel :supplier-id="selected.id" :language="locale" />
           <section v-if="canReadBanks" class="space-y-3 border-t border-[var(--dh-border)] pt-4" data-srm-private-bank-accounts>
             <div class="flex flex-wrap items-center justify-between gap-2">
               <h3 class="text-sm font-bold">{{ en ? 'Payment bank accounts' : 'Cuentas bancarias para pagos' }}</h3>
@@ -1267,6 +1271,8 @@ onMounted(() => {
               </div>
             </dl>
           </section>
+          <SrmSupplierFilesPanel :supplier-id="selected.id" kind="credit" :language="locale" />
+          <SrmSupplierFilesPanel :supplier-id="selected.id" kind="tariff" :language="locale" />
           <section v-if="selected.description" class="border-t border-[var(--dh-border)] pt-4">
             <h3 class="mb-2 text-sm font-bold">{{ en ? 'Description' : 'Descripción' }}</h3>
             <p class="whitespace-pre-wrap text-sm text-[var(--dh-text-muted)]">{{ selected.description }}</p>
@@ -1443,6 +1449,9 @@ onMounted(() => {
               class="mt-2 w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 uppercase" />
           </label>
           </section>
+          <div v-show="supplierFormTab === 'identity'" class="md:col-span-2">
+            <SrmSupplierFollowupsPanel :supplier-id="editing?.id || ''" :language="locale" />
+          </div>
           <section v-if="canReadBanks" v-show="supplierFormTab === 'banks'"
             class="md:col-span-2 space-y-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
             data-srm-save-section="bank" role="tabpanel">
@@ -1615,6 +1624,12 @@ onMounted(() => {
               </label>
             </div>
           </section>
+          <div v-show="supplierFormTab === 'credit'" class="md:col-span-2">
+            <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="credit" :language="locale" />
+          </div>
+          <div v-show="supplierFormTab === 'tariffs'" class="md:col-span-2">
+            <SrmSupplierFilesPanel :supplier-id="editing?.id || ''" kind="tariff" :language="locale" />
+          </div>
         </form>
         <template #footer>
           <div class="space-y-3" data-srm-form-footer>
