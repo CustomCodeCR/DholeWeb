@@ -1,3 +1,9 @@
+## [1.68.0] - 2026-11-17 (SRM · bitácora, crédito y tarifas adjuntas)
+
+- MINOR DH-20261117-SRM-RECORDS-201: seguimiento y bitácora por proveedor dentro de Identidad y Hacienda, con gestiones de llamada, correo, reunión, visita, nota y próximo contacto; historial permanente con autor y fecha de servidor.
+- Crédito: documentos adjuntos de respaldo; nueva pestaña Tarifas: archivos e imágenes de acuerdos por proveedor, descripción y fechas de vigencia. Utiliza StorageService de CRM con segregación srm.supplier.credit / srm.supplier.tariff y previsualización/descarga.
+- Reutiliza permisos SRM y Storage, no mezcla expedientes de distintos proveedores ni números bancarios en metadatos. Web 1.67.9 → 1.68.0, ecosistema 1.71.3 → 1.71.4.
+
 ## [1.67.9] - 2026-11-17 (Pricing LCL: no importar cargos de naviera)
 
 - PATCH DH-20261117-PRICING-LCL-CARRIER-200: el wizard no incorpora cargos vinculados a MAERSK ni a ninguna otra naviera en LCL marítimo, aunque el API contextual devuelva el costo o arrastre una relación legacy. Validación obligatoria en aplicación, cálculo de montos y actualización explícita desde base de datos; sin filtrar por texto ni alterar manuales históricos.
