@@ -1,31 +1,64 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Blobatar } from '@blobatar/vue'
+import { useGaze } from '@blobatar/vue/gaze'
+import { happy, idle, love, sleepy, surprised, thinking, wink } from 'blobatar/expression'
 import 'blobatar/motion.css'
+import 'blobatar/gaze.css'
+
+type AvatarSize = 'sm' | 'md' | 'lg'
+type AvatarMood = 'auto' | 'idle' | 'happy' | 'thinking' | 'sleepy' | 'wink' | 'love' | 'surprised'
 
 const props = withDefaults(
   defineProps<{
     src?: string | null
     id?: string | number | null
     name?: string
-    size?: 'sm' | 'md' | 'lg'
+    size?: AvatarSize
     status?: 'online' | 'offline' | 'busy' | 'none'
     fallback?: 'blobatar' | 'initials'
-    animate?: boolean
+    animate?: boolean | 'hover' | 'always'
+    followCursor?: boolean
+    mood?: AvatarMood
   }>(),
   {
     size: 'md',
     status: 'none',
     fallback: 'blobatar',
     animate: false,
+    followCursor: false,
+    mood: 'auto',
   },
 )
 
 const photoFailed = ref(false)
+const hovered = ref(false)
 watch(() => props.src, () => { photoFailed.value = false })
 
 const avatarSeed = computed(() => String(props.id ?? '').trim() || props.name?.trim() || '')
 const pixelSize = computed(() => ({ sm: 32, md: 40, lg: 56 })[props.size])
+const sizeClass = computed(() => ({
+  sm: 'h-8 w-8',
+  md: 'h-10 w-10',
+  lg: 'h-14 w-14',
+})[props.size])
+const animationMode = computed(() => props.animate === true ? 'hover' : props.animate || undefined)
+const showMotionAura = computed(() =>
+  (!props.src || photoFailed.value) &&
+  props.fallback === 'blobatar' &&
+  Boolean(avatarSeed.value) &&
+  Boolean(animationMode.value),
+)
+
+const expressions = { idle, happy, thinking, sleepy, wink, love, surprised }
+const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
+  if (props.mood !== 'auto') return props.mood
+  if (props.status === 'busy') return 'thinking'
+  if (props.status === 'offline') return 'sleepy'
+  return hovered.value && animationMode.value ? 'happy' : 'idle'
+})
+const expression = computed(() => expressions[activeMood.value])
+
 const initials = computed(() => {
   if (!props.name?.trim()) return '?'
   return props.name
@@ -35,21 +68,64 @@ const initials = computed(() => {
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('')
 })
+
+// The gaze driver only receives a live SVG reference on an opted-in hero avatar.
+const trackedBlob = ref<InstanceType<typeof Blobatar> | null>(null)
+const canTrackPointer = ref(false)
+let reducedMotion: MediaQueryList | null = null
+let finePointer: MediaQueryList | null = null
+
+function syncPointerSupport() {
+  canTrackPointer.value = Boolean(finePointer?.matches) && !Boolean(reducedMotion?.matches)
+}
+useGaze(trackedBlob, { travel: 3, target: 'pointer' })
+onMounted(() => {
+  if (!props.followCursor) return
+  reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+  finePointer = window.matchMedia('(hover: hover) and (pointer: fine)')
+  reducedMotion.addEventListener('change', syncPointerSupport)
+  finePointer.addEventListener('change', syncPointerSupport)
+  syncPointerSupport()
+})
+onBeforeUnmount(() => {
+  reducedMotion?.removeEventListener('change', syncPointerSupport)
+  finePointer?.removeEventListener('change', syncPointerSupport)
+})
+function handlePointerEnter(event: PointerEvent) {
+  if (event.pointerType === 'mouse' || event.pointerType === 'pen') hovered.value = true
+}
 </script>
 
 <template>
-  <div class="relative inline-flex shrink-0">
+  <div
+    class="dh-avatar relative isolate inline-flex shrink-0 items-center justify-center"
+    :class="{ 'dh-avatar--alive': showMotionAura, 'dh-avatar--hero': animationMode === 'always' }"
+    @pointerenter="handlePointerEnter"
+    @pointerleave="hovered = false"
+  >
+    <span v-if="showMotionAura" class="dh-avatar__aura" aria-hidden="true" />
+
     <img
       v-if="src && !photoFailed"
       :src="src"
       :alt="name || ''"
-      class="rounded-full object-cover ring-2 ring-white/70 dark:ring-white/10"
-      :class="[
-        size === 'sm' && 'h-8 w-8',
-        size === 'md' && 'h-10 w-10',
-        size === 'lg' && 'h-14 w-14',
-      ]"
+      class="dh-avatar__face rounded-full object-cover ring-2 ring-white/70 dark:ring-white/10"
+      :class="sizeClass"
       @error="photoFailed = true"
+    />
+
+    <Blobatar
+      v-else-if="fallback === 'blobatar' && avatarSeed && followCursor && animationMode === 'always' && canTrackPointer"
+      ref="trackedBlob"
+      :name="avatarSeed"
+      :size="pixelSize"
+      background="circle"
+      :hue="210"
+      animate="always"
+      :expression="expression"
+      :title="name || undefined"
+      class="dh-avatar__face rounded-full ring-2 ring-white/70 dark:ring-white/10"
+      :class="sizeClass"
     />
 
     <Blobatar
@@ -58,18 +134,22 @@ const initials = computed(() => {
       :size="pixelSize"
       background="circle"
       :hue="210"
-      :animate="animate ? 'hover' : undefined"
+      :animate="animationMode"
+      :expression="expression"
+      :title="name || undefined"
       :alt="name || ''"
-      class="rounded-full ring-2 ring-white/70 dark:ring-white/10"
+      class="dh-avatar__face rounded-full ring-2 ring-white/70 dark:ring-white/10"
+      :class="sizeClass"
     />
 
     <span
       v-else
-      class="inline-flex items-center justify-center rounded-full bg-[var(--dh-primary)] font-bold text-white ring-2 ring-white/70 dark:ring-white/10"
+      class="dh-avatar__face inline-flex items-center justify-center rounded-full bg-[var(--dh-primary)] font-bold text-white ring-2 ring-white/70 dark:ring-white/10"
       :class="[
-        size === 'sm' && 'h-8 w-8 text-xs',
-        size === 'md' && 'h-10 w-10 text-sm',
-        size === 'lg' && 'h-14 w-14 text-base',
+        sizeClass,
+        size === 'sm' && 'text-xs',
+        size === 'md' && 'text-sm',
+        size === 'lg' && 'text-base',
       ]"
     >
       {{ initials }}
@@ -77,7 +157,7 @@ const initials = computed(() => {
 
     <span
       v-if="status !== 'none'"
-      class="absolute bottom-0 right-0 rounded-full border-2 border-white dark:border-[var(--dh-black)]"
+      class="dh-avatar__presence absolute bottom-0 right-0 rounded-full border-2 border-white dark:border-[var(--dh-black)]"
       :class="[
         size === 'sm' && 'h-2.5 w-2.5',
         size === 'md' && 'h-3 w-3',
@@ -89,3 +169,53 @@ const initials = computed(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.dh-avatar__aura {
+  position: absolute;
+  z-index: 0;
+  inset: -5px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.28) 18%, rgba(99, 102, 241, 0.12) 56%, transparent 76%);
+  filter: blur(7px);
+  opacity: 0.45;
+  transform: scale(0.94);
+  transition: opacity 280ms ease, transform 350ms ease;
+}
+.dh-avatar__face {
+  position: relative;
+  z-index: 1;
+  display: block;
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), filter 240ms ease;
+}
+.dh-avatar__presence {
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--dh-card, transparent);
+}
+.dh-avatar--hero .dh-avatar__aura {
+  animation: dh-avatar-aura 4.8s ease-in-out infinite;
+}
+@media (hover: hover) {
+  .dh-avatar--alive:hover .dh-avatar__aura {
+    opacity: 0.9;
+    transform: scale(1.22);
+  }
+  .dh-avatar--alive:hover .dh-avatar__face {
+    transform: translateY(-1px);
+    filter: drop-shadow(0 3px 5px rgba(38, 99, 200, 0.2));
+  }
+}
+@keyframes dh-avatar-aura {
+  0%, 100% { opacity: 0.33; transform: scale(0.93); }
+  50% { opacity: 0.64; transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dh-avatar__aura,
+  .dh-avatar__face {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
+</style>
