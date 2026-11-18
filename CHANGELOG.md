@@ -1,3 +1,10 @@
+## [1.81.2] - 2026-11-18 (EXW LCL propio: recolecta persistente en vista y edición)
+
+- PATCH DH-20261118-EXW-LCL-PICKUP-ROUNDTRIP-227: corregir la causa real de recolectas no visibles aun tras el release previo. La rehidratación LCL propia descartaba rubros manuales o perdía su identidad al abrir la cotización y mezclaba suplementos con la matriz.
+- La vista ahora conserva exactamente los RateDetails persistidos; la edición respeta cargos de recolecta y sus importes. La fuente LCL mantiene solamente sus líneas de matriz, sin absorber rubros ajenos.
+- Se incorporan costos fijos de recolecta EXW cuando coinciden con la ruta, junto a los variables, sin copiar fijos de otras etapas; el detalle alerta si una cotización antigua no tiene recolecta guardada.
+- Pruebas del runtime transformado del wizard, rehidratación de vista/edición y costos fijos. DholeWeb 1.81.1 → 1.81.2, DholePricingService 1.24.5 → 1.24.6, DholeSystem 1.85.1 → 1.85.2. CI, staging y validación autenticada pendientes.
+
 ## [1.81.1] - 2026-11-18 (Pricing: recolecta EXW en LCL propio)
 
 - PATCH DH-20261118-PRICING-EXW-PICKUP-226: recolecta editable en cotizaciones EXW/LCL propio aunque falte en el catálogo, conservando sus costos/ventas manuales al actualizar la matriz y guardar.
