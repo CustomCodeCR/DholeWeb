@@ -1,3 +1,9 @@
+## [1.78.0] - 2026-11-18 (Blobatar: conservar expresiones y cambiarlas automáticamente)
+
+- MINOR DH-20261118-BLOBATAR-PREFERENCES-215: guarda la última cara seleccionada para cada usuario en localStorage y permite alternar modo Auto/Fijo desde el perfil; también guarda la elección de modo. Auto cambia entre las 14 caras cada 30 segundos, se pausa cuando la pestaña está oculta o con movimiento reducido, y Fijo conserva la cara elegida tras recargas.
+- Se mantienen las animaciones, el color negro del modo oscuro, el contraste del modo claro, la mirada y los estados SignalR; las preferencias se guardan en el dispositivo, sin backend nuevo.
+- DholeWeb 1.77.3 → 1.78.0, DholeSystem/ecosistema 1.81.3 → 1.82.0; preserva Pricing 1.23.4 del release PRICING-LEASE-214 y los otros servicios.
+
 ## [1.77.3] - 2026-11-18 (Pricing: liberar reservas al cerrar solicitudes)
 
 - PATCH DH-20261118-PRICING-LEASE-214: detener el heartbeat al cerrar, esperar las operaciones pendientes y liberar la reserva antes de navegar; impedir que un reintento tardío vuelva a tomar el bloqueo.
