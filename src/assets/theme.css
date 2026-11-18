@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind dark utilities must follow the actual Dhole theme, not OS preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --dh-primary: #fc2800;
   --dh-primary-rgb: 252 40 0;

@@ -4,6 +4,8 @@ import { test } from 'node:test'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { Blobatar } from '@blobatar/vue'
+
+const themeCss = readFileSync(new URL('../src/assets/theme.css', import.meta.url), 'utf8')
 import { happy, idle, sleepy, thinking } from 'blobatar/expression'
 
 const avatar = readFileSync(new URL('../src/shared/components/atoms/DhAvatar.vue', import.meta.url), 'utf8')
@@ -63,7 +65,8 @@ test('Local Blobatar SSR is deterministic and each mood changes the face', async
 })
 
 test('Dark mode profile uses a true black backdrop without changing light mode', () => {
-  assert.match(topbar, /dark:bg-black/)
+  assert.ok(topbar.includes('border-white/15 bg-black'))
+  assert.ok(topbar.includes('border-slate-200 bg-white/95'))
   assert.match(topbar, /:dark-backdrop="themeStore\.resolvedTheme === 'dark'"/)
   assert.match(avatar, /:background="darkBackdrop \? false : 'circle'"/)
   assert.match(avatar, /background: #000/)
@@ -105,4 +108,20 @@ test('Blobatar 2.7.0 renders an angry face and all distinct preview expressions 
   assert.equal(output.length, 14)
   assert.equal(new Set(output).size, 14)
   assert.ok(output.every(markup => markup.includes('<svg')))
+})
+
+test('Dhole dark utilities follow the selected theme instead of the OS', () => {
+  assert.ok(themeCss.includes('@custom-variant dark (&:where(.dark, .dark *));'))
+})
+
+test('Profile and expression badge contrast are readable in light and dark themes', () => {
+  assert.ok(topbar.includes("themeStore.resolvedTheme === 'dark'"))
+  assert.ok(topbar.includes('border-slate-200 bg-white/95'))
+  assert.ok(topbar.includes('border-white/15 bg-black'))
+  assert.ok(topbar.includes("'text-white' : 'text-slate-900'"))
+  assert.ok(topbar.includes("'text-white/65' : 'text-slate-600'"))
+  assert.ok(!topbar.includes('dark:bg-black'))
+  assert.ok(avatar.includes("darkBackdrop ? 'border-white/15 bg-zinc-950 text-white' : 'border-slate-200 bg-white text-slate-900'"))
+  assert.ok(avatar.includes(':background="darkBackdrop ? false : \'circle\'"'))
+  assert.ok(topbar.includes(':preview-expressions="true"'))
 })
