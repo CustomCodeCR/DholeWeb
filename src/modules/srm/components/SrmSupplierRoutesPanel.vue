@@ -57,6 +57,13 @@ const valid = computed(() => originIds.value.length > 0 && destinationIds.value.
   originIds.value.length <= 30 && destinationIds.value.length <= 30 &&
   originIds.value.length * destinationIds.value.length <= 400)
 
+function setMode(value: string | number) {
+  if (value !== 'maritime' && value !== 'air' && value !== 'land') return
+  if (mode.value === value) return
+  mode.value = value
+  originIds.value = []
+  destinationIds.value = []
+}
 function reset() {
   showingForm.value = false
   editingId.value = ''
@@ -161,7 +168,7 @@ onMounted(() => { void loadCatalogs() })
         <h4 class="font-bold">{{ editingId ? (en ? 'Edit coverage' : 'Modificar cobertura') : (en ? 'New coverage' : 'Nueva cobertura') }}</h4>
         <button type="button" class="rounded-lg p-2 hover:bg-[var(--dh-input)]" :aria-label="en ? 'Cancel' : 'Cancelar'" @click="reset"><X class="h-4 w-4" /></button>
       </div>
-      <DhSelect v-model="mode" :options="modes" :label="en ? 'Transport mode' : 'Tipo de transporte'"
+      <DhSelect :model-value="mode" @update:model-value="setMode" :options="modes" :label="en ? 'Transport mode' : 'Tipo de transporte'"
         :disabled="saving" />
       <div class="grid gap-4 lg:grid-cols-2">
         <DhMultiSelect v-model="originIds" :options="origins" :disabled="saving || catalogLoading"
