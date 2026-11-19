@@ -1,8 +1,8 @@
-## [1.103.3] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-281 · edición de seguimientos y recordatorios)
+## [1.103.4] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-281 · edición de seguimientos y recordatorios)
 
 - PATCH: habilita editar seguimientos y recordatorios desde el detalle de Agenda y seguimientos, siguiendo el editor de bitácoras. Actualiza asunto, tipo, responsable, fechas, invitados y configuración de avisos sin duplicar el registro.
 - El editor recupera borradores, valida el intervalo y exige leer los invitados antes de guardarlos; CRM persiste la edición con control de concurrencia e historial de cambios.
-- Compatible con APIs REST existentes y eventos realtime; DholeSystem/DholeWeb 1.103.2 → 1.103.3 y DholeCRMService 1.42.0 → 1.42.1. CI y validación staging pendientes; producción no autorizada.
+- Compatible con APIs REST existentes y eventos realtime; DholeSystem/DholeWeb 1.103.2 → 1.103.4 y DholeCRMService 1.42.0 → 1.42.1. CI y validación staging pendientes; producción no autorizada.
 
 ## [1.103.2] - 2026-11-19 (DH-20261119-WIZARD-ROUTE-RUNTIME-274 · sin referencias runtime en Crear tarifa)
 
