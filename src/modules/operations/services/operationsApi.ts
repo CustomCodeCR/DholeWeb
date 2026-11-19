@@ -56,6 +56,7 @@ function request<T>(path: string, method: Method = 'GET', body?: unknown): Promi
 }
 export const operationsApi = {
   teams: () => request<OperationsTeam[]>('/api/operations/teams'),
+  initializeTeams: () => request<{ created: number; total: number }>('/api/operations/teams/initialize', 'POST'),
   createTeam: (body: { companyId: string; name: string; departmentCode: string }) =>
     request<{ id: string }>('/api/operations/teams', 'POST', body),
   users: (search = '') =>
