@@ -39,8 +39,6 @@ const commercialLines = computed(() => rate.value?.rateDetails?.filter(line => N
 const isSent = computed(() => ['Sent', 'RequestedByClient'].includes(rate.value?.status || ''))
 const revisionPending = computed(() => Boolean(rate.value?.revisionPending))
 const revisionWorkActive = computed(() => rate.value?.pricingModificationActive ?? activePricingModification.value)
-const canCancelRate = computed(() => Boolean(rate.value && !revisionPending.value
-  && rate.value.status === 'AcceptedByClient'))
 const canRespondToRate = computed(() => rate.value
   ? canDecideSellerQuote(rate.value, revisionWorkActive.value) : false)
 const isReceived = computed(() => Boolean(rate.value?.sellerReceivedAtUtc))
@@ -180,16 +178,6 @@ function clientDecision(decision: 'AcceptedByClient' | 'RejectedByClient') {
   })
 }
 
-function cancelRate() {
-  if (!rate.value || !canCancelRate.value) return
-  modal.open({
-    title: 'Cancelar cotización',
-    component: SellerRateDecisionModal,
-    size: 'md',
-    props: { rate: rate.value, decision: 'Cancelled', onSaved: load },
-  })
-}
-
 watch(rateId, () => { activeStep.value = 9; rate.value = null; void load() })
 function refreshSellerRateOnFocus() {
   if (!document.hidden && !loading.value) void load()
@@ -242,7 +230,6 @@ onBeforeUnmount(() => {
         <div data-seller-guide="detail-modify" class="mt-4 flex flex-wrap gap-2">
           <DhButton variant="secondary" label="Descargar cotización PDF" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
           <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
-          <DhButton v-if="canCancelRate" label="Cancelar cotización" variant="danger" @click="cancelRate" />
         </div>
         <div v-if="revisionPending || pendingModification" class="mt-3 space-y-1 text-xs font-semibold text-amber-500">
           <p v-if="revisionPending">{{ revisionWorkActive

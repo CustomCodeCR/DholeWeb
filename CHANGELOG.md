@@ -1,3 +1,9 @@
+## [1.83.1] - 2026-11-18 (Ventas: retirar cancelación de cotizaciones)
+
+- PATCH DH-20261118-SELLER-CANCEL-HIDE-234: elimina «Cancelar cotización» del dashboard comercial de vendedores (móvil y escritorio), detalle y modal de decisión. Permanecen Ver tarifa, aceptación, rechazo, PDF y modificaciones permitidas.
+- La cancelación de cotizaciones aceptadas permanece exclusivamente en el módulo Pricing con scopes y auditoría existentes; sin cambios en REST, microservicios ni SignalR.
+- DholeWeb 1.83.0 → 1.83.1; DholeSystem/ecosistema 1.87.3 → 1.87.4. CI y staging pendientes; producción no autorizada.
+
 ## [1.83.0] - 2026-11-18 (CRM: agenda compartida e invitados internos)
 
 - MINOR DH-20261118-CRM-SHARED-AGENDA-229: selección múltiple de empleados de Auth como invitados a llamadas, citas, reuniones y seguimientos. Misma actividad visible en sus calendarios y recordatorios individuales Email/System mediante Outbox.
