@@ -1,3 +1,10 @@
+## [1.96.0] - 2026-11-19 (DH-20261119-OPS-ROLE-TEAM-DASHBOARD-254 · Dashboard operativo por rol y equipo)
+
+- MINOR: selector de Dashboard por permisos (Pricing, Vendedor y Operaciones) y vista de Aperturas con totales reales por equipo y validaciones visibles al usuario.
+- El directorio de Equipos muestra selección directa, asignaciones compactas y bitácora accesible pero contraída; conserva DhMultiSelect, auditoría y roles de Auth.
+- Diseño más sobrio de la bandeja de Pricing: prioridad indicada por el borde y la etiqueta sin tintar toda la fila de rojo.
+- Web 1.95.1 → 1.96.0; Operations 0.11.0 → 0.12.0; System 1.95.1 → 1.96.0. Preparado en ramas intermedias, sin autorización de producción.
+
 ## [1.95.1] - 2026-11-19 (DH-20261119-DH-MULTISELECT-OVERLAY-253 · DhMultiSelect sólido)
 
 - PATCH: el menú desplegable DhMultiSelect se teletransporta a la capa superior para evitar que AuditLogs y otras tarjetas de cristal tapen o atraviesen sus opciones.
