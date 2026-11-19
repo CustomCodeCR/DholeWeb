@@ -1,3 +1,8 @@
+## [1.103.8] - 2026-11-19 (DH-20261119-PRICING-LTL-DDP-FREIGHT-284 · sincronización release DDP/LTL terrestre)
+
+- PATCH coordinado con DholePricingService 1.25.2 y DholeSystem 1.103.8. Cotizaciones LTL con DDP y flete internacional por CBM ya no se rechazan por distribución FCL en backend; se conserva el payload del wizard (shipmentMode=Ltl, contenedores vacíos, cantidad facturable por CBM).
+- El cambio del frontend es solo metadatos/versionado, sin alterar lógica de tarifas ni introducir regresiones en el wizard. CIF/FCL mantiene validaciones previas. CI/staging pendientes; producción no autorizada.
+
 ## [1.103.7] - 2026-11-19 (DH-20261119-PRICING-LTL-MANUAL-ENDTOEND-278 · recuperación real de LTL propio manual)
 
 - PATCH: el wizard reconoce LTL manual propio (FinalClient) y LTL manual coloader (Nvocc) como fuentes válidas en pantallas 5 y 6. Corrige el falso bloqueo persistente aunque haya costo y venta.
