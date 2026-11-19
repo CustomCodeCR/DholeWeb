@@ -2,8 +2,8 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Activity, CalendarClock, CheckCircle2, ChevronDown, ClipboardCheck,
-  FileClock, History, ListChecks, Settings2, ShieldCheck, UserMinus,
+  Activity, CalendarClock, ChevronDown, ClipboardCheck,
+  History, ListChecks, Settings2, ShieldCheck, UserMinus,
   UserPlus, UserRound, UserRoundCog, UsersRound,
 } from 'lucide-vue-next'
 import { DhEmptyState } from '@/shared/components/atoms'
