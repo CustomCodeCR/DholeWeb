@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { matchesPreferentialRoute, saleUnitForBasis } from '../src/modules/crm/utils/crmPreferentialCostRoute'
+import { matchesPreferentialRoute, matchesPreferentialCommercialScope, saleUnitForBasis } from '../src/modules/crm/utils/crmPreferentialCostRoute'
 import type { CostSelectDto } from '../src/core/interfaces/pricing'
 
 const cost = (overrides: Partial<CostSelectDto> = {}): CostSelectDto => ({
@@ -25,4 +25,22 @@ test('Unit of negotiated sale preserves the Pricing charge basis', () => {
   assert.equal(saleUnitForBasis('PerContainer'), 'CONTAINER')
   assert.equal(saleUnitForBasis('PerChargeableCbm'), 'CHARGEABLE_CBM')
   assert.equal(saleUnitForBasis('Per100Kg'), '100KG')
+})
+
+test('Naviera and Incoterm restrict source Pricing costs without hiding universal costs', () => {
+  const focused = { ...route, carrierCode: 'CAR-MAERSK', incotermCode: 'FOB' }
+  assert.equal(matchesPreferentialRoute(cost(), focused), true)
+  assert.equal(matchesPreferentialRoute(cost({ carrierCode: 'CAR-OTHER' }), focused), false)
+  assert.equal(matchesPreferentialRoute(cost({ carriers: [{id:'1',name:'Maersk',code:'CAR-MAERSK'}] }), focused), true)
+  assert.equal(matchesPreferentialRoute(cost({ incoterms: [{id:'1',name:'CIF',code:'CIF'}] }), focused), false)
+  assert.equal(matchesPreferentialRoute(cost({ incoterms: [{id:'2',name:'FOB',code:'FOB'}] }), focused), true)
+})
+
+test('Preferential saved scope identifies carrier and Incoterm, including unrestricted legacy records', () => {
+  assert.equal(matchesPreferentialCommercialScope({}, {}), true)
+  assert.equal(matchesPreferentialCommercialScope({}, {carrierCode:'MAERSK'}), false)
+  assert.equal(matchesPreferentialCommercialScope({carrierCode:'MAERSK',incotermCode:'FOB'},
+    {carrierCode:'MAERSK',incotermCode:'FOB'}), true)
+  assert.equal(matchesPreferentialCommercialScope({carrierCode:'MAERSK',incotermCode:'CIF'},
+    {carrierCode:'MAERSK',incotermCode:'FOB'}), false)
 })
