@@ -1,3 +1,8 @@
+## [1.91.1] - 2026-11-19 (DH-20261119-OPS-ROLE-NAME-248 · nombre correcto de rol)
+
+- PATCH: el mensaje de asignación en Operaciones utiliza el nombre exacto del rol vigente «Operativo Logístico» y «Supervisor Operativo».
+- Versión de frontend y DholeSystem 1.91.1 sincronizadas; cambio coordinado con DholeAuthService 1.16.1.
+
 ## [1.91.0] - 2026-11-19 (DH-20261119-OPS-AUDIT-ROLE-247 · Operaciones, auditoría y roles)
 
 - MINOR: rediseño de Equipos con DhSelect en lugar del listado de tarjetas; solamente aparecen usuarios elegibles por rol en el selector. Timeline unificada de Equipos/Aperturas con acciones ES/EN, fecha, responsable, comparativa antes/después y detalles técnicos plegados. Consulta independiente de nombres de autores de auditoría.
