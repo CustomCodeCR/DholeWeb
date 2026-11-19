@@ -6,7 +6,8 @@ import { DhBadge, DhButton, DhEmptyState, DhInput, DhSelect, DhTextarea } from '
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
-import { operationsApi, type ApertureRow, type OperationsAudit, type ValidationPair } from '../services/operationsApi'
+import { operationsApi, type ApertureRow, type OperationsAudit, type OperationsUser, type ValidationPair } from '../services/operationsApi'
+import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -58,6 +59,7 @@ const selectedId = ref('')
 const selected = computed(() => rows.value.find(x => x.id === selectedId.value))
 const pair = ref<ValidationPair | null>(null)
 const audit = ref<OperationsAudit[]>([])
+const auditPeople = ref<OperationsUser[]>([])
 const error = ref('')
 const message = ref('')
 const busy = ref(false)
@@ -87,12 +89,22 @@ async function load() {
 async function changePage(next: number) { page.value = Math.min(pages.value, Math.max(1, next)); await load() }
 async function choose(id: string) { selectedId.value = id; await loadDetail() }
 async function loadDetail() {
+  const caseId = selectedId.value
   pair.value = null
   audit.value = []
-  if (!selectedId.value) return
+  auditPeople.value = []
+  if (!caseId) return
   try {
-    pair.value = await operationsApi.validations(selectedId.value)
-    if (canAudit.value) audit.value = await operationsApi.caseAudit(selectedId.value)
+    const currentPair = await operationsApi.validations(caseId)
+    if (selectedId.value !== caseId) return
+    pair.value = currentPair
+    if (canAudit.value) {
+      const events = await operationsApi.caseAudit(caseId)
+      if (selectedId.value !== caseId) return
+      audit.value = events
+      const people = await operationsApi.auditActors(events.map(event => event.actorUserId))
+      if (selectedId.value === caseId) auditPeople.value = people.items
+    }
   } catch (e) { report(e) }
 }
 async function createOpening() {
@@ -215,13 +227,7 @@ onMounted(load)
         </div>
       </DhCard>
       <DhCard v-if="canAudit" :title="t('operations.validation.audit')" :subtitle="t('operations.validation.auditHint')">
-        <DhEmptyState v-if="!audit.length" :icon="Clock3" :title="t('operations.validation.noAudit')" :description="t('operations.validation.noAuditDescription')" />
-        <ol v-else class="space-y-3">
-          <li v-for="event in audit" :key="event.eventId" class="border-l-2 border-[var(--dh-primary)] py-1 pl-4">
-            <p class="break-all text-sm font-bold text-[var(--dh-text)]">{{ event.actionCode }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ label(event.occurredAtUtc) }} · {{ short(event.actorUserId) }}</p>
-          </li>
-        </ol>
+        <OperationsAuditTimeline :events="audit" :users="auditPeople" :empty-title="t('operations.validation.noAudit')" :empty-description="t('operations.validation.noAuditDescription')" />
       </DhCard>
     </div>
     <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? t('operations.validation.new') : undefined" @action="showCreate = true" />
