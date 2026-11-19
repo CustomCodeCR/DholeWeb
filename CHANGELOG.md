@@ -1,3 +1,9 @@
+## [1.101.0] - 2026-11-19 (DH-20261119-PRICING-RETURN-REQUEST-271 · devolver solicitudes de tarifa)
+
+- MINOR: agrega «Devolver solicitud» a la par de «Continuar tarifa» en la bandeja de Pricing. Modal Dh con motivo obligatorio; reserva exclusiva, validación API y actualización de la cola.
+- El vendedor ve el estado «Devuelta para corregir» con motivo literal, puede corregir y reenviar el mismo formulario; la notificación por sistema abre la edición y el correo sale del outbox de Pricing.
+- Conserva supervisor de solo lectura, escenarios de edición normal y polling/reconciliación realtime. DholeWeb 1.100.0→1.101.0; DholeSystem y ecosistema 1.100.0→1.101.0. CI/staging antes de master.
+
 ## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · cargos manuales, servicios y fallback preferencial)
 
 - MINOR: los acuerdos de CRM admiten servicios opcionales del catálogo pricing-services, todas las modalidades (incluido aéreo), puertos/equipo opcionales y un selector para ver todos los ítems de Pricing.

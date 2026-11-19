@@ -68,6 +68,12 @@ export function resolveNotificationDestination(
     return `/pricing/imports?importBatchId=${encodeURIComponent(batchId)}`
   }
 
+  if (kind === 'pricing.rate-request.returned' || action === 'edit-returned-rate-request') {
+    const returnedId = readId(payload, 'rateRequestId', 'RateRequestId')
+      ?? (entityType === 'raterequest' ? entityId : null)
+    if (returnedId) return `/pricing/request-rate/${returnedId}/edit`
+  }
+
   const explicit = safeNotificationRoute(
     readText(payload, 'route', 'url', 'path', 'deepLink', 'link'),
     origin,

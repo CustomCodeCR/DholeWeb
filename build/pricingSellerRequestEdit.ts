@@ -34,13 +34,14 @@ function patchWizard(source: string) {
     "      headers: { Accept: 'application/json' },",
     '    })',
     '    const request = unwrapApiResponse<SellerRateRequestDto>(response as never)',
+    "    if (request.status === 'Returned') toastStore.warning('Solicitud devuelta por Pricing', (request as SellerRateRequestDto & { returnReason?: string }).returnReason || 'Revise los datos indicados en el dashboard.')",
     '    const claim = request as SellerRateRequestDto & { lockedByUserId?: string | null; lockedByName?: string | null; lockExpiresAtUtc?: string | null }',
     '    if (claim.lockedByUserId && claim.lockExpiresAtUtc && new Date(claim.lockExpiresAtUtc).getTime() > Date.now()) {',
     "      toastStore.warning('Solicitud bloqueada', (claim.lockedByName || 'Pricing') + ' ya está atendiendo esta solicitud. No se permite editarla.')",
     "      await router.replace('/home')",
     '      return',
     '    }',
-    "    if (request.status !== 'Open' || request.rateId) {",
+    "    if (!['Open', 'Returned'].includes(request.status) || request.rateId) {",
     "      toastStore.error('Esta solicitud ya no está disponible para edición.')",
     "      await router.replace('/home')",
     '      return',
@@ -116,7 +117,7 @@ function patchWizard(source: string) {
 
   code = replaceOnce(code,
     "{{ saving ? 'Enviando…' : 'Enviar solicitud a Pricing' }}",
-    "{{ saving ? 'Guardando…' : sellerEditRequestId ? 'Guardar cambios' : 'Enviar solicitud a Pricing' }}",
+    "{{ saving ? 'Guardando…' : sellerEditRequestId ? 'Guardar y reenviar a Pricing' : 'Enviar solicitud a Pricing' }}",
     'seller edit button label')
 
   // Some later pricing plugins rewrite the executive selector. Keep the
