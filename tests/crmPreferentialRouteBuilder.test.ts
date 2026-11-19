@@ -47,3 +47,14 @@ test('Mostrar todos los ítems nunca omite la coincidencia de POL, POE o POD', (
   assert.doesNotMatch(builder, /showAllCosts\.value\s*\|\|\s*matchesPreferentialRoute/)
   assert.ok(builder.includes('compatibles con los puertos seleccionados'))
 })
+
+test('Manual preferential rate is verified from CRM and remains visible near the form', () => {
+  assert.match(builder, /if \(saving\.value\) return/)
+  assert.ok(builder.includes('crmRequest<{ rates: SavedRate[] }>'))
+  assert.ok(builder.includes('persisted.rates?.find(rate => rate.id === saved.id)'))
+  assert.ok(builder.includes('stored.currencyCode !== manual.currency'))
+  assert.ok(builder.includes('stored.unitCode !== manual.unit'))
+  assert.ok(builder.includes("if (accepted) emit('saved')"))
+  assert.ok(builder.includes('data-crm-saved-manual-rates'))
+  assert.ok(builder.includes('Ítems manuales guardados para esta combinación'))
+})
