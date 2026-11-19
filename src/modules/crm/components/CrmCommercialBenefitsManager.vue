@@ -13,7 +13,7 @@ import { crmError, crmPath, crmRequest, fromUtc, toUtc } from '../services/crmAp
 
 type Mode = 'FCL' | 'LCL' | 'FTL' | 'LTL' | 'AIR'
 type BenefitType = 'FIXED_AMOUNT' | 'DISCOUNT_AMOUNT' | 'DISCOUNT_PERCENT' |
-  'INSURANCE_PERCENT' | 'WAIVE' | 'NEGOTIATED'
+  'INSURANCE_PERCENT' | 'WAIVE' | 'NEGOTIATED' | 'TIERED_SALE'
 type Rate = {
   id: string; accountId: string; rowVersion: number; modality: Mode
   laneCode: string | null; sourceCostId?: string | null; chargeCode: string; customChargeName: string | null
@@ -24,7 +24,7 @@ type Rate = {
   equipmentCode: string | null; originCode: string | null; destinationCode: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]
   validFrom: string | null; validUntil: string | null; notes: string | null; isActive: boolean
-  carrierCode?: string | null; incotermCode?: string | null
+  carrierCode?: string | null; incotermCode?: string | null; serviceCodes?: string[]
 }
 type Settings = {
   id: string; accountId: string; rowVersion: number
@@ -42,7 +42,7 @@ interface Draft {
   currencyCode: string; unitCode: string
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]
   validFrom: string; validUntil: string; notes: string; isActive: boolean
-  carrierCode: string; incotermCode: string
+  carrierCode: string; incotermCode: string; serviceCodes: string[]
 }
 const props = defineProps<{ accountId: string }>()
 const router = useRouter()
@@ -127,7 +127,7 @@ function empty(mode: Mode = 'FCL'): Draft {
     unitCode: mode === 'FCL' ? 'CONTAINER' : mode === 'LCL' ? 'CBM' : mode === 'AIR' ? 'KG' : 'TRUCK',
     equipmentCodes: [], polCodes: [], poeCodes: [], podCodes: [],
     validFrom: '', validUntil: '', notes: '', isActive: true,
-    carrierCode: '', incotermCode: '',
+    carrierCode: '', incotermCode: '', serviceCodes: [],
   }
 }
 const equipmentSlugs = computed(() => ['FTL', 'LTL'].includes(draft.modality)
@@ -244,6 +244,7 @@ function beginEdit(rate: Rate) {
     validFrom: fromUtc(rate.validFrom), validUntil: fromUtc(rate.validUntil),
     notes: rate.notes ?? '', isActive: rate.isActive,
     carrierCode: rate.carrierCode ?? '', incotermCode: rate.incotermCode ?? '',
+    serviceCodes: [...(rate.serviceCodes ?? [])],
   })
   editorOpen.value = true; error.value = ''; success.value = ''
 }
@@ -253,6 +254,7 @@ function changeModality(next: Mode) {
   draft.laneCode = ''
   draft.carrierCode = ''
   draft.incotermCode = ''
+  draft.serviceCodes = []
   draft.equipmentCodes = []
   // Each modality uses its own CY / SD / APT catalogs, as in Pricing.
   // Do not carry a sea port into an air or land commercial benefit.
@@ -289,6 +291,7 @@ function payload() {
     unitCode: unitVisible.value ? draft.unitCode : null,
     // Empty arrays are wildcard scopes, not an empty/invalid route.
     carrierCode: draft.carrierCode, incotermCode: draft.incotermCode,
+    serviceCodes: [...draft.serviceCodes],
     equipmentCodes: [...draft.equipmentCodes], polCodes: [...draft.polCodes],
     poeCodes: [...draft.poeCodes], podCodes: benefitUsesPod(draft.modality) ? [...draft.podCodes] : [],
     equipmentCode: null, originCode: null, destinationCode: null,
@@ -317,7 +320,7 @@ function validate(): string {
   if (unitVisible.value && !draft.unitCode) return 'Seleccioná la unidad de cobro.'
   if (draft.incotermCode && !PREFERENTIAL_INCOTERMS.some(x => x === draft.incotermCode))
     return 'Seleccioná un Incoterm válido.'
-  if ([draft.equipmentCodes, draft.polCodes, draft.poeCodes, draft.podCodes]
+  if ([draft.equipmentCodes, draft.polCodes, draft.poeCodes, draft.podCodes, draft.serviceCodes]
     .some(xs => xs.length > 60)) return 'Podés seleccionar como máximo 60 valores por campo.'
   return ''
 }
@@ -345,6 +348,7 @@ async function setActive(rate: Rate, active: boolean) {
       expectedVersion: rate.rowVersion, modality: rate.modality, laneCode: rate.laneCode,
       sourceCostId: rate.sourceCostId ?? null,
       carrierCode: rate.carrierCode ?? '', incotermCode: rate.incotermCode ?? '',
+      serviceCodes: rate.serviceCodes ?? [],
       tierSalesJson: rate.tierSalesJson ?? null,
       chargeCode: rate.chargeCode, customChargeName: rate.customChargeName, rateType: rate.rateType,
       value: rate.value, minimumCharge: rate.minimumCharge,
@@ -366,6 +370,7 @@ async function setActive(rate: Rate, active: boolean) {
 }
 function displayValue(rate: Rate): string {
   if (rate.rateType === 'WAIVE') return 'Exonerado'
+  if (rate.rateType === 'TIERED_SALE') return 'Venta preferencial por tramos de Pricing'
   if (rate.rateType === 'NEGOTIATED') return 'Condición negociada'
   const n = (value: number | null) => value == null ? 'Pendiente' :
     value.toLocaleString('es-CR', { maximumFractionDigits: 6 })
@@ -399,6 +404,7 @@ function scopeText(rate: Rate): string {
     (rate.podCodes ?? []).length ? 'POD: ' + rate.podCodes.join(', ') : '',
     rate.carrierCode ? 'Naviera: ' + rate.carrierCode : 'Naviera: Todas',
     rate.incotermCode ? 'Incoterm: ' + rate.incotermCode : 'Incoterm: Todos',
+    (rate.serviceCodes ?? []).length ? 'Servicios: ' + rate.serviceCodes!.join(', ') : 'Servicios: Todos',
   ].filter(Boolean).join(' · ')
 }
 </script>
@@ -450,6 +456,27 @@ function scopeText(rate: Rate): string {
           </button>
         </form>
       </section>
+
+      <details class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+        <summary class="cursor-pointer text-sm font-extrabold">
+          Todos los ítems preferenciales guardados ({{ rates.length }})
+        </summary>
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
+          Se incluyen cargos manuales y conceptos de Pricing, con ámbitos opcionales. Las reglas generales
+          permanecen disponibles como respaldo de las más específicas.
+        </p>
+        <div class="mt-3 max-h-96 space-y-2 overflow-auto">
+          <div v-for="rate in rates" :key="rate.id"
+            class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2">
+            <div class="flex items-start justify-between gap-2">
+              <strong class="text-xs">{{ rate.customChargeName || chargeLabels[canonicalCharge(rate.chargeCode)] || rate.chargeCode }}</strong>
+              <span class="text-[11px]">{{ stateLabel(rate) }}</span>
+            </div>
+            <p class="mt-1 text-xs text-[var(--dh-primary)]">{{ displayValue(rate) }}</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ scopeText(rate) }}</p>
+          </div>
+        </div>
+      </details>
 
       <details class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
         <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-text)]">
@@ -607,6 +634,8 @@ function scopeText(rate: Rate): string {
               <option v-for="option in incotermOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
+          <CrmMultiCatalogPicker v-model="draft.serviceCodes" label="Servicios aplicables (opcional)"
+            :catalog-group-slugs="['pricing-services']" placeholder="Todos los servicios" />
           <CrmMultiCatalogPicker v-model="draft.equipmentCodes" label="Equipos (selección múltiple)"
             :catalog-group-slugs="equipmentSlugs" />
           <CrmMultiCatalogPicker v-model="draft.polCodes"

@@ -1,3 +1,10 @@
+## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · cargos manuales, servicios y fallback preferencial)
+
+- MINOR: los acuerdos de CRM admiten servicios opcionales del catálogo pricing-services, todas las modalidades (incluido aéreo), puertos/equipo opcionales y un selector para ver todos los ítems de Pricing.
+- Formulario de alta manual de ítems preferenciales sin tocar costos originales de Pricing; vista completa de acuerdos guardados.
+- Vista previa con selección de la coincidencia más específica y tarifa general de respaldo; al crear una específica no se sobrescribe la general.
+- DholeWeb/DholeSystem 1.99.0 → 1.100.0; CRM 1.40.0 → 1.41.0; validar CI, migración y staging antes de promoción a master.
+
 ## [1.99.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-269 · País CRM determina perspectiva Incoterm)
 
 - MINOR: para rutas internacionales, el país de la cuenta/prospecto CRM frente al POL y POD final determina si la tarifa se solicita como importación, exportación o tránsito/doméstico, sin referencia fija a Costa Rica.

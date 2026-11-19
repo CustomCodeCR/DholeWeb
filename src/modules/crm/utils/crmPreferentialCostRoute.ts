@@ -1,6 +1,6 @@
 import type { ChargeBasis, CostSelectDto } from '@/core/interfaces/pricing'
 
-export type PreferentialShipment = 'FCL' | 'LCL' | 'FTL' | 'LTL'
+export type PreferentialShipment = 'FCL' | 'LCL' | 'FTL' | 'LTL' | 'AIR'
 export interface PreferentialRoute {
   shipment: PreferentialShipment
   polCode: string
@@ -8,6 +8,7 @@ export interface PreferentialRoute {
   podCode: string
   carrierCode?: string
   incotermCode?: string
+  serviceCodes?: string[]
 }
 
 export const PREFERENTIAL_INCOTERMS = [
@@ -31,6 +32,7 @@ function matchesLocation(
   code: string, relations: Array<{ code: string }> | null | undefined,
   singleCode: unknown,
 ): boolean {
+  if (!normalize(code)) return true // No scope chosen: show every Pricing item.
   const choices = [ ...(relations ?? []).map(x => normalize(x.code)), normalize(singleCode) ]
     .filter(Boolean)
   return choices.length === 0 || choices.includes(normalize(code))
@@ -38,6 +40,10 @@ function matchesLocation(
 
 export function matchesPreferentialRoute(cost: CostSelectDto, route: PreferentialRoute): boolean {
   if (cost.isActive === false) return false
+  if (route.serviceCodes?.length) {
+    const services = (cost.services ?? []).map(x => normalize(x.code || x.name)).filter(Boolean)
+    if (services.length && !route.serviceCodes.some(code => services.includes(normalize(code)))) return false
+  }
   if (route.carrierCode) {
     const carriers = [...(cost.carriers ?? []).map(x => x.code), cost.carrierCode]
       .map(normalize).filter(Boolean)
@@ -49,7 +55,8 @@ export function matchesPreferentialRoute(cost: CostSelectDto, route: Preferentia
   }
   const modes = [...(cost.shipmentModes ?? []), ...(cost.shipmentMode ? [cost.shipmentMode] : [])]
     .map(normalize)
-  if (modes.length && !modes.includes(route.shipment)) return false
+  if (modes.length && !modes.some(x => x === route.shipment ||
+    (route.shipment === 'AIR' && ['AIR', 'AIRCONSOL', 'AIRCOLOADER'].includes(x)))) return false
   if (!matchesLocation(route.polCode, cost.pols, cost.polCode)) return false
   if (!matchesLocation(route.poeCode, cost.poes, cost.poeCode)) return false
   if (route.shipment === 'FCL' || route.shipment === 'LCL') {
@@ -58,7 +65,7 @@ export function matchesPreferentialRoute(cost: CostSelectDto, route: Preferentia
   if (cost.portCode && cost.portRole && cost.portRole !== 'Any') {
     const contextCode = cost.portRole === 'Pol' ? route.polCode :
       cost.portRole === 'Poe' ? route.poeCode : route.podCode
-    if (normalize(contextCode) !== normalize(cost.portCode)) return false
+    if (normalize(contextCode) && normalize(contextCode) !== normalize(cost.portCode)) return false
   }
   return true
 }
