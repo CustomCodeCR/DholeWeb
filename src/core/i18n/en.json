@@ -565,13 +565,13 @@
       "disociado": "Dissociated"
     },
     "avatarChoose": "Choose expression",
-    "mascotTitle": "Profile photo and mascot",
-    "mascotHelp": "Upload a profile photo to turn your Blobatar into a mascot. Name it, drag it, or let it wander around the screen.",
+    "mascotTitle": "Blobatar mascot and profile photo",
+    "mascotHelp": "Your Blobatar is always your mascot, with or without a profile photo. Customize its name and accessories, drag it or let it wander across the screen.",
     "mascotProfilePhoto": "Profile photo",
     "mascotUpload": "Upload profile photo",
     "mascotChangePhoto": "Change photo",
     "mascotRemovePhoto": "Remove photo",
-    "mascotLocalHelp": "The photo and preferences are stored only for your user in this browser, not uploaded to a server.",
+    "mascotLocalHelp": "Profile photos are optional. Your mascot's name, accessories and preferences are saved for your account in this browser, without uploading them to the server.",
     "mascotImageError": "Choose a JPG, PNG or WEBP image up to 8 MB.",
     "mascotSaveError": "The image could not be processed or saved in this browser.",
     "mascotName": "Mascot name",
@@ -582,10 +582,21 @@
     "mascotRoaming": "Wander around",
     "mascotHide": "Hide mascot",
     "mascotShow": "Show mascot",
-    "mascotDragHelp": "Drag it to move it, or use arrow keys. Automatic wandering is disabled when reduced motion is enabled.",
+    "mascotDragHelp": "Drag your mascot or use arrow keys to move it. Its name and current mood appear when hovered or focused.",
     "mascotDrag": "Movable Blobatar mascot. Drag it or use arrow keys.",
     "mascotFix": "Keep mascot fixed",
-    "mascotRoam": "Let mascot wander"
+    "mascotRoam": "Let mascot wander",
+    "mascotAccessory": "Mascot accessory",
+    "mascotPreview": "Your mascot preview",
+    "mascotAccessories": {
+      "none": "No accessory",
+      "cap": "Cap",
+      "crown": "Crown",
+      "glasses": "Sunglasses",
+      "headphones": "Headphones",
+      "bow": "Bow",
+      "hat": "Top hat"
+    }
   },
   "tabs": {
     "openSplit": "Open in split",
