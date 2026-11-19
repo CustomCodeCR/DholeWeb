@@ -9,6 +9,8 @@ export interface PreferentialRoute {
   carrierCode?: string
   incotermCode?: string
   serviceCodes?: string[]
+  /** Allow costs from other modalities, without ever bypassing selected route filters. */
+  includeOtherShipmentModes?: boolean
 }
 
 export const PREFERENTIAL_INCOTERMS = [
@@ -55,17 +57,26 @@ export function matchesPreferentialRoute(cost: CostSelectDto, route: Preferentia
   }
   const modes = [...(cost.shipmentModes ?? []), ...(cost.shipmentMode ? [cost.shipmentMode] : [])]
     .map(normalize)
-  if (modes.length && !modes.some(x => x === route.shipment ||
+  if (modes.length && !route.includeOtherShipmentModes &&
+    !modes.some(x => x === route.shipment ||
     (route.shipment === 'AIR' && ['AIR', 'AIRCONSOL', 'AIRCOLOADER'].includes(x)))) return false
   if (!matchesLocation(route.polCode, cost.pols, cost.polCode)) return false
   if (!matchesLocation(route.poeCode, cost.poes, cost.poeCode)) return false
   if (route.shipment === 'FCL' || route.shipment === 'LCL') {
     if (!matchesLocation(route.podCode, cost.pods, cost.podCode)) return false
   }
-  if (cost.portCode && cost.portRole && cost.portRole !== 'Any') {
-    const contextCode = cost.portRole === 'Pol' ? route.polCode :
-      cost.portRole === 'Poe' ? route.poeCode : route.podCode
-    if (normalize(contextCode) && normalize(contextCode) !== normalize(cost.portCode)) return false
+  if (cost.portCode) {
+    const port = normalize(cost.portCode)
+    if (cost.portRole === 'Pol' || cost.portRole === 'Poe' || cost.portRole === 'Pod') {
+      const chosen = cost.portRole === 'Pol' ? route.polCode :
+        cost.portRole === 'Poe' ? route.poeCode : route.podCode
+      if (normalize(chosen) && normalize(chosen) !== port) return false
+    } else {
+      // "Any" or legacy unset portRole means the cost is tied to a real port,
+      // not unrestricted. Match one selected role; a wholly empty route remains broad.
+      const chosen = [route.polCode, route.poeCode, route.podCode].map(normalize).filter(Boolean)
+      if (chosen.length && !chosen.includes(port)) return false
+    }
   }
   return true
 }
