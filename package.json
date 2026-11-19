@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.89.0",
+  "version": "1.85.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -28,6 +28,7 @@
     "test:pricing-quo-client": "node --test tests/pricingRatesClientQuoLayout.test.mjs",
     "test:pricing-idtra-screen9": "node --test tests/pricingWizardAssignIdtraScreen9.test.mjs",
     "test:pricing-idtra-bundle": "node --test tests/pricingIdtraBundle.test.mjs",
+    "test:operations": "node --test tests/operationsCatalogI18nUi.test.mjs tests/operationsDualValidationUi.test.mjs",
     "test:mobile-i18n": "node --test tests/mobileI18nGuards.test.mjs tests/operationalLabels.test.ts",
     "test:email-mobile-i18n": "node --test tests/emailInboxMobileI18n.test.mjs",
     "test:ai-operations": "node --test tests/aiQueueCompletedReview.test.mjs",

@@ -1,243 +1,306 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { UsersRound, Plus, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhCheckbox, DhEmptyState, DhInput, DhSelect } from '@/shared/components/atoms'
-import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
-import { DhModal, DhPageHeader } from '@/shared/components/organisms'
+import { useI18n } from 'vue-i18n'
+import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3, Pencil, UserMinus, SlidersHorizontal } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
+import { DhCard, DhSearchInput } from '@/shared/components/molecules'
+import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type OperationsAudit, type OperationsTeam, type OperationsUser, type OperationsMember } from '../services/operationsApi'
 
+const { t, locale } = useI18n()
 const auth = useAuthStore()
 const canManage = computed(() => auth.hasScope('operations.team.manage'))
 const canAudit = computed(() => auth.hasScope('operations.audit.read'))
 const teams = ref<OperationsTeam[]>([])
-const loading = ref(false)
-const showCreate = ref(false)
-const search = ref('')
-const departmentFilter = ref('')
-const departmentOptions = [ { label: 'Aperturas', value: 'APERTURAS' }, { label: 'Coordinación origen', value: 'COORDINACION_ORIGEN' } ]
-const filterOptions = [{ label: 'Todos los departamentos', value: '' }, ...departmentOptions]
-const teamColumns: DhTableColumn<OperationsTeam>[] = [
-  { key: 'name', label: 'Equipo' }, { key: 'departmentCode', label: 'Departamento' },
-  { key: 'members', label: 'Integrantes' }, { key: 'isActive', label: 'Estado' },
-  { key: 'actions', label: '', align: 'right' },
-]
-const memberColumns: DhTableColumn<OperationsMember>[] = [
-  { key: 'userId', label: 'Colaborador' }, { key: 'capacityPoints', label: 'Capacidad' },
-  { key: 'isSupervisor', label: 'Rol' }, { key: 'isAvailable', label: 'Disponibilidad' },
-  { key: 'actions', label: '', align: 'right' },
-]
-const filteredTeams = computed(() => teams.value.filter(team =>
-  (!departmentFilter.value || team.departmentCode === departmentFilter.value) &&
-  (!search.value.trim() || [team.name, team.departmentCode].some(v => v.toLowerCase().includes(search.value.trim().toLowerCase()))),
-))
-const activeTeams = computed(() => teams.value.filter(team => team.isActive).length)
-const activeMembers = computed(() => new Set(teams.value.filter(team => team.isActive).flatMap(team => team.members.filter(member => member.isAvailable).map(member => member.userId))).size)
-const userOptions = computed(() => users.value.map(user => ({ label: user.displayName + ' (' + user.userName + ')', value: user.id })))
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const validTeam = computed(() => uuidPattern.test(companyId.value.trim()) && newName.value.trim().length > 0 && newName.value.trim().length <= 150)
-const memberRows = computed(() => selected.value?.members ?? [])
-function departmentLabel(value: string) { return departmentOptions.find(option => option.value === value)?.label ?? value }
-
 const users = ref<OperationsUser[]>([])
 const selectedId = ref('')
-const selected = computed(() => teams.value.find(t => t.id === selectedId.value))
+const selected = computed(() => teams.value.find(team => team.id === selectedId.value))
+const search = ref('')
+const departmentFilter = ref('')
+const loading = ref(false)
 const busy = ref(false)
-const removingMemberId = ref('')
 const error = ref('')
 const success = ref('')
-const newName = ref('')
-const companyId = ref('')
-const department = ref<'APERTURAS' | 'COORDINACION_ORIGEN'>('APERTURAS')
+const history = ref<OperationsAudit[]>([])
 const userSearch = ref('')
 const memberId = ref('')
 const capacity = ref(10)
 const isSupervisor = ref(false)
 const isAvailable = ref(true)
-const history = ref<OperationsAudit[]>([])
-const nameFor = (id: string) => users.value.find(u => u.id === id)?.displayName || id
-const date = (value: string) => new Date(value).toLocaleString('es-CR')
+const showAdvanced = ref(false)
+const removingMemberId = ref('')
 
-function report(errorValue: unknown) {
-  error.value = errorValue instanceof Error ? errorValue.message : 'No se pudo completar la operación.'
+const departmentCodes = ['APERTURAS', 'COORDINACION_ORIGEN', 'DOCUMENTACION', 'TRANSITO', 'PANAMA', 'COSTA_RICA', 'FINANZAS']
+const catalogKeys: Record<string, string> = {
+  'Aperturas': 'aperture',
+  'Origen · Estados Unidos': 'usa',
+  'Origen · FCL internacional': 'fcl',
+  'Origen · LCL y Aéreo internacional': 'lclAir',
+  'Origen · Transporte terrestre': 'land',
+  'Documentación': 'documents',
+  'Tránsito': 'transit',
+  'Operaciones Panamá': 'panama',
+  'Operaciones Costa Rica': 'costaRica',
+  'Finanzas': 'finance',
+}
+function teamName(team: OperationsTeam): string {
+  return catalogKeys[team.name] ? t('operations.catalog.' + catalogKeys[team.name]) : team.name
+}
+function departmentName(code: string): string {
+  return departmentCodes.includes(code) ? t('operations.departments.' + code) : code
+}
+function nameFor(id: string): string {
+  const user = users.value.find(candidate => candidate.id === id)
+  return user?.displayName || user?.userName || id.slice(0, 8)
+}
+function initials(id: string): string {
+  return nameFor(id).split(/\s+/).map(part => part[0] ?? '').slice(0, 2).join('').toUpperCase()
+}
+function memberLabel(count: number): string {
+  return t(count === 1 ? 'operations.memberOne' : 'operations.memberCount', { count })
+}
+const departments = computed(() => [
+  { label: t('operations.allDepartments'), value: '' },
+  ...departmentCodes.map(value => ({ label: departmentName(value), value })),
+])
+const filteredTeams = computed(() => teams.value.filter(team => (
+  (!departmentFilter.value || team.departmentCode === departmentFilter.value) &&
+  (!search.value.trim() || [teamName(team), departmentName(team.departmentCode)]
+    .some(value => value.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())))
+)))
+const activeTeams = computed(() => teams.value.filter(team => team.isActive).length)
+const activeMembers = computed(() => new Set(teams.value.filter(team => team.isActive)
+  .flatMap(team => team.members.filter(member => member.isAvailable).map(member => member.userId))).size)
+const members = computed(() => [...(selected.value?.members ?? [])]
+  .sort((a, b) => nameFor(a.userId).localeCompare(nameFor(b.userId))))
+const options = computed(() => users.value
+  .map(user => ({ label: user.displayName + ' (' + user.userName + ')', value: user.id }))
+  .sort((a, b) => a.label.localeCompare(b.label)))
+const selectedMember = computed(() => members.value.find(member => member.userId === memberId.value))
+const availableReviewers = computed(() => selected.value?.members.filter(member => member.isAvailable).length ?? 0)
+
+function fail(value: unknown) {
+  error.value = value instanceof Error ? value.message : t('operations.saveError')
+}
+function clearForm() {
+  memberId.value = ''
+  capacity.value = 10
+  isSupervisor.value = false
+  isAvailable.value = true
+  showAdvanced.value = false
 }
 async function reload() {
   loading.value = true
-  error.value = ''
   try {
     teams.value = await operationsApi.teams()
-    if (!selectedId.value && teams.value.length) selectedId.value = teams.value[0]?.id ?? ''
-    if (selectedId.value && !teams.value.some(t => t.id === selectedId.value))
+    if (!selectedId.value || !teams.value.some(team => team.id === selectedId.value))
       selectedId.value = teams.value[0]?.id ?? ''
     await loadAudit()
-  } catch (e) { report(e) }
+  } catch (value) { fail(value) }
   finally { loading.value = false }
 }
 async function searchUsers() {
   if (!canManage.value) return
-  try { users.value = (await operationsApi.users(userSearch.value)).items }
-  catch (e) { report(e) }
+  try {
+    const result = await operationsApi.users(userSearch.value)
+    const byId = new Map(users.value.map(user => [user.id, user]))
+    for (const user of result.items) byId.set(user.id, user)
+    users.value = [...byId.values()]
+  } catch (value) { fail(value) }
 }
 async function loadAudit() {
   history.value = []
-  if (selectedId.value && canAudit.value)
+  if (canAudit.value && selectedId.value) {
     try { history.value = await operationsApi.teamAudit(selectedId.value) }
-    catch (e) { report(e) }
+    catch (value) { fail(value) }
+  }
 }
-async function createTeam() {
-  if (!canManage.value || busy.value || !validTeam.value) return
-  error.value = ''; success.value = ''; busy.value = true
-  try {
-    const team = await operationsApi.createTeam({
-      companyId: companyId.value.trim(), departmentCode: department.value, name: newName.value.trim(),
-    })
-    await reload()
-    selectedId.value = team.id
-    newName.value = ''
-    showCreate.value = false
-    success.value = 'Equipo creado. Agrega al menos dos validadores de Aperturas.'
-    await loadAudit()
-  } catch (e) { report(e) }
-  finally { busy.value = false }
+function chooseTeam(id: string) {
+  selectedId.value = id
+  removingMemberId.value = ''
+  clearForm()
+  void loadAudit()
+}
+function editMember(member: OperationsMember) {
+  memberId.value = member.userId
+  capacity.value = member.capacityPoints
+  isSupervisor.value = member.isSupervisor
+  isAvailable.value = member.isAvailable
+  showAdvanced.value = true
 }
 async function saveMember() {
-  if (!selected.value || !memberId.value || busy.value || !canManage.value || !Number.isFinite(capacity.value) || capacity.value < 0.5 || capacity.value > 10000) return
-  error.value = ''; success.value = ''; busy.value = true
+  if (!selected.value || !memberId.value || busy.value || !canManage.value ||
+      !Number.isFinite(capacity.value) || capacity.value < 0.5 || capacity.value > 10000) return
+  error.value = ''
+  success.value = ''
+  busy.value = true
   try {
     await operationsApi.saveMember(selected.value.id, {
       userId: memberId.value, capacityPoints: capacity.value,
       isSupervisor: isSupervisor.value, isAvailable: isAvailable.value,
     })
-    success.value = 'Usuario asignado al equipo. Los permisos se administran en Auth.'
     await reload()
-  } catch (e) { report(e) }
+    clearForm()
+    success.value = t('operations.assigned')
+  } catch (value) { fail(value) }
   finally { busy.value = false }
 }
 async function removeMember(userId: string) {
-  if (!selected.value || !canManage.value) return
+  if (!selected.value || !canManage.value || busy.value) return
   if (removingMemberId.value !== userId) {
     removingMemberId.value = userId
     return
   }
+  error.value = ''
+  busy.value = true
   try {
     await operationsApi.removeMember(selected.value.id, userId)
     removingMemberId.value = ''
+    if (memberId.value === userId) clearForm()
     await reload()
-  } catch (e) { report(e) }
+    success.value = t('operations.removed')
+  } catch (value) { fail(value) }
+  finally { busy.value = false }
 }
 async function toggleTeam() {
-  if (!selected.value || !canManage.value) return
-  try { await operationsApi.setTeamActive(selected.value.id, !selected.value.isActive); await reload() }
-  catch (e) { report(e) }
+  if (!selected.value || !canManage.value || busy.value) return
+  error.value = ''
+  busy.value = true
+  try {
+    await operationsApi.setTeamActive(selected.value.id, !selected.value.isActive)
+    await reload()
+    success.value = t('operations.updated')
+  } catch (value) { fail(value) }
+  finally { busy.value = false }
 }
-onMounted(async () => { await Promise.all([reload(), searchUsers()]) })
+function formatDate(value: string) {
+  return new Date(value).toLocaleString(locale.value === 'es' ? 'es-CR' : 'en-US')
+}
+async function initialize() {
+  if (canManage.value) {
+    try { await operationsApi.initializeTeams() }
+    catch (value) { fail(value) }
+  }
+  await Promise.all([reload(), searchUsers()])
+}
+onMounted(initialize)
 </script>
-
 
 <template>
   <div class="mx-auto w-full max-w-[1600px] space-y-5 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-    <DhPageHeader title="Equipos y asignaciones" subtitle="Administra colaboradores, capacidades y disponibilidad del pool operativo." :icon="UsersRound" :hide-excel-export="false">
+    <DhPageHeader :title="t('operations.teamsTitle')" :subtitle="t('operations.teamsSubtitle')" :icon="UsersRound" :hide-excel-export="true">
       <template #actions>
-        <RouterLink to="/operations/apertures"><DhButton label="Ir a Aperturas" variant="secondary" :icon="Layers3" /></RouterLink>
-        <DhButton label="Actualizar" variant="secondary" :icon="RefreshCw" :loading="loading" @click="reload" />
-        <DhButton v-if="canManage" label="Nuevo equipo" :icon="Plus" @click="showCreate = true" />
+        <RouterLink to="/operations/apertures"><DhButton :label="t('operations.goToApertures')" variant="secondary" :icon="Layers3" /></RouterLink>
+        <DhButton :label="t('operations.refresh')" variant="secondary" :icon="RefreshCw" :loading="loading" @click="reload" />
       </template>
     </DhPageHeader>
+
     <div v-if="error" role="alert" class="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-600 dark:text-red-300">{{ error }}</div>
     <div v-if="success" role="status" class="rounded-2xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm font-semibold text-green-700 dark:text-green-300">{{ success }}</div>
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">Equipos registrados</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ teams.length }}</p></div><UsersRound class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">Equipos activos</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeTeams }}</p></div><ShieldCheck class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">Colaboradores disponibles</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeMembers }}</p></div><UserCheck class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">En equipo seleccionado</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ selected?.members.length ?? 0 }}</p></div><UserRoundPlus class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
+
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <DhCard padding="sm"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.totalTeams') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ teams.length }}</p></DhCard>
+      <DhCard padding="sm"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.activeTeams') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeTeams }}</p></DhCard>
+      <DhCard padding="sm" class="col-span-2 lg:col-span-1"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.availablePeople') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeMembers }}</p></DhCard>
     </div>
 
-    <DhCard title="Directorio de equipos" subtitle="Selecciona un equipo para administrar el personal y revisar la bitácora." :icon="UsersRound">
-      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_260px]">
-        <DhSearchInput v-model="search" placeholder="Buscar equipo o departamento..." />
-        <DhSelect v-model="departmentFilter" :options="filterOptions" placeholder="" />
-      </div>
-      <DhDataTable :columns="teamColumns" :rows="filteredTeams" :loading="loading" empty-text="No hay equipos que coincidan con los filtros." @row-click="selectedId = $event.id; loadAudit()">
-        <template #cell-name="{ row }"><strong class="text-[var(--dh-text)]">{{ row.name }}</strong></template>
-        <template #cell-departmentCode="{ row }">{{ departmentLabel(row.departmentCode) }}</template>
-        <template #cell-members="{ row }">{{ row.members.length }} integrantes</template>
-        <template #cell-isActive="{ row }"><DhBadge :variant="row.isActive ? 'success' : 'neutral'">{{ row.isActive ? 'Activo' : 'Inactivo' }}</DhBadge></template>
-        <template #cell-actions="{ row }"><DhButton :label="selectedId === row.id ? 'Seleccionado' : 'Gestionar'" variant="secondary" size="sm" @click="selectedId = row.id; loadAudit()" /></template>
-      </DhDataTable>
-    </DhCard>
-
-    <div v-if="selected" class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
-      <div class="space-y-4">
-        <DhCard :title="selected.name" :subtitle="departmentLabel(selected.departmentCode)" :icon="ShieldCheck">
-          <template #actions>
-            <DhButton v-if="canManage" :label="selected.isActive ? 'Desactivar' : 'Activar'" variant="secondary" :loading="busy" @click="toggleTeam" />
-          </template>
-          <div class="flex flex-wrap items-center gap-2">
-            <DhBadge :variant="selected.isActive ? 'success' : 'neutral'">{{ selected.isActive ? 'Activo' : 'Inactivo' }}</DhBadge>
-            <DhBadge variant="primary">{{ selected.members.length }} integrantes</DhBadge>
-            <DhBadge v-if="selected.departmentCode === 'APERTURAS' && selected.members.filter(member => member.isAvailable).length < 2" variant="warning">Faltan validadores disponibles</DhBadge>
+    <div class="grid items-start gap-4 lg:grid-cols-[minmax(270px,0.9fr)_minmax(0,1.8fr)]">
+      <DhCard :title="t('operations.teamsDirectory')" :subtitle="t('operations.teamsDirectoryHint')" :icon="UsersRound">
+        <div class="space-y-3">
+          <DhSearchInput v-model="search" :placeholder="t('operations.searchTeams')" />
+          <DhSelect v-model="departmentFilter" :options="departments" />
+          <p v-if="!loading && !teams.length" class="py-6 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.teamEmptyHint') }}</p>
+          <p v-else-if="!filteredTeams.length" class="py-6 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.teamSearchEmpty') }}</p>
+          <div v-else class="max-h-[640px] space-y-2 overflow-y-auto pr-1">
+            <button v-for="team in filteredTeams" :key="team.id" type="button"
+              class="flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left transition-colors hover:bg-[var(--dh-input)]"
+              :class="selectedId === team.id ? 'border-[var(--dh-primary)] bg-[var(--dh-input)]' : 'border-[var(--dh-border)]'"
+              :aria-pressed="selectedId === team.id" @click="chooseTeam(team.id)">
+              <span class="min-w-0">
+                <strong class="block truncate text-sm text-[var(--dh-text)]">{{ teamName(team) }}</strong>
+                <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ departmentName(team.departmentCode) }}</span>
+                <span class="mt-1 block text-xs text-[var(--dh-text-soft)]">{{ memberLabel(team.members.length) }}</span>
+              </span>
+              <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="team.isActive ? 'bg-emerald-500' : 'bg-gray-400'" />
+            </button>
           </div>
-          <p class="mt-4 break-all text-xs text-[var(--dh-text-muted)]">Empresa: {{ selected.companyId }}</p>
-          <div class="mt-5">
-            <h3 class="mb-3 text-sm font-black text-[var(--dh-text)]">Colaboradores asignados</h3>
-            <DhDataTable :columns="memberColumns" :rows="memberRows" empty-text="Este equipo todavía no tiene integrantes.">
-              <template #cell-userId="{ row }"><strong class="text-[var(--dh-text)]">{{ nameFor(row.userId) }}</strong></template>
-              <template #cell-capacityPoints="{ row }">{{ row.capacityPoints }} pts</template>
-              <template #cell-isSupervisor="{ row }"><DhBadge :variant="row.isSupervisor ? 'primary' : 'neutral'">{{ row.isSupervisor ? 'Supervisor' : 'Operador' }}</DhBadge></template>
-              <template #cell-isAvailable="{ row }"><DhBadge :variant="row.isAvailable ? 'success' : 'warning'">{{ row.isAvailable ? 'Disponible' : 'No disponible' }}</DhBadge></template>
-              <template #cell-actions="{ row }">
-                <div v-if="canManage" class="flex flex-wrap justify-end gap-2">
-                  <DhButton :label="removingMemberId === row.userId ? 'Confirmar' : 'Retirar'" size="sm" variant="danger" @click="removeMember(row.userId)" />
-                  <DhButton v-if="removingMemberId === row.userId" size="sm" label="Cancelar" variant="ghost" @click="removingMemberId = ''" />
+        </div>
+      </DhCard>
+
+      <div v-if="selected" class="space-y-4">
+        <DhCard :title="teamName(selected)" :subtitle="departmentName(selected.departmentCode)" :icon="ShieldCheck">
+          <template #actions>
+            <DhButton v-if="canManage" :label="selected.isActive ? t('operations.deactivate') : t('operations.activate')" variant="secondary" size="sm" :loading="busy" @click="toggleTeam" />
+          </template>
+          <div class="flex flex-wrap gap-2">
+            <DhBadge :variant="selected.isActive ? 'success' : 'neutral'">{{ selected.isActive ? t('operations.active') : t('operations.inactive') }}</DhBadge>
+            <DhBadge variant="primary">{{ memberLabel(selected.members.length) }}</DhBadge>
+          </div>
+          <p v-if="selected.departmentCode === 'APERTURAS' && availableReviewers < 2"
+            class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-200">
+            {{ t('operations.missingReviewers') }}
+          </p>
+          <div class="mt-5 border-t border-[var(--dh-border)] pt-4">
+            <h3 class="text-sm font-black text-[var(--dh-text)]">{{ t('operations.teamMembers') }}</h3>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamMembersHint') }}</p>
+            <p v-if="!members.length" class="py-7 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.memberEmpty') }}</p>
+            <div v-else class="mt-3 space-y-2">
+              <div v-for="member in members" :key="member.userId" class="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)]/15 text-xs font-black text-[var(--dh-primary)]">{{ initials(member.userId) }}</span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-bold text-[var(--dh-text)]">{{ nameFor(member.userId) }}</p>
+                  <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--dh-text-muted)]">
+                    <span>{{ member.isSupervisor ? t('operations.supervisor') : t('operations.operator') }}</span>
+                    <span>·</span><span>{{ member.isAvailable ? t('operations.available') : t('operations.unavailable') }}</span>
+                  </div>
                 </div>
-              </template>
-            </DhDataTable>
+                <div v-if="canManage" class="flex flex-wrap gap-1">
+                  <DhButton size="sm" variant="secondary" :icon="Pencil" :label="t('operations.edit')" @click="editMember(member)" />
+                  <DhButton size="sm" variant="danger" :icon="UserMinus" :label="removingMemberId === member.userId ? t('operations.confirmRemove') : t('operations.remove')" @click="removeMember(member.userId)" />
+                  <DhButton v-if="removingMemberId === member.userId" size="sm" variant="ghost" :label="t('operations.cancel')" @click="removingMemberId = ''" />
+                </div>
+              </div>
+            </div>
           </div>
         </DhCard>
-        <DhCard v-if="canManage" title="Agregar o actualizar colaborador" subtitle="Busca un usuario de Auth y configura su participación en este equipo." :icon="UserRoundPlus">
-          <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <DhSearchInput v-model="userSearch" placeholder="Nombre o usuario en Auth..." @search="searchUsers" />
-            <DhButton label="Buscar usuarios" variant="secondary" :icon="RefreshCw" @click="searchUsers" />
-          </div>
-          <form class="mt-4 space-y-4" @submit.prevent="saveMember">
-            <div class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(150px,1fr)]">
-              <DhSelect v-model="memberId" label="Colaborador *" :options="userOptions" placeholder="Selecciona un usuario" />
-              <DhInput :model-value="capacity" label="Capacidad de trabajo (puntos)" type="number" :min="0.5" :max="10000" :step="0.5" @update:model-value="capacity = Number($event)" />
+
+        <DhCard v-if="canManage" :title="selectedMember ? t('operations.editMember') : t('operations.addMember')" :subtitle="t('operations.privatePermissions')" :icon="UserRoundPlus">
+          <form class="space-y-4" @submit.prevent="saveMember">
+            <div class="flex flex-wrap gap-2">
+              <div class="min-w-0 flex-1"><DhSearchInput v-model="userSearch" :placeholder="t('operations.memberSearch')" @search="searchUsers" /></div>
+              <DhButton size="sm" variant="secondary" :label="t('operations.searchPeople')" :icon="RefreshCw" @click="searchUsers" />
             </div>
-            <div class="flex flex-wrap gap-x-7 gap-y-3">
-              <DhCheckbox v-model="isSupervisor" label="Supervisor" />
-              <DhCheckbox v-model="isAvailable" label="Disponible para asignaciones" />
+            <DhSelect v-model="memberId" :label="t('operations.person')" :options="options" :placeholder="t('operations.personPlaceholder')" />
+            <div class="flex flex-wrap gap-x-8 gap-y-3">
+              <DhCheckbox v-model="isSupervisor" :label="t('operations.supervisor')" />
+              <DhCheckbox v-model="isAvailable" :label="t('operations.availableForWork')" />
             </div>
-            <p class="text-xs text-[var(--dh-text-muted)]">Auth valida que el usuario esté activo y sea interno. Sus scopes se administran desde Seguridad.</p>
-            <DhButton type="submit" label="Guardar integrante" :icon="UserCheck" :loading="busy" :disabled="!memberId || !Number.isFinite(capacity) || capacity < 0.5 || capacity > 10000" />
+            <button type="button" class="flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]" :aria-expanded="showAdvanced" @click="showAdvanced = !showAdvanced">
+              <SlidersHorizontal class="h-4 w-4" />
+              {{ showAdvanced ? t('operations.hideAdvanced') : t('operations.advanced') }}
+            </button>
+            <div v-if="showAdvanced" class="rounded-xl border border-[var(--dh-border)] p-4">
+              <DhInput :model-value="capacity" :label="t('operations.capacity')" type="number" :min="0.5" :max="10000" :step="0.5" @update:model-value="capacity = Number($event)" />
+              <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('operations.capacityHelp') }}</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <DhButton type="submit" :label="selectedMember ? t('operations.updateMember') : t('operations.assign')" :icon="UserCheck" :loading="busy" :disabled="!memberId || !Number.isFinite(capacity) || capacity < 0.5 || capacity > 10000" />
+              <DhButton v-if="memberId" variant="ghost" :label="t('operations.cancel')" @click="clearForm" />
+            </div>
           </form>
         </DhCard>
+        <DhCard v-if="canAudit" :title="t('operations.audit')" :subtitle="t('operations.auditHint')" :icon="Clock3">
+          <p v-if="!history.length" class="py-5 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.noAudit') }}</p>
+          <ol v-else class="space-y-3">
+            <li v-for="event in history" :key="event.eventId" class="border-l-2 border-[var(--dh-primary)] py-1 pl-3">
+              <p class="text-xs font-bold text-[var(--dh-text)]">{{ event.actionCode }}</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ formatDate(event.occurredAtUtc) }} · {{ nameFor(event.actorUserId) }}</p>
+            </li>
+          </ol>
+        </DhCard>
       </div>
-      <DhCard v-if="canAudit" title="Audit log del equipo" subtitle="Registro de cambios de integrantes, roles y disponibilidad." :icon="Clock3">
-        <DhEmptyState v-if="!history.length" :icon="Clock3" title="Sin eventos registrados" description="La bitácora se actualizará al gestionar este equipo." />
-        <ol v-else class="space-y-3">
-          <li v-for="event in history" :key="event.eventId" class="border-l-2 border-[var(--dh-primary)] py-1 pl-4">
-            <p class="break-all text-sm font-bold text-[var(--dh-text)]">{{ event.actionCode }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ date(event.occurredAtUtc) }} · {{ nameFor(event.actorUserId) }}</p>
-          </li>
-        </ol>
-      </DhCard>
+      <DhCard v-else :title="t('operations.selectTeam')" :subtitle="t('operations.selectTeamHint')" :icon="UsersRound" />
     </div>
-    <DhEmptyState v-else-if="!loading" :icon="UsersRound" title="Sin equipo seleccionado" description="Crea tu primer equipo para configurar los colaboradores y el pool de validación." :action-label="canManage ? 'Crear equipo' : undefined" @action="showCreate = true" />
-
-    <DhModal :open="showCreate && canManage" title="Nuevo equipo operativo" size="lg" @close="showCreate = false">
-      <form class="space-y-5" @submit.prevent="createTeam">
-        <p class="text-sm text-[var(--dh-text-muted)]">Crea el equipo y después asigna manualmente sus colaboradores desde Auth. Las aperturas necesitan dos validadores diferentes.</p>
-        <div class="grid gap-4 sm:grid-cols-2">
-          <DhInput v-model="companyId" label="Empresa · UUID *" placeholder="UUID de empresa" :error="companyId && !uuidPattern.test(companyId.trim()) ? 'Ingresa un UUID válido.' : undefined" />
-          <DhSelect v-model="department" label="Departamento *" :options="departmentOptions" placeholder="" />
-          <div class="sm:col-span-2"><DhInput v-model="newName" label="Nombre del equipo *" placeholder="Ej. Equipo de validación 1" :error="newName.length > 150 ? 'Máximo 150 caracteres.' : undefined" /></div>
-        </div>
-        <div class="flex flex-wrap justify-end gap-2">
-          <DhButton variant="secondary" label="Cancelar" @click="showCreate = false" />
-          <DhButton type="submit" label="Crear equipo" :icon="Plus" :loading="busy" :disabled="!validTeam" />
-        </div>
-      </form>
-    </DhModal>
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ClipboardList, Plus, RefreshCw, UsersRound, ShieldCheck, Clock3, FolderOpen } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhEmptyState, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
@@ -7,6 +8,7 @@ import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type ApertureRow, type OperationsAudit, type ValidationPair } from '../services/operationsApi'
 
+const { t, locale } = useI18n()
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
@@ -19,31 +21,37 @@ const search = ref('')
 const statusFilter = ref('')
 const page = ref(1)
 const pages = computed(() => Math.max(1, Math.ceil(total.value / 50)))
-const columns: DhTableColumn<ApertureRow>[] = [
-  { key: 'idtra', label: 'Expediente' },
-  { key: 'modalityCode', label: 'Modalidad' },
-  { key: 'status', label: 'Estado' },
-  { key: 'validators', label: 'Validaciones' },
-  { key: 'createdAtUtc', label: 'Creado' },
+const columns = computed<DhTableColumn<ApertureRow>[]>(() => [
+  { key: 'idtra', label: t('operations.validation.record') },
+  { key: 'modalityCode', label: t('operations.validation.modality') },
+  { key: 'status', label: t('operations.validation.status') },
+  { key: 'validators', label: t('operations.validation.reviews') },
+  { key: 'createdAtUtc', label: t('operations.validation.created') },
   { key: 'actions', label: '', align: 'right' },
-]
+ ])
 const filteredRows = computed(() => rows.value.filter(row =>
   (!statusFilter.value || row.status === statusFilter.value) &&
   (!search.value.trim() || [row.idtra, row.modalityCode, row.status].some(value => value.toLowerCase().includes(search.value.trim().toLowerCase()))),
 ))
-const statusOptions = computed(() => [{ label: 'Todos los estados', value: '' }, ...[...new Set(rows.value.map(row => row.status))].map(value => ({ label: stateLabel(value), value }))])
+const statusOptions = computed(() => [{ label: t('operations.validation.allStatuses'), value: '' }, ...[...new Set(rows.value.map(row => row.status))].map(value => ({ label: stateLabel(value), value }))])
 const unassigned = computed(() => rows.value.filter(row => !row.validators?.length).length)
 const inReview = computed(() => rows.value.filter(row => row.validators?.some(v => v.status === 'PENDING')).length)
 const approved = computed(() => rows.value.filter(row => row.validators?.length >= 2 && row.validators.every(v => v.status === 'APPROVED')).length)
-const modalityOptions = [
-  { label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Carga consolidada', value: 'LCL' },
-  { label: 'FTL · Camión completo', value: 'FTL' }, { label: 'LTL · Carga terrestre parcial', value: 'LTL' },
-  { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
-]
+const modalityOptions = computed(() => [
+  { label: t('operations.validation.modalityFcl'), value: 'FCL' }, { label: t('operations.validation.modalityLcl'), value: 'LCL' },
+  { label: t('operations.validation.modalityFtl'), value: 'FTL' }, { label: t('operations.validation.modalityLtl'), value: 'LTL' },
+  { label: t('operations.validation.modalityAir'), value: 'AIR' }, { label: t('operations.validation.modalityMultimodal'), value: 'MULTIMODAL' },
+ ])
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const validOpening = computed(() => uuidPattern.test(opening.value.companyId.trim()) && uuidPattern.test(opening.value.accountId.trim()) && /^[0-9]{5}$/.test(opening.value.seriesCode.trim()) && Number.isInteger(Number(opening.value.priority)) && Number(opening.value.priority) >= 1 && Number(opening.value.priority) <= 5 && Number(opening.value.complexityPoints) >= 0.5 && Number(opening.value.complexityPoints) <= 1000)
 function approvalCount(row: ApertureRow) { return row.validators?.filter(v => v.status === 'APPROVED').length ?? 0 }
-function stateLabel(value: string) { return ({ APPROVED: 'Aprobada', REJECTED: 'Cambios solicitados', PENDING: 'Pendiente', PENDING_VALIDATION: 'En validación', COMPLETED: 'Completada', OPEN: 'Abierta' } as Record<string, string>)[value] ?? value.replaceAll('_', ' ') }
+function stateLabel(value: string) {
+  const keys: Record<string, string> = {
+    APPROVED: 'statusApproved', REJECTED: 'statusRejected', PENDING: 'statusPending',
+    PENDING_VALIDATION: 'statusReview', COMPLETED: 'statusCompleted', OPEN: 'statusOpen',
+  }
+  return keys[value] ? t('operations.validation.' + keys[value]) : value.replaceAll('_', ' ')
+}
 function stateVariant(value: string): 'success' | 'warning' | 'danger' | 'neutral' { return ['APPROVED', 'COMPLETED'].includes(value) ? 'success' : value === 'REJECTED' ? 'danger' : value.includes('PENDING') ? 'warning' : 'neutral' }
 
 const selectedId = ref('')
@@ -60,9 +68,9 @@ const opening = ref({
   companyId: '', accountId: '', seriesCode: '',
   modalityCode: 'FCL', priority: 1, complexityPoints: 1,
 })
-function label(date: string) { return new Date(date).toLocaleString('es-CR') }
+function label(date: string) { return new Date(date).toLocaleString(locale.value === 'es' ? 'es-CR' : 'en-US') }
 function short(id: string) { return id.slice(0, 8) }
-function report(value: unknown) { error.value = value instanceof Error ? value.message : 'Ocurrió un error.' }
+function report(value: unknown) { error.value = value instanceof Error ? value.message : t('operations.validation.error') }
 async function load() {
   error.value = ''
   loading.value = true
@@ -94,7 +102,7 @@ async function createOpening() {
     const created = await operationsApi.createAperture({
       ...opening.value, executiveUserId: blankUser,
     })
-    message.value = `Apertura ${created.idtra} creada. Queda pendiente su asignación a dos validadores.`
+    message.value = t('operations.validation.createdMessage', { idtra: created.idtra })
     showCreate.value = false
     page.value = 1
     await load()
@@ -108,7 +116,7 @@ async function assign() {
   busy.value = true; error.value = ''; message.value = ''
   try {
     await operationsApi.assign(selected.value.id)
-    message.value = 'Se asignaron dos revisores distintos del pool disponible.'
+    message.value = t('operations.validation.assignedMessage')
     await load()
   } catch (e) { report(e) }
   finally { busy.value = false }
@@ -116,15 +124,15 @@ async function assign() {
 async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
   if (!selected.value || busy.value || !canReview.value) return
   if (decision === 'REJECTED' && !comment.value.trim()) {
-    error.value = 'Indica el motivo para solicitar cambios.'; return
+    error.value = t('operations.validation.requiredReason'); return
   }
   busy.value = true; error.value = ''; message.value = ''
   try {
     await operationsApi.decide(selected.value.id, id, decision, comment.value.trim())
     comment.value = ''
     message.value = decision === 'APPROVED'
-      ? 'Validación registrada. La apertura se completa únicamente con las dos aprobaciones.'
-      : 'Se solicitaron cambios y la Apertura quedó bloqueada hasta corregirse.'
+      ? t('operations.validation.approvedMessage')
+      : t('operations.validation.rejectedMessage')
     await load()
   } catch (e) { report(e) }
   finally { busy.value = false }
@@ -135,13 +143,13 @@ onMounted(load)
 
 <template>
   <div class="mx-auto w-full max-w-[1600px] space-y-5 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
-    <DhPageHeader title="Aperturas" subtitle="Expedientes, asignaciones y doble validación del pool operativo." :icon="ClipboardList" :hide-excel-export="false">
+    <DhPageHeader :title="t('operations.validation.title')" :subtitle="t('operations.validation.subtitle')" :icon="ClipboardList" :hide-excel-export="false">
       <template #actions>
         <RouterLink v-if="auth.hasScope('operations.team.manage')" to="/operations/teams">
-          <DhButton label="Equipos" :icon="UsersRound" variant="secondary" />
+          <DhButton :label="t('operations.teams')" :icon="UsersRound" variant="secondary" />
         </RouterLink>
-        <DhButton label="Actualizar" :icon="RefreshCw" variant="secondary" :loading="loading" @click="load" />
-        <DhButton v-if="canCreate" label="Nueva apertura" :icon="Plus" @click="showCreate = true" />
+        <DhButton :label="t('operations.refresh')" :icon="RefreshCw" variant="secondary" :loading="loading" @click="load" />
+        <DhButton v-if="canCreate" :label="t('operations.validation.new')" :icon="Plus" @click="showCreate = true" />
       </template>
     </DhPageHeader>
 
@@ -149,38 +157,38 @@ onMounted(load)
     <div v-if="message" role="status" class="rounded-2xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm font-semibold text-green-700 dark:text-green-300">{{ message }}</div>
 
     <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">Expedientes totales</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ total }}</p></div><FolderOpen class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">Sin asignar · página</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ unassigned }}</p></div><UsersRound class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">En revisión · página</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ inReview }}</p></div><Clock3 class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
-      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">Doble aprobación · página</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ approved }}</p></div><ShieldCheck class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
+      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ t('operations.validation.total') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ total }}</p></div><FolderOpen class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
+      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ t('operations.validation.unassignedPage') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ unassigned }}</p></div><UsersRound class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
+      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ t('operations.validation.reviewPage') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ inReview }}</p></div><Clock3 class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
+      <DhCard padding="sm"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-bold text-[var(--dh-text-muted)]">{{ t('operations.validation.approvedPage') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ approved }}</p></div><ShieldCheck class="h-5 w-5 text-[var(--dh-primary)]" /></div></DhCard>
     </div>
 
-    <DhCard :icon="ClipboardList" title="Bandeja de aperturas" subtitle="Selecciona un expediente para consultar las validaciones, acciones disponibles y auditoría.">
+    <DhCard :icon="ClipboardList" :title="t('operations.validation.queue')" :subtitle="t('operations.validation.queueHintDetail')">
       <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_240px]">
-        <DhSearchInput v-model="search" placeholder="Buscar por IDTRA, modalidad o estado..." />
+        <DhSearchInput v-model="search" :placeholder="t('operations.validation.search')" />
         <DhSelect v-model="statusFilter" :options="statusOptions" placeholder="" />
       </div>
-      <DhDataTable :columns="columns" :rows="filteredRows" :loading="loading" empty-text="No hay aperturas para los filtros seleccionados." @row-click="choose($event.id)">
+      <DhDataTable :columns="columns" :rows="filteredRows" :loading="loading" :empty-text="t('operations.validation.noCases')" @row-click="choose($event.id)">
         <template #cell-idtra="{ row }"><strong class="text-[var(--dh-text)]">{{ row.idtra }}</strong></template>
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
         <template #cell-status="{ row }"><DhBadge :variant="stateVariant(row.status)">{{ stateLabel(row.status) }}</DhBadge></template>
         <template #cell-validators="{ row }"><span class="font-bold">{{ approvalCount(row) }} / 2</span></template>
         <template #cell-createdAtUtc="{ row }">{{ label(row.createdAtUtc) }}</template>
-        <template #cell-actions="{ row }"><DhButton size="sm" variant="secondary" :label="selectedId === row.id ? 'Seleccionada' : 'Ver detalle'" @click="choose(row.id)" /></template>
+        <template #cell-actions="{ row }"><DhButton size="sm" variant="secondary" :label="selectedId === row.id ? t('operations.validation.selectedStatus') : t('operations.validation.viewDetail')" @click="choose(row.id)" /></template>
       </DhDataTable>
       <div class="mt-4 flex items-center justify-between gap-3">
-        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Página {{ page }} de {{ pages }} · {{ total }} expedientes</p>
+        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.validation.pageOf', { page, pages, total }) }}</p>
         <div class="flex gap-2">
-          <DhButton size="sm" variant="secondary" label="Anterior" :disabled="page <= 1 || loading" @click="changePage(page - 1)" />
-          <DhButton size="sm" variant="secondary" label="Siguiente" :disabled="page >= pages || loading" @click="changePage(page + 1)" />
+          <DhButton size="sm" variant="secondary" :label="t('operations.validation.previous')" :disabled="page <= 1 || loading" @click="changePage(page - 1)" />
+          <DhButton size="sm" variant="secondary" :label="t('operations.validation.next')" :disabled="page >= pages || loading" @click="changePage(page + 1)" />
         </div>
       </div>
     </DhCard>
 
     <div v-if="selected" class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(300px,1fr)]">
-      <DhCard :icon="ShieldCheck" :title="'Validación · ' + selected.idtra" subtitle="Dos colaboradores distintos deben aprobar para completar la apertura.">
+      <DhCard :icon="ShieldCheck" :title="t('operations.validation.reviewTitle', { idtra: selected.idtra })" :subtitle="t('operations.validation.reviewHint')">
         <template #actions>
-          <DhButton v-if="canAssign && pair && pair.validators.length === 0" label="Asignar 2 validadores" :icon="UsersRound" :loading="busy" @click="assign" />
+          <DhButton v-if="canAssign && pair && pair.validators.length === 0" :label="t('operations.validation.assignTwo')" :icon="UsersRound" :loading="busy" @click="assign" />
         </template>
         <div class="flex flex-wrap gap-2">
           <DhBadge variant="primary">{{ selected.modalityCode }}</DhBadge>
@@ -188,26 +196,26 @@ onMounted(load)
           <DhBadge v-if="pair" :variant="stateVariant(pair.stage.status)">{{ stateLabel(pair.stage.status) }}</DhBadge>
         </div>
         <div v-if="pair && pair.validators.length === 0" class="mt-5">
-          <DhEmptyState :icon="UsersRound" title="Esperando asignación" description="Para iniciar las revisiones se requiere un equipo activo con dos personas diferentes y disponibles." />
+          <DhEmptyState :icon="UsersRound" :title="t('operations.validation.awaitingAssignment')" :description="t('operations.validation.awaitingHint')" />
         </div>
         <div v-else class="mt-5 grid gap-3 md:grid-cols-2">
           <div v-for="validator in pair?.validators ?? []" :key="validator.id" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
-            <div class="flex flex-wrap items-center justify-between gap-2"><strong class="text-sm text-[var(--dh-text)]">Validador {{ validator.slot }}</strong><DhBadge :variant="stateVariant(validator.status)">{{ stateLabel(validator.status) }}</DhBadge></div>
-            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Usuario {{ short(validator.userId) }}</p>
+            <div class="flex flex-wrap items-center justify-between gap-2"><strong class="text-sm text-[var(--dh-text)]">{{ t('operations.validation.reviewer', { slot: validator.slot }) }}</strong><DhBadge :variant="stateVariant(validator.status)">{{ stateLabel(validator.status) }}</DhBadge></div>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('operations.validation.personId', { id: short(validator.userId) }) }}</p>
             <p v-if="validator.reviewedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ label(validator.reviewedAtUtc) }}</p>
             <p v-if="validator.comment" class="mt-3 whitespace-pre-wrap text-sm text-[var(--dh-text-soft)]">{{ validator.comment }}</p>
             <template v-if="canReview && validator.userId === auth.userId && validator.status === 'PENDING' && pair?.stage.status === 'PENDING_VALIDATION'">
-              <DhTextarea v-model="comment" class="mt-4" label="Observación" placeholder="Obligatoria cuando solicites cambios" :rows="3" />
+              <DhTextarea v-model="comment" class="mt-4" :label="t('operations.validation.comment')" :placeholder="t('operations.validation.commentRequired')" :rows="3" />
               <div class="mt-3 flex flex-wrap gap-2">
-                <DhButton size="sm" label="Aprobar" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
-                <DhButton size="sm" variant="danger" label="Solicitar cambios" :disabled="busy || !comment.trim()" @click="decide(validator.id, 'REJECTED')" />
+                <DhButton size="sm" :label="t('operations.validation.approve')" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
+                <DhButton size="sm" variant="danger" :label="t('operations.validation.requestChanges')" :disabled="busy || !comment.trim()" @click="decide(validator.id, 'REJECTED')" />
               </div>
             </template>
           </div>
         </div>
       </DhCard>
-      <DhCard v-if="canAudit" title="Audit log" subtitle="Trazabilidad del expediente y sus decisiones.">
-        <DhEmptyState v-if="!audit.length" :icon="Clock3" title="Sin eventos registrados" description="Las acciones auditadas se mostrarán aquí." />
+      <DhCard v-if="canAudit" :title="t('operations.validation.audit')" :subtitle="t('operations.validation.auditHint')">
+        <DhEmptyState v-if="!audit.length" :icon="Clock3" :title="t('operations.validation.noAudit')" :description="t('operations.validation.noAuditDescription')" />
         <ol v-else class="space-y-3">
           <li v-for="event in audit" :key="event.eventId" class="border-l-2 border-[var(--dh-primary)] py-1 pl-4">
             <p class="break-all text-sm font-bold text-[var(--dh-text)]">{{ event.actionCode }}</p>
@@ -216,23 +224,23 @@ onMounted(load)
         </ol>
       </DhCard>
     </div>
-    <DhEmptyState v-else-if="!loading" :icon="FolderOpen" title="No hay expediente seleccionado" description="Cuando se cree una apertura podrás consultar aquí su validación y trazabilidad." :action-label="canCreate ? 'Nueva apertura' : undefined" @action="showCreate = true" />
+    <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? t('operations.validation.new') : undefined" @action="showCreate = true" />
 
-    <DhModal :open="showCreate && canCreate" title="Nueva apertura manual" size="lg" @close="showCreate = false">
+    <DhModal :open="showCreate && canCreate" :title="t('operations.validation.formTitle')" size="lg" @close="showCreate = false">
       <form class="space-y-5" @submit.prevent="createOpening">
-        <p class="text-sm text-[var(--dh-text-muted)]">Registra los datos iniciales del expediente. Los dos validadores se asignan después desde el pool operativo.</p>
+        <p class="text-sm text-[var(--dh-text-muted)]">{{ t('operations.validation.formHint') }}</p>
         <div class="grid gap-4 sm:grid-cols-2">
-          <DhInput v-model="opening.companyId" label="Empresa · UUID *" placeholder="UUID de empresa" :error="opening.companyId && !uuidPattern.test(opening.companyId.trim()) ? 'Ingresa un UUID válido.' : undefined" />
-          <DhInput v-model="opening.accountId" label="Cuenta CRM · UUID *" placeholder="UUID de cuenta" :error="opening.accountId && !uuidPattern.test(opening.accountId.trim()) ? 'Ingresa un UUID válido.' : undefined" />
-          <DhInput v-model="opening.seriesCode" label="Serie IDTRA · 5 dígitos *" placeholder="00000" :error="opening.seriesCode && !/^[0-9]{5}$/.test(opening.seriesCode) ? 'Se requieren exactamente 5 dígitos.' : undefined" />
-          <DhSelect v-model="opening.modalityCode" label="Modalidad" :options="modalityOptions" placeholder="" />
-          <DhInput :model-value="opening.priority" label="Prioridad (1–5)" type="number" :min="1" :max="5" :step="1" @update:model-value="opening.priority = Number($event)" />
-          <DhInput :model-value="opening.complexityPoints" label="Complejidad (puntos)" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="opening.complexityPoints = Number($event)" />
+          <DhInput v-model="opening.companyId" :label="t('operations.validation.company')" placeholder="UUID de empresa" :error="opening.companyId && !uuidPattern.test(opening.companyId.trim()) ? t('operations.validation.uuidError') : undefined" />
+          <DhInput v-model="opening.accountId" :label="t('operations.validation.account')" placeholder="UUID de cuenta" :error="opening.accountId && !uuidPattern.test(opening.accountId.trim()) ? t('operations.validation.uuidError') : undefined" />
+          <DhInput v-model="opening.seriesCode" :label="t('operations.validation.series')" placeholder="00000" :error="opening.seriesCode && !/^[0-9]{5}$/.test(opening.seriesCode) ? t('operations.validation.seriesError') : undefined" />
+          <DhSelect v-model="opening.modalityCode" :label="t('operations.validation.modality')" :options="modalityOptions" placeholder="" />
+          <DhInput :model-value="opening.priority" :label="t('operations.validation.priority')" type="number" :min="1" :max="5" :step="1" @update:model-value="opening.priority = Number($event)" />
+          <DhInput :model-value="opening.complexityPoints" :label="t('operations.validation.complexity')" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="opening.complexityPoints = Number($event)" />
         </div>
-        <p class="rounded-2xl bg-[var(--dh-input)] p-3 text-xs text-[var(--dh-text-muted)]">El vendedor responsable se obtiene de CRM. Este formulario inicial utiliza los UUID hasta que esté disponible el selector de empresa y cuenta.</p>
+        <p class="rounded-2xl bg-[var(--dh-input)] p-3 text-xs text-[var(--dh-text-muted)]">{{ t('operations.validation.formNote') }}</p>
         <div class="flex flex-wrap justify-end gap-2">
-          <DhButton label="Cancelar" variant="secondary" @click="showCreate = false" />
-          <DhButton type="submit" label="Crear apertura" :icon="Plus" :loading="busy" :disabled="!validOpening" />
+          <DhButton :label="t('operations.cancel')" variant="secondary" @click="showCreate = false" />
+          <DhButton type="submit" :label="t('operations.validation.create')" :icon="Plus" :loading="busy" :disabled="!validOpening" />
         </div>
       </form>
     </DhModal>

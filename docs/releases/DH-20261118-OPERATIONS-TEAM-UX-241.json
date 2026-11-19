@@ -1,0 +1,44 @@
+{
+  "releaseId": "DH-20261118-OPERATIONS-TEAM-UX-241",
+  "businessReleaseId": "DH-20261118-OPERATIONS-TEAM-UX-241",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.89.0",
+  "releaseType": "MINOR",
+  "component": "DholeWeb",
+  "previousVersion": "1.84.0",
+  "version": "1.85.0",
+  "relatedComponents": [
+    {
+      "component": "DholeWeb",
+      "previousVersion": "1.84.0",
+      "version": "1.85.0"
+    },
+    {
+      "component": "DholeOperationsService",
+      "previousVersion": "0.7.0",
+      "version": "0.8.0"
+    }
+  ],
+  "changes": [
+    "Spanish and English Operations navigation, opening validation UI and team assignment workspace",
+    "General IDTRA case directory and backend-permitted summaries; eight case-detail tabs remain separate",
+    "Tenant-scoped idempotent team catalog initialization; never creates human users, passwords, scopes or memberships",
+    "Assign existing Auth users to teams with supervisor, availability and capacity settings",
+    "Existing dual-review Aperturas flow, Auth scopes, team audit/Outbox and REST compatibility preserved"
+  ],
+  "scopes": {
+    "teams": "operations.team.manage",
+    "readCases": "operations.case.read",
+    "readTeamAudit": "operations.audit.read"
+  },
+  "realtime": "Durable operations.team.catalog.initialized.v1 Outbox signal and pre-existing Operations relay; REST reload on changes",
+  "validation": {
+    "unit": "pending",
+    "build": "pending",
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-approved"
+  },
+  "releaseBranch": "feature/20261118-operations-team-catalog-i18n",
+  "releaseStatus": "candidate-ci-and-staging-pending"
+}
