@@ -17,6 +17,7 @@ import { useThemeStore } from '@/core/stores/themeStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
 import { createUiTextBridge } from '@/core/i18n/uiTextBridge'
 import { installAuditNavigation } from '@/core/audit/installAuditNavigation'
+import { APP_VERSION } from '@/core/version'
 
 const STALE_CHUNK_RELOAD_KEY = 'dhole:stale-chunk-reload'
 const STALE_CHUNK_RELOAD_WINDOW_MS = 30_000
@@ -178,5 +179,6 @@ watch(() => localeStore.getLocale(), async (newLocale) => {
 
 app.use(i18n)
 document.documentElement.lang = localeStore.getLocale()
+document.title = `Orvelum System · v${APP_VERSION}`
 app.mount('#app')
 uiTextBridge.start()

@@ -1,3 +1,9 @@
+## [1.97.0] - 2026-11-19 (DH-20261119-ORVELUM-BRAND-256 · Orvelum System)
+
+- MINOR: identidad comercial Orvelum System en español/inglés, ingreso, sidebar y avisos de actualización.
+- Icono orbital original en interfaz y favicon SVG; título del navegador con versión real del build: Orvelum System · v1.97.0.
+- Versionado Web/System sincronizado, sin cambiar nombres técnicos de repositorios, contratos API, scopes ni eventos.
+
 ## [1.96.1] - 2026-11-19 (DH-20261119-OPS-SIDEBAR-255 · Navegación de Operaciones simplificada)
 
 - PATCH: elimina únicamente la entrada de «Aperturas» del sidebar de Operaciones; permanecen «Trámites» y «Equipos» según scopes.
