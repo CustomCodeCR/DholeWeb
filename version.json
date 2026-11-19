@@ -4,7 +4,7 @@
   "component": "DholeWeb",
   "version": "1.97.1",
   "ecosystemVersion": "1.97.1",
-  "releaseId": "DH-20261119-ORVELUM-TRANSPARENT-261",
-  "releaseStatus": "candidate-ci-and-staging-validated",
-  "businessReleaseId": "DH-20261119-ORVELUM-TRANSPARENT-261"
+  "releaseId": "DH-20261119-OPS-DASHBOARD-UX-257",
+  "releaseStatus": "candidate-ci-and-staging-pending",
+  "businessReleaseId": "DH-20261119-OPS-DASHBOARD-UX-257"
 }
