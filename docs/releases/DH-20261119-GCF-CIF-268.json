@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-GCF-CIF-268",
+  "ecosystem": "Dhole",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.98.1",
+  "date": "2026-11-19",
+  "candidateBranch": "fix/DH-20261119-GCF-CIF-268",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "from": "1.98.0",
+      "to": "1.98.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "from": "1.98.0",
+      "to": "1.98.1"
+    }
+  ],
+  "unchangedComponents": "Other microservices and gateway remain on existing versions",
+  "regressions": [
+    "GCF has 249 ISO country codes in metadata upon save",
+    "GCF offered at POL outside legacy list",
+    "CIF duplicate does not require new ocean freight",
+    "FOB continues to require new freight"
+  ],
+  "status": "candidate-ci-and-staging-pending"
+}

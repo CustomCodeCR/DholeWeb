@@ -165,7 +165,7 @@ function patchWizard(source: string) {
 }
 
 async function saveRate() {
-  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl' && !hasNewDuplicatedFclFreight()) {
+  if (refreshingDuplicatedRate.value && shipmentModeForApi.value === 'Fcl' && hasInternationalTransportService.value && !hasNewDuplicatedFclFreight()) {
     step.value = multiCarrierSelectionMode.value && !selectedCarrierRoutes.value.length ? 5 : 6
     toastStore.warning(
       'Complete el nuevo flete marítimo',

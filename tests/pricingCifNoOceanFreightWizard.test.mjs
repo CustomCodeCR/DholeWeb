@@ -55,3 +55,11 @@ test('CIF with 0 selected carriers uses normal navigation to screen 7 instead of
     /disable MultiQUO navigation/,
   )
 })
+
+test('CIF duplicate skips a new freight validation; global agents remain eligible', () => {
+  const duplicate = readFileSync(new URL('../build/pricingDuplicateRateRefreshWorkflow.ts', import.meta.url), 'utf8')
+  assert.match(duplicate, /shipmentModeForApi\.value === 'Fcl' && hasInternationalTransportService\.value && !hasNewDuplicatedFclFreight\(\)/)
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(wizard, /if \(isGlobalCountryAgent\(agent\)\) return true/)
+  assert.match(wizard, /eligibleAgents\.value\.find\(isGlobalCountryAgent\)/)
+})
