@@ -1,3 +1,9 @@
+## [1.97.8] - 2026-11-19 (DH-20261119-DHOLE-REBRAND-266 · Identidad Dhole System)
+
+- PATCH: reemplaza Orvelum System por Dhole System en producción, login, sidebar, textos ES/EN, notificación de versión, metadatos y build.
+- Nuevo logo SVG transparente de globo logístico, paquete y ruta, para favicon y navegación. Preserva la cobertura mundial GCF 1.97.7 sin alteraciones.
+- Web/System master 1.97.7 → 1.97.8; staging ya preparado en versión 1.97.7 del mismo cambio visual. Sin cambios de API ni permisos.
+
 ## [1.97.7] - 2026-11-19 (DH-20261119-GCF-ALL-COUNTRIES-266 · Grupo Castro Fallas con cobertura mundial)
 
 - PATCH: promoción de la corrección GCF validada en develop 1.97.5, aplicada sobre master 1.97.6.
