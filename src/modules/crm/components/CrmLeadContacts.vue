@@ -63,7 +63,7 @@ async function saveContact() {
   try {
     const payload = { ...draft.value, countryId: draft.value.countryId || props.countryId || null }
     if (editingId.value) {
-      await crmRequest(crmPath('leads', props.leadId, 'contacts', editingId.value),
+      await crmRequest(crmPath('leads', props.leadId, 'contacts') + '/' + encodeURIComponent(editingId.value),
         'PATCH', { ...payload, expectedVersion: expectedVersion.value })
     } else {
       await crmRequest(crmPath('leads', props.leadId, 'contacts'),
@@ -79,7 +79,7 @@ async function removeContact(contact: CrmRow) {
   if (saving.value) return
   saving.value = true; error.value = ''
   try {
-    await crmRequest(crmPath('leads', props.leadId, 'contacts', String(contact.id)), 'DELETE')
+    await crmRequest(crmPath('leads', props.leadId, 'contacts') + '/' + encodeURIComponent(String(contact.id)), 'DELETE')
     await loadContacts()
     emit('changed')
   } catch (e) { error.value = crmError(e) }
