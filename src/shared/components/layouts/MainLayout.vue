@@ -13,6 +13,7 @@ import {
   BookOpen,
   BrainCircuit,
   ClipboardList,
+  FolderOpen,
   Home,
   KeyRound,
   Keyboard,
@@ -365,8 +366,10 @@ const sidebarItems = computed<SidebarItem[]>(() => {
 
   if (canView('operations.team.manage') || canView('operations.case.read')) {
     const operationsChildren: SidebarItem[] = []
-    if (canView('operations.case.read'))
+    if (canView('operations.case.read')) {
+      operationsChildren.push({ label: t('operations.cases'), path: '/operations/cases', icon: FolderOpen })
       operationsChildren.push({ label: t('operations.apertures'), path: '/operations/apertures', icon: ClipboardList })
+    }
     if (canView('operations.team.manage'))
       operationsChildren.push({ label: t('operations.teams'), path: '/operations/teams', icon: Users })
     items.push({ label: t('operations.title'), icon: Workflow, children: operationsChildren })
