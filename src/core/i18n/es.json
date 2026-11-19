@@ -566,13 +566,13 @@
       "disociado": "Disociado"
     },
     "avatarChoose": "Elegir expresión",
-    "mascotTitle": "Foto de perfil y mascota",
-    "mascotHelp": "Al subir una foto de perfil, tu Blobatar se convierte en una mascota que puedes nombrar, arrastrar y dejar fija o pasear por la pantalla.",
+    "mascotTitle": "Mascota Blobatar y foto de perfil",
+    "mascotHelp": "Tu Blobatar siempre es tu mascota, con o sin foto de perfil. Personaliza su nombre y accesorios, arrástralo o deja que explore la pantalla.",
     "mascotProfilePhoto": "Foto de perfil",
     "mascotUpload": "Subir foto de perfil",
     "mascotChangePhoto": "Cambiar foto",
     "mascotRemovePhoto": "Quitar foto",
-    "mascotLocalHelp": "La foto y las preferencias se guardan únicamente para tu usuario en este navegador. No se envían al servidor.",
+    "mascotLocalHelp": "La foto de perfil es opcional. El nombre, los accesorios y las preferencias de la mascota se guardan para tu usuario en este navegador, sin enviarse al servidor.",
     "mascotImageError": "Selecciona un archivo JPG, PNG o WEBP de hasta 8 MB.",
     "mascotSaveError": "No se pudo procesar o guardar la foto en este navegador.",
     "mascotName": "Nombre de la mascota",
@@ -583,10 +583,21 @@
     "mascotRoaming": "Recorrer la pantalla",
     "mascotHide": "Ocultar mascota",
     "mascotShow": "Mostrar mascota",
-    "mascotDragHelp": "Arrástrala para cambiar su posición o utiliza las flechas del teclado. En el modo móvil se queda quieta si tienes activado Movimiento reducido.",
+    "mascotDragHelp": "Arrastra tu mascota o utiliza las flechas para moverla. Su nombre y emoción aparecen al pasar el mouse o enfocar la mascota.",
     "mascotDrag": "Mascota Blobatar movible. Usa las flechas o arrástrala.",
     "mascotFix": "Dejar mascota fija",
-    "mascotRoam": "Hacer que la mascota recorra la pantalla"
+    "mascotRoam": "Hacer que la mascota recorra la pantalla",
+    "mascotAccessory": "Accesorio de la mascota",
+    "mascotPreview": "Vista previa de tu mascota",
+    "mascotAccessories": {
+      "none": "Sin accesorio",
+      "cap": "Gorra",
+      "crown": "Corona",
+      "glasses": "Lentes de sol",
+      "headphones": "Audífonos",
+      "bow": "Lazo",
+      "hat": "Sombrero"
+    }
   },
   "tabs": {
     "openSplit": "Abrir en split",
