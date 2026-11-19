@@ -1,3 +1,11 @@
+## [1.100.1] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-ROUTE-271 · Corrección del filtrado por POL/POE/POD)
+
+- PATCH: la opción «Mostrar todos los ítems de Pricing» ya no omite las restricciones de POL, POE, POD, naviera, Incoterm ni servicios.
+- El catálogo puede incluir otras modalidades únicamente cuando son compatibles con los puertos seleccionados; los cargos generales permanecen disponibles.
+- Se excluyen costos con POE/POD diferentes de los elegidos y cargos asociados a otro puerto mediante portRole=Any o legado sin rol.
+- Agrega pruebas de regresión con POE Caldera y POD San José para costos de Panamá, junto con controles sobre servicios y naviera.
+- Web/System 1.100.0 → 1.100.1; CRM 1.41.0 sin modificaciones. Validar CI, manifiesto y staging antes de promover.
+
 ## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · cargos manuales, servicios y fallback preferencial)
 
 - MINOR: los acuerdos de CRM admiten servicios opcionales del catálogo pricing-services, todas las modalidades (incluido aéreo), puertos/equipo opcionales y un selector para ver todos los ítems de Pricing.
