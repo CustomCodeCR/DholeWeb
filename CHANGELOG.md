@@ -1,3 +1,10 @@
+## [1.99.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-269 · País CRM determina perspectiva Incoterm)
+
+- MINOR: para rutas internacionales, el país de la cuenta/prospecto CRM frente al POL y POD final determina si la tarifa se solicita como importación, exportación o tránsito/doméstico, sin referencia fija a Costa Rica.
+- El asistente aplica la perspectiva del cliente al Incoterm y al flete internacional. Si faltan países de CRM/Config, detiene el avance/guardado con explicación visible; los datos aduaneros, IVA y CRC siguen ligados al destino físico.
+- API CRM incorpora countryId para cuentas y prospectos en el selector existente sin alterar permisos; pruebas de regresión Honduras/Costa Rica/tercer país.
+- DholeWeb/DholeSystem 1.98.1 → 1.99.0; CRM 1.39.0 → 1.40.0; el resto sin cambios. Candidato CI y staging antes de producción.
+
 ## [1.98.1] - 2026-11-19 (DH-20261119-GCF-CIF-268 · cobertura GCF y CIF sin flete)
 
 - PATCH: Al guardar Grupo Castro Fallas, la metadata materializa los 249 países y territorios ISO 3166-1 en countries/countryCodes sin eliminar datos anteriores; allCountries sigue cubriendo futuras incorporaciones.
