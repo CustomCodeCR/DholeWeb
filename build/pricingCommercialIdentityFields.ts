@@ -138,6 +138,23 @@ async function saveRate() {
         'CRM owner reconciliation after draft restore',
       )
     }
+    // All seller-request pre-transforms have already run. Insert the CRM
+    // reconciliation after the Sales handoff was hydrated, without breaking
+    // pricingSellerRateRequestResponsibilities' contiguous hydration anchor.
+    const hydrationStart = code.indexOf('async function hydrateRateRequest() {')
+    const hydrationEnd = hydrationStart >= 0
+      ? code.indexOf('function modalityForRate(', hydrationStart) : -1
+    if (hydrationStart < 0 || hydrationEnd <= hydrationStart) {
+      throw new Error('[pricingCommercialIdentityFields] Resumed rate request hydration missing')
+    }
+    const hydration = code.slice(hydrationStart, hydrationEnd)
+    const searchAnchor = '    await searchApprovedRates()'
+    if (hydration.split(searchAnchor).length !== 2) {
+      throw new Error('[pricingCommercialIdentityFields] Expected one Pricing rate-source hydration')
+    }
+    const reconciled = hydration.replace(searchAnchor,
+      '    if (form.clientId) await refreshModificationCrmOwner()\n' + searchAnchor)
+    code = code.slice(0, hydrationStart) + reconciled + code.slice(hydrationEnd)
     return code
   }
   let code = source
