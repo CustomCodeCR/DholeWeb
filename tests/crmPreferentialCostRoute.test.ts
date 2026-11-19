@@ -54,3 +54,48 @@ test('A missing route selector does not hide all items from the Pricing catalog'
   assert.equal(matchesPreferentialRoute(cost({shipmentMode:'AirConsol'}),
     {shipment:'AIR',polCode:'',poeCode:'',podCode:''}),true)
 })
+
+test('Showing all Pricing items never bypasses Caldera POE or San José POD', () => {
+  const all = {...route, includeOtherShipmentModes:true}
+  // Costs from other services/modes can still be considered if their geographic scope matches.
+  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl'}), all), true)
+  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl',poeCode:'PABAL'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl',podCode:'PAZLC'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Fcl',podCode:'PAZLC'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({poeCode:'PABAL'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({podCode:'CRLIM'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({
+    poes:[{id:'1',name:'Balboa, Panamá',code:'PABAL'}]
+  }), all), false)
+  assert.equal(matchesPreferentialRoute(cost({
+    pods:[{id:'1',name:'Puerto Limón',code:'CRLIM'}]
+  }), all), false)
+  assert.equal(matchesPreferentialRoute(cost({poeCode:'CRCAL',podCode:'CRSJO'}), all), true)
+  assert.equal(matchesPreferentialRoute(cost({}), all), true,
+    'Truly unrestricted costs remain visible for the selected services')
+})
+
+test('Port-linked costs with Any or legacy port role must still match a selected port', () => {
+  const all = {...route, includeOtherShipmentModes:true}
+  assert.equal(matchesPreferentialRoute(cost({portCode:'PABAL',portRole:'Any'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({portCode:'PABAL',portRole:null}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({portCode:'CRCAL',portRole:'Any'}), all), true)
+  assert.equal(matchesPreferentialRoute(cost({portCode:'CRSJO',portRole:'Pod'}), all), true)
+  assert.equal(matchesPreferentialRoute(cost({portCode:'PABAL',portRole:'Poe'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({portCode:'CRCAL',portRole:'Pod'}), all), false)
+  assert.equal(matchesPreferentialRoute(cost({portCode:'PABAL',portRole:'Any'}),
+    {...all,polCode:'',poeCode:'',podCode:''}), true)
+})
+
+test('Service and carrier filters stay effective when showing other shipment modes', () => {
+  const all = {...route, includeOtherShipmentModes:true, carrierCode:'ONE',serviceCodes:['CUSTOMS']}
+  assert.equal(matchesPreferentialRoute(cost({
+    shipmentMode:'Ftl',poeCode:'CRCAL',
+    services:[{id:'s',code:'CUSTOMS',name:'Customs'}],
+    carriers:[{id:'c',code:'ONE',name:'Ocean Network Express'}],
+  }),all),true)
+  assert.equal(matchesPreferentialRoute(cost({
+    services:[{id:'s',code:'WAREHOUSE',name:'Warehouse'}],
+  }),all),false)
+  assert.equal(matchesPreferentialRoute(cost({carrierCode:'MSC'}),all),false)
+})

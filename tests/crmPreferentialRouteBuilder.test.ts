@@ -38,3 +38,12 @@ test('Configurador permite ítems manuales, todos los conceptos y servicios opci
   assert.ok(manager.includes('v-model="draft.serviceCodes"'))
   assert.ok(manager.includes('Todos los ítems preferenciales guardados'))
 })
+
+test('Mostrar todos los ítems nunca omite la coincidencia de POL, POE o POD', () => {
+  assert.ok(builder.includes('matchesPreferentialRoute(cost, {'))
+  assert.ok(builder.includes('includeOtherShipmentModes: showAllCosts.value'))
+  assert.ok(builder.includes('poeCode: route.poeCodes[0]'))
+  assert.ok(builder.includes('podCode: route.podCodes[0]'))
+  assert.doesNotMatch(builder, /showAllCosts\.value\s*\|\|\s*matchesPreferentialRoute/)
+  assert.ok(builder.includes('compatibles con los puertos seleccionados'))
+})
