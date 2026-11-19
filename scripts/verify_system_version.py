@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from time import time_ns
 from urllib.request import Request, urlopen
 
 
@@ -13,7 +14,8 @@ def main():
         raise ValueError(f"Unsupported DholeSystem release branch: {branch}")
     version = json.loads(Path("version.json").read_text(encoding="utf-8"))["version"]
     pkg = json.loads(Path("package.json").read_text(encoding="utf-8"))["version"]
-    url = f"https://raw.githubusercontent.com/CustomCodeCR/DholeSystem/{branch}/version.json"
+    # Bust GitHub's raw-file CDN cache after a coordinated System/Web merge.
+    url = f"https://raw.githubusercontent.com/CustomCodeCR/DholeSystem/{branch}/version.json?release_check={time_ns()}"
     with urlopen(Request(url, headers={"Accept": "application/json", "Cache-Control": "no-cache", "User-Agent": "Dhole-Version-Gate"}), timeout=20) as response:
         system = json.load(response)
     if not (version == pkg == system["version"] == system["ecosystemVersion"]):
