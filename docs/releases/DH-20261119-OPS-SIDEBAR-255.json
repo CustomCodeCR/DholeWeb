@@ -1,0 +1,18 @@
+{
+  "releaseId": "DH-20261119-OPS-SIDEBAR-255",
+  "component": "DholeWeb",
+  "previousVersion": "1.96.0",
+  "version": "1.96.1",
+  "ecosystemVersion": "1.96.1",
+  "branch": "fix/operations-hide-apertures-sidebar-255",
+  "change": "hide aperture sidebar navigation item only",
+  "retained": [
+    "/operations/apertures route",
+    "Operations Dashboard entry point",
+    "dual validation and ACL",
+    "Tramites",
+    "Equipos"
+  ],
+  "tests": "pending",
+  "productionDeploymentAuthorized": false
+}

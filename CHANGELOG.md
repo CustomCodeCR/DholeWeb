@@ -1,3 +1,9 @@
+## [1.96.1] - 2026-11-19 (DH-20261119-OPS-SIDEBAR-255 · Navegación de Operaciones simplificada)
+
+- PATCH: elimina únicamente la entrada de «Aperturas» del sidebar de Operaciones; permanecen «Trámites» y «Equipos» según scopes.
+- La ruta protegida /operations/apertures, la validación dual, los datos y el acceso desde Dashboard se conservan intactos.
+- Web/System 1.96.0 → 1.96.1; Operations y demás servicios conservan sus versiones. Staging y CI pendientes.
+
 ## [1.96.0] - 2026-11-19 (DH-20261119-OPS-ROLE-TEAM-DASHBOARD-254 · Dashboard operativo por rol y equipo)
 
 - MINOR: selector de Dashboard por permisos (Pricing, Vendedor y Operaciones) y vista de Aperturas con totales reales por equipo y validaciones visibles al usuario.
