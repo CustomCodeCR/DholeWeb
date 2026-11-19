@@ -67,6 +67,14 @@ export interface ValidationPair {
   requiredReviewers: number
   validators: OperationsValidator[]
 }
+export interface OperationsDashboard {
+  teams: Array<{ id: string; name: string; departmentCode: string; isActive: boolean; isSupervisor: boolean }>
+  stats: { total: number; awaitingAssignment: number; inReview: number; approved: number }
+  items: Array<{
+    id: string; idtra: string; modalityCode: string; status: string; priority: number
+    createdAtUtc: string; teamId: string | null; approvedReviews: number; pendingReviews: number
+  }>
+}
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
@@ -74,6 +82,8 @@ function request<T>(path: string, method: Method = 'GET', body?: unknown): Promi
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
 export const operationsApi = {
+  dashboard: (teamId?: string) => request<OperationsDashboard>(
+    '/api/operations/dashboard' + (teamId ? '?teamId=' + encodeURIComponent(teamId) : '')),
   cases: (page = 1) => request<Paged<OperationsCaseRow>>('/api/operations/cases?page=' + page + '&pageSize=25'),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   teams: () => request<OperationsTeam[]>('/api/operations/teams'),
