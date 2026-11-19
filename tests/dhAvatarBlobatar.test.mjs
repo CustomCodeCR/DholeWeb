@@ -284,3 +284,52 @@ test('Profile photo replaces topbar Blobatar while mascot is per user and global
   assert.ok(appearance.includes('avatarMascot.setPhoto(null)'))
   assert.ok(appearance.includes('<DhSelect'))
 })
+
+
+test('Blobatar mascot is always available without a profile picture and has no bubble', () => {
+  const mascot = readFileSync(new URL('../src/shared/components/atoms/DhMascot.vue', import.meta.url), 'utf8')
+  const appearance = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
+  assert.ok(mascot.includes('v-if="mascot.visible"'))
+  assert.ok(!mascot.includes('mascot.photo && mascot.visible'))
+  assert.ok(!mascot.includes('mascot.visible && mascot.photo'))
+  assert.ok(!appearance.includes('<template v-if="avatarMascot.photo">'))
+  assert.ok(mascot.includes(':transparent-backdrop="true"'))
+  assert.ok(avatar.includes("transparentBackdrop || darkBackdrop ? false : 'circle'"))
+  assert.ok(avatar.includes('!props.transparentBackdrop'))
+  assert.ok(avatar.includes("transparentBackdrop ? undefined : (name || undefined)"))
+  assert.ok(mascot.includes('group-hover:opacity-100'))
+  assert.ok(mascot.includes('group-focus-within:opacity-100'))
+  assert.ok(mascot.includes("appearance.avatarMoods."))
+  assert.ok(mascot.includes('mascotEmotionLabel'))
+  assert.ok(mascot.includes('aria-live="polite"'))
+  assert.ok(!mascot.includes('rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)]/95'))
+  assert.ok(!mascot.includes('bg-[var(--dh-card)] shadow-xl'))
+})
+
+test('Seven mascot accessory choices are configurable and user-persistent', () => {
+  const store = readFileSync(new URL('../src/core/stores/avatarMascotStore.ts', import.meta.url), 'utf8')
+  const accessory = readFileSync(new URL('../src/shared/components/atoms/DhMascotAccessory.vue', import.meta.url), 'utf8')
+  const mascot = readFileSync(new URL('../src/shared/components/atoms/DhMascot.vue', import.meta.url), 'utf8')
+  const appearance = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
+  const kinds = ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat']
+  assert.ok(store.includes("const accessory = ref<MascotAccessory>('none')"))
+  assert.ok(store.includes("write('accessory', accessory.value)"))
+  assert.ok(store.includes("read('accessory')"))
+  assert.ok(store.includes("encodeURIComponent(userId.value)"))
+  assert.ok(store.includes("setAccessory"))
+  for (const kind of kinds) {
+    assert.ok(store.includes("'" + kind + "'"))
+    assert.ok(appearance.includes("'" + kind + "'"))
+    if (kind !== 'none') assert.ok(accessory.includes("kind === '" + kind + "'"))
+    for (const lang of ['es', 'en']) {
+      const translations = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
+      assert.ok(translations.appearance.mascotAccessories[kind], lang + ' translation for ' + kind)
+    }
+  }
+  assert.ok(mascot.includes('<DhMascotAccessory :kind="mascot.accessory"'))
+  assert.ok(appearance.includes('avatarMascot.setAccessory'))
+  assert.ok(appearance.includes('<DhSelect'))
+  assert.ok(accessory.includes('pointer-events-none'))
+  assert.ok(mascot.includes('document.hidden'))
+  assert.ok(mascot.includes('prefers-reduced-motion: reduce'))
+})
