@@ -436,12 +436,12 @@ async function saveManual() {
   <section data-crm-preferential-route class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
     <h3 class="text-sm font-extrabold">Personalización de venta por ruta</h3>
     <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-      Seleccioná los datos como en una cotización estándar. Los costos y recargos originales de Pricing se mantienen intactos.
+      Seleccioná solo las condiciones que necesités. Las demás se aplican a cualquier combinación. Los costos de Pricing no se modifican.
     </p>
     <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
       <DhSelect :model-value="route.modality" label="Modalidad" :options="modalityOptions"
-        placeholder="" @update:model-value="changeModality(String($event) as 'MARITIME' | 'TERRESTRIAL')" />
+        placeholder="" @update:model-value="changeModality(String($event) as 'MARITIME' | 'TERRESTRIAL' | 'AIR')" />
       <DhSelect :model-value="route.shipment" label="Embarque" :options="options"
         placeholder="" @update:model-value="route.shipment = String($event) as PreferentialShipment" />
 
@@ -452,7 +452,7 @@ async function saveManual() {
         </span>
       </label>
 
-      <CrmPricingEquipmentSelect v-model="route.equipmentCodes"
+      <CrmPricingEquipmentSelect v-if="route.modality!=='AIR'" v-model="route.equipmentCodes"
         label="Equipo" :catalog-group-slugs="equipmentGroups" />
       <CrmMultiCatalogPicker v-if="route.modality==='MARITIME'"
         :model-value="route.carrierCode ? [route.carrierCode] : []"
@@ -462,6 +462,8 @@ async function saveManual() {
       <DhSelect :model-value="route.incotermCode" label="Incoterm"
         :options="incotermOptions" placeholder=""
         @update:model-value="route.incotermCode = String($event)" />
+      <CrmMultiCatalogPicker v-model="route.serviceCodes" label="Servicios aplicables (opcionales)"
+        :catalog-group-slugs="['pricing-services']" placeholder="Todos los servicios" />
       <CrmPricingLocationSelect v-model="route.polCodes" label="Origen (POL)"
         placeholder="Buscar puerto de origen" :catalog-group-slugs="['pol']"
         :route-mode="route.shipment" route-role="pol" />
@@ -473,15 +475,49 @@ async function saveManual() {
         :catalog-group-slugs="['pod']" :route-mode="route.shipment" route-role="pod" />
     </div>
     <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
-      La naviera y el Incoterm forman parte del acuerdo guardado, no solo del filtro de costos.
-      Dejarlos en «Todas/Todos» mantiene una condición general.
+      Podés definir solo un puerto, solo un servicio o cualquier combinación. Las condiciones vacías son generales; una coincidencia más específica tiene prioridad.
     </p>
     <button type="button" class="route-action mt-4" :disabled="saving || costsLoading" @click="consult">
       {{ costsLoading ? 'Cargando costos…' : 'Mostrar costos y recargos' }}
     </button>
-    <p class="mt-2 text-xs text-[var(--dh-text-muted)]">FCL · FTL · LCL propio · LTL propio</p>
+    <p class="mt-2 text-xs text-[var(--dh-text-muted)]">FCL · LCL · FTL · LTL · Aéreo · servicios combinables sin obligación de seleccionar puertos o equipo</p>
     <p v-if="error" role="alert" class="mt-3 rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="mt-3 rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
+    <form class="mt-5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4"
+      aria-label="Agregar cargo manual preferencial" @submit.prevent="saveManual">
+      <h4 class="text-sm font-extrabold">Agregar ítem manual</h4>
+      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+        Agregá servicios y cargos que todavía no figuran en los costos de Pricing.
+        La tarifa utilizará las condiciones opcionales seleccionadas arriba.
+      </p>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <label class="route-label xl:col-span-2">Nombre del ítem
+          <input v-model="manual.name" class="route-input" maxlength="120"
+            placeholder="Ej. Fumigación, inspección, almacenaje" required />
+        </label>
+        <DhSelect :model-value="manual.chargeCode" label="Tipo de cargo"
+          :options="manualChargeOptions" @update:model-value="manual.chargeCode=String($event)" />
+        <label class="route-label">Venta preferencial
+          <input v-model="manual.amount" class="route-input" type="number" min="0" step="0.000001"
+            placeholder="0.00" required />
+        </label>
+        <DhSelect :model-value="manual.currency" label="Moneda"
+          :options="[{value:'USD',label:'USD'},{value:'CRC',label:'CRC'}]"
+          @update:model-value="manual.currency=String($event)" />
+        <DhSelect :model-value="manual.unit" label="Unidad de cobro" :options="manualUnits"
+          @update:model-value="manual.unit=String($event)" />
+      </div>
+      <button class="route-action mt-4" type="submit" :disabled="saving">
+        {{ saving ? 'Guardando…' : 'Guardar ítem manual' }}
+      </button>
+    </form>
+    <label class="mt-4 flex items-center gap-2 text-sm font-semibold">
+      <input v-model="showAllCosts" type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" />
+      Mostrar todos los ítems de Pricing, incluso de otros servicios o rutas
+    </label>
+    <p v-if="!canReadPricingConcepts" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+      Para consultar los costos de Pricing se requiere pricing.cost.select. Podés guardar ítems manuales con permiso de CRM.
+    </p>
     <template v-if="preview">
       <div class="mt-6 border-t border-[var(--dh-border)] pt-5">
         <div class="flex flex-wrap items-start justify-between gap-4">
@@ -554,7 +590,7 @@ async function saveManual() {
         </div>
 
         <div v-if="!costsForRoute.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
-          No hay costos configurados en Pricing compatibles con esta ruta.
+          No se encontraron conceptos de Pricing para los filtros. Podés agregar cualquier ítem manual arriba.
         </div>
         <p v-else-if="!filteredCosts.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
           No se encontraron cargos con esa búsqueda.
@@ -611,7 +647,11 @@ async function saveManual() {
                         </span>
                         <span v-if="existingCost(cost)"
                           class="ml-1 mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">
-                          Acuerdo existente
+                          Acuerdo existente en esta combinación
+                        </span>
+                        <span v-else-if="applicableCost(cost)"
+                          class="ml-1 mt-1 inline-block rounded-md border border-[var(--dh-border)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-text-muted)]">
+                          Tarifa general heredada · se conservará al crear la específica
                         </span>
                       </div>
                       <div>
