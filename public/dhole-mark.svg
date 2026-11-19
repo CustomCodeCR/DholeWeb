@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="dhole-title">
+<title id="dhole-title">Dhole System</title>
+<defs><linearGradient id="dhole-route" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0A9B84"/><stop offset=".55" stop-color="#5FE6AE"/><stop offset="1" stop-color="#A6FFD6"/></linearGradient></defs>
+<circle cx="61" cy="64" r="40" fill="#073F38"/>
+<g fill="none" stroke="#A6FFD6" stroke-width="2.5" stroke-linecap="round" opacity=".93"><circle cx="61" cy="64" r="37"/><path d="M61 27c-16 14-24 52 0 74M61 27c16 14 24 52 0 74M24 62c20-13 54-13 74 0M25 79c19-10 53-10 72 0M61 27v31"/></g>
+<g fill="#A6FFD6"><circle cx="61" cy="27" r="4.4"/><circle cx="25" cy="62" r="4.4"/><circle cx="97" cy="62" r="4.4"/><circle cx="61" cy="58" r="4.4"/></g>
+<path d="M9 94c27 20 87 5 109-43" fill="none" stroke="url(#dhole-route)" stroke-width="7" stroke-linecap="round"/>
+<g fill="#073F38" stroke="#A6FFD6" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"><path d="M42 78l20-10 23 11-21 11z"/><path d="M42 78v24l22 12V90M85 79v24l-21 11"/><path d="M53 73l22 11" stroke-width="2.5"/></g>
+<path d="M23 91h13M18 99h17" stroke="#A6FFD6" stroke-width="4" stroke-linecap="round"/>
+<path d="M108 13c-9 0-16 7-16 16 0 12 16 28 16 28s16-16 16-28c0-9-7-16-16-16z" fill="#60E8AC"/><circle cx="108" cy="29" r="5.1" fill="#073F38"/>
+</svg>

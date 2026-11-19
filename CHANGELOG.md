@@ -1,3 +1,17 @@
+## [1.97.7] - 2026-11-19 (DH-20261119-DHOLE-REBRAND-266 · Identidad Dhole System)
+
+- PATCH: reemplaza Orvelum System por Dhole System en producción, login, sidebar, textos ES/EN, notificación de versión, metadatos del navegador y Docker.
+- Nuevo logo SVG transparente con globo logístico, paquete y ruta para favicon y navegación. Sin cambios de API, permisos ni datos.
+- Web/System 1.97.6 → 1.97.7, con validación de staging/CI antes del despliegue de master.
+
+## [1.97.7] - 2026-11-19 (DH-20261119-GCF-ALL-COUNTRIES-266 · Grupo Castro Fallas con cobertura mundial)
+
+- PATCH: promoción de la corrección GCF validada en develop 1.97.5, aplicada sobre master 1.97.6.
+- GCF opera en todos los países actuales y futuros; catálogo muestra «Todos los países», persiste metadata.allCountries al guardar y preserva los países/códigos preexistentes.
+- En Pricing LCL y cotizaciones existentes GCF es alternativa para cualquier POL; se priorizan agentes específicos del país cuando existen.
+- Mantiene Orvelum System y su iconografía en master, sin trasladar la identidad de staging.
+- DholeWeb/DholeSystem 1.97.6 → 1.97.7; el resto de microservicios sin cambios. CI y pruebas de regresión obligatorias; sin despliegue manual.
+
 ## [1.97.6] - 2026-11-19 (DH-20261119-PRICING-CIF-NAV-265 · CIF importación: avance a costos sin alternativas marítimas)
 
 - PATCH: Corrige el bloqueo de Pantalla 6 «Ir a líneas 1/0»: CIF/CFR importación sin flete facturable avanza con navegación estándar a Pantalla 7; no se exige ni crea flete internacional. FOB/EXW importación y CIF exportación conservan MultiQUO.
