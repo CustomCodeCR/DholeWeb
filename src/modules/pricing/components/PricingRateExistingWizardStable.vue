@@ -1124,8 +1124,9 @@ function resolveAgentForOrigin() {
       [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
     )
     // Global GCF is a fallback; a country-specific agent wins when available.
-    let score = isGlobalCountryAgent(agent) ? 1 : 0
-    for (const token of originTokens) {
+    const globalCoverage = isGlobalCountryAgent(agent)
+    let score = globalCoverage ? 1 : 0
+    if (!globalCoverage) for (const token of originTokens) {
       if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
       else if (token.length >= 4 && searchText.includes(token)) score = Math.max(score, 60)
     }
