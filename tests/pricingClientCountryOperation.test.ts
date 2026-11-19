@@ -51,3 +51,11 @@ test('wizard and freight guard share the CRM-derived operation', () => {
   assert.match(plugin, /if \(!perspective\) return false/)
   assert.match(picker, /countryId\?: string \| null/)
 })
+
+test('wizard route perspective has a hoisted resolver and no missing template binding', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(wizard, /function resolveClientRouteOperation\(\): RateOperationType \| null/)
+  assert.doesNotMatch(wizard, /\brouteOperation\b/)
+  assert.match(wizard, /if \(form\.clientId && !resolveClientRouteOperation\(\)\)/)
+  assert.match(wizard, /v-if="form\.clientId && !resolveClientRouteOperation\(\)"/)
+})
