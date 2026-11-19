@@ -1,3 +1,12 @@
+## [1.97.5] - 2026-11-19 (DH-20261119-GCF-ALL-COUNTRIES-264 · Cobertura mundial de Grupo Castro Fallas en master)
+
+- PATCH: promueve desde develop el cambio validado de agente Grupo Castro Fallas (GCF) con cobertura mundial, incluido cualquier país nuevo del catálogo POL.
+- En Config > Catálogos se muestra «Todos los países» y se conserva metadata histórica; al guardar GCF se persiste allCountries=true.
+- En Pricing LCL y cotizaciones existentes, GCF funciona como alternativa global y se priorizan agentes específicos de cada origen.
+- Se mantiene Orvelum System en master, incluida su identidad visual, sin trasladar el cambio de marca exclusivo de develop.
+- DholeWeb/DholeSystem master 1.97.3 → 1.97.5; versión del release GCF en develop 1.97.5 (develop posterior en 1.97.6). Otros componentes sin cambios.
+- Se incluyen pruebas de regresión en el pipeline de Pricing. CI previa a integración requerida, despliegue manual no ejecutado.
+
 ## [1.97.3] - 2026-11-19 (DH-20261119-PRICING-CIF-NO-FREIGHT-262 · Importación CIF sin flete marítimo adicional)
 
 - PATCH: Pantalla 6 del wizard FCL oculta ambas tarjetas de creación de flete manual cuando el Incoterm ya cubre el tramo internacional (CIF/CFR en importación).
