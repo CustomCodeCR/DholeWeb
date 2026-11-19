@@ -1,11 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
 <title id="title">Orvelum System</title>
-<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0D305C"/><stop offset="1" stop-color="#020B20"/></linearGradient>
-<linearGradient id="orbit" x2="1" y1="1" y2="0"><stop stop-color="#0578E6"/><stop offset=".55" stop-color="#14BDF2"/><stop offset="1" stop-color="#73F2DC"/></linearGradient>
-<linearGradient id="silver" x2=".9" y2="1"><stop stop-color="#FDFEFF"/><stop offset=".6" stop-color="#D5EAF9"/><stop offset="1" stop-color="#6FADF4"/></linearGradient>
-<clipPath id="globe"><circle cx="64" cy="64" r="37"/></clipPath></defs>
-<rect width="128" height="128" rx="27" fill="url(#bg)"/>
-<g clip-path="url(#globe)" fill="none" stroke="#52A8F5" stroke-opacity=".72" stroke-width="2"><path d="M27 48Q64 58 101 48M27 80Q64 70 101 80M64 25C42 41 42 87 64 103M64 25C86 41 86 87 64 103"/></g>
-<circle cx="64" cy="64" r="37" fill="none" stroke="url(#silver)" stroke-width="8"/>
-<path d="M9 85C30 103 90 87 116 50" stroke="url(#orbit)" stroke-width="8" stroke-linecap="round" fill="none"/>
-<path d="M109 13l3.4 10.3 10.3 3.4-10.3 3.4-3.4 10.3-3.4-10.3-10.3-3.4 10.3-3.4z" fill="#FFF"/></svg>
+<defs>
+  <linearGradient id="orbit" x1="0" x2="1" y1="1" y2="0">
+    <stop stop-color="#126EAE"/>
+    <stop offset=".55" stop-color="#0E98C9"/>
+    <stop offset="1" stop-color="#159A90"/>
+  </linearGradient>
+</defs>
+<g fill="none" stroke="#277FAD" stroke-width="2.5" stroke-linecap="round" opacity=".82">
+  <path d="M31 50Q64 59 97 50M31 78Q64 69 97 78"/>
+  <path d="M64 28C44 40 44 88 64 100M64 28C84 40 84 88 64 100"/>
+</g>
+<circle cx="64" cy="64" r="37" fill="none" stroke="#277FAD" stroke-width="8"/>
+<path d="M9 85C30 103 90 87 116 50" fill="none" stroke="url(#orbit)" stroke-width="8" stroke-linecap="round"/>
+<path d="M109 13l3.4 10.3 10.3 3.4-10.3 3.4-3.4 10.3-3.4-10.3-10.3-3.4 10.3-3.4z" fill="#158EAF"/>
+</svg>

@@ -3,6 +3,7 @@ import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { APP_VERSION, APP_VERSION_DETAIL, APP_CHANNEL, APP_COMMIT } from '@/core/version'
+import OrvelumMark from '@/shared/components/atoms/OrvelumMark.vue'
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
@@ -178,7 +179,7 @@ watch(
           class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
           :class="compact ? 'justify-center' : ''"
         >
-          <img src="/orvelum-mark.svg" alt="Orvelum System" class="h-10 w-10 shrink-0 rounded-[14px]" :title="APP_VERSION_DETAIL" />
+          <OrvelumMark class="h-10 w-10 shrink-0 text-[var(--dh-text)]" :title="APP_VERSION_DETAIL" />
 
           <div v-if="!compact" class="min-w-0 flex-1">
             <p class="truncate text-[13px] font-extrabold tracking-tight text-[var(--dh-text)]">

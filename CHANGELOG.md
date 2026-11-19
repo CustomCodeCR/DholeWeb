@@ -1,3 +1,9 @@
+## [1.97.2] - 2026-11-19 (DH-20261119-ORVELUM-TRANSPARENT-261 · Icono transparente Orvelum System)
+
+- PATCH de master: elimina el fondo del icono orbital y adapta su color a la paleta activa de la interfaz en login y sidebar.
+- El favicon SVG carece de fondo; se invalida la caché en la versión 1.97.2. Conservar Orvelum System en producción.
+- Respeta las mejoras de Dashboard de Operaciones 1.97.1; en develop se restaura la identidad anterior Dhole.
+
 ## [1.97.1] - 2026-11-19 (DH-20261119-OPS-DASHBOARD-UX-257 · Rediseño operativo)
 
 - PATCH: unifica el encabezado del Dashboard de Operaciones con selector de rol Dh y filtros por equipo en una barra adaptable.

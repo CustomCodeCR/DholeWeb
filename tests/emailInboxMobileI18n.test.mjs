@@ -63,3 +63,15 @@ test('Orvelum logistics subtitle is never inverted back into Spanish', () => {
   assert.match(bridge, /\['Plataforma logística inteligente', 'Intelligent Logistics Platform'\]/)
   assert.doesNotMatch(bridge, /\['Intelligent Logistics Platform', 'Plataforma logística inteligente'\]/)
 })
+
+test('Orvelum theme icon has no solid background and follows the UI palette', () => {
+  const icon = source('src/shared/components/atoms/OrvelumMark.vue')
+  const favicon = source('public/orvelum-mark.svg')
+  const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
+  const auth = source('src/shared/components/layouts/AuthLayout.vue')
+  assert.ok(!favicon.includes('<rect'), 'favicon must remain transparent')
+  assert.match(icon, /stroke="currentColor"/)
+  assert.ok(icon.includes('var(--dh-primary)'), 'icon must follow the active theme')
+  assert.match(sidebar, /<OrvelumMark/)
+  assert.match(auth, /<OrvelumMark/)
+})
