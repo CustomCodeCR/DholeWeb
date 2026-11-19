@@ -3,8 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3, Pencil, UserMinus, SlidersHorizontal } from 'lucide-vue-next'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
-import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
-import { DhCard, DhSearchInput } from '@/shared/components/molecules'
+import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhMultiSelect } from '@/shared/components/atoms'
+import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type OperationsAudit, type OperationsTeam, type OperationsUser, type OperationsMember } from '../services/operationsApi'
@@ -15,6 +15,7 @@ const canManage = computed(() => auth.hasScope('operations.team.manage'))
 const canAudit = computed(() => auth.hasScope('operations.audit.read'))
 const teams = ref<OperationsTeam[]>([])
 const users = ref<OperationsUser[]>([])
+const knownUsers = ref<OperationsUser[]>([])
 const selectedId = ref('')
 const selected = computed(() => teams.value.find(team => team.id === selectedId.value))
 const departmentFilter = ref('')
@@ -25,7 +26,7 @@ const success = ref('')
 const history = ref<OperationsAudit[]>([])
 const auditPeople = ref<OperationsUser[]>([])
 const auditDisplayUsers = computed(() => [...users.value, ...auditPeople.value])
-const userSearch = ref('')
+const memberIds = ref<string[]>([])
 const memberId = ref('')
 const capacity = ref(10)
 const isSupervisor = ref(false)
@@ -53,7 +54,7 @@ function departmentName(code: string): string {
   return departmentCodes.includes(code) ? t('operations.departments.' + code) : code
 }
 function nameFor(id: string): string {
-  const user = users.value.find(candidate => candidate.id === id)
+  const user = knownUsers.value.find(candidate => candidate.id === id) ?? users.value.find(candidate => candidate.id === id)
   return user?.displayName || user?.userName || id.slice(0, 8)
 }
 function initials(id: string): string {
@@ -83,9 +84,15 @@ const activeMembers = computed(() => new Set(teams.value.filter(team => team.isA
   .flatMap(team => team.members.filter(member => member.isAvailable).map(member => member.userId))).size)
 const members = computed(() => [...(selected.value?.members ?? [])]
   .sort((a, b) => nameFor(a.userId).localeCompare(nameFor(b.userId))))
-const options = computed(() => users.value
-  .map(user => ({ label: user.displayName + ' (' + user.userName + ')', value: user.id }))
-  .sort((a, b) => a.label.localeCompare(b.label)))
+const options = computed(() => {
+  const assigned = new Set(members.value.map(member => member.userId))
+  const pinned = knownUsers.value.filter(user => memberIds.value.includes(user.id))
+  const eligible = new Map([...users.value, ...pinned].map(user => [user.id, user]))
+  return [...eligible.values()]
+    .filter(user => !assigned.has(user.id))
+    .map(user => ({ label: user.displayName + ' (' + user.userName + ')', value: user.id }))
+    .sort((a, b) => a.label.localeCompare(b.label))
+})
 const selectedMember = computed(() => members.value.find(member => member.userId === memberId.value))
 const availableReviewers = computed(() => selected.value?.members.filter(member => member.isAvailable).length ?? 0)
 
@@ -94,6 +101,7 @@ function fail(value: unknown) {
 }
 function clearForm() {
   memberId.value = ''
+  memberIds.value = []
   capacity.value = 10
   isSupervisor.value = false
   isAvailable.value = true
@@ -112,10 +120,11 @@ async function reload() {
 async function searchUsers() {
   if (!canManage.value) return
   try {
-    const result = await operationsApi.users(userSearch.value)
-    const byId = new Map(users.value.map(user => [user.id, user]))
+    const result = await operationsApi.users()
+    users.value = result.items
+    const byId = new Map(knownUsers.value.map(user => [user.id, user]))
     for (const user of result.items) byId.set(user.id, user)
-    users.value = [...byId.values()]
+    knownUsers.value = [...byId.values()]
   } catch (value) { fail(value) }
 }
 async function loadAudit() {
@@ -140,6 +149,7 @@ function chooseTeam(id: string) {
   void loadAudit()
 }
 function editMember(member: OperationsMember) {
+  memberIds.value = []
   memberId.value = member.userId
   capacity.value = member.capacityPoints
   isSupervisor.value = member.isSupervisor
@@ -147,19 +157,30 @@ function editMember(member: OperationsMember) {
   showAdvanced.value = true
 }
 async function saveMember() {
-  if (!selected.value || !memberId.value || busy.value || !canManage.value ||
+  if (!selected.value || busy.value || !canManage.value ||
       !Number.isFinite(capacity.value) || capacity.value < 0.5 || capacity.value > 10000) return
+  const editing = Boolean(selectedMember.value)
+  const pendingIds = [...new Set(memberIds.value)]
+  if (editing ? !memberId.value : pendingIds.length === 0) return
   error.value = ''
   success.value = ''
   busy.value = true
   try {
-    await operationsApi.saveMember(selected.value.id, {
-      userId: memberId.value, capacityPoints: capacity.value,
-      isSupervisor: isSupervisor.value, isAvailable: isAvailable.value,
-    })
-    await reload()
+    if (editing) {
+      await operationsApi.saveMember(selected.value.id, {
+        userId: memberId.value, capacityPoints: capacity.value,
+        isSupervisor: isSupervisor.value, isAvailable: isAvailable.value,
+      })
+      success.value = t('operations.updated')
+    } else {
+      const result = await operationsApi.addMembers(selected.value.id, {
+        userIds: pendingIds, capacityPoints: capacity.value,
+        isSupervisor: isSupervisor.value, isAvailable: isAvailable.value,
+      })
+      success.value = t('operations.assignedBatch', { count: result.assigned })
+    }
     clearForm()
-    success.value = t('operations.assigned')
+    await Promise.all([reload(), searchUsers()])
   } catch (value) { fail(value) }
   finally { busy.value = false }
 }
@@ -276,15 +297,24 @@ onMounted(initialize)
           </div>
         </DhCard>
 
-        <DhCard v-if="canManage" :title="selectedMember ? t('operations.editMember') : t('operations.addMember')" :subtitle="t('operations.privatePermissions')" :icon="UserRoundPlus">
+        <DhCard v-if="canManage" :title="selectedMember ? t('operations.editMember') : t('operations.addMembers')" :subtitle="t('operations.privatePermissions')" :icon="UserRoundPlus">
           <form class="space-y-4" @submit.prevent="saveMember">
             <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-xs text-[var(--dh-text-soft)]">{{ t('operations.eligibleRolesHint') }}</p>
-            <div class="flex flex-wrap gap-2">
-              <div class="min-w-0 flex-1"><DhSearchInput v-model="userSearch" :placeholder="t('operations.memberSearch')" @search="searchUsers" /></div>
-              <DhButton size="sm" variant="secondary" :label="t('operations.searchPeople')" :icon="RefreshCw" @click="searchUsers" />
-            </div>
-            <DhSelect v-model="memberId" :label="t('operations.person')" :options="options" :placeholder="t('operations.personPlaceholder')" :disabled="!options.length" />
-            <p v-if="!options.length" class="text-xs text-[var(--dh-text-muted)]">{{ t('operations.noEligibleUsers') }}</p>
+            <template v-if="selectedMember">
+              <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)]">
+                {{ nameFor(memberId) }}
+              </p>
+            </template>
+            <DhMultiSelect v-else v-model="memberIds"
+              :label="t('operations.peopleLabel')" :options="options"
+              :placeholder="t('operations.peoplePlaceholder')"
+              :search-placeholder="t('operations.memberSearch')"
+              :empty-text="t('operations.noEligibleUsers')"
+              :disabled="busy || !options.length" />
+            <p v-if="!selectedMember && memberIds.length" class="text-xs font-semibold text-[var(--dh-text-soft)]">
+              {{ t('operations.selectedPeople', { count: memberIds.length }) }}
+            </p>
+            <p v-if="!selectedMember && !options.length" class="text-xs text-[var(--dh-text-muted)]">{{ t('operations.noEligibleUsers') }}</p>
             <div class="flex flex-wrap gap-x-8 gap-y-3">
               <DhCheckbox v-model="isSupervisor" :label="t('operations.supervisor')" />
               <DhCheckbox v-model="isAvailable" :label="t('operations.availableForWork')" />
@@ -298,8 +328,8 @@ onMounted(initialize)
               <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('operations.capacityHelp') }}</p>
             </div>
             <div class="flex flex-wrap gap-2">
-              <DhButton type="submit" :label="selectedMember ? t('operations.updateMember') : t('operations.assign')" :icon="UserCheck" :loading="busy" :disabled="!memberId || !Number.isFinite(capacity) || capacity < 0.5 || capacity > 10000" />
-              <DhButton v-if="memberId" variant="ghost" :label="t('operations.cancel')" @click="clearForm" />
+              <DhButton type="submit" :label="selectedMember ? t('operations.updateMember') : t('operations.assignMultiple', { count: memberIds.length })" :icon="UserCheck" :loading="busy" :disabled="busy || (!selectedMember && !memberIds.length) || !Number.isFinite(capacity) || capacity < 0.5 || capacity > 10000" />
+              <DhButton v-if="memberId || memberIds.length" variant="ghost" :label="t('operations.cancel')" @click="clearForm" />
             </div>
           </form>
         </DhCard>
