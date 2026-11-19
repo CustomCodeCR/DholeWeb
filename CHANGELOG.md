@@ -1,3 +1,11 @@
+## [1.84.0] - 2026-11-18
+
+### Added
+- Prospect onboarding with hierarchical province/canton/district, initial notes and Config acquisition sources.
+- Multiple contacts on prospect creation and a dedicated contact-management detail tab.
+- Prospect-to-account conversion transfers existing contact identities and location data.
+- Preserve existing CRM permissions, real-time events and REST APIs.
+
 ## [1.83.1] - 2026-11-18 (Ventas: retirar cancelación de cotizaciones)
 
 - PATCH DH-20261118-SELLER-CANCEL-HIDE-234: elimina «Cancelar cotización» del dashboard comercial de vendedores (móvil y escritorio), detalle y modal de decisión. Permanecen Ver tarifa, aceptación, rechazo, PDF y modificaciones permitidas.

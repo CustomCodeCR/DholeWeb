@@ -55,6 +55,7 @@ const referenceScopes: Record<string, string[]> = {
 const canSelectReference = (key: string) => (referenceScopes[key] ?? []).some(scope => auth.hasScope(scope))
 const catalogFields: Record<string, { slug: string; kind: 'id' | 'code' | 'value' }> = {
   countryId: { slug: 'countries', kind: 'id' },
+  sourceCode: { slug: 'crm-lead-sources', kind: 'code' },
   currencyCode: { slug: 'currencies', kind: 'value' },
 }
 function upperAccountName(value: unknown): string {
@@ -94,8 +95,8 @@ const columns = computed<DhTableColumn<CrmRow>[]>(() => {
     action,
   ]
   if (section.value === 'leads') return [
-    { key: '_crmTitle', label: 'Cliente potencial' },
-    { key: '_crmDescription', label: 'Empresa' },
+    { key: '_crmTitle', label: 'Prospecto / nombre comercial' },
+    { key: '_crmDescription', label: 'Razón social' },
     { key: '_crmSeller', label: 'Vendedor asignado' },
     { key: '_crmEmail', label: 'Correo' },
     { key: '_crmPhone', label: 'Teléfono' },
@@ -424,7 +425,11 @@ function beginCreate() {
     optionalContacts.value = []
     optionalAddresses.value = []
   }
-  if (section.value === 'leads') form.executiveUserId = ''
+  if (section.value === 'leads') {
+    form.executiveUserId = ''
+    optionalContacts.value = []
+    optionalAddresses.value = []
+  }
   showForm.value = true
   workspaceDraft.begin()
 }
@@ -437,6 +442,8 @@ function beginEdit(item: CrmRow) {
   workspaceDraft.stop()
   resetValidation()
   edited.value = item
+  optionalContacts.value = []
+  optionalAddresses.value = []
   accountFormTab.value = 'identity'
   Object.keys(form).forEach(key => delete form[key])
   for (const f of model.value?.fields ?? []) {
@@ -671,15 +678,16 @@ async function save() {
     form.name = upperAccountName(form.name).trim()
     form.companyName = upperAccountName(form.companyName).trim()
   }
-  if (section.value === 'accounts' && !edited.value) {
+  if (['accounts', 'leads'].includes(section.value) && !edited.value) {
     if (optionalContacts.value.some(item => !item.firstName.trim() || !item.lastName.trim())) {
       focusAccountSection('contacts')
       error.value = 'Completá los nombres y apellidos de cada contacto agregado, o eliminá el registro opcional.'
       return
     }
-    if (optionalAddresses.value.some(item => !item.addressText.trim())) {
-      focusAccountSection('addresses')
-      error.value = 'Completá la dirección exacta de cada dirección agregada, o eliminá el registro opcional.'
+    if (optionalAddresses.value.some(item => !item.addressText.trim() &&
+        (section.value !== 'leads' || !item.admin1Name.trim()))) {
+      if (section.value === 'accounts') focusAccountSection('addresses')
+      error.value = 'Completá una dirección o provincia para cada ubicación agregada.'
       return
     }
   }
@@ -687,8 +695,8 @@ async function save() {
   error.value = ''; saving.value = true
   try {
     let body = crmPayload(section.value, form, edited.value ?? undefined)
-    if (section.value === 'accounts' && !edited.value) {
-      // Nested records are persisted atomically with the new account by CRM.
+    if (['accounts', 'leads'].includes(section.value) && !edited.value) {
+      // Nested records are persisted atomically with the new CRM account or prospect.
       body = { ...body,
         contacts: optionalContacts.value.map(({ key: _key, ...contact }) => ({
           ...contact, countryId: contact.countryId || form.countryId || null,
@@ -1100,7 +1108,7 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
           @update:page="changeCrmPage" @update:page-size="changeCrmPageSize" />
       </div>
 
-      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' ? 'xl' : 'lg'" @close="showForm = false">
+      <DhDrawer :open="showForm && Boolean(model)" :title="formTitle" :size="section === 'accounts' || section === 'leads' ? 'xl' : 'lg'" @close="showForm = false">
         <form v-if="model" class="mx-auto max-w-4xl space-y-5" @submit.prevent="save">
           <p v-if="workspaceDraft.status.value !== 'idle'" role="status" class="text-xs text-[var(--dh-text-muted)]">
             {{ workspaceDraft.status.value === 'unavailable' ? 'No se pudo guardar el borrador local; revisá el espacio del navegador.' :
@@ -1293,6 +1301,64 @@ watch([accountTypeFilter, accountCategoryFilter, accountSellerFilter, accountRel
                 :country-id="String(form.countryId ?? '')"
                 :tax-id="String(form.taxId ?? '')" @resolved="applyLeadHacienda" />
               <p class="mt-2 text-xs text-[var(--dh-text-muted)]">La razón social se incorpora desde Hacienda. Después de crear el prospecto se puede convertir en cuenta, conservando su identificación y ejecutivo.</p>
+            </div>
+            <div v-if="section === 'leads' && !edited" class="sm:col-span-2 space-y-4" data-crm-prospect-relations>
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-sm font-bold">Contactos del prospecto</h3>
+                    <p class="text-xs text-[var(--dh-text-muted)]">Podés registrar varios contactos antes de convertirlo a cuenta.</p>
+                  </div>
+                  <DhButton v-if="can('crm.contact.create')" label="Agregar contacto" size="sm" variant="secondary"
+                    @click="addAccountContact" />
+                </div>
+                <div v-for="(contact, index) in optionalContacts" :key="contact.key"
+                  class="mb-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                  <div class="mb-3 flex items-center justify-between">
+                    <span class="text-xs font-bold">Contacto {{ index + 1 }}</span>
+                    <DhButton label="Quitar" size="sm" variant="ghost" @click="optionalContacts.splice(index,1)" />
+                  </div>
+                  <div class="grid gap-3 sm:grid-cols-2">
+                    <DhInput v-model="contact.firstName" label="Nombre(s) *" />
+                    <DhInput v-model="contact.lastName" label="Apellidos *" />
+                    <DhInput v-model="contact.jobTitle" label="Puesto" />
+                    <DhInput v-model="contact.email" label="Correo" type="email" />
+                    <CrmPhoneInput v-model="contact.phone" label="Teléfono" :country-id="contact.countryId || String(form.countryId ?? '')" />
+                    <CrmCatalogPicker v-model="contact.countryId" label="País del contacto" catalog-group-slug="countries" value-kind="id" />
+                    <DhSwitch :model-value="contact.isPrimary" label="Contacto principal"
+                      @update:model-value="setAccountPrimaryContact(contact.key,$event)" />
+                    <DhSwitch v-model="contact.isOperationsContact" label="Encargado de operaciones" />
+                  </div>
+                </div>
+              </div>
+              <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 class="text-sm font-bold">Ubicaciones y zona comercial</h3>
+                    <p class="text-xs text-[var(--dh-text-muted)]">Seleccioná provincia, cantón y distrito para organizar rutas y visitas.</p>
+                  </div>
+                  <DhButton v-if="can('crm.lead.update')" label="Agregar ubicación" size="sm" variant="secondary"
+                    @click="addAccountAddress" />
+                </div>
+                <div v-for="(address, index) in optionalAddresses" :key="address.key"
+                  class="mb-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
+                  <div class="mb-3 flex items-center justify-between">
+                    <span class="text-xs font-bold">Ubicación {{ index + 1 }}</span>
+                    <DhButton label="Quitar" size="sm" variant="ghost" @click="optionalAddresses.splice(index,1)" />
+                  </div>
+                  <div class="grid gap-3 sm:grid-cols-2">
+                    <DhSelect v-model="address.addressType" label="Tipo de ubicación"
+                      :options="[{label:'Oficina',value:'WORK'},{label:'Bodega',value:'WAREHOUSE'},{label:'Otra',value:'OTHER'}]" />
+                    <DhInput v-model="address.location" label="Referencia de ubicación" />
+                    <CrmAddressLocationFields :model-value="address" :default-country-id="String(form.countryId ?? '')"
+                      @update:model-value="Object.assign(address,$event)" />
+                    <div class="sm:col-span-2">
+                      <DhTextarea v-model="address.addressText" label="Señas / dirección exacta (opcional si hay provincia)"
+                        :rows="2" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <DhInput v-if="section === 'followups'" :label="t('crm.assignedUser')"
               :model-value="String(form.assignedUserId ?? '')" @update:model-value="form.assignedUserId = $event" />
