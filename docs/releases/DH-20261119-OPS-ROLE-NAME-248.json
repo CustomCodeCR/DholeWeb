@@ -15,5 +15,7 @@
   "staging": "pending",
   "validation": "System master 1.91.1 integrated; re-running Web CI and exact-version policy before promotion",
   "systemMasterMergeSha": "90a778e1ffe94d501c13f1af26dd7dfb8ff4c823",
-  "deploymentPolicy": "master after CI, only with user authorization"
+  "deploymentPolicy": "master after CI, only with user authorization",
+  "systemMasterVersionVerified": "1.91.1",
+  "qaNote": "System/master ahora coincide con Web candidate 1.91.1; exigir repetir validación cruzada antes de promoción."
 }
