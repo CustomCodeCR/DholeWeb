@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
 import CrmPricingLocationSelect from './CrmPricingLocationSelect.vue'
 import CrmPricingEquipmentSelect from './CrmPricingEquipmentSelect.vue'
+import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
 import DhSelect from '@/shared/components/atoms/DhSelect.vue'
 import { Search, ChevronDown, Layers3, Ship, MapPin, PackageCheck } from 'lucide-vue-next'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
@@ -11,7 +12,7 @@ import { sellerRateCurrencyValue } from '@/modules/pricing/utils/sellerRateCurre
 import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis } from '../utils/crmPreferentialCostGroups'
 import { costTiers, currentTierSale, discounted, tierSalesMatch, tierSalesPayload, tierText } from '../utils/crmPreferentialTierSales'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
-import { matchesPreferentialRoute, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
+import { matchesPreferentialRoute, matchesPreferentialCommercialScope, PREFERENTIAL_INCOTERMS, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
 
 type SavedRate = {
   id: string; rowVersion: number; modality: string; laneCode: string | null
@@ -19,6 +20,7 @@ type SavedRate = {
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
   tierSalesJson?: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]; isActive: boolean
+  carrierCode?: string | null; incotermCode?: string | null
 }
 const props = defineProps<{
   accountId: string; categoryType: string; categoryCode: string
@@ -31,6 +33,7 @@ const route = reactive({
   shipment: 'FCL' as PreferentialShipment,
   equipmentCodes: [] as string[], polCodes: [] as string[],
   poeCodes: [] as string[], podCodes: [] as string[],
+  carrierCode: '', incotermCode: '',
 })
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
@@ -69,6 +72,8 @@ const options = computed(() => route.modality === 'MARITIME'
   ? [{ value: 'FCL', label: 'FCL' }, { value: 'LCL', label: 'LCL propio' }]
   : [{ value: 'FTL', label: 'FTL' }, { value: 'LTL', label: 'LTL propio' }])
 const laneCode = computed(() => ['LCL', 'LTL'].includes(route.shipment) ? 'OWN' : null)
+const incotermOptions = [{ value: '', label: 'Todos los Incoterms' },
+  ...PREFERENTIAL_INCOTERMS.map(value => ({value,label:value}))]
 const equipmentGroups = computed(() => route.modality === 'MARITIME'
   ? ['container-types'] : ['land-equipment-sizes', 'land-equipment-types'])
 const isComplete = computed(() => [route.equipmentCodes, route.polCodes, route.poeCodes].every(x => x.length === 1) &&
@@ -79,6 +84,7 @@ const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : 
   .filter(cost => cost.costDetailType !== 'Insurance' && matchesPreferentialRoute(cost, {
     shipment: route.shipment, polCode: route.polCodes[0] ?? '',
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
+    carrierCode: route.carrierCode, incotermCode: route.incotermCode,
   }))
   .filter(cost => {
     const rows = costTiers(cost)
@@ -198,7 +204,8 @@ function scopeMatches(rate: SavedRate) {
     normalized(rate.equipmentCodes) === normalized(route.equipmentCodes) &&
     normalized(rate.polCodes) === normalized(route.polCodes) &&
     normalized(rate.poeCodes) === normalized(route.poeCodes) &&
-    normalized(rate.podCodes) === (route.modality === 'MARITIME' ? normalized(route.podCodes) : '')
+    normalized(rate.podCodes) === (route.modality === 'MARITIME' ? normalized(route.podCodes) : '') &&
+    matchesPreferentialCommercialScope(rate, route)
 }
 function existingCost(cost: CostSelectDto) {
   return props.rates.find(x => x.isActive && x.sourceCostId?.toLowerCase() === cost.id.toLowerCase() && scopeMatches(x))
@@ -215,9 +222,11 @@ function resetPreview() {
 function changeModality(value: 'MARITIME' | 'TERRESTRIAL') {
   route.modality = value; route.shipment = value === 'MARITIME' ? 'FCL' : 'FTL'
   route.equipmentCodes = []; route.polCodes = []; route.poeCodes = []; route.podCodes = []
+  route.carrierCode = ''; route.incotermCode = ''
 }
 watch(() => [route.modality, route.shipment, route.equipmentCodes.join('|'),
-  route.polCodes.join('|'), route.poeCodes.join('|'), route.podCodes.join('|')], resetPreview)
+  route.polCodes.join('|'), route.poeCodes.join('|'), route.podCodes.join('|'),
+  route.carrierCode, route.incotermCode], resetPreview)
 function consult() {
   error.value = ''; success.value = ''
   if (!isComplete.value) {
@@ -257,6 +266,7 @@ const validPercent = (value: string) =>
 function scope() {
   return {
     modality: route.shipment, laneCode: laneCode.value,
+    carrierCode: route.carrierCode, incotermCode: route.incotermCode,
     equipmentCodes: [...route.equipmentCodes], polCodes: [...route.polCodes],
     poeCodes: [...route.poeCodes], podCodes: route.modality === 'MARITIME' ? [...route.podCodes] : [],
     equipmentCode: null, originCode: null, destinationCode: null,
@@ -370,6 +380,14 @@ async function save() {
 
       <CrmPricingEquipmentSelect v-model="route.equipmentCodes"
         label="Equipo" :catalog-group-slugs="equipmentGroups" />
+      <CrmMultiCatalogPicker v-if="route.modality==='MARITIME'"
+        :model-value="route.carrierCode ? [route.carrierCode] : []"
+        label="Naviera" :catalog-group-slugs="['carriers']" :single="true"
+        placeholder="Todas las navieras"
+        @update:model-value="route.carrierCode = String($event[0] ?? '')" />
+      <DhSelect :model-value="route.incotermCode" label="Incoterm"
+        :options="incotermOptions" placeholder=""
+        @update:model-value="route.incotermCode = String($event)" />
       <CrmPricingLocationSelect v-model="route.polCodes" label="Origen (POL)"
         placeholder="Buscar puerto de origen" :catalog-group-slugs="['pol']"
         :route-mode="route.shipment" route-role="pol" />
@@ -380,6 +398,10 @@ async function save() {
         label="POD requerido" placeholder="Buscar destino final"
         :catalog-group-slugs="['pod']" :route-mode="route.shipment" route-role="pod" />
     </div>
+    <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
+      La naviera y el Incoterm forman parte del acuerdo guardado, no solo del filtro de costos.
+      Dejarlos en «Todas/Todos» mantiene una condición general.
+    </p>
     <button type="button" class="route-action mt-4" :disabled="saving || costsLoading" @click="consult">
       {{ costsLoading ? 'Cargando costos…' : 'Mostrar costos y recargos' }}
     </button>
@@ -408,7 +430,7 @@ async function save() {
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p class="text-sm font-extrabold">1. Elegí una naviera o agente</p>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">No hace falta configurar todos los {{ costsForRoute.length }} cargos. Filtrá el proveedor y personalizá solo los necesarios.</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Este filtro solo organiza los conceptos visibles. Para limitar la condición guardada a una naviera, seleccionála en los datos de la ruta.</p>
             </div>
             <span class="route-pill">{{ filteredCosts.length }} cargos visibles</span>
           </div>
