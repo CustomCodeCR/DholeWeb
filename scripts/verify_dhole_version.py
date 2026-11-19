@@ -40,6 +40,7 @@ def main():
     assert metadata["ecosystem"] == "Dhole"
     assert metadata["component"].startswith("Dhole")
     assert metadata["schemaVersion"] == 1
+    assert version == metadata["ecosystemVersion"], "DholeWeb must use DholeSystem global version"
     assert metadata["releaseId"].strip()
     assert parse(metadata["ecosystemVersion"]) >= parse(version), "Global ecosystem version cannot predate component"
     assert Path("AGENTS.md").is_file(), "Missing permanent Codex instructions"

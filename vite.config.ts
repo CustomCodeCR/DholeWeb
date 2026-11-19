@@ -139,6 +139,8 @@ const versionManifestPlugin: Plugin = {
 }
 
 export default defineConfig({
+  // The running bundle compares this build against the uncached /version.json endpoint.
+  define: { __DHOLE_WEB_VERSION__: JSON.stringify(appVersion) },
   plugins: [
     versionManifestPlugin,
     pricingWizardLclOptionalWeight(),
