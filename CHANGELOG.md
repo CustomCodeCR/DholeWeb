@@ -1,3 +1,11 @@
+## [1.97.4] - 2026-11-19 (DH-20261119-GCF-ALL-COUNTRIES-263 · Grupo Castro Fallas opera en todos los países)
+
+- PATCH: GCF tiene cobertura mundial sin depender de la lista de países seleccionados actualmente; el formulario comunica «Todos los países» y guarda metadata.allCountries al editar.
+- Se conservan países, códigos y demás campos previos y se sincronizan países conocidos; los países futuros también quedan cubiertos por la regla global.
+- Pricing LCL y wizard de tarifas usan GCF como alternativa mundial, con prioridad para agentes específicos por país.
+- Tests de identidad GCF, compatibilidad de metadata y ausencia de POL; DholeWeb y DholeSystem 1.97.3 → 1.97.4.
+- Sobre develop con corrección CIF 1.97.3 preservada; CI/staging pendientes. Producción no autorizada.
+
 ## [1.97.3] - 2026-11-19 (DH-20261119-PRICING-CIF-NO-FREIGHT-262 · Importación CIF sin flete marítimo adicional)
 
 - PATCH: Pantalla 6 del wizard FCL oculta ambas tarjetas de creación de flete manual cuando el Incoterm ya cubre el tramo internacional (CIF/CFR en importación).
