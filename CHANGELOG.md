@@ -1,3 +1,9 @@
+## [1.97.1] - 2026-11-19 (DH-20261119-OPS-DASHBOARD-UX-257 · Rediseño operativo)
+
+- PATCH: unifica el encabezado del Dashboard de Operaciones con selector de rol Dh y filtros por equipo en una barra adaptable.
+- Los cuatro KPI no muestran ceros ficticios durante la carga, los resultados del equipo anterior se descartan, y el listado vacío es compacto y proporciona acceso a Trámites.
+- Traducciones ES/EN, tests de regresión; conserva roles/scopes y las vistas de Pricing/Vendedor. Web/System 1.97.0 → 1.97.1. Staging validado en develop; producción pendiente de aprobación.
+
 ## [1.97.0] - 2026-11-19 (DH-20261119-ORVELUM-BRAND-256 · Orvelum System)
 
 - MINOR: Orvelum System en interfaz ES/EN, login, menú y avisos de actualización.
