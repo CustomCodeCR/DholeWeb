@@ -45,7 +45,7 @@ test('Eye tracking only opts in on fine pointers and respects reduced motion', (
 })
 
 test('Topbar uses authenticated ID, continuous breathing and pointer tracking', () => {
-  assert.match(topbar, /<DhAvatar :id="authStore\.userId" :name="displayName"/)
+  assert.ok(topbar.includes('<DhAvatar :src="avatarMascot.photo" :id="authStore.userId" :name="displayName"'))
   assert.match(topbar, /animate="always" :follow-cursor="true"/)
 })
 
