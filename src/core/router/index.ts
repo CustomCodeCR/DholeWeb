@@ -99,6 +99,13 @@ export const router = createRouter({
         },
 
         {
+          path: 'operations/cases',
+          name: 'operations-cases',
+          component: () => import('@/modules/operations/views/OperationsCasesView.vue'),
+          meta: { tabTitle: 'Operaciones · Trámites', closable: true,
+            requiredScope: 'operations.case.read' },
+        },
+        {
           path: 'operations/teams',
           name: 'operations-teams',
           component: () => import('@/modules/operations/views/OperationsTeamsView.vue'),
