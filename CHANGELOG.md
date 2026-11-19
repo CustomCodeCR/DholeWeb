@@ -1,3 +1,9 @@
+## [1.102.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-PROD-271 · Promoción país de cliente / Incoterms)
+
+- MINOR: global Web/System 1.101.0 → 1.102.0 con CRM 1.42.0 ya integrado. Al distribuir cargos por Incoterm, la operación se decide desde el país cliente CRM frente al POL y POD final.
+- El nuevo master backport no arrastra cambios de develop; conservar corrección PRICING-RETURN-REQUEST-271. IVA/CRC sigue al destino físico, error visible si falta país; pruebas automatizadas incluidas.
+- Producción autorizada expresamente; requiere CI y staging antes de master.
+
 ## [1.101.0] - 2026-11-19 (DH-20261119-PRICING-RETURN-REQUEST-271 · devolver solicitudes de tarifa)
 
 - MINOR: agrega «Devolver solicitud» a la par de «Continuar tarifa» en la bandeja de Pricing. Modal Dh con motivo obligatorio; reserva exclusiva, validación API y actualización de la cola.
