@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Blobatar } from '@blobatar/vue'
 import { useGaze } from '@blobatar/vue/gaze'
 import { happy, idle, love, mad, sad, scared, shy, sick, sleepy, smug, surprised, thinking, unsure, wink } from 'blobatar/expression'
-import { stressed, tired, resigned } from './blobatarExpressions'
+import { stressed, tired, resigned, achicopalado, emperrado, emocionado, nostalgico, desesperado, aburrido, pereza, celoso, avergonzado, culpable, orgulloso, curioso, asqueado, preocupado, decepcionado, irritado, impaciente, ojosLlorosos, arrogante, melancolico, humillado, miserable, abrumado, vulnerable, rechazado, desilusionado, alarmado, horrorizado, pasmado, irritable, desconcertado, desmotivado, resentido, agobiado, temeroso, incomodo } from './blobatarExpressions'
 import type { AvatarExpression } from '@/core/stores/avatarAppearanceStore'
 import 'blobatar/motion.css'
 import 'blobatar/gaze.css'
@@ -13,27 +14,9 @@ type AvatarMood = 'auto' | AvatarExpression
 type PreviewMood = Exclude<AvatarMood, 'auto'>
 
 // Blobatar 2.7 roster: the first manual click without a saved preference shows "mad".
-const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle', 'stressed', 'tired', 'resigned'] as const satisfies readonly PreviewMood[]
+const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle', 'stressed', 'tired', 'resigned', 'achicopalado', 'emperrado', 'emocionado', 'nostalgico', 'desesperado', 'aburrido', 'pereza', 'celoso', 'avergonzado', 'culpable', 'orgulloso', 'curioso', 'asqueado', 'preocupado', 'decepcionado', 'irritado', 'impaciente', 'ojosLlorosos', 'arrogante', 'melancolico', 'humillado', 'miserable', 'abrumado', 'vulnerable', 'rechazado', 'desilusionado', 'alarmado', 'horrorizado', 'pasmado', 'irritable', 'desconcertado', 'desmotivado', 'resentido', 'agobiado', 'temeroso', 'incomodo'] as const satisfies readonly PreviewMood[]
 const AUTO_MOOD_INTERVAL_MS = 30_000
-const previewLabels: Record<PreviewMood, string> = {
-  mad: 'Enojado',
-  happy: 'Feliz',
-  sad: 'Triste',
-  surprised: 'Sorprendido',
-  wink: 'Guiño',
-  sleepy: 'Dormido',
-  smug: 'Satisfecho',
-  unsure: 'Indeciso',
-  scared: 'Asustado',
-  love: 'Enamorado',
-  shy: 'Tímido',
-  sick: 'Enfermo',
-  thinking: 'Pensativo',
-  idle: 'Neutral',
-  stressed: 'Estresado',
-  tired: 'Cansado',
-  resigned: 'Resignado',
-}
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{
@@ -73,7 +56,7 @@ const tapMood = ref<PreviewMood | null>(null)
 const previewIndex = ref(-1)
 const previewLabel = computed(() => {
   const selected = props.controlledExpressions && props.mood !== 'auto' ? props.mood : tapMood.value
-  return selected ? previewLabels[selected] : ''
+  return selected ? t('appearance.avatarMoods.' + selected) : ''
 })
 const tapActive = ref(false)
 const tapVariant = ref(false)
@@ -180,7 +163,7 @@ const showMotionAura = computed(() =>
   Boolean(animationMode.value),
 )
 
-const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking, stressed, tired, resigned }
+const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking, stressed, tired, resigned, achicopalado, emperrado, emocionado, nostalgico, desesperado, aburrido, pereza, celoso, avergonzado, culpable, orgulloso, curioso, asqueado, preocupado, decepcionado, irritado, impaciente, ojosLlorosos, arrogante, melancolico, humillado, miserable, abrumado, vulnerable, rechazado, desilusionado, alarmado, horrorizado, pasmado, irritable, desconcertado, desmotivado, resentido, agobiado, temeroso, incomodo }
 const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
   if (props.controlledExpressions && props.mood !== 'auto') return props.mood
   if (tapMood.value && !props.controlledExpressions) return tapMood.value

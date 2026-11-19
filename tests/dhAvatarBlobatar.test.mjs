@@ -187,7 +187,7 @@ test('Avatar appearance translations are complete in English and Spanish', () =>
     for (const label of ['avatarTitle', 'avatarAuto', 'avatarFixed', 'avatarNext', 'avatarHelp']) {
       assert.ok(data.appearance[label])
     }
-    assert.equal(Object.keys(data.appearance.avatarMoods).length, 17)
+    assert.equal(Object.keys(data.appearance.avatarMoods).length, 53)
   }
 })
 
@@ -210,4 +210,30 @@ test('Dhole adds three distinct native Blobatar poses, synchronized with shared 
     }
   }
   assert.ok(avatar.includes('controlledExpressions'))
+})
+
+
+test('36 new Blobatar poses are registered, translated and render unique SVGs', async () => {
+  const keys = ["achicopalado","emperrado","emocionado","nostalgico","desesperado","aburrido","pereza","celoso","avergonzado","culpable","orgulloso","curioso","asqueado","preocupado","decepcionado","irritado","impaciente","ojosLlorosos","arrogante","melancolico","humillado","miserable","abrumado","vulnerable","rechazado","desilusionado","alarmado","horrorizado","pasmado","irritable","desconcertado","desmotivado","resentido","agobiado","temeroso","incomodo"]
+  const roster = readFileSync(new URL('../src/core/stores/avatarAppearanceStore.ts', import.meta.url), 'utf8')
+  const poses = await import('../src/shared/components/atoms/blobatarExpressions.ts')
+  assert.equal(keys.length, 36)
+  for (const key of keys) {
+    assert.ok(roster.includes(`'${key}'`), key + ' missing from shared roster')
+    assert.ok(avatar.includes(key), key + ' missing from avatar')
+    assert.ok(poses[key]?.p && typeof poses[key].vars === 'function', key + ' must be a native pose')
+    for (const lang of ['es', 'en']) {
+      const translations = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
+      assert.ok(translations.appearance.avatarMoods[key], lang + ': ' + key)
+    }
+  }
+  const output = await Promise.all(keys.map(key => renderToString(createSSRApp({
+    render: () => h(Blobatar, { name: 'dhole-user-42', size: 160, animate: 'always', expression: poses[key] }),
+  }))))
+  assert.equal(new Set(output).size, 36)
+  assert.ok(output.every(markup => markup.includes('<svg')))
+  const view = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
+  assert.ok(view.includes('<DhSelect'))
+  assert.ok(view.includes('avatarAppearance.setExpression'))
+  assert.ok(roster.includes("saveSetting(keyFor('mode'), 'fixed')"))
 })
