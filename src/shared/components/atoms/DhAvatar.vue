@@ -269,7 +269,7 @@ function handlePointerEnter(event: PointerEvent) {
       :hue="210"
       animate="always"
       :expression="expression"
-      :title="name || undefined"
+      :title="transparentBackdrop ? undefined : (name || undefined)"
       class="dh-avatar__face rounded-full"
       :class="[sizeClass, !transparentBackdrop && 'ring-2 ring-white/70 dark:ring-white/10']"
     />
@@ -282,7 +282,7 @@ function handlePointerEnter(event: PointerEvent) {
       :hue="210"
       :animate="animationMode"
       :expression="expression"
-      :title="name || undefined"
+      :title="transparentBackdrop ? undefined : (name || undefined)"
       :alt="name || ''"
       class="dh-avatar__face rounded-full"
       :class="[sizeClass, !transparentBackdrop && 'ring-2 ring-white/70 dark:ring-white/10']"
