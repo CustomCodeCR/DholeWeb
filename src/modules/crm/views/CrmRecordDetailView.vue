@@ -13,6 +13,7 @@ import CrmLeadCommercialPanel from '../components/CrmLeadCommercialPanel.vue'
 import CrmSalesCalendar from '../components/CrmSalesCalendar.vue'
 import CrmRecordFollowups from '../components/CrmRecordFollowups.vue'
 import CrmLeadLocations from '../components/CrmLeadLocations.vue'
+import CrmLeadContacts from '../components/CrmLeadContacts.vue'
 import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import CrmActivityFullEditor from '../components/CrmActivityFullEditor.vue'
@@ -221,12 +222,13 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'profile' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'followups' | 'log' | 'conversion' | 'documents' | 'locations'
+type LeadTab = 'summary' | 'profile' | 'contacts' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'followups' | 'log' | 'conversion' | 'documents' | 'locations'
 const leadTab = ref<LeadTab>('summary')
 const leadCalendarRef = ref<InstanceType<typeof CrmSalesCalendar> | null>(null)
 const leadTabs = computed(() => [
   { key: 'summary' as const, label: 'Prospecto', icon: BriefcaseBusiness },
   { key: 'profile' as const, label: 'Ficha prospecto', icon: FileText },
+  { key: 'contacts' as const, label: 'Contactos', icon: UsersRound },
   ...(can('crm.analysis.read') ? [{ key: 'analysis' as const, label: 'Análisis comercial', icon: Route }] : []),
   ...(can('crm.quote.read')
     ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
@@ -1334,7 +1336,8 @@ onBeforeUnmount(() => window.removeEventListener('focus', syncActivityOnFocus))
             ['Vendedor asignado',leadExecutiveName],['Cédula',record.taxId],
             ['Correo',record.contactEmail],['Teléfono',record.phone],
             ['Estado de calificación',record.qualificationStatus],
-            ['Origen',record.sourceCode],['Relación comercial',record.relationshipTypeCode],
+            ['Origen',record.sourceCode],['Detalle de captación',record.sourceDetail],
+            ['Observaciones iniciales',record.initialNotes],['Relación comercial',record.relationshipTypeCode],
             ['Versión',record.rowVersion],['Creado',record.createdAt],['Última actualización',record.updatedAt]
           ]" :key="String(label)" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3">
             <dt class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ label }}</dt>
@@ -1342,6 +1345,12 @@ onBeforeUnmount(() => window.removeEventListener('focus', syncActivityOnFocus))
           </div>
         </dl>
       </section>
+      <CrmLeadContacts v-if="section === 'leads' && leadTab === 'contacts'"
+        id="crm-lead-panel-contacts" role="tabpanel" :key="id"
+        :lead-id="id" :country-id="String(record.countryId ?? '')"
+        :can-create="can('crm.lead.update') && can('crm.contact.create')"
+        :can-edit="can('crm.lead.update') && can('crm.contact.update')"
+        :converted="Boolean(record.convertedAt)" @changed="load" />
       <CrmLeadLocations v-if="section === 'leads' && leadTab === 'locations'"
         id="crm-lead-panel-locations" role="tabpanel" :key="id"
         :lead-id="id" :country-id="String(record.countryId ?? '')"
