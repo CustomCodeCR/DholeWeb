@@ -7,6 +7,7 @@ import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type ApertureRow, type OperationsAudit, type ValidationPair } from '../services/operationsApi'
+import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -215,13 +216,7 @@ onMounted(load)
         </div>
       </DhCard>
       <DhCard v-if="canAudit" :title="t('operations.validation.audit')" :subtitle="t('operations.validation.auditHint')">
-        <DhEmptyState v-if="!audit.length" :icon="Clock3" :title="t('operations.validation.noAudit')" :description="t('operations.validation.noAuditDescription')" />
-        <ol v-else class="space-y-3">
-          <li v-for="event in audit" :key="event.eventId" class="border-l-2 border-[var(--dh-primary)] py-1 pl-4">
-            <p class="break-all text-sm font-bold text-[var(--dh-text)]">{{ event.actionCode }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ label(event.occurredAtUtc) }} · {{ short(event.actorUserId) }}</p>
-          </li>
-        </ol>
+        <OperationsAuditTimeline :events="audit" :empty-title="t('operations.validation.noAudit')" :empty-description="t('operations.validation.noAuditDescription')" />
       </DhCard>
     </div>
     <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? t('operations.validation.new') : undefined" @action="showCreate = true" />
