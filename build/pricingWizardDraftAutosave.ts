@@ -72,6 +72,8 @@ function pricingDraftPayload() {
     savedAt: new Date().toISOString(),
     step: step.value,
     form: JSON.parse(JSON.stringify(form)),
+    pricingQuoteCountryOverrideId: pricingQuoteCountryOverrideId.value,
+    landLtlCommercialProfile: landLtlCommercialProfile.value,
     selectedPoeIds: [...selectedPoeIds.value],
     selectedCarriersByPoe: JSON.parse(JSON.stringify(selectedCarriersByPoe.value)),
     activeCarrierByPoe: JSON.parse(JSON.stringify(activeCarrierByPoe.value)),
@@ -182,6 +184,10 @@ async function restorePricingDraft() {
 
     pricingDraftRestoring.value = true
     if (draft.form && typeof draft.form === 'object') Object.assign(form, draft.form)
+    if (typeof draft.pricingQuoteCountryOverrideId === 'string') pricingQuoteCountryOverrideId.value = draft.pricingQuoteCountryOverrideId
+    if (draft.landLtlCommercialProfile === 'Nvocc' || draft.landLtlCommercialProfile === 'FinalClient') {
+      landLtlCommercialProfile.value = draft.landLtlCommercialProfile
+    }
     await nextTick()
     // POE/POD remain the exact IDs the user chose. Restore every POE/carrier
     // snapshot together; restoring only form and rateLines loses the other routes.
@@ -334,6 +340,8 @@ function discardPricingDraft() {
 watch(
   [
     () => step.value,
+    () => pricingQuoteCountryOverrideId.value,
+    () => landLtlCommercialProfile.value,
     form,
     selectedPoeIds,
     selectedCarriersByPoe,

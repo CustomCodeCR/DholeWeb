@@ -38,6 +38,7 @@ function patchWizard(source: string) {
   executiveUserId: string
   executiveName: string
   isCastroFallasExecutive: boolean
+  countryId?: string | null
 }
 
 // An existing modification may resume after screen 3; an older seller request
@@ -75,6 +76,8 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
     }
     // Respect a client changed in the modification; never restore the old owner.
     form.clientId = client.id
+    crmClientCountryId.value = String(client.countryId ?? '').trim()
+    resolvedCountryClientId.value = client.id
     form.crmClientKind = client.kind
     form.clientName = client.displayName
     if (!editingRate.value && form.clientName.toLocaleUpperCase().includes('TARIFARIO')) {

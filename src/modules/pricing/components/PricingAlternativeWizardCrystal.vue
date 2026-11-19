@@ -339,6 +339,7 @@ const form = reactive({
 // The selected CRM country is resolved from the account/lead, never inferred from CR.
 // Keep it separate from draft state because CRM is rehydrated asynchronously.
 const crmClientCountryId = ref('')
+const pricingQuoteCountryOverrideId = ref('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -2031,9 +2032,15 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
   : [])
 
 // Compute the CRM client's perspective directly, with no generated helper binding.
+const pricingQuoteCountryOptions = computed(() => catalogs.countries
+  .filter((country) => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries)))
+  .map((country) => ({ value: country.id, label: displayValue(country) || country.label || country.id }))
+)
+
 const direction = computed(() => {
   const perspective = operationForClientCountry(
-    resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries),
+    resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
+      || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
     resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
     resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
   )
@@ -2044,7 +2051,8 @@ const direction = computed(() => {
 })
 // Do not infer a missing CRM/route country during save validation.
 const operationType = computed<RateOperationType>(() => operationForClientCountry(
-  resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries),
+  resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
+      || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
   resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
   resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
 ) ?? 'TransitDomestic')
@@ -2743,6 +2751,9 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
       add(!(form.cargoWidthCm > 0), 'cargoWidthCm', 'Ancho')
       add(!(form.cargoHeightCm > 0), 'cargoHeightCm', 'Alto')
     }
+  }
+  if (step.value === 5 && props.rateRequestId && form.clientId) {
+    add(!direction.value, 'clientCountry', 'País del cliente y país de origen/destino')
   }
   if (step.value === 5 && !props.rateId) {
     if (multiCarrierSelectionMode.value) {
@@ -5535,6 +5546,13 @@ async function retrySavedModificationDelivery() {
 
 async function saveRate() {
   if (form.clientId && !direction.value) {
+    if (props.rateRequestId) {
+      step.value = 5
+      toastStore.warning('País necesario para guardar',
+        'La solicitud no tiene suficiente información de país para determinar la operación. Seleccione el país real del cliente en Pantalla 5 o revise los países de origen/destino.')
+      void Promise.resolve().then(() => { validateRequiredFields() })
+      return
+    }
     step.value = 3
     void Promise.resolve().then(() => { validateRequiredFields() })
     return
@@ -6433,6 +6451,7 @@ function setCrmClient(client: {
   isCastroFallasExecutive?: boolean
 } | null) {
   crmClientCountryId.value = client?.countryId || ''
+  pricingQuoteCountryOverrideId.value = ''
   resolvedCountryClientId.value = client?.id || ''
   form.crmClientKind = client?.kind || ''
   form.clientId = client?.id || ''
@@ -6456,6 +6475,7 @@ watch(
     // Never retain the previous account's country during draft/quote hydration.
     if (clientId !== resolvedCountryClientId.value) {
       crmClientCountryId.value = ''
+      pricingQuoteCountryOverrideId.value = ''
       resolvedCountryClientId.value = ''
     }
   },
@@ -7372,6 +7392,21 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 5" class="space-y-6">
+          <div v-if="props.rateRequestId && form.clientId && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
+            class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+            <p class="text-sm font-black">País del cliente pendiente en CRM</p>
+            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+              La solicitud de Ventas no incluye un país del cliente válido. Seleccione el país real para determinar Importación, Exportación o Tránsito en esta cotización. No modifica la ficha del CRM.
+            </p>
+            <DhSelect v-model="pricingQuoteCountryOverrideId"
+              data-required-field="clientCountry"
+              :error="fieldError('clientCountry')"
+              label="País del cliente para esta cotización *"
+              :options="pricingQuoteCountryOptions" />
+            <p v-if="pricingQuoteCountryOverrideId && !direction" class="text-xs font-semibold text-amber-700 dark:text-amber-300">
+              No se identificó el país del origen o destino de la ruta. Revise POL, POE o POD.
+            </p>
+          </div>
           <div>
             <p class="crystal-kicker">Pantalla 5</p>
             <p v-if="multiCarrierSelectionMode" class="mt-1 text-xs font-black text-[var(--dh-primary)]">POE {{ currentPoeIndex + 1 }} de {{ selectedPoeIds.length }} · {{ displayValue(selectedDestination) }}</p>
