@@ -1,3 +1,9 @@
+## [1.103.1] - 2026-11-19 (DH-20261119-WIZARD-ROUTE-REF-273 · wizard de tarifas sin referencia inválida)
+
+- PATCH: evita `Can't find variable: routeOperation` al abrir Crear tarifa, sustituyendo la referencia por un resolvedor elevado a función que permanece disponible para Vue/Vite.
+- Preserva perspectiva Import/Export/TransitDomestic según país CRM y POL/POD, validación del país de cliente e Incoterms; añade prueba de regresión de bindings.
+- Release coordinado DholeWeb/DholeSystem 1.103.1; sin cambios en datos, REST ni SignalR. Validar CI y staging antes de integrar master; despliegue productivo no autorizado.
+
 ## [1.103.0] - 2026-11-19 (DH-20261119-PRICING-RETURN-PROMOTION-272 · devolver solicitudes incorrectas de Pricing)
 
 - MINOR: ahora Pricing puede usar «Devolver solicitud» al lado de «Continuar tarifa» con un motivo obligatorio y la reserva vigente; Ventas recibe notificación sistema/correo, ve el motivo y puede corregir y reenviar la misma solicitud.

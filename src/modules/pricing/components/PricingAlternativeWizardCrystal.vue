@@ -2025,20 +2025,23 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
   : [])
 
 const clientCountryCode = computed(() => resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries))
-const routeOperation = computed(() => operationForClientCountry(
-  clientCountryCode.value,
-  resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
-  resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
-))
+// A hoisted resolver remains in scope for generated wizard handlers and render.
+function resolveClientRouteOperation(): RateOperationType | null {
+  return operationForClientCountry(
+    clientCountryCode.value,
+    resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
+    resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
+  )
+}
 const direction = computed(() => {
   // Commercial Incoterm perspective follows CRM client and final POD, not a CR default.
-  if (routeOperation.value === 'Import') return 'Importación'
-  if (routeOperation.value === 'Export') return 'Exportación'
-  if (routeOperation.value === 'TransitDomestic') return 'Tránsito / doméstico'
+  if (resolveClientRouteOperation() === 'Import') return 'Importación'
+  if (resolveClientRouteOperation() === 'Export') return 'Exportación'
+  if (resolveClientRouteOperation() === 'TransitDomestic') return 'Tránsito / doméstico'
   return ''
 })
 // During CRM hydration, retain all available cost sections; reject unresolved save.
-const operationType = computed<RateOperationType>(() => routeOperation.value ?? 'TransitDomestic')
+const operationType = computed<RateOperationType>(() => resolveClientRouteOperation() ?? 'TransitDomestic')
 const crcImportContext = computed(
   // Tax/CRC follows the physical destination, independent of CRM client's country.
   () => isCostaRica(selectedPod.value ?? selectedDestination.value),
@@ -2657,7 +2660,7 @@ const canNext = computed(() => {
       form.serviceIds.length &&
       form.loadDate &&
       (!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim())) &&
-      (!form.clientId || Boolean(routeOperation.value)) &&
+      (!form.clientId || Boolean(resolveClientRouteOperation())) &&
       exwLocationReady.value &&
       fcaLocationReady.value &&
       inlandServiceLocationsReady.value &&
@@ -2692,7 +2695,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   if (step.value === 2) add(!form.shipmentMode, 'shipmentMode', 'Tipo de embarque')
   if (step.value === 3) {
     add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
-    add(Boolean(form.clientId && !routeOperation.value), 'clientCountry', 'País del cliente y POL/POD en CRM/Config')
+    add(Boolean(form.clientId && !resolveClientRouteOperation()), 'clientCountry', 'País del cliente y POL/POD en CRM/Config')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
     add(maritimePodRequired.value && !String(form.podId ?? '').trim(), 'podId', 'POD (destino final)')
@@ -5312,7 +5315,7 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
-  if (form.clientId && !routeOperation.value) {
+  if (form.clientId && !resolveClientRouteOperation()) {
     step.value = 3
     void Promise.resolve().then(() => { validateRequiredFields() })
     return
@@ -5512,7 +5515,7 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
-  if (form.clientId && !routeOperation.value) {
+  if (form.clientId && !resolveClientRouteOperation()) {
     step.value = 3
     void Promise.resolve().then(() => { validateRequiredFields() })
     return
@@ -6921,7 +6924,7 @@ onMounted(async () => {
               <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
             <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha. La operación se calcula por el país del cliente frente al POL y POD final.</p>
-            <p v-if="form.clientId && !routeOperation" data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Verifique el país de la cuenta/prospecto en CRM y los países de origen y destino en Config.</p>
+            <p v-if="form.clientId && !resolveClientRouteOperation()" data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Verifique el país de la cuenta/prospecto en CRM y los países de origen y destino en Config.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">
