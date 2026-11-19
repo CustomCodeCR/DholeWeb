@@ -32,6 +32,25 @@ export interface OperationsValidator {
   comment?: string | null
   reviewedAtUtc?: string | null
 }
+export interface OperationsCaseRow {
+  id: string
+  idtra: string
+  accountId: string
+  modalityCode: string
+  status: string
+  priority: number
+  updatedAtUtc: string
+}
+export interface OperationsCaseDetail {
+  id: string
+  idtra: string
+  accountId: string
+  modalityCode: string
+  status: string
+  priority: number
+  updatedAtUtc: string
+  stages: Array<{ id: string; departmentCode: string; status: string; teamId: string | null; version: number }>
+}
 export interface ApertureRow {
   id: string
   idtra: string
@@ -55,6 +74,8 @@ function request<T>(path: string, method: Method = 'GET', body?: unknown): Promi
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
 export const operationsApi = {
+  cases: (page = 1) => request<Paged<OperationsCaseRow>>('/api/operations/cases?page=' + page + '&pageSize=25'),
+  caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   teams: () => request<OperationsTeam[]>('/api/operations/teams'),
   initializeTeams: () => request<{ created: number; total: number }>('/api/operations/teams/initialize', 'POST'),
   createTeam: (body: { companyId: string; name: string; departmentCode: string }) =>
