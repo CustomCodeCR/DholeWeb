@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { Blobatar } from '@blobatar/vue'
 import { useGaze } from '@blobatar/vue/gaze'
 import { happy, idle, love, mad, sad, scared, shy, sick, sleepy, smug, surprised, thinking, unsure, wink } from 'blobatar/expression'
-import { stressed, tired, resigned, achicopalado, emperrado, emocionado, nostalgico, desesperado, aburrido, pereza, celoso, avergonzado, culpable, orgulloso, curioso, asqueado, preocupado, decepcionado, irritado, impaciente, ojosLlorosos, arrogante, melancolico, humillado, miserable, abrumado, vulnerable, rechazado, desilusionado, alarmado, horrorizado, pasmado, irritable, desconcertado, desmotivado, resentido, agobiado, temeroso, incomodo } from './blobatarExpressions'
+import { stressed, tired, resigned, achicopalado, emperrado, emocionado, nostalgico, desesperado, aburrido, pereza, celoso, avergonzado, culpable, orgulloso, curioso, asqueado, preocupado, decepcionado, irritado, impaciente, ojosLlorosos, arrogante, melancolico, humillado, miserable, abrumado, vulnerable, rechazado, desilusionado, alarmado, horrorizado, pasmado, irritable, desconcertado, desmotivado, resentido, agobiado, temeroso, incomodo, cringe, burlon, picaro, paranoico, disociado } from './blobatarExpressions'
 import type { AvatarExpression } from '@/core/stores/avatarAppearanceStore'
 import 'blobatar/motion.css'
 import 'blobatar/gaze.css'
@@ -14,7 +14,7 @@ type AvatarMood = 'auto' | AvatarExpression
 type PreviewMood = Exclude<AvatarMood, 'auto'>
 
 // Blobatar 2.7 roster: the first manual click without a saved preference shows "mad".
-const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle', 'stressed', 'tired', 'resigned', 'achicopalado', 'emperrado', 'emocionado', 'nostalgico', 'desesperado', 'aburrido', 'pereza', 'celoso', 'avergonzado', 'culpable', 'orgulloso', 'curioso', 'asqueado', 'preocupado', 'decepcionado', 'irritado', 'impaciente', 'ojosLlorosos', 'arrogante', 'melancolico', 'humillado', 'miserable', 'abrumado', 'vulnerable', 'rechazado', 'desilusionado', 'alarmado', 'horrorizado', 'pasmado', 'irritable', 'desconcertado', 'desmotivado', 'resentido', 'agobiado', 'temeroso', 'incomodo'] as const satisfies readonly PreviewMood[]
+const previewMoods = ['mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug', 'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle', 'stressed', 'tired', 'resigned', 'achicopalado', 'emperrado', 'emocionado', 'nostalgico', 'desesperado', 'aburrido', 'pereza', 'celoso', 'avergonzado', 'culpable', 'orgulloso', 'curioso', 'asqueado', 'preocupado', 'decepcionado', 'irritado', 'impaciente', 'ojosLlorosos', 'arrogante', 'melancolico', 'humillado', 'miserable', 'abrumado', 'vulnerable', 'rechazado', 'desilusionado', 'alarmado', 'horrorizado', 'pasmado', 'irritable', 'desconcertado', 'desmotivado', 'resentido', 'agobiado', 'temeroso', 'incomodo', 'cringe', 'burlon', 'picaro', 'paranoico', 'disociado'] as const satisfies readonly PreviewMood[]
 const AUTO_MOOD_INTERVAL_MS = 30_000
 const { t } = useI18n()
 
@@ -163,7 +163,7 @@ const showMotionAura = computed(() =>
   Boolean(animationMode.value),
 )
 
-const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking, stressed, tired, resigned, achicopalado, emperrado, emocionado, nostalgico, desesperado, aburrido, pereza, celoso, avergonzado, culpable, orgulloso, curioso, asqueado, preocupado, decepcionado, irritado, impaciente, ojosLlorosos, arrogante, melancolico, humillado, miserable, abrumado, vulnerable, rechazado, desilusionado, alarmado, horrorizado, pasmado, irritable, desconcertado, desmotivado, resentido, agobiado, temeroso, incomodo }
+const expressions = { idle, happy, sad, mad, surprised, wink, sleepy, smug, unsure, scared, love, shy, sick, thinking, stressed, tired, resigned, achicopalado, emperrado, emocionado, nostalgico, desesperado, aburrido, pereza, celoso, avergonzado, culpable, orgulloso, curioso, asqueado, preocupado, decepcionado, irritado, impaciente, ojosLlorosos, arrogante, melancolico, humillado, miserable, abrumado, vulnerable, rechazado, desilusionado, alarmado, horrorizado, pasmado, irritable, desconcertado, desmotivado, resentido, agobiado, temeroso, incomodo, cringe, burlon, picaro, paranoico, disociado }
 const activeMood = computed<Exclude<AvatarMood, 'auto'>>(() => {
   if (props.controlledExpressions && props.mood !== 'auto') return props.mood
   if (tapMood.value && !props.controlledExpressions) return tapMood.value
