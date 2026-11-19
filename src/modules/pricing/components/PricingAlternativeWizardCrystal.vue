@@ -2048,7 +2048,8 @@ const direction = computed(() => {
 // during hydration and let the explicit validation prevent a wrong classification.
 const operationType = computed<RateOperationType>(() => routeOperation.value ?? 'TransitDomestic')
 const crcImportContext = computed(
-  () => operationType.value === 'Import' || isCostaRica(selectedPod.value) || isCostaRica(selectedDestination.value),
+  // Physical destination governs Costa Rican customs/CRC handling, not the customer's trade perspective.
+  () => isCostaRica(selectedPod.value ?? selectedDestination.value),
 )
 const crcCurrency = computed(() =>
   catalogs.currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === 'CRC') ?? null,
