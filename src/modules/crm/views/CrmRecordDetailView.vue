@@ -17,6 +17,7 @@ import CrmLeadContacts from '../components/CrmLeadContacts.vue'
 import CrmDocumentsPanel from '../components/CrmDocumentsPanel.vue'
 import CrmActivityCollaboration from '../components/CrmActivityCollaboration.vue'
 import CrmActivityFullEditor from '../components/CrmActivityFullEditor.vue'
+import CrmFollowupFullEditor from '../components/CrmFollowupFullEditor.vue'
 import CrmVisitMapPicker from '../components/CrmVisitMapPicker.vue'
 import CrmArchiveAction from '../components/CrmArchiveAction.vue'
 import type { HaciendaResult } from '../components/CrmHaciendaLookup.vue'
@@ -1412,6 +1413,10 @@ onBeforeUnmount(() => window.removeEventListener('focus', syncActivityOnFocus))
           </div>
         </template>
         <template v-else>
+          <CrmFollowupFullEditor :followup="record"
+            :owner-name="agendaOwnerName()"
+            :can-manage="can('crm.task.manage') || can('crm.followup.manage')"
+            @saved="load" />
           <div v-if="agendaParent?.activityId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4">
             <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ agendaParent.isBitacora ? 'Bitácora comercial de origen' : 'Actividad principal asociada' }}</p>
             <RouterLink :to="'/crm/activities/' + encodeURIComponent(String(agendaParent.activityId))"

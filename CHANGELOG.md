@@ -1,3 +1,9 @@
+## [1.103.4] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-281 · edición de seguimientos y recordatorios)
+
+- PATCH: habilita editar seguimientos y recordatorios desde el detalle de Agenda y seguimientos, como las bitácoras. Permite cambiar asunto, tipo, responsable, fechas, invitados y avisos sin duplicar el registro.
+- Borradores recuperables, control de intervalo y carga obligatoria de los invitados antes de guardar; backend CRM guarda con auditoría y versionado optimista.
+- DholeSystem/DholeWeb 1.103.3 → 1.103.4; DholeCRMService 1.42.0 → 1.42.1. CI y staging previos a master; sin autorización productiva.
+
 ## [1.103.3] - 2026-11-19 (DH-20261119-CRM-MANUAL-BENEFITS-275 · persistencia verificable de cargos manuales)
 
 - PATCH: el formulario de tarifas preferenciales comprueba con GET que CRM persistió el cargo manual con nombre, venta, moneda y unidad antes de limpiar los datos.
