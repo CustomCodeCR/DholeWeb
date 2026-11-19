@@ -1,3 +1,10 @@
+## [1.103.3] - 2026-11-19 (DH-20261119-CRM-MANUAL-BENEFITS-275 · persistencia verificable de cargos manuales)
+
+- PATCH: el formulario de tarifas preferenciales comprueba con GET que CRM persistió el cargo manual con nombre, venta, moneda y unidad antes de limpiar los datos.
+- Los ítems manuales guardados para la combinación seleccionada aparecen junto al formulario; errores y confirmaciones se presentan a la par del botón, y se evitan envíos simultáneos.
+- Prueba de regresión para la verificación posterior a POST/PUT. DholeWeb/DholeSystem 1.103.2 → 1.103.3; backend, REST y SignalR sin cambios.
+- Validación CI y staging previa a integrar master. No se declara despliegue productivo completado.
+
 ## [1.103.2] - 2026-11-19 (DH-20261119-WIZARD-ROUTE-RUNTIME-274 · sin referencias runtime en Crear tarifa)
 
 - PATCH: corrige `resolveClientRouteOperation is not defined` y evita el anterior `routeOperation is not defined`: calcula la perspectiva desde país CRM + POL/POD directamente en los computados existentes del wizard, sin helper adicional.
