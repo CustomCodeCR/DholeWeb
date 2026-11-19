@@ -1,3 +1,9 @@
+## [1.83.2] - 2026-11-18 (SRM: mostrar descripción y vigencia de adjuntos)
+
+- PATCH DH-20261118-SRM-ATTACHMENT-METADATA-240: cada adjunto de tarifas y crédito muestra descripción; las tarifas presentan fechas de vigencia desde/hasta, con formato dd/mm/aaaa y etiquetas para datos no indicados.
+- Compatibilidad con metadatos históricos de Storage (`metadatJson`) y contrato corregido `metadataJson`; no altera archivos existentes, sus permisos, ni las funciones Ver y Descargar.
+- DholeWeb 1.83.1 → 1.83.2; DholeStorageService 1.2.2 → 1.2.3; versión de ecosistema objetivo 1.87.5.
+
 ## [1.83.1] - 2026-11-18 (Ventas: retirar cancelación de cotizaciones)
 
 - PATCH DH-20261118-SELLER-CANCEL-HIDE-234: elimina «Cancelar cotización» del dashboard comercial de vendedores (móvil y escritorio), detalle y modal de decisión. Permanecen Ver tarifa, aceptación, rechazo, PDF y modificaciones permitidas.
