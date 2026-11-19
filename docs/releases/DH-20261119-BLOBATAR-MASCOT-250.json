@@ -1,0 +1,28 @@
+{
+  "releaseId": "DH-20261119-BLOBATAR-MASCOT-250",
+  "date": "2026-11-19",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.93.0",
+  "scope": "58 Blobatar emotions; local photo profile and a floating mascot",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "version": "1.93.0"
+    },
+    {
+      "component": "DholeSystem",
+      "version": "1.93.0"
+    }
+  ],
+  "unchangedComponents": "Other 15 components retain version pins in DholeSystem/release-manifest.json",
+  "requirements": [
+    "five new distinct native expression poses",
+    "58 expressions shared between Topbar and Appearance with ES/EN translations",
+    "photo upload, compression, and browser-local per-user persistence",
+    "Blobatar companion with name, fixed or roaming movement, drag/keyboard controls, show/hide",
+    "reduced-motion support, public/embedded route isolation, no new scopes or backend data changes"
+  ],
+  "validation": "CI and staging required before production",
+  "productionDeployment": "not-authorized",
+  "notes": "The user-selected profile photo is browser-local; no server-side profile image API is modified."
+}

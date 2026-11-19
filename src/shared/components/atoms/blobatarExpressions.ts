@@ -600,3 +600,88 @@ export const incomodo: Expression = {
     heat: 0.4,
   },
 }
+
+// Dhole additional five moods: distinct native SVG morphs and gesture channels.
+
+export const cringe: Expression = {
+  ...shy,
+  p: {
+    ...shy.p,
+    esx: 1.1,
+    esy: 0.25,
+    tilt: 28,
+    edy: 2.2,
+    edx: 0.5,
+    esy2: -0.13,
+    tilt2: -11,
+    heat: 0.65,
+    bdy: 2.2,
+  },
+}
+
+export const burlon: Expression = {
+  ...smug,
+  p: {
+    ...smug.p,
+    esx: 1.55,
+    esy: 0.38,
+    tilt: 26,
+    edy: -1.6,
+    edx: 1,
+    tilt2: -51,
+    esy2: -0.12,
+    rock: 0.24,
+    bdy: -1.7,
+  },
+}
+
+export const picaro: Expression = {
+  ...smug,
+  p: {
+    ...smug.p,
+    esx: 1.3,
+    esy: 0.82,
+    tilt: 8,
+    edy: -0.8,
+    edx: 0.7,
+    esy2: -0.55,
+    esx2: 0.36,
+    tilt2: -16,
+    bdy: -1.9,
+  },
+}
+
+export const paranoico: Expression = {
+  ...scared,
+  p: {
+    ...scared.p,
+    esx: 0.9,
+    esy: 1.22,
+    tilt: -18,
+    edy: -1.9,
+    edx: -0.35,
+    esy2: -0.19,
+    edy2: -1.5,
+    shake: 0.73,
+    rock: 0.28,
+    bdy: -0.6,
+  },
+}
+
+export const disociado: Expression = {
+  ...unsure,
+  p: {
+    ...unsure.p,
+    esx: 0.8,
+    esy: 0.92,
+    tilt: 0,
+    edy: 1.7,
+    edx: 1.25,
+    esx2: 0,
+    esy2: -0.05,
+    edy2: -2.8,
+    shake: 0,
+    rock: 0,
+    bdy: 1.3,
+  },
+}
