@@ -23,6 +23,8 @@ const busy = ref(false)
 const error = ref('')
 const success = ref('')
 const history = ref<OperationsAudit[]>([])
+const auditPeople = ref<OperationsUser[]>([])
+const auditDisplayUsers = computed(() => [...users.value, ...auditPeople.value])
 const userSearch = ref('')
 const memberId = ref('')
 const capacity = ref(10)
@@ -117,10 +119,18 @@ async function searchUsers() {
   } catch (value) { fail(value) }
 }
 async function loadAudit() {
+  const teamId = selectedId.value
   history.value = []
-  if (canAudit.value && selectedId.value) {
-    try { history.value = await operationsApi.teamAudit(selectedId.value) }
-    catch (value) { fail(value) }
+  auditPeople.value = []
+  if (canAudit.value && teamId) {
+    try {
+      const events = await operationsApi.teamAudit(teamId)
+      if (selectedId.value !== teamId) return
+      history.value = events
+      const ids = [...new Set(events.map(event => event.actorUserId))]
+      const people = await operationsApi.auditActors(ids)
+      if (selectedId.value === teamId) auditPeople.value = people.items
+    } catch (value) { fail(value) }
   }
 }
 function chooseTeam(id: string) {
@@ -294,7 +304,7 @@ onMounted(initialize)
           </form>
         </DhCard>
         <DhCard v-if="canAudit" :title="t('operations.audit')" :subtitle="t('operations.auditHint')" :icon="Clock3">
-          <OperationsAuditTimeline :events="history" :users="users" :empty-title="t('operations.noAudit')" />
+          <OperationsAuditTimeline :events="history" :users="auditDisplayUsers" :empty-title="t('operations.noAudit')" />
         </DhCard>
       </div>
       <DhCard v-else :title="t('operations.selectTeam')" :subtitle="t('operations.selectTeamHint')" :icon="UsersRound" />
