@@ -1,3 +1,8 @@
+## [1.91.0] - 2026-11-19 (DH-20261119-OPS-AUDIT-ROLE-247 · Operaciones, auditoría y roles)
+
+- MINOR: rediseño de Equipos con DhSelect en lugar del listado de tarjetas; solamente aparecen usuarios elegibles por rol en el selector. Timeline unificada de Equipos/Aperturas con acciones ES/EN, fecha, responsable, comparativa antes/después y detalles técnicos plegados. Consulta independiente de nombres de autores de auditoría.
+- Release coordinado DholeWeb/DholeSystem 1.89.0→1.91.0; Auth 1.15.0→1.16.0; Operations 0.9.0→0.10.0. Ecosistema 1.91.0. CI/staging y comprobación de producción obligatorias.
+
 ## [1.89.0] - 2026-11-18 (Versión unificada con System y aviso de actualización)
 
 ### Added
