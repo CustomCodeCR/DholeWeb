@@ -102,14 +102,14 @@ export const router = createRouter({
           path: 'operations/teams',
           name: 'operations-teams',
           component: () => import('@/modules/operations/views/OperationsTeamsView.vue'),
-          meta: { tabTitle: 'Operations · Equipos', closable: true,
+          meta: { tabTitle: 'Operaciones · Equipos', closable: true,
             requiredScope: 'operations.team.manage' },
         },
         {
           path: 'operations/apertures',
           name: 'operations-apertures',
           component: () => import('@/modules/operations/views/OperationsAperturesView.vue'),
-          meta: { tabTitle: 'Operations · Aperturas', closable: true,
+          meta: { tabTitle: 'Operaciones · Aperturas', closable: true,
             requiredScope: 'operations.case.read' },
         },
         {
