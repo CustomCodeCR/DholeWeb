@@ -56,10 +56,10 @@ test('mobile data tables use cards and desktop tables are hidden below 640px', (
   assert.match(emailDrawer, /sm:flex-row sm:items-center sm:justify-between/)
 })
 
-test('Operations Platform is never inverted back into Spanish', () => {
+test('Orvelum logistics subtitle is never inverted back into Spanish', () => {
   const bridge = source('src/core/i18n/uiTextBridge.ts')
-  assert.equal(en.app.subtitle, 'Operations Platform')
-  assert.equal(es.app.subtitle, 'Plataforma de operaciones')
-  assert.match(bridge, /\['Plataforma de operaciones', 'Operations Platform'\]/)
-  assert.doesNotMatch(bridge, /\['Operations Platform', 'Plataforma de operaciones'\]/)
+  assert.equal(en.app.subtitle, 'Intelligent Logistics Platform')
+  assert.equal(es.app.subtitle, 'Plataforma logística inteligente')
+  assert.match(bridge, /\['Plataforma logística inteligente', 'Intelligent Logistics Platform'\]/)
+  assert.doesNotMatch(bridge, /\['Intelligent Logistics Platform', 'Plataforma logística inteligente'\]/)
 })
