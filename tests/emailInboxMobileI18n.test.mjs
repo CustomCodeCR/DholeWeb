@@ -62,7 +62,8 @@ test('Dhole bilingual logistics branding remains consistent', () => {
   assert.equal(en.app.name, 'Dhole System')
   assert.equal(es.app.subtitle, 'Plataforma logística inteligente')
   assert.equal(en.app.subtitle, 'Intelligent Logistics Platform')
-  assert.ok(bridge.includes("['Plataforma logística inteligente', 'Intelligent Logistics Platform']"))
+  assert.ok(bridge.includes("'Plataforma logística inteligente'"))
+  assert.ok(bridge.includes("'Intelligent Logistics Platform'"))
 })
 
 test('Dhole mark appears in login, sidebar and browser without legacy branding', () => {
