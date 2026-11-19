@@ -1,3 +1,8 @@
+## [1.91.1] - 2026-11-19 (DH-20261119-OPS-ROLE-NAME-248 · rol logístico existente)
+
+- PATCH: el selector de integrantes muestra correctamente el rol «Operativo Logístico», junto con «Supervisor Operativo».
+- Web/System 1.91.1, Auth 1.16.1, Operations 0.10.0 sin cambios; complementa DH-247.
+
 ## [1.91.0] - 2026-11-19 (DH-20261119-OPS-AUDIT-ROLE-247 · Operaciones, auditoría y roles)
 
 - MINOR: rediseño de Equipos con DhSelect en lugar del listado de tarjetas; solamente aparecen usuarios elegibles por rol en el selector. Timeline unificada de Equipos/Aperturas con acciones ES/EN, fecha, responsable, comparativa antes/después y detalles técnicos plegados. Consulta independiente de nombres de autores de auditoría.
