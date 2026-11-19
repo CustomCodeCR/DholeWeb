@@ -38,7 +38,9 @@ test('seller dashboard reconciles published rates after queue transitions and de
 })
 
 test('expired quotes enable seller decisions without unlocking unpublished drafts', () => {
-  assert.match(dashboard, /\['Sent', 'RequestedByClient', 'Expired'\][.]includes\(rate[.]status\)/)
+  assert.match(dashboard, /canDecideSellerQuote\(rate, hasOpenPricingModification\(rate\)\)/)
+  const workflow = source('src/modules/pricing/utils/sellerRateWorkflowStatus.ts')
+  assert.match(workflow, /\['Sent', 'RequestedByClient', 'Expired'\][.]includes\(rate[.]status\)/)
   assert.match(detail, /const canRespondToRate = computed/)
   assert.match(detail, /\['Sent', 'RequestedByClient', 'Expired'\][.]includes\(rate[.]value[.]status\)/)
   assert.match(detail, /if \(!rate[.]value \|\| !canRespondToRate[.]value\) return/)

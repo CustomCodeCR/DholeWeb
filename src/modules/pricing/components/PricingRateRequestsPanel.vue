@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocale } from '@/core/stores/locale'
-import { Ban, CheckCircle2, Clock3, PlayCircle, RefreshCcw } from 'lucide-vue-next'
+import { Ban, CheckCircle2, Clock3, PlayCircle, RefreshCcw, Undo2 } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
@@ -69,6 +69,9 @@ const cancellationTarget = ref<RateRequestDto | null>(null)
 const cancellationReason = ref<CancellationReason | ''>('')
 const cancellationDetails = ref('')
 const cancellingRequestId = ref<string | null>(null)
+const returningRequestId = ref<string | null>(null)
+const returnTarget = ref<RateRequestDto | null>(null)
+const returnReason = ref('')
 const claimingRequestId = ref<string | null>(null)
 const releasingRequestId = ref<string | null>(null)
 const recoveryTarget = ref<RateRequestDto | null>(null)
@@ -448,6 +451,44 @@ function cancellationReasonLabel(reason?: CancellationReason | null) {
   return cancellationReasons.find((item) => item.value === reason)?.label ?? 'Sin motivo'
 }
 
+function openReturn(request: RateRequestDto) {
+  if (request.status !== 'Open' || request.rateId
+    || (isLocked(request) && !isOwnLock(request)) || returningRequestId.value) return
+  returnReason.value = ''
+  returnTarget.value = request
+}
+
+function closeReturn() {
+  if (returningRequestId.value) return
+  returnTarget.value = null
+  returnReason.value = ''
+}
+
+async function confirmReturn() {
+  const request = returnTarget.value
+  const reason = returnReason.value.trim()
+  if (!request || returningRequestId.value) return
+  if (reason.length < 10 || reason.length > 1000) {
+    toast.warning('Motivo obligatorio', 'Describa la corrección necesaria (entre 10 y 1000 caracteres).')
+    return
+  }
+  returningRequestId.value = request.id
+  try {
+    await RateRequestLeaseService.claim(request.id, { recoverOwnLease: isOwnLock(request) })
+    await RateRequestLeaseService.returnToSeller(request.id, reason)
+    returnTarget.value = null
+    returnReason.value = ''
+    toast.success('Solicitud devuelta', 'Se notificó al vendedor por sistema y se programó el correo de corrección.')
+    await load()
+  } catch (error) {
+    toast.backendError(error, 'No fue posible devolver la solicitud. Verifique su reserva y vuelva a intentarlo.')
+    await load()
+  } finally {
+    await RateRequestLeaseService.release(request.id).catch(() => undefined)
+    returningRequestId.value = null
+  }
+}
+
 function openCancellation(request: RateRequestDto) {
   if (request.status !== 'Open' || isLocked(request)
     || claimingRequestId.value || completingRequestId.value || cancellingRequestId.value) return
@@ -494,7 +535,7 @@ async function confirmCancellation() {
 
 function handleRealtimeNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
-  if (!['pricing.rate-request.created', 'pricing.rate-request.sla-overdue'].includes(notification?.notificationType ?? '')) return
+  if (!['pricing.rate-request.created', 'pricing.rate-request.returned', 'pricing.rate-request.sla-overdue'].includes(notification?.notificationType ?? '')) return
 
   now.value = Date.now()
   void load()
@@ -615,6 +656,11 @@ onBeforeUnmount(() => {
                   <PlayCircle class="h-4 w-4" />
                   {{ claimingRequestId === request.id ? 'Abriendo…' : isOwnLock(request) ? 'Retomar mi trabajo' : isLocked(request) ? 'En proceso' : isModification(request) ? 'Revisar cambios' : 'Continuar tarifa' }}
                 </DhButton>
+                <DhButton v-if="!request.rateId" variant="secondary"
+                  :disabled="(isLocked(request) && !isOwnLock(request)) || Boolean(claimingRequestId) || Boolean(returningRequestId) || Boolean(cancellingRequestId)"
+                  @click="openReturn(request)">
+                  <Undo2 class="h-4 w-4" /> Devolver solicitud
+                </DhButton>
                 <DhButton v-if="isStaleLock(request)" variant="secondary"
                   :disabled="Boolean(releasingRequestId) || Boolean(claimingRequestId)"
                   @click="releaseStaleRequest(request)">
@@ -647,6 +693,39 @@ onBeforeUnmount(() => {
         </tbody>
       </table>
     </div>
+    <Teleport to="body">
+      <div v-if="returnTarget" data-dh-overlay="modal"
+        class="fixed inset-0 z-[150] flex items-center justify-center bg-black/65 p-2 sm:p-4"
+        @click.self="closeReturn">
+        <div role="dialog" aria-modal="true" aria-labelledby="return-rate-request-title"
+          class="dh-glass dh-liquid flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] shadow-2xl">
+          <div class="dh-scrollbar min-h-0 overflow-y-auto p-4 sm:p-6">
+            <h3 id="return-rate-request-title" class="flex items-center gap-2 text-xl font-black">
+              <Undo2 class="h-5 w-5 text-amber-500" /> Devolver solicitud
+            </h3>
+            <p class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
+              {{ returnTarget.clientName || 'Cliente sin definir' }} · {{ returnTarget.originName || 'Origen' }} → {{ returnTarget.destinationName || 'Destino' }}
+            </p>
+            <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+              El vendedor recibirá una notificación interna y un correo con el motivo. La solicitud quedará disponible para corregir y reenviar.
+            </p>
+            <label for="rate-request-return-reason" class="mt-5 block text-sm font-bold">Motivo de devolución <span class="text-red-500">*</span></label>
+            <textarea id="rate-request-return-reason" v-model="returnReason"
+              :disabled="Boolean(returningRequestId)" maxlength="1000" rows="5"
+              placeholder="Indique claramente qué dato está incorrecto y cómo debe corregirlo…"
+              class="mt-2 w-full resize-y rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]" />
+            <p class="mt-1 text-right text-xs text-[var(--dh-text-muted)]">{{ returnReason.trim().length }} / 1000 · mínimo 10 caracteres</p>
+            <div class="mt-6 flex flex-wrap justify-end gap-2">
+              <DhButton variant="secondary" :disabled="Boolean(returningRequestId)" @click="closeReturn">Volver</DhButton>
+              <DhButton :disabled="Boolean(returningRequestId) || returnReason.trim().length < 10 || returnReason.trim().length > 1000"
+                @click="confirmReturn">
+                <Undo2 class="h-4 w-4" /> {{ returningRequestId ? 'Devolviendo…' : 'Confirmar devolución' }}
+              </DhButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     <Teleport to="body">
       <div
         v-if="cancellationTarget"

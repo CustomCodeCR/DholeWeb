@@ -1,3 +1,9 @@
+## [1.103.0] - 2026-11-19 (DH-20261119-PRICING-RETURN-PROMOTION-272 · devolver solicitudes incorrectas de Pricing)
+
+- MINOR: ahora Pricing puede usar «Devolver solicitud» al lado de «Continuar tarifa» con un motivo obligatorio y la reserva vigente; Ventas recibe notificación sistema/correo, ve el motivo y puede corregir y reenviar la misma solicitud.
+- Promoción aislada de la funcionalidad CI/staging aprobada de develop. No arrastra otras diferencias entre ramas; versiones de Web/System 1.102.0→1.103.0, Pricing 1.24.9→1.25.1.
+- Validación de build, test y versión antes de la promoción de master, que activa despliegue productivo automático.
+
 ## [1.102.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-PROD-271 · Incoterms según país de cliente en producción)
 
 - MINOR: libera clasificación del cliente según su país CRM frente a POL y POD final, incluyendo responsable de Incoterm y flete; elimina la referencia fija a Costa Rica.
