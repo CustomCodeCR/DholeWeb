@@ -11,5 +11,7 @@
     "Operations 0.10.0",
     "Blobatar 1.92.0"
   ],
-  "staging": "pending"
+  "staging": "pending",
+  "systemDevelopMergeSha": "5ea4c73ec497ecf17d29eba3ee1282a87c051617",
+  "crossVersionValidation": "Recheck Web/System develop 1.92.1 after System patch merged"
 }
