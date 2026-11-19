@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
 import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
+import { useAvatarMascotStore } from '@/core/stores/avatarMascotStore'
 import { useThemeStore } from '@/core/stores/themeStore'
 import { useLocale } from '@/core/stores/locale'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -26,6 +27,7 @@ const displayName = computed(() => authStore.userDisplayName || t('topbar.unknow
 const displayEmail = computed(() => authStore.email || t('topbar.activeSession'))
 const avatarTapTrigger = ref(0)
 const avatarAppearance = useAvatarAppearanceStore()
+const avatarMascot = useAvatarMascotStore()
 watch(() => authStore.userId, (id) => avatarAppearance.selectUser(id), { immediate: true })
 onMounted(() => avatarAppearance.start())
 onBeforeUnmount(() => avatarAppearance.stop())
@@ -354,7 +356,7 @@ onBeforeUnmount(() => {
           :class="themeStore.resolvedTheme === 'dark' ? 'focus-visible:ring-offset-black' : 'focus-visible:ring-offset-white'"
           @click="avatarTapTrigger += 1; avatarAppearance.nextExpression()"
         >
-          <DhAvatar :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" :dark-backdrop="themeStore.resolvedTheme === 'dark'" :tap-trigger="avatarTapTrigger" :preview-expressions="true" :controlled-expressions="true" :mood="avatarAppearance.expression ?? 'auto'" />
+          <DhAvatar :src="avatarMascot.photo" :id="authStore.userId" :name="displayName" status="online" animate="always" :follow-cursor="true" :dark-backdrop="themeStore.resolvedTheme === 'dark'" :tap-trigger="avatarTapTrigger" :preview-expressions="true" :controlled-expressions="true" :mood="avatarAppearance.expression ?? 'auto'" />
         </button>
         <div class="hidden min-w-0 xl:block">
           <p class="max-w-40 truncate text-sm font-black" :class="themeStore.resolvedTheme === 'dark' ? 'text-white' : 'text-slate-900'">{{ displayName }}</p>

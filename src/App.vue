@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import DhToastContainer from '@/shared/components/containers/DhToastContainer.vue'
@@ -8,6 +8,8 @@ import DhModalContainer from '@/shared/components/containers/DhModalContainer.vu
 import DhDrawerContainer from '@/shared/components/containers/DhDrawerContainer.vue'
 import CrmDraftRecoveryModal from '@/modules/crm/components/CrmDraftRecoveryModal.vue'
 import AiAssistantFloatingButton from '@/modules/ai/components/AiAssistantFloatingButton.vue'
+import DhMascot from '@/shared/components/atoms/DhMascot.vue'
+import { useAvatarMascotStore } from '@/core/stores/avatarMascotStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { useBrandingStore } from '@/core/stores/brandingStore'
@@ -22,6 +24,8 @@ import {
 const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
+const mascot = useAvatarMascotStore()
+watch(() => authStore.userId, (id) => mascot.selectUser(id), { immediate: true })
 const tabsStore = useWorkspaceTabsStore()
 const brandingStore = useBrandingStore()
 const toastStore = useToastStore()
@@ -78,6 +82,7 @@ function handleAuthRefreshed(event: Event) {
 
 onMounted(() => {
   uninstallNativeValidation = installNativeFormValidation()
+  mascot.start()
   brandingStore.applyCachedOrDefault()
 
   // The public origin page is a deliberately isolated surface: no Pricing offline
@@ -116,6 +121,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   uninstallNativeValidation?.()
+  mascot.stop()
   if (!isPublicRoute.value && !isEmbedded) void stopNotificationRealtime()
   ;(window as Window & { __dholeConnectivityCleanup?: () => void }).__dholeConnectivityCleanup?.()
   window.removeEventListener('dhole:auth:expired', handleAuthExpired)
@@ -136,4 +142,5 @@ onBeforeUnmount(() => {
 
   <RouterView />
   <AiAssistantFloatingButton v-if="!isPublicRoute && !isEmbedded" />
+  <DhMascot v-if="authStore.isAuthenticated && !isPublicRoute && !isEmbedded" />
 </template>

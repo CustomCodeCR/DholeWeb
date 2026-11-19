@@ -45,7 +45,7 @@ test('Eye tracking only opts in on fine pointers and respects reduced motion', (
 })
 
 test('Topbar uses authenticated ID, continuous breathing and pointer tracking', () => {
-  assert.match(topbar, /<DhAvatar :id="authStore\.userId" :name="displayName"/)
+  assert.ok(topbar.includes('<DhAvatar :src="avatarMascot.photo" :id="authStore.userId" :name="displayName"'))
   assert.match(topbar, /animate="always" :follow-cursor="true"/)
 })
 
@@ -187,7 +187,7 @@ test('Avatar appearance translations are complete in English and Spanish', () =>
     for (const label of ['avatarTitle', 'avatarAuto', 'avatarFixed', 'avatarNext', 'avatarHelp']) {
       assert.ok(data.appearance[label])
     }
-    assert.equal(Object.keys(data.appearance.avatarMoods).length, 17)
+    assert.equal(Object.keys(data.appearance.avatarMoods).length, 58)
   }
 })
 
@@ -210,4 +210,77 @@ test('Dhole adds three distinct native Blobatar poses, synchronized with shared 
     }
   }
   assert.ok(avatar.includes('controlledExpressions'))
+})
+
+
+test('36 new Blobatar poses are registered, translated and render unique SVGs', async () => {
+  const keys = ["achicopalado","emperrado","emocionado","nostalgico","desesperado","aburrido","pereza","celoso","avergonzado","culpable","orgulloso","curioso","asqueado","preocupado","decepcionado","irritado","impaciente","ojosLlorosos","arrogante","melancolico","humillado","miserable","abrumado","vulnerable","rechazado","desilusionado","alarmado","horrorizado","pasmado","irritable","desconcertado","desmotivado","resentido","agobiado","temeroso","incomodo"]
+  const roster = readFileSync(new URL('../src/core/stores/avatarAppearanceStore.ts', import.meta.url), 'utf8')
+  const poses = await import('../src/shared/components/atoms/blobatarExpressions.ts')
+  assert.equal(keys.length, 36)
+  for (const key of keys) {
+    assert.ok(roster.includes(`'${key}'`), key + ' missing from shared roster')
+    assert.ok(avatar.includes(key), key + ' missing from avatar')
+    assert.ok(poses[key]?.p && typeof poses[key].vars === 'function', key + ' must be a native pose')
+    for (const lang of ['es', 'en']) {
+      const translations = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
+      assert.ok(translations.appearance.avatarMoods[key], lang + ': ' + key)
+    }
+  }
+  const output = await Promise.all(keys.map(key => renderToString(createSSRApp({
+    render: () => h(Blobatar, { name: 'dhole-user-42', size: 160, animate: 'always', expression: poses[key] }),
+  }))))
+  assert.equal(new Set(output).size, 36)
+  assert.ok(output.every(markup => markup.includes('<svg')))
+  const view = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
+  assert.ok(view.includes('<DhSelect'))
+  assert.ok(view.includes('avatarAppearance.setExpression'))
+  assert.ok(roster.includes("saveSetting(keyFor('mode'), 'fixed')"))
+})
+
+
+test('Five additional emotions render distinct native Blobatar SVG poses', async () => {
+  const keys = ['cringe', 'burlon', 'picaro', 'paranoico', 'disociado']
+  const moods = await import('../src/shared/components/atoms/blobatarExpressions.ts')
+  const registered = readFileSync(new URL('../src/core/stores/avatarAppearanceStore.ts', import.meta.url), 'utf8')
+  for (const key of keys) {
+    assert.ok(registered.includes(`'${key}'`))
+    assert.ok(avatar.includes(key))
+    assert.ok(moods[key]?.p)
+    for (const lang of ['es', 'en']) {
+      const translations = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
+      assert.ok(translations.appearance.avatarMoods[key])
+      assert.equal(Object.keys(translations.appearance.avatarMoods).length, 58)
+    }
+  }
+  const rendered = await Promise.all(keys.map(key => renderToString(createSSRApp({
+    render: () => h(Blobatar, { name: 'dhole-user-42', size: 160, animate: 'always', expression: moods[key] }),
+  }))))
+  assert.equal(new Set(rendered).size, 5)
+  assert.ok(rendered.every(markup => markup.includes('<svg')))
+})
+
+test('Profile photo replaces topbar Blobatar while mascot is per user and globally mounted', () => {
+  const app = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+  const mascot = readFileSync(new URL('../src/shared/components/atoms/DhMascot.vue', import.meta.url), 'utf8')
+  const storage = readFileSync(new URL('../src/core/stores/avatarMascotStore.ts', import.meta.url), 'utf8')
+  const appearance = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
+
+  assert.ok(topbar.includes(':src="avatarMascot.photo"'))
+  assert.ok(app.includes('authStore.isAuthenticated && !isPublicRoute && !isEmbedded'))
+  assert.ok(app.includes('mascot.selectUser(id)'))
+  assert.ok(mascot.includes('size="lg"'))
+  assert.ok(mascot.includes('mascot.movement === \'roam\''))
+  assert.ok(mascot.includes('pointerDown') && mascot.includes('pointerMove') && mascot.includes('pointerUp'))
+  assert.ok(mascot.includes('ArrowLeft') && mascot.includes('ArrowDown'))
+  assert.ok(mascot.includes("matchMedia('(prefers-reduced-motion: reduce)')"))
+  assert.ok(mascot.includes('document.hidden'))
+  assert.ok(storage.includes("KEY_PREFIX = 'dhole.blobatar.mascot.v1:'"))
+  assert.ok(storage.includes("encodeURIComponent(userId.value)"))
+  assert.ok(storage.includes("window.addEventListener('storage', handleStorage)"))
+  assert.ok(storage.includes('setPhoto') && storage.includes('setName') && storage.includes('setMovement'))
+  assert.ok(appearance.includes('handleProfilePhotoChange'))
+  assert.ok(appearance.includes("canvas.toDataURL('image/jpeg', 0.8)"))
+  assert.ok(appearance.includes('avatarMascot.setPhoto(null)'))
+  assert.ok(appearance.includes('<DhSelect'))
 })
