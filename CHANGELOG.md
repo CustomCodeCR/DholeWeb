@@ -1,3 +1,9 @@
+## [1.103.6] - 2026-11-19 (DH-20261119-PRICING-LTL-STEP6-277 · validación LTL manual paso 6)
+
+- PATCH: el paso 6 de LTL/FTL terrestre no requiere un carrierId marítimo oculto. Solo el LTL coloader manual exige agente; moneda, costo y venta deben ser valores numéricos válidos no negativos.
+- Se sincronizan los mensajes de campos obligatorios con la validación del botón Continuar. Las reglas marítimas existentes se conservan.
+- Web/System 1.103.5 → 1.103.6; pruebas de regresión, compilación y staging antes de master; backend, REST y SignalR sin cambios.
+
 ## [1.103.5] - 2026-11-19 (DH-20261119-PRICING-COUNTRY-LTL-276 · corrección país cliente CRM y fuente LTL propia)
 
 - PATCH de promoción aislada a master desde desarrollo probado en staging 1.103.5. Salta el intervalo de números de develop 1.103.3/1.103.4 sin arrastrar funcionalidad CRM ni cambios pendientes. Web/System master 1.103.2 → 1.103.5, versiones de backend sin cambios.

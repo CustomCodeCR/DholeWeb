@@ -28,11 +28,32 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         'const canNext = computed(() => {',
         [
           'const canNext = computed(() => {',
+          // Run the land guard before legacy carrier-dependent branches, which
+          // still reject LTL/FTL even though no naviera is shown.
+          "  if (step.value === 6 && form.modality === 'Land') {",
+          "    const manualColoaderNeedsAgent = shipmentModeForApi.value === 'Ltl' && form.manualRate && landLtlCommercialProfile.value === 'Nvocc'",
+          '    return Boolean((!manualColoaderNeedsAgent || form.agentId)',
+          '      && form.currencyId',
+          '      && Number.isFinite(Number(form.freightCost)) && Number(form.freightCost) >= 0',
+          '      && Number.isFinite(Number(form.freightSale)) && Number(form.freightSale) >= 0)',
+          '  }',
           "  if (step.value === 6 && shipmentModeForApi.value === 'Lcl') {",
           '    return Boolean(form.agentId && form.currencyId && form.freightCost >= 0 && form.freightSale >= 0)',
           '  }',
         ].join('\n'),
         'LCL provider without maritime carrier',
+      )
+
+      // The visible provider fields and final navigation must agree.
+      // Own LTL and FTL have no mandatory naviera/agent; a manual
+      // coloader LTL requires its actual agent.
+      replaceOnce(
+        "    add(!form.agentId, 'agentId', shipmentModeForApi.value === 'Lcl' ? 'Agente / coloader' : 'Agente')",
+        [
+          "    const manualLandColoaderNeedsAgent = form.modality === 'Land' && shipmentModeForApi.value === 'Ltl' && form.manualRate && landLtlCommercialProfile.value === 'Nvocc'",
+          "    add((form.modality !== 'Land' || manualLandColoaderNeedsAgent) && !form.agentId, 'agentId', shipmentModeForApi.value === 'Lcl' ? 'Agente / coloader' : 'Agente')",
+        ].join('\n'),
+        'land provider required-field parity',
       )
 
       replaceOnce(

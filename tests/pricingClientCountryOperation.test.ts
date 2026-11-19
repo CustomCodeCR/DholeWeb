@@ -81,3 +81,14 @@ test('own LTL tariffs support explicit manual capture when no rate is returned',
   assert.match(transform, /continueManualOwnLandLtlTariff\(\)/)
   assert.match(transform, /landLtlCommercialProfile\.value = 'FinalClient'/)
 })
+
+test('manual land LTL step 6 does not depend on a hidden carrier', () => {
+  const finalValidation = readFileSync(new URL('../build/pricingRequiredFieldFinalFeedback.ts', import.meta.url), 'utf8')
+  const carrierRequirement = readFileSync(new URL('../src/modules/pricing/utils/pricingCarrierRequirement.ts', import.meta.url), 'utf8')
+  assert.match(finalValidation, /step\.value === 6 && form\.modality === 'Land'/)
+  assert.match(finalValidation, /!manualColoaderNeedsAgent \|\| form\.agentId/)
+  assert.match(finalValidation, /Number\.isFinite\(Number\(form\.freightCost\)\)/)
+  assert.match(finalValidation, /Number\.isFinite\(Number\(form\.freightSale\)\)/)
+  assert.match(finalValidation, /manualLandColoaderNeedsAgent\) && !form\.agentId/)
+  assert.match(carrierRequirement, /\(modality === 'Maritime' \|\| modality === 'Multimodal'\)/)
+})
