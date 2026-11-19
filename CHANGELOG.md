@@ -1,3 +1,10 @@
+## [1.95.0] - 2026-11-19 (DH-20261119-BLOBATAR-TRANSPARENT-252 · Mascota transparente, permanente y accesorios)
+
+- MINOR: Blobatar permanece como mascota autenticada aunque el usuario no tenga foto; la fotografía sigue siendo opcional para el perfil, sin alterar el avatar de otros usuarios.
+- Accesorios SVG para la mascota: gorra, corona, gafas, audífonos, lazo y sombrero; elección persistente por usuario en el navegador y vista previa en Apariencia.
+- Se elimina el círculo blanco, las burbujas y el tooltip nativo; nombre y emoción traducida se muestran exclusivamente al pasar el cursor o enfocar con teclado. Se preservan 58 expresiones, movimiento, arrastre y acceso sin mouse.
+- Release DholeWeb y DholeSystem 1.95.0; manifiesto global y pruebas actualizadas.
+
 ## [1.94.0] - 2026-11-19 (DH-20261119-OPS-TEAM-BULK-251 · Selección múltiple de equipos)
 
 - MINOR: DhMultiSelect para seleccionar varios colaboradores y asignarlos en una sola acción; edición individual conservada.
