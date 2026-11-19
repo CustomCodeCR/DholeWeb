@@ -1,3 +1,10 @@
+## [1.98.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-SCOPE-267 · Tarifas preferenciales por naviera e Incoterm)
+
+- MINOR: selección de naviera e Incoterm en CRM > Cuentas > Tarifas preferenciales, para personalización de venta por ruta y edición de acuerdos anteriores.
+- Los criterios forman parte del ámbito guardado y filtrado de costos de Pricing; las selecciones generales mantienen compatibilidad con beneficios antiguos.
+- Tarifas originales de Pricing no se modifican ni se aplican automáticamente a cotizaciones. Pruebas unitarias añadidas; CI/staging antes de master.
+- DholeWeb y DholeSystem 1.97.7 → 1.98.0; DholeCRMService 1.38.0 → 1.39.0.
+
 ## [1.97.7] - 2026-11-19 (DH-20261119-DHOLE-REBRAND-266 · Identidad Dhole System)
 
 - PATCH: Identidad Dhole System, icono SVG transparente de globo, paquete y ruta para favicon, acceso y navegación en ambos entornos.
