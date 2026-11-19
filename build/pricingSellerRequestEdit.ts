@@ -117,7 +117,7 @@ function patchWizard(source: string) {
 
   code = replaceOnce(code,
     "{{ saving ? 'Enviando…' : 'Enviar solicitud a Pricing' }}",
-    "{{ saving ? 'Guardando…' : sellerEditRequestId ? 'Guardar y reenviar a Pricing' : 'Enviar solicitud a Pricing' }}",
+    "{{ saving ? 'Guardando…' : sellerEditRequestId ? 'Guardar cambios' : 'Enviar solicitud a Pricing' }}",
     'seller edit button label')
 
   // Some later pricing plugins rewrite the executive selector. Keep the

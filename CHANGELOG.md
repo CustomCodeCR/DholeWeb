@@ -2,7 +2,15 @@
 
 - MINOR: agrega «Devolver solicitud» a la par de «Continuar tarifa» en la bandeja de Pricing. Modal Dh con motivo obligatorio; reserva exclusiva, validación API y actualización de la cola.
 - El vendedor ve el estado «Devuelta para corregir» con motivo literal, puede corregir y reenviar el mismo formulario; la notificación por sistema abre la edición y el correo sale del outbox de Pricing.
-- Conserva supervisor de solo lectura, escenarios de edición normal y polling/reconciliación realtime. DholeWeb 1.100.0→1.101.0; DholeSystem y ecosistema 1.100.0→1.101.0. CI/staging antes de master.
+- Conserva supervisor de solo lectura, escenarios de edición normal y polling/reconciliación realtime. DholeWeb 1.100.1→1.101.0; DholeSystem 1.100.1→1.101.0. CI/staging antes de master.
+
+## [1.100.1] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-ROUTE-271 · Corrección del filtrado por POL/POE/POD)
+
+- PATCH: la opción «Mostrar todos los ítems de Pricing» ya no omite las restricciones de POL, POE, POD, naviera, Incoterm ni servicios.
+- El catálogo puede incluir otras modalidades únicamente cuando son compatibles con los puertos seleccionados; los cargos generales permanecen disponibles.
+- Se excluyen costos con POE/POD diferentes de los elegidos y cargos asociados a otro puerto mediante portRole=Any o legado sin rol.
+- Agrega pruebas de regresión con POE Caldera y POD San José para costos de Panamá, junto con controles sobre servicios y naviera.
+- Web/System 1.100.0 → 1.100.1; CRM 1.41.0 sin modificaciones. Validar CI, manifiesto y staging antes de promover.
 
 ## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · cargos manuales, servicios y fallback preferencial)
 
