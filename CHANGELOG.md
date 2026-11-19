@@ -1,3 +1,9 @@
+## [1.101.0] - 2026-11-19 (DH-20261119-PRICING-RETURN-REQUEST-271 · devolver solicitudes de tarifa)
+
+- MINOR: agrega «Devolver solicitud» a la par de «Continuar tarifa» en la bandeja de Pricing. Modal Dh con motivo obligatorio; reserva exclusiva, validación API y actualización de la cola.
+- El vendedor ve el estado «Devuelta para corregir» con motivo literal, puede corregir y reenviar el mismo formulario; la notificación por sistema abre la edición y el correo sale del outbox de Pricing.
+- Conserva supervisor de solo lectura, escenarios de edición normal y polling/reconciliación realtime. DholeWeb 1.100.1→1.101.0; DholeSystem 1.100.1→1.101.0. CI/staging antes de master.
+
 ## [1.100.1] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-ROUTE-271 · Corrección del filtrado por POL/POE/POD)
 
 - PATCH: la opción «Mostrar todos los ítems de Pricing» ya no omite las restricciones de POL, POE, POD, naviera, Incoterm ni servicios.

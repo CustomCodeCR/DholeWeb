@@ -155,6 +155,19 @@ export const RateRequestLeaseService = {
     }))
     return completion
   },
+  async returnToSeller(id: string, reason: string): Promise<void> {
+    const token = this.tokenFor(id)
+    if (!token) throw new Error('No existe una reserva vigente para devolver la solicitud.')
+    await callEndpoint<unknown, { reason: string }>({
+      method: 'POST',
+      path: path(id, 'return-to-seller'),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    }, {
+      body: { reason },
+      extraHeaders: { 'X-Rate-Request-Lease': token },
+      idempotencyKey: createUuid(),
+    })
+  },
   async cancel(id: string, payload: { reason: 'Duplicate' | 'CustomerCancelled' | 'SellerCancelled' | 'Other'; details?: string; confirmation?: 'CancelSellerModification' }): Promise<void> {
     const token = this.tokenFor(id)
     if (!token) throw new Error('No existe una reserva vigente para cancelar la solicitud.')

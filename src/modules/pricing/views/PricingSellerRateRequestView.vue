@@ -42,7 +42,7 @@ async function verifySellerEditAccess() {
     }>(response as never)
     const claimed = Boolean(request.lockedByUserId && request.lockExpiresAtUtc
       && new Date(request.lockExpiresAtUtc).getTime() > Date.now())
-    if (request.status !== 'Open' || request.rateId || claimed) {
+    if (!['Open', 'Returned'].includes(request.status) || request.rateId || claimed) {
       editGuardRedirected = true
       toast.warning('Edición bloqueada', claimed
         ? (request.lockedByName || 'Pricing') + ' ya tomó esta solicitud. Sus cambios no se pueden guardar.'
