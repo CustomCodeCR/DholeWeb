@@ -95,7 +95,8 @@ import { linkedAcceptedQuoteNumber } from '@/modules/pricing/utils/pricingLinked
 import { pricingCurrencyValue } from '@/modules/pricing/utils/pricingCurrencyValue'
 import { haulageAssociation as identifyHaulage } from '@/modules/pricing/utils/pricingHaulageCosts'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
-import { resolveDestinationVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
+import { resolveDestinationVatRate, resolvePodCountryCode, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
+import { operationForClientCountry, resolveCrmCountryCode } from '@/modules/pricing/utils/pricingClientCountryOperation'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
@@ -239,6 +240,8 @@ const router = useRouter()
 const toastStore = useToastStore()
 const modalStore = useModalStore()
 const authStore = useAuthStore()
+const crmClientCountryId = ref('')
+const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
 const loadingRates = ref(false)
@@ -2021,23 +2024,22 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
     }]
   : [])
 
+const clientCountryCode = computed(() => resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries))
+const routeOperation = computed(() => operationForClientCountry(
+  clientCountryCode.value,
+  resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
+  resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
+))
 const direction = computed(() => {
-  // El POD determina el destino final; un POE intermedio no cambia la importación.
-  const finalDestination = selectedPod.value ?? selectedDestination.value
-  if (!selectedOrigin.value || !finalDestination) return ''
-  const originCr = isCostaRica(selectedOrigin.value)
-  const destinationCr = isCostaRica(finalDestination)
-  if (originCr && !destinationCr) return 'Exportación'
-  if (!originCr && destinationCr) return 'Importación'
-  return 'Tránsito / doméstico'
+  if (routeOperation.value === 'Import') return 'Importación'
+  if (routeOperation.value === 'Export') return 'Exportación'
+  if (routeOperation.value === 'TransitDomestic') return 'Tránsito / doméstico'
+  return ''
 })
-const operationType = computed<RateOperationType>(() => {
-  if (direction.value === 'Importación') return 'Import'
-  if (direction.value === 'Exportación') return 'Export'
-  return 'TransitDomestic'
-})
+const operationType = computed<RateOperationType>(() => routeOperation.value ?? 'TransitDomestic')
 const crcImportContext = computed(
-  () => operationType.value === 'Import' || isCostaRica(selectedPod.value) || isCostaRica(selectedDestination.value),
+  // Costa Rica's customs jurisdiction follows the final physical destination.
+  () => isCostaRica(selectedPod.value ?? selectedDestination.value),
 )
 const crcCurrency = computed(() =>
   catalogs.currencies.find((item) => String(item.code ?? '').trim().toUpperCase() === 'CRC') ?? null,
@@ -2653,6 +2655,7 @@ const canNext = computed(() => {
       form.serviceIds.length &&
       form.loadDate &&
       (!props.sellerRequestMode || Boolean(form.clientId || form.clientName.trim())) &&
+      (!form.clientId || Boolean(routeOperation.value)) &&
       exwLocationReady.value &&
       fcaLocationReady.value &&
       inlandServiceLocationsReady.value &&
@@ -2687,6 +2690,7 @@ const requiredStepIssues = computed<RequiredFieldIssue[]>(() => {
   if (step.value === 2) add(!form.shipmentMode, 'shipmentMode', 'Tipo de embarque')
   if (step.value === 3) {
     add(props.sellerRequestMode && !form.clientId && !form.clientName.trim(), 'client', 'Cliente')
+    add(Boolean(form.clientId && !routeOperation.value), 'clientCountry', 'País del cliente y POL/POD en CRM/Config')
     add(!form.originId, 'originId', 'Origen (POL)')
     add(!form.destinationId, 'destinationId', 'Entrada (POE)')
     add(maritimePodRequired.value && !String(form.podId ?? '').trim(), 'podId', 'POD (destino final)')
@@ -5306,6 +5310,11 @@ function supportSummaryText() {
 }
 
 async function saveOpenRequest() {
+  if (form.clientId && !routeOperation.value) {
+    step.value = 3
+    void Promise.resolve().then(() => { validateRequiredFields() })
+    return
+  }
   if (!editingRate.value && (selectedPoeIds.value.length > 1 || carrierRouteCount.value > 1)) {
     toastStore.warning('Guardado agrupado pendiente', 'Pricing todavía no puede crear todas las sub-QUO en una transacción. Los POE continúan seleccionados.')
     return
@@ -5501,6 +5510,11 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
+  if (form.clientId && !routeOperation.value) {
+    step.value = 3
+    void Promise.resolve().then(() => { validateRequiredFields() })
+    return
+  }
   if (pendingModificationDelivery.value) {
     // Guardar nunca envía una revisión persistida; el envío es una acción separada.
     toastStore.warning('Revisión ya guardada', 'Use Enviar revisión al vendedor sin volver a guardar la QUO.')
@@ -6378,8 +6392,11 @@ function setCrmClient(client: {
   displayName: string
   executiveUserId: string
   executiveName: string
+  countryId?: string | null
   isCastroFallasExecutive?: boolean
 } | null) {
+  crmClientCountryId.value = client?.countryId || ''
+  resolvedCountryClientId.value = client?.id || ''
   form.crmClientKind = client?.kind || ''
   form.clientId = client?.id || ''
   form.clientName = client?.displayName || ''
@@ -6396,6 +6413,15 @@ function setCrmClient(client: {
   }
 }
 
+watch(
+  () => form.clientId,
+  (clientId) => {
+    if (clientId !== resolvedCountryClientId.value) {
+      crmClientCountryId.value = ''
+      resolvedCountryClientId.value = ''
+    }
+  },
+)
 watch(
   () => form.clientId,
   (clientId) => {
@@ -6891,7 +6917,8 @@ onMounted(async () => {
               </template>
               <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
-            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha.</p>
+            <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha. La operación se calcula por el país del cliente frente al POL y POD final.</p>
+            <p v-if="form.clientId && !routeOperation" data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Verifique el país de la cuenta/prospecto en CRM y los países de origen y destino en Config.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">
