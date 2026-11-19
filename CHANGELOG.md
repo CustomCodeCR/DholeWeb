@@ -1,3 +1,9 @@
+## [1.93.0] - 2026-11-19 (DH-20261119-BLOBATAR-MASCOT-250 · mascotas y 58 emociones Blobatar)
+
+- MINOR: cinco poses nativas nuevas (Cringe, Burlón, Pícaro, Paranoico y Disociado) agregadas al catálogo de 53: ahora 58 emociones, con traducciones ES/EN y pruebas SSR.
+- Perfil: imagen local optimizada para el avatar; cuando hay foto, Blobatar se presenta como mascota flotante, con nombre propio, arrastre manual, movimiento automático o fijo, visibilidad y preferencias por usuario en navegador. Respeta movimiento reducido y no aparece en rutas públicas/embebidas.
+- Versionamiento DholeWeb y DholeSystem 1.93.0; otros componentes conservan la versión del manifiesto. CI/staging necesarios; producción sin autorización.
+
 ## [1.92.1] - 2026-11-19 (DH-20261119-OPS-ROLE-NAME-249 · rol elegible real)
 
 - PATCH: el selector de equipos muestra «Operativo Logístico» y «Supervisor Operativo», los nombres existentes en Auth.
