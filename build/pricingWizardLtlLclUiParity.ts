@@ -214,6 +214,11 @@ ${functionAnchor}`,
       '  step.value = 6',
       '}',
       '',
+      'function continueManualOwnLandLtlTariff() {',
+      '  continueManualColoaderLandLtlTariff()',
+      "  landLtlCommercialProfile.value = 'FinalClient'",
+      '}',
+      '',
       'function continueManualColoaderLandLtlTariff() {',
       '  resolvedFtlTariff.value = null',
       "  landLtlCommercialProfile.value = 'Nvocc'",
@@ -260,6 +265,7 @@ ${functionAnchor}`,
               @select-own="selectAndContinueOwnLandLtlTariff"
               @select-coloader="selectAndContinueImportedLandLtlTariff"
               @manual-coloader="continueManualColoaderLandLtlTariff"
+              @manual-own="continueManualOwnLandLtlTariff"
             />
 
             <template v-else>

@@ -62,3 +62,22 @@ test('wizard has no unbound country perspective helper after Vite transforms', (
   assert.match(wizard, /v-if="form\.clientId && !direction"/)
   assert.match(diagnostic, /Unresolved Pricing wizard runtime binding/)
 })
+
+test('wizard resolves CRM country IDs from the canonical countries group, retaining VAT-only entries', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const vat = readFileSync(new URL('../src/modules/pricing/utils/pricingPodVat.ts', import.meta.url), 'utf8')
+  assert.match(wizard, /selectOptional\('countries'\)/)
+  assert.match(wizard, /selectOptional\('country-vat-rates', 'country-tax-rates'\)/)
+  assert.match(wizard, /countries: \[\.\.\.countries, \.\.\.countryVatRates\.filter/)
+  assert.match(vat, /countryCatalogCode\(item\) === code && configuredVatRate\(item\) !== null/)
+})
+
+test('own LTL tariffs support explicit manual capture when no rate is returned', () => {
+  const picker = readFileSync(new URL('../src/modules/pricing/components/PricingLtlRateSourceSelector.vue', import.meta.url), 'utf8')
+  const transform = readFileSync(new URL('../build/pricingWizardLtlLclUiParity.ts', import.meta.url), 'utf8')
+  assert.match(picker, /'manual-own': \[\]/)
+  assert.match(picker, /@click="emit\('manual-own'\)"/)
+  assert.match(transform, /@manual-own="continueManualOwnLandLtlTariff"/)
+  assert.match(transform, /continueManualOwnLandLtlTariff\(\)/)
+  assert.match(transform, /landLtlCommercialProfile\.value = 'FinalClient'/)
+})

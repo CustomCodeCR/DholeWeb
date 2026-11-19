@@ -1,3 +1,9 @@
+## [1.103.4] - 2026-11-19 (DH-20261119-PRICING-COUNTRY-LTL-276 · país CRM y tarifa LTL manual)
+
+- PATCH: el wizard consulta primero Config/countries, fuente real de countryId para cuentas y prospectos CRM; fusiona country-vat-rates sin perder tasas de IVA configuradas. Evita bloquear la perspectiva comercial por comparar el UUID de CRM con el catálogo exclusivo de IVA.
+- Pantalla 5 LTL permite crear tarifa propia manual aunque no existan tarifarios activos, manteniendo la opción independiente de coloader manual y el ingreso explícito de importes en la siguiente pantalla.
+- Pruebas de regresión para países CRM, IVA y fuente LTL manual. Coordinación DholeWeb/DholeSystem 1.103.3 → 1.103.4. No hay cambios de contrato REST, SignalR, scopes ni migraciones; CI y staging obligatorios antes de master. Producción no autorizada por esta solicitud.
+
 ## [1.103.3] - 2026-11-19 (DH-20261119-CRM-MANUAL-BENEFITS-275 · persistencia verificable de cargos manuales)
 
 - PATCH: el formulario de tarifas preferenciales comprueba con GET que CRM persistió el cargo manual con nombre, venta, moneda y unidad antes de limpiar los datos.
