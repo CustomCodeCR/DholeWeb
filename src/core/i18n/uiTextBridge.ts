@@ -7,7 +7,6 @@ type TextState = { source: string; applied: string }
 
 const legacyPairs: Array<[string, string]> = [
   ['Plataforma de operaciones', 'Operations Platform'],
-  ['Plataforma logística inteligente', 'Intelligent Logistics Platform'],
   ['Centro de trabajo', 'Workspace'],
   [
     'Empiece por la siguiente tarea del flujo operativo y deje la administración para cuando la necesite.',
