@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { MapPin, Move } from 'lucide-vue-next'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
+import DhMascotAccessory from '@/shared/components/atoms/DhMascotAccessory.vue'
 import { useAvatarMascotStore } from '@/core/stores/avatarMascotStore'
 import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -11,6 +11,7 @@ const { t } = useI18n()
 const mascot = useAvatarMascotStore()
 const appearance = useAvatarAppearanceStore()
 const auth = useAuthStore()
+const mascotEmotionLabel = computed(() => t('appearance.avatarMoods.' + (appearance.expression ?? 'idle')))
 const root = ref<HTMLElement | null>(null)
 const dragging = ref(false)
 const reducedMotion = ref(false)
@@ -57,13 +58,13 @@ function stopRoaming() {
 }
 
 function roam() {
-  if (!roaming.value || dragging.value || document.hidden || !mascot.visible || !mascot.photo) return
+  if (!roaming.value || dragging.value || document.hidden || !mascot.visible) return
   mascot.setPosition({ x: 0.05 + Math.random() * 0.9, y: 0.08 + Math.random() * 0.8 })
 }
 
 function syncRoaming() {
   stopRoaming()
-  if (roaming.value && !document.hidden && mascot.visible && mascot.photo)
+  if (roaming.value && !document.hidden && mascot.visible)
     timer = setInterval(roam, STEP_MS)
 }
 
@@ -124,12 +125,8 @@ function moveByKeyboard(event: KeyboardEvent) {
   mascot.setPosition({ x: mascot.position.x + delta[0], y: mascot.position.y + delta[1] })
 }
 
-function toggleMovement() {
-  mascot.setMovement(mascot.movement === 'roam' ? 'fixed' : 'roam')
-}
-
 watch(() => [mascot.position.x, mascot.position.y] as const, snapToSavedPosition)
-watch(() => [mascot.movement, mascot.photo, mascot.visible] as const, syncRoaming)
+watch(() => [mascot.movement, mascot.visible] as const, syncRoaming)
 
 onMounted(() => {
   motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -149,13 +146,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    v-if="mascot.photo && mascot.visible"
+    v-if="mascot.visible"
     ref="root"
-    class="fixed z-[35] flex w-[100px] touch-none select-none flex-col items-center gap-1"
+    class="group fixed z-[35] flex h-[118px] w-[100px] touch-none select-none flex-col items-center"
     :style="mascotStyle"
     role="group"
     tabindex="0"
-    :aria-label="t('appearance.mascotDrag')"
+    :aria-label="mascot.name + ' · ' + mascotEmotionLabel + '. ' + t('appearance.mascotDrag')"
     @pointerdown="pointerDown"
     @pointermove="pointerMove"
     @pointerup="pointerUp"
@@ -164,9 +161,8 @@ onBeforeUnmount(() => {
   >
     <button
       type="button"
-      class="flex h-[70px] w-[70px] items-center justify-center rounded-full bg-[var(--dh-card)] shadow-xl ring-1 ring-[var(--dh-border)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+      class="relative flex h-[70px] w-[70px] shrink-0 items-center justify-center rounded-full bg-transparent focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
       :aria-label="t('appearance.avatarNext')"
-      :title="t('appearance.avatarNext')"
       @click="changeExpression"
     >
       <DhAvatar
@@ -177,21 +173,15 @@ onBeforeUnmount(() => {
         animate="always"
         :mood="appearance.expression ?? 'auto'"
         :controlled-expressions="true"
+        :transparent-backdrop="true"
       />
+      <DhMascotAccessory :kind="mascot.accessory" />
     </button>
-    <div class="flex max-w-[100px] items-center gap-1 rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)]/95 px-2 py-1 shadow-lg backdrop-blur">
-      <span class="max-w-[65px] truncate text-[10px] font-bold text-[var(--dh-text)]" :title="mascot.name">{{ mascot.name }}</span>
-      <button
-        type="button"
-        class="shrink-0 rounded p-0.5 text-[var(--dh-text-muted)] hover:text-[var(--dh-primary)] focus-visible:outline-2"
-        :aria-label="t(mascot.movement === 'roam' ? 'appearance.mascotFix' : 'appearance.mascotRoam')"
-        :title="t(mascot.movement === 'roam' ? 'appearance.mascotFix' : 'appearance.mascotRoam')"
-        @pointerdown.stop
-        @click.stop="toggleMovement"
-      >
-        <MapPin v-if="mascot.movement === 'roam'" class="h-3 w-3" />
-        <Move v-else class="h-3 w-3" />
-      </button>
+    <div
+      class="pointer-events-none absolute left-1/2 top-[74px] flex w-max max-w-[210px] -translate-x-1/2 flex-col items-center text-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+    >
+      <span class="max-w-[210px] break-words text-xs font-bold leading-4 text-[var(--dh-text)]" style="text-shadow: 0 1px 3px var(--dh-card), 0 0 4px var(--dh-card)">{{ mascot.name }}</span>
+      <span class="max-w-[210px] break-words text-[11px] font-medium leading-4 text-[var(--dh-text-muted)]" style="text-shadow: 0 1px 3px var(--dh-card), 0 0 4px var(--dh-card)" aria-live="polite">{{ mascotEmotionLabel }}</span>
     </div>
   </div>
 </template>
