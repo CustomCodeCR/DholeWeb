@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { isGlobalCountryAgent } from '@/modules/catalogs/utils/globalAgentCountries'
 import {
   Check,
   ChevronLeft,
@@ -1113,7 +1114,7 @@ function countryTokens(item: CatalogItemSelectDto | null | undefined) {
 function resolveAgentForOrigin() {
   const origin = selectedOrigin.value
   const originTokens = countryTokens(origin)
-  if (!origin || !originTokens.size) return null
+  if (!origin) return null
 
   let best: CatalogItemSelectDto | null = null
   let bestScore = 0
@@ -1122,7 +1123,8 @@ function resolveAgentForOrigin() {
     const searchText = normalizeCatalogValue(
       [agent.code, agent.value, agent.label, agent.metadataJson].filter(Boolean).join(' '),
     )
-    let score = 0
+    // Global GCF is a fallback; a country-specific agent wins when available.
+    let score = isGlobalCountryAgent(agent) ? 1 : 0
     for (const token of originTokens) {
       if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
       else if (token.length >= 4 && searchText.includes(token)) score = Math.max(score, 60)
