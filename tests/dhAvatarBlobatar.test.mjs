@@ -68,7 +68,7 @@ test('Dark mode profile uses a true black backdrop without changing light mode',
   assert.ok(topbar.includes('border-white/15 bg-black'))
   assert.ok(topbar.includes('border-slate-200 bg-white/95'))
   assert.match(topbar, /:dark-backdrop="themeStore\.resolvedTheme === 'dark'"/)
-  assert.match(avatar, /:background="darkBackdrop \? false : 'circle'"/)
+  assert.match(avatar, /:background="transparentBackdrop || darkBackdrop \? false : 'circle'"/)
   assert.match(avatar, /background: #000/)
 })
 
@@ -122,7 +122,7 @@ test('Profile and expression badge contrast are readable in light and dark theme
   assert.ok(topbar.includes("'text-white/65' : 'text-slate-600'"))
   assert.ok(!topbar.includes('dark:bg-black'))
   assert.ok(avatar.includes("darkBackdrop ? 'border-white/15 bg-zinc-950 text-white' : 'border-slate-200 bg-white text-slate-900'"))
-  assert.ok(avatar.includes(':background="darkBackdrop ? false : \'circle\'"'))
+  assert.ok(avatar.includes(':background="transparentBackdrop || darkBackdrop ? false : \'circle\'"'))
   assert.ok(topbar.includes(':preview-expressions="true"'))
 })
 
