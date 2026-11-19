@@ -34,10 +34,15 @@ export function validatePricingModificationSaveBindings(source: string): void {
   if (!/if \(pendingModificationDelivery\.value\) \{[\s\S]*?await retrySavedModificationDelivery\(\)/.test(handler)) {
     throw new Error('[pricing-save-binding] Saved seller revisions require an explicit send action')
   }
-  // Both master and develop have different pre-save validation chains.
-  // Only examine the top of saveRate, where the pending-delivery guard lives.
-  const savePrelude = script.slice(saveAt, saveAt + 600)
-  if (savePrelude.includes('retrySavedModificationDelivery(')) {
+  // CRM and commercial-country validation can precede pending-delivery and
+  // exceed 600 characters. Verify the actual branch, not a fixed-size prelude.
+  const pendingAt = script.indexOf('if (pendingModificationDelivery.value) {', saveAt)
+  const pendingEnd = pendingAt >= 0 ? script.indexOf('\n  }', pendingAt) : -1
+  if (pendingAt < 0 || pendingAt >= handlerAt || pendingEnd < 0 || pendingEnd >= handlerAt) {
+    throw new Error('[pricing-save-binding] Pending revision guard was not found inside saveRate')
+  }
+  const pendingGuard = script.slice(pendingAt, pendingEnd + 4)
+  if (pendingGuard.includes('retrySavedModificationDelivery(')) {
     throw new Error('[pricing-save-binding] Save must not automatically deliver a pending revision')
   }
 }
