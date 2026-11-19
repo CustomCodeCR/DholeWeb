@@ -80,9 +80,28 @@ export const operationsApi = {
   initializeTeams: () => request<{ created: number; total: number }>('/api/operations/teams/initialize', 'POST'),
   createTeam: (body: { companyId: string; name: string; departmentCode: string }) =>
     request<{ id: string }>('/api/operations/teams', 'POST', body),
-  users: (search = '') =>
-    request<Paged<OperationsUser>>('/api/auth/users/operations-directory?page=1&pageSize=100&search=' +
-      encodeURIComponent(search)),
+  users: async (search = ''): Promise<Paged<OperationsUser>> => {
+    // The Auth directory is paginated. Loading only its first page silently
+    // hides operators while showing supervisors on larger installations.
+    const size = 100
+    const items: OperationsUser[] = []
+    let page = 1
+    let total = 0
+    do {
+      const response = await request<Paged<OperationsUser>>(
+        '/api/auth/users/operations-directory?page=' + page + '&pageSize=' + size +
+        '&search=' + encodeURIComponent(search))
+      total = response.total
+      items.push(...response.items)
+      if (response.items.length === 0) break
+      page += 1
+    } while (items.length < total && page <= 50)
+    return { page: 1, pageSize: items.length, total, items }
+  },
+  addMembers: (teamId: string, body: {
+    userIds: string[]; capacityPoints: number; isSupervisor: boolean; isAvailable: boolean
+  }) => request<{ assigned: number; skippedExisting: number; total: number }>(
+    `/api/operations/teams/${teamId}/members/bulk`, 'POST', body),
   saveMember: (teamId: string, body: OperationsMember) =>
     request<{ id: string }>(`/api/operations/teams/${teamId}/members`, 'POST', body),
   removeMember: (teamId: string, userId: string) =>
