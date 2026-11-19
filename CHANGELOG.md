@@ -1,3 +1,10 @@
+## [1.102.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-PROD-271 · Incoterms según país de cliente en producción)
+
+- MINOR: libera clasificación del cliente según su país CRM frente a POL y POD final, incluyendo responsable de Incoterm y flete; elimina la referencia fija a Costa Rica.
+- Preserva todos los cambios de release 270/271: Web 1.100.1 → 1.102.0, System 1.101.0 → 1.102.0, CRM 1.41.0 → 1.42.0.
+- Cliente país origen: exporta; país destino: importa; tercer país: tránsito/doméstico. Se bloquea guardado con país desconocido. IVA/aduanas permanece por país físico POD.
+- Versionado y pruebas CI/semver, staging primero, después master con autorización expresa de producción.
+
 ## [1.100.1] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-ROUTE-271 · Filtro de rutas en tarifas preferenciales)
 
 - PATCH: «Mostrar todos los ítems de Pricing» ya no pasa por alto POL/POE/POD, naviera, Incoterm ni servicios seleccionados.
