@@ -1,3 +1,10 @@
+## [1.96.0] - 2026-11-19 (DH-20261119-OPS-ROLE-TEAM-DASHBOARD-254 · Dashboard por rol y equipo)
+
+- MINOR: Dashboard de Operaciones con selección de equipos permitidos, resumen real de Aperturas, doble validación y expedientes recientes.
+- Rediseño de Equipos usando componentes Dh, lista visible por departamento y bitácora plegable; mantiene DhMultiSelect y Auth.
+- Tabla de solicitudes de Pricing sin fondos rojos completos por fila, con prioridad señalizada en badges/bordes.
+- Release promovido selectivamente desde develop, probado en staging. Web 1.95.1 → 1.96.0, Operations 0.11.0 → 0.12.0 y System 1.95.1 → 1.96.0.
+
 ## [1.95.1] - 2026-11-19 (DH-20261119-DH-MULTISELECT-OVERLAY-253 · DhMultiSelect sólido)
 
 - PATCH: el menú desplegable DhMultiSelect se teletransporta a la capa superior para evitar que AuditLogs y otras tarjetas de cristal tapen o atraviesen sus opciones.

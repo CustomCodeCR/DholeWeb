@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3, Pencil, UserMinus, SlidersHorizontal } from 'lucide-vue-next'
+import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3, Pencil, UserMinus, SlidersHorizontal, ChevronDown } from 'lucide-vue-next'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhMultiSelect } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
@@ -240,23 +240,32 @@ onMounted(initialize)
       <DhCard padding="sm" class="col-span-2 lg:col-span-1"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.availablePeople') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeMembers }}</p></DhCard>
     </div>
 
-    <div class="grid items-start gap-4 lg:grid-cols-[minmax(270px,0.9fr)_minmax(0,1.8fr)]">
+    <div class="grid items-start gap-4 lg:grid-cols-[minmax(300px,0.88fr)_minmax(0,2.12fr)]">
       <DhCard :title="t('operations.teamsDirectory')" :subtitle="t('operations.teamsDirectoryHint')" :icon="UsersRound">
         <div class="space-y-3">
           <DhSelect v-model="departmentFilter" :label="t('operations.teamDepartmentFilter')" :options="departments" :placeholder="''" />
-          <DhSelect v-model="teamSelection" :label="t('operations.selectTeam')" :options="teamOptions" :placeholder="t('operations.teamChoosePlaceholder')" :disabled="loading || !filteredTeams.length" />
+          <div class="lg:hidden">
+            <DhSelect v-model="teamSelection" :label="t('operations.selectTeam')" :options="teamOptions" :placeholder="t('operations.teamChoosePlaceholder')" :disabled="loading || !filteredTeams.length" />
+          </div>
           <p v-if="!loading && !teams.length" class="py-6 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.teamEmptyHint') }}</p>
           <p v-else-if="!filteredTeams.length" class="py-6 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.teamSearchEmpty') }}</p>
-          <div v-else-if="selected" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
-            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ departmentName(selected.departmentCode) }}</p>
-            <p class="mt-1 font-bold text-[var(--dh-text)]">{{ teamName(selected) }}</p>
-            <div class="mt-3 flex items-center gap-2 text-xs text-[var(--dh-text-soft)]">
-              <span class="h-2.5 w-2.5 rounded-full" :class="selected.isActive ? 'bg-emerald-500' : 'bg-gray-400'" />
-              <span>{{ selected.isActive ? t('operations.active') : t('operations.inactive') }}</span>
-              <span aria-hidden="true">·</span>
-              <span>{{ memberLabel(selected.members.length) }}</span>
-            </div>
-          </div>
+          <nav v-else :aria-label="t('operations.selectTeam')" class="hidden max-h-[62vh] space-y-2 overflow-y-auto pr-1 lg:block">
+            <button v-for="team in filteredTeams" :key="team.id" type="button"
+              class="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+              :class="selectedId === team.id
+                ? 'border-[var(--dh-primary)] bg-[var(--dh-input)] shadow-sm'
+                : 'border-[var(--dh-border)] hover:border-[var(--dh-primary)] hover:bg-[var(--dh-input)]'"
+              :aria-current="selectedId === team.id ? 'true' : undefined" @click="chooseTeam(team.id)">
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl dh-bg-primary-soft text-[var(--dh-primary)]">
+                <UsersRound class="h-5 w-5" />
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-bold text-[var(--dh-text)]">{{ teamName(team) }}</span>
+                <span class="mt-1 block truncate text-xs text-[var(--dh-text-muted)]">{{ departmentName(team.departmentCode) }} · {{ memberLabel(team.members.length) }}</span>
+              </span>
+              <span class="h-2 w-2 shrink-0 rounded-full" :class="team.isActive ? 'bg-emerald-500' : 'bg-gray-400'" />
+            </button>
+          </nav>
         </div>
       </DhCard>
 
@@ -278,7 +287,7 @@ onMounted(initialize)
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamMembersHint') }}</p>
             <p v-if="!members.length" class="py-7 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.memberEmpty') }}</p>
             <div v-else class="mt-3 space-y-2">
-              <div v-for="member in members" :key="member.userId" class="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+              <div v-for="member in members" :key="member.userId" class="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)]/15 text-xs font-black text-[var(--dh-primary)]">{{ initials(member.userId) }}</span>
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-bold text-[var(--dh-text)]">{{ nameFor(member.userId) }}</p>
@@ -333,9 +342,19 @@ onMounted(initialize)
             </div>
           </form>
         </DhCard>
-        <DhCard v-if="canAudit" :title="t('operations.audit')" :subtitle="t('operations.auditHint')" :icon="Clock3">
-          <OperationsAuditTimeline :events="history" :users="auditDisplayUsers" :empty-title="t('operations.noAudit')" />
-        </DhCard>
+        <details v-if="canAudit" class="group overflow-hidden rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-input)]">
+          <summary class="flex cursor-pointer list-none items-center gap-3 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]">
+            <Clock3 class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+            <span class="min-w-0 flex-1">
+              <strong class="block text-sm font-black text-[var(--dh-text)]">{{ t('operations.audit') }}</strong>
+              <span class="block text-xs text-[var(--dh-text-muted)]">{{ t('operations.auditHint') }} · {{ history.length }}</span>
+            </span>
+            <ChevronDown class="h-4 w-4 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" />
+          </summary>
+          <div class="border-t border-[var(--dh-border)] px-4 py-5">
+            <OperationsAuditTimeline :events="history" :users="auditDisplayUsers" :empty-title="t('operations.noAudit')" />
+          </div>
+        </details>
       </div>
       <DhCard v-else :title="t('operations.selectTeam')" :subtitle="t('operations.selectTeamHint')" :icon="UsersRound" />
     </div>
