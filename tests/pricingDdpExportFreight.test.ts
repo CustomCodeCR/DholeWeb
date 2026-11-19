@@ -24,7 +24,7 @@ test('customs-only transform derives exporter/importer before filtering freight'
   assert.match(customsTransform, /const freightNotRequiredByIncoterm = computed/)
   assert.match(customsTransform, /const origin = selectedOrigin\.value/)
   assert.match(customsTransform, /const destination = selectedPod\.value \?\? selectedDestination\.value/)
-  assert.match(customsTransform, /const perspective = fromCr && !toCr \? 'Export' : !fromCr && toCr \? 'Import' : 'TransitDomestic'/)
+  assert.match(customsTransform, /operationForClientCountry\(/)
   assert.match(customsTransform, /!incotermClientPaysMainTransport\(perspective, match\[2\]\.toUpperCase\(\)\)/)
   assert.doesNotMatch(customsTransform, /return \/\(\^\|\[\^a-z\]\)\(CFR\|CIF\|CPT\|CIP\|DAP\|DPU\|DDP\)/)
   assert.match(customsTransform, /!catalogs\.services\.length && form\.serviceIds\.length > 0/)
