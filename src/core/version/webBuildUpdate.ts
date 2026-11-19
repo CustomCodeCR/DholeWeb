@@ -4,7 +4,7 @@ export interface WebBuildVersion {
   commit?: string | null
 }
 
-const SEMVER = /^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$/
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 export function normalizeWebBuild(value: unknown): WebBuildVersion | null {
   if (!value || typeof value !== 'object') return null
