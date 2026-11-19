@@ -1,8 +1,15 @@
-## [1.103.4] - 2026-11-19 (DH-20261119-PRICING-COUNTRY-LTL-276 · país CRM y tarifa LTL manual)
+## [1.103.5] - 2026-11-19 (DH-20261119-PRICING-COUNTRY-LTL-276 · países CRM y LTL manual propio)
 
-- PATCH: el wizard consulta primero Config/countries, fuente real de countryId para cuentas y prospectos CRM; fusiona country-vat-rates sin perder tasas de IVA configuradas. Evita bloquear la perspectiva comercial por comparar el UUID de CRM con el catálogo exclusivo de IVA.
-- Pantalla 5 LTL permite crear tarifa propia manual aunque no existan tarifarios activos, manteniendo la opción independiente de coloader manual y el ingreso explícito de importes en la siguiente pantalla.
-- Pruebas de regresión para países CRM, IVA y fuente LTL manual. Coordinación DholeWeb/DholeSystem 1.103.3 → 1.103.4. No hay cambios de contrato REST, SignalR, scopes ni migraciones; CI y staging obligatorios antes de master. Producción no autorizada por esta solicitud.
+- PATCH posterior a CRM seguimientos 281: preserva la edición de recordatorios y seguimientos incluida en 1.103.4.
+- Pricing carga los países canónicos de Config para resolver el UUID del cliente CRM y conserva IVA de country-vat-rates por destino.
+- Pantalla 5 LTL permite ingresar un flete propio manual aunque no exista tarifario activo, separadamente de la opción coloader manual.
+- DholeWeb/DholeSystem 1.103.4 → 1.103.5. Sin cambios en REST, SignalR ni servicios backend. CI y staging antes de master; producción no autorizada por esta solicitud.
+
+## [1.103.4] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-281 · edición de seguimientos y recordatorios)
+
+- PATCH: habilita editar seguimientos y recordatorios desde el detalle de Agenda y seguimientos, como las bitácoras. Permite cambiar asunto, tipo, responsable, fechas, invitados y avisos sin duplicar el registro.
+- Borradores recuperables, control de intervalo y carga obligatoria de los invitados antes de guardar; backend CRM guarda con auditoría y versionado optimista.
+- DholeSystem/DholeWeb 1.103.3 → 1.103.4; DholeCRMService 1.42.0 → 1.42.1. CI y staging previos a master; sin autorización productiva.
 
 ## [1.103.3] - 2026-11-19 (DH-20261119-CRM-MANUAL-BENEFITS-275 · persistencia verificable de cargos manuales)
 

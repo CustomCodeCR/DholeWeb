@@ -3,7 +3,7 @@
   "releaseId": "DH-20261119-PRICING-COUNTRY-LTL-276",
   "date": "2026-11-19",
   "ecosystem": "Dhole",
-  "ecosystemVersion": "1.103.4",
+  "ecosystemVersion": "1.103.5",
   "releaseType": "PATCH",
   "changes": [
     "Load canonical Config countries for CRM customer-country classification and preserve VAT metadata",
@@ -12,13 +12,13 @@
   "components": [
     {
       "repository": "CustomCodeCR/DholeWeb",
-      "previousVersion": "1.103.3",
-      "version": "1.103.4"
+      "previousVersion": "1.103.4",
+      "version": "1.103.5"
     },
     {
       "repository": "CustomCodeCR/DholeSystem",
-      "previousVersion": "1.103.3",
-      "version": "1.103.4"
+      "previousVersion": "1.103.4",
+      "version": "1.103.5"
     }
   ],
   "otherComponentVersions": "Retained from DholeSystem/release-manifest.json",
