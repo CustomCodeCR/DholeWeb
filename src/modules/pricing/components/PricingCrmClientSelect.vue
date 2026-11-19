@@ -9,6 +9,7 @@ interface PricingCrmClient {
   displayName: string
   legalName: string
   taxId?: string | null
+  countryId?: string | null
   executiveUserId: string
   isCastroFallasExecutive: boolean
   executiveName: string
