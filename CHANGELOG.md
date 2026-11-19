@@ -1,3 +1,9 @@
+## [1.92.0] - 2026-11-19 (DH-20261119-BLOBATAR-EMOTIONS-248 · 36 nuevas emociones Blobatar)
+
+- MINOR: 36 expresiones nativas SVG con poses individuales; total 53, con etiquetas ES/EN y restauración de preferencias por usuario.
+- Selector DhSelect en Apariencia para elegir una expresión fija; rotación automática, sincronización entre pestañas y movimiento reducido preservados.
+- Versión global Web/System 1.91.0 → 1.92.0; resto de componentes sin cambios. CI y staging obligatorios antes de producción.
+
 ## [1.89.0] - 2026-11-18 (Versión unificada con System y aviso de actualización)
 
 ### Added
