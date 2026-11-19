@@ -118,3 +118,11 @@ test('rate request resumes with CRM country, or allows explicit country for this
   assert.match(drafts, /pricingQuoteCountryOverrideId: pricingQuoteCountryOverrideId\.value/)
   assert.match(drafts, /landLtlCommercialProfile: landLtlCommercialProfile\.value/)
 })
+
+test('reselecting the own manual LTL source retains previously entered freight amounts', () => {
+  const plugin = readFileSync(new URL('../build/pricingWizardLtlLclUiParity.ts', import.meta.url), 'utf8')
+  assert.match(plugin, /const preserve = form\.manualRate && landLtlCommercialProfile\.value === 'FinalClient'/)
+  assert.match(plugin, /form\.freightCost = previousCost/)
+  assert.match(plugin, /form\.freightSale = previousSale/)
+  assert.match(plugin, /form\.transitDays = previousTransitDays/)
+})
