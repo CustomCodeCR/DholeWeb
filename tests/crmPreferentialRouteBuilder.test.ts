@@ -20,3 +20,13 @@ test('Sale overrides are linked to source cost without changing cost in Pricing'
   assert.ok(builder.includes('insuranceSalePercent'))
   assert.doesNotMatch(builder, /PricingService\.updateCost|PricingService\.createCost/)
 })
+
+test('Saved preferential tariffs are scoped by the selected carrier and Incoterm', () => {
+  for (const part of ['route.carrierCode', 'route.incotermCode', 'matchesPreferentialCommercialScope',
+    'Todas las navieras', 'Todos los Incoterms'])
+    assert.ok(builder.includes(part), part)
+  assert.ok(manager.includes('carrierCode: draft.carrierCode'))
+  assert.ok(manager.includes('incotermCode: draft.incotermCode'))
+  assert.ok(manager.includes("carrierCode: rate.carrierCode ?? ''"))
+  assert.ok(manager.includes("incotermCode: rate.incotermCode ?? ''"))
+})
