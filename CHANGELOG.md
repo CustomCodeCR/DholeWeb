@@ -1,3 +1,9 @@
+## [1.94.1] - 2026-11-19 (DH-20261119-DH-MULTISELECT-OVERLAY-252 · Menús DhMultiSelect opacos)
+
+- PATCH: corrige la superposición de la bitácora y otros paneles de cristal sobre el menú desplegable DhMultiSelect, mediante Teleport y posición adaptativa.
+- Usa `--dh-card-solid` para un fondo completamente opaco en temas claro y oscuro, conservando búsqueda, multiselección y cierre exterior.
+- Cambios en la librería compartida Dh; regresiones de posicionamiento y contraste cubiertas por pruebas. Versión global DholeWeb/DholeSystem 1.94.1, sin alterar otros microservicios.
+
 ## [1.94.0] - 2026-11-19 (DH-20261119-OPS-TEAM-BULK-251 · Selección múltiple de equipos)
 
 - MINOR: DhMultiSelect para seleccionar varios colaboradores y asignarlos en una sola acción; edición individual conservada.
