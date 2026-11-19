@@ -67,7 +67,7 @@ export function mostSpecificPreferentialRate<T extends PreferentialRule>(
   return rates.filter(rate=>matchesPreferentialRule(rate,request,now))
     .sort((a,b)=>preferentialSpecificity(b)-preferentialSpecificity(a) ||
       scopeSize(a)-scopeSize(b) ||
-      Date.parse(b.validFrom ?? '') - Date.parse(a.validFrom ?? '') ||
+      (Date.parse(b.validFrom ?? '') || 0) - (Date.parse(a.validFrom ?? '') || 0) ||
       norm(a.id).localeCompare(norm(b.id)))[0]
 }
 export function exactPreferentialScope(rate: PreferentialRule, selection: {
