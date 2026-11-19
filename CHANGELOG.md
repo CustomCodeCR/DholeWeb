@@ -1,3 +1,10 @@
+## [1.84.0] - 2026-11-18
+
+### Added
+- CRM prospect capture: source of acquisition, referral notes, province and canton, contacts.
+- Structured contact management in prospect detail and identity preservation during account conversion.
+- Follow backend/Config 1.38.0/1.12.0. Production deployment requires explicit authorization.
+
 ## [1.83.2] - 2026-11-18 (SRM: mostrar descripción y vigencia de adjuntos)
 
 - PATCH DH-20261118-SRM-ATTACHMENT-METADATA-240: cada adjunto de tarifas y crédito muestra descripción; las tarifas presentan fechas de vigencia desde/hasta, con formato dd/mm/aaaa y etiquetas para datos no indicados.
