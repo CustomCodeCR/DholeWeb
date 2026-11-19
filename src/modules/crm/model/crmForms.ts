@@ -52,10 +52,14 @@ export const CRM_MODULES: Record<string, CrmModule> = {
     readScope: 'crm.lead.read', createScope: 'crm.lead.create',
     updateScope: 'crm.lead.update', primary: 'name', secondary: 'companyName',
     fields: [
-      field('name', 'Prospecto', 'text', true), field('companyName', 'Empresa'),
-      field('countryId', 'ID del país (Config)'), field('taxId', 'Identificación fiscal (texto)'),
+      field('name', 'Nombre comercial del prospecto', 'text', true),
+      field('companyName', 'Razón social (opcional)'),
+      field('countryId', 'País'), field('taxId', 'Identificación fiscal (texto)'),
       field('contactEmail', 'Correo', 'email'), field('phone', 'Teléfono'),
-      field('sourceCode', 'Origen'), field('relationshipTypeCode', 'Relación comercial'),
+      field('sourceCode', 'Fuente de captación'),
+      field('sourceDetail', 'Detalle del origen / referido por'),
+      field('initialNotes', 'Notas y observaciones iniciales', 'textarea'),
+      field('relationshipTypeCode', 'Relación comercial'),
     ],
   },
   opportunities: {
