@@ -24,6 +24,20 @@ function hideFreightInput(tag: string): string {
   return tag.replace('<DhInput', '<DhInput v-if="' + visibility + '"')
 }
 
+// The manual-ocean-freight feature injects TWO independent cards in screen 6.
+ // When CIF/CFR/etc. include international freight, both must disappear.
+export function guardManualOceanFreightCards(screenSix: string): string {
+  const unguarded = `v-if="shipmentModeForApi === 'Fcl' && (form.modality === 'Maritime'`
+  const count = screenSix.split(unguarded).length - 1
+  if (count !== 2) {
+    throw new Error('[pricingCustomsOnlyWizard] Expected both manual-ocean-freight cards in screen 6, found ' + count)
+  }
+  return screenSix.replaceAll(
+    unguarded,
+    `v-if="hasInternationalTransportService && shipmentModeForApi === 'Fcl' && (form.modality === 'Maritime'`,
+  )
+}
+
 function patchWizard(source: string): string {
   let code = source
   code = replaceRequired(
@@ -260,6 +274,14 @@ function patchWizard(source: string): string {
     'clear imported freight association on no-freight edit',
   )
 
+  // Even a direct call must not create an ImportFclRate for a CIF import.
+  code = replaceRequired(
+    code,
+    'async function saveManualOceanFreight() {\n  if (savingManualOceanFreight.value) return',
+    "async function saveManualOceanFreight() {\n  if (!hasInternationalTransportService.value) {\n    toastStore.warning('Flete incluido en el Incoterm', 'No se debe crear un flete marítimo adicional para esta operación.')\n    return\n  }\n  if (savingManualOceanFreight.value) return",
+    'prevent no-freight manual ocean rate creation',
+  )
+
   const screenSixStart = code.indexOf('<div v-else-if="step === 6" class="space-y-6">')
   const screenSixEnd = code.indexOf('<div v-else-if="step === 4" class="space-y-6">', screenSixStart)
   if (screenSixStart < 0 || screenSixEnd <= screenSixStart) {
@@ -294,9 +316,21 @@ function patchWizard(source: string): string {
     '<div class="crystal-route-summary grid gap-3 md:grid-cols-4">',
     '<div v-if="hasInternationalTransportService" class="crystal-route-summary grid gap-3 md:grid-cols-4">',
   )
+  // Both the detailed manual-freight card and its final action must be hidden.
+  six = guardManualOceanFreightCards(six)
   six = six.replace(
-    'v-if="shipmentModeForApi === \'Fcl\' && (form.modality === \'Maritime\'',
-    'v-if="hasInternationalTransportService && shipmentModeForApi === \'Fcl\' && (form.modality === \'Maritime\'',
+    "{{ multiCarrierSelectionMode ? 'Configure el agente, moneda, costo y venta del flete para cada alternativa. Use «Siguiente naviera» para recorrerlas.' : 'Los selects muestran el Value configurado en Config.' }}",
+    "{{ !hasInternationalTransportService ? 'El flete marítimo ya está cubierto por el Incoterm. Seleccione agente, naviera y moneda para los cargos de destino.' : multiCarrierSelectionMode ? 'Configure el agente, moneda, costo y venta del flete para cada alternativa. Use «Siguiente naviera» para recorrerlas.' : 'Los selects muestran el Value configurado en Config.' }}",
+  )
+  // Screen 5 is skipped when there is no international freight. Do not lock
+  // the carrier to an unavailable selection from that hidden step.
+  six = six.replace(
+    'v-if="multiCarrierSelectionMode" class="grid gap-3 rounded-2xl border',
+    'v-if="multiCarrierSelectionMode && hasInternationalTransportService" class="grid gap-3 rounded-2xl border',
+  )
+  six = six.replace(
+    'v-if="multiCarrierSelectionMode" class="flex items-center gap-2 rounded-2xl',
+    'v-if="multiCarrierSelectionMode && hasInternationalTransportService" class="flex items-center gap-2 rounded-2xl',
   )
 
   // Customs-only quotes still choose a carrier and agent in non-land modalities,
