@@ -1,3 +1,9 @@
+## [1.97.2] - 2026-11-19 (DH-20261119-RESTORE-DHOLE-DEVELOP-260 · Dhole en develop)
+
+- PATCH: desarrolla/staging vuelve a nombre visible Dhole y textos ES/EN originales, inicial D en login, logo GCF en menú y favicon ICO heredado.
+- En production/master se mantiene el nombre Orvelum System. Título de pestaña de develop: Dhole System · v1.97.2.
+- Sin alteraciones de contratos, servicios, rutas, scopes ni lógica de negocio.
+
 ## [1.97.1] - 2026-11-19 (DH-20261119-OPS-DASHBOARD-UX-257 · Rediseño del Dashboard operativo)
 
 - PATCH: sustituye dos encabezados grandes por una sola cabecera de Operaciones que integra el selector de rol y el filtro de equipo con componentes DhSelect.
