@@ -165,7 +165,7 @@ onMounted(load)
       </DhCard>
     </div>
 
-    <DhCard padding="md">
+    <DhCard v-if="!error" padding="md">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
           <h2 class="text-base font-black text-[var(--dh-text)]">{{ t('operations.dashboard.recent') }}</h2>
