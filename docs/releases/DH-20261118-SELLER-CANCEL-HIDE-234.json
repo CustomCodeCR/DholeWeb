@@ -1,0 +1,32 @@
+{
+  "releaseId": "DH-20261118-SELLER-CANCEL-HIDE-234",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.87.4",
+  "date": "2026-11-18",
+  "type": "PATCH",
+  "status": "candidate-ci-and-staging-pending",
+  "targetBranches": [
+    "develop",
+    "master"
+  ],
+  "component": "DholeWeb",
+  "previousVersion": "1.83.0",
+  "version": "1.83.1",
+  "changedComponents": [
+    "DholeWeb",
+    "DholeSystem"
+  ],
+  "unchangedComponents": "15 other components retain existing versions in DholeSystem/release-manifest.json",
+  "requirements": [
+    "Remove seller cancel actions in dashboard desktop and mobile and seller detail",
+    "Remove cancellation from seller modal decisions",
+    "Keep Pricing cancellation scopes, audit and REST/SignalR unchanged"
+  ],
+  "tests": [
+    "pricingSellerCancelQuote.test.mjs",
+    "version:check",
+    "type-check/build CI",
+    "authenticated staging check"
+  ],
+  "productionDeploymentAuthorized": false
+}

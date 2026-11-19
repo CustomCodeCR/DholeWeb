@@ -470,11 +470,6 @@ function canRespondToRate(rate: RateDto) {
   return canActOnRate(rate) && canDecideSellerQuote(rate, hasOpenPricingModification(rate))
 }
 
-function canCancelRate(rate: RateDto): boolean {
-  return canActOnRate(rate) && !rate.revisionPending
-    && rate.status === 'AcceptedByClient'
-}
-
 function pendingModification(rate: RateDto): boolean {
   return requests.value.some(request => request.rateId === rate.id
     && modificationStillPending(request))
@@ -537,16 +532,6 @@ function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'Rej
       decision,
       onSaved: load,
     },
-  })
-}
-
-function openCancelRate(rate: RateDto) {
-  if (!canCancelRate(rate)) return
-  modalStore.open({
-    title: 'Cancelar cotización',
-    component: SellerRateDecisionModal,
-    size: 'md',
-    props: { rate, decision: 'Cancelled', onSaved: load },
   })
 }
 
@@ -900,7 +885,6 @@ onBeforeUnmount(() => {
                 <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
                 <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
                 </template>
-                <DhButton v-if="canCancelRate(rate)" label="Cancelar cotización" size="sm" variant="danger" @click="openCancelRate(rate)" />
               </div>
             </article>
           </div>
@@ -941,7 +925,6 @@ onBeforeUnmount(() => {
                           <DhButton label="Aceptar" size="sm" @click="openCustomerDecision(rate, 'AcceptedByClient')" />
                           <DhButton label="Rechazar" size="sm" variant="danger" @click="openCustomerDecision(rate, 'RejectedByClient')" />
                         </template>
-                        <DhButton v-if="canCancelRate(rate)" label="Cancelar cotización" size="sm" variant="danger" @click="openCancelRate(rate)" />
                       </template>
                       <DhButton v-if="canEditCreatedPricingRate(rate)" label="Modificar en Pricing" size="sm" variant="secondary" @click="editCreatedPricingRate(rate)" />
                     </div>
