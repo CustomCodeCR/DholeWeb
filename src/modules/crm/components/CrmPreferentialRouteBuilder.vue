@@ -22,7 +22,8 @@ type SavedRate = {
   tierSalesJson?: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]; isActive: boolean
   carrierCode?: string | null; incotermCode?: string | null; serviceCodes?: string[]
-  customChargeName?: string | null; validFrom?: string | null; validUntil?: string | null
+  customChargeName?: string | null; currencyCode?: string | null; unitCode?: string | null
+  validFrom?: string | null; validUntil?: string | null
   updatedAt?: string | null
 }
 const props = defineProps<{
@@ -238,6 +239,11 @@ function scopeMatches(rate: SavedRate) {
       serviceCodes: route.serviceCodes,
     })
 }
+// Manual CRM charges do not exist in the Pricing catalog; show them next to their editor.
+const savedManuals = computed(() => props.rates.filter(rate =>
+  !rate.sourceCostId && rate.rateType === 'FIXED_AMOUNT' &&
+  !!rate.customChargeName?.trim() && scopeMatches(rate))
+  .sort((a, b) => String(a.customChargeName).localeCompare(String(b.customChargeName), 'es')))
 function existingCost(cost: CostSelectDto) {
   return props.rates.find(x => x.isActive && x.sourceCostId?.toLowerCase() === cost.id.toLowerCase() && scopeMatches(x))
 }
@@ -395,6 +401,7 @@ async function save() {
   }
 }
 async function saveManual() {
+  if (saving.value) return
   error.value = ''; success.value = ''
   const name = manual.name.trim()
   const value = Number(manual.amount)
@@ -402,17 +409,19 @@ async function saveManual() {
     error.value = 'Ingresá un nombre de cargo manual de hasta 120 caracteres.'
     return
   }
-  if (!manual.amount.trim() || !Number.isFinite(value) || value < 0) {
-    error.value = 'Ingresá un precio de venta válido, mayor o igual a cero.'
+  if (!manual.amount.trim() || !Number.isFinite(value) || value < 0 || value > 999999999999) {
+    error.value = 'Ingresá un precio de venta válido, entre 0 y 999999999999.'
     return
   }
   const existing = props.rates.find(rate => !rate.sourceCostId && scopeMatches(rate) &&
     rate.chargeCode.toUpperCase() === manual.chargeCode.toUpperCase() &&
     String(rate.customChargeName ?? '').trim().toUpperCase() === name.toUpperCase())
   saving.value = true
+  let accepted = false
   try {
     const base = crmPath('accounts', props.accountId, 'commercial-benefits/rates')
-    await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
+    const saved = await crmRequest<{ id: string }>(
+      base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
       existing ? 'PUT' : 'POST', {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
         sourceCostId: null, tierSalesJson: null,
@@ -421,11 +430,23 @@ async function saveManual() {
         insuranceCostPercent: null, insuranceSalePercent: null,
         currencyCode: manual.currency, unitCode: manual.unit,
       })
+    accepted = true
+    // A 2xx response is not enough: confirm the item survives an account-group read.
+    const persisted = await crmRequest<{ rates: SavedRate[] }>(
+      crmPath('accounts', props.accountId, 'commercial-benefits'))
+    const stored = persisted.rates?.find(rate => rate.id === saved.id)
+    if (!stored || stored.sourceCostId || stored.value === null ||
+      stored.value !== value || stored.customChargeName?.trim() !== name ||
+      stored.currencyCode !== manual.currency || stored.unitCode !== manual.unit) {
+      throw new Error('CRM aceptó el cargo, pero no lo devolvió al consultar las tarifas guardadas. Revisá el registro antes de volver a enviarlo.')
+    }
     manual.name = ''; manual.amount = ''
-    success.value = 'Cargo manual guardado con la combinación seleccionada.'
+    success.value = 'Cargo manual confirmado en CRM. Se conservará al actualizar la cuenta.'
     emit('saved')
   } catch (cause) {
-    error.value = crmError(cause)
+    error.value = (accepted ? 'No se pudo confirmar el cargo manual después de enviarlo: ' : '') + crmError(cause)
+    // Never blindly retry a POST: a failed follow-up GET can still mean committed data.
+    if (accepted) emit('saved')
   } finally { saving.value = false }
 }
 
@@ -509,7 +530,19 @@ async function saveManual() {
       <button class="route-action mt-4" type="submit" :disabled="saving">
         {{ saving ? 'Guardando…' : 'Guardar ítem manual' }}
       </button>
+      <p v-if="error" role="alert" class="mt-3 rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
+      <p v-if="success" role="status" class="mt-3 rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
     </form>
+    <div v-if="savedManuals.length" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"
+      data-crm-saved-manual-rates>
+      <h5 class="text-sm font-bold">Ítems manuales guardados para esta combinación ({{ savedManuals.length }})</h5>
+      <ul class="mt-2 space-y-1 text-sm">
+        <li v-for="rate in savedManuals" :key="rate.id" class="flex flex-wrap justify-between gap-2">
+          <span>{{ rate.customChargeName }}</span>
+          <span class="font-semibold">{{ rate.currencyCode }} {{ Number(rate.value).toLocaleString('es-CR') }} / {{ rate.unitCode }}</span>
+        </li>
+      </ul>
+    </div>
     <label class="mt-4 flex items-center gap-2 text-sm font-semibold">
       <input v-model="showAllCosts" type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" />
       Mostrar todos los ítems de Pricing compatibles con los puertos seleccionados (incluso otras modalidades)
