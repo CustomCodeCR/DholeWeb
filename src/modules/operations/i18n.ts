@@ -48,7 +48,7 @@ export const operationsMessages = {
       finance: 'Finanzas',
     },
     teamDepartmentFilter: 'Departamento', teamChoosePlaceholder: 'Seleccionar equipo',
-    eligibleRolesHint: 'Solo puedes asignar usuarios activos con el rol Operador Logístico o Supervisor Operativo.',
+    eligibleRolesHint: 'Solo puedes asignar usuarios activos con el rol Operativo Logístico o Supervisor Operativo.',
     noEligibleUsers: 'No hay usuarios disponibles con esos roles. Asígnalos desde Auth → Roles y usuarios.',
     auditTimeline: {
       count: '{count} movimientos', lastActivity: 'Última actividad',
