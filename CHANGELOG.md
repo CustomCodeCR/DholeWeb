@@ -1,3 +1,11 @@
+## [1.97.3] - 2026-11-19 (DH-20261119-GCF-ALL-COUNTRIES-261 · Cobertura mundial Grupo Castro Fallas)
+
+- PATCH: Grupo Castro Fallas (GCF) se identifica como agente con cobertura global en el catálogo; el formulario evita seleccionar país por país.
+- Al guardar, se registra metadata.allCountries = true y se conserva la lista compatible de países conocidos, códigos y demás metadata.
+- Pricing LCL y wizard de tarifas usan GCF como alternativa para cualquier país, incluso nuevas ubicaciones o POL sin país; agentes con coincidencia geográfica específica conservan preferencia.
+- Regresión de metadata, países existentes y ausencia de catálogo; DholeWeb y DholeSystem 1.97.2 → 1.97.3; demás servicios sin cambios.
+- CI y staging pendientes; sin integración ni despliegue productivo autorizado.
+
 ## [1.97.2] - 2026-11-19 (DH-20261119-RESTORE-DHOLE-DEVELOP-260 · Dhole en develop)
 
 - PATCH: desarrolla/staging vuelve a nombre visible Dhole y textos ES/EN originales, inicial D en login, logo GCF en menú y favicon ICO heredado.
