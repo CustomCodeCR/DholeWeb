@@ -1,3 +1,9 @@
+## [1.99.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-269 · Incoterms según país de cliente)
+
+- MINOR: perspectiva de importación/exportación/tránsito determinada por país del cliente CRM contra POL y POD, respetando la responsabilidad de flete por Incoterm y sin perder impuestos asociados al destino físico.
+- Incluye aviso y validación cuando falte información del país de cliente o puertos; pruebas Honduras/Costa Rica/tercer país.
+- Backport aislado al historial de master; Web/System 1.99.0, CRM 1.40.0, otros servicios sin modificación. Requiere staging validado antes de integrar a master.
+
 ## [1.98.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-SCOPE-267 · tarifas preferenciales por naviera e Incoterm)
 
 - MINOR: backport de CRM > Tarifas preferenciales con ámbito persistente por naviera e Incoterm en configurador y editor avanzado.
