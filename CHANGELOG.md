@@ -1,3 +1,9 @@
+## [1.103.7] - 2026-11-19 (DH-20261119-PRICING-LTL-MANUAL-ENDTOEND-278 · recuperación de LTL manual y país CRM)
+
+- PATCH master 1.103.6→1.103.7 solo para Web/System: reconoce LTL manual propio como fuente válida en pantallas 5 y 6; conserva importe y estado en borradores.
+- Las solicitudes de Ventas consultan el país y responsable CRM al retomar pantalla 5; si el país falta, Pricing debe seleccionarlo explícitamente para esta cotización sin modificar CRM. Guardado señala el motivo sin redirección silenciosa.
+- Hotfix aislado de Pricing; sin integrar cambios extra CRM ni alterar servicios backend, permisos, REST o SignalR. CI y staging antes de master.
+
 ## [1.103.6] - 2026-11-19 (DH-20261119-PRICING-LTL-STEP6-277 · validación LTL manual paso 6)
 
 - PATCH: el paso 6 de LTL/FTL terrestre no requiere un carrierId marítimo oculto. Solo el LTL coloader manual exige agente; moneda, costo y venta deben ser valores numéricos válidos no negativos.

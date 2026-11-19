@@ -294,13 +294,15 @@ function patchWizard(source: string) {
     'const canNext = computed(() => {',
     `const canNext = computed(() => {
   if (step.value === 5 && shipmentModeForApi.value === 'Ltl') {
-    const manualColoader = landLtlCommercialProfile.value === 'Nvocc' && form.manualRate
-    return Boolean(landLtlCommercialProfile.value && (resolvedFtlTariff.value || manualColoader))
+    const manualLtl = form.manualRate
+      && (landLtlCommercialProfile.value === 'Nvocc' || landLtlCommercialProfile.value === 'FinalClient')
+    return Boolean(landLtlCommercialProfile.value && (resolvedFtlTariff.value || manualLtl))
   }
   if (step.value === 6 && shipmentModeForApi.value === 'Ltl') {
     const manualColoader = landLtlCommercialProfile.value === 'Nvocc' && form.manualRate
+    const manualLtl = form.manualRate && (landLtlCommercialProfile.value === 'FinalClient' || manualColoader)
     return Boolean(
-      (resolvedFtlTariff.value || manualColoader)
+      (resolvedFtlTariff.value || manualLtl)
       && (!manualColoader || catalogs.agents.some((agent) => agent.id === form.agentId))
       && form.currencyId
       && number(form.freightCost) >= 0
