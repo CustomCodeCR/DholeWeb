@@ -525,7 +525,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="dh-glass dh-liquid rounded-[32px] p-5">
+  <section class="dh-glass dh-liquid rounded-3xl p-4 sm:p-5">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <div class="flex items-center gap-2">
@@ -549,7 +549,7 @@ onBeforeUnmount(() => {
       No hay solicitudes abiertas pendientes de atender.
     </div>
     <div v-else class="mt-4 overflow-x-auto rounded-2xl border border-[var(--dh-border)]">
-      <table class="min-w-[2200px] w-full text-left text-sm">
+      <table class="w-full min-w-[1850px] text-left text-xs sm:text-sm">
         <thead class="bg-[var(--dh-card-hover)] text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">
           <tr>
             <th class="px-4 py-3">Vendedor</th>
@@ -570,10 +570,10 @@ onBeforeUnmount(() => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)]" :class="request.priority === 'Red' ? 'bg-red-500/10' : request.priority === 'Yellow' ? 'bg-amber-500/10' : 'bg-emerald-500/5'">
+          <tr v-for="request in sortedRequests" :key="request.id" class="border-t border-[var(--dh-border)] align-top transition-colors hover:bg-[var(--dh-input)]">
             <td class="px-4 py-3"><strong>{{ request.executiveName || request.sellerName || 'Vendedor' }}</strong></td>
             <td class="px-4 py-3">
-              <strong>{{ request.clientName || 'Cliente sin definir' }}</strong>
+              <strong class="block max-w-60 leading-5 text-[var(--dh-text)]">{{ request.clientName || 'Cliente sin definir' }}</strong>
               <div v-if="isModification(request)" class="mt-1 text-xs">
                 <DhBadge :label="`Modificación · ${request.payload?.modification?.quote || 'REV ' + (request.payload?.modification?.sourceRevisionNumber || 1)}`" variant="warning" />
                 <div v-for="(item, index) in modificationItems(request).slice(0, 3)" :key="index" class="mt-1 max-w-72 whitespace-normal text-[var(--dh-text-muted)]">

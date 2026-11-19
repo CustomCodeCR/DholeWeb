@@ -57,9 +57,9 @@ test('Pricing + Vendedor roles expose both dashboard views, not only SuperUsuari
   assert.match(dashboardView, /hasSellerDashboardAccess\.value && canUsePricing\.value/)
   assert.match(dashboardView, /const canSelectDashboard = computed\(/)
   assert.match(dashboardView, /v-if="canSelectDashboard"/)
-  assert.match(dashboardView, /<option value="pricing">Pricing<\/option>/)
-  assert.match(dashboardView, /<option value="seller">Vendedor<\/option>/)
-  assert.match(dashboardView, /canSelectDashboard\.value\s*\? selectedDashboardRole\.value/)
+  assert.match(dashboardView, /<option v-if="canUsePricing" value="pricing">Pricing<\/option>/)
+  assert.match(dashboardView, /<option v-if="hasSellerDashboardAccess" value="seller">Vendedor<\/option>/)
+  assert.match(dashboardView, /selectedDashboardRole\.value === 'seller' && hasSellerDashboardAccess\.value/)
   assert.doesNotMatch(dashboardView, /v-if="isSuperUser\(\)" class="w-full shrink-0 sm:w-56"/)
 })
 

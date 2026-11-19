@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
+import OperationsRoleDashboard from '@/modules/dashboard/components/OperationsRoleDashboard.vue'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
 import SellerRoleDashboard from '@/modules/dashboard/components/SellerRoleDashboard.vue'
 import RateOperationalReportsPanel from '@/modules/dashboard/components/RateOperationalReportsPanel.vue'
@@ -75,28 +76,36 @@ const canManageSellerRequests = computed(() =>
 
 // El selector altera sólo la vista; nunca cambia la sesión ni sus permisos.
 // Pricing + Vendedor puede alternar, aunque no tenga el rol SuperUsuario.
-type DashboardRole = 'pricing' | 'seller'
+type DashboardRole = 'pricing' | 'seller' | 'operations'
 const selectedDashboardRole = ref<DashboardRole>('pricing')
+const canUseOperations = computed(() => authStore.hasScope('operations.case.read'))
 const canSelectDashboard = computed(() =>
-  isSuperUser() || (hasSellerDashboardAccess.value && canUsePricing.value),
+  isSuperUser() || [canUsePricing.value, hasSellerDashboardAccess.value, canUseOperations.value].filter(Boolean).length > 1,
 )
 const activeDashboardRole = computed<DashboardRole>(() => {
   // Also correct the dashboard when the same page is reused for impersonation.
   if (!canUsePricing.value && hasSellerDashboardAccess.value) return 'seller'
-  if (canSelectDashboard.value) return selectedDashboardRole.value
-  return hasSellerDashboardAccess.value ? 'seller' : 'pricing'
+  if (!canUsePricing.value && !hasSellerDashboardAccess.value && canUseOperations.value) return 'operations'
+  if (canSelectDashboard.value) {
+    if (selectedDashboardRole.value === 'operations' && canUseOperations.value) return 'operations'
+    if (selectedDashboardRole.value === 'seller' && hasSellerDashboardAccess.value) return 'seller'
+    if (selectedDashboardRole.value === 'pricing' && canUsePricing.value) return 'pricing'
+  }
+  if (canUsePricing.value) return 'pricing'
+  if (hasSellerDashboardAccess.value) return 'seller'
+  return 'operations'
 })
 </script>
 
 <template>
   <section class="space-y-6">
-    <section class="dh-glass dh-liquid rounded-[36px] p-6">
+    <section class="dh-glass dh-liquid rounded-3xl px-5 py-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <p class="text-sm font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
             {{ t('dashboard.welcome') }}
           </p>
-          <h1 class="mt-3 break-words text-3xl font-black tracking-tight text-[var(--dh-text)] md:text-5xl">
+          <h1 class="mt-1 break-words text-2xl font-black tracking-tight text-[var(--dh-text)] md:text-3xl">
             {{ authStore.userDisplayName || t('dashboard.operator') }}
           </h1>
         </div>
@@ -110,8 +119,9 @@ const activeDashboardRole = computed<DashboardRole>(() => {
               v-model="selectedDashboardRole"
               class="w-full appearance-none rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] py-2.5 pl-3.5 pr-10 text-sm font-bold text-[var(--dh-text)] outline-none transition hover:border-[var(--dh-primary)] focus:border-[var(--dh-primary)] focus:ring-2 focus:ring-[rgb(var(--dh-primary-rgb)/0.2)]"
             >
-              <option value="pricing">Pricing</option>
-              <option value="seller">{{ t('dashboard.seller') }}</option>
+              <option v-if="canUsePricing" value="pricing">Pricing</option>
+              <option v-if="hasSellerDashboardAccess" value="seller">{{ t('dashboard.seller') }}</option>
+              <option v-if="canUseOperations" value="operations">{{ t('operations.title') }}</option>
             </select>
             <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
           </div>
@@ -121,8 +131,10 @@ const activeDashboardRole = computed<DashboardRole>(() => {
 
     <!-- SuperUsuario supervisa globalmente y puede operar lo propio. Un usuario
          Pricing + Vendedor consulta sus propias tarifas, no las de terceros. -->
+    <OperationsRoleDashboard v-if="activeDashboardRole === 'operations' && canUseOperations" />
+
     <SellerRoleDashboard
-      v-if="activeDashboardRole === 'seller'"
+      v-else-if="activeDashboardRole === 'seller'"
       :admin-preview="isSuperUser() || (canViewAllCommercialRates && !canSelectDashboard)"
       :enable-seller-actions="authStore.hasScope('pricing.rate-request.create')"
     />
