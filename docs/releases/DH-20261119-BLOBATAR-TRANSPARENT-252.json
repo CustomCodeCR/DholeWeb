@@ -1,0 +1,31 @@
+{
+  "releaseId": "DH-20261119-BLOBATAR-TRANSPARENT-252",
+  "ecosystemVersion": "1.95.0",
+  "releaseType": "MINOR",
+  "date": "2026-11-19",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "version": "1.95.0"
+    },
+    {
+      "component": "DholeSystem",
+      "version": "1.95.0"
+    }
+  ],
+  "changes": [
+    "Dhole mascot displays for authenticated users regardless of optional profile photo",
+    "transparent native Blobatar background and ring removed",
+    "name and current localized emotion appear only on hover/focus, no bubble/tooltips",
+    "six transparent SVG accessories with persisted per-user selection",
+    "appearance preview and config available without uploading any image",
+    "58 existing expressions, manual movement, automatic roaming and reduced motion retained"
+  ],
+  "tests": [
+    "Vue typecheck and build",
+    "Avatar SSR, 58 moods and costume regression",
+    "Release/version policy"
+  ],
+  "productionDeploymentAuthorized": false,
+  "notes": "Photo remains optional and browser-local; mascot can still be hidden manually if user previously chose Hide."
+}
