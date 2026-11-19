@@ -84,7 +84,7 @@ const canSelectDashboard = computed(() =>
 )
 const activeDashboardRole = computed<DashboardRole>(() => {
   // Also correct the dashboard when the same page is reused for impersonation.
-  if (!canUsePricing.value && hasSellerDashboardAccess.value) return 'seller'
+  if (!canUsePricing.value && hasSellerDashboardAccess.value && !canUseOperations.value) return 'seller'
   if (!canUsePricing.value && !hasSellerDashboardAccess.value && canUseOperations.value) return 'operations'
   if (canSelectDashboard.value) {
     if (selectedDashboardRole.value === 'operations' && canUseOperations.value) return 'operations'
