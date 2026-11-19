@@ -1,3 +1,10 @@
+## [1.103.5] - 2026-11-19 (DH-20261119-PRICING-COUNTRY-LTL-276 · corrección país cliente CRM y fuente LTL propia)
+
+- PATCH de promoción aislada a master desde desarrollo probado en staging 1.103.5. Salta el intervalo de números de develop 1.103.3/1.103.4 sin arrastrar funcionalidad CRM ni cambios pendientes. Web/System master 1.103.2 → 1.103.5, versiones de backend sin cambios.
+- Pricing utiliza Config/countries para resolver UUID de país del cliente CRM y conserva configuración IVA de country-vat-rates; corrige bloqueo de guardado por perspectivas comerciales indebidamente indeterminadas.
+- Pantalla 5 de tarifas LTL permite crear tarifa propia manual al no encontrar una tarifa vigente, independiente de la opción manual coloader.
+- Se conservan contratos REST, SignalR, scopes y migraciones. CI y staging preceden a la integración de master. Producción se maneja mediante el workflow de master.
+
 ## [1.103.2] - 2026-11-19 (DH-20261119-WIZARD-ROUTE-RUNTIME-274 · sin referencias runtime en Crear tarifa)
 
 - PATCH: corrige `resolveClientRouteOperation is not defined` y evita el anterior `routeOperation is not defined`: calcula la perspectiva desde país CRM + POL/POD directamente en los computados existentes del wizard, sin helper adicional.
