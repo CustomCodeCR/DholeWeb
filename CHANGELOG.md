@@ -1,3 +1,8 @@
+## [1.103.0] - 2026-11-19 (DH-20261119-PRICING-RETURN-PROMOTION-272 · promoción de devolución Pricing)
+
+- MINOR coordinado: los cambios del flujo de devolver solicitudes a Ventas ya están validados en develop 1.101.0; este release actualiza la versión global de Web/System 1.102.0→1.103.0 para promover el mismo código al entorno productivo con Pricing 1.25.1.
+- Mantiene panel Pricing, motivo obligatorio, notificación realtime y correo, corrección/reenvío desde Ventas. Sin cambios funcionales adicionales en develop. CI/staging obligatorios antes de promover a master.
+
 ## [1.102.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-PROD-271 · Promoción país de cliente / Incoterms)
 
 - MINOR: global Web/System 1.101.0 → 1.102.0 con CRM 1.42.0 ya integrado. Al distribuir cargos por Incoterm, la operación se decide desde el país cliente CRM frente al POL y POD final.
