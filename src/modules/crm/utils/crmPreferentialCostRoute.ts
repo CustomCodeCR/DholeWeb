@@ -6,6 +6,21 @@ export interface PreferentialRoute {
   polCode: string
   poeCode: string
   podCode: string
+  carrierCode?: string
+  incotermCode?: string
+}
+
+export const PREFERENTIAL_INCOTERMS = [
+  'EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP',
+] as const
+
+// Empty qualifiers are explicit unrestricted scopes, preserving existing CRM agreements.
+export function matchesPreferentialCommercialScope(
+  rate: { carrierCode?: string | null; incotermCode?: string | null },
+  selection: { carrierCode?: string; incotermCode?: string },
+): boolean {
+  return normalize(rate.carrierCode) === normalize(selection.carrierCode) &&
+    normalize(rate.incotermCode) === normalize(selection.incotermCode)
 }
 
 // Use the same Pricing cost records as screen 7. Scope filtering is a preview;
@@ -23,6 +38,15 @@ function matchesLocation(
 
 export function matchesPreferentialRoute(cost: CostSelectDto, route: PreferentialRoute): boolean {
   if (cost.isActive === false) return false
+  if (route.carrierCode) {
+    const carriers = [...(cost.carriers ?? []).map(x => x.code), cost.carrierCode]
+      .map(normalize).filter(Boolean)
+    if (carriers.length && !carriers.includes(normalize(route.carrierCode))) return false
+  }
+  if (route.incotermCode) {
+    const incoterms = (cost.incoterms ?? []).map(x => normalize(x.code || x.name)).filter(Boolean)
+    if (incoterms.length && !incoterms.includes(normalize(route.incotermCode))) return false
+  }
   const modes = [...(cost.shipmentModes ?? []), ...(cost.shipmentMode ? [cost.shipmentMode] : [])]
     .map(normalize)
   if (modes.length && !modes.includes(route.shipment)) return false
