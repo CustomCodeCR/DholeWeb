@@ -57,5 +57,7 @@ jobs:
         run: pnpm run test:pricing-rate-update
       - name: Seller quotation cancellation role regression
         run: node --test tests/pricingSellerCancelQuote.test.mjs
+      - name: Pricing seller return flow regression
+        run: node --test tests/pricingRateRequestReturn.test.mjs
       - name: CRM and SRM navigation/integration tests
         run: pnpm run test:crm

@@ -15,7 +15,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
-import { currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
+import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
 import { canSellerRequestRateModification } from '@/modules/pricing/utils/sellerRateModificationPolicy'
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
@@ -36,7 +36,8 @@ interface SellerRateRequestDto {
   dueAtUtc: string
   completedAtUtc?: string | null
   preparedRevisionNumber?: number | null
-  payload?: { modification?: { sourceRevisionNumber?: number | null } } | null
+  returnReason?: string | null
+  payload?: { modification?: { sourceRevisionNumber?: number | null }; pricingReturn?: { reason?: string } } | null
   rateId?: string | null
   quoNumber?: string | null
   kind?: 'New' | 'Modification'
@@ -376,7 +377,7 @@ function isRequestClaimed(request: SellerRateRequestDto): boolean {
 
 function canEditRequest(request: SellerRateRequestDto) {
   return (!props.adminPreview || (props.enableSellerActions && ownRequestIds.value.has(request.id)))
-    && request.status === 'Open' && !request.rateId && !isRequestClaimed(request)
+    && ['Open', 'Returned'].includes(request.status) && !request.rateId && !isRequestClaimed(request)
 }
 
 function linkedQuoNumber(request: SellerRateRequestDto): string {
@@ -437,6 +438,7 @@ function modificationStillPending(request: SellerRateRequestDto): boolean {
       || (request.status === 'Completed' && !modificationActuallyCompleted(request)))
 }
 function requestState(request: SellerRateRequestDto) {
+  if (request.status === 'Returned') return 'Devuelta para corregir'
   if (request.status === 'Cancelled') return 'Cancelada'
   if (modificationActuallyCompleted(request)) return 'Modificación atendida'
   if (request.kind === 'Modification' && request.status === 'Completed')
@@ -451,6 +453,7 @@ function requestState(request: SellerRateRequestDto) {
 }
 
 function requestStateVariant(request: SellerRateRequestDto): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (request.status === 'Returned') return 'warning'
   if (request.status === 'Cancelled') return 'neutral'
   if (modificationActuallyCompleted(request)) return 'success'
   if (request.kind === 'Modification' && request.status === 'Completed') return 'warning'
@@ -467,7 +470,7 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return canActOnRate(rate) && !rate.revisionPending && ['Sent', 'RequestedByClient', 'Expired'].includes(rate.status)
+  return canActOnRate(rate) && canDecideSellerQuote(rate, hasOpenPricingModification(rate))
 }
 
 function pendingModification(rate: RateDto): boolean {
@@ -520,7 +523,7 @@ function openSellerRate(rate: RateDto) {
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
-  if (!canRespondToRate(rate)) return
+  if (!canActOnRate(rate)) return
   modalStore.open({
     title: decision === 'AcceptedByClient'
       ? 'Registrar aceptación del cliente'
@@ -644,6 +647,7 @@ function refreshWhenVisible() {
 function handleWorkStatusNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
   if (notification?.notificationType === 'pricing.rate-request.work-status.changed'
+    || notification?.notificationType === 'pricing.rate-request.returned'
     || notification?.notificationType === 'pricing.requested-rate.completed')
     void refreshRequestStatuses()
 }
@@ -995,6 +999,10 @@ onBeforeUnmount(() => {
                 <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</td>
                 <td class="px-4 py-3">
                   <DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" />
+                  <p v-if="request.status === 'Returned'" class="mt-2 max-w-xs whitespace-normal rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] font-semibold leading-4 text-[var(--dh-text)]">
+                    <strong class="block text-amber-600 dark:text-amber-300">Motivo de Pricing:</strong>
+                    {{ request.returnReason || request.payload?.pricingReturn?.reason || 'Revise los datos de la solicitud.' }}
+                  </p>
                   <p v-if="request.status === 'Open' && isRequestClaimed(request)" class="mt-1 text-[10px] font-bold text-amber-500">
                     En proceso por {{ request.lockedByName || 'Pricing' }} · edición bloqueada
                   </p>
@@ -1006,7 +1014,7 @@ onBeforeUnmount(() => {
                   <div class="flex flex-wrap items-center gap-2">
                     <DhButton
                       v-if="canEditRequest(request)"
-                      label="Editar solicitud"
+                      :label="request.status === 'Returned' ? 'Corregir y reenviar' : 'Editar solicitud'"
                       size="sm"
                       variant="secondary"
                       @click="editRequest(request)"
