@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
         v-if="isOpen"
         ref="menuRef"
         :style="menuStyle"
-        class="dh-multi-popover fixed z-[2147483000] flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-card-solid)] p-3 text-[var(--dh-text)] shadow-[var(--dh-shadow-lg)]"
+        class="dh-multi-popover fixed z-[120] flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-card-solid)] p-3 text-[var(--dh-text)] shadow-[var(--dh-shadow-lg)]"
       >
         <div
           class="mb-2 flex h-10 items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3"
