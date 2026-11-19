@@ -13,6 +13,7 @@ import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis }
 import { costTiers, currentTierSale, discounted, tierSalesMatch, tierSalesPayload, tierText } from '../utils/crmPreferentialTierSales'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, matchesPreferentialCommercialScope, PREFERENTIAL_INCOTERMS, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
+import { exactPreferentialScope, mostSpecificPreferentialRate } from '../utils/crmPreferentialMatching'
 
 type SavedRate = {
   id: string; rowVersion: number; modality: string; laneCode: string | null
@@ -20,7 +21,9 @@ type SavedRate = {
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
   tierSalesJson?: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]; isActive: boolean
-  carrierCode?: string | null; incotermCode?: string | null
+  carrierCode?: string | null; incotermCode?: string | null; serviceCodes?: string[]
+  customChargeName?: string | null; validFrom?: string | null; validUntil?: string | null
+  updatedAt?: string | null
 }
 const props = defineProps<{
   accountId: string; categoryType: string; categoryCode: string
@@ -29,11 +32,11 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ saved: [] }>()
 const route = reactive({
-  modality: 'MARITIME' as 'MARITIME' | 'TERRESTRIAL',
+  modality: 'MARITIME' as 'MARITIME' | 'TERRESTRIAL' | 'AIR',
   shipment: 'FCL' as PreferentialShipment,
   equipmentCodes: [] as string[], polCodes: [] as string[],
   poeCodes: [] as string[], podCodes: [] as string[],
-  carrierCode: '', incotermCode: '',
+  carrierCode: '', incotermCode: '', serviceCodes: [] as string[],
 })
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
@@ -42,6 +45,21 @@ const expandedTiers = ref<string[]>([])
 const providerFilter = ref('all')
 const bulkDiscount = ref('')
 const bulkReview = ref(false)
+const showAllCosts = ref(true)
+const manual = reactive({ name: '', chargeCode: 'Other', amount: '', currency: 'USD', unit: 'SHIPMENT' })
+const manualChargeOptions = [
+  {value:'Other',label:'Otro / servicio manual'}, {value:'Freight',label:'Flete internacional'},
+  {value:'OriginCharge',label:'Cargo en origen'}, {value:'DestinationCharge',label:'Cargo en destino'},
+  {value:'PortCharge',label:'Cargo portuario'}, {value:'CustomsCharge',label:'Aduanas'},
+  {value:'InlandTransport',label:'Transporte local'}, {value:'AgentCharge',label:'Cargo de agente'},
+  {value:'Documentation',label:'Documentación'}, {value:'Insurance',label:'Seguro'},
+]
+const manualUnits = [
+  {value:'SHIPMENT',label:'Embarque'}, {value:'SERVICE',label:'Servicio'},
+  {value:'CONTAINER',label:'Contenedor'}, {value:'TRUCK',label:'Camión'},
+  {value:'CBM',label:'CBM'}, {value:'CFT',label:'CFT'},
+  {value:'KG',label:'KG'}, {value:'DOCUMENT',label:'Documento'},
+]
 const containerLabels = ref<Record<string, string>>({})
 const containerIdByCode = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
@@ -67,25 +85,32 @@ onMounted(() => void loadCurrencies())
 const modalityOptions = [
   { value: 'MARITIME', label: 'Marítimo' },
   { value: 'TERRESTRIAL', label: 'Terrestre' },
+  { value: 'AIR', label: 'Aéreo' },
 ]
 const options = computed(() => route.modality === 'MARITIME'
   ? [{ value: 'FCL', label: 'FCL' }, { value: 'LCL', label: 'LCL propio' }]
+  : route.modality === 'AIR' ? [{ value: 'AIR', label: 'Aéreo' }]
   : [{ value: 'FTL', label: 'FTL' }, { value: 'LTL', label: 'LTL propio' }])
 const laneCode = computed(() => ['LCL', 'LTL'].includes(route.shipment) ? 'OWN' : null)
 const incotermOptions = [{ value: '', label: 'Todos los Incoterms' },
   ...PREFERENTIAL_INCOTERMS.map(value => ({value,label:value}))]
 const equipmentGroups = computed(() => route.modality === 'MARITIME'
-  ? ['container-types'] : ['land-equipment-sizes', 'land-equipment-types'])
-const isComplete = computed(() => [route.equipmentCodes, route.polCodes, route.poeCodes].every(x => x.length === 1) &&
-  (route.modality === 'TERRESTRIAL' || route.podCodes.length === 1))
+  ? ['container-types'] : route.modality === 'AIR' ? []
+  : ['land-equipment-sizes', 'land-equipment-types'])
+// Every dimension can be unrestricted. A modality alone is enough to create an agreement.
+const isComplete = computed(() => !!route.shipment)
 const categoryLabel = computed(() => props.categoryType === 'LITTLE' ? 'Cargas Little'
   : props.categoryType === 'NVOCC' ? 'NVOCC ' + props.categoryCode : 'Cliente ' + props.categoryCode)
 const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : props.costs
-  .filter(cost => cost.costDetailType !== 'Insurance' && matchesPreferentialRoute(cost, {
+  .filter(cost => cost.costDetailType !== 'Insurance' &&
+    (!route.serviceCodes.length || !(cost.services ?? []).length ||
+      (cost.services ?? []).some(service => route.serviceCodes.includes((service.code || service.name).toUpperCase()))) &&
+    (showAllCosts.value || matchesPreferentialRoute(cost, {
     shipment: route.shipment, polCode: route.polCodes[0] ?? '',
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
     carrierCode: route.carrierCode, incotermCode: route.incotermCode,
-  }))
+    serviceCodes: route.serviceCodes,
+  })))
   .filter(cost => {
     const rows = costTiers(cost)
     if (rows[0]?.dimension !== 'ContainerType') return true
@@ -135,7 +160,7 @@ function visibleTiers(cost: CostSelectDto) {
 }
 const invalidRules = (cost: CostSelectDto) => Boolean(cost.pricingRulesJson && !isTiered(cost))
 function tierSale(cost: CostSelectDto, index: number) {
-  const saved = existingCost(cost)
+  const saved = existingCost(cost) ?? applicableCost(cost)
   return currentTierSale(cost,index,editedTiers.value[cost.id],
     saved?.rateType === 'TIERED_SALE' ? saved.tierSalesJson : null)
 }
@@ -205,10 +230,28 @@ function scopeMatches(rate: SavedRate) {
     normalized(rate.polCodes) === normalized(route.polCodes) &&
     normalized(rate.poeCodes) === normalized(route.poeCodes) &&
     normalized(rate.podCodes) === (route.modality === 'MARITIME' ? normalized(route.podCodes) : '') &&
-    matchesPreferentialCommercialScope(rate, route)
+    matchesPreferentialCommercialScope(rate, route) &&
+    exactPreferentialScope(rate, {
+      modality: route.shipment, laneCode: laneCode.value,
+      carrierCode: route.carrierCode, incotermCode: route.incotermCode,
+      equipmentCodes: route.equipmentCodes, polCodes: route.polCodes,
+      poeCodes: route.poeCodes, podCodes: route.modality === 'MARITIME' ? route.podCodes : [],
+      serviceCodes: route.serviceCodes,
+    })
 }
 function existingCost(cost: CostSelectDto) {
   return props.rates.find(x => x.isActive && x.sourceCostId?.toLowerCase() === cost.id.toLowerCase() && scopeMatches(x))
+}
+// A specific override is created instead of overwriting the less-specific fallback.
+function applicableCost(cost: CostSelectDto) {
+  return mostSpecificPreferentialRate(props.rates, {
+    modality: route.shipment, sourceCostId: cost.id,
+    chargeCode: cost.costDetailType, customChargeName: cost.name,
+    laneCode: laneCode.value, equipmentCode: route.equipmentCodes[0],
+    polCode: route.polCodes[0], poeCode: route.poeCodes[0], podCode: route.podCodes[0],
+    carrierCode: route.carrierCode, incotermCode: route.incotermCode,
+    serviceCode: route.serviceCodes.length === 1 ? route.serviceCodes[0] : undefined,
+  })
 }
 function existingInsurance() {
   return props.rates.find(x => x.isActive && x.rateType === 'INSURANCE_PERCENT' &&
@@ -219,24 +262,18 @@ function resetPreview() {
   error.value = ''; success.value = ''
   insuranceEnabled.value = false; insuranceCost.value = ''; insuranceSale.value = ''
 }
-function changeModality(value: 'MARITIME' | 'TERRESTRIAL') {
-  route.modality = value; route.shipment = value === 'MARITIME' ? 'FCL' : 'FTL'
+function changeModality(value: 'MARITIME' | 'TERRESTRIAL' | 'AIR') {
+  route.modality = value; route.shipment = value === 'MARITIME' ? 'FCL' : value === 'AIR' ? 'AIR' : 'FTL'
   route.equipmentCodes = []; route.polCodes = []; route.poeCodes = []; route.podCodes = []
-  route.carrierCode = ''; route.incotermCode = ''
+  route.carrierCode = ''; route.incotermCode = ''; route.serviceCodes = []
 }
 watch(() => [route.modality, route.shipment, route.equipmentCodes.join('|'),
   route.polCodes.join('|'), route.poeCodes.join('|'), route.podCodes.join('|'),
-  route.carrierCode, route.incotermCode], resetPreview)
+  route.carrierCode, route.incotermCode, route.serviceCodes.join('|')], resetPreview)
 function consult() {
   error.value = ''; success.value = ''
-  if (!isComplete.value) {
-    error.value = 'Seleccioná exactamente un POL, POE, equipo y, si es marítimo, POD.'
-    return
-  }
-  if (!props.canReadPricingConcepts) {
-    error.value = 'No tenés el permiso pricing.cost.select para cargar los costos y recargos de Pricing.'
-    return
-  }
+  // Se puede consultar el catálogo completo o guardar un cargo manual sin puertos ni equipo.
+  if (!isComplete.value) return
   editedSales.value = {}; editedTiers.value = {}; preview.value = true
   searchTerm.value = '';providerFilter.value='all';bulkDiscount.value='';bulkReview.value=false
   expandedTiers.value=[]
@@ -249,7 +286,7 @@ function consult() {
 }
 function saleValue(cost: CostSelectDto) {
   return Object.prototype.hasOwnProperty.call(editedSales.value, cost.id)
-    ? (editedSales.value[cost.id] ?? '') : String(existingCost(cost)?.value ?? cost.saleAmount)
+    ? (editedSales.value[cost.id] ?? '') : String((existingCost(cost) ?? applicableCost(cost))?.value ?? cost.saleAmount)
 }
 function editSale(cost: CostSelectDto, value: string) {
   editedSales.value = { ...editedSales.value, [cost.id]: value }
@@ -267,6 +304,7 @@ function scope() {
   return {
     modality: route.shipment, laneCode: laneCode.value,
     carrierCode: route.carrierCode, incotermCode: route.incotermCode,
+    serviceCodes: [...route.serviceCodes],
     equipmentCodes: [...route.equipmentCodes], polCodes: [...route.polCodes],
     poeCodes: [...route.poeCodes], podCodes: route.modality === 'MARITIME' ? [...route.podCodes] : [],
     equipmentCode: null, originCode: null, destinationCode: null,
@@ -316,6 +354,7 @@ async function save() {
   try {
     for (const cost of modified) {
       const existing = existingCost(cost)
+      const inherited = existing ?? applicableCost(cost)
       const body = {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
         sourceCostId: cost.id, chargeCode: cost.costDetailType,
@@ -323,7 +362,7 @@ async function save() {
         rateType: isTiered(cost) ? 'TIERED_SALE' : 'FIXED_AMOUNT',
         value: isTiered(cost) ? null : Number(saleValue(cost)),
         tierSalesJson: isTiered(cost) ? tierSalesPayload(cost,editedTiers.value[cost.id],
-          existing?.rateType === 'TIERED_SALE' ? existing.tierSalesJson : null) : null,
+          inherited?.rateType === 'TIERED_SALE' ? inherited.tierSalesJson : null) : null,
         minimumCharge: null,
         insuranceCostPercent: null, insuranceSalePercent: null,
         currencyCode: currencyFor(cost),
@@ -356,18 +395,53 @@ async function save() {
     if (count) emit('saved')
   }
 }
+async function saveManual() {
+  error.value = ''; success.value = ''
+  const name = manual.name.trim()
+  const value = Number(manual.amount)
+  if (!name || name.length > 120) {
+    error.value = 'Ingresá un nombre de cargo manual de hasta 120 caracteres.'
+    return
+  }
+  if (!manual.amount.trim() || !Number.isFinite(value) || value < 0) {
+    error.value = 'Ingresá un precio de venta válido, mayor o igual a cero.'
+    return
+  }
+  const existing = props.rates.find(rate => !rate.sourceCostId && scopeMatches(rate) &&
+    rate.chargeCode.toUpperCase() === manual.chargeCode.toUpperCase() &&
+    String(rate.customChargeName ?? '').trim().toUpperCase() === name.toUpperCase())
+  saving.value = true
+  try {
+    const base = crmPath('accounts', props.accountId, 'commercial-benefits/rates')
+    await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
+      existing ? 'PUT' : 'POST', {
+        ...scope(), expectedVersion: existing?.rowVersion ?? null,
+        sourceCostId: null, tierSalesJson: null,
+        chargeCode: manual.chargeCode, customChargeName: name,
+        rateType: 'FIXED_AMOUNT', value, minimumCharge: null,
+        insuranceCostPercent: null, insuranceSalePercent: null,
+        currencyCode: manual.currency, unitCode: manual.unit,
+      })
+    manual.name = ''; manual.amount = ''
+    success.value = 'Cargo manual guardado con la combinación seleccionada.'
+    emit('saved')
+  } catch (cause) {
+    error.value = crmError(cause)
+  } finally { saving.value = false }
+}
+
 </script>
 
 <template>
   <section data-crm-preferential-route class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
     <h3 class="text-sm font-extrabold">Personalización de venta por ruta</h3>
     <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
-      Seleccioná los datos como en una cotización estándar. Los costos y recargos originales de Pricing se mantienen intactos.
+      Seleccioná solo las condiciones que necesités. Las demás se aplican a cualquier combinación. Los costos de Pricing no se modifican.
     </p>
     <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
       <DhSelect :model-value="route.modality" label="Modalidad" :options="modalityOptions"
-        placeholder="" @update:model-value="changeModality(String($event) as 'MARITIME' | 'TERRESTRIAL')" />
+        placeholder="" @update:model-value="changeModality(String($event) as 'MARITIME' | 'TERRESTRIAL' | 'AIR')" />
       <DhSelect :model-value="route.shipment" label="Embarque" :options="options"
         placeholder="" @update:model-value="route.shipment = String($event) as PreferentialShipment" />
 
@@ -378,7 +452,7 @@ async function save() {
         </span>
       </label>
 
-      <CrmPricingEquipmentSelect v-model="route.equipmentCodes"
+      <CrmPricingEquipmentSelect v-if="route.modality!=='AIR'" v-model="route.equipmentCodes"
         label="Equipo" :catalog-group-slugs="equipmentGroups" />
       <CrmMultiCatalogPicker v-if="route.modality==='MARITIME'"
         :model-value="route.carrierCode ? [route.carrierCode] : []"
@@ -388,6 +462,8 @@ async function save() {
       <DhSelect :model-value="route.incotermCode" label="Incoterm"
         :options="incotermOptions" placeholder=""
         @update:model-value="route.incotermCode = String($event)" />
+      <CrmMultiCatalogPicker v-model="route.serviceCodes" label="Servicios aplicables (opcionales)"
+        :catalog-group-slugs="['pricing-services']" placeholder="Todos los servicios" />
       <CrmPricingLocationSelect v-model="route.polCodes" label="Origen (POL)"
         placeholder="Buscar puerto de origen" :catalog-group-slugs="['pol']"
         :route-mode="route.shipment" route-role="pol" />
@@ -399,15 +475,49 @@ async function save() {
         :catalog-group-slugs="['pod']" :route-mode="route.shipment" route-role="pod" />
     </div>
     <p class="mt-3 text-xs text-[var(--dh-text-muted)]">
-      La naviera y el Incoterm forman parte del acuerdo guardado, no solo del filtro de costos.
-      Dejarlos en «Todas/Todos» mantiene una condición general.
+      Podés definir solo un puerto, solo un servicio o cualquier combinación. Las condiciones vacías son generales; una coincidencia más específica tiene prioridad.
     </p>
     <button type="button" class="route-action mt-4" :disabled="saving || costsLoading" @click="consult">
       {{ costsLoading ? 'Cargando costos…' : 'Mostrar costos y recargos' }}
     </button>
-    <p class="mt-2 text-xs text-[var(--dh-text-muted)]">FCL · FTL · LCL propio · LTL propio</p>
+    <p class="mt-2 text-xs text-[var(--dh-text-muted)]">FCL · LCL · FTL · LTL · Aéreo · servicios combinables sin obligación de seleccionar puertos o equipo</p>
     <p v-if="error" role="alert" class="mt-3 rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="mt-3 rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
+    <form class="mt-5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4"
+      aria-label="Agregar cargo manual preferencial" @submit.prevent="saveManual">
+      <h4 class="text-sm font-extrabold">Agregar ítem manual</h4>
+      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+        Agregá servicios y cargos que todavía no figuran en los costos de Pricing.
+        La tarifa utilizará las condiciones opcionales seleccionadas arriba.
+      </p>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <label class="route-label xl:col-span-2">Nombre del ítem
+          <input v-model="manual.name" class="route-input" maxlength="120"
+            placeholder="Ej. Fumigación, inspección, almacenaje" required />
+        </label>
+        <DhSelect :model-value="manual.chargeCode" label="Tipo de cargo"
+          :options="manualChargeOptions" @update:model-value="manual.chargeCode=String($event)" />
+        <label class="route-label">Venta preferencial
+          <input v-model="manual.amount" class="route-input" type="number" min="0" step="0.000001"
+            placeholder="0.00" required />
+        </label>
+        <DhSelect :model-value="manual.currency" label="Moneda"
+          :options="[{value:'USD',label:'USD'},{value:'CRC',label:'CRC'}]"
+          @update:model-value="manual.currency=String($event)" />
+        <DhSelect :model-value="manual.unit" label="Unidad de cobro" :options="manualUnits"
+          @update:model-value="manual.unit=String($event)" />
+      </div>
+      <button class="route-action mt-4" type="submit" :disabled="saving">
+        {{ saving ? 'Guardando…' : 'Guardar ítem manual' }}
+      </button>
+    </form>
+    <label class="mt-4 flex items-center gap-2 text-sm font-semibold">
+      <input v-model="showAllCosts" type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" />
+      Mostrar todos los ítems de Pricing, incluso de otros servicios o rutas
+    </label>
+    <p v-if="!canReadPricingConcepts" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+      Para consultar los costos de Pricing se requiere pricing.cost.select. Podés guardar ítems manuales con permiso de CRM.
+    </p>
     <template v-if="preview">
       <div class="mt-6 border-t border-[var(--dh-border)] pt-5">
         <div class="flex flex-wrap items-start justify-between gap-4">
@@ -480,7 +590,7 @@ async function save() {
         </div>
 
         <div v-if="!costsForRoute.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
-          No hay costos configurados en Pricing compatibles con esta ruta.
+          No se encontraron conceptos de Pricing para los filtros. Podés agregar cualquier ítem manual arriba.
         </div>
         <p v-else-if="!filteredCosts.length" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
           No se encontraron cargos con esa búsqueda.
@@ -537,7 +647,11 @@ async function save() {
                         </span>
                         <span v-if="existingCost(cost)"
                           class="ml-1 mt-1 inline-block rounded-md bg-[rgb(var(--dh-primary-rgb)/0.10)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-primary)]">
-                          Acuerdo existente
+                          Acuerdo existente en esta combinación
+                        </span>
+                        <span v-else-if="applicableCost(cost)"
+                          class="ml-1 mt-1 inline-block rounded-md border border-[var(--dh-border)] px-2 py-0.5 text-[10px] font-bold text-[var(--dh-text-muted)]">
+                          Tarifa general heredada · se conservará al crear la específica
                         </span>
                       </div>
                       <div>

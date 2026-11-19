@@ -30,3 +30,11 @@ test('Saved preferential tariffs are scoped by the selected carrier and Incoterm
   assert.ok(manager.includes("carrierCode: rate.carrierCode ?? ''"))
   assert.ok(manager.includes("incotermCode: rate.incotermCode ?? ''"))
 })
+
+test('Configurador permite ítems manuales, todos los conceptos y servicios opcionales', () => {
+  for (const phrase of ['saveManual()', 'sourceCostId: null', 'serviceCodes: [...route.serviceCodes]',
+    'showAllCosts', 'mostSpecificPreferentialRate', 'Agregar ítem manual', 'pricing-services',
+    'Mostrar todos los ítems de Pricing', 'AIR']) assert.ok(builder.includes(phrase),phrase)
+  assert.ok(manager.includes('v-model="draft.serviceCodes"'))
+  assert.ok(manager.includes('Todos los ítems preferenciales guardados'))
+})

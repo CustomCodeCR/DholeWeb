@@ -13,7 +13,7 @@ test('The CRM preferential route uses the EXACT Pricing location search componen
   assert.match(builder, /<CrmPricingLocationSelect v-model="route.polCodes"/)
   assert.match(builder, /<CrmPricingLocationSelect v-model="route.poeCodes"/)
   assert.match(builder, /<CrmPricingLocationSelect v-if="route.modality==='MARITIME'" v-model="route.podCodes"/)
-  assert.doesNotMatch(builder, /<CrmMultiCatalogPicker/)
+  assert.match(builder, /v-model="route.serviceCodes"/)
   assert.ok(pricing.includes('pricing-location-option'))
   assert.ok(locations.includes('terminalType'))
 })

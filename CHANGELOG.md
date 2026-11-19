@@ -1,3 +1,10 @@
+## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · selección por servicio, manual y fallback)
+
+- MINOR: backport a master del configurador de preferencias con todos los ítems de Pricing, alta manual, modalidad aérea y selección de servicios y ámbitos opcionales.
+- Vista previa de tarifa más específica sin sobrescribir las generales; inventario de acuerdos de la cuenta. Conserva fixes CIF existentes de master.
+- Integración automática en cotizaciones de Pricing fuera de este release; costos originales no se alteran.
+- Web/System 1.98.0 → 1.100.0; CRM 1.39.0 → 1.41.0 (versión de release igual que develop).
+
 ## [1.98.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-SCOPE-267 · tarifas preferenciales por naviera e Incoterm)
 
 - MINOR: backport de CRM > Tarifas preferenciales con ámbito persistente por naviera e Incoterm en configurador y editor avanzado.

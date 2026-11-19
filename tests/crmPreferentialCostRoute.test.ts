@@ -44,3 +44,13 @@ test('Preferential saved scope identifies carrier and Incoterm, including unrest
   assert.equal(matchesPreferentialCommercialScope({carrierCode:'MAERSK',incotermCode:'CIF'},
     {carrierCode:'MAERSK',incotermCode:'FOB'}), false)
 })
+
+test('A missing route selector does not hide all items from the Pricing catalog', () => {
+  assert.equal(matchesPreferentialRoute(cost(), {...route,polCode:'',poeCode:'',podCode:''}),true)
+  assert.equal(matchesPreferentialRoute(cost({services:[{id:'a',name:'Customs',code:'CUSTOMS'}]}),
+    {...route,serviceCodes:['CUSTOMS']}),true)
+  assert.equal(matchesPreferentialRoute(cost({services:[{id:'a',name:'Storage',code:'WAREHOUSE'}]}),
+    {...route,serviceCodes:['CUSTOMS']}),false)
+  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'AirConsol'}),
+    {shipment:'AIR',polCode:'',poeCode:'',podCode:''}),true)
+})
