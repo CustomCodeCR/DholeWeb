@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.83.0",
-  "ecosystemVersion": "1.87.0",
-  "releaseId": "DH-20261118-CRM-SHARED-AGENDA-229",
+  "version": "1.83.2",
+  "ecosystemVersion": "1.87.5",
+  "releaseId": "DH-20261118-SRM-ATTACHMENT-METADATA-240",
   "releaseStatus": "candidate-ci-and-staging-pending",
-  "businessReleaseId": "DH-20261118-CRM-SHARED-AGENDA-229"
+  "businessReleaseId": "DH-20261118-SRM-ATTACHMENT-METADATA-240"
 }
