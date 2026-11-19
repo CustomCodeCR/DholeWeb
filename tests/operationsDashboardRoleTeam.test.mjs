@@ -37,3 +37,35 @@ test('Overview translations exist in Spanish and English', () => {
   assert.match(messages, /heading: 'Aperturas y validaciones'/)
   assert.match(messages, /heading: 'Openings and validations'/)
 })
+
+test('Operations uses one consolidated heading and shares permitted role selector', () => {
+  const root = read('src/modules/dashboard/views/DashboardView.vue')
+  const operations = read('src/modules/dashboard/components/OperationsRoleDashboard.vue')
+  assert.match(root, /v-if="activeDashboardRole !== 'operations'"/)
+  assert.match(root, /<template #role-selector>/)
+  assert.match(root, /<DhSelect/)
+  assert.match(root, /@update:model-value="selectDashboardRole"/)
+  assert.match(operations, /<slot name="role-selector"/)
+  assert.match(operations, /lg:flex-row lg:items-end lg:justify-between/)
+  assert.match(operations, /sm:max-w-\[320px\]/)
+})
+
+test('Dashboard does not show misleading zeros or stale team data during loading', () => {
+  const operations = read('src/modules/dashboard/components/OperationsRoleDashboard.vue')
+  assert.match(operations, /data\.value = null/)
+  assert.match(operations, /const accessibleTeams = ref/)
+  assert.match(operations, /accessibleTeams\.value = result\.teams/)
+  assert.match(operations, /card\.value \?\? '—'/)
+  assert.match(operations, /v-if="loading" role="status"/)
+  assert.match(operations, /v-else-if="!data\?\.items\.length"/)
+  assert.match(operations, /to="\/operations\/cases"/)
+  assert.doesNotMatch(operations, /py-10 text-center/)
+})
+
+test('Compact operations dashboard copy is translated in both languages', () => {
+  const messages = read('src/modules/operations/i18n.ts')
+  assert.match(messages, /workspace: 'Centro de operaciones'/)
+  assert.match(messages, /workspace: 'Operations center'/)
+  assert.match(messages, /emptyTitle: 'Sin aperturas para mostrar'/)
+  assert.match(messages, /emptyTitle: 'No openings to display'/)
+})

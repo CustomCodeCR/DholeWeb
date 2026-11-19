@@ -1,0 +1,24 @@
+{
+  "releaseId": "DH-20261119-OPS-DASHBOARD-UX-257",
+  "previousVersion": "1.97.0",
+  "webVersion": "1.97.1",
+  "systemVersion": "1.97.1",
+  "component": "DholeWeb",
+  "change": "Operations dashboard UX redesign",
+  "changedRepositories": [
+    "CustomCodeCR/DholeWeb",
+    "CustomCodeCR/DholeSystem"
+  ],
+  "branch": "feature/operations-dashboard-ux-20261119-257",
+  "verification": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "preserved": [
+    "Operations ACL and scopes",
+    "Aperturas route",
+    "Pricing and Seller dashboards",
+    "Real-time contracts"
+  ]
+}

@@ -1,3 +1,10 @@
+## [1.97.1] - 2026-11-19 (DH-20261119-OPS-DASHBOARD-UX-257 · Rediseño del Dashboard operativo)
+
+- PATCH: sustituye dos encabezados grandes por una sola cabecera de Operaciones que integra el selector de rol y el filtro de equipo con componentes DhSelect.
+- KPI compactos, barra de acciones adaptable a pantallas estrechas y estado vacío breve con acceso a Trámites; al cargar/cambiar equipo no se presentan ceros ni datos anteriores como resultados actuales.
+- Se mantienen scopes, permisos de equipos, endpoints REST, SignalR, las vistas Pricing/Vendedor y el acceso a /operations/apertures; i18n español/inglés y pruebas de regresión.
+- DholeWeb y DholeSystem 1.97.0 → 1.97.1; otros componentes sin cambios. CI y staging pendientes; producción no autorizada.
+
 ## [1.97.0] - 2026-11-19 (DH-20261119-ORVELUM-BRAND-256 · Orvelum System)
 
 - MINOR: identidad comercial Orvelum System en español/inglés, ingreso, sidebar y avisos de actualización.
