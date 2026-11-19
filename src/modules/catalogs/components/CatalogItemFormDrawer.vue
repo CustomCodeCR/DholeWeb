@@ -11,6 +11,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { StorageService } from '@/core/services/storageService'
 import type { CatalogGroupDto, CatalogItemDto } from '@/core/interfaces/catalogs'
 import MetadataEditor from '@/modules/catalogs/components/MetadataEditor.vue'
+import { isGlobalCountryAgent, withGlobalCountryCoverage } from '@/modules/catalogs/utils/globalAgentCountries'
 import CatalogRouteLocationPicker from '@/modules/catalogs/components/CatalogRouteLocationPicker.vue'
 
 const props = defineProps<{
@@ -100,6 +101,13 @@ function parseMetadataJson(value?: string | null): WarehouseImageMetadata {
 
 
 const isAgentGroup = computed(() => props.group.slug === 'agents')
+const isGlobalAgent = computed(() => isAgentGroup.value && isGlobalCountryAgent({
+  code: props.item?.code,
+  slug: form.value.slug,
+  name: form.value.name,
+  value: form.value.value,
+  metadataJson: form.value.metadataJson,
+}))
 type AgentCountry = { name: string; code: string }
 const polCountries = ref<AgentCountry[]>([])
 const agentCountrySearch = ref('')
@@ -485,7 +493,7 @@ async function save() {
     return
   }
 
-  if (isAgentGroup.value && !selectedAgentCountries.value.length) {
+  if (isAgentGroup.value && !isGlobalAgent.value && !selectedAgentCountries.value.length) {
     toastStore.warning('País requerido', 'Seleccione el país que corresponde a este agente.')
     return
   }
@@ -493,7 +501,11 @@ async function save() {
   const isGeneric = isWarehouseGroup.value && genericWarehouse.value
   // A generic WHS carries no street address, geocoding, city, photos or contacts.
   const value = isGeneric ? name : (selectedRoute?.value ?? form.value.value) || null
-  const metadataJsonForSave = isGeneric ? JSON.stringify({ isGeneric: true }) : (selectedRoute?.metadataJson ?? form.value.metadataJson)
+  const metadataJsonForSave = isGeneric
+    ? JSON.stringify({ isGeneric: true })
+    : isGlobalAgent.value
+      ? withGlobalCountryCoverage(selectedRoute?.metadataJson ?? form.value.metadataJson, polCountries.value)
+      : (selectedRoute?.metadataJson ?? form.value.metadataJson)
 
   try {
     loading.value = true
@@ -769,9 +781,12 @@ onBeforeUnmount(clearPendingWarehouseImages)
     <section v-if="isAgentGroup" class="space-y-3 rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Países del agente *</span>
-        <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ selectedAgentCountries.length }} seleccionados</span>
+        <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ isGlobalAgent ? 'Todos los países' : `${selectedAgentCountries.length} seleccionados` }}</span>
       </div>
-      <div v-if="selectedAgentCountries.length" class="flex flex-wrap gap-2">
+      <p v-if="isGlobalAgent" class="rounded-xl bg-[var(--dh-primary-soft)] p-3 text-sm font-semibold text-[var(--dh-text)]">
+        Grupo Castro Fallas tiene cobertura mundial, incluidos los países que se incorporen después al catálogo. No requiere selección manual.
+      </p>
+      <div v-if="!isGlobalAgent && selectedAgentCountries.length" class="flex flex-wrap gap-2">
         <span
           v-for="country in selectedAgentCountries"
           :key="normalizedCountry(country)"
@@ -788,12 +803,13 @@ onBeforeUnmount(clearPendingWarehouseImages)
         </span>
       </div>
       <DhInput
+        v-if="!isGlobalAgent"
         v-model="agentCountrySearch"
         label="Buscar y seleccionar países"
         placeholder="Buscar país (ej. China, Brasil, India)"
         :disabled="!canSave"
       />
-      <div class="max-h-44 space-y-1 overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-2">
+      <div v-if="!isGlobalAgent" class="max-h-44 space-y-1 overflow-y-auto rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-2">
         <label
           v-for="country in filteredAgentCountryOptions"
           :key="normalizedCountry(country.name)"
@@ -814,14 +830,16 @@ onBeforeUnmount(clearPendingWarehouseImages)
         </p>
       </div>
       <button
-        v-if="canAddCustomCountry"
+        v-if="!isGlobalAgent && canAddCustomCountry"
         type="button"
         class="text-left text-sm font-bold text-[var(--dh-primary)] disabled:opacity-50"
         :disabled="!canSave"
         @click="addCustomAgentCountry"
       >+ Agregar país «{{ agentCountrySearch.trim() }}»</button>
       <p class="text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-        Seleccione todos los países donde opera el agente. Se guardan en metadata.countries y se comparan con el país del POL en Pricing.
+        {{ isGlobalAgent
+          ? 'Al guardar se activa metadata.allCountries y se sincronizan los países conocidos, sin limitar la cobertura a esa lista.'
+          : 'Seleccione todos los países donde opera el agente. Se guardan en metadata.countries y se comparan con el país del POL en Pricing.' }}
       </p>
     </section>
 
