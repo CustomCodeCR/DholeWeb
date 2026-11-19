@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-PRICING-LTL-MANUAL-ENDTOEND-278",
+  "date": "2026-11-19",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.103.7",
+  "releaseType": "PATCH",
+  "changes": [
+    "Recognize manual own LTL source at step5 and step6",
+    "Hydrate CRM linked customer country on resumed sales requests; allow explicit quote-only country if missing",
+    "Persist manual LTL commercial profile and customer country override through draft restore; surface actionable save validation"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.6",
+      "version": "1.103.7"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.6",
+      "version": "1.103.7"
+    }
+  ],
+  "otherComponentVersions": "Retained in DholeSystem release manifest",
+  "realtime": "Unchanged",
+  "schemaMigration": false,
+  "ci": "pending",
+  "staging": "pending",
+  "master": "pending",
+  "productionDeploymentAuthorized": false
+}

@@ -1,3 +1,10 @@
+## [1.103.7] - 2026-11-19 (DH-20261119-PRICING-LTL-MANUAL-ENDTOEND-278 · recuperación real de LTL propio manual)
+
+- PATCH: el wizard reconoce LTL manual propio (FinalClient) y LTL manual coloader (Nvocc) como fuentes válidas en pantallas 5 y 6. Corrige el falso bloqueo persistente aunque haya costo y venta.
+- Al continuar solicitudes de Ventas desde pantalla 5 se reconcilia país y vendedor desde CRM, ya que la selección de cliente de pantalla 3 no se monta para Pricing. Si el CRM no tiene país válido, se solicita expresamente en pantalla 5 sin modificar el CRM ni inventar operación.
+- El país explícito de esta cotización y el perfil comercial LTL manual se restauran del borrador; guardar informa cuál país falta, sin redirigir silenciosamente a pantalla 5. La línea de flete conserva los importes del formulario.
+- Regressions en la suite Pricing; DholeWeb/DholeSystem 1.103.6→1.103.7, otros 15 servicios conservados. API REST/SignalR sin cambios. CI/staging antes de master.
+
 ## [1.103.6] - 2026-11-19 (DH-20261119-PRICING-LTL-STEP6-277 · validación LTL manual paso 6)
 
 - PATCH: el paso 6 de LTL/FTL terrestre no requiere un carrierId marítimo oculto. Solo el LTL coloader manual exige agente; moneda, costo y venta deben ser valores numéricos válidos no negativos.

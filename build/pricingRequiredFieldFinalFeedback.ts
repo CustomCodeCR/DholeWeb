@@ -32,7 +32,8 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
           // still reject LTL/FTL even though no naviera is shown.
           "  if (step.value === 6 && form.modality === 'Land') {",
           "    const manualColoaderNeedsAgent = shipmentModeForApi.value === 'Ltl' && form.manualRate && landLtlCommercialProfile.value === 'Nvocc'",
-          '    return Boolean((!manualColoaderNeedsAgent || form.agentId)',
+          "    const ltlSourceReady = shipmentModeForApi.value !== 'Ltl' || Boolean(resolvedFtlTariff.value || (form.manualRate && (landLtlCommercialProfile.value === 'FinalClient' || landLtlCommercialProfile.value === 'Nvocc')))",
+          '    return Boolean(ltlSourceReady && (!manualColoaderNeedsAgent || form.agentId)',
           '      && form.currencyId',
           '      && Number.isFinite(Number(form.freightCost)) && Number(form.freightCost) >= 0',
           '      && Number.isFinite(Number(form.freightSale)) && Number(form.freightSale) >= 0)',

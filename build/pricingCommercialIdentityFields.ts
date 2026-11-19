@@ -38,6 +38,7 @@ function patchWizard(source: string) {
   executiveUserId: string
   executiveName: string
   isCastroFallasExecutive: boolean
+  countryId?: string | null
 }
 
 // An existing modification may resume after screen 3; an older seller request
@@ -75,6 +76,8 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
     }
     // Respect a client changed in the modification; never restore the old owner.
     form.clientId = client.id
+    crmClientCountryId.value = String(client.countryId ?? '').trim()
+    resolvedCountryClientId.value = client.id
     form.crmClientKind = client.kind
     form.clientName = client.displayName
     if (!editingRate.value && form.clientName.toLocaleUpperCase().includes('TARIFARIO')) {
@@ -135,6 +138,23 @@ async function saveRate() {
         'CRM owner reconciliation after draft restore',
       )
     }
+    // All seller-request pre-transforms have already run. Insert the CRM
+    // reconciliation after the Sales handoff was hydrated, without breaking
+    // pricingSellerRateRequestResponsibilities' contiguous hydration anchor.
+    const hydrationStart = code.indexOf('async function hydrateRateRequest() {')
+    const hydrationEnd = hydrationStart >= 0
+      ? code.indexOf('function modalityForRate(', hydrationStart) : -1
+    if (hydrationStart < 0 || hydrationEnd <= hydrationStart) {
+      throw new Error('[pricingCommercialIdentityFields] Resumed rate request hydration missing')
+    }
+    const hydration = code.slice(hydrationStart, hydrationEnd)
+    const searchAnchor = '    await searchApprovedRates()'
+    if (hydration.split(searchAnchor).length !== 2) {
+      throw new Error('[pricingCommercialIdentityFields] Expected one Pricing rate-source hydration')
+    }
+    const reconciled = hydration.replace(searchAnchor,
+      '    if (form.clientId) await refreshModificationCrmOwner()\n' + searchAnchor)
+    code = code.slice(0, hydrationStart) + reconciled + code.slice(hydrationEnd)
     return code
   }
   let code = source

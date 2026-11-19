@@ -92,3 +92,38 @@ test('manual land LTL step 6 does not depend on a hidden carrier', () => {
   assert.match(finalValidation, /manualLandColoaderNeedsAgent\) && !form\.agentId/)
   assert.match(carrierRequirement, /\(modality === 'Maritime' \|\| modality === 'Multimodal'\)/)
 })
+
+test('manual own LTL is a valid source on steps 5 and 6, not only manual coloader', () => {
+  const provider = readFileSync(new URL('../build/pricingWizardLtlProviderParity.ts', import.meta.url), 'utf8')
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const final = readFileSync(new URL('../build/pricingRequiredFieldFinalFeedback.ts', import.meta.url), 'utf8')
+  assert.match(provider, /const manualLtl = form\.manualRate/)
+  assert.match(provider, /landLtlCommercialProfile\.value === 'FinalClient'/)
+  assert.match(provider, /resolvedFtlTariff\.value \|\| manualLtl/)
+  assert.match(final, /const ltlSourceReady = shipmentModeForApi\.value !== 'Ltl'/)
+  assert.match(wizard, /costAmount: number\(form\.freightCost\)/)
+  assert.match(wizard, /saleAmount: number\(form\.freightSale\)/)
+})
+
+test('rate request resumes with CRM country, or allows explicit country for this quotation', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const requests = readFileSync(new URL('../build/pricingSellerRateRequests.ts', import.meta.url), 'utf8')
+  const crm = readFileSync(new URL('../build/pricingCommercialIdentityFields.ts', import.meta.url), 'utf8')
+  const drafts = readFileSync(new URL('../build/pricingWizardDraftAutosave.ts', import.meta.url), 'utf8')
+  assert.match(requests, /async function hydrateRateRequest\(\)/)
+  assert.match(crm, /if \(form\.clientId\) await refreshModificationCrmOwner\(\)/)
+  assert.match(crm, /crmClientCountryId\.value = String\(client\.countryId/)
+  assert.match(wizard, /pricingQuoteCountryOverrideId = ref\(''\)/)
+  assert.match(wizard, /País del cliente para esta cotización/)
+  assert.match(wizard, /step\.value = 5\s+toastStore\.warning\('País necesario para guardar'/)
+  assert.match(drafts, /pricingQuoteCountryOverrideId: pricingQuoteCountryOverrideId\.value/)
+  assert.match(drafts, /landLtlCommercialProfile: landLtlCommercialProfile\.value/)
+})
+
+test('reselecting the own manual LTL source retains previously entered freight amounts', () => {
+  const plugin = readFileSync(new URL('../build/pricingWizardLtlLclUiParity.ts', import.meta.url), 'utf8')
+  assert.match(plugin, /const preserve = form\.manualRate && landLtlCommercialProfile\.value === 'FinalClient'/)
+  assert.match(plugin, /form\.freightCost = previousCost/)
+  assert.match(plugin, /form\.freightSale = previousSale/)
+  assert.match(plugin, /form\.transitDays = previousTransitDays/)
+})
