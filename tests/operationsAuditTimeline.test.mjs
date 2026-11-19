@@ -40,7 +40,7 @@ test('operations audit handles old malformed JSON and unknown actions safely', (
   assert.match(auditPreview(event, translate), /generic/)
 })
 
-test('team and Aperturas screens use the shared timeline; team list uses DhSelect', () => {
+test('team and Aperturas screens share timeline; team directory uses buttons and mobile DhSelect', () => {
   const team = read('src/modules/operations/views/OperationsTeamsView.vue')
   const aperture = read('src/modules/operations/views/OperationsAperturesView.vue')
   const timeline = read('src/modules/operations/components/OperationsAuditTimeline.vue')
@@ -50,7 +50,9 @@ test('team and Aperturas screens use the shared timeline; team list uses DhSelec
   assert.match(team, /operations\.eligibleRolesHint/)
   assert.match(api, /operations-audit-actors/)
   assert.match(team, /operationsApi\.saveMember/)
-  assert.doesNotMatch(team, /v-for="team in filteredTeams"/)
+  assert.match(team, /v-for="team in filteredTeams"/)
+  assert.match(team, /<nav v-else/)
+  assert.match(team, /<details v-if="canAudit"/)
   assert.match(team, /<OperationsAuditTimeline/)
   assert.match(aperture, /<OperationsAuditTimeline/)
   assert.match(api, /operations-audit-actors/)
