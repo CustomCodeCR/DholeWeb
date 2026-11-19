@@ -1,3 +1,11 @@
+## [1.100.1] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-ROUTE-271 · Filtro de rutas en tarifas preferenciales)
+
+- PATCH: «Mostrar todos los ítems de Pricing» ya no pasa por alto POL/POE/POD, naviera, Incoterm ni servicios seleccionados.
+- Con POE Caldera y POD San José se excluyen los costos asociados a otros puertos, incluyendo portRole=Any o sin rol y vínculos explícitos incompatibles.
+- Permite otras modalidades solamente si sus cargos son aplicables a los puertos; mantiene cargos generales y edición manual.
+- Pruebas de regresión incluidas. Backport selectivo desde develop; no incorpora cambios funcionales ajenos al release.
+- Web/System 1.100.0 → 1.100.1; CRM 1.41.0 sin cambios. Staging y CI requieren verificación.
+
 ## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · selección por servicio, manual y fallback)
 
 - MINOR: backport a master del configurador de preferencias con todos los ítems de Pricing, alta manual, modalidad aérea y selección de servicios y ámbitos opcionales.
