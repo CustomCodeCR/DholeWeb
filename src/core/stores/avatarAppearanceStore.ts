@@ -13,6 +13,7 @@ export const AVATAR_EXPRESSIONS = [
   'desilusionado', 'alarmado', 'horrorizado', 'pasmado', 'irritable',
   'desconcertado', 'desmotivado', 'resentido', 'agobiado', 'temeroso',
   'incomodo',
+  'cringe', 'burlon', 'picaro', 'paranoico', 'disociado',
 ] as const
 
 export type AvatarExpression = (typeof AVATAR_EXPRESSIONS)[number]
