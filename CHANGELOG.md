@@ -1,3 +1,9 @@
+## [1.94.0] - 2026-11-19 (DH-20261119-OPS-TEAM-BULK-251 · Selección múltiple de equipos)
+
+- MINOR: DhMultiSelect para seleccionar varios colaboradores y asignarlos en una sola acción; edición individual conservada.
+- Carga paginada de usuarios elegibles desde Auth y traducciones ES/EN; tests de regresión.
+- DholeWeb 1.93.0 → 1.94.0; ecosistema 1.94.0. Release coordinado con Auth, Operations, Web y System. CI y staging pendientes.
+
 ## [1.93.0] - 2026-11-19 (DH-20261119-BLOBATAR-MASCOT-250 · mascotas y 58 emociones Blobatar)
 
 - MINOR: cinco poses nativas nuevas (Cringe, Burlón, Pícaro, Paranoico y Disociado) agregadas al catálogo de 53: ahora 58 emociones, con traducciones ES/EN y pruebas SSR.
