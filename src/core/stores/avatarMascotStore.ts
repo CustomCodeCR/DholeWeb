@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export type MascotMovement = 'fixed' | 'roam'
+export const MASCOT_ACCESSORIES = ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat'] as const
+export type MascotAccessory = (typeof MASCOT_ACCESSORIES)[number]
 export interface MascotPosition { x: number; y: number }
 
 const DEFAULT_POSITION: MascotPosition = { x: 0.88, y: 0.72 }
@@ -25,11 +27,12 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
   const photo = ref<string | null>(null)
   const name = ref(DEFAULT_NAME)
   const movement = ref<MascotMovement>('fixed')
+  const accessory = ref<MascotAccessory>('none')
   const visible = ref(true)
   const position = ref<MascotPosition>({ ...DEFAULT_POSITION })
   let consumers = 0
 
-  function keyFor(kind: 'photo' | 'name' | 'movement' | 'visible' | 'position'): string | null {
+  function keyFor(kind: 'photo' | 'name' | 'movement' | 'visible' | 'position' | 'accessory'): string | null {
     return userId.value ? KEY_PREFIX + encodeURIComponent(userId.value) + ':' + kind : null
   }
 
@@ -53,6 +56,8 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
       ? savedPhoto : null
     name.value = normalizeName(read('name') ?? DEFAULT_NAME)
     movement.value = read('movement') === 'roam' ? 'roam' : 'fixed'
+    const storedAccessory = read('accessory')
+    accessory.value = MASCOT_ACCESSORIES.find(kind => kind === storedAccessory) ?? 'none'
     visible.value = read('visible') !== 'false'
     try {
       const saved = JSON.parse(read('position') || 'null')
@@ -76,7 +81,6 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
       throw new Error('Invalid or oversized profile image')
     write('photo', dataUrl)
     photo.value = dataUrl
-    if (dataUrl) setVisible(true)
   }
 
   function setName(value: string) {
@@ -87,6 +91,11 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
   function setMovement(value: MascotMovement) {
     movement.value = value === 'roam' ? 'roam' : 'fixed'
     write('movement', movement.value)
+  }
+
+  function setAccessory(value: MascotAccessory) {
+    accessory.value = MASCOT_ACCESSORIES.includes(value) ? value : 'none'
+    write('accessory', accessory.value)
   }
 
   function setVisible(value: boolean) {
@@ -116,6 +125,6 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
       window.removeEventListener('storage', handleStorage)
   }
 
-  return { userId, photo, name, movement, visible, position,
-    selectUser, setPhoto, setName, setMovement, setVisible, setPosition, start, stop }
+  return { userId, photo, name, movement, accessory, visible, position,
+    selectUser, setPhoto, setName, setMovement, setAccessory, setVisible, setPosition, start, stop }
 })
