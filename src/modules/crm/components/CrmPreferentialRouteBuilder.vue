@@ -13,6 +13,7 @@ import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis }
 import { costTiers, currentTierSale, discounted, tierSalesMatch, tierSalesPayload, tierText } from '../utils/crmPreferentialTierSales'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
 import { matchesPreferentialRoute, matchesPreferentialCommercialScope, PREFERENTIAL_INCOTERMS, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
+import { exactPreferentialScope, mostSpecificPreferentialRate } from '../utils/crmPreferentialMatching'
 
 type SavedRate = {
   id: string; rowVersion: number; modality: string; laneCode: string | null
@@ -20,7 +21,9 @@ type SavedRate = {
   insuranceCostPercent: number | null; insuranceSalePercent: number | null
   tierSalesJson?: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]; isActive: boolean
-  carrierCode?: string | null; incotermCode?: string | null
+  carrierCode?: string | null; incotermCode?: string | null; serviceCodes?: string[]
+  customChargeName?: string | null; validFrom?: string | null; validUntil?: string | null
+  updatedAt?: string | null
 }
 const props = defineProps<{
   accountId: string; categoryType: string; categoryCode: string
@@ -29,11 +32,11 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ saved: [] }>()
 const route = reactive({
-  modality: 'MARITIME' as 'MARITIME' | 'TERRESTRIAL',
+  modality: 'MARITIME' as 'MARITIME' | 'TERRESTRIAL' | 'AIR',
   shipment: 'FCL' as PreferentialShipment,
   equipmentCodes: [] as string[], polCodes: [] as string[],
   poeCodes: [] as string[], podCodes: [] as string[],
-  carrierCode: '', incotermCode: '',
+  carrierCode: '', incotermCode: '', serviceCodes: [] as string[],
 })
 const preview = ref(false), saving = ref(false), error = ref(''), success = ref('')
 const editedSales = ref<Record<string, string>>({})
@@ -42,6 +45,21 @@ const expandedTiers = ref<string[]>([])
 const providerFilter = ref('all')
 const bulkDiscount = ref('')
 const bulkReview = ref(false)
+const showAllCosts = ref(true)
+const manual = reactive({ name: '', chargeCode: 'Other', amount: '', currency: 'USD', unit: 'SHIPMENT' })
+const manualChargeOptions = [
+  {value:'Other',label:'Otro / servicio manual'}, {value:'Freight',label:'Flete internacional'},
+  {value:'OriginCharge',label:'Cargo en origen'}, {value:'DestinationCharge',label:'Cargo en destino'},
+  {value:'PortCharge',label:'Cargo portuario'}, {value:'CustomsCharge',label:'Aduanas'},
+  {value:'InlandTransport',label:'Transporte local'}, {value:'AgentCharge',label:'Cargo de agente'},
+  {value:'Documentation',label:'Documentación'}, {value:'Insurance',label:'Seguro'},
+]
+const manualUnits = [
+  {value:'SHIPMENT',label:'Embarque'}, {value:'SERVICE',label:'Servicio'},
+  {value:'CONTAINER',label:'Contenedor'}, {value:'TRUCK',label:'Camión'},
+  {value:'CBM',label:'CBM'}, {value:'CFT',label:'CFT'},
+  {value:'KG',label:'KG'}, {value:'DOCUMENT',label:'Documento'},
+]
 const containerLabels = ref<Record<string, string>>({})
 const containerIdByCode = ref<Record<string, string>>({})
 const insuranceEnabled = ref(false), insuranceCost = ref(''), insuranceSale = ref('')
@@ -67,25 +85,32 @@ onMounted(() => void loadCurrencies())
 const modalityOptions = [
   { value: 'MARITIME', label: 'Marítimo' },
   { value: 'TERRESTRIAL', label: 'Terrestre' },
+  { value: 'AIR', label: 'Aéreo' },
 ]
 const options = computed(() => route.modality === 'MARITIME'
   ? [{ value: 'FCL', label: 'FCL' }, { value: 'LCL', label: 'LCL propio' }]
+  : route.modality === 'AIR' ? [{ value: 'AIR', label: 'Aéreo' }]
   : [{ value: 'FTL', label: 'FTL' }, { value: 'LTL', label: 'LTL propio' }])
 const laneCode = computed(() => ['LCL', 'LTL'].includes(route.shipment) ? 'OWN' : null)
 const incotermOptions = [{ value: '', label: 'Todos los Incoterms' },
   ...PREFERENTIAL_INCOTERMS.map(value => ({value,label:value}))]
 const equipmentGroups = computed(() => route.modality === 'MARITIME'
-  ? ['container-types'] : ['land-equipment-sizes', 'land-equipment-types'])
-const isComplete = computed(() => [route.equipmentCodes, route.polCodes, route.poeCodes].every(x => x.length === 1) &&
-  (route.modality === 'TERRESTRIAL' || route.podCodes.length === 1))
+  ? ['container-types'] : route.modality === 'AIR' ? []
+  : ['land-equipment-sizes', 'land-equipment-types'])
+// Every dimension can be unrestricted. A modality alone is enough to create an agreement.
+const isComplete = computed(() => !!route.shipment)
 const categoryLabel = computed(() => props.categoryType === 'LITTLE' ? 'Cargas Little'
   : props.categoryType === 'NVOCC' ? 'NVOCC ' + props.categoryCode : 'Cliente ' + props.categoryCode)
 const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : props.costs
-  .filter(cost => cost.costDetailType !== 'Insurance' && matchesPreferentialRoute(cost, {
+  .filter(cost => cost.costDetailType !== 'Insurance' &&
+    (!route.serviceCodes.length || !(cost.services ?? []).length ||
+      (cost.services ?? []).some(service => route.serviceCodes.includes((service.code || service.name).toUpperCase()))) &&
+    (showAllCosts.value || matchesPreferentialRoute(cost, {
     shipment: route.shipment, polCode: route.polCodes[0] ?? '',
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
     carrierCode: route.carrierCode, incotermCode: route.incotermCode,
-  }))
+    serviceCodes: route.serviceCodes,
+  })))
   .filter(cost => {
     const rows = costTiers(cost)
     if (rows[0]?.dimension !== 'ContainerType') return true
@@ -205,7 +230,14 @@ function scopeMatches(rate: SavedRate) {
     normalized(rate.polCodes) === normalized(route.polCodes) &&
     normalized(rate.poeCodes) === normalized(route.poeCodes) &&
     normalized(rate.podCodes) === (route.modality === 'MARITIME' ? normalized(route.podCodes) : '') &&
-    matchesPreferentialCommercialScope(rate, route)
+    matchesPreferentialCommercialScope(rate, route) &&
+    exactPreferentialScope(rate, {
+      modality: route.shipment, laneCode: laneCode.value,
+      carrierCode: route.carrierCode, incotermCode: route.incotermCode,
+      equipmentCodes: route.equipmentCodes, polCodes: route.polCodes,
+      poeCodes: route.poeCodes, podCodes: route.modality === 'MARITIME' ? route.podCodes : [],
+      serviceCodes: route.serviceCodes,
+    })
 }
 function existingCost(cost: CostSelectDto) {
   return props.rates.find(x => x.isActive && x.sourceCostId?.toLowerCase() === cost.id.toLowerCase() && scopeMatches(x))
@@ -220,23 +252,17 @@ function resetPreview() {
   insuranceEnabled.value = false; insuranceCost.value = ''; insuranceSale.value = ''
 }
 function changeModality(value: 'MARITIME' | 'TERRESTRIAL') {
-  route.modality = value; route.shipment = value === 'MARITIME' ? 'FCL' : 'FTL'
+  route.modality = value; route.shipment = value === 'MARITIME' ? 'FCL' : value === 'AIR' ? 'AIR' : 'FTL'
   route.equipmentCodes = []; route.polCodes = []; route.poeCodes = []; route.podCodes = []
-  route.carrierCode = ''; route.incotermCode = ''
+  route.carrierCode = ''; route.incotermCode = ''; route.serviceCodes = []
 }
 watch(() => [route.modality, route.shipment, route.equipmentCodes.join('|'),
   route.polCodes.join('|'), route.poeCodes.join('|'), route.podCodes.join('|'),
-  route.carrierCode, route.incotermCode], resetPreview)
+  route.carrierCode, route.incotermCode, route.serviceCodes.join('|')], resetPreview)
 function consult() {
   error.value = ''; success.value = ''
-  if (!isComplete.value) {
-    error.value = 'Seleccioná exactamente un POL, POE, equipo y, si es marítimo, POD.'
-    return
-  }
-  if (!props.canReadPricingConcepts) {
-    error.value = 'No tenés el permiso pricing.cost.select para cargar los costos y recargos de Pricing.'
-    return
-  }
+  // Se puede consultar el catálogo completo o guardar un cargo manual sin puertos ni equipo.
+  if (!isComplete.value) return
   editedSales.value = {}; editedTiers.value = {}; preview.value = true
   searchTerm.value = '';providerFilter.value='all';bulkDiscount.value='';bulkReview.value=false
   expandedTiers.value=[]
@@ -267,6 +293,7 @@ function scope() {
   return {
     modality: route.shipment, laneCode: laneCode.value,
     carrierCode: route.carrierCode, incotermCode: route.incotermCode,
+    serviceCodes: [...route.serviceCodes],
     equipmentCodes: [...route.equipmentCodes], polCodes: [...route.polCodes],
     poeCodes: [...route.poeCodes], podCodes: route.modality === 'MARITIME' ? [...route.podCodes] : [],
     equipmentCode: null, originCode: null, destinationCode: null,
