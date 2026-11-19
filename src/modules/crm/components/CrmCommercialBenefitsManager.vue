@@ -7,6 +7,7 @@ import type { CostDetailType, CostSelectDto } from '@/core/interfaces/pricing'
 import { BadgePercent, Check, Pencil, Plus, RefreshCw, ShieldCheck, X } from 'lucide-vue-next'
 import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
 import CrmPreferentialRouteBuilder from './CrmPreferentialRouteBuilder.vue'
+import { PREFERENTIAL_INCOTERMS } from '../utils/crmPreferentialCostRoute'
 import { benefitUsesPod } from '../utils/crmBenefitRouteCatalog'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc } from '../services/crmApi'
 
@@ -23,6 +24,7 @@ type Rate = {
   equipmentCode: string | null; originCode: string | null; destinationCode: string | null
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]
   validFrom: string | null; validUntil: string | null; notes: string | null; isActive: boolean
+  carrierCode?: string | null; incotermCode?: string | null
 }
 type Settings = {
   id: string; accountId: string; rowVersion: number
@@ -40,6 +42,7 @@ interface Draft {
   currencyCode: string; unitCode: string
   equipmentCodes: string[]; polCodes: string[]; poeCodes: string[]; podCodes: string[]
   validFrom: string; validUntil: string; notes: string; isActive: boolean
+  carrierCode: string; incotermCode: string
 }
 const props = defineProps<{ accountId: string }>()
 const router = useRouter()
@@ -86,6 +89,8 @@ const rateTypes: Array<{ value: BenefitType; label: string }> = [
   { value: 'WAIVE', label: 'Cargo exonerado' },
   { value: 'NEGOTIATED', label: 'Condición especial negociada' },
 ]
+const incotermOptions = [{ value: '', label: 'Todos los Incoterms' },
+  ...PREFERENTIAL_INCOTERMS.map(value => ({value,label:value}))]
 const unitOptions = [
   { value: 'SHIPMENT', label: 'Embarque' }, { value: 'CONTAINER', label: 'Contenedor' },
   { value: 'TEU', label: 'TEU' }, { value: 'BL', label: 'BL' },
@@ -122,6 +127,7 @@ function empty(mode: Mode = 'FCL'): Draft {
     unitCode: mode === 'FCL' ? 'CONTAINER' : mode === 'LCL' ? 'CBM' : mode === 'AIR' ? 'KG' : 'TRUCK',
     equipmentCodes: [], polCodes: [], poeCodes: [], podCodes: [],
     validFrom: '', validUntil: '', notes: '', isActive: true,
+    carrierCode: '', incotermCode: '',
   }
 }
 const equipmentSlugs = computed(() => ['FTL', 'LTL'].includes(draft.modality)
@@ -237,6 +243,7 @@ function beginEdit(rate: Rate) {
     podCodes: [...(rate.podCodes ?? [])],
     validFrom: fromUtc(rate.validFrom), validUntil: fromUtc(rate.validUntil),
     notes: rate.notes ?? '', isActive: rate.isActive,
+    carrierCode: rate.carrierCode ?? '', incotermCode: rate.incotermCode ?? '',
   })
   editorOpen.value = true; error.value = ''; success.value = ''
 }
@@ -244,6 +251,8 @@ function changeModality(next: Mode) {
   if (next === draft.modality) return
   draft.modality = next
   draft.laneCode = ''
+  draft.carrierCode = ''
+  draft.incotermCode = ''
   draft.equipmentCodes = []
   // Each modality uses its own CY / SD / APT catalogs, as in Pricing.
   // Do not carry a sea port into an air or land commercial benefit.
@@ -279,6 +288,7 @@ function payload() {
     currencyCode: needsMoney.value ? draft.currencyCode : null,
     unitCode: unitVisible.value ? draft.unitCode : null,
     // Empty arrays are wildcard scopes, not an empty/invalid route.
+    carrierCode: draft.carrierCode, incotermCode: draft.incotermCode,
     equipmentCodes: [...draft.equipmentCodes], polCodes: [...draft.polCodes],
     poeCodes: [...draft.poeCodes], podCodes: benefitUsesPod(draft.modality) ? [...draft.podCodes] : [],
     equipmentCode: null, originCode: null, destinationCode: null,
@@ -305,6 +315,8 @@ function validate(): string {
   if (draft.validFrom && draft.validUntil && draft.validFrom > draft.validUntil)
     return 'La fecha final debe ser posterior o igual a la inicial.'
   if (unitVisible.value && !draft.unitCode) return 'Seleccioná la unidad de cobro.'
+  if (draft.incotermCode && !PREFERENTIAL_INCOTERMS.some(x => x === draft.incotermCode))
+    return 'Seleccioná un Incoterm válido.'
   if ([draft.equipmentCodes, draft.polCodes, draft.poeCodes, draft.podCodes]
     .some(xs => xs.length > 60)) return 'Podés seleccionar como máximo 60 valores por campo.'
   return ''
@@ -332,6 +344,7 @@ async function setActive(rate: Rate, active: boolean) {
     await crmRequest(endpoint() + '/rates/' + encodeURIComponent(rate.id), 'PUT', {
       expectedVersion: rate.rowVersion, modality: rate.modality, laneCode: rate.laneCode,
       sourceCostId: rate.sourceCostId ?? null,
+      carrierCode: rate.carrierCode ?? '', incotermCode: rate.incotermCode ?? '',
       tierSalesJson: rate.tierSalesJson ?? null,
       chargeCode: rate.chargeCode, customChargeName: rate.customChargeName, rateType: rate.rateType,
       value: rate.value, minimumCharge: rate.minimumCharge,
@@ -384,6 +397,8 @@ function scopeText(rate: Rate): string {
     (rate.poeCodes ?? []).length ? 'POE: ' + rate.poeCodes.join(', ') :
       rate.destinationCode ? 'POE: ' + rate.destinationCode : '',
     (rate.podCodes ?? []).length ? 'POD: ' + rate.podCodes.join(', ') : '',
+    rate.carrierCode ? 'Naviera: ' + rate.carrierCode : 'Naviera: Todas',
+    rate.incotermCode ? 'Incoterm: ' + rate.incotermCode : 'Incoterm: Todos',
   ].filter(Boolean).join(' · ')
 }
 </script>
@@ -583,6 +598,15 @@ function scopeText(rate: Rate): string {
             </select>
           </label>
 
+          <CrmMultiCatalogPicker :model-value="draft.carrierCode ? [draft.carrierCode] : []"
+            label="Naviera (opcional)" :catalog-group-slugs="['carriers']" :single="true"
+            placeholder="Todas las navieras"
+            @update:model-value="draft.carrierCode = String($event[0] ?? '')" />
+          <label class="benefit-label">Incoterm
+            <select v-model="draft.incotermCode" class="benefit-input">
+              <option v-for="option in incotermOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
           <CrmMultiCatalogPicker v-model="draft.equipmentCodes" label="Equipos (selección múltiple)"
             :catalog-group-slugs="equipmentSlugs" />
           <CrmMultiCatalogPicker v-model="draft.polCodes"
