@@ -40,7 +40,7 @@ async function login() {
   try {
     loading.value = true
     const response = await authStore.login({ email: email.value, password: password.value })
-    toastStore.success('Sesión iniciada', 'Bienvenido a Dhole.')
+    toastStore.success('Sesión iniciada', 'Bienvenido a Orvelum System.')
     await router.push(response.mustChangePassword ? '/change-password' : resolveLandingRoute())
   } catch (error) {
     toastStore.backendError(error, t('auth.loginError'))
