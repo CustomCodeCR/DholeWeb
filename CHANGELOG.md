@@ -1,3 +1,12 @@
+## [1.89.0] - 2026-11-18 (Versión unificada con System y aviso de actualización)
+
+### Added
+- MINOR DH-20261118-WEB-VERSION-SYNC-236: Web y System comparten la versión 1.89.0 de forma obligatoria en el manifiesto y el CI de releases.
+- Diálogo emergente responsive «Se requiere actualizar» al detectar otra versión o commit de /version.json (intervalo de 60 s, recuperar foco y reconexión).
+- Botones «Actualizar ahora» y «Más tarde» sin recarga forzada ni pérdida automática de formularios; textos en español e inglés.
+- /version.json con validación de origen y sin fallback SPA; verificación contra System en CI de develop/master.
+- Versiones: DholeWeb 1.84.0 → 1.89.0; DholeSystem 1.88.0 → 1.89.0. CI y staging pendientes; despliegue de producción no autorizado.
+
 ## [1.84.0] - 2026-11-18
 
 ### Added

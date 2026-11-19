@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { RouterView, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import DhToastContainer from '@/shared/components/containers/DhToastContainer.vue'
+import DholeVersionUpdateDialog from '@/shared/components/containers/DholeVersionUpdateDialog.vue'
 import DhModalContainer from '@/shared/components/containers/DhModalContainer.vue'
 import DhDrawerContainer from '@/shared/components/containers/DhDrawerContainer.vue'
 import CrmDraftRecoveryModal from '@/modules/crm/components/CrmDraftRecoveryModal.vue'
@@ -125,6 +126,7 @@ onBeforeUnmount(() => {
 <template>
   <!-- Toasts are global feedback and must also be available on public auth screens such as /login. -->
   <DhToastContainer />
+  <DholeVersionUpdateDialog v-if="!isEmbedded" />
 
   <template v-if="!isPublicRoute">
     <DhModalContainer />
