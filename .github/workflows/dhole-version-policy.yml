@@ -22,3 +22,7 @@ jobs:
         env:
           DH_VERSION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
         run: python3 scripts/verify_dhole_version.py
+      - name: Require exact version match with target DholeSystem branch
+        env:
+          DH_SYSTEM_BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: python3 scripts/verify_system_version.py

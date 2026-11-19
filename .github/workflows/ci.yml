@@ -32,6 +32,8 @@ jobs:
         run: node --test tests/pricingSellerCancelQuote.test.mjs
       - name: CRM and SRM navigation/integration tests
         run: pnpm run test:crm
+      - name: Web update dialog and build-version regression tests
+        run: node --experimental-strip-types --test tests/webBuildUpdate.test.mjs
       - name: Workspace tabs and service-version regression tests
         run: pnpm run test:workspace-tabs
       - name: Mobile layout and locale compliance
