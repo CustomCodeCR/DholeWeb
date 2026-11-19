@@ -37,6 +37,8 @@ jobs:
         run: pnpm run test:email-mobile-i18n
       - name: Operations team catalog, i18n and dual validation regressions
         run: pnpm run test:operations
+      - name: Web update dialog and build-version regression tests
+        run: node --experimental-strip-types --test tests/webBuildUpdate.test.mjs
       - name: Type-check and build
         run: pnpm run build
       - name: Mount transformed Pricing wizard in SSR (blocks blank pages)
