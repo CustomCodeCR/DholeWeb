@@ -1,0 +1,23 @@
+{
+  "releaseId": "DH-20261119-OPS-ROLE-TEAM-DASHBOARD-254",
+  "ecosystemVersion": "1.96.0",
+  "releaseComponents": [
+    "DholeSystem",
+    "DholeWeb",
+    "DholeOperationsService"
+  ],
+  "branch": "feature/operations-role-team-dashboard-20261119",
+  "productionDeploymentAuthorized": false,
+  "changes": [
+    "Dashboard por rol y equipo",
+    "Resumen Aperturas protegido por permisos de usuario/equipo",
+    "Directorio de Equipos con bitácora plegable",
+    "Bandeja Pricing sin resaltado rojo completo"
+  ],
+  "verification": {
+    "build": "pending",
+    "tests": "pending",
+    "staging": "pending",
+    "master": "not-authorized"
+  }
+}
