@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.97.4",
+  "version": "1.97.5",
   "private": true,
   "type": "module",
   "scripts": {
@@ -48,7 +48,8 @@
     "test:crm-hacienda": "node --test tests/crmHacienda.test.ts",
     "test:hacienda-origin": "node --test tests/haciendaSameOrigin.test.ts",
     "test:avatar": "node --test tests/dhAvatarBlobatar.test.mjs",
-    "test:crm:shared-agenda": "node --test tests/crmSharedAgendaInvitees.test.mjs"
+    "test:crm:shared-agenda": "node --test tests/crmSharedAgendaInvitees.test.mjs",
+    "test:catalog:agents": "node --experimental-strip-types --test tests/globalAgentCountries.test.ts"
   },
   "dependencies": {
     "@blobatar/vue": "2.7.0",
