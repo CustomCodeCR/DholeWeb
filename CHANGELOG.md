@@ -1,3 +1,9 @@
+## [1.97.6] - 2026-11-19 (DH-20261119-PRICING-CIF-NAV-265 · CIF importación: avance a costos sin alternativas marítimas)
+
+- PATCH: Corrige el bloqueo de Pantalla 6 «Ir a líneas 1/0»: CIF/CFR importación sin flete facturable avanza con navegación estándar a Pantalla 7; no se exige ni crea flete internacional. FOB/EXW importación y CIF exportación conservan MultiQUO.
+- Release global 1.97.6; las versiones intermedias 1.97.4 y 1.97.5 se reservaron para cambios de staging que no se promoverán junto a este parche, por lo que master pasa directamente desde 1.97.3.
+- Conserva Orvelum System y todas las funcionalidades productivas existentes. Sin despliegue de producción hasta validación de staging y autorización expresa.
+
 ## [1.97.3] - 2026-11-19 (DH-20261119-PRICING-CIF-NO-FREIGHT-262 · Importación CIF sin flete marítimo adicional)
 
 - PATCH: Pantalla 6 del wizard FCL oculta ambas tarjetas de creación de flete manual cuando el Incoterm ya cubre el tramo internacional (CIF/CFR en importación).

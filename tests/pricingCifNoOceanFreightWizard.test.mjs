@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { guardManualOceanFreightCards } from '../build/pricingCustomsOnlyWizard.ts'
+import { guardManualOceanFreightCards, guardNoFreightFclOptionNavigation } from '../build/pricingCustomsOnlyWizard.ts'
 import { incotermClientPaysMainTransport } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
 
 const manualFreightVisibility = `v-if="shipmentModeForApi === 'Fcl' && (form.modality === 'Maritime' || form.modality === 'Multimodal') && (form.manualRate || !form.selectedImportRateId)"`
@@ -38,4 +38,20 @@ test('CIF skips rate selection, supports provider choice and prevents direct man
   assert.match(source, /multiCarrierSelectionMode && hasInternationalTransportService/)
   assert.match(source, /El flete marítimo ya está cubierto por el Incoterm/)
   assert.match(source, /line\.costDetailType !== 'Freight'/)
+})
+
+test('CIF with 0 selected carriers uses normal navigation to screen 7 instead of blocking at 1/0', () => {
+  const wizardSource = readFileSync(
+    new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
+    'utf8',
+  )
+  const transformed = guardNoFreightFclOptionNavigation(wizardSource)
+  assert.match(transformed, /selectedPoeIds\.value\.length > 0 && hasInternationalTransportService\.value/)
+  assert.match(transformed, /if \(step\.value === 6\) \{\s*await loadApplicableCosts\(\)\s*rebuildRateLines\(\)/)
+  assert.match(transformed, /v-else-if="!isEditing && step < 8 && !\[1, 2, 5\]\.includes\(step\)"/)
+  assert.equal(transformed.includes('selectedPoeIds.value.length > 0,\n)'), false)
+  assert.throws(
+    () => guardNoFreightFclOptionNavigation('<script setup lang="ts"></script>'),
+    /disable MultiQUO navigation/,
+  )
 })
