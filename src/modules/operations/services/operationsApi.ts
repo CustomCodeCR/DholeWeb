@@ -91,6 +91,10 @@ export const operationsApi = {
     request<unknown>(`/api/operations/teams/${teamId}/active`, 'PATCH', { isActive }),
   teamAudit: (teamId: string) =>
     request<OperationsAudit[]>(`/api/operations/teams/${teamId}/audit`),
+  auditActors: (ids: string[]) => ids.length
+    ? request<{ items: OperationsUser[] }>('/api/auth/users/operations-audit-actors?ids=' +
+        encodeURIComponent([...new Set(ids)].join(',')))
+    : Promise.resolve({ items: [] as OperationsUser[] }),
   apertures: (page = 1) => request<Paged<ApertureRow>>(
     `/api/operations/apertures/validation-queue?page=${page}&pageSize=50`),
   createAperture: (body: {
