@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-PRICING-LTL-MANUAL-ENDTOEND-278",
+  "date": "2026-11-19",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.103.7",
+  "releaseType": "PATCH",
+  "promotionType": "isolated-master-backport",
+  "changes": [
+    "Accept own manual LTL selection on screens 5 and 6",
+    "Recover country from CRM on resumed rate requests; quote-only country selection if missing",
+    "Keep manual profile and client country override in drafts"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.6",
+      "version": "1.103.7"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.6",
+      "version": "1.103.7"
+    }
+  ],
+  "otherComponentVersions": "Retained in DholeSystem master manifest",
+  "realtime": "Unchanged",
+  "schemaMigration": false,
+  "ci": "pending",
+  "staging": "pending",
+  "master": "pending",
+  "productionDeploymentAuthorized": true
+}
