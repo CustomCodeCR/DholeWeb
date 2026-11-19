@@ -74,6 +74,6 @@ test('seller workspace permission alone must not load the restricted Pricing das
   assert.match(dashboardView, /const hasSellerDashboardAccess = computed\(/)
   assert.match(dashboardView, /authStore\.hasScope\(PRICING_SCOPES\.rates\.view\)/)
   assert.match(dashboardView, /!hasSellerDashboardAccess\.value \|\| hasPricingOperatorAccess\.value/)
-  assert.match(dashboardView, /if \(!canUsePricing\.value && hasSellerDashboardAccess\.value\) return 'seller'/)
+  assert.match(dashboardView, /if \(!canUsePricing\.value && hasSellerDashboardAccess\.value && !canUseOperations\.value\) return 'seller'/)
   assert.doesNotMatch(dashboardView, /authStore\.hasScope\(VIEW_SCOPES\.pricing\)/)
 })
