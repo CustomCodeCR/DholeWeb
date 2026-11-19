@@ -60,7 +60,7 @@ test('Showing all Pricing items never bypasses Caldera POE or San José POD', ()
   // Costs from other services/modes can still be considered if their geographic scope matches.
   assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl'}), all), true)
   assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl',poeCode:'PABAL'}), all), false)
-  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl',podCode:'PAZLC'}), all), true)
+  assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Ftl',podCode:'PAZLC'}), all), false)
   assert.equal(matchesPreferentialRoute(cost({shipmentMode:'Fcl',podCode:'PAZLC'}), all), false)
   assert.equal(matchesPreferentialRoute(cost({poeCode:'PABAL'}), all), false)
   assert.equal(matchesPreferentialRoute(cost({podCode:'CRLIM'}), all), false)
