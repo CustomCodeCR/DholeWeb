@@ -17,12 +17,13 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { DhButton, DhColorPicker, DhRange, DhSelect, DhInput } from '@/shared/components/atoms'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
+import DhMascotAccessory from '@/shared/components/atoms/DhMascotAccessory.vue'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useThemeStore, type ThemeMode } from '@/core/stores/themeStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { AVATAR_EXPRESSIONS, useAvatarAppearanceStore, type AvatarExpression } from '@/core/stores/avatarAppearanceStore'
-import { useAvatarMascotStore, type MascotMovement } from '@/core/stores/avatarMascotStore'
+import { useAvatarMascotStore, type MascotMovement, type MascotAccessory } from '@/core/stores/avatarMascotStore'
 import { useLocale, type LocaleCode } from '@/core/stores/locale'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
@@ -67,6 +68,14 @@ const mascotMovementOptions = computed(() => [
 
 function setMascotMovement(value: string | number) {
   avatarMascot.setMovement(value as MascotMovement)
+}
+
+const mascotAccessoryOptions = computed(() => (
+  ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat'] as const
+).map(kind => ({ value: kind, label: t('appearance.mascotAccessories.' + kind) })))
+
+function setMascotAccessory(value: string | number) {
+  avatarMascot.setAccessory(value as MascotAccessory)
 }
 
 async function handleProfilePhotoChange(event: Event) {
@@ -421,9 +430,22 @@ onMounted(refreshAppearanceSettings)
     <DhCard :title="t('appearance.mascotTitle')" :subtitle="t('appearance.mascotHelp')" :icon="Smile">
       <div class="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
         <div class="flex flex-col items-center gap-3">
-          <div class="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-[var(--dh-border)] bg-[var(--dh-input)]">
-            <img v-if="avatarMascot.photo" :src="avatarMascot.photo" :alt="t('appearance.mascotProfilePhoto')" class="h-full w-full object-cover" />
-            <DhAvatar v-else :id="authStore.userId" :name="authStore.userDisplayName || ''" size="lg" />
+          <div class="relative flex h-28 w-28 items-center justify-center" :aria-label="t('appearance.mascotPreview')">
+            <DhAvatar
+              :id="authStore.userId"
+              :name="avatarMascot.name"
+              size="lg"
+              animate="always"
+              :mood="avatarAppearance.expression ?? 'auto'"
+              :controlled-expressions="true"
+              :transparent-backdrop="true"
+            />
+            <div class="pointer-events-none absolute left-1/2 top-1/2 h-[70px] w-[70px] -translate-x-1/2 -translate-y-1/2">
+              <DhMascotAccessory :kind="avatarMascot.accessory" />
+            </div>
+          </div>
+          <div v-if="avatarMascot.photo" class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-[var(--dh-border)]">
+            <img :src="avatarMascot.photo" :alt="t('appearance.mascotProfilePhoto')" class="h-full w-full object-cover" />
           </div>
           <input
             ref="profileFileInput"
@@ -448,30 +470,34 @@ onMounted(refreshAppearanceSettings)
         <div class="min-w-0 space-y-4">
           <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotLocalHelp') }}</p>
           <p v-if="profileUploadError" class="text-sm font-semibold text-red-500" role="alert">{{ profileUploadError }}</p>
-          <template v-if="avatarMascot.photo">
-            <div class="flex flex-wrap items-end gap-2">
-              <div class="min-w-[160px] flex-1">
-                <DhInput
-                  v-model="mascotNameDraft"
-                  :label="t('appearance.mascotName')"
-                  :placeholder="t('appearance.mascotNamePlaceholder')"
-                />
-              </div>
-              <DhButton :label="t('appearance.mascotSaveName')" variant="secondary" @click="avatarMascot.setName(mascotNameDraft)" />
+          <div class="flex flex-wrap items-end gap-2">
+            <div class="min-w-[160px] flex-1">
+              <DhInput
+                v-model="mascotNameDraft"
+                :label="t('appearance.mascotName')"
+                :placeholder="t('appearance.mascotNamePlaceholder')"
+              />
             </div>
-            <DhSelect
-              :model-value="avatarMascot.movement"
-              :label="t('appearance.mascotMovement')"
-              :options="mascotMovementOptions"
-              @update:model-value="setMascotMovement"
-            />
-            <DhButton
-              :label="t(avatarMascot.visible ? 'appearance.mascotHide' : 'appearance.mascotShow')"
-              variant="secondary"
-              @click="avatarMascot.setVisible(!avatarMascot.visible)"
-            />
-            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotDragHelp') }}</p>
-          </template>
+            <DhButton :label="t('appearance.mascotSaveName')" variant="secondary" @click="avatarMascot.setName(mascotNameDraft)" />
+          </div>
+          <DhSelect
+            :model-value="avatarMascot.accessory"
+            :label="t('appearance.mascotAccessory')"
+            :options="mascotAccessoryOptions"
+            @update:model-value="setMascotAccessory"
+          />
+          <DhSelect
+            :model-value="avatarMascot.movement"
+            :label="t('appearance.mascotMovement')"
+            :options="mascotMovementOptions"
+            @update:model-value="setMascotMovement"
+          />
+          <DhButton
+            :label="t(avatarMascot.visible ? 'appearance.mascotHide' : 'appearance.mascotShow')"
+            variant="secondary"
+            @click="avatarMascot.setVisible(!avatarMascot.visible)"
+          />
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotDragHelp') }}</p>
         </div>
       </div>
     </DhCard>
