@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Layers3, Pencil, UserMinus, SlidersHorizontal } from 'lucide-vue-next'
+import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3, Pencil, UserMinus, SlidersHorizontal } from 'lucide-vue-next'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhCard, DhSearchInput } from '@/shared/components/molecules'
