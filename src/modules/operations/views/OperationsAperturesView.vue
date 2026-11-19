@@ -224,7 +224,7 @@ onMounted(load)
         </ol>
       </DhCard>
     </div>
-    <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? 'Nueva apertura' : undefined" @action="showCreate = true" />
+    <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? t('operations.validation.new') : undefined" @action="showCreate = true" />
 
     <DhModal :open="showCreate && canCreate" :title="t('operations.validation.formTitle')" size="lg" @close="showCreate = false">
       <form class="space-y-5" @submit.prevent="createOpening">
