@@ -30,6 +30,7 @@ const props = withDefaults(
     followCursor?: boolean
     mood?: AvatarMood
     darkBackdrop?: boolean
+    transparentBackdrop?: boolean
     tapTrigger?: number
     previewExpressions?: boolean
     autoExpressions?: boolean
@@ -43,6 +44,7 @@ const props = withDefaults(
     followCursor: false,
     mood: 'auto',
     darkBackdrop: false,
+    transparentBackdrop: false,
     tapTrigger: 0,
     previewExpressions: false,
     autoExpressions: false,
@@ -157,6 +159,7 @@ const sizeClass = computed(() => ({
 })[props.size])
 const animationMode = computed(() => props.animate === true ? 'hover' : props.animate || undefined)
 const showMotionAura = computed(() =>
+  !props.transparentBackdrop &&
   (!props.src || photoFailed.value) &&
   props.fallback === 'blobatar' &&
   Boolean(avatarSeed.value) &&
@@ -232,7 +235,7 @@ function handlePointerEnter(event: PointerEvent) {
     :class="{
       'dh-avatar--alive': showMotionAura,
       'dh-avatar--hero': animationMode === 'always',
-      'dh-avatar--dark': darkBackdrop,
+      'dh-avatar--dark': darkBackdrop && !transparentBackdrop,
       'dh-avatar--tap-a': tapActive && tapVariant,
       'dh-avatar--tap-b': tapActive && !tapVariant,
     }"
@@ -262,27 +265,27 @@ function handlePointerEnter(event: PointerEvent) {
       ref="trackedBlob"
       :name="avatarSeed"
       :size="pixelSize"
-      :background="darkBackdrop ? false : 'circle'"
+      :background="transparentBackdrop || darkBackdrop ? false : 'circle'"
       :hue="210"
       animate="always"
       :expression="expression"
       :title="name || undefined"
-      class="dh-avatar__face rounded-full ring-2 ring-white/70 dark:ring-white/10"
-      :class="sizeClass"
+      class="dh-avatar__face rounded-full"
+      :class="[sizeClass, !transparentBackdrop && 'ring-2 ring-white/70 dark:ring-white/10']"
     />
 
     <Blobatar
       v-else-if="fallback === 'blobatar' && avatarSeed"
       :name="avatarSeed"
       :size="pixelSize"
-      :background="darkBackdrop ? false : 'circle'"
+      :background="transparentBackdrop || darkBackdrop ? false : 'circle'"
       :hue="210"
       :animate="animationMode"
       :expression="expression"
       :title="name || undefined"
       :alt="name || ''"
-      class="dh-avatar__face rounded-full ring-2 ring-white/70 dark:ring-white/10"
-      :class="sizeClass"
+      class="dh-avatar__face rounded-full"
+      :class="[sizeClass, !transparentBackdrop && 'ring-2 ring-white/70 dark:ring-white/10']"
     />
 
     <span
