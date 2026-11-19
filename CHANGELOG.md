@@ -7,6 +7,14 @@
 - /version.json con validación de origen y sin fallback SPA; verificación contra System en CI de develop/master.
 - Versiones: DholeWeb 1.84.0 → 1.89.0; DholeSystem 1.88.0 → 1.89.0. CI y staging pendientes; despliegue de producción no autorizado.
 
+
+## [1.85.0] - 2026-11-18 (DH-20261118-OPERATIONS-TEAM-UX-241 · i18n y gestión operativa)
+
+- MINOR: sidebar de Operaciones traducible (ES/EN) con Trámites, Aperturas y Equipos; directorio general paginado de IDTRA con resumen y departamentos, sin duplicar el expediente.
+- MINOR: rediseño de equipos con catálogo estándar, búsqueda y asignación manual de usuarios internos de Auth, edición de roles, disponibilidad y capacidad; no se crean usuarios ni scopes automáticamente.
+- Traducciones de bandeja de Aperturas y revisión doble sin alterar su autorización; se mantiene la auditoría Outbox/Redis/SignalR.
+- DholeWeb 1.84.0 → 1.85.0; Operations 0.7.0 → 0.8.0; versión objetivo de ecosistema 1.89.0. Integración sujeta a CI y staging; producción no autorizada.
+
 ## [1.84.0] - 2026-11-18
 
 ### Added

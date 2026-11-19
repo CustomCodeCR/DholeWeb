@@ -29,14 +29,16 @@ jobs:
       - name: Agent module tests
         run: pnpm run test:agent
       # Build before older unrelated Pricing regressions so CI always verifies this UI.
-      - name: Web update dialog and build-version regression tests
-        run: node --experimental-strip-types --test tests/webBuildUpdate.test.mjs
       - name: Workspace tabs and service-version regression tests
         run: pnpm run test:workspace-tabs
       - name: Mobile layout and locale compliance
         run: pnpm run test:mobile-i18n
       - name: Email inbox translation and mobile settings regression
         run: pnpm run test:email-mobile-i18n
+      - name: Operations team catalog, i18n and dual validation regressions
+        run: pnpm run test:operations
+      - name: Web update dialog and build-version regression tests
+        run: node --experimental-strip-types --test tests/webBuildUpdate.test.mjs
       - name: Type-check and build
         run: pnpm run build
       - name: Mount transformed Pricing wizard in SSR (blocks blank pages)
