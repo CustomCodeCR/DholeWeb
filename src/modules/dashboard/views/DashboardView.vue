@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
+import { DhSelect } from '@/shared/components/atoms'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import OperationsRoleDashboard from '@/modules/dashboard/components/OperationsRoleDashboard.vue'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
@@ -79,6 +80,16 @@ const canManageSellerRequests = computed(() =>
 type DashboardRole = 'pricing' | 'seller' | 'operations'
 const selectedDashboardRole = ref<DashboardRole>('pricing')
 const canUseOperations = computed(() => authStore.hasScope('operations.case.read'))
+const dashboardRoleOptions = computed(() => [
+  ...(canUsePricing.value ? [{ value: 'pricing', label: 'Pricing' }] : []),
+  ...(hasSellerDashboardAccess.value ? [{ value: 'seller', label: t('dashboard.seller') }] : []),
+  ...(canUseOperations.value ? [{ value: 'operations', label: t('operations.title') }] : []),
+])
+function selectDashboardRole(value: string | number) {
+  if (value === 'pricing' && canUsePricing.value) selectedDashboardRole.value = 'pricing'
+  else if (value === 'seller' && hasSellerDashboardAccess.value) selectedDashboardRole.value = 'seller'
+  else if (value === 'operations' && canUseOperations.value) selectedDashboardRole.value = 'operations'
+}
 const canSelectDashboard = computed(() =>
   isSuperUser() || [canUsePricing.value, hasSellerDashboardAccess.value, canUseOperations.value].filter(Boolean).length > 1,
 )
@@ -99,7 +110,7 @@ const activeDashboardRole = computed<DashboardRole>(() => {
 
 <template>
   <section class="space-y-6">
-    <section class="dh-glass dh-liquid rounded-3xl px-5 py-5 sm:px-6">
+    <section v-if="activeDashboardRole !== 'operations'" class="dh-glass dh-liquid rounded-3xl px-5 py-5 sm:px-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0">
           <p class="text-sm font-black uppercase tracking-[0.18em] text-[var(--dh-primary)]">
@@ -131,7 +142,19 @@ const activeDashboardRole = computed<DashboardRole>(() => {
 
     <!-- SuperUsuario supervisa globalmente y puede operar lo propio. Un usuario
          Pricing + Vendedor consulta sus propias tarifas, no las de terceros. -->
-    <OperationsRoleDashboard v-if="activeDashboardRole === 'operations' && canUseOperations" />
+    <OperationsRoleDashboard v-if="activeDashboardRole === 'operations' && canUseOperations">
+      <template #role-selector>
+        <div v-if="canSelectDashboard" class="w-full sm:max-w-[200px]">
+          <DhSelect
+            :model-value="activeDashboardRole"
+            :label="t('dashboard.roleDashboard')"
+            :options="dashboardRoleOptions"
+            :placeholder="''"
+            @update:model-value="selectDashboardRole"
+          />
+        </div>
+      </template>
+    </OperationsRoleDashboard>
 
     <SellerRoleDashboard
       v-else-if="activeDashboardRole === 'seller'"
