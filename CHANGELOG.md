@@ -1,3 +1,10 @@
+## [1.97.6] - 2026-11-19 (DH-20261119-PRICING-CIF-NAV-265 · Avance CIF sin alternativas FCL)
+
+- PATCH: cuando CIF/CFR de importación cubre el flete internacional, el wizard FCL no activa el recorrido MultiQUO de alternativas marítimas con 0 navieras seleccionadas.
+- Pantalla 6 avanza directamente a Pantalla 7 con el botón Continuar, cargando cargos de destino, transporte local y aduanas sin requerir flete.
+- Las cotizaciones FOB/EXW importación y CIF exportación conservan la selección MultiQUO cuando corresponde; pruebas de regresión para cola de 0 alternativas.
+- Release Web/System 1.97.5 → 1.97.6, manteniendo marca exclusiva de staging y las mejoras GCF del release anterior; CI/staging obligatorios antes de master.
+
 ## [1.97.5] - 2026-11-19 (DH-20261119-GCF-ALL-COUNTRIES-264 · Cobertura mundial GCF)
 
 - PATCH: Grupo Castro Fallas opera con todos los países como agente global; formulario de catálogos muestra «Todos los países» y guarda metadata.allCountries en cada edición, conservando campos históricos.

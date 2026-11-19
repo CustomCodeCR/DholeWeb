@@ -38,8 +38,28 @@ export function guardManualOceanFreightCards(screenSix: string): string {
   )
 }
 
+// CIF/CFR imports skip freight selection (screen 5) and therefore have no
+// selectedCarrierRoutes. Route navigation must not activate with 0 options;
+// otherwise advanceSequentialWizard silently returns before reaching screen 7.
+export function guardNoFreightFclOptionNavigation(source: string): string {
+  return replaceRequired(
+    source,
+    `const multiCarrierSelectionMode = computed(() =>
+  !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
+  && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
+  && selectedPoeIds.value.length > 0,
+)`,
+    `const multiCarrierSelectionMode = computed(() =>
+  !props.rateId && !props.sellerRequestMode && !props.modificationRequestId
+  && form.modality === 'Maritime' && shipmentModeForApi.value === 'Fcl'
+  && selectedPoeIds.value.length > 0 && hasInternationalTransportService.value,
+)`,
+    'disable MultiQUO navigation when international freight is not billed',
+  )
+}
+
 function patchWizard(source: string): string {
-  let code = source
+  let code = guardNoFreightFclOptionNavigation(source)
   code = replaceRequired(
     code,
     "import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'",
