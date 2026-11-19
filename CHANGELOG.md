@@ -1,3 +1,9 @@
+## [1.97.7] - 2026-11-19 (DH-20261119-DHOLE-REBRAND-266 · Identidad Dhole System)
+
+- PATCH: Identidad Dhole System, icono SVG transparente de globo, paquete y ruta para favicon, acceso y navegación en ambos entornos.
+- Traducciones ES/EN y número de versión sincronizados; no cambian identificadores técnicos, permisos, datos ni APIs.
+- Web/System 1.97.6 → 1.97.7. Validar CI y staging antes de master.
+
 ## [1.97.6] - 2026-11-19 (DH-20261119-PRICING-CIF-NAV-265 · Avance CIF sin alternativas FCL)
 
 - PATCH: cuando CIF/CFR de importación cubre el flete internacional, el wizard FCL no activa el recorrido MultiQUO de alternativas marítimas con 0 navieras seleccionadas.

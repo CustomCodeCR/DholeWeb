@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Dhole System",
-    "subtitle": "Operations Platform",
+    "subtitle": "Intelligent Logistics Platform",
     "updateRequiredTitle": "Dhole System update required",
     "updateRequiredDescription": "A new Dhole System version (v{version}) is available. Refresh to use the latest improvements.",
     "updateRequiredUnsaved": "If you are editing a form, save your changes before refreshing.",
