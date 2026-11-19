@@ -1,3 +1,8 @@
+## [1.92.1] - 2026-11-19 (DH-20261119-OPS-ROLE-NAME-249 · rol elegible real)
+
+- PATCH: el selector de equipos muestra «Operativo Logístico» y «Supervisor Operativo», los nombres existentes en Auth.
+- Sin creación de roles nuevos; se mantiene el rediseño DH-247 y las 36 emociones de Blobatar v1.92.0. Web y System alineados en 1.92.1.
+
 ## [1.92.0] - 2026-11-19 (DH-20261119-BLOBATAR-EMOTIONS-248 · 36 nuevas emociones Blobatar)
 
 - MINOR: 36 expresiones nativas SVG con poses individuales; total 53, con etiquetas ES/EN y restauración de preferencias por usuario.

@@ -1,0 +1,17 @@
+{
+  "releaseId": "DH-20261119-OPS-ROLE-NAME-249",
+  "component": "DholeWeb",
+  "from": "1.92.0",
+  "to": "1.92.1",
+  "ecosystemVersion": "1.92.1",
+  "changes": [
+    "Align UI with existing Operativo Logístico role in Auth"
+  ],
+  "unchanged": [
+    "Operations 0.10.0",
+    "Blobatar 1.92.0"
+  ],
+  "staging": "pending",
+  "systemDevelopMergeSha": "5ea4c73ec497ecf17d29eba3ee1282a87c051617",
+  "crossVersionValidation": "Recheck Web/System develop 1.92.1 after System patch merged"
+}
