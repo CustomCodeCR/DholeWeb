@@ -102,15 +102,14 @@ const isComplete = computed(() => !!route.shipment)
 const categoryLabel = computed(() => props.categoryType === 'LITTLE' ? 'Cargas Little'
   : props.categoryType === 'NVOCC' ? 'NVOCC ' + props.categoryCode : 'Cliente ' + props.categoryCode)
 const costsForRoute = computed(() => !preview.value || !isComplete.value ? [] : props.costs
-  .filter(cost => cost.costDetailType !== 'Insurance' &&
-    (!route.serviceCodes.length || !(cost.services ?? []).length ||
-      (cost.services ?? []).some(service => route.serviceCodes.includes((service.code || service.name).toUpperCase()))) &&
-    (showAllCosts.value || matchesPreferentialRoute(cost, {
+  .filter(cost => cost.costDetailType !== 'Insurance' && matchesPreferentialRoute(cost, {
     shipment: route.shipment, polCode: route.polCodes[0] ?? '',
     poeCode: route.poeCodes[0] ?? '', podCode: route.podCodes[0] ?? '',
     carrierCode: route.carrierCode, incotermCode: route.incotermCode,
     serviceCodes: route.serviceCodes,
-  })))
+    // Mostrar todos permite otras modalidades, NUNCA puertos/navieras/servicios ajenos.
+    includeOtherShipmentModes: showAllCosts.value,
+  }))
   .filter(cost => {
     const rows = costTiers(cost)
     if (rows[0]?.dimension !== 'ContainerType') return true
@@ -513,8 +512,12 @@ async function saveManual() {
     </form>
     <label class="mt-4 flex items-center gap-2 text-sm font-semibold">
       <input v-model="showAllCosts" type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]" />
-      Mostrar todos los ítems de Pricing, incluso de otros servicios o rutas
+      Mostrar todos los ítems de Pricing compatibles con los puertos seleccionados (incluso otras modalidades)
     </label>
+    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+      El catálogo incluye cargos generales y de otros servicios, pero siempre excluye costos
+      con POL, POE o POD incompatibles con los seleccionados.
+    </p>
     <p v-if="!canReadPricingConcepts" class="mt-2 text-xs text-[var(--dh-text-muted)]">
       Para consultar los costos de Pricing se requiere pricing.cost.select. Podés guardar ítems manuales con permiso de CRM.
     </p>
