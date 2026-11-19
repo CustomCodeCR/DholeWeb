@@ -87,6 +87,6 @@ test('staging keeps the Orvelum icon while all customer-facing branding says Dho
   assert.match(icon, /stroke="url\(#orbit\)"/)
   assert.match(login, /Bienvenido a Dhole System/)
   assert.match(dockerfile, /ARG VITE_APP_NAME="Dhole System"/)
-  assert.equal(version.version, '1.97.4')
+  assert.equal(version.version, JSON.parse(source('package.json')).version)
   assert.equal(version.ecosystemVersion, version.version)
 })
