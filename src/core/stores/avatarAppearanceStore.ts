@@ -5,6 +5,15 @@ export const AVATAR_EXPRESSIONS = [
   'mad', 'happy', 'sad', 'surprised', 'wink', 'sleepy', 'smug',
   'unsure', 'scared', 'love', 'shy', 'sick', 'thinking', 'idle',
   'stressed', 'tired', 'resigned',
+  'achicopalado', 'emperrado', 'emocionado', 'nostalgico', 'desesperado',
+  'aburrido', 'pereza', 'celoso', 'avergonzado', 'culpable',
+  'orgulloso', 'curioso', 'asqueado', 'preocupado', 'decepcionado',
+  'irritado', 'impaciente', 'ojosLlorosos', 'arrogante', 'melancolico',
+  'humillado', 'miserable', 'abrumado', 'vulnerable', 'rechazado',
+  'desilusionado', 'alarmado', 'horrorizado', 'pasmado', 'irritable',
+  'desconcertado', 'desmotivado', 'resentido', 'agobiado', 'temeroso',
+  'incomodo',
+  'cringe', 'burlon', 'picaro', 'paranoico', 'disociado',
 ] as const
 
 export type AvatarExpression = (typeof AVATAR_EXPRESSIONS)[number]
@@ -68,6 +77,15 @@ export const useAvatarAppearanceStore = defineStore('avatarAppearance', () => {
     syncRotation()
   }
 
+  function setExpression(mood: AvatarExpression) {
+    if (!AVATAR_EXPRESSIONS.includes(mood)) return
+    expression.value = mood
+    saveSetting(keyFor('expression'), mood)
+    automatic.value = false
+    saveSetting(keyFor('mode'), 'fixed')
+    syncRotation()
+  }
+
   function nextExpression() {
     rotate()
     syncRotation()
@@ -103,5 +121,5 @@ export const useAvatarAppearanceStore = defineStore('avatarAppearance', () => {
     window.removeEventListener('storage', handleStorage)
   }
 
-  return { userId, expression, automatic, selectUser, setAutomatic, nextExpression, start, stop }
+  return { userId, expression, automatic, selectUser, setAutomatic, nextExpression, setExpression, start, stop }
 })
