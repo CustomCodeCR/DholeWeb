@@ -1,3 +1,9 @@
+## [1.97.1] - 2026-11-19 (DH-20261119-ORVELUM-TRANSPARENT-261 · Icono adaptable Orvelum System)
+
+- PATCH master: elimina fondo negro/azul del icono orbital de Orvelum, ahora SVG transparente y colores del tema en sidebar e inicio de sesión.
+- Favicon transparente sin fondo, con versión de recurso para invalidar caché. Mantiene Orvelum System y pestaña con versión real 1.97.1.
+- Develop conserva nombre Dhole, favicon y avatares previos; no se cambian contratos API, permisos ni flujos.
+
 ## [1.97.0] - 2026-11-19 (DH-20261119-ORVELUM-BRAND-256 · Orvelum System)
 
 - MINOR: Orvelum System en interfaz ES/EN, login, menú y avisos de actualización.
