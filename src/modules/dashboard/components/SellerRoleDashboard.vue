@@ -523,7 +523,9 @@ function openSellerRate(rate: RateDto) {
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
-  if (!canActOnRate(rate)) return
+  // Guard the action as well as the visible button: a stale tab must not
+  // open a commercial decision for an unpublished Pricing revision.
+  if (!canRespondToRate(rate)) return
   modalStore.open({
     title: decision === 'AcceptedByClient'
       ? 'Registrar aceptación del cliente'
