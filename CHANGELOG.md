@@ -1,3 +1,9 @@
+## [1.101.0] - 2026-11-19 (DH-20261119-PRICING-CLIENT-COUNTRY-PROD-271 · Promoción Incoterms según país CRM)
+
+- MINOR: para cada solicitud o QUO, la perspectiva comercial depende del país de la cuenta/prospecto CRM frente a POL y POD final: país de origen exporta, país de destino importa, tercero/trayecto nacional se trata como tránsito/doméstico.
+- En master se incorpora la funcionalidad ya probada en staging/develop, sin fusionar históricos divergentes; importación CIF no añade flete, IVA/CRC conserva jurisdicción física, con validación explícita de país faltante.
+- Web/System 1.100.0 → 1.101.0; CRM 1.41.0 → 1.42.0. Pruebas unitarias y versión sincronizadas; despliegue autorizado por el usuario tras verificación.
+
 ## [1.100.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-MATCH-270 · cargos manuales, servicios y fallback preferencial)
 
 - MINOR: los acuerdos de CRM admiten servicios opcionales del catálogo pricing-services, todas las modalidades (incluido aéreo), puertos/equipo opcionales y un selector para ver todos los ítems de Pricing.
