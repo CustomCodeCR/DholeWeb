@@ -43,3 +43,9 @@ El workflow `dhole-version-policy.yml` rechaza versiones inconsistentes o que no
 
 Primero rama intermedia y batch a `develop`; tras las pruebas de staging, promover el mismo batch a `master` únicamente con autorización expresa de producción.
 
+
+## Contrato DholeSystem = DholeWeb (DH-20261118-WEB-VERSION-SYNC-236)
+
+Desde 1.89.0, `package.json`, `package-lock.json`, `version.json` y la versión pública del build deben ser **idénticos a la versión de DholeSystem** en el mismo canal. No se permite incrementar una versión solamente en Web: actualizar ambos candidatos y `DholeSystem/release-manifest.json`; la política CI de Web contrasta la rama de System (`develop` o `master`) antes de integrar.
+
+La aplicación consulta `/version.json` cada 60 s, al recuperar el foco y al restablecer la conexión. Si difieren SemVer o SHA del bundle, abre un diálogo traducido para actualizar cuando sea seguro, sin recargar ediciones pendientes. La validación de release bloquea el desajuste entre repositorios; la sincronización exige un release coordinado, no un incremento automático aislado.

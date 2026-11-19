@@ -1,7 +1,14 @@
 {
   "app": {
     "name": "Dhole",
-    "subtitle": "Operations Platform"
+    "subtitle": "Operations Platform",
+    "updateRequiredTitle": "Dhole update required",
+    "updateRequiredDescription": "A new Dhole version (v{version}) is available. Refresh to use the latest improvements.",
+    "updateRequiredUnsaved": "If you are editing a form, save your changes before refreshing.",
+    "updateNow": "Update now",
+    "updateLater": "Later",
+    "updateInstalled": "Current version",
+    "updateAvailable": "Available version"
   },
   "common": {
     "search": "Search",
