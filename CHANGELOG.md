@@ -1,3 +1,11 @@
+## [1.97.3] - 2026-11-19 (DH-20261119-PRICING-CIF-NO-FREIGHT-262 · Importación CIF sin flete marítimo adicional)
+
+- PATCH: Pantalla 6 del wizard FCL oculta ambas tarjetas de creación de flete manual cuando el Incoterm ya cubre el tramo internacional (CIF/CFR en importación).
+- Impide crear una fuente manual de flete por llamada directa en operaciones sin ese cargo; conserva cargos de destino y aduanas.
+- Al omitir Pantalla 5, agente, naviera y moneda se eligen en Pantalla 6 sin bloquear la selección de naviera.
+- Regresiones CIF importación, FOB importación, CIF exportación y DDP exportación. Web/System 1.97.2 → 1.97.3; CI y staging pendientes antes de master.
+- Preserva Dhole en develop/staging; sin despliegue productivo.
+
 ## [1.97.2] - 2026-11-19 (DH-20261119-RESTORE-DHOLE-DEVELOP-260 · Dhole en develop)
 
 - PATCH: desarrolla/staging vuelve a nombre visible Dhole y textos ES/EN originales, inicial D en login, logo GCF en menú y favicon ICO heredado.
