@@ -1,0 +1,26 @@
+{
+  "releaseId": "DH-20261119-BLOBATAR-EMOTIONS-248",
+  "date": "2026-11-19",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.92.0",
+  "scope": "36 additional native Blobatar poses; 53 total emotions",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "version": "1.92.0"
+    },
+    {
+      "component": "DholeSystem",
+      "version": "1.92.0"
+    }
+  ],
+  "unchangedComponents": "Other 15 components preserve versions in DholeSystem/release-manifest.json",
+  "requirements": [
+    "36 distinct native Blobatar Expression objects",
+    "53 expressions shared between topbar and Appearance",
+    "Fixed selection via DhSelect and 30-second automatic cycling",
+    "ES/EN translations, persistence, SSR, synchronization across tabs and reduced-motion support"
+  ],
+  "validation": "CI and staging required before master integration",
+  "productionDeployment": "not-authorized"
+}

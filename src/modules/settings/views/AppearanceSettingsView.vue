@@ -15,13 +15,13 @@ import {
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhColorPicker, DhRange } from '@/shared/components/atoms'
+import { DhButton, DhColorPicker, DhRange, DhSelect } from '@/shared/components/atoms'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useThemeStore, type ThemeMode } from '@/core/stores/themeStore'
 import { useAuthStore } from '@/core/stores/authStore'
-import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
+import { AVATAR_EXPRESSIONS, useAvatarAppearanceStore, type AvatarExpression } from '@/core/stores/avatarAppearanceStore'
 import { useLocale, type LocaleCode } from '@/core/stores/locale'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
@@ -39,6 +39,10 @@ const avatarMoodLabel = computed(() => avatarAppearance.expression
   ? t('appearance.avatarMoods.' + avatarAppearance.expression)
   : t('appearance.avatarNeutral'),
 )
+const avatarExpressionOptions = computed(() => AVATAR_EXPRESSIONS.map(mood => ({ value: mood, label: t('appearance.avatarMoods.' + mood) })))
+function selectAvatarExpression(value: string | number) {
+  avatarAppearance.setExpression(value as AvatarExpression)
+}
 watch(() => authStore.userId, (id) => avatarAppearance.selectUser(id), { immediate: true })
 onMounted(() => avatarAppearance.start())
 onBeforeUnmount(() => avatarAppearance.stop())
@@ -340,6 +344,13 @@ onMounted(refreshAppearanceSettings)
           <p class="max-w-xl text-sm font-semibold leading-6 text-[var(--dh-text-muted)]">
             {{ avatarAppearance.automatic ? t('appearance.avatarAutoHelp') : t('appearance.avatarFixedHelp') }}
           </p>
+          <DhSelect
+            :model-value="avatarAppearance.expression"
+            :label="t('appearance.avatarChoose')"
+            :placeholder="t('appearance.avatarChoose')"
+            :options="avatarExpressionOptions"
+            @update:model-value="selectAvatarExpression"
+          />
           <DhButton
             :label="t('appearance.avatarNext')"
             :icon="RotateCcw"
