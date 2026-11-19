@@ -53,6 +53,7 @@ const emit = defineEmits<{
   'select-own': [tariff: FtlTariffDto]
   'select-coloader': [rate: ImportRateSelectDto]
   'manual-coloader': []
+  'manual-own': []
 }>()
 
 const loading = ref(false)
@@ -407,7 +408,15 @@ watch(
           </div>
         </template>
       </DhDataTable>
-
+      <div class="mt-4 flex flex-col gap-3 rounded-[22px] border border-dashed border-[rgb(var(--dh-primary-rgb)/0.35)] bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="font-black">Tarifa LTL propia manual</p>
+          <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Si no existe una tarifa propia vigente para esta ruta, puede continuar y capturar el costo y la venta manualmente.
+          </p>
+        </div>
+        <DhButton class="shrink-0" label="Crear tarifa propia manual" variant="secondary" @click="emit('manual-own')" />
+      </div>
     </div>
 
     <div v-else>

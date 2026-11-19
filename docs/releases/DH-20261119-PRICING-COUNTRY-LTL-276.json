@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-PRICING-COUNTRY-LTL-276",
+  "date": "2026-11-19",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.103.5",
+  "releaseType": "PATCH",
+  "changes": [
+    "Load canonical Config countries for CRM customer-country classification and preserve VAT metadata",
+    "Provide explicit LTL own-manual source when no active master tariff matches"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.4",
+      "version": "1.103.5"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.4",
+      "version": "1.103.5"
+    }
+  ],
+  "otherComponentVersions": "Retained from DholeSystem/release-manifest.json",
+  "realtime": "No changes to SignalR or REST",
+  "schemaMigration": false,
+  "productionDeploymentAuthorized": false,
+  "ci": "pending",
+  "staging": "pending",
+  "master": "pending"
+}

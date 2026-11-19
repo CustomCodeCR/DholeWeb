@@ -3827,6 +3827,7 @@ async function loadCatalogs() {
       currencies,
       warehouses,
       countries,
+      countryVatRates,
       clients,
       salesExecutives,
       selectedCosts,
@@ -3845,7 +3846,8 @@ async function loadCatalogs() {
       select('carriers'),
       select('currencies'),
       selectOptional('pricing-warehouses', 'warehouses', 'whs', 'fca-warehouses'),
-      selectOptional('country-vat-rates', 'countries', 'country-tax-rates'),
+      selectOptional('countries'),
+      selectOptional('country-vat-rates', 'country-tax-rates'),
       selectOptional('pricing-clients'),
       selectOptional('pricing-sales-executives'),
       PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
@@ -3865,7 +3867,10 @@ async function loadCatalogs() {
       agents,
       carriers,
       currencies,
-      countries,
+      // CRM countryId points at Config's canonical `countries` group, not
+      // the separate VAT catalog. Keep both to preserve configured tax rates.
+      countries: [...countries, ...countryVatRates.filter((vatCountry) =>
+        !countries.some((country) => country.id === vatCountry.id))],
       warehouses,
       clients,
       salesExecutives,

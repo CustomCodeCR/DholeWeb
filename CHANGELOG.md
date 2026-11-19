@@ -1,3 +1,10 @@
+## [1.103.5] - 2026-11-19 (DH-20261119-PRICING-COUNTRY-LTL-276 · países CRM y LTL manual propio)
+
+- PATCH posterior a CRM seguimientos 281: preserva la edición de recordatorios y seguimientos incluida en 1.103.4.
+- Pricing carga los países canónicos de Config para resolver el UUID del cliente CRM y conserva IVA de country-vat-rates por destino.
+- Pantalla 5 LTL permite ingresar un flete propio manual aunque no exista tarifario activo, separadamente de la opción coloader manual.
+- DholeWeb/DholeSystem 1.103.4 → 1.103.5. Sin cambios en REST, SignalR ni servicios backend. CI y staging antes de master; producción no autorizada por esta solicitud.
+
 ## [1.103.4] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-281 · edición de seguimientos y recordatorios)
 
 - PATCH: habilita editar seguimientos y recordatorios desde el detalle de Agenda y seguimientos, como las bitácoras. Permite cambiar asunto, tipo, responsable, fechas, invitados y avisos sin duplicar el registro.
