@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+<title id="title">Dhole System</title>
+<defs>
+  <linearGradient id="orbit" x1="0" x2="1" y1="1" y2="0">
+    <stop stop-color="#126EAE"/>
+    <stop offset=".55" stop-color="#0E98C9"/>
+    <stop offset="1" stop-color="#159A90"/>
+  </linearGradient>
+</defs>
+<g fill="none" stroke="#277FAD" stroke-width="2.5" stroke-linecap="round" opacity=".82">
+  <path d="M31 50Q64 59 97 50M31 78Q64 69 97 78"/>
+  <path d="M64 28C44 40 44 88 64 100M64 28C84 40 84 88 64 100"/>
+</g>
+<circle cx="64" cy="64" r="37" fill="none" stroke="#277FAD" stroke-width="8"/>
+<path d="M9 85C30 103 90 87 116 50" fill="none" stroke="url(#orbit)" stroke-width="8" stroke-linecap="round"/>
+<path d="M109 13l3.4 10.3 10.3 3.4-10.3 3.4-3.4 10.3-3.4-10.3-10.3-3.4 10.3-3.4z" fill="#158EAF"/>
+</svg>

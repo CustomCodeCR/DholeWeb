@@ -1,3 +1,10 @@
+## [1.97.4] - 2026-11-19 (DH-20261119-DHOLE-ORVELUM-ICON-STAGING-263 · Dhole System con símbolo Orvelum solo en staging)
+
+- PATCH: en staging se muestra Dhole System en login, sidebar, avisos de actualización y título de pestaña con versión.
+- Se conserva el ícono orbital transparente de Orvelum en login, menú y favicon, sin cambios en su geometría, colores o comportamiento.
+- Exclusivo de develop/staging. No modifica master, servicios, APIs, permisos, realtime ni producción.
+- DholeWeb y DholeSystem 1.97.3 → 1.97.4; otros componentes mantienen sus versiones.
+
 ## [1.97.3] - 2026-11-19 (DH-20261119-PRICING-CIF-NO-FREIGHT-262 · Importación CIF sin flete marítimo adicional)
 
 - PATCH: Pantalla 6 del wizard FCL oculta ambas tarjetas de creación de flete manual cuando el Incoterm ya cubre el tramo internacional (CIF/CFR en importación).
