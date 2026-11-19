@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Check, ChevronDown, Search, X } from 'lucide-vue-next'
 
 export interface DhMultiSelectOption {
@@ -29,6 +29,46 @@ const props = withDefaults(
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const search = ref('')
 const detailsRef = ref<HTMLDetailsElement | null>(null)
+const menuRef = ref<HTMLDivElement | null>(null)
+const isOpen = ref(false)
+const menuStyle = ref<Record<string, string>>({})
+
+// Portaled menus do not inherit their parent card's backdrop-filter stacking
+// context. Use the fully opaque Dhole card background in both themes.
+function positionMenu() {
+  if (!isOpen.value || !detailsRef.value) return
+  const anchor = detailsRef.value.getBoundingClientRect()
+  const width = Math.min(anchor.width, Math.max(0, window.innerWidth - 24))
+  const left = Math.max(12, Math.min(anchor.left, window.innerWidth - width - 12))
+  const below = window.innerHeight - anchor.bottom - 12
+  const above = anchor.top - 12
+  const openAbove = below < 300 && above > below
+  const available = Math.max(100, openAbove ? above : below)
+  menuStyle.value = {
+    left: `${left}px`,
+    width: `${width}px`,
+    maxHeight: `${Math.min(360, available)}px`,
+    ...(openAbove
+      ? { bottom: `${window.innerHeight - anchor.top + 8}px`, top: 'auto' }
+      : { top: `${anchor.bottom + 8}px`, bottom: 'auto' }),
+  }
+}
+
+function closeMenu() {
+  if (detailsRef.value) detailsRef.value.open = false
+  isOpen.value = false
+}
+
+function handleViewportChange() {
+  positionMenu()
+}
+
+function handleEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape' && isOpen.value) {
+    closeMenu()
+    detailsRef.value?.querySelector('summary')?.focus()
+  }
+}
 
 const selected = computed(() =>
   props.options.filter((option) => props.modelValue.includes(option.value)),
@@ -52,25 +92,38 @@ function toggle(value: string) {
   )
 }
 
-function handleToggle() {
+async function handleToggle() {
   const current = detailsRef.value
+  isOpen.value = Boolean(current?.open)
   if (!current?.open) return
   document
     .querySelectorAll<HTMLDetailsElement>('details[data-dh-dropdown="true"][open]')
-    .forEach((item) => {
+    .forEach(item => {
       if (item !== current) item.removeAttribute('open')
     })
+  await nextTick()
+  positionMenu()
 }
 
 function handleOutsidePointer(event: PointerEvent) {
-  const current = detailsRef.value
   const target = event.target
-  if (!current?.open || !(target instanceof Node) || current.contains(target)) return
-  current.removeAttribute('open')
+  if (!isOpen.value || !(target instanceof Node)) return
+  if (detailsRef.value?.contains(target) || menuRef.value?.contains(target)) return
+  closeMenu()
 }
 
-onMounted(() => document.addEventListener('pointerdown', handleOutsidePointer, true))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsidePointer, true))
+onMounted(() => {
+  document.addEventListener('pointerdown', handleOutsidePointer, true)
+  document.addEventListener('keydown', handleEscape)
+  window.addEventListener('resize', handleViewportChange)
+  window.addEventListener('scroll', handleViewportChange, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleOutsidePointer, true)
+  document.removeEventListener('keydown', handleEscape)
+  window.removeEventListener('resize', handleViewportChange)
+  window.removeEventListener('scroll', handleViewportChange, true)
+})
 </script>
 
 <template>
@@ -111,8 +164,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideP
         <ChevronDown class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)] transition group-open:rotate-180" />
       </summary>
 
+    </details>
+
+    <Teleport to="body">
       <div
-        class="absolute left-0 top-[calc(100%+0.5rem)] z-[102] w-full min-w-[min(340px,88vw)] overflow-hidden rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-bg-2)] p-3 shadow-[var(--dh-shadow-lg)]"
+        v-if="isOpen"
+        ref="menuRef"
+        :style="menuStyle"
+        class="dh-multi-popover fixed z-[2147483000] flex min-w-0 flex-col overflow-hidden rounded-[22px] border border-[var(--dh-border-strong)] bg-[var(--dh-card-solid)] p-3 text-[var(--dh-text)] shadow-[var(--dh-shadow-lg)]"
       >
         <div
           class="mb-2 flex h-10 items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3"
@@ -126,7 +185,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideP
           />
         </div>
 
-        <div class="dh-scrollbar max-h-72 space-y-1 overflow-y-auto">
+        <div class="dh-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto">
           <button
             v-for="option in filtered"
             :key="option.value"
@@ -163,7 +222,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideP
           </p>
         </div>
       </div>
-    </details>
+    </Teleport>
 
     <div v-if="selected.length" class="mt-2 flex flex-wrap gap-1.5">
       <button
@@ -182,12 +241,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', handleOutsideP
 </template>
 
 <style scoped>
-.dh-multi-root:has(.dh-multi[open]) {
-  z-index: 100;
-}
-
-.dh-multi[open] {
-  z-index: 101;
+.dh-multi-popover {
+  /* The theme's glass card/input colors are translucent by design.
+     The dropdown must be an opaque top-level surface instead. */
+  background-color: var(--dh-card-solid);
+  isolation: isolate;
 }
 
 .dh-multi > summary::-webkit-details-marker {
