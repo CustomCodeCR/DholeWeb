@@ -35,6 +35,8 @@ jobs:
         run: pnpm run test:mobile-i18n
       - name: Email inbox translation and mobile settings regression
         run: pnpm run test:email-mobile-i18n
+      - name: Operations team catalog, i18n and dual validation regressions
+        run: pnpm run test:operations
       - name: Type-check and build
         run: pnpm run build
       - name: Mount transformed Pricing wizard in SSR (blocks blank pages)
