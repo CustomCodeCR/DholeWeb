@@ -17,6 +17,6 @@ test('the first Aperturas workspace invokes dual validator endpoints, not a sing
   const view = read('src/modules/operations/views/OperationsAperturesView.vue')
   assert.match(api, /aperture-validations\/assign/)
   assert.match(api, /aperture-validations\/\$\{validationId\}\/decision/)
-  assert.match(view, /dos decisiones aprobatorias/)
+  assert.match(view, /operations\\.validation\\.reviewHint/)
   assert.match(view, /operations\.audit\.read/)
 })
