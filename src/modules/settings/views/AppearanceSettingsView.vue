@@ -15,13 +15,14 @@ import {
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhColorPicker, DhRange } from '@/shared/components/atoms'
+import { DhButton, DhColorPicker, DhRange, DhSelect, DhInput } from '@/shared/components/atoms'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useThemeStore, type ThemeMode } from '@/core/stores/themeStore'
 import { useAuthStore } from '@/core/stores/authStore'
-import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
+import { AVATAR_EXPRESSIONS, useAvatarAppearanceStore, type AvatarExpression } from '@/core/stores/avatarAppearanceStore'
+import { useAvatarMascotStore, type MascotMovement } from '@/core/stores/avatarMascotStore'
 import { useLocale, type LocaleCode } from '@/core/stores/locale'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
@@ -34,18 +35,77 @@ const { t } = useI18n()
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const avatarAppearance = useAvatarAppearanceStore()
+const avatarMascot = useAvatarMascotStore()
+const mascotNameDraft = ref('')
+const profileFileInput = ref<HTMLInputElement | null>(null)
+const profileUploadBusy = ref(false)
+const profileUploadError = ref('')
+watch(() => avatarMascot.name, value => { mascotNameDraft.value = value }, { immediate: true })
 const avatarPreviewTrigger = ref(0)
 const avatarMoodLabel = computed(() => avatarAppearance.expression
   ? t('appearance.avatarMoods.' + avatarAppearance.expression)
   : t('appearance.avatarNeutral'),
 )
-watch(() => authStore.userId, (id) => avatarAppearance.selectUser(id), { immediate: true })
-onMounted(() => avatarAppearance.start())
-onBeforeUnmount(() => avatarAppearance.stop())
+const avatarExpressionOptions = computed(() => AVATAR_EXPRESSIONS.map(mood => ({ value: mood, label: t('appearance.avatarMoods.' + mood) })))
+function selectAvatarExpression(value: string | number) {
+  avatarAppearance.setExpression(value as AvatarExpression)
+}
+watch(() => authStore.userId, (id) => {
+  avatarAppearance.selectUser(id)
+  avatarMascot.selectUser(id)
+}, { immediate: true })
+onMounted(() => { avatarAppearance.start(); avatarMascot.start() })
+onBeforeUnmount(() => { avatarAppearance.stop(); avatarMascot.stop() })
 function cycleAvatarExpression() {
   avatarPreviewTrigger.value += 1
   avatarAppearance.nextExpression()
 }
+const mascotMovementOptions = computed(() => [
+  { value: 'fixed', label: t('appearance.mascotFixed') },
+  { value: 'roam', label: t('appearance.mascotRoaming') },
+])
+
+function setMascotMovement(value: string | number) {
+  avatarMascot.setMovement(value as MascotMovement)
+}
+
+async function handleProfilePhotoChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  profileUploadError.value = ''
+  if (!/^(image\/jpeg|image\/png|image\/webp)$/.test(file.type) || file.size > 8 * 1024 * 1024) {
+    profileUploadError.value = t('appearance.mascotImageError')
+    return
+  }
+  profileUploadBusy.value = true
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = new window.Image()
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('Cannot decode image'))
+      image.src = objectUrl
+    })
+    const ratio = Math.min(1, 256 / Math.max(image.naturalWidth, image.naturalHeight))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio))
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('Canvas not available')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    avatarMascot.setPhoto(canvas.toDataURL('image/jpeg', 0.8))
+  } catch {
+    profileUploadError.value = t('appearance.mascotSaveError')
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+    profileUploadBusy.value = false
+  }
+}
+
 const localeStore = useLocale()
 const shortcutStore = useShortcutStore()
 const tabsStore = useWorkspaceTabsStore()
@@ -340,6 +400,13 @@ onMounted(refreshAppearanceSettings)
           <p class="max-w-xl text-sm font-semibold leading-6 text-[var(--dh-text-muted)]">
             {{ avatarAppearance.automatic ? t('appearance.avatarAutoHelp') : t('appearance.avatarFixedHelp') }}
           </p>
+          <DhSelect
+            :model-value="avatarAppearance.expression"
+            :label="t('appearance.avatarChoose')"
+            :placeholder="t('appearance.avatarChoose')"
+            :options="avatarExpressionOptions"
+            @update:model-value="selectAvatarExpression"
+          />
           <DhButton
             :label="t('appearance.avatarNext')"
             :icon="RotateCcw"
@@ -347,6 +414,64 @@ onMounted(refreshAppearanceSettings)
             @click="cycleAvatarExpression"
           />
           <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.avatarStorageHelp') }}</p>
+        </div>
+      </div>
+    </DhCard>
+
+    <DhCard :title="t('appearance.mascotTitle')" :subtitle="t('appearance.mascotHelp')" :icon="Smile">
+      <div class="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
+        <div class="flex flex-col items-center gap-3">
+          <div class="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-[var(--dh-border)] bg-[var(--dh-input)]">
+            <img v-if="avatarMascot.photo" :src="avatarMascot.photo" :alt="t('appearance.mascotProfilePhoto')" class="h-full w-full object-cover" />
+            <DhAvatar v-else :id="authStore.userId" :name="authStore.userDisplayName || ''" size="lg" />
+          </div>
+          <input
+            ref="profileFileInput"
+            type="file"
+            class="sr-only"
+            accept="image/jpeg,image/png,image/webp"
+            :aria-label="t('appearance.mascotUpload')"
+            @change="handleProfilePhotoChange"
+          />
+          <DhButton
+            :label="t(avatarMascot.photo ? 'appearance.mascotChangePhoto' : 'appearance.mascotUpload')"
+            :disabled="profileUploadBusy"
+            @click="profileFileInput?.click()"
+          />
+          <DhButton
+            v-if="avatarMascot.photo"
+            :label="t('appearance.mascotRemovePhoto')"
+            variant="secondary"
+            @click="avatarMascot.setPhoto(null)"
+          />
+        </div>
+        <div class="min-w-0 space-y-4">
+          <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotLocalHelp') }}</p>
+          <p v-if="profileUploadError" class="text-sm font-semibold text-red-500" role="alert">{{ profileUploadError }}</p>
+          <template v-if="avatarMascot.photo">
+            <div class="flex flex-wrap items-end gap-2">
+              <div class="min-w-[160px] flex-1">
+                <DhInput
+                  v-model="mascotNameDraft"
+                  :label="t('appearance.mascotName')"
+                  :placeholder="t('appearance.mascotNamePlaceholder')"
+                />
+              </div>
+              <DhButton :label="t('appearance.mascotSaveName')" variant="secondary" @click="avatarMascot.setName(mascotNameDraft)" />
+            </div>
+            <DhSelect
+              :model-value="avatarMascot.movement"
+              :label="t('appearance.mascotMovement')"
+              :options="mascotMovementOptions"
+              @update:model-value="setMascotMovement"
+            />
+            <DhButton
+              :label="t(avatarMascot.visible ? 'appearance.mascotHide' : 'appearance.mascotShow')"
+              variant="secondary"
+              @click="avatarMascot.setVisible(!avatarMascot.visible)"
+            />
+            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotDragHelp') }}</p>
+          </template>
         </div>
       </div>
     </DhCard>
