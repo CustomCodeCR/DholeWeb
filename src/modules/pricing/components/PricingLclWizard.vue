@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { isGlobalCountryAgent } from '@/modules/catalogs/utils/globalAgentCountries'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import type { CatalogItemDto } from '@/core/interfaces/catalogs'
@@ -218,15 +219,17 @@ function agentSearchText(agent: CatalogItemDto) {
 
 function resolveAgentForOrigin() {
   const originTokens = countryTokens(selectedPol.value)
-  if (!originTokens.size) return null
+  if (!selectedPol.value) return null
 
   let best: CatalogItemDto | null = null
   let bestScore = 0
   for (const agent of agents.value) {
     const agentTokens = countryTokens(agent)
     const text = agentSearchText(agent)
-    let score = 0
-    for (const token of originTokens) {
+    // Global GCF is a fallback; a country-specific agent wins when available.
+    const globalCoverage = isGlobalCountryAgent(agent)
+    let score = globalCoverage ? 1 : 0
+    if (!globalCoverage) for (const token of originTokens) {
       if (agentTokens.has(token)) score = Math.max(score, token.length <= 3 ? 100 : 90)
       else if (token.length >= 4 && text.includes(token)) score = Math.max(score, 60)
       else if (token.length === 2 && new RegExp(`(^|[^a-z0-9])${token}([^a-z0-9]|$)`, 'i').test(text)) score = Math.max(score, 70)
