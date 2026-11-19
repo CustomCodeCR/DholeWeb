@@ -22,10 +22,11 @@
   "fix": "DhMultiSelect dropdown occluded by glass stacking contexts; Teleport to body, opaque card solid surface, viewport repositioning",
   "preserves": "All 1.95.0 Blobatar functionality and other app changes",
   "qa": {
-    "ci": "pending",
-    "staging": "pending",
-    "production": "not-authorized"
+    "ci": "awaiting CI after package script backport fix",
+    "staging": "success (develop)",
+    "production": "authorized; awaiting deployment"
   },
   "branch": "fix/20261119-dh-multiselect-solid-overlay-253",
-  "component": "DholeWeb"
+  "component": "DholeWeb",
+  "productionDeploymentAuthorized": true
 }
