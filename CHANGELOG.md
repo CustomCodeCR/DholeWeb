@@ -1,3 +1,10 @@
+## [1.98.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-SCOPE-267 · tarifas preferenciales por naviera e Incoterm)
+
+- MINOR: backport de CRM > Tarifas preferenciales con ámbito persistente por naviera e Incoterm en configurador y editor avanzado.
+- Los filtros de costos usan los criterios sin alterar el costo de Pricing; acuerdos antiguos siguen compatibles y su aplicación automática a cotizaciones permanece pendiente.
+- Mantiene corrección CIF del release DH-20261119-GCF-CIF-268-MASTER y todas las funcionalidades actuales de master.
+- DholeWeb/DholeSystem 1.97.9 → 1.98.0; CRM 1.38.0 → 1.39.0; pruebas y release en master después de staging.
+
 ## [1.97.9] - 2026-11-19 (DH-20261119-GCF-CIF-268-MASTER · Grupo Castro Fallas mundial y CIF sin flete)
 
 - PATCH: backport selectivo del release 1.98.1 de develop, sin arrastrar cambios nuevos de CRM ni API.
