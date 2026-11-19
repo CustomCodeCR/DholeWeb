@@ -96,7 +96,11 @@ export function resolvePodVatRate(
 
   const code = resolvePodCountryCode(pod, countries)
   if (!code) return 0
-  const country = countries.find((item) => countryCatalogCode(item) === code)
+  // Canonical CRM countries precede VAT-only entries. Prefer the entry with
+  // explicit VAT metadata rather than dropping its rate on catalog hydration.
+  const country = countries.find((item) =>
+    countryCatalogCode(item) === code && configuredVatRate(item) !== null)
+    ?? countries.find((item) => countryCatalogCode(item) === code)
   const countryRate = configuredVatRate(country)
   if (countryRate !== null) return countryRate
 
