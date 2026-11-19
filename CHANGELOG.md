@@ -1,3 +1,9 @@
+## [1.103.2] - 2026-11-19 (DH-20261119-WIZARD-ROUTE-RUNTIME-274 · sin referencias runtime en Crear tarifa)
+
+- PATCH: corrige `resolveClientRouteOperation is not defined` y evita el anterior `routeOperation is not defined`: calcula la perspectiva desde país CRM + POL/POD directamente en los computados existentes del wizard, sin helper adicional.
+- Mantiene importación/exportación/tránsito, Incoterms y bloqueo de guardado cuando faltan países; CI valida que el bundle minificado no contenga las referencias inválidas.
+- Coordinado con DholeSystem 1.103.2. Compilación y staging obligatorios antes de producción; backend y realtime sin cambios.
+
 ## [1.103.1] - 2026-11-19 (DH-20261119-WIZARD-ROUTE-REF-273 · wizard de tarifas sin referencia inválida)
 
 - PATCH: evita `Can't find variable: routeOperation` al abrir Crear tarifa, sustituyendo la referencia por un resolvedor elevado a función que permanece disponible para Vue/Vite.
