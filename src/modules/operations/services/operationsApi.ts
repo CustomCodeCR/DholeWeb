@@ -32,7 +32,7 @@ export interface OperationsValidator {
   comment?: string | null
   reviewedAtUtc?: string | null
 }
-export interface OperationsCaseRow {
+export type OperationsCaseRow = {
   id: string
   idtra: string
   accountId: string
