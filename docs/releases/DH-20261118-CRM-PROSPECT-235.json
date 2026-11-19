@@ -1,0 +1,32 @@
+{
+  "releaseId": "DH-20261118-CRM-PROSPECT-235",
+  "component": "DholeWeb",
+  "ecosystemVersion": "1.88.0",
+  "previousVersion": "1.83.1",
+  "version": "1.84.0",
+  "releaseType": "MINOR",
+  "relatedComponents": [
+    "DholeCRMService",
+    "DholeConfigService",
+    "DholeSystem"
+  ],
+  "changes": [
+    "Unified prospect commercial name and optional legal name",
+    "Config acquisition source and notes",
+    "Contact creation and location selection for geographic zones",
+    "Dedicated prospect contacts tab"
+  ],
+  "scopes": [
+    "crm.lead.create",
+    "crm.lead.update",
+    "crm.contact.create",
+    "crm.contact.update"
+  ],
+  "validation": {
+    "build": "pending",
+    "tests": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "candidateBranch": "feature/DH-20261118-CRM-PROSPECT-235-web-develop"
+}
