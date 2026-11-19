@@ -1,3 +1,10 @@
+## [1.95.1] - 2026-11-19 (DH-20261119-DH-MULTISELECT-OVERLAY-253 · DhMultiSelect sólido)
+
+- PATCH: el menú desplegable DhMultiSelect se teletransporta a la capa superior para evitar que AuditLogs y otras tarjetas de cristal tapen o atraviesen sus opciones.
+- Superficie totalmente opaca mediante `--dh-card-solid`, compatible con modo claro y oscuro; posición adaptativa al desplazamiento y borde de ventana.
+- Mantiene búsqueda, selección múltiple y cierre mediante Escape o clic fuera; prueba de regresión incorporada.
+- Web/System 1.95.0 → 1.95.1 coordinados. Se conserva Blobatar 1.95.0; no se alteran servicios, scopes ni APIs.
+
 ## [1.95.0] - 2026-11-19 (DH-20261119-BLOBATAR-TRANSPARENT-252 · Mascota transparente, permanente y accesorios)
 
 - MINOR: Blobatar permanece como mascota autenticada aunque el usuario no tenga foto; la fotografía sigue siendo opcional para el perfil, sin alterar el avatar de otros usuarios.
