@@ -160,7 +160,7 @@ function visibleTiers(cost: CostSelectDto) {
 }
 const invalidRules = (cost: CostSelectDto) => Boolean(cost.pricingRulesJson && !isTiered(cost))
 function tierSale(cost: CostSelectDto, index: number) {
-  const saved = existingCost(cost)
+  const saved = existingCost(cost) ?? applicableCost(cost)
   return currentTierSale(cost,index,editedTiers.value[cost.id],
     saved?.rateType === 'TIERED_SALE' ? saved.tierSalesJson : null)
 }
@@ -242,6 +242,17 @@ function scopeMatches(rate: SavedRate) {
 function existingCost(cost: CostSelectDto) {
   return props.rates.find(x => x.isActive && x.sourceCostId?.toLowerCase() === cost.id.toLowerCase() && scopeMatches(x))
 }
+// A specific override is created instead of overwriting the less-specific fallback.
+function applicableCost(cost: CostSelectDto) {
+  return mostSpecificPreferentialRate(props.rates, {
+    modality: route.shipment, sourceCostId: cost.id,
+    chargeCode: cost.costDetailType, customChargeName: cost.name,
+    laneCode: laneCode.value, equipmentCode: route.equipmentCodes[0],
+    polCode: route.polCodes[0], poeCode: route.poeCodes[0], podCode: route.podCodes[0],
+    carrierCode: route.carrierCode, incotermCode: route.incotermCode,
+    serviceCode: route.serviceCodes.length === 1 ? route.serviceCodes[0] : undefined,
+  })
+}
 function existingInsurance() {
   return props.rates.find(x => x.isActive && x.rateType === 'INSURANCE_PERCENT' &&
     x.chargeCode === 'Insurance' && scopeMatches(x))
@@ -251,7 +262,7 @@ function resetPreview() {
   error.value = ''; success.value = ''
   insuranceEnabled.value = false; insuranceCost.value = ''; insuranceSale.value = ''
 }
-function changeModality(value: 'MARITIME' | 'TERRESTRIAL') {
+function changeModality(value: 'MARITIME' | 'TERRESTRIAL' | 'AIR') {
   route.modality = value; route.shipment = value === 'MARITIME' ? 'FCL' : value === 'AIR' ? 'AIR' : 'FTL'
   route.equipmentCodes = []; route.polCodes = []; route.poeCodes = []; route.podCodes = []
   route.carrierCode = ''; route.incotermCode = ''; route.serviceCodes = []
@@ -275,7 +286,7 @@ function consult() {
 }
 function saleValue(cost: CostSelectDto) {
   return Object.prototype.hasOwnProperty.call(editedSales.value, cost.id)
-    ? (editedSales.value[cost.id] ?? '') : String(existingCost(cost)?.value ?? cost.saleAmount)
+    ? (editedSales.value[cost.id] ?? '') : String((existingCost(cost) ?? applicableCost(cost))?.value ?? cost.saleAmount)
 }
 function editSale(cost: CostSelectDto, value: string) {
   editedSales.value = { ...editedSales.value, [cost.id]: value }
@@ -343,6 +354,7 @@ async function save() {
   try {
     for (const cost of modified) {
       const existing = existingCost(cost)
+      const inherited = existing ?? applicableCost(cost)
       const body = {
         ...scope(), expectedVersion: existing?.rowVersion ?? null,
         sourceCostId: cost.id, chargeCode: cost.costDetailType,
@@ -350,7 +362,7 @@ async function save() {
         rateType: isTiered(cost) ? 'TIERED_SALE' : 'FIXED_AMOUNT',
         value: isTiered(cost) ? null : Number(saleValue(cost)),
         tierSalesJson: isTiered(cost) ? tierSalesPayload(cost,editedTiers.value[cost.id],
-          existing?.rateType === 'TIERED_SALE' ? existing.tierSalesJson : null) : null,
+          inherited?.rateType === 'TIERED_SALE' ? inherited.tierSalesJson : null) : null,
         minimumCharge: null,
         insuranceCostPercent: null, insuranceSalePercent: null,
         currencyCode: currencyFor(cost),
@@ -383,6 +395,41 @@ async function save() {
     if (count) emit('saved')
   }
 }
+async function saveManual() {
+  error.value = ''; success.value = ''
+  const name = manual.name.trim()
+  const value = Number(manual.amount)
+  if (!name || name.length > 120) {
+    error.value = 'Ingresá un nombre de cargo manual de hasta 120 caracteres.'
+    return
+  }
+  if (!manual.amount.trim() || !Number.isFinite(value) || value < 0) {
+    error.value = 'Ingresá un precio de venta válido, mayor o igual a cero.'
+    return
+  }
+  const existing = props.rates.find(rate => !rate.sourceCostId && scopeMatches(rate) &&
+    rate.chargeCode.toUpperCase() === manual.chargeCode.toUpperCase() &&
+    String(rate.customChargeName ?? '').trim().toUpperCase() === name.toUpperCase())
+  saving.value = true
+  try {
+    const base = crmPath('accounts', props.accountId, 'commercial-benefits/rates')
+    await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
+      existing ? 'PUT' : 'POST', {
+        ...scope(), expectedVersion: existing?.rowVersion ?? null,
+        sourceCostId: null, tierSalesJson: null,
+        chargeCode: manual.chargeCode, customChargeName: name,
+        rateType: 'FIXED_AMOUNT', value, minimumCharge: null,
+        insuranceCostPercent: null, insuranceSalePercent: null,
+        currencyCode: manual.currency, unitCode: manual.unit,
+      })
+    manual.name = ''; manual.amount = ''
+    success.value = 'Cargo manual guardado con la combinación seleccionada.'
+    emit('saved')
+  } catch (cause) {
+    error.value = crmError(cause)
+  } finally { saving.value = false }
+}
+
 </script>
 
 <template>
