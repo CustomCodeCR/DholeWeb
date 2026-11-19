@@ -1,3 +1,10 @@
+## [1.98.1] - 2026-11-19 (DH-20261119-GCF-CIF-268 · cobertura GCF y CIF sin flete)
+
+- PATCH: Al guardar Grupo Castro Fallas, la metadata materializa los 249 países y territorios ISO 3166-1 en countries/countryCodes sin eliminar datos anteriores; allCountries sigue cubriendo futuras incorporaciones.
+- Pricing FCL incluye agentes globales como GCF para cualquier POL y prioriza agentes específicos válidos del origen.
+- La duplicación CIF/CFR de importación no exige flete marítimo nuevo cuando no lo paga el cliente; FOB y demás operaciones con flete siguen validadas.
+- DholeWeb y DholeSystem develop 1.98.0 → 1.98.1, sin modificar versiones de servicios no afectados. CI/staging obligatorios antes de master y sin despliegue de producción.
+
 ## [1.98.0] - 2026-11-19 (DH-20261119-CRM-PREFERENTIAL-SCOPE-267 · Tarifas preferenciales por naviera e Incoterm)
 
 - MINOR: selección de naviera e Incoterm en CRM > Cuentas > Tarifas preferenciales, para personalización de venta por ruta y edición de acuerdos anteriores.

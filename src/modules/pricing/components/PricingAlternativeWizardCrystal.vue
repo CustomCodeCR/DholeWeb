@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick as nextTickForPoe, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { isGlobalCountryAgent } from '@/modules/catalogs/utils/globalAgentCountries'
 import {
   Check,
   ChevronLeft,
@@ -1850,6 +1851,8 @@ function countryPhraseContained(text: string, phrase: string) {
 }
 
 function agentMatchesSelectedPol(agent: CatalogItemSelectDto) {
+  // Worldwide coverage outranks stale finite legacy country lists.
+  if (isGlobalCountryAgent(agent)) return true
   if (!form.originId) return true
   const origin = selectedOrigin.value
   if (!origin) return false
@@ -1918,8 +1921,11 @@ function resolveAgentForOrigin() {
   // Primero los agentes asignados al país del POL (incluso si hacen
   // match por alias/contains); los agentes sin país son una alternativa general.
   return eligibleAgents.value.find((agent) =>
-    [...countryTokens(agent, false)].some((country) => originTokens.has(country)),
-  ) ?? eligibleAgents.value.find((agent) => countryTokens(agent, false).size > 0)
+    !isGlobalCountryAgent(agent)
+    && [...countryTokens(agent, false)].some((country) => originTokens.has(country)),
+  ) ?? eligibleAgents.value.find((agent) =>
+    !isGlobalCountryAgent(agent) && countryTokens(agent, false).size > 0,
+  ) ?? eligibleAgents.value.find(isGlobalCountryAgent)
     ?? eligibleAgents.value[0] ?? null
 }
 
