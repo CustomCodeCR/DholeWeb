@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-COUNTRY-OPTIONS-310",
+  "date": "2026-11-20",
+  "kind": "patch",
+  "ecosystemVersion": "1.104.2",
+  "summary": "Corregir TypeError al montar Crear tarifa: pricingQuoteCountryOptions undefined",
+  "changes": [
+    "Reemplazar binding de opciones del país por expresiones reactivas del catálogo Config en las pantallas 3 y 5",
+    "Verificar que las dos opciones del selector y el estado de catálogo vacío no dependan de variables omitidas por Vite",
+    "Agregar prueba de regresión y control del bundle minificado",
+    "Preservar validación país CRM, POL/POD, IVA y contratos REST/SignalR"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.104.1",
+      "version": "1.104.2"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.104.1",
+      "version": "1.104.2"
+    }
+  ],
+  "unchangedComponents": 15,
+  "candidateBranch": "fix/DH-20261120-PRICING-COUNTRY-OPTIONS-310-web-develop",
+  "targetBranches": [
+    "develop",
+    "master"
+  ],
+  "checks": {
+    "tests": "pending",
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "backwardCompatibleRest": true,
+  "signalRCompatibility": true,
+  "productionDeploymentAuthorized": false
+}
