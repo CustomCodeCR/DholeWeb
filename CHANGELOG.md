@@ -1,3 +1,9 @@
+## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-DRILLDOWN-292 · tarjetas del dashboard y selector de clientes)
+
+- PATCH: las tarjetas de estados del Dashboard de Ventas filtran la tabla «Tarifas del equipo y seguimiento de ventas» en la misma vista y desplazan el scroll a su encabezado; ya no navegan a Gestión de tarifas.
+- Añade selector de clientes cuyos valores provienen exclusivamente de las cotizaciones visibles con los filtros generales, estado y búsqueda activos. Seleccionar cliente reduce filas y reinicia paginación; se eliminan selecciones obsoletas.
+- Pruebas de regresión de selección de clientes, estado y navegación. DholeWeb/DholeSystem 1.103.13 → 1.103.14; 15 servicios sin cambio. Mantiene REST, SignalR y controles de permisos. CI y staging antes de master; producción sin autorización.
+
 ## [1.103.13] - 2026-11-19 (DH-20261119-DASHBOARD-GLOBAL-FILTER-291 · reportes comerciales con filtro general)
 
 - PATCH: filtros compartidos fechas/vendedor/modalidad en Dashboard de Ventas, aplicados a las métricas, la tabla de tarifas, solicitudes y la reportería; la vista de Pricing conserva sus filtros de auditoría.
