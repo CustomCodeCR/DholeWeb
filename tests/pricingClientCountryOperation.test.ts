@@ -76,8 +76,11 @@ test('wizard and freight guard share the CRM-derived operation', () => {
   assert.match(wizard, /operationForClientCountry\(/)
   assert.match(wizard, /resolveCrmCountryCode\(crmClientCountryId\.value, catalogs\.countries\)/)
   assert.match(wizard, /'clientCountry'/)
-  assert.match(plugin, /operationForClientCountry\(/)
-  assert.match(plugin, /if \(!perspective\) return false/)
+  assert.match(plugin, /const hasInternationalTransportService = computed\(/)
+  assert.match(plugin, /selectedServices\.value\.some\(/)
+  assert.doesNotMatch(plugin, /freightNotRequiredByIncoterm/)
+  // Country determines import/export responsibility; selecting a paid
+  // transportation service is an independent decision made by the user.
   assert.match(picker, /countryId\?: string \| null/)
 })
 
