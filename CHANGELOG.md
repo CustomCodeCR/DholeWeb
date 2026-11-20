@@ -1,3 +1,9 @@
+## [1.104.4] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-312 · autorización de tarifas vencidas para vendedor)
+
+- MINOR-compatible: Roy y José Pablo son los dos aprobadores específicos por identidad Auth de solicitudes de actualización de tarifas vencidas. Requiere justificación de vencimiento, autorización previa, historial por revisión y avisos System/SignalR + Email; no se actualiza la tarifa sin aprobación del backend.
+- PATCH: José Pablo mantiene exclusivamente su rol vendedor y revisa en Inicio → Dashboard de Ventas, con contador SignalR, modal seguro para aprobar/rechazar y enlace /home?expiredApprovals=1 desde la notificación. Roy también ve su bandeja en Inicio.
+- Consolida la corrección del Outbox correlation_id y el flujo ya validado en staging; Web/System 1.104.3 → 1.104.4, Pricing 1.25.4 → 1.26.2; 14 componentes sin cambios.
+
 ## [1.104.3] - 2026-11-20 (DH-20261120-CRM-INVITEE-VISIBILITY-323 · invitados internos visibles en agenda)
 
 - PATCH: la ficha CRM muestra nombres reales de personas invitadas internamente a cada actividad, identifica internos versus contactos externos y refresca participantes al recibir notificaciones y reconexiones SignalR.
