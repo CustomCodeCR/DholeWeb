@@ -261,7 +261,8 @@ function catalogCostMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.portId) {
     const role = String(cost.portRole ?? '').toLowerCase()
     const relation = role === 'pol' ? cost.pols : role === 'poe' ? cost.poes : role === 'pod' ? cost.pods : null
-    if (!Array.isArray(relation) || relation.length === 0) {
+    const hasPortRelations = Boolean(cost.pols?.length || cost.poes?.length || cost.pods?.length)
+    if (!hasPortRelations && (!Array.isArray(relation) || relation.length === 0)) {
       const selected = role === 'pol' ? form.originId : role === 'poe' ? poeId : role === 'pod' ? form.podId : null
       const candidates = selected ? [selected] : [form.originId, poeId, form.podId].filter(Boolean)
       if (!candidates.includes(String(cost.portId))) return false
@@ -300,7 +301,8 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.portId) {
     const role = String(cost.portRole ?? '').toLowerCase()
     const relation = role === 'pol' ? cost.pols : role === 'poe' ? cost.poes : role === 'pod' ? cost.pods : null
-    if (!Array.isArray(relation) || relation.length === 0) {
+    const hasPortRelations = Boolean(cost.pols?.length || cost.poes?.length || cost.pods?.length)
+    if (!hasPortRelations && (!Array.isArray(relation) || relation.length === 0)) {
       const expected = role === 'pol' ? form.originId : role === 'poe' ? poeId : role === 'pod' ? form.podId : null
       const candidates = expected ? [expected] : [form.originId, poeId, form.podId].filter(Boolean)
       if (!candidates.includes(String(cost.portId))) return false
