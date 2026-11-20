@@ -1,0 +1,31 @@
+{
+  "releaseId": "DH-20261120-PRICING-INLAND-QA-358",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.16",
+  "releaseType": "PATCH",
+  "status": "candidate-ci-and-staging-pending",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "before": "1.106.15",
+      "after": "1.106.16"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "before": "1.106.15",
+      "after": "1.106.16"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "before": "1.26.8",
+      "after": "1.26.8",
+      "status": "unchanged"
+    }
+  ],
+  "changes": [
+    "Provide draft-persistence mocks to screen6 VM regression test"
+  ],
+  "ci": "pending",
+  "staging": "pending",
+  "productionDeploymentAuthorized": false
+}
