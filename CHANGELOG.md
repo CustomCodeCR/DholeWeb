@@ -1,3 +1,9 @@
+## [1.103.19] - 2026-11-20 (DH-20261120-CRM-INVITEE-PERSISTENCE-296 · persistencia de invitados CRM)
+
+- PATCH: corrige la propagación de invitados añadidos posteriormente a una actividad comercial hacia los compromisos de agenda vinculados, con persistencia atómica, deduplicación, historial y recordatorios outbox/realtime.
+- Web mantiene visibles usuarios ya guardados aunque no aparezcan entre los primeros 100 del directorio Auth y verifica la persistencia después de actualizar invitados.
+- Pruebas de regresión para invitados añadidos después de crear el acuerdo, idempotencia y acuerdos completados. CRM 1.42.4 → 1.42.5; Web/System 1.103.18 → 1.103.19. CI/staging pendientes, sin autorización de producción.
+
 ## [1.103.17] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · TIERED_SALE y reintentos seguros)
 
 - PATCH: CRM 1.42.3 aplica migración PostgreSQL para admitir TIERED_SALE; el cliente conserva los ítems pendientes y evita duplicar costos de Pricing ya guardados.
