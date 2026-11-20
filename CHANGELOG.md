@@ -1,3 +1,10 @@
+## [1.108.1] - 2026-11-20 (DH-20261120-P7-CHARGES-368 · recuperar cargos P7 en develop)
+
+- PATCH coordinado Web/System 1.108.0 → 1.108.1; PricingService permanece sin cambios. Solo develop, sin master ni producción.
+- Corrige la pérdida de cargos fijos de MAERSK/WWL en Pantalla 7 tras filtrar por naviera y agente simultáneamente. Reconcilia por CostId el resultado contextual con el catálogo activo, manteniendo los filtros locales estrictos de POL, POE, POD, servicios, Incoterm y proveedor.
+- Acepta cargos universales con shipmentMode Any. Reconsulta automáticamente y permite reconstruir manualmente Pantalla 7 si un cambio de alternativa borra las líneas de la misma ruta; la caché de costos deja de considerarse válida cuando las líneas están vacías.
+- Conserva los importes de flete cargados en Pantalla 6 y no incorpora líneas de rutas/navieras ajenas a la opción vigente. Incluye tests/pricingScreenSevenCostRecovery368.test.ts. Verificación funcional autenticada en staging pendiente.
+
 ## [1.108.0] - 2026-11-20 (DH-20261120-INCOTERMS-WIZARD-367 · primera fase de flujo Incoterms P1–P9 en develop)
 
 - MINOR coordinado DholeWeb/DholeSystem 1.107.5 → 1.108.0; DholePricingService permanece en 1.26.9. Trabajo sobre feature branch con destino develop; sin autorización de producción.
