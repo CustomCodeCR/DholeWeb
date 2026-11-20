@@ -2038,22 +2038,30 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
 
 // Quote-country picker derives its choices from the always-reactive Config catalog.
 // Do not bind template markup to an injected computed that may be absent after Vite transforms.
-const automaticOperationType = computed(() => operationForClientCountry(
-  resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
-    || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
-  resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
-  resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
-))
+// Calculate the commercial perspective directly inside its consumers.
+// A chain of legacy Vite source transforms can remove an intermediate computed
+// binding while leaving its references, crashing the entire Pricing wizard.
 const direction = computed(() => {
-  const perspective = pricingQuoteOperationOverride.value || automaticOperationType.value
+  const perspective = pricingQuoteOperationOverride.value || operationForClientCountry(
+    resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
+      || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
+    resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
+    resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
+  )
   if (perspective === 'Import') return 'Importación'
   if (perspective === 'Export') return 'Exportación'
   if (perspective === 'TransitDomestic') return 'Tránsito / doméstico'
   return ''
 })
-// Unresolved countries require a user choice, rather than an unverified default.
+// A missing country is still visually unresolved; manual direction stays available.
+// Keep the saved RateOperationType contract unchanged for legacy quotations.
 const operationType = computed<RateOperationType>(() =>
-  pricingQuoteOperationOverride.value || automaticOperationType.value || 'TransitDomestic',
+  pricingQuoteOperationOverride.value || operationForClientCountry(
+    resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
+      || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
+    resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
+    resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
+  ) || 'TransitDomestic',
 )
 const crcImportContext = computed(
   // Tax/CRC follows the physical destination, independent of CRM client's country.
