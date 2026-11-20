@@ -1,3 +1,8 @@
+## [1.103.17] - 2026-11-20 (DH-20261120-CRM-AGREEMENT-INVITEES-295 · sincronización invitados CRM)
+
+- PATCH: coordinación del fix de CRM 1.42.4 que guarda y reconstruye los invitados de seguimientos derivados de actividades comerciales; mantiene los controles de confirmación visual y lectura de invitados incluidos en Web 1.103.16.
+- Web/System 1.103.16 → 1.103.17. Sin cambios funcionales adicionales de interfaz ni de endpoints realtime, versión validada por CI y staging antes de master.
+
 ## [1.103.16] - 2026-11-19 (DH-20261119-CRM-AGREEMENT-INVITEES-294 · invitados persistidos en seguimientos CRM)
 
 - PATCH: el detalle de seguimientos consulta y muestra la cantidad de invitados realmente almacenados en CRM. Cuando falla la carga, la agenda bloquea cambios que podrían borrar invitados sin conocimiento del usuario.
