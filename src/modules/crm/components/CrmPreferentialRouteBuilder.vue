@@ -322,6 +322,7 @@ async function save() {
   const modified = costsForRoute.value.filter(x =>
     Object.prototype.hasOwnProperty.call(editedSales.value,x.id) ||
     Object.prototype.hasOwnProperty.call(editedTiers.value,x.id))
+    .filter((cost, index, all) => all.findIndex(item => item.id === cost.id) === index)
   if (!modified.length && !insuranceEnabled.value) {
     error.value = 'Modificá un precio de venta o configurá los porcentajes de seguro.'
     return
@@ -375,6 +376,13 @@ async function save() {
       }
       await crmRequest(base + (existing ? '/' + encodeURIComponent(existing.id) : ''),
         existing ? 'PUT' : 'POST', body)
+      // Clear only accepted rows; keep pending changes after any later failure.
+      const pendingSales = { ...editedSales.value }
+      delete pendingSales[cost.id]
+      editedSales.value = pendingSales
+      const pendingTiers = { ...editedTiers.value }
+      delete pendingTiers[cost.id]
+      editedTiers.value = pendingTiers
       count++
     }
     if (insuranceEnabled.value) {
@@ -394,7 +402,8 @@ async function save() {
     editedTiers.value = {}
     success.value = count + ' ítem(s) guardado(s). El costo original de Pricing no se alteró.'
   } catch (cause) {
-    error.value = crmError(cause) + (count ? ' Se guardaron ' + count + ' ítems antes del error.' : '')
+    error.value = crmError(cause) + (count ? ' Se guardaron ' + count +
+      ' ítems; las ediciones pendientes se conservaron para reintentar sin duplicados.' : '')
   } finally {
     saving.value = false
     if (count) emit('saved')
