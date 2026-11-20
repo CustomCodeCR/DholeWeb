@@ -1,3 +1,9 @@
+## [1.107.2] - 2026-11-20 (DH-20261120-PRICING-INLAND-RESTORE-363 · restaurar carga de cargos en producción)
+
+- PATCH urgente sobre 1.107.1: revierte solamente la mutación sincronizada y el guardado prematuro de CostId/inland de pantallas 6 a 7 que provocó una regresión en producción.
+- Reutiliza el comportamiento de contención previamente desplegado en staging (DholeWeb 1.106.17), sin mezclar develop completo. Se preservan todos los cambios posteriores de master, incluida la configuración de avisos de versión, la autorización de vencidas y el desbloqueo temporal de Incoterms.
+- DholeWeb y DholeSystem 1.107.1 → 1.107.2; DholePricingService se mantiene 1.26.9. REST, SignalR, esquema de base de datos e infraestructura sin modificaciones. Pruebas CI y verificación funcional posterior al despliegue obligatorias; el problema original de selección automática todavía requiere prueba autenticada.
+
 ## [1.107.1] - 2026-11-20 (DH-20261120-VERSION-NOTICE-500-362 · hotfix 500 de avisos de actualización)
 
 - PATCH metadatos coordinados para corrección de backend Auth 1.17.1, transacción y outbox con estrategia de reintentos.
