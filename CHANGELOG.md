@@ -1,3 +1,10 @@
+## [1.104.3] - 2026-11-20 (DH-20261120-CRM-INVITEE-VISIBILITY-323 · invitados internos visibles en agenda)
+
+- PATCH: la ficha CRM muestra nombres reales de personas invitadas internamente a cada actividad, identifica internos versus contactos externos y refresca participantes al recibir notificaciones y reconexiones SignalR.
+- El calendario del invitado carga la misma actividad compartida cuando tiene permisos de tareas o seguimientos. No duplica registros ni cambia el responsable principal.
+- Promoción selectiva desde develop: Web/System master 1.103.24 → 1.104.3 para empatar global 1.104.3, CRM 1.42.6 → 1.42.7; se preservan los demás cambios de producción y las versiones del resto de componentes.
+- CI y staging son obligatorios antes de integrar master. 
+
 ## [1.103.24] - 2026-11-20 (DH-20261120-PRICING-COUNTRY-OPTIONS-310 · corrección del wizard de tarifas en blanco)
 
 - PATCH: reparar TypeError pricingQuoteCountryOptions undefined al abrir Crear tarifa; la vista consume las opciones de países desde el catálogo reactivo de Config en ambas pantallas, sin acceso a computed susceptible a transformaciones Vite.
