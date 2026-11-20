@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { CostSelectDto } from '../src/core/interfaces/pricing'
 import { customerPreferentialAmounts, customerPreferentialScopeIssues,
+  customerPreferentialCatalogContext, customerManualPreferentialRates,
   type CustomerPreferentialRate } from '../src/modules/pricing/utils/pricingPreferentialBenefits'
 import { groupCustomerAgreementBlocks } from '../src/modules/crm/utils/crmPreferentialGroups'
 
@@ -81,4 +82,53 @@ test('no cross-route/currency leakage, no unsafe fallback for ambiguous duplicat
   assert.equal(customerPreferentialAmounts(doc,{costAmount:20,saleAmount:55},
     agreements,quote,{containerQuantity:1},[doc,{...doc,id:'duplicate'}]).saleAmount,55)
   assert.deepEqual(customerPreferentialScopeIssues(agreements[0]!,{...quote,carrierCode:'NAV-OTHER'}),['Naviera'])
+})
+
+test('Pricing catalog IDs reconcile Config route-code aliases for the six CRM agreements', () => {
+  const routeCosts = catalog.map(item => ({
+    ...item,
+    pols: [{id:'uuid-ho-chi-minh',code:quote.polCode,name:'Ho Chi Minh'}],
+    poes: [{id:'uuid-caldera',code:quote.poeCode,name:'Puerto Caldera'}],
+    pods: [{id:'uuid-san-jose',code:quote.podCode,name:'San Jose'}],
+    carriers: [{id:'uuid-one',code:quote.carrierCode,name:'ONE'}],
+  }))
+  const configCodes = {
+    ...quote,polCode:'SD_HO_CHI_MINH_VIETNAM',
+    poeCode:'SD_PUERTO_CALDERA_COSTA_RICA',
+    podCode:'SD_SAN_JOSE_COSTA_RICA',carrierCode:'ONE',
+  }
+  const selected = {polId:'uuid-ho-chi-minh',poeId:'uuid-caldera',
+    podId:'uuid-san-jose',carrierId:'uuid-one'}
+  const cost = routeCosts.find(item => item.id === 'live-marchamo')!
+  const base = {costAmount:45,saleAmount:80}
+  assert.equal(customerPreferentialAmounts(cost,base,agreements,configCodes,
+    {containerQuantity:1},routeCosts).saleAmount,80)
+  const resolved = customerPreferentialCatalogContext(configCodes,routeCosts,selected)
+  assert.equal(resolved.polCode,quote.polCode)
+  assert.equal(resolved.poeCode,quote.poeCode)
+  assert.equal(resolved.podCode,quote.podCode)
+  assert.equal(resolved.carrierCode,quote.carrierCode)
+  const matched = customerPreferentialAmounts(cost,base,agreements,resolved,
+    {containerQuantity:1},routeCosts)
+  assert.equal(matched.saleAmount,100)
+  assert.equal(matched.costAmount,45)
+  assert.equal(customerManualPreferentialRates(agreements,resolved).length,1)
+  assert.equal(customerManualPreferentialRates(agreements,configCodes).length,0)
+})
+
+test('catalog alias reconciliation never bypasses IDs, ambiguous catalogs or another naviera',()=>{
+  const priced = catalog[1]!
+  const related = {
+    ...priced,poes:[{id:'actual-caldera',code:quote.poeCode,name:'Caldera'}],
+  }
+  const wrongRoute = customerPreferentialCatalogContext({
+    ...quote,poeCode:'OTHER-PORT'},[related],{poeId:'other-port'})
+  assert.equal(wrongRoute.poeCode,'OTHER-PORT')
+  const conflicting = customerPreferentialCatalogContext({
+    ...quote,poeCode:'OTHER-PORT'},[related,{
+      ...related,id:'another',poes:[{id:'actual-caldera',code:'POE-OTHER',name:'Other'}],
+    }],{poeId:'actual-caldera'})
+  assert.equal(conflicting.poeCode,'OTHER-PORT')
+  assert.equal(customerPreferentialAmounts(priced,{costAmount:20,saleAmount:130},
+    agreements,{...quote,carrierCode:'NAV-OTHER'}, {containerQuantity:1},catalog).saleAmount,130)
 })
