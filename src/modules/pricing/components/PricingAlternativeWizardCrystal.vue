@@ -1014,7 +1014,7 @@ async function activatePoeRoute(destinationId: string) {
   form.destinationId = destinationId
   availableRates.value = cached ? [...cached.rates] : []
   rateLines.value = cached ? copyPoeLines(cached.lines) : []
-  costs.value = cached ? [...(cached.costs ?? [])] : []
+  costs.value = cached ? reconcileActiveCostCatalog(cached.costs ?? [], allCosts.value) : []
   if (cached) {
     Object.assign(form, cached.fields)
   } else {
@@ -1033,7 +1033,11 @@ async function activatePoeRoute(destinationId: string) {
     if (selectedDraft) {
       Object.assign(form, selectedDraft.fields)
       rateLines.value = copyPoeLines(selectedDraft.lines)
-      costs.value = [...(selectedDraft.costs ?? [])]
+      costs.value = reconcileActiveCostCatalog(selectedDraft.costs ?? [], allCosts.value)
+      if (selectedDraft.lines.length) {
+        lastIncotermRateLinesContextKey.value = alternativeCostsLoaded.value[carrierRouteKey(destinationId, selectedCarrier)] ?? activeCostContextKey()
+        lastIncotermRateLinesRouteKey.value = currentRateLineRouteKey()
+      }
     } else if (selectedCarrier) form.carrierId = selectedCarrier
     restoreManualOceanFreightOption(selectedDraft, destinationId)
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
