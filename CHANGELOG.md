@@ -1,3 +1,9 @@
+## [1.106.10] - 2026-11-20 (DH-20261120-PRICING-VAT-TOTAL-353 · IVA correcto en resumen de oferta)
+
+- PATCH: en tarifas guardadas y en vista de solo lectura, si una respuesta histórica de Pricing devuelve IVA total cero aunque las líneas comerciales tengan IVA, la pantalla recupera cada importe comercial guardado y lo agrega en USD y CRC.
+- El total de la oferta suma subtotal sin impuesto + IVA; costo, utilidad y margen permanecen calculados sobre valores sin IVA. Evita duplicar impuestos y respeta cargos sin IVA, divisas y tipo de cambio de la tarifa.
+- Tests de proyección comercial del wizard, con Pricing 1.26.4 → 1.26.5 y DholeWeb/DholeSystem 1.106.9 → 1.106.10. REST y SignalR compatibles, CI y staging pendientes, producción no autorizada.
+
 ## [1.106.9] - 2026-11-20 (DH-20261120-LCL-CRC-AGENCY-352 · Agencia de Aduanas CRC en LCL propio)
 
 - PATCH: La pantalla 7 carga la Agencia de Aduanas CRC solicitada por Ventas incluso si la fuente es un consolidado LCL propio.
