@@ -22,7 +22,7 @@ const helper = between(
 )
 const watcher = between(
   'watch(\n  () => [step.value, currentCostContextKey()].join',
-  '\n\n`\n\nconst SCREEN6',
+  '\n// A direct step jump (or restored draft) must transfer',
 )
 
 function runSource(code: string, context: Record<string, unknown>, name: string) {

@@ -1,3 +1,10 @@
+## [1.106.15] - 2026-11-20 (DH-20261120-PRICING-INLAND-STEP67-357 · cargos e inland pantallas 6 → 7)
+
+- PATCH: los cargos Optional verificados en Pantalla 6 se trasladan por CostId al catálogo de Pantalla 7 antes de reconstruir RateLines, sin recargar el navegador ni traer los de otra POE/naviera.
+- El inland Merchant/Carrier seleccionado manualmente o automáticamente se conserva en el borrador por alternativa y al volver a la pantalla; un cargo InlandTransport configurado como Fixed/Variable también puede incorporarse si corresponde.
+- Las respuestas Optional retrasadas se descartan si cambia la ruta, agente o naviera; se conserva el contexto de costos vigente y los importes editados.
+- Pruebas de regresión de navegación 6→7, selección, restauración del catálogo y solicitudes asíncronas; CI/staging pendientes, sin despliegue a producción.
+
 ## [1.106.11] - 2026-11-20 (DH-20261120-EXPIRED-ROLE-354 · autorización de vencidas solo para vendedores)
 
 - PATCH: en listado de tarifas, “Solicitar autorización” se muestra solo a vendedores; Pricing y Superadmin editan cotizaciones vencidas directamente sin modal de jefatura.
