@@ -1,3 +1,9 @@
+## [1.103.19] - 2026-11-20 (DH-20261120-CRM-INVITEE-PERSISTENCE-296 · persistencia de invitados)
+
+- PATCH: mantiene invitados persistidos del seguimiento aunque estén fuera de la primera página del directorio Auth y verifica GET después de guardar cambios.
+- Backend CRM 1.42.5 propaga invitados nuevos de la actividad a compromisos previamente creados, idempotente y con outbox/SignalR compatible.
+- Web/System 1.103.18 → 1.103.19. Validar CI, staging y autorización de producción antes de master.
+
 ## [1.103.18] - 2026-11-19 (DH-20261119-SELLER-DASHBOARD-PARITY-295 · paridad comercial entre vendedor y supervisión)
 
 - PATCH: la supervisión con vendedor seleccionado solicita al backend la misma cartera de su cuenta (/seller-rates/dashboard?sellerUserId), incluyendo tarifas manuales/directas que carecen de solicitudes, recibos y alternativas de QUO.
