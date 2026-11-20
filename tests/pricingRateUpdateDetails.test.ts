@@ -212,7 +212,21 @@ test('the production wizard reconciles edit/removal IDs after building final upd
   const plugin = readFileSync(new URL('../build/pricingWizardFixedAutomaticCostEditFix.ts', import.meta.url), 'utf8')
   assert.ok(plugin.includes('reconcileRateUpdateDetailChanges('))
   assert.ok(plugin.includes('proposedRemovedExtraDetailIds'))
-  assert.ok(plugin.includes('freightNotRequiredByIncoterm.value'))
+  assert.ok(plugin.includes('!hasInternationalTransportService.value,'))
+  assert.ok(!plugin.includes('freightNotRequiredByIncoterm'), 'saving must not reference the obsolete computed value')
+})
+
+test('FOB China to Costa Rica edit retains explicitly quoted international freight', () => {
+  const persisted = [{ id: 'ocean-freight', costDetailType: 'Freight', costId: 'ocean-source' }, { id: 'hbl', costDetailType: 'DestinationCharge', costId: 'hbl-cost' }]
+  const details = [{ id: 'ocean-freight', costDetailType: 'Freight', costId: 'ocean-source', saleAmount: 2100 }, { id: 'hbl', costDetailType: 'DestinationCharge', costId: 'hbl-cost', saleAmount: 75 }]
+  // Transport International was selected by the importer (FOB).
+  const selectedService = reconcileRateUpdateDetailChanges(details, [], persisted, false, true)
+  assert.deepEqual(selectedService.extraDetails.map((d) => d.id), ['ocean-freight', 'hbl'])
+  assert.deepEqual(selectedService.removedExtraDetailIds, [])
+  // Without the transport service, historical freight is removed, but HBL stays.
+  const noService = reconcileRateUpdateDetailChanges(details, [], persisted, true, true)
+  assert.deepEqual(noService.extraDetails.map((d) => d.id), ['hbl'])
+  assert.deepEqual(noService.removedExtraDetailIds, ['ocean-freight'])
 })
 
 test('complete edit keeps a fixed charge override and removes only the selected fixed charge', () => {
