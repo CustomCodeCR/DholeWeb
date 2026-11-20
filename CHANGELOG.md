@@ -1,3 +1,12 @@
+## [1.106.0] - 2026-11-20 (DH-20261120-OPERATIONS-TRAMITES-UX-332 · Trámites unificado y expediente en pantalla completa)
+
+- MINOR: Trámites reemplaza la bandeja redundante: botón Nuevo trámite manual con cuenta CRM, búsqueda y filtros paginados, resumen del IDTRA en DhDrawer y vista de detalle independiente.
+- El expediente muestra los ocho tabs formales y la matriz de acceso calculada por Operations (EDITABLE, READ_ONLY, LOCKED, NOT_APPLICABLE), sin ediciones ficticias de departamentos todavía no implementados.
+- Resumen permite modificar metadata autorizada de Aperturas con versión optimista, audit trail, y doble validación en el propio expediente; QUO muestra snapshot y costos autorizados; Origen permite consultar estado y guardar notas privadas según ACL.
+- Enlace directo desde Dashboard a detalle IDTRA. Canal SignalR de caso con reconexión, invalidaciones y nueva lectura REST. Formularios con cambios locales no se sobrescriben ante eventos concurrentes.
+- Web y System 1.105.1 → 1.106.0; Operations 0.13.0 → 0.14.0. Pricing → apertura automática continúa pendiente, al igual que formularios avanzados para otras áreas.
+- CI, staging, autorización y despliegue a producción por verificar.
+
 ## [1.105.1] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-RUNTIME-331 · consulta real de tarifas preferenciales CRM en Pricing)
 
 - PATCH: soluciona la causa raíz: el transformador de Vite que sustituía loadApplicableCosts() omitía la carga de acuerdos comerciales de CRM y dejaba todas las ventas con el importe general del catálogo aunque el cliente tuviera beneficios compatibles.
