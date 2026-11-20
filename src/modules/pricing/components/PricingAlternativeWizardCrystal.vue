@@ -63,7 +63,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
-import { incotermClientSections, incotermClientPaysMainTransport, incotermOperationExplanation } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { incotermClientSections, incotermOperationExplanation } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -5723,7 +5723,6 @@ async function saveRate() {
     ? editingRate.value.rateDetails.find(detail => detail.costDetailType === 'Freight')
     : null
   if (persistedFreight && shipmentModeForApi.value === 'Lcl'
-    && incotermClientPaysMainTransport(operationType.value, selectedIncotermCode.value)
     && !includedLines.value.some(line => line.costDetailType === 'Freight')) {
     rateLines.value = [{
       key: `existing:${persistedFreight.id}`, detailId: persistedFreight.id,
@@ -5915,7 +5914,8 @@ async function saveRate() {
     serviceCodes.add(code)
     if (isCrcCustomsService(service)) serviceCodes.add('CUSTOMS_CR')
   })
-  if (!incotermClientPaysMainTransport(operationType.value, incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  // Preserve the International Transport service explicitly selected by the user.
+  // Incoterms define the responsible party, not an automatic removal of Freight.
   if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
     serviceCodes.add('CARGO_INSURANCE')
   else
