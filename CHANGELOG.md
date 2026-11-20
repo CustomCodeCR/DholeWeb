@@ -1,3 +1,9 @@
+## [1.103.16] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · tarifas preferenciales por tramos)
+
+- PATCH master 1.103.14→1.103.16: backport selectivo del arreglo de develop; CRM 1.42.3 amplía el CHECK PostgreSQL para TIERED_SALE y elimina el 409. Web no vuelve a enviar los cargos ya persistidos si otro falla.
+- Conserva los avances recientes del dashboard y Pricing, todos los cambios de master, los contratos REST/SignalR y la compatibilidad de los acuerdos anteriores.
+- Integrar solo tras CI y migración en staging.
+
 ## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · ajuste de desempeño comercial)
 
 - PATCH: el desempeño comercial se calcula como (aceptadas − vencidas) / (total cotizadas − abiertas) × 100. Las rechazadas se contabilizan en la base; las abiertas aún no se han entregado. Las vencidas penalizan incluso si producen porcentaje negativo.
