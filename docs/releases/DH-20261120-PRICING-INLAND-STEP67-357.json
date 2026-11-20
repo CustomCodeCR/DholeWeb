@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-INLAND-STEP67-357",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.15",
+  "releaseType": "PATCH",
+  "releaseStatus": "candidate-ci-and-staging-pending",
+  "components": [
+    {
+      "name": "DholeWeb",
+      "repository": "CustomCodeCR/DholeWeb",
+      "fromVersion": "1.106.14",
+      "toVersion": "1.106.15",
+      "branch": "fix/DH-20261120-PRICING-INLAND-STEP67-357"
+    },
+    {
+      "name": "DholePricingService",
+      "repository": "CustomCodeCR/DholePricingService",
+      "fromVersion": "pending-current-version",
+      "toVersion": "pending-coordinated-bump",
+      "branch": "fix/DH-20261120-PRICING-INLAND-STEP67-357"
+    }
+  ],
+  "changes": [
+    "Aplicar automaticamente cargos al pasar de pantalla 6 a 7 conservando CostId y precios",
+    "Mantener inland Merchant/Carrier en borrador por POE y naviera y tras recarga",
+    "Descartar respuestas REST tardias al navegar entre rutas"
+  ],
+  "validation": {
+    "frontendRegressionTests": "pending-CI",
+    "build": "pending-CI",
+    "staging": "pending",
+    "production": "not-authorized"
+  }
+}
