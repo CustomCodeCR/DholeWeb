@@ -64,6 +64,7 @@ import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPe
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -3186,24 +3187,16 @@ function applicableCost(cost: CostSelectDto) {
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
   if (!pickupCargoConditionsMatch(cost.operationalConditions)) return false
-  if (cost.carrierId && cost.carrierId !== form.carrierId) return false
-  if (cost.agentId && cost.agentId !== form.agentId) return false
-  if (cost.polId && cost.polId !== form.originId) return false
-  if (cost.poeId && cost.poeId !== form.destinationId) return false
-  if (cost.podId && cost.podId !== form.podId) return false
-  // The actual mode, route, provider, service and Incoterm associations
-  // determine this cost's eligibility; its display section does not.
-
-  if (cost.portId) {
-    const matchesLegacyPort = cost.portRole === 'Pol'
-      ? cost.portId === form.originId
-      : cost.portRole === 'Poe'
-        ? cost.portId === form.destinationId
-        : cost.portRole === 'Pod'
-          ? cost.portId === form.podId
-          : [form.originId, form.destinationId, form.podId].includes(cost.portId)
-    if (!matchesLegacyPort) return false
-  }
+  if (!costRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
+  if (!costRelationMatches(cost.agents, cost.agentId, form.agentId)) return false
+  if (!costRelationMatches(cost.pols, cost.polId, form.originId)) return false
+  if (!costRelationMatches(cost.poes, cost.poeId, form.destinationId)) return false
+  if (!costRelationMatches(cost.pods, cost.podId, form.podId)) return false
+  // Multiple selections returned by Pricing are authoritative; singular port IDs
+  // are legacy snapshots, not exclusions for a second selected POE or POD.
+  if (!costLegacyPortMatches(cost, {
+    polId: form.originId, poeId: form.destinationId, podId: form.podId,
+  })) return false
 
   return true
 }
