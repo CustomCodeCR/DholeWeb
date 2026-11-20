@@ -26,8 +26,16 @@ function patchWizard(source: string) {
     return [...sectionOrder]
   }
 
-  // Para marítimo/aéreo se conserva el límite comercial definido por Incoterm.
+  // Incoterms describe the responsible party, not a ban on separately quoted
+  // origin / destination / customs / documentation charges.
   const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  if (hasInternationalTransportService.value) allowed.add('international_freight')
+  else allowed.delete('international_freight')
+  for (const cost of costs.value) {
+    if (cost.isActive === false || !applicableCost(cost)) continue
+    if (cost.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
+    allowed.add(sectionForCost(cost))
+  }
   return sectionOrder.filter((section) => allowed.has(section))
 })
 
@@ -343,8 +351,11 @@ async function loadApplicableCosts() {
       fullCatalog
         .filter(maritimeFclCostMatchesCurrentContext)
         .forEach((cost) => mergedCosts.set(cost.id, cost))
+      // Pricing's contextual response already validated route, provider, mode,
+      // service and Incoterm. Do not reject it against legacy single-port fields.
+      // Keep the stricter browser predicate for the full-catalog fallback only.
       contextualCosts
-        .filter(maritimeFclCostMatchesCurrentContext)
+        .filter((cost) => cost.isActive !== false)
         .forEach((cost) => mergedCosts.set(cost.id, cost))
     } else {
       contextualCosts.forEach((cost) => mergedCosts.set(cost.id, cost))
