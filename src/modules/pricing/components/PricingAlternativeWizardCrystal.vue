@@ -2031,12 +2031,8 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
     }]
   : [])
 
-// Compute the CRM client's perspective directly, with no generated helper binding.
-const pricingQuoteCountryOptions = computed(() => catalogs.countries
-  .filter((country) => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries)))
-  .map((country) => ({ value: country.id, label: displayValue(country) || country.label || country.id }))
-)
-
+// Quote-country picker derives its choices from the always-reactive Config catalog.
+// Do not bind template markup to an injected computed that may be absent after Vite transforms.
 const direction = computed(() => {
   const perspective = operationForClientCountry(
     resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
@@ -6983,8 +6979,8 @@ onMounted(async () => {
               <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione el país real de esta cuenta para la cotización. No modifica la ficha de CRM y evita bloquear el avance a las siguientes pantallas.</p>
               <DhSelect v-model="pricingQuoteCountryOverrideId" data-required-field="clientCountry"
                 :error="fieldError('clientCountry')" label="País del cliente para esta cotización *"
-                :options="pricingQuoteCountryOptions" />
-              <p v-if="!pricingQuoteCountryOptions.length" role="alert" class="text-xs font-semibold text-amber-600">El catálogo de países de Config está vacío. Es necesario cargarlo para seleccionar el país del cliente.</p>
+                :options="catalogs.countries.filter(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries))).map(country => ({ value: country.id, label: displayValue(country) || country.label || country.id }))" />
+              <p v-if="!catalogs.countries.some(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries)))" role="alert" class="text-xs font-semibold text-amber-600">El catálogo de países de Config está vacío. Es necesario cargarlo para seleccionar el país del cliente.</p>
             </div>
             <p v-if="form.clientId && form.originId && (form.podId || form.destinationId) && !direction"
               data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Revise el país del cliente y los códigos ISO de origen y destino en Config.</p>
@@ -7412,7 +7408,7 @@ onMounted(async () => {
               data-required-field="clientCountry"
               :error="fieldError('clientCountry')"
               label="País del cliente para esta cotización *"
-              :options="pricingQuoteCountryOptions" />
+              :options="catalogs.countries.filter(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries))).map(country => ({ value: country.id, label: displayValue(country) || country.label || country.id }))" />
             <p v-if="pricingQuoteCountryOverrideId && !direction" class="text-xs font-semibold text-amber-700 dark:text-amber-300">
               No se identificó el país del origen o destino de la ruta. Revise POL, POE o POD.
             </p>
