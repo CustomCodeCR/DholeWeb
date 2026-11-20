@@ -744,7 +744,13 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
     if (draft) {
       Object.assign(form, draft.fields)
       rateLines.value = copyPoeLines(draft.lines)
-      costs.value = [...(draft.costs ?? [])]
+      costs.value = reconcileActiveCostCatalog(draft.costs ?? [], allCosts.value)
+      // A restored alternative has its own edited CostIds. Restore its context
+      // marker as well; otherwise the next rebuild discards these user changes.
+      if (draft.lines.length) {
+        lastIncotermRateLinesContextKey.value = alternativeCostsLoaded.value[carrierRouteKey(poeId, carrierId)] ?? activeCostContextKey()
+        lastIncotermRateLinesRouteKey.value = currentRateLineRouteKey()
+      }
     } else {
       Object.assign(form, {
         carrierId, agentId: '', selectedImportRateId: '', manualRate: true,
@@ -754,6 +760,8 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
       })
       rateLines.value = []
       costs.value = []
+      lastIncotermRateLinesContextKey.value = ''
+      lastIncotermRateLinesRouteKey.value = ''
     }
     restoreManualOceanFreightOption(draft, poeId)
     // Restore the selected preapproved/preauthorized rate when available.
@@ -830,6 +838,13 @@ async function advanceScreenFive() {
   await continueWithSelectedCarriers()
 }
 
+function currentRateLineRouteKey(): string {
+  return JSON.stringify([
+    form.originId, form.destinationId, form.podId, form.carrierId,
+    form.agentId, shipmentModeForApi.value, form.clientId, form.crmClientKind,
+  ])
+}
+
 function activeCostContextKey(): string {
   // Sales belong to the CRM account, not merely the physical route. Never reuse
   // another customer's screen-7 quote lines from the alternative-cost cache.
@@ -849,12 +864,17 @@ async function loadCostsForSelectedAlternative(force = false) {
   const context = activeCostContextKey()
   // A previous request can be marked loaded while another route/Incoterm watcher
   // has cleared the displayed lines. Never treat an empty P7 as a valid cache.
-  if (!force && alternativeCostsLoaded.value[key] === context && rateLines.value.length > 0) return
+  const freightExpected = (number(form.freightCost) > 0 || number(form.freightSale) > 0)
+    && !rateLines.value.some(line => line.costDetailType === 'Freight' && line.included)
+  if (!force && alternativeCostsLoaded.value[key] === context && rateLines.value.length > 0 && !freightExpected) return
   const loaded = await loadApplicableCosts()
   // Do not cache failed requests or attach the response to another alternative.
   if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
   rebuildRateLines()
   syncHaulageOptionalLines()
+  // A missing international freight must not silently pass as a complete P7.
+  // In the normal wizard this row is produced from P6's actual cost/sale.
+  ensureProviderFreightOnScreenSeven()
   alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
   rememberCurrentCarrierDraft()
 }
@@ -907,6 +927,12 @@ async function advanceSequentialWizard() {
   const first = selectedCarrierRoutes.value[0]
   if (!first) return
   await activateCarrierRoute(first.poeId, first.carrierId)
+  if (step.value === 6) {
+    // Build once with the P6 freight as authoritative, before any P7 watcher
+    // or CostId refresh can reapply a stale zero-priced draft.
+    rebuildRateLines()
+    ensureProviderFreightOnScreenSeven()
+  }
   step.value += 1
   await loadCostsForSelectedAlternative()
 }
@@ -3518,16 +3544,15 @@ async function loadApplicableCosts(): Promise<boolean> {
 
 function rebuildRateLines() {
   const currentContext = activeCostContextKey()
-  const routeKey = JSON.stringify([
-    form.originId, form.destinationId, form.podId, form.carrierId,
-    form.agentId, shipmentModeForApi.value, form.clientId, form.crmClientKind,
-  ])
+  const routeKey = currentRateLineRouteKey()
   const sameContext = lastIncotermRateLinesContextKey.value === currentContext
   const previousOptionLines = !props.rateId
     && lastIncotermRateLinesRouteKey.value === routeKey
-    // On an Incoterm/service change keep user-created lines only. CostIds from
-    // the previous filter must requalify against the freshly loaded catalogue.
-    ? copyPoeLines(rateLines.value).filter(line => sameContext || line.manual)
+    // Screen 6 edits the source freight fields. Never let a stale P7 snapshot
+    // overwrite the current 40HC cost/sale when returning with Continue.
+    // Non-freight P7 edits are retained for the same commercial context.
+    ? copyPoeLines(rateLines.value).filter(line =>
+        line.costDetailType !== 'Freight' ? (sameContext || line.manual) : step.value !== 6 && sameContext)
     : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
@@ -3809,6 +3834,31 @@ if (insuranceRequested && visible.has('destination_charges')) {
   rateLines.value = lines
   lastIncotermRateLinesContextKey.value = currentContext
   lastIncotermRateLinesRouteKey.value = routeKey
+}
+
+function ensureProviderFreightOnScreenSeven() {
+  if (props.rateId || (number(form.freightCost) <= 0 && number(form.freightSale) <= 0)) return
+  if (rateLines.value.some(line => line.costDetailType === 'Freight' && line.included)) return
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return
+  // Never fabricate prices: copy ONLY the explicitly entered/provider-selected
+  // amounts from P6. Existing per-container freight is reconciled by FCL plugins.
+  rateLines.value.push({
+    key: 'freight',
+    section: 'international_freight',
+    name: 'Flete internacional',
+    costDetailType: 'Freight',
+    costType: 'Variable',
+    chargeBasis: defaultChargeBasis('Freight'),
+    currencyId: currency.id,
+    currencyName: displayValue(currency),
+    currencyCode: currency.code,
+    costAmount: number(form.freightCost),
+    saleAmount: number(form.freightSale),
+    included: true,
+    optional: false,
+    manual: false,
+  })
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -5239,6 +5289,7 @@ async function next() {
     const costsReady = await loadApplicableCosts()
     if (!costsReady) return
     rebuildRateLines()
+    ensureProviderFreightOnScreenSeven()
   }
   if (step.value < 8) step.value += 1
   // Preserve the LCL Vite transform's navigation anchor while staying on provider
@@ -6804,6 +6855,7 @@ watch(
           ...alternativeCostsLoaded.value,
           [carrierRouteKey(form.destinationId, form.carrierId)]: activeCostContextKey(),
         }
+        ensureProviderFreightOnScreenSeven()
         rememberCurrentCarrierDraft()
       }
     }
@@ -6814,7 +6866,10 @@ watch(() => form.currencyId, () => {
   // A saved quotation already has individually priced currencies and sales.
   // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.
   if (hydratingExistingRate.value || switchingPoeRoute.value || editingRate.value) return
-  if (step.value === 7) rebuildRateLines()
+  if (step.value === 7) {
+    rebuildRateLines()
+    ensureProviderFreightOnScreenSeven()
+  }
 })
 
 // Changes made on Screen 6 must update the persisted LCL freight detail,
