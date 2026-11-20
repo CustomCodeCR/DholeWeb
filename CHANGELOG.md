@@ -1,3 +1,8 @@
+## [1.103.17] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · TIERED_SALE y reintentos seguros)
+
+- PATCH: CRM 1.42.3 aplica migración PostgreSQL para admitir TIERED_SALE; el cliente conserva los ítems pendientes y evita duplicar costos de Pricing ya guardados.
+- DholeWeb/System 1.103.16→1.103.17; conserva cambios del dashboard, Pricing, REST y SignalR. Validación de CI y staging antes de master.
+
 ## [1.103.16] - 2026-11-19 (DH-20261119-CRM-AGREEMENT-INVITEES-294 · invitados persistidos en seguimientos CRM)
 
 - PATCH: el detalle de seguimientos consulta y muestra la cantidad de invitados realmente almacenados en CRM. Cuando falla la carga, la agenda bloquea cambios que podrían borrar invitados sin conocimiento del usuario.
