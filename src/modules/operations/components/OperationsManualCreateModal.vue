@@ -5,8 +5,12 @@ import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhSearchInput } from '@/shared/components/molecules'
 import { DhModal } from '@/shared/components/organisms'
 import { operationsApi, type CrmAccountOption } from '../services/operationsApi'
+import { useAuthStore } from '@/core/stores/authStore'
 
 const props = defineProps<{ open: boolean }>()
+const auth = useAuthStore()
+const canInitialize = computed(() => auth.hasScope('operations.team.manage'))
+const initializing = ref(false)
 const emit = defineEmits<{
   close: []
   created: [result: { id: string; idtra: string; status: string }]
@@ -69,6 +73,22 @@ watch(crmSearch, () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { void fetchCrm() }, 250)
 })
+async function initializeWorkspace() {
+  if (!canInitialize.value || initializing.value) return
+  initializing.value = true
+  error.value = ''
+  try {
+    // Authorized endpoint provisions the standard team catalog and persists
+    // the tenant. It never creates users, grants scopes or fake memberships.
+    await operationsApi.initializeTeams()
+    const context = await operationsApi.createContext()
+    opening.value.companyId = context.companyId ?? ''
+    if (!opening.value.companyId)
+      error.value = 'La empresa operativa continúa sin identificarse. Revise la configuración.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo inicializar Operaciones.'
+  } finally { initializing.value = false }
+}
 async function submit() {
   if (!valid.value || busy.value) return
   busy.value = true
@@ -102,6 +122,10 @@ async function submit() {
         El trámite quedará pendiente de validación y no se inventarán costos comerciales.
       </p>
       <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
+      <div v-if="!opening.companyId && canInitialize" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+        <p class="mb-3 text-sm">Este entorno todavía no tiene una empresa operativa inicializada. Un administrador puede preparar el catálogo de equipos sin crear usuarios.</p>
+        <DhButton variant="secondary" label="Inicializar equipos de Operaciones" :loading="initializing" @click="initializeWorkspace" />
+      </div>
       <div class="space-y-2">
         <label class="text-xs font-bold text-[var(--dh-text)]">Buscar cuenta cliente en CRM</label>
         <DhSearchInput v-model="crmSearch" placeholder="Nombre o cédula de la cuenta" />
