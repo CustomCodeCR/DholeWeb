@@ -1,3 +1,11 @@
+## [1.108.3] - 2026-11-20 (DH-20261120-P7-FREIGHT-DRAFT-370 · preservar flete P6/P7 y etiquetas)
+
+- PATCH coordinado Web/System 1.108.2 → 1.108.3, únicamente develop y staging, PricingService no se modifica.
+- En el wizard multi-POE/naviera, el flete manual o seleccionado de P6 se reconstruye desde sus importes vigentes ANTES de entrar por primera vez a P7. Un borrador antiguo no sobreescribe los costos/ventas nuevos al regresar P6→P7.
+- La recarga P7 invalida cachés que carecen de la línea de flete esperada y conserva los precios editados de los otros CostIds y rubros manuales en la misma alternativa. Al restaurar POE/naviera se recupera el contexto y catálogo completo con su CostId.
+- Títulos de bloques antes del mensaje vacío; se oculta el formulario de facturación de grupos sin líneas. Etiquetas explícitas costo/venta/divisa; encabezado P7 deja de tapar las filas al hacer scroll.
+- Prueba `tests/pricingScreenSevenFirstEntry370.test.mjs` agregada al CI de Pricing. Requiere smoke autenticado del P6→P7, regreso 7→6→7, P8 totales y P9 PDF.
+
 ## [1.108.2] - 2026-11-20 (DH-20261120-P7-VISIBLE-369 · hotfix de pantalla 7 sin ReferenceError)
 
 - PATCH DholeWeb/DholeSystem 1.108.1 → 1.108.2. Develop y staging únicamente. Backend PricingService sin cambios.
