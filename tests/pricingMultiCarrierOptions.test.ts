@@ -68,7 +68,7 @@ test('imported rates do not become manual when selected; drafts keep isolated co
   assert.match(wizard, /optionDrafts\.value\[carrierRouteKey\(poeId, carrierId\)\]/)
   assert.match(wizard, /costs: \[\.\.\.costs\.value\]/)
   assert.match(wizard, /rateLines\.value = copyPoeLines\(draft\.lines\)/)
-  assert.match(wizard, /costs\.value = \[\.\.\.\(draft\.costs \?\? \[\]\)\]/)
+  assert.match(wizard, /costs\.value = reconcileActiveCostCatalog\(draft\.costs \?\? \[\], allCosts\.value\)/)
   assert.match(wizard, /role="tablist" aria-label="Alternativas por POE y naviera"/)
   assert.match(wizard, /\{\{ form\.selectedImportRateId \? 'Tarifa preaprobada o preautorizada' : 'Captura manual' \}\}/)
 })

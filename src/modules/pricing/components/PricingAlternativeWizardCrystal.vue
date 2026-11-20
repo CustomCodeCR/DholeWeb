@@ -744,7 +744,13 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
     if (draft) {
       Object.assign(form, draft.fields)
       rateLines.value = copyPoeLines(draft.lines)
-      costs.value = [...(draft.costs ?? [])]
+      costs.value = reconcileActiveCostCatalog(draft.costs ?? [], allCosts.value)
+      // A restored alternative has its own edited CostIds. Restore its context
+      // marker as well; otherwise the next rebuild discards these user changes.
+      if (draft.lines.length) {
+        lastIncotermRateLinesContextKey.value = alternativeCostsLoaded.value[carrierRouteKey(poeId, carrierId)] ?? activeCostContextKey()
+        lastIncotermRateLinesRouteKey.value = currentRateLineRouteKey()
+      }
     } else {
       Object.assign(form, {
         carrierId, agentId: '', selectedImportRateId: '', manualRate: true,
@@ -754,6 +760,8 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
       })
       rateLines.value = []
       costs.value = []
+      lastIncotermRateLinesContextKey.value = ''
+      lastIncotermRateLinesRouteKey.value = ''
     }
     restoreManualOceanFreightOption(draft, poeId)
     // Restore the selected preapproved/preauthorized rate when available.
@@ -830,6 +838,13 @@ async function advanceScreenFive() {
   await continueWithSelectedCarriers()
 }
 
+function currentRateLineRouteKey(): string {
+  return JSON.stringify([
+    form.originId, form.destinationId, form.podId, form.carrierId,
+    form.agentId, shipmentModeForApi.value, form.clientId, form.crmClientKind,
+  ])
+}
+
 function activeCostContextKey(): string {
   // Sales belong to the CRM account, not merely the physical route. Never reuse
   // another customer's screen-7 quote lines from the alternative-cost cache.
@@ -849,12 +864,17 @@ async function loadCostsForSelectedAlternative(force = false) {
   const context = activeCostContextKey()
   // A previous request can be marked loaded while another route/Incoterm watcher
   // has cleared the displayed lines. Never treat an empty P7 as a valid cache.
-  if (!force && alternativeCostsLoaded.value[key] === context && rateLines.value.length > 0) return
+  const freightExpected = (number(form.freightCost) > 0 || number(form.freightSale) > 0)
+    && !rateLines.value.some(line => line.costDetailType === 'Freight' && line.included)
+  if (!force && alternativeCostsLoaded.value[key] === context && rateLines.value.length > 0 && !freightExpected) return
   const loaded = await loadApplicableCosts()
   // Do not cache failed requests or attach the response to another alternative.
   if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
   rebuildRateLines()
   syncHaulageOptionalLines()
+  // A missing international freight must not silently pass as a complete P7.
+  // In the normal wizard this row is produced from P6's actual cost/sale.
+  ensureProviderFreightOnScreenSeven()
   alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
   rememberCurrentCarrierDraft()
 }
@@ -907,6 +927,12 @@ async function advanceSequentialWizard() {
   const first = selectedCarrierRoutes.value[0]
   if (!first) return
   await activateCarrierRoute(first.poeId, first.carrierId)
+  if (step.value === 6) {
+    // Build once with the P6 freight as authoritative, before any P7 watcher
+    // or CostId refresh can reapply a stale zero-priced draft.
+    rebuildRateLines()
+    ensureProviderFreightOnScreenSeven()
+  }
   step.value += 1
   await loadCostsForSelectedAlternative()
 }
@@ -988,7 +1014,7 @@ async function activatePoeRoute(destinationId: string) {
   form.destinationId = destinationId
   availableRates.value = cached ? [...cached.rates] : []
   rateLines.value = cached ? copyPoeLines(cached.lines) : []
-  costs.value = cached ? [...(cached.costs ?? [])] : []
+  costs.value = cached ? reconcileActiveCostCatalog(cached.costs ?? [], allCosts.value) : []
   if (cached) {
     Object.assign(form, cached.fields)
   } else {
@@ -1007,7 +1033,11 @@ async function activatePoeRoute(destinationId: string) {
     if (selectedDraft) {
       Object.assign(form, selectedDraft.fields)
       rateLines.value = copyPoeLines(selectedDraft.lines)
-      costs.value = [...(selectedDraft.costs ?? [])]
+      costs.value = reconcileActiveCostCatalog(selectedDraft.costs ?? [], allCosts.value)
+      if (selectedDraft.lines.length) {
+        lastIncotermRateLinesContextKey.value = alternativeCostsLoaded.value[carrierRouteKey(destinationId, selectedCarrier)] ?? activeCostContextKey()
+        lastIncotermRateLinesRouteKey.value = currentRateLineRouteKey()
+      }
     } else if (selectedCarrier) form.carrierId = selectedCarrier
     restoreManualOceanFreightOption(selectedDraft, destinationId)
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
@@ -3518,16 +3548,15 @@ async function loadApplicableCosts(): Promise<boolean> {
 
 function rebuildRateLines() {
   const currentContext = activeCostContextKey()
-  const routeKey = JSON.stringify([
-    form.originId, form.destinationId, form.podId, form.carrierId,
-    form.agentId, shipmentModeForApi.value, form.clientId, form.crmClientKind,
-  ])
+  const routeKey = currentRateLineRouteKey()
   const sameContext = lastIncotermRateLinesContextKey.value === currentContext
   const previousOptionLines = !props.rateId
     && lastIncotermRateLinesRouteKey.value === routeKey
-    // On an Incoterm/service change keep user-created lines only. CostIds from
-    // the previous filter must requalify against the freshly loaded catalogue.
-    ? copyPoeLines(rateLines.value).filter(line => sameContext || line.manual)
+    // Screen 6 edits the source freight fields. Never let a stale P7 snapshot
+    // overwrite the current 40HC cost/sale when returning with Continue.
+    // Non-freight P7 edits are retained for the same commercial context.
+    ? copyPoeLines(rateLines.value).filter(line =>
+        line.costDetailType !== 'Freight' ? (sameContext || line.manual) : step.value !== 6 && sameContext)
     : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
@@ -3809,6 +3838,31 @@ if (insuranceRequested && visible.has('destination_charges')) {
   rateLines.value = lines
   lastIncotermRateLinesContextKey.value = currentContext
   lastIncotermRateLinesRouteKey.value = routeKey
+}
+
+function ensureProviderFreightOnScreenSeven() {
+  if (shipmentModeForApi.value !== 'Fcl' || props.rateId || (number(form.freightCost) <= 0 && number(form.freightSale) <= 0)) return
+  if (rateLines.value.some(line => line.costDetailType === 'Freight' && line.included)) return
+  const currency = selectedCurrency.value ?? catalogs.currencies[0]
+  if (!currency) return
+  // Never fabricate prices: copy ONLY the explicitly entered/provider-selected
+  // amounts from P6. Existing per-container freight is reconciled by FCL plugins.
+  rateLines.value.push({
+    key: 'freight',
+    section: 'international_freight',
+    name: 'Flete internacional',
+    costDetailType: 'Freight',
+    costType: 'Variable',
+    chargeBasis: defaultChargeBasis('Freight'),
+    currencyId: currency.id,
+    currencyName: displayValue(currency),
+    currencyCode: currency.code,
+    costAmount: number(form.freightCost),
+    saleAmount: number(form.freightSale),
+    included: true,
+    optional: false,
+    manual: false,
+  })
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -5239,6 +5293,7 @@ async function next() {
     const costsReady = await loadApplicableCosts()
     if (!costsReady) return
     rebuildRateLines()
+    ensureProviderFreightOnScreenSeven()
   }
   if (step.value < 8) step.value += 1
   // Preserve the LCL Vite transform's navigation anchor while staying on provider
@@ -6804,6 +6859,7 @@ watch(
           ...alternativeCostsLoaded.value,
           [carrierRouteKey(form.destinationId, form.carrierId)]: activeCostContextKey(),
         }
+        ensureProviderFreightOnScreenSeven()
         rememberCurrentCarrierDraft()
       }
     }
@@ -6814,7 +6870,10 @@ watch(() => form.currencyId, () => {
   // A saved quotation already has individually priced currencies and sales.
   // Rebuilding its lines from the tariff catalog discards edit IDs/overrides.
   if (hydratingExistingRate.value || switchingPoeRoute.value || editingRate.value) return
-  if (step.value === 7) rebuildRateLines()
+  if (step.value === 7) {
+    rebuildRateLines()
+    ensureProviderFreightOnScreenSeven()
+  }
 })
 
 // Changes made on Screen 6 must update the persisted LCL freight detail,
@@ -8142,12 +8201,9 @@ onMounted(async () => {
 
           <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
-            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-              No hay líneas para este bloque en la ruta seleccionada. Puede agregar un rubro manual o documentar un servicio cubierto por un tercero; no se genera un costo ficticio.
-            </p>
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
-              <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
+              <div v-if="group.lines.length > 0" class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
                 <DhInput
                   :model-value="billToBatchByGroup[group.key] ?? ''"
                   class="min-w-[240px]"
@@ -8162,6 +8218,9 @@ onMounted(async () => {
                 </DhButton>
               </div>
             </div>
+            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Sin cargos configurados para {{ group.label.toLowerCase() }} en esta ruta. Solo se facturarán servicios que se seleccionen o agreguen expresamente.
+            </p>
             <div
               v-for="line in group.lines"
               :key="line.key"
@@ -8205,8 +8264,14 @@ onMounted(async () => {
                 />
                 
               </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <div>
+                <p class="crystal-line__field-label">Costo unitario · {{ canonicalCurrencyCode(line) }}</p>
+                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
+              </div>
+              <div>
+                <p class="crystal-line__field-label">Venta unitaria · {{ canonicalCurrencyCode(line) }}</p>
+                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              </div>
               <DhInput
                 :model-value="line.billToClient ?? ''"
                 class="min-w-[220px]"
@@ -8230,7 +8295,7 @@ onMounted(async () => {
           <div class="crystal-bottom-charges space-y-4 p-4">
             <div v-if="optionalChargeOptions.length">
               <div class="crystal-group-header mb-3">
-                <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales</p>
+                <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales · seleccione los que se cotizan</p>
               </div>
               <PricingCrystalMultiSelect
                 v-model="selectedOptionalChargeKeys"
@@ -8265,6 +8330,7 @@ onMounted(async () => {
         </div>
                 </div>
                 <div>
+                  <p class="crystal-line__field-label">Divisa</p>
                   <DhSelect
                     :model-value="line.currencyId"
                     label="Divisa"
@@ -8274,8 +8340,14 @@ onMounted(async () => {
                   />
                   
                 </div>
-                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
-                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+                <div>
+                  <p class="crystal-line__field-label">Costo unitario · {{ canonicalCurrencyCode(line) }}</p>
+                  <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
+                </div>
+                <div>
+                  <p class="crystal-line__field-label">Venta unitaria · {{ canonicalCurrencyCode(line) }}</p>
+                  <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+                </div>
               <DhInput
                 :model-value="line.billToClient ?? ''"
                 class="min-w-[220px]"
@@ -9449,10 +9521,11 @@ onMounted(async () => {
 }
 
 .crystal-lines-header {
-  position: -webkit-sticky;
-  position: sticky;
-  top: 5.75rem;
-  z-index: 120;
+  /* The previous sticky card obscured charge titles, prices and labels while
+     scrolling. Keep the summary above the rows, in normal document flow. */
+  position: relative;
+  top: auto;
+  z-index: 1;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr);
   align-self: flex-start;
@@ -9527,6 +9600,15 @@ onMounted(async () => {
   transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
+.crystal-line__field-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dh-text-muted);
+}
 .crystal-line--optional-off {
   border-style: dashed;
   opacity: 0.68;
@@ -9616,7 +9698,7 @@ onMounted(async () => {
   }
 
   .crystal-lines-header {
-    top: 5rem;
+    top: auto;
     gap: 0.5rem;
     padding: 0.65rem;
   }

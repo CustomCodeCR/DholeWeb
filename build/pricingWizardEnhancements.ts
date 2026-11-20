@@ -193,7 +193,19 @@ export function pricingWizardEnhancements(): Plugin {
         '    await loadApplicableCosts()\n    if (shipmentModeForApi.value',
         '    const costsReady = await loadApplicableCosts()\n    if (!costsReady) return\n    if (shipmentModeForApi.value',
       )
-      if (code.includes(guardedNextAnchor)) {
+      // The 1.108.3 wizard also synchronizes the P6 provider freight before
+      // transitioning. Preserve this explicit handoff in LCL's transformed path.
+      const freightSyncNextAnchor = guardedNextAnchor.replace(
+        '    rebuildRateLines()\n  }',
+        '    rebuildRateLines()\n    ensureProviderFreightOnScreenSeven()\n  }',
+      )
+      const freightSyncNextReplacement = guardedNextReplacement.replace(
+        '\n  }\n  if (step.value < 8)',
+        '\n    ensureProviderFreightOnScreenSeven()\n  }\n  if (step.value < 8)',
+      )
+      if (code.includes(freightSyncNextAnchor)) {
+        code = replaceOne(code, freightSyncNextAnchor, freightSyncNextReplacement, 'LCL guarded freight handoff P6 to P7')
+      } else if (code.includes(guardedNextAnchor)) {
         code = replaceOne(code, guardedNextAnchor, guardedNextReplacement, 'LCL guarded line preservation while advancing')
       } else {
         code = replaceOne(code, nextAnchor, nextReplacement, 'LCL line preservation while advancing')
