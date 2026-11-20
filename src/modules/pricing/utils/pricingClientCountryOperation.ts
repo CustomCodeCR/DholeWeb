@@ -1,6 +1,6 @@
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type { RateOperationType } from '@/core/interfaces/pricing'
-import { normalizeIsoCountryCode, resolveCatalogCountryCode } from './pricingCountryIso'
+import { normalizeIsoCountryCode, resolveCatalogCountryCode } from './pricingCountryIso.ts'
 
 /** Account/lead country is an authoritative Config country ID, not a port name. */
 export function resolveCrmCountryCode(
