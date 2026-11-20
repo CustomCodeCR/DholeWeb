@@ -3,18 +3,18 @@
   "releaseId": "DH-20261120-PRICING-CLIENT-COUNTRY-298",
   "date": "2026-11-20",
   "kind": "patch",
-  "ecosystemVersion": "1.103.21",
+  "ecosystemVersion": "1.103.23",
   "summary": "Desbloquear clasificación comercial FCL Vietnam–Costa Rica cuando país CRM no está completo",
   "components": [
     {
       "repository": "CustomCodeCR/DholeWeb",
       "previousVersion": "1.103.20",
-      "version": "1.103.21"
+      "version": "1.103.23"
     },
     {
       "repository": "CustomCodeCR/DholeSystem",
-      "previousVersion": "1.103.20",
-      "version": "1.103.21"
+      "previousVersion": "1.103.22",
+      "version": "1.103.23"
     }
   ],
   "unchangedComponents": 15,
@@ -30,7 +30,7 @@
     "master"
   ],
   "checks": {
-    "tests": "validated in develop; master CI pending",
+    "tests": "develop successful; master CI pending",
     "ci": "pending",
     "staging": "pending",
     "production": "not-authorized"
