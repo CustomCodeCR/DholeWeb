@@ -34,7 +34,7 @@ ZA:ZAF ZM:ZMB ZW:ZWE
 `.trim().split(/\s+/)
 
 const ALPHA2_TO_3 = new Map(ISO_PAIRS.map((entry) => entry.split(':') as [string, string]))
-const ALPHA3_TO_2 = new Map([...ALPHA2_TO_3.entries()].map(([alpha2, alpha3]) => [alpha3, alpha2]))
+const ALPHA3_TO_2 = new Map<string, string>([...ALPHA2_TO_3.entries()].map(([alpha2, alpha3]) => [alpha3, alpha2] as [string, string]))
 const ISO_ALPHA2 = new Set(ALPHA2_TO_3.keys())
 
 export function supportedIsoCountryCodes(): string[] { return [...ISO_ALPHA2] }
@@ -123,7 +123,7 @@ export function resolveExplicitCountryText(value: unknown, countries: CatalogIte
   const literalCode = normalizeIsoCountryCode(original)
   if (literalCode) return literalCode
 
-  const names = new Map([...namesByCode.entries()].map(([name, codes]) => [name, new Set(codes)]))
+  const names = new Map<string, Set<string>>([...namesByCode.entries()].map(([name, codes]) => [name, new Set(codes)] as [string, Set<string>]))
   for (const country of countries) {
     const code = resolveCatalogCountryCode(country)
     if (!code) continue
