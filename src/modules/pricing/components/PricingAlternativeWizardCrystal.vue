@@ -6553,6 +6553,7 @@ function setCrmClient(client: {
   countryId?: string | null
   isCastroFallasExecutive?: boolean
 } | null) {
+  if (client?.id !== resolvedCountryClientId.value) pricingQuoteOperationOverride.value = ''
   crmClientCountryId.value = client?.countryId || ''
   pricingQuoteCountryOverrideId.value = ''
   resolvedCountryClientId.value = client?.id || ''
