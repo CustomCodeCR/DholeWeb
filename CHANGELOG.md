@@ -1,3 +1,9 @@
+## [1.106.14] - 2026-11-20 (DH-20261120-PRICING-COSTS-BUILD-356 · reparar build de cargos LTL)
+
+- PATCH urgente: pricingOwnLtlPanamaCosts admite el nuevo loader de catálogo completo sin exigir un bloque Vite que ya no existe; se corrige el fallo de compilación que impidió construir el release anterior de recuperación de cargos.
+- Para LTL propio CFZ → San José, preserva la selección de las cuatro partidas reales de Costos y recargos, conserva su CostId y respeta ruta, proveedor, servicios y tramos de precio. El Incoterm no bloquea cargos contratados.
+- Web 1.106.13 → 1.106.14; System se sincroniza a 1.106.14. Sin cambios REST, SignalR ni migraciones. Compilación, CI y pruebas de staging obligatorias antes de considerar completo el release.
+
 ## [1.106.13] - 2026-11-20 (DH-20261120-PRICING-COSTS-355 · recuperación de cargos y recargos en Pricing)
 
 - PATCH: Pantalla 7 reconstruye cargos y recargos con respaldo del catálogo activo para FCL, LCL, LTL, FTL y aéreo cuando /costs/select contextual omite costos; coteja multi-POL/POE/POD, agente, naviera, modalidad y servicios sin bloquear por el Incoterm.
