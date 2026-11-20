@@ -9,6 +9,8 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace, type CrmAccountOption } from '../services/operationsApi'
 import OperationsManualCreateModal from '../components/OperationsManualCreateModal.vue'
+import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 
 const { locale } = useI18n()
 const auth = useAuthStore()
@@ -18,6 +20,7 @@ const total = ref(0)
 const rows = ref<OperationsCaseRow[]>([])
 const selected = ref<OperationsCaseDetail | null>(null)
 const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
+const selectedCaseId = computed(() => selected.value?.id || '')
 const clientName = ref('')
 const showCreate = ref(false)
 const search = ref('')
@@ -115,6 +118,28 @@ async function openCase(id: string) {
       detailError.value = cause instanceof Error ? cause.message : 'No se pudo cargar el expediente.'
   } finally { if (sequence === detailSequence) loadingDetail.value = false }
 }
+async function refreshSelected() {
+  const id = selectedCaseId.value
+  if (!id) return
+  try {
+    const [detail, work] = await Promise.all([
+      operationsApi.caseDetail(id), operationsApi.caseWorkspace(id),
+    ])
+    if (selectedCaseId.value === id) {
+      selected.value = detail
+      selectedWorkspace.value = work
+    }
+  } catch { /* Keep the current drawer visible; the next manual refresh can retry. */ }
+}
+useOperationsCaseRealtime(selectedCaseId, () => {
+  void load()
+  void refreshSelected()
+})
+useRealtimeListRefresh({
+  prefixes: ['/api/operations'],
+  refresh: load,
+  isEditing: () => showCreate.value,
+})
 function closeDrawer() {
   detailSequence++
   selected.value = null
