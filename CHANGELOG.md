@@ -1,3 +1,11 @@
+## [1.108.2] - 2026-11-20 (DH-20261120-P7-VISIBLE-369 · hotfix de pantalla 7 sin ReferenceError)
+
+- PATCH DholeWeb/DholeSystem 1.108.1 → 1.108.2. Develop y staging únicamente. Backend PricingService sin cambios.
+- Reparación en `pricingWizardScreen4CostSelectors`: la transformación Vite eliminaba `const visible` del método de merge y dejaba un `visible.has(section)` sin resolver, generando `ReferenceError: visible is not defined` tras cargar 41 cargos aplicables.
+- Normaliza ambas versiones de la condición del Catálogo/CostId antes de quitar la variable; si apareciese otra referencia, conserva su declaración o bloquea la compilación. El filtrado comercial estricto permanece en `applicableConfiguredCosts()`.
+- Agrega `tests/pricingGeneratedVisibleGuard369.test.ts` al CI de Pricing para verificar el propio código del transformador y su resultado, evitando repetir el error en una futura compilación.
+- Validación manual autenticada P6-P7 con MAERSK/WWL y 40HC, totales P8 y PDF P9 aún requiere smoke en staging.
+
 ## [1.108.1] - 2026-11-20 (DH-20261120-P7-CHARGES-368 · recuperar cargos P7 en develop)
 
 - PATCH coordinado Web/System 1.108.0 → 1.108.1; PricingService permanece sin cambios. Solo develop, sin master ni producción.

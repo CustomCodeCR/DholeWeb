@@ -21,6 +21,27 @@ function replaceRegexOnce(source: string, pattern: RegExp, replacement: string, 
   return source.replace(pattern, replacement)
 }
 
+/**
+ * Do not delete the local `visible` declaration while the generated merge
+ * function still references it. Previous source transforms changed the
+ * CostId-only guard, leaving a dangling visible.has(section) in staging.
+ */
+export function normalizeCostMergeVisibility(mergeBlock: string): string {
+  const withoutObsoleteGuard = mergeBlock.replace(
+    /if\s*\(\s*!visible\.has\(section\)\s*\|\|\s*existingCostIds\.has\(cost\.id\)(?:\s*\|\|\s*existingKeys\.has\(equivalentKey\))?\s*\)\s*return/g,
+    'if (existingCostIds.has(cost.id)) return',
+  )
+  // If future changes add another visibility check, retain the declaration
+  // instead of silently compiling a runtime ReferenceError.
+  if (/\bvisible\.has\(/.test(withoutObsoleteGuard)) {
+    if (!withoutObsoleteGuard.includes('const visible = new Set(visibleSections.value)')) {
+      throw new Error('[pricingWizardScreen4CostSelectors] unresolved visible reference in P7 cost merge')
+    }
+    return withoutObsoleteGuard
+  }
+  return withoutObsoleteGuard.replace('  const visible = new Set(visibleSections.value)\n', '')
+}
+
 function patchWizard(source: string) {
   let code = source
 
@@ -237,10 +258,6 @@ function patchWizard(source: string) {
     // edición o un borrador, agregar TODOS los ids devueltos: fijos y opcionales.
     // No volver a filtrarlos por visibleSections ni por nombre, porque eso elimina
     // cargos válidos cuando existen filas distintas con el mismo nombre comercial.
-    mergeBlock = mergeBlock.replace(
-      "  const visible = new Set(visibleSections.value)\n",
-      '',
-    )
     const existingKeysBlock = [
       "  const existingKeys = new Set(",
       "    rateLines.value.map((line) => `${normalizeCatalogValue(line.name)}|${line.costDetailType}`),",
@@ -252,10 +269,7 @@ function patchWizard(source: string) {
       "      const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`\n",
       '',
     )
-    mergeBlock = mergeBlock.replace(
-      "      if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return",
-      "      if (existingCostIds.has(cost.id)) return",
-    )
+    mergeBlock = normalizeCostMergeVisibility(mergeBlock)
     mergeBlock = mergeBlock.replace(
       "        included: includeFixed && cost.costType !== 'Optional',",
       "        included: cost.costType === 'Optional' ? shouldIncludeOptionalCost(cost) : includeFixed,",
