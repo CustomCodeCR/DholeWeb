@@ -1,0 +1,34 @@
+{
+  "releaseId": "DH-20261120-OPERATIONS-IDTRA-FORM-351",
+  "type": "MINOR",
+  "date": "2026-11-20",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "previous": "1.106.1",
+      "next": "1.107.0"
+    },
+    {
+      "component": "DholeOperationsService",
+      "previous": "0.14.0",
+      "next": "0.15.0"
+    },
+    {
+      "component": "DholeSystem",
+      "previous": "1.106.1",
+      "next": "1.107.0"
+    }
+  ],
+  "features": [
+    "Full page operations/cases/new and edit",
+    "Global IDTRA counter with admin synchronization",
+    "Structured draft and conditional validation",
+    "Multi-equipment, CRM, Config catalogs"
+  ],
+  "knownGaps": [
+    "Pricing automatic acceptance consumption pending",
+    "Historical Dynamics IDTRA floor must be synchronized by administrator"
+  ],
+  "productionAuthorized": false,
+  "stagingVerified": false
+}

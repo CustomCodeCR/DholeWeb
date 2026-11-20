@@ -1,3 +1,12 @@
+## [1.107.0] - 2026-11-20 (DH-20261120-OPERATIONS-IDTRA-FORM-351 · Apertura manual completa sin modal)
+
+- MINOR: reemplaza el modal de seis campos por una página completa de creación y edición accesible desde Trámites y desde el expediente IDTRA.
+- Captura CRM/PO/división/contactos, ruta/Incoterm, equipos múltiples, servicios, mercancía, conversiones, IMO/UN, WHS/recolecta, naviera, proveedores, fechas y notas, reutilizando Config/Pricing.
+- El campo de serie IDTRA desaparece por completo. El nuevo IDTRA se genera automáticamente con consecutivo global reconciliado con Dynamics; superadministración dispone de operación de sincronización auditada del último IDTRA real.
+- Guardar borrador incompleto y enviar a validación son acciones independientes. Sin QUO no se inventan precios ni costos. La UI redirige al único expediente en Trámites.
+- Versiones Web/System 1.106.1 → 1.107.0 y Operations 0.14.0 → 0.15.0. Integración automática Pricing aún pendiente.
+- CI y UAT staging pendientes; publicación a producción no autorizada.
+
 ## [1.106.1] - 2026-11-20 (DH-20261120-CRM-PRICING-PREFERRED-ALIAS-343 · aplicación de tarifas preferenciales por identidad de cliente y ruta)
 
 - PATCH: la caché de costos de Pantalla 7 incorpora la cuenta CRM para impedir reutilizar precios de otro cliente en alternativas con idéntica ruta.
