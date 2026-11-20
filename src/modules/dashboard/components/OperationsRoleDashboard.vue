@@ -42,6 +42,20 @@ const cards = computed(() => [
     icon: FolderOpen,
   },
   {
+    key: 'manual',
+    label: 'Aperturas manuales',
+    hint: 'Asignaciones directas registradas por Operaciones.',
+    value: data.value?.stats.manual,
+    icon: ClipboardList,
+  },
+  {
+    key: 'automatic',
+    label: 'Desde Pricing',
+    hint: 'Expedientes vinculados a una QUO aceptada por el cliente.',
+    value: data.value?.stats.automatic,
+    icon: FolderOpen,
+  },
+  {
     key: 'awaiting',
     label: t('operations.dashboard.awaiting'),
     hint: t('operations.dashboard.awaitingHint'),
@@ -148,7 +162,7 @@ onMounted(load)
       <DhButton class="mt-2" variant="secondary" size="sm" :label="t('operations.refresh')" :icon="RefreshCw" @click="load" />
     </div>
 
-    <div class="grid grid-cols-2 gap-3 xl:grid-cols-4" :aria-busy="loading">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" :aria-busy="loading">
       <DhCard v-for="card in cards" :key="card.key" padding="sm">
         <div class="flex min-w-0 items-start justify-between gap-2">
           <p class="max-w-[22ch] text-xs font-bold leading-5 text-[var(--dh-text-muted)]">
@@ -200,7 +214,7 @@ onMounted(load)
         </div>
         <RouterLink v-for="item in data.items" :key="item.id" to="/operations/apertures"
           class="grid min-w-0 gap-2 border-b border-[var(--dh-border)] px-4 py-3 last:border-0 transition-colors hover:bg-[var(--dh-input)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.85fr)] md:items-center md:gap-3">
-          <strong class="truncate text-sm font-bold text-[var(--dh-text)]">{{ item.idtra }}</strong>
+          <strong class="flex min-w-0 flex-wrap items-center gap-2 text-sm font-bold text-[var(--dh-text)]"><span class="truncate">{{ item.idtra }}</span><DhBadge :variant="item.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ item.apertureType === 'AUTOMATIC' ? 'Pricing' : 'Manual' }}</DhBadge></strong>
           <span class="text-sm text-[var(--dh-text-soft)]">{{ item.modalityCode }}</span>
           <span><DhBadge :variant="item.approvedReviews >= 2 ? 'success' : item.pendingReviews ? 'warning' : 'neutral'">{{ statusLabel(item.status) }}</DhBadge></span>
           <span class="text-sm tabular-nums text-[var(--dh-text-soft)]">{{ item.approvedReviews }} / 2</span>
