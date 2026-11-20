@@ -1,3 +1,9 @@
+## [1.104.2] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-310 · bandeja de autorizaciones para vendedor autorizado)
+
+- PATCH: José Pablo (usuario vendedor jmesen@castrofallas.com) puede consultar, aprobar o rechazar solicitudes de actualización de tarifas vencidas desde Dashboard de Ventas sin permisos de Pricing ni SuperUsuario. El mismo acceso funciona para Roy en su dashboard.
+- Contador de pendientes y refresco por SignalR; notificaciones enlazan a /home?expiredApprovals=1, disponible para ambos perfiles. El backend valida Auth por usuario y no otorga accesos comerciales adicionales a vendedores.
+- Web/System 1.104.1 → 1.104.2; Pricing 1.26.1 → 1.26.2. CI y staging antes de master.
+
 ## [1.104.1] - 2026-11-20 (DH-20261120-EXPIRED-RATE-OUTBOX-HOTFIX · versión coordinada de notificaciones de autorización)
 
 - PATCH: mantiene versión Web/System sincronizada con Pricing 1.26.1 después de corregir la longitud de la clave Outbox de solicitudes de actualización de tarifas vencidas. Sin cambio de experiencia de usuario, APIs ni componentes frontend.
