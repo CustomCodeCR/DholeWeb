@@ -1,3 +1,9 @@
+## [1.103.15] - 2026-11-19 (DH-20261119-DASHBOARD-TABLE-293 · filtros de tarjetas y clientes en seguimiento)
+
+- PATCH: las tarjetas del Dashboard de Ventas filtran localmente la tabla «Tarifas del equipo y seguimiento de ventas» y desplazan hacia la tabla; nunca navegan a Pricing al pulsar indicadores.
+- Un nuevo selector muestra solamente clientes de las tarifas autorizadas que ya cumplen filtros globales, estado y búsqueda. Deduplica nombres; el filtro funciona en todas las páginas y reinicia la paginación.
+- Pruebas de regresión de opciones de clientes, coincidencia de nombres y navegación. DholeWeb/DholeSystem 1.103.14 → 1.103.15; 15 componentes sin cambios. APIs REST y SignalR compatibles. Validación CI/staging antes de master; producción no autorizada.
+
 ## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · corrección de desempeño comercial)
 
 - PATCH: desempeño comercial = (aceptadas − vencidas) / (total cotizadas − abiertas) × 100; las rechazadas siguen incluidas en el total cotizado y las abiertas, que no se entregan al vendedor, se excluyen de la base.

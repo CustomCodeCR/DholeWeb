@@ -34,6 +34,8 @@ jobs:
         run: node --test tests/pricingRateRequestReturn.test.mjs
       - name: Commercial dashboard performance regression
         run: node --experimental-strip-types --test tests/dashboardGlobalCommercialFilters.test.ts
+      - name: Seller dashboard client selector and card drilldown regression
+        run: node --experimental-strip-types --test tests/dashboardSellerClientFilter.test.ts
       - name: CRM and SRM navigation/integration tests
         run: pnpm run test:crm
       - name: Web update dialog and build-version regression tests
