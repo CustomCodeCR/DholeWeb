@@ -37,6 +37,8 @@ const ALPHA2_TO_3 = new Map(ISO_PAIRS.map((entry) => entry.split(':') as [string
 const ALPHA3_TO_2 = new Map([...ALPHA2_TO_3.entries()].map(([alpha2, alpha3]) => [alpha3, alpha2]))
 const ISO_ALPHA2 = new Set(ALPHA2_TO_3.keys())
 
+export function supportedIsoCountryCodes(): string[] { return [...ISO_ALPHA2] }
+
 export function normalizeCountryText(value: string): string {
   return String(value ?? '').normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -85,7 +87,7 @@ const countryAliases: Record<string, string[]> = {
   US: ['United States of America', 'Estados Unidos de América', 'USA', 'EEUU', 'EE UU', 'U.S.A.'],
   GB: ['Great Britain', 'Britain', 'UK', 'Reino Unido de Gran Bretaña'],
   VN: ['Viet Nam', 'Socialist Republic of Vietnam'],
-  KR: ['South Korea', 'Republic of Korea', 'Corea del Sur', 'Corea del Sur (República de Corea)'],
+  KR: ['South Korea', 'Republic of Korea', 'Korea, Republic of', 'Corea del Sur', 'Corea del Sur (República de Corea)'],
   KP: ['North Korea', 'Democratic People\'s Republic of Korea', 'Corea del Norte'],
   CN: ['Mainland China', 'China Mainland', 'People\'s Republic of China', 'República Popular China'],
   TW: ['Taiwan, Province of China'],
