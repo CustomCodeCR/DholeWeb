@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpen, RefreshCw, Plus, ArrowUpRight, ClipboardList, Layers3 } from 'lucide-vue-next'
+import { FolderOpen, RefreshCw, Plus, ArrowUpRight } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
-import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace } from '../services/operationsApi'
+import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace, type CrmAccountOption } from '../services/operationsApi'
 import OperationsManualCreateModal from '../components/OperationsManualCreateModal.vue'
 
-const { t, locale } = useI18n()
+const { locale } = useI18n()
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
 const page = ref(1)
@@ -23,6 +23,21 @@ const showCreate = ref(false)
 const search = ref('')
 const status = ref('')
 const apertureType = ref('')
+const accountId = ref('')
+const clientSearch = ref('')
+const crmOptions = ref<CrmAccountOption[]>([])
+const fetchingClients = ref(false)
+const clientChoices = computed(() => [
+  { label: 'Todos los clientes', value: '' },
+  ...crmOptions.value.map(x => ({ label: x.displayName || x.legalName || x.id, value: x.id })),
+])
+function accountLabel(id: string) { return crmOptions.value.find(x => x.id === id)?.displayName || 'Cuenta CRM · ' + short(id) }
+async function loadClients() {
+  fetchingClients.value = true
+  try { crmOptions.value = (await operationsApi.crmAccounts(clientSearch.value)).items }
+  catch { /* CRM account lookup may not be authorized; IDTRA search remains available. */ }
+  finally { fetchingClients.value = false }
+}
 const loading = ref(false)
 const loadingDetail = ref(false)
 const error = ref('')
@@ -64,7 +79,7 @@ async function load() {
   error.value = ''
   try {
     const result = await operationsApi.cases(page.value, {
-      q: search.value, status: status.value, apertureType: apertureType.value,
+      q: search.value, status: status.value, apertureType: apertureType.value, accountId: accountId.value,
     })
     rows.value = result.items
     total.value = result.total
@@ -89,7 +104,11 @@ async function openCase(id: string) {
     selectedWorkspace.value = workspace
     try {
       const account = await crmRequest<Record<string, unknown>>(crmPath('accounts', detail.accountId))
-      if (sequence === detailSequence) clientName.value = String(account.displayName ?? account.name ?? account.legalName ?? '')
+      if (sequence === detailSequence) {
+        clientName.value = String(account.displayName ?? account.name ?? account.legalName ?? '')
+        if (clientName.value && !crmOptions.value.some(x => x.id === detail.accountId))
+          crmOptions.value.push({ id: detail.accountId, displayName: clientName.value })
+      }
     } catch { /* CRM may be outside this user's scopes; never block the IDTRA. */ }
   } catch (cause) {
     if (sequence === detailSequence)
@@ -113,12 +132,17 @@ async function changePage(next: number) {
   await load()
 }
 let filterTimer: ReturnType<typeof setTimeout> | undefined
-watch([search, status, apertureType], () => {
+watch([search, status, apertureType, accountId], () => {
   clearTimeout(filterTimer)
   filterTimer = setTimeout(() => { page.value = 1; void load() }, 250)
 })
-onMounted(load)
-onUnmounted(() => { clearTimeout(filterTimer); detailSequence++ })
+let crmTimer: ReturnType<typeof setTimeout> | undefined
+watch(clientSearch, () => {
+  clearTimeout(crmTimer)
+  crmTimer = setTimeout(() => { void loadClients() }, 250)
+})
+onMounted(() => { void load(); void loadClients() })
+onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSequence++ })
 </script>
 
 <template>
@@ -137,12 +161,16 @@ onUnmounted(() => { clearTimeout(filterTimer); detailSequence++ })
         <DhSelect v-model="apertureType" :options="typeOptions" />
         <DhSelect v-model="status" :options="statusOptions" />
       </div>
+      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(190px,250px)]">
+        <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
+        <DhSelect v-model="accountId" :options="clientChoices" :disabled="fetchingClients" />
+      </div>
       <DhDataTable :columns="columns" :rows="rows" :loading="loading" empty-text="No hay trámites para los filtros seleccionados." @row-click="openCase($event.id)">
         <template #cell-idtra="{ row }">
           <strong class="text-sm font-black text-[var(--dh-primary)]">{{ row.idtra }}</strong>
         </template>
         <template #cell-accountId="{ row }">
-          <span class="text-xs" :title="row.accountId">Cuenta CRM · {{ short(row.accountId) }}</span>
+          <span class="text-xs" :title="row.accountId">{{ accountLabel(row.accountId) }}</span>
         </template>
         <template #cell-sourceQuoteId="{ row }">
           <RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>Ver QUO</RouterLink>
