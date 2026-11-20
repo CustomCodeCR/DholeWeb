@@ -20,6 +20,11 @@ import {
   startNotificationRealtime,
   stopNotificationRealtime,
 } from '@/core/realtime/notificationRealtime'
+import {
+  startUniversalRealtime,
+  stopUniversalRealtime,
+  refreshUniversalRealtimeCredentials,
+} from '@/core/realtime/universalRealtime'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -50,6 +55,7 @@ function handleAuthExpired() {
   }
 
   void stopNotificationRealtime()
+  stopUniversalRealtime()
   authStore.clearSession()
   tabsStore.clear()
   void brandingStore.loadCurrentClientBranding()
@@ -78,6 +84,7 @@ function handleAuthRefreshed(event: Event) {
   if (isEmbedded) return
 
   void startNotificationRealtime()
+  refreshUniversalRealtimeCredentials()
 }
 
 onMounted(() => {
@@ -114,10 +121,25 @@ onMounted(() => {
 
   void brandingStore.loadCurrentClientBranding()
   void startNotificationRealtime()
+  void startUniversalRealtime()
 
   window.addEventListener('dhole:auth:expired', handleAuthExpired)
   window.addEventListener('dhole:auth:refreshed', handleAuthRefreshed)
 })
+
+// Login normally occurs after App mounts; reconnect the universal client at
+// that point rather than only on the initial page load.
+watch(() => [authStore.isAuthenticated, authStore.userId, isPublicRoute.value] as const,
+  ([authenticated, userId, publicRoute]) => {
+    if (publicRoute || isEmbedded) return
+    if (authenticated && userId) {
+      void startNotificationRealtime()
+      void startUniversalRealtime()
+    } else {
+      void stopNotificationRealtime()
+      stopUniversalRealtime()
+    }
+  })
 
 onBeforeUnmount(() => {
   uninstallNativeValidation?.()
@@ -132,7 +154,7 @@ onBeforeUnmount(() => {
 <template>
   <!-- Toasts are global feedback and must also be available on public auth screens such as /login. -->
   <DhToastContainer />
-  <DholeVersionUpdateDialog v-if="!isEmbedded" />
+  <DholeVersionUpdateDialog v-if="!isEmbedded && !isPublicRoute && authStore.isAuthenticated" />
 
   <template v-if="!isPublicRoute">
     <DhModalContainer />
