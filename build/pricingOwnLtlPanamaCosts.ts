@@ -42,10 +42,10 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
   // Prior releases queried the full catalogue only for maritime FCL.
   // DH-20261120-PRICING-COSTS-355 queries it for every shipment mode;
   // keep compatibility with both loader shapes.
-  const legacyCatalogueBranch = "      maritimeFcl\\n        ? PricingService.selectCosts({ isActive: true })"
+  const legacyCatalogueBranch = "      maritimeFcl\n        ? PricingService.selectCosts({ isActive: true })"
   if (loader.includes(legacyCatalogueBranch)) {
     loader = replaceOnce(loader, legacyCatalogueBranch,
-      "      (maritimeFcl || panamaOwnLtl)\\n        ? PricingService.selectCosts({ isActive: true })")
+      "      (maritimeFcl || panamaOwnLtl)\n        ? PricingService.selectCosts({ isActive: true })")
   } else if (!loader.includes("PricingService.selectCosts({ isActive: true })")) {
     throw new Error('[pricingOwnLtlPanamaCosts] Active catalogue query is missing.')
   }
