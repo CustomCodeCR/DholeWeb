@@ -1,3 +1,10 @@
+## [1.106.5] - 2026-11-20 (DH-20261120-MERCHANT-OPTIONAL-SCREEN6-347 · Merchant Balboa–Colón visible en Pantalla 6)
+
+- PATCH: Pantalla 6 carga el mismo catálogo opcional filtrado que Pantalla 7 antes de resolver las alternativas Merchant/Carrier. Se corrige el caso Inland de Balboa a Colon Free Zone (Merchant) disponible en Pantalla 7 pero ausente en la comparación previa.
+- Se valida la identidad de la ruta y el serial de petición antes de fusionar CostIds; cambios rápidos de POE, POD, naviera o agente no inyectan cargos de otra alternativa. La consulta de Pricing contextual y los filtros estrictos de Pantalla 7 se mantienen.
+- Se evita afirmar que no existen cargos cuando aún no termina la consulta; los errores de carga se notifican. No se modifican montos de costos, bases por contenedor ni tarifas preferenciales, y Merchant/Carrier sigue siendo excluyente.
+- Prueba regresiva de sincronización entre Pantallas 6 y 7, solicitud obsoleta y contexto cambiado. DholeWeb/DholeSystem 1.106.4 → 1.106.5; 15 servicios restantes sin cambio de binario. REST/SignalR sin modificación. CI requerido antes de merges, staging antes de master.
+
 ## [1.106.4] - 2026-11-20 (DH-20261120-PRICING-MERCHANT-HAULAGE-346 · Merchant Haulage FCL por Balboa y destinos seleccionados)
 
 - PATCH: Pantalla 6 identifica como transporte Merchant/Naviera costos Inland Fixed, Variable u Optional, no sólo cargos opcionales; admite Balboa → San José y mantiene coincidencia estricta de ruta, servicios e Incoterm según Pricing.
