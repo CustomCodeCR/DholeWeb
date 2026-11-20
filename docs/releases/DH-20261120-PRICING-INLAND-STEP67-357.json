@@ -17,8 +17,8 @@
     {
       "name": "DholePricingService",
       "repository": "CustomCodeCR/DholePricingService",
-      "fromVersion": "pending-current-version",
-      "toVersion": "pending-coordinated-bump",
+      "fromVersion": "1.26.7",
+      "toVersion": "1.26.8",
       "branch": "fix/DH-20261120-PRICING-INLAND-STEP67-357"
     }
   ],
