@@ -1,3 +1,9 @@
+## [1.106.16] - 2026-11-20 (DH-20261120-PRICING-INLAND-QA-358 · pruebas del inland 6→7)
+
+- PATCH: ajusta la prueba automatizada de paridad Merchant/Carrier para que simule el guardado del borrador ahora obligatorio al elegir inland en Pantalla 6. Sin cambio adicional al contrato REST/SignalR ni a los precios aplicados.
+- Release de control de calidad posterior a DholeWeb 1.106.15; DholeSystem 1.106.16, DholePricingService permanece en 1.26.8.
+- Se exige CI verde y prueba de navegación en staging antes de cualquier promoción a master. Producción no autorizada.
+
 ## [1.106.15] - 2026-11-20 (DH-20261120-PRICING-INLAND-STEP67-357 · cargos e inland pantallas 6 → 7)
 
 - PATCH: los cargos Optional verificados en Pantalla 6 se trasladan por CostId al catálogo de Pantalla 7 antes de reconstruir RateLines, sin recargar el navegador ni traer los de otra POE/naviera.
