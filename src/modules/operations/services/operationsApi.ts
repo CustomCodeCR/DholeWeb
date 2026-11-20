@@ -191,6 +191,7 @@ export interface ApertureDraft {
   observations: string | null
   equipment: ApertureEquipmentLine[]
   serviceCodes: string[]
+  operationalContactIds?: string[]
 }
 export interface ApertureCompleteness {
   details: ApertureDraft
@@ -297,10 +298,17 @@ export const operationsApi = {
       { lastIssuedIdtra, reference }),
   apertureDetails: (id: string) => request<ApertureCompleteness>(
     `/api/operations/cases/${id}/aperture-details`),
-  updateApertureDetails: (id: string, expectedVersion: number, details: ApertureDraft) =>
+  updateApertureDetails: (id: string, expectedVersion: number, details: ApertureDraft,
+    metadata: {
+      modalityCode: string
+      originCountryCode: string | null
+      destinationCountryCode: string | null
+      priority: number
+      complexityPoints: number
+    }) =>
     request<{ id: string; version: number; missingBlocking: string[] }>(
       `/api/operations/cases/${id}/aperture-details`, 'PUT',
-      { expectedVersion, details }),
+      { expectedVersion, details, ...metadata }),
   submitAperture: (id: string, expectedVersion: number) =>
     request<{ id: string; status: string; version: number }>(
       `/api/operations/cases/${id}/submit-aperture`, 'POST', { expectedVersion }),
