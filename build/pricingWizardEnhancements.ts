@@ -203,11 +203,11 @@ export function pricingWizardEnhancements(): Plugin {
       const resetReplacement = `  availableRates.value = []\n  rateLines.value = []\n  lclSelectedSourceKey.value = ''\n  lclRequestedCbm.value = 1\n  lclSelectedSource.value = null\n  draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }\n  draftCommercialTermsInitialized.value = false\n  supportEntityId.value = crypto.randomUUID()`
       const guardedResetAnchor = resetAnchor.replace(
         '  supportEntityId.value = crypto.randomUUID()',
-        "  lastIncotermRateLinesContextKey.value = ''\\n  lastIncotermRateLinesRouteKey.value = ''\\n  supportEntityId.value = crypto.randomUUID()",
+        "  lastIncotermRateLinesContextKey.value = ''\n  lastIncotermRateLinesRouteKey.value = ''\n  supportEntityId.value = crypto.randomUUID()",
       )
       const guardedResetReplacement = resetReplacement.replace(
         '  lclSelectedSourceKey.value =',
-        "  lastIncotermRateLinesContextKey.value = ''\\n  lastIncotermRateLinesRouteKey.value = ''\\n  lclSelectedSourceKey.value =",
+        "  lastIncotermRateLinesContextKey.value = ''\n  lastIncotermRateLinesRouteKey.value = ''\n  lclSelectedSourceKey.value =",
       )
       if (code.includes(guardedResetAnchor)) {
         code = replaceOne(code, guardedResetAnchor, guardedResetReplacement, 'LCL wizard reset with Incoterm state')
@@ -217,7 +217,61 @@ export function pricingWizardEnhancements(): Plugin {
 
       const incotermWatchAnchor = "watch(\n  () => selectedIncotermCode.value,\n  (code) => {\n    nearestPortRecommendations.value = []\n    if (code !== 'FCA') form.warehouseId = ''\n    if (code !== 'EXW') {\n      pickupLocations.value = []\n      pickupCargoCondition.value = ''\n      editingPickupIndex.value = null\n    }\n    if (code !== 'EXW' && code !== 'FCA') {\n      form.pickupAddress = ''\n      form.pickupLatitude = null\n      form.pickupLongitude = null\n    }\n  },\n)\n\nwatch(\n  () => form.warehouseId,\n  () => {\n    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()\n  },\n)"
       const incotermWatchReplacement = "watch(\n  () => selectedIncotermCode.value,\n  (code) => {\n    nearestPortRecommendations.value = []\n    draftCommercialTermsInitialized.value = false\n    lclSelectedSource.value = null\n    lclSelectedSourceKey.value = ''\n    if (code === 'FOB') {\n      pickupLocations.value = []\n      pickupCargoCondition.value = ''\n      editingPickupIndex.value = null\n      void applyAutomaticFobWarehouse()\n      return\n    }\n    if (code !== 'FCA') form.warehouseId = ''\n    if (code !== 'EXW') {\n      pickupLocations.value = []\n      pickupCargoCondition.value = ''\n      editingPickupIndex.value = null\n    }\n    if (code !== 'EXW' && code !== 'FCA') {\n      form.pickupAddress = ''\n      form.pickupLatitude = null\n      form.pickupLongitude = null\n    }\n  },\n)\n\nwatch(\n  () => form.originId,\n  () => {\n    draftCommercialTermsInitialized.value = false\n    lclSelectedSource.value = null\n    lclSelectedSourceKey.value = ''\n    if (selectedIncotermCode.value === 'FOB') void applyAutomaticFobWarehouse()\n  },\n)\n\nwatch(\n  () => form.destinationId,\n  () => {\n    lclSelectedSource.value = null\n    lclSelectedSourceKey.value = ''\n  },\n)\n\nwatch(\n  () => form.warehouseId,\n  () => {\n    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()\n  },\n)"
-      code = replaceOne(code, incotermWatchAnchor, incotermWatchReplacement, 'route and Incoterm source reset watchers')
+      const nonDestructiveWatchAnchor = `watch(
+  () => selectedIncotermCode.value,
+  () => {
+    // Incoterm changes must not silently erase an EXW pickup or FCA warehouse.
+    // The payload already sends them only for their applicable term; retaining
+    // the draft lets users switch back without re-entering locations.
+    nearestPortRecommendations.value = []
+  },
+)
+
+watch(
+  () => form.warehouseId,
+  () => {
+    if (selectedIncotermCode.value === 'FCA') void applySelectedWarehouse()
+  },
+)`
+      const nonDestructiveWatchReplacement = nonDestructiveWatchAnchor
+        .replace(
+          '    nearestPortRecommendations.value = []',
+          `    nearestPortRecommendations.value = []
+    draftCommercialTermsInitialized.value = false
+    lclSelectedSource.value = null
+    lclSelectedSourceKey.value = ''
+    if (selectedIncotermCode.value === 'FOB') void applyAutomaticFobWarehouse()`,
+        )
+        .replace(
+          'watch(\n  () => form.warehouseId,',
+          `watch(
+  () => form.originId,
+  () => {
+    draftCommercialTermsInitialized.value = false
+    lclSelectedSource.value = null
+    lclSelectedSourceKey.value = ''
+    if (selectedIncotermCode.value === 'FOB') void applyAutomaticFobWarehouse()
+  },
+)
+
+watch(
+  () => form.destinationId,
+  () => {
+    lclSelectedSource.value = null
+    lclSelectedSourceKey.value = ''
+  },
+)
+
+watch(
+  () => form.warehouseId,`,
+        )
+      if (code.includes(nonDestructiveWatchAnchor)) {
+        code = replaceOne(code, nonDestructiveWatchAnchor, nonDestructiveWatchReplacement,
+          'LCL route reset without erasing EXW/FCA draft')
+      } else {
+        code = replaceOne(code, incotermWatchAnchor, incotermWatchReplacement,
+          'route and Incoterm source reset watchers')
+      }
 
       // The rate-edit wizard also recalculates cargo insurance when entering Screen 7.
       // Preserve that watcher body rather than relying on only its older exact shape.
