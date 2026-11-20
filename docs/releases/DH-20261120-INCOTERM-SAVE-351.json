@@ -1,0 +1,10 @@
+{
+  "releaseId": "DH-20261120-INCOTERM-SAVE-351",
+  "ecosystemVersion": "1.106.8",
+  "date": "2026-11-20",
+  "scope": ["DholeWeb", "DholeSystem"],
+  "changes": ["Fix wizard save ReferenceError from stale Vite transform", "Preserve explicitly selected international freight for import FOB and other Incoterms", "Test freight reconciliation for selected and absent transport service"],
+  "versions": {"DholeWeb":{"from":"1.106.7","to":"1.106.8"},"DholeSystem":{"from":"1.106.7","to":"1.106.8"},"DholePricingService":{"unchanged":"1.26.4"}},
+  "validation": {"tests": "GitHub Actions pending", "staging": "pending", "production": "pending"},
+  "restSignalRCompatibility": "unchanged"
+}
