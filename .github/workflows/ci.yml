@@ -59,8 +59,8 @@ jobs:
         run: node --test tests/pricingSellerCancelQuote.test.mjs
       - name: Pricing seller return flow regression
         run: node --test tests/pricingRateRequestReturn.test.mjs
-      - name: Commercial dashboard performance regression
-        run: node --experimental-strip-types --test tests/dashboardGlobalCommercialFilters.test.ts
+      - name: Commercial dashboard performance and seller parity regressions
+        run: node --experimental-strip-types --test tests/dashboardGlobalCommercialFilters.test.ts tests/sellerDashboardPortfolioParity.test.ts
       - name: Seller dashboard client selector and card drilldown regression
         run: node --experimental-strip-types --test tests/dashboardSellerClientFilter.test.ts
       - name: CRM and SRM navigation/integration tests

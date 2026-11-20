@@ -1,3 +1,9 @@
+## [1.103.18] - 2026-11-19 (DH-20261119-SELLER-DASHBOARD-PARITY-295 · equivalencia de dashboards vendedor/supervisión)
+
+- PATCH: al seleccionar vendedor en supervisión, consulta /seller-rates/dashboard?sellerUserId y reutiliza exactamente la proyección personal publicada (manuales/directas, recibos, vinculadas y alternativas), evitando recorte por RateRequest. Cambios de selección invalidan cifras previas y respeta fechas por vendedor.
+- Mantiene el guard de master de decisiones sobre cotizaciones aún no publicadas y no suplanta identidad del vendedor. La fórmula comercial permanece (aceptadas−vencidas)/(cotizadas−abiertas)×100, incluidas rechazadas en la base.
+- Web/System 1.103.17→1.103.18, Pricing 1.25.3→1.25.4. Conserva resto del ecosistema, sin migraciones ni cambios SignalR. CI/staging antes de master.
+
 ## [1.103.17] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · guardar TIERED_SALE sin 409)
 
 - PATCH: CRM 1.42.3 habilita TIERED_SALE en PostgreSQL; Web elimina duplicados y conserva pendientes tras fallos parciales, sin reenviar ítems ya persistidos.
