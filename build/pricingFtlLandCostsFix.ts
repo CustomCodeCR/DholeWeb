@@ -115,6 +115,9 @@ function currentCostContextKey() {
     costContextAgentId(),
     costContextImportRateId(),
     [...form.serviceIds].sort().join(','),
+    // Price overrides depend on CRM account identity as well as route.
+    form.crmClientKind,
+    form.clientId,
   ].join('|')
 }
 
