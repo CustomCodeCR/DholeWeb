@@ -1,3 +1,9 @@
+## [1.103.9] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-PROMOTION-285 · edición de seguimientos y recordatorios en producción)
+
+- PATCH: incorpora en master el editor validado en staging de seguimientos y recordatorios. Modifica asunto, tipo, responsable, fechas, invitados y avisos con borradores recuperables y actualización segura sin duplicados.
+- Conserva los cambios existentes de master 1.103.8; DholeWeb/DholeSystem 1.103.8 → 1.103.9 y DholeCRMService 1.42.0 → 1.42.1. Los mensajes pendientes se reprograman a través del outbox y se conserva SignalR.
+- Promoción mediante rama intermedia y CI aprobada; no modifica main.
+
 ## [1.103.8] - 2026-11-19 (DH-20261119-PRICING-LTL-DDP-FREIGHT-284 · promoción selectiva DDP/LTL a master)
 
 - PATCH Web/System 1.103.7→1.103.8 coordinado con DholePricingService 1.25.1→1.25.2. El backend ahora acepta flete internacional cotizado DDP para LTL/FTL por CBM/camión sin exigir distribución FCL.
