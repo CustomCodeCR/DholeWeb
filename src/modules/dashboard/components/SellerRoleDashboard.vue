@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import SellerGuideButton from '@/modules/pricing/components/SellerGuideButton.vue'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLocale } from '@/core/stores/locale'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
@@ -13,6 +13,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
+import { filterSellerRatesByClient, sellerClientOptions } from '../utils/sellerClientTableFilter'
 import { commercialPerformancePercent, isInDashboardDateRange } from '../utils/commercialDashboardMetrics'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
@@ -142,6 +143,8 @@ type SellerCommercialStatus = 'Open' | 'Sent' | 'AcceptedByClient' | 'RejectedBy
 type SellerStatusFilter = 'All' | SellerCommercialStatus
 const search = ref('')
 const statusFilter = ref<SellerStatusFilter>('All')
+const selectedClient = ref('')
+const ratesSection = ref<HTMLElement | null>(null)
 const currentPage = ref(1)
 const pageSize = 10
 
@@ -266,7 +269,10 @@ function rateOrderTime(rate: RateDto) {
   return Number.isFinite(validFrom) ? validFrom : 0
 }
 
-const filteredRates = computed(() => myRates.value
+// Primero aplicar la perspectiva comercial y el estado/búsqueda de la tabla.
+// Las opciones de cliente se construyen solo a partir de estas mismas filas,
+// nunca del directorio CRM completo ni de tarifas fuera de permisos/filtros.
+const ratesForClientOptions = computed(() => myRates.value
   .filter((rate) => statusFilter.value === 'All' || commercialStatus(rate) === statusFilter.value)
   .filter((rate) => {
     const term = cleanSearch(search.value)
@@ -276,7 +282,10 @@ const filteredRates = computed(() => myRates.value
       rate.polName, rate.poeName, rate.podName, rate.shipmentMode,
       rate.containerTypeName, rate.executiveName,
     ].filter(Boolean).join(' ')).includes(term)
-  })
+  }),
+)
+const clientOptions = computed(() => sellerClientOptions(ratesForClientOptions.value))
+const filteredRates = computed(() => filterSellerRatesByClient(ratesForClientOptions.value, selectedClient.value)
   .sort((a, b) => rateOrderTime(b) - rateOrderTime(a)),
 )
 
@@ -285,14 +294,19 @@ const pagedRates = computed(() => filteredRates.value.slice(
   (currentPage.value - 1) * pageSize,
   currentPage.value * pageSize,
 ))
-watch([search, statusFilter, () => props.filterSeller, () => props.filterMode, () => props.filterFrom, () => props.filterTo], () => { currentPage.value = 1 })
+watch([search, statusFilter, selectedClient, () => props.adminPreview], () => { currentPage.value = 1 })
+watch(clientOptions, (options) => {
+  if (selectedClient.value && !options.some(option => option.value === selectedClient.value)) {
+    selectedClient.value = ''
+  }
+})
 
-// Misma navegación que el dashboard de Pricing: abre la página Tarifas con el estado seleccionado.
-function openStatusRates(filter: SellerStatusFilter) {
-  void router.push({
-    name: 'pricing-rates',
-    ...(filter === 'All' ? {} : { query: { status: filter } }),
-  })
+// Mantener al usuario en Dashboard, activar el filtro y llevarlo a la tabla.
+async function selectStatusCard(filter: SellerStatusFilter) {
+  statusFilter.value = filter
+  currentPage.value = 1
+  await nextTick()
+  ratesSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function currencyOf(rate: RateDto) {
@@ -747,8 +761,8 @@ onBeforeUnmount(() => {
           type="button"
           class="group min-w-0 rounded-[20px] border bg-[var(--dh-card)] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--dh-primary)]"
           :class="statusFilter === card.filter ? 'border-[var(--dh-primary)] shadow-md' : 'border-[var(--dh-border)]'"
-          :aria-label="`Ver ${card.label.toLowerCase()} en Tarifas`"
-          @click="openStatusRates(card.filter)"
+          :aria-label="`Filtrar ${card.label.toLowerCase()} en el seguimiento de ventas`"
+          @click="selectStatusCard(card.filter)"
         >
           <div class="flex items-center justify-between gap-2">
             <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.1)] text-[var(--dh-primary)]">
@@ -854,7 +868,7 @@ onBeforeUnmount(() => {
         </article>
       </section>
 
-      <section data-seller-guide="rates" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+      <section ref="ratesSection" data-seller-guide="rates" class="scroll-mt-36 overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
         <div class="flex flex-col gap-3 border-b border-[var(--dh-border)] p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 class="font-black text-[var(--dh-text)]">{{ props.adminPreview ? 'Tarifas del equipo y seguimiento de ventas' : 'Mis tarifas y seguimiento de ventas' }}</h3>
@@ -873,6 +887,15 @@ onBeforeUnmount(() => {
                 class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] py-2.5 pl-9 pr-3 text-sm text-[var(--dh-text)] outline-none focus:border-[var(--dh-primary)]"
               />
             </div>
+            <select
+              v-model="selectedClient"
+              aria-label="Filtrar tarifas por cliente"
+              :disabled="!clientOptions.length"
+              class="min-w-0 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm text-[var(--dh-text)] sm:max-w-64"
+            >
+              <option value="">Todos los clientes</option>
+              <option v-for="client in clientOptions" :key="client.value" :value="client.value">{{ client.label }}</option>
+            </select>
             <select
               v-model="statusFilter"
               aria-label="Filtrar mis tarifas por estado"
