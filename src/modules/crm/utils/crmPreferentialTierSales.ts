@@ -1,5 +1,5 @@
 import type { CostSelectDto } from '@/core/interfaces/pricing'
-import { readCostPricingRules, type CostPricingRule } from '@/modules/pricing/utils/pricingCostRules'
+import { readCostPricingRules, type CostPricingRule } from '../../pricing/utils/pricingCostRules'
 
 // The customer agreement stores tier conditions + sale, never a supplier cost.
 type TierSale = Pick<CostPricingRule, 'dimension' | 'minValue' | 'maxValue' | 'containerTypeId' | 'saleAmount'> & {
