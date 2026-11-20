@@ -1,3 +1,9 @@
+## [1.107.0] - 2026-11-20 (DH-20261120-INCOTERMS-2020-STAGING-352 · Incoterms® 2020 en staging)
+
+- MINOR: guía de los 11 Incoterms en creación y edición de Pricing, transferencia de riesgo y costos separados, seguros CIF/CIP, descarga DPU, tributos DDP y modalidad marítima exclusiva.
+- Las cinco etapas de costos quedan disponibles con cualquier Incoterm para servicios pactados; los cargos de terminal y gastos extraordinarios requieren revisión según lugar/contrato. El reparto habitual se muestra como sugerencia.
+- Pruebas para los 11 términos, excepciones y ambos asistentes. Web 1.106.8 → 1.107.0; Pricing 1.26.4 → 1.27.0; objetivo global 1.107.0. Release únicamente develop, sin cambios a master, REST/SignalR compatibles. CI y staging pendientes.
+
 ## [1.106.8] - 2026-11-20 (DH-20261120-INCOTERM-SAVE-351 · Guardado de importaciones FOB y flete contratado)
 
 - PATCH: El transformador de Vite deja de utilizar la referencia eliminada `freightNotRequiredByIncoterm`, que producía un ReferenceError y bloqueaba el guardado de tarifas antes de enviar el PUT a Pricing.
