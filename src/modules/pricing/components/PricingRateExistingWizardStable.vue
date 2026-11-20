@@ -3896,7 +3896,8 @@ async function saveRate() {
     ) return
     serviceCodes.add(code)
   })
-  if (!incotermBuyerPaysMainTransport(incoterm!.code)) serviceCodes.delete('INT_TRANSPORT')
+  // Preserve selected international transportation: payer responsibility under
+  // an Incoterm must not silently remove a contracted transport service.
   if (includedLines.value.some((line) => line.costDetailType === 'Insurance'))
     serviceCodes.add('CARGO_INSURANCE')
   else

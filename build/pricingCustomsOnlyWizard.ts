@@ -72,28 +72,9 @@ function patchWizard(source: string): string {
     'const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))'
   code = replaceRequired(code, serviceAnchor, serviceAnchor + [
     '',
-    '// The Incoterm defines *which party* pays, not whether a freight leg exists.',
-    '// A DDP export is paid by the exporter; an EXW import is paid by the importer.',
-    '// Do not reference operationType here: this computed is read by early setup watchers',
-    '// before the later operationType computed has been initialized (Vue TDZ).',
-    'const freightNotRequiredByIncoterm = computed(() => {',
-    "  const raw = [selectedIncotermCode.value, selectedIncoterm.value?.code, displayValue(selectedIncoterm.value)].filter(Boolean).join(' ')",
-    "  const match = raw.match(/(^|[^a-z])(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)(?=[^a-z]|$)/i)",
-    '  if (!match) return false',
-    '  const origin = selectedOrigin.value',
-    '  const destination = selectedPod.value ?? selectedDestination.value',
-    '  // Until the route is hydrated, never strip existing freight from a draft.',
-    '  if (!origin || !destination) return false',
-    '  const perspective = operationForClientCountry(',
-    '    resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries),',
-    '    resolvePodCountryCode(origin, catalogs.countries),',
-    '    resolvePodCountryCode(destination, catalogs.countries),',
-    '  )',
-    '  // Do not hide or erase freight while the CRM customer/route is unresolved.',
-    '  if (!perspective) return false',
-    '  return !incotermClientPaysMainTransport(perspective, match[2].toUpperCase())',
-    '})',
-    'const hasInternationalTransportService = computed(() => !freightNotRequiredByIncoterm.value && (',
+    '// Incoterms define who is responsible for freight; they do not prohibit',
+    '// quoting an explicitly selected International Transport service.',
+    'const hasInternationalTransportService = computed(() => (',
     "  // Service catalogs can load after a seller request is hydrated. Avoid deleting",
     "  // a request's freight while its selected service IDs are temporarily unresolved.",
     '  (!catalogs.services.length && form.serviceIds.length > 0)',
@@ -302,7 +283,7 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     'async function saveManualOceanFreight() {\n  if (savingManualOceanFreight.value) return',
-    "async function saveManualOceanFreight() {\n  if (!hasInternationalTransportService.value) {\n    toastStore.warning('Flete incluido en el Incoterm', 'No se debe crear un flete marítimo adicional para esta operación.')\n    return\n  }\n  if (savingManualOceanFreight.value) return",
+    "async function saveManualOceanFreight() {\n  if (!hasInternationalTransportService.value) {\n    toastStore.warning('Transporte no seleccionado', 'Seleccione Transporte Internacional entre los servicios antes de agregar un flete marítimo.')\n    return\n  }\n  if (savingManualOceanFreight.value) return",
     'prevent no-freight manual ocean rate creation',
   )
 
@@ -344,7 +325,7 @@ function patchWizard(source: string): string {
   six = guardManualOceanFreightCards(six)
   six = six.replace(
     "{{ multiCarrierSelectionMode ? 'Configure el agente, moneda, costo y venta del flete para cada alternativa. Use «Siguiente naviera» para recorrerlas.' : 'Los selects muestran el Value configurado en Config.' }}",
-    "{{ !hasInternationalTransportService ? 'El flete marítimo ya está cubierto por el Incoterm. Seleccione agente, naviera y moneda para los cargos de destino.' : multiCarrierSelectionMode ? 'Configure el agente, moneda, costo y venta del flete para cada alternativa. Use «Siguiente naviera» para recorrerlas.' : 'Los selects muestran el Value configurado en Config.' }}",
+    "{{ !hasInternationalTransportService ? 'Esta cotización no incluye transporte internacional. Seleccione agente, naviera y moneda para los cargos contratados.' : multiCarrierSelectionMode ? 'Configure el agente, moneda, costo y venta del flete para cada alternativa. Use «Siguiente naviera» para recorrerlas.' : 'Los selects muestran el Value configurado en Config.' }}",
   )
   // Screen 5 is skipped when there is no international freight. Do not lock
   // the carrier to an unavailable selection from that hidden step.

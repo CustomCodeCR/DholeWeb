@@ -12,37 +12,36 @@ test('customs-only wizard registers commercial watch after computed service is i
     'do not insert watch into the earlier draft ref initialization')
 })
 
-test('freight selection follows the quoted party, not an unconditional CFR-through-DDP exclusion', () => {
+test('international freight selection depends on the contracted service across Incoterms', () => {
   const plugin = readFileSync(new URL('../build/pricingCustomsOnlyWizard.ts', import.meta.url), 'utf8')
-  for (const incoterm of ['CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']) {
-    assert.ok(plugin.includes(incoterm), incoterm + ' must be recognized by the commercial responsibility rule')
-  }
-  assert.ok(plugin.includes("!incotermClientPaysMainTransport(perspective, match[2].toUpperCase())"),
-    'commercial freight follows exporter/importer perspective rather than excluding DDP exports')
-  assert.ok(plugin.includes('!freightNotRequiredByIncoterm.value && ('),
-    'service selection still considers the correctly computed Incoterm responsibility')
-  assert.ok(plugin.includes("  const destination = selectedPod.value ?? selectedDestination.value"),
-    'the destination country determines the direction of an international operation')
+  assert.ok(plugin.includes('Incoterms define who is responsible for freight'),
+    'the selected quoted service, not the Incoterm, controls whether freight is billable')
+  assert.ok(!plugin.includes('freightNotRequiredByIncoterm'),
+    'a seller-paid Incoterm must never silently clear an explicitly quoted freight line')
+  assert.ok(plugin.includes("'const hasInternationalTransportService = computed(() => ('"),
+    'the service selection determines whether freight appears in the wizard')
+  assert.ok(plugin.includes("selectedServices.value.some((item) => {"),
+    'resolve the International Transport service by catalog selection')
   assert.ok(plugin.includes("form.selectedImportRateId = ''"),
-    'a no-freight operation must not retain a selected imported tariff')
+    'a quote without transport service must not retain an imported ocean freight tariff')
   assert.ok(plugin.includes("'    form.freightCost = 0'"),
-    'freight cost must reset only when the operation has no contracted freight')
+    'freight cost resets only when International Transport is not selected')
   assert.ok(plugin.includes("'    form.freightSale = 0'"),
-    'freight sale must reset only when the operation has no contracted freight')
+    'freight sale resets only when International Transport is not selected')
   assert.ok(plugin.includes("'  if (!hasInternationalTransportService.value && step.value === 5) step.value = 6'"),
-    'Tarifas (step 5) must be skipped')
+    'Tarifas (step 5) is skipped only for customs-only quotes')
   assert.ok(plugin.includes("(hasInternationalTransportService.value || line.costDetailType !== 'Freight')"),
-    'submitted detail lines must omit freight only when there is no contracted freight')
+    'preserve freight when the quoted service is selected')
   assert.ok(plugin.includes("&& shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))"),
-    'screen 8 must include selectable insurance and obey pickup rules on other charges')
+    'other charges still follow their selection and pickup conditions')
   assert.ok(plugin.includes("rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight')"),
-    'the step 7 watcher must retain destination charges')
+    'only quotes without transport service drop freight when leaving step 7')
   assert.ok(plugin.includes("if (lines[i]?.costDetailType === 'Freight') lines.splice(i, 1)"),
-    'the rebuild must preserve ancillary destination charges')
+    'catalog rebuild only removes freight for service-free quotes')
   assert.ok(!plugin.includes("!isInternationalTransportTerm(line.name)"),
-    'Manejos, Release, HBL, Carrusel, Marchamo and Inland must not be removed by name')
+    'other selected charges must not be removed by keyword')
   assert.ok(!plugin.includes("line.section !== 'international_freight'"),
-    'agent and document charges must not be removed solely by their section')
+    'agent and documentation charges remain selectable')
 })
 
 test('land delivery transit stays visible, is not reset and persists without freight', () => {
