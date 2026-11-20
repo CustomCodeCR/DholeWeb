@@ -256,6 +256,27 @@ function dholeChooseHaulage(mode: DholeHaulageChoice) {
   rememberCurrentCarrierDraft()
 }
 
+// Pantalla 7 already has a separate, route-validated Optional catalog lookup.
+// Load those SAME Optional CostIds before comparing Merchant/Carrier in Pantalla 6;
+// otherwise a valid Balboa -> CFZ Inland can appear only after advancing.
+async function dholeMergeScreen7OptionalCostsForComparison(
+  requestedContext: string,
+  requestVersion: number,
+) {
+  const optionalCosts = await loadAllApplicableOptionalCosts()
+  if (step.value !== 6 || currentCostContextKey() !== requestedContext
+    || requestVersion !== dholeHaulageRequestVersion) return false
+
+  const byId = new Map(costs.value.map((cost) => [cost.id, cost]))
+  for (const cost of optionalCosts) {
+    // loadAllApplicableOptionalCosts applies the same route, ports, agent,
+    // carrier, services, Incoterm and terminal filters as Pantalla 7.
+    byId.set(cost.id, { ...cost, __dholePricingContextKey: requestedContext })
+  }
+  costs.value = [...byId.values()]
+  return true
+}
+
 // Re-read Costos y recargos whenever the selected route, naviera or agent changes.
 // The same context revisited keeps the user's manual preference if still valid.
 watch(
@@ -275,12 +296,17 @@ watch(
     // it had been restored, right before entering step 7.
 
     try {
-      await loadApplicableCosts()
+      const loaded = await loadApplicableCosts()
       if (
-        requestVersion !== dholeHaulageRequestVersion
+        !loaded
+        || requestVersion !== dholeHaulageRequestVersion
         || step.value !== 6
         || currentCostContextKey() !== requestedContext
       ) return
+
+      // Do not compute "no Merchant available" from the incomplete contextual
+      // result: the Screen 7 selector may have additional valid Optional costs.
+      if (!await dholeMergeScreen7OptionalCostsForComparison(requestedContext, requestVersion)) return
 
       dholeHaulageLoadedContext.value = requestedContext
       const merchant = dholeMerchantAvailable.value
@@ -297,6 +323,11 @@ watch(
         form.carrierHaulage = mode === 'carrier'
       }
       syncHaulageOptionalLines()
+    } catch (error) {
+      if (requestVersion === dholeHaulageRequestVersion && step.value === 6
+        && currentCostContextKey() === requestedContext) {
+        toastStore.backendError(error, 'No se pudieron consultar las alternativas de transporte Merchant/Naviera.')
+      }
     } finally {
       if (requestVersion === dholeHaulageRequestVersion) {
         dholeHaulagePending.value = false
