@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261119-CRM-FOLLOWUP-EDIT-PROMOTION-286",
+  "sourceReleaseId": "DH-20261119-CRM-FOLLOWUP-EDIT-281",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "previousVersion": "1.103.9",
+  "version": "1.103.10",
+  "ecosystemVersion": "1.103.10",
+  "candidateBranch": "release/DH-20261119-CRM-FOLLOWUP-EDIT-286-master",
+  "affectedComponents": [
+    "DholeWeb",
+    "DholeSystem",
+    "DholeCRMService"
+  ],
+  "stagingEvidence": {
+    "web": "https://github.com/CustomCodeCR/DholeWeb/actions/runs/44631800014",
+    "crm": "https://github.com/CustomCodeCR/DholeCRMService/actions/runs/44631744897"
+  },
+  "status": "production-candidate"
+}
