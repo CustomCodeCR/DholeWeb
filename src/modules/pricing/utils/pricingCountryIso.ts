@@ -224,12 +224,13 @@ export function resolveLocationCountryCode(
   const uniqueLabelCountries = new Set(explicitLabelCountries)
   const labelCode = uniqueLabelCountries.size === 1 ? [...uniqueLabelCountries][0]! : ''
 
-  // Country prefix is valid for a genuine five-character UN/LOCODE, never a
-  // fabricated identifier such as POL-2026-003. Prefer explicit country labels.
+  // Prefer explicit country labels over an unverified five-character code.
+  // Legacy IDs like DEST2 or SDSAL are not reliable evidence of a UN/LOCODE.
+  // With no registry/provenance available, only alphabetic prefixes are a safe
+  // conservative fallback; numeric LOCODEs require Config country metadata.
   const portCode = String(location.code ?? '').trim().toUpperCase()
-  const unlocode = /^[A-Z]{2}[A-Z0-9]{3}$/.test(portCode)
+  const unlocode = /^[A-Z]{5}$/.test(portCode)
     ? normalizeIsoCountryCode(portCode.slice(0, 2)) : ''
-  if (uniqueLabelCountries.size > 1) return '' // conflicting explicit labels need correction
-  if (labelCode && unlocode && labelCode !== unlocode) return '' // conflicting data needs correction
+  if (uniqueLabelCountries.size > 1) return '' // conflicting explicit labels
   return labelCode || unlocode
 }
