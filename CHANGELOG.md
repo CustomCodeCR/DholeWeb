@@ -1,3 +1,9 @@
+## [1.103.11] - 2026-11-19 (DH-20261119-CRM-INVITATIONS-SAVE-290 · CRM: guardado de invitados)
+
+- PATCH: versión coordinada con DholeSystem 1.103.11 y DholeCRMService 1.42.2; conserva los selectores de invitados y payload participantUserIds de la agenda.
+- El backend valida los invitados contra Auth y persiste invitaciones y avisos de forma individual, sin cambios incompatibles de REST ni SignalR.
+- CI, staging y aprobación explícita de despliegue productivo requeridos antes de merge a master.
+
 ## [1.103.10] - 2026-11-19 (DH-20261119-CRM-FOLLOWUP-EDIT-PROMOTION-286 · editor CRM de seguimientos)
 
 - PATCH: promueve desde staging el editor integral de seguimientos y recordatorios. Permite editar asunto, tipo, fechas, responsable, invitados y avisos sin crear duplicados, con recuperación de borradores y control de concurrencia.

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-CRM-INVITATIONS-SAVE-290",
+  "kind": "patch",
+  "ecosystemVersion": "1.103.11",
+  "summary": "CRM activity invitee save production candidate",
+  "previousVersion": "1.103.10",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.10",
+      "version": "1.103.11"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.10",
+      "version": "1.103.11"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previousVersion": "1.42.1",
+      "version": "1.42.2"
+    }
+  ],
+  "branch": "release/DH-20261119-CRM-INVITEES-SAVE-290-master",
+  "checks": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
