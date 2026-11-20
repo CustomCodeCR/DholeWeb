@@ -177,6 +177,10 @@ export const operationsApi = {
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),
+  updateOriginStatus: (id: string, statusCode: string, expectedVersion: number) =>
+    request<{ statusCode: string; version: number }>(
+      `/api/operations/cases/${id}/origin/progress`,
+      'POST', { statusCode, expectedVersion }),
   caseInternalNotes: (id: string) => request<OperationsInternalNote[]>(
     `/api/operations/cases/${id}/internal-notes`),
   addCaseInternalNote: (id: string, body: string) =>
