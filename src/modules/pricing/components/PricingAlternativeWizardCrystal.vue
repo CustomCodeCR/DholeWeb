@@ -2286,16 +2286,13 @@ const orderedRateGroups = computed(() => [
   { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
 ].filter((group) => group.key !== 'agent' || group.lines.length > 0))
 
-const providerAgentCosts = computed(() => {
-  const seen = new Set<string>()
-  return applicableConfiguredCosts().filter((cost) => {
-    if (cost.costDetailType !== 'AgentCharge' || cost.costType === 'Optional') return false
-    const key = normalizeCatalogValue(cost.name)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-})
+const providerAgentCosts = computed(() =>
+  // A distinct CostId is a distinct configured supplier charge, even when
+  // different suppliers use the same commercial label ("Manejos"/"Release").
+  applicableConfiguredCosts().filter((cost) =>
+    cost.costDetailType === 'AgentCharge' && cost.costType !== 'Optional',
+  ),
+)
 const providerAgentCost = computed(() =>
   providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.costAmount), 0),
 )
@@ -3543,7 +3540,9 @@ function rebuildRateLines() {
     const section = sectionForCost(cost)
     if (!visible.has(section)) return
     if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
-    if (hasEquivalent(cost.name, cost.costDetailType)) return
+    // Two genuinely different CostIds can share a name; do not merge their
+    // cost/sale amounts solely by commercial label.
+    if (lines.some(line => line.costId === cost.id)) return
     lines.push({
       key: `cost:${cost.id}`,
       section,
@@ -3833,18 +3832,14 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   const existingCostIds = new Set(
     rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
   )
-  const existingKeys = new Set(
-    rateLines.value.map((line) => `${normalizeCatalogValue(line.name)}|${line.costDetailType}`),
-  )
-
   applicableConfiguredCosts()
     .filter((cost) => includeFixed ? cost.costDetailType !== 'Freight' : cost.costType === 'Optional')
     .forEach((cost) => {
       const resolvedAmount = resolvedConditionalCost(cost)
       if (!resolvedAmount) return
       const section = sectionForCost(cost)
-      const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
-      if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return
+      // A distinct configured charge is identified by CostId, not display name.
+      if (!visible.has(section) || existingCostIds.has(cost.id)) return
 
       rateLines.value.push({
         key: `cost:${cost.id}`,
