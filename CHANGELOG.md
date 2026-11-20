@@ -1,3 +1,9 @@
+## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítems manuales)
+
+- PATCH selectivo 1.103.18→1.103.20: Vue 3 v-model en campos numéricos entrega number y manual.amount.trim() lanzaba TypeError antes del try/catch, impidiendo el POST.
+- Admite importes number/string mediante validador probado; formulario novalidate para mostrar errores y confirmar altas manuales. Mantiene las mejoras existentes del Dashboard y Pricing.
+- Pruebas automáticas; Sin modificaciones de CRM, REST, SignalR ni infraestructura. Versionado Web/System coordinado. CI/staging previo a master.
+
 ## [1.103.18] - 2026-11-19 (DH-20261119-SELLER-DASHBOARD-PARITY-295 · equivalencia de dashboards vendedor/supervisión)
 
 - PATCH: al seleccionar vendedor en supervisión, consulta /seller-rates/dashboard?sellerUserId y reutiliza exactamente la proyección personal publicada (manuales/directas, recibos, vinculadas y alternativas), evitando recorte por RateRequest. Cambios de selección invalidan cifras previas y respeta fechas por vendedor.
