@@ -4684,6 +4684,8 @@ async function hydrateExistingRate() {
     form.manualRate = !rate.sourceImportFclRateId
     form.clientName = rate.clientName ?? ''
     form.executiveName = rate.executiveName ?? ''
+    // Hydration must not clear the persisted operation in the client-change watcher.
+    resolvedCountryClientId.value = rate.clientAccountId ?? rate.clientLeadId ?? ''
     form.clientId = rate.clientAccountId ?? rate.clientLeadId ?? ''
     form.crmClientKind = rate.clientLeadId ? 'lead' : rate.clientAccountId ? 'account' : ''
     form.idtraNumber = rate.idtraNumber ?? ''
@@ -6551,9 +6553,9 @@ function setCrmClient(client: {
   countryId?: string | null
   isCastroFallasExecutive?: boolean
 } | null) {
+  if (client?.id !== resolvedCountryClientId.value) pricingQuoteOperationOverride.value = ''
   crmClientCountryId.value = client?.countryId || ''
   pricingQuoteCountryOverrideId.value = ''
-  pricingQuoteOperationOverride.value = ''
   resolvedCountryClientId.value = client?.id || ''
   form.crmClientKind = client?.kind || ''
   form.clientId = client?.id || ''
