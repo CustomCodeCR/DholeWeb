@@ -155,7 +155,7 @@ export const operationsApi = {
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
     companyId: string; accountId: string; seriesCode: string; modalityCode: string;
-    executiveUserId: string; priority: number; complexityPoints: number
+    priority: number; complexityPoints: number
   }) => request<{ id: string; idtra: string; status: string }>(
     '/api/operations/cases', 'POST', body),
   validations: (caseId: string) =>
