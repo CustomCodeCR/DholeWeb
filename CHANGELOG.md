@@ -1,3 +1,9 @@
+## [1.103.22] - 2026-11-20 (DH-20261120-CRM-INVITEE-SYNC-309 · persistencia de invitados de actividades y acuerdos CRM)
+
+- PATCH: confirma los invitados en CRM mediante lectura tras guardar y conserva las selecciones incluso fuera de la primera página del directorio de Auth.
+- Coordina con backend CRM 1.42.6 que propaga invitados posteriores a compromisos pendientes; preserva outbox, SignalR, permisos y REST.
+- Web/System 1.103.20 → 1.103.22. Se respetan los releases concurrentes anteriores y CI/staging; producción expresamente autorizada para master.
+
 ## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítems manuales)
 
 - PATCH selectivo 1.103.18→1.103.20: Vue 3 v-model en campos numéricos entrega number y manual.amount.trim() lanzaba TypeError antes del try/catch, impidiendo el POST.
