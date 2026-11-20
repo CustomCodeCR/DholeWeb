@@ -39,6 +39,23 @@ test('CRM country UUID resolves against Config country metadata', () => {
   assert.equal(resolveCrmCountryCode('cr-uuid', countries), 'CR')
 })
 
+test('an explicitly supplied CRM ISO country does not require a Config UUID', () => {
+  assert.equal(resolveCrmCountryCode('cr', []), 'CR')
+  assert.equal(resolveCrmCountryCode('vn', []), 'VN')
+  assert.equal(resolveCrmCountryCode('not-a-country', []), '')
+})
+
+test('the wizard lets users supply a missing CRM country before validating step three', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const step3 = wizard.indexOf('El cliente se selecciona desde cuentas o prospectos del CRM.')
+  const step5 = wizard.indexOf('Pantalla 5</p>')
+  assert.ok(step3 > 0 && step5 > step3)
+  const screen3Markup = wizard.slice(step3, step5)
+  assert.match(screen3Markup, /v-model="pricingQuoteCountryOverrideId"/)
+  assert.match(screen3Markup, /label="País del cliente para esta cotización \*"/)
+  assert.match(wizard, /step\.value = 3\s+toastStore\.warning\('País necesario para guardar'/)
+})
+
 test('wizard and freight guard share the CRM-derived operation', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const plugin = readFileSync(new URL('../build/pricingCustomsOnlyWizard.ts', import.meta.url), 'utf8')
