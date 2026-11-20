@@ -60,6 +60,8 @@ test('selects exactly one matching catalog cost for each concept, never a Balboa
   assert.deepEqual([...selected.keys()].sort(), [...LTL_PANAMA_REQUIRED_KINDS].sort())
   assert.equal(selected.get('bunker')?.id, 'b')
   assert.equal(selected.get('freight')?.id, 'e')
+  assert.equal(selectLtlPanamaCosts([input[7]!], { incotermId: 'exw' }).get('bunker')?.id, 'h',
+    'a configured cost is still quotable under another Incoterm')
 })
 
 test('land freight tiers apply once to the TOTAL shipment weight, including the boundary', () => {
