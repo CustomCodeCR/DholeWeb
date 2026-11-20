@@ -1,3 +1,8 @@
+## [1.104.1] - 2026-11-20 (DH-20261120-EXPIRED-RATE-OUTBOX-HOTFIX · versión coordinada de notificaciones de autorización)
+
+- PATCH: mantiene versión Web/System sincronizada con Pricing 1.26.1 después de corregir la longitud de la clave Outbox de solicitudes de actualización de tarifas vencidas. Sin cambio de experiencia de usuario, APIs ni componentes frontend.
+- DholeWeb/DholeSystem 1.104.0 → 1.104.1, Pricing 1.26.0 → 1.26.1. Requiere CI y staging.
+
 ## [1.104.0] - 2026-11-20 (DH-20261120-EXPIRED-RATE-APPROVAL-301 · autorización de actualización de tarifas vencidas)
 
 - MINOR: permite solicitar la revisión de una tarifa vencida indicando el motivo obligatorio (mínimo 15 caracteres). La edición permanece bloqueada hasta la aprobación de Roy o José Pablo y muestra el historial de decisiones.
