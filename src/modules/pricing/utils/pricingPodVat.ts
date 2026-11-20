@@ -1,5 +1,5 @@
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
-import { catalogMetadata, resolveCatalogCountryCode, resolveLocationCountryCode } from './pricingCountryIso'
+import { catalogMetadata, resolveCatalogCountryCode, resolveLocationCountryCode } from './pricingCountryIso.ts'
 
 type VatCatalogMetadata = {
   countryCode?: string
