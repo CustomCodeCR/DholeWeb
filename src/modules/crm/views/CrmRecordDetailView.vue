@@ -245,6 +245,8 @@ const agendaContactName = ref('')
 const agendaOpportunityName = ref('')
 const agendaNotes = ref<CrmRow[]>([])
 const agendaCommitments = ref<CrmRow[]>([])
+const agendaFollowupInvitedIds = ref<string[]>([])
+const agendaFollowupInviteesFailed = ref(false)
 const commitmentSaving = ref('')
 const canCompleteCommitments = computed(() =>
   can('crm.task.manage') || can('crm.followup.manage') ||
@@ -294,8 +296,14 @@ const agendaFields = computed(() => {
       ['Ubicación', String(item.locationText || 'No especificada')],
     )
   }
-  if (!activity) fields.push(['Finalización del seguimiento', item.startAt
-    ? agendaDate(item.dueAt) : 'Sin fecha final (registro anterior)'])
+  if (!activity) {
+    fields.push(['Finalización del seguimiento', item.startAt
+      ? agendaDate(item.dueAt) : 'Sin fecha final (registro anterior)'])
+    fields.push(['Usuarios invitados', agendaFollowupInviteesFailed.value
+      ? 'No se pudieron consultar los invitados'
+      : agendaFollowupInvitedIds.value.length === 0
+        ? 'Sin invitados' : agendaFollowupInvitedIds.value.length + ' invitados guardados'])
+  }
   if (item.opportunityId) fields.push(['Oportunidad', agendaOpportunityName.value || 'Oportunidad vinculada'])
   fields.push(
     ['Notificar por', agendaLabel(item.reminderChannelStrategy || 'BOTH', 'channel')],
@@ -322,6 +330,8 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
   agendaOpportunityName.value = ''
   agendaNotes.value = []
   agendaCommitments.value = []
+  agendaFollowupInvitedIds.value = []
+  agendaFollowupInviteesFailed.value = false
   agendaParent.value = null
   agendaDetailsWarning.value = ''
   if (resource !== 'activities' && resource !== 'followups') return
@@ -351,8 +361,11 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
   const parentRequest = resource === 'followups'
     ? crmRequest<AgendaParent>(crmPath('followups', String(item.id), 'parent-activity'))
     : Promise.resolve(null)
+  const inviteesRequest = resource === 'followups'
+    ? crmRequest<Array<{ userId: string }>>(crmPath('followups', String(item.id), 'invitees'))
+    : Promise.resolve([])
   const results = await Promise.allSettled([
-    labelRequest, contactRequest, opportunityRequest, noteRequest, commitmentsRequest, parentRequest,
+    labelRequest, contactRequest, opportunityRequest, noteRequest, commitmentsRequest, parentRequest, inviteesRequest,
   ])
   if (generation !== agendaDetailsGeneration) return
   if (results[0]?.status === 'fulfilled')
@@ -364,9 +377,14 @@ async function loadAgendaDetails(item: CrmRow, resource: string) {
   if (results[3]?.status === 'fulfilled') agendaNotes.value = results[3].value as CrmRow[]
   if (results[4]?.status === 'fulfilled') agendaCommitments.value = results[4].value as CrmRow[]
   if (results[5]?.status === 'fulfilled') agendaParent.value = results[5].value as AgendaParent | null
+  if (resource === 'followups') {
+    agendaFollowupInviteesFailed.value = results[6]?.status === 'rejected'
+    if (results[6]?.status === 'fulfilled')
+      agendaFollowupInvitedIds.value = (results[6].value as Array<{ userId: string }>).map(x => x.userId)
+  }
   if (results[0]?.status === 'rejected' ||
       (resource === 'activities' && (results[3]?.status === 'rejected' || results[4]?.status === 'rejected')) ||
-      (resource === 'followups' && results[5]?.status === 'rejected'))
+      (resource === 'followups' && (results[5]?.status === 'rejected' || results[6]?.status === 'rejected')))
     agendaDetailsWarning.value = 'Algunos datos vinculados no pudieron cargarse. Actualizá para volver a consultarlos.'
 }
 
