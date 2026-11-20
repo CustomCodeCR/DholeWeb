@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-CRM-AGREEMENT-INVITEES-295",
+  "kind": "patch",
+  "ecosystemVersion": "1.103.17",
+  "summary": "Safe persisted followup guests and membership inheritance",
+  "previousVersion": "1.103.15",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.15",
+      "version": "1.103.17"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.15",
+      "version": "1.103.17"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previousVersion": "1.42.3",
+      "version": "1.42.4"
+    }
+  ],
+  "branch": "release/DH-20261120-CRM-AGREEMENT-INVITEES-295-master",
+  "checks": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
