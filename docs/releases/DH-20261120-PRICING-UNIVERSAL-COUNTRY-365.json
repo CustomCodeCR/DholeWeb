@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-UNIVERSAL-COUNTRY-365",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.107.4",
+  "releaseType": "PATCH",
+  "scope": [
+    "DholeWeb",
+    "DholeSystem"
+  ],
+  "affectedComponents": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "from": "1.107.3",
+      "to": "1.107.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "from": "1.107.3",
+      "to": "1.107.4",
+      "scope": "central-manifest"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "unchanged": "1.26.9"
+    }
+  ],
+  "changes": [
+    "Universal 249 ISO 3166-1 country/territory mapping (alpha-2/alpha-3, recognized ISO UNLOCODE, localized names es/en/pt/fr) shared by Pricing POL/POE/POD and CRM country",
+    "No guess from an opaque Config identifier or city name alone; configured countryId and explicit metadata take precedence",
+    "Commercial import/export remains derived from client country relative to real physical route, with manual override for unresolved/ambiguous countries",
+    "VAT based on POD, Incoterm freight ownership and existing REST/SignalR contracts unchanged"
+  ],
+  "tests": [
+    "tests/pricingGlobalCountryResolution.test.ts",
+    "tests/pricingPodVat.test.ts",
+    "tests/pricingClientCountryOperation.test.ts",
+    "pnpm run test:pricing-rate-update",
+    "pnpm run build",
+    "Dhole semantic version gate",
+    "authenticated staging Pricing route matrix"
+  ],
+  "schemaMigration": false,
+  "realtime": "unchanged: REST, SignalR and Redis Streams remain compatible",
+  "productionDeploymentAuthorized": false,
+  "ci": "pending",
+  "staging": "pending",
+  "rollback": "Revert synchronized Web/System release 1.107.4, confirm previous 1.107.3 behavior and rates."
+}
