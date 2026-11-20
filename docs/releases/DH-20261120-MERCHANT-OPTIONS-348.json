@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-MERCHANT-OPTIONS-348",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.6",
+  "releaseType": "PATCH",
+  "changes": [
+    "Use route-scoped Screen7 optional CostIds directly when comparing Merchant and Carrier on Screen6, rather than running a second band-price eligibility filter",
+    "Keep validated screen7 optional options in a route/keyed cache against concurrent carrier/context refresh",
+    "Continue offering Optional Merchant if independent contextual endpoint fails, and reject outdated option lookups"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.106.5",
+      "version": "1.106.6"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.106.5",
+      "version": "1.106.6"
+    }
+  ],
+  "otherComponentVersions": "15 unchanged entries listed in DholeSystem release-manifest.json",
+  "regressionTests": [
+    "tests/pricingMerchantScreen6OptionalParity20261120.test.ts",
+    "tests/pricingMerchantFixedHaulage20261120.test.ts"
+  ],
+  "realtime": "Existing SignalR architecture unchanged, realtime deployment not authorized",
+  "schemaMigration": false,
+  "ci": "pending",
+  "staging": "pending",
+  "productionDeploymentAuthorized": false
+}
