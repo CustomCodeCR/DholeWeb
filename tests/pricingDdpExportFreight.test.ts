@@ -35,5 +35,8 @@ test('freight inputs, pricing lines, and quote persistence use the same selected
   assert.match(customsTransform, /form\.freightSale = 0/)
   assert.match(customsTransform, /hasInternationalTransportService\.value \|\| line\.costDetailType !== 'Freight'/)
   assert.match(customsTransform, /hasInternationalTransportService\.value \? 5 : 6/)
-  assert.match(wizard, /incotermClientPaysMainTransport\(operationType\.value, selectedIncotermCode\.value\)/)
+  assert.doesNotMatch(wizard, /serviceCodes\.delete\('INT_TRANSPORT'\)/,
+    'explicitly contracted international transport must survive every Incoterm')
+  assert.doesNotMatch(wizard, /incotermClientPaysMainTransport\(operationType\.value, selectedIncotermCode\.value\)/,
+    'LCL restoration must not drop freight because of payer perspective')
 })
