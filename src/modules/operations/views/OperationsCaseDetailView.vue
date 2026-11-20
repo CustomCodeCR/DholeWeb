@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Pencil, Save, FolderOpen, ClipboardList,
-  FileText, LockKeyhole, MessageSquareText, Plus,
+  FileText, LockKeyhole, MessageSquareText, Plus, Layers3,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
@@ -18,6 +18,7 @@ import {
   type OperationsOpeningEdit,
 } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
+import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -281,6 +282,11 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             </div>
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
           </DhCard>
+          <OperationsApertureValidationPanel
+            v-if="record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS'"
+            :case-id="record.id"
+            @updated="load"
+          />
           <DhCard title="Pendientes del expediente">
             <div v-for="task in workspace.tasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
               <p class="font-bold">{{ task.title }}</p><p class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(task.status) }} · {{ dateLabel(task.dueAtUtc) }}</p>
