@@ -1,3 +1,13 @@
+## [1.104.1] - 2026-11-20 (DH-20261120-EXPIRED-RATE-OUTBOX-HOTFIX · correlación segura en avisos de jefatura)
+
+- PATCH coordinado tras la autorización para tarifas vencidas: limita la clave de correlación de las notificaciones a 100 caracteres; conserva entrega duradera System/SignalR y Email a Roy/José Pablo.
+- Web/System 1.104.0 → 1.104.1; Pricing 1.26.0 → 1.26.1.
+
+## [1.104.0] - 2026-11-20 (DH-20261120-EXPIRED-RATE-APPROVAL-301 · autorización de tarifas vencidas)
+
+- MINOR: solicita justificación obligatoria y aprobación de Roy o José Pablo antes de actualizar una tarifa vencida; historial, control server-side y avisos por SignalR/correo, con bandeja de aprobación.
+- Web/System 1.103.23 → 1.104.0 y Pricing 1.25.4 → 1.26.0, 14 componentes sin cambios. Validación CI y staging antes de master.
+
 ## [1.103.23] - 2026-11-20 (DH-20261120-PRICING-CLIENT-COUNTRY-298 · país CRM y POL Vietnam en FCL)
 
 - PATCH: al cotizar rutas FCL, permite seleccionar el país real del cliente en pantalla 3 si CRM no lo proporciona, sin editar CRM. Evita el bloqueo circular de campo requerido antes de pantalla 5.
