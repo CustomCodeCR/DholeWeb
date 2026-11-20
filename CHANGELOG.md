@@ -1,3 +1,8 @@
+## [1.104.2] - 2026-11-20 (DH-20261120-PRICING-COUNTRY-OPTIONS-310 · reparación del wizard en blanco)
+
+- PATCH: el selector de países obtiene opciones del catálogo Config reactivo, sin acceso a computed pricingQuoteCountryOptions inexistente tras transformaciones de Vite. Evita el TypeError al abrir Crear tarifa.
+- Regresión de ambas pantallas y bundle minificado. Web/System 1.104.1→1.104.2; otros 15 componentes sin cambios. Backend, REST y SignalR sin cambios.
+
 ## [1.104.1] - 2026-11-20 (DH-20261120-EXPIRED-RATE-OUTBOX-HOTFIX · versión coordinada de notificaciones de autorización)
 
 - PATCH: mantiene versión Web/System sincronizada con Pricing 1.26.1 después de corregir la longitud de la clave Outbox de solicitudes de actualización de tarifas vencidas. Sin cambio de experiencia de usuario, APIs ni componentes frontend.
