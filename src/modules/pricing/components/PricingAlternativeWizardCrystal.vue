@@ -51,7 +51,7 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
-import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
+import { crmPath as customerBenefitCrmPath, crmRequest as customerBenefitCrmRequest } from '@/modules/crm/services/crmApi'
 import { customerPreferentialAmounts, customerManualPreferentialRates,
   type CustomerPreferentialRate } from '@/modules/pricing/utils/pricingPreferentialBenefits'
 import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
@@ -3377,8 +3377,8 @@ async function loadCustomerPreferentialRates(): Promise<void> {
   customerPreferentialError.value = ''
   if (!accountId) return
   try {
-    const response = await crmRequest<{ rates: CustomerPreferentialRate[] }>(
-      crmPath('accounts', accountId, 'commercial-benefits'),
+    const response = await customerBenefitCrmRequest<{ rates: CustomerPreferentialRate[] }>(
+      customerBenefitCrmPath('accounts', accountId, 'commercial-benefits'),
     )
     if (request !== customerPreferentialRequest || accountId !== form.clientId) return
     customerPreferentialRates.value = Array.isArray(response.rates) ? response.rates : []
