@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-INCOTERM-IMPORT-350",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.7",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "previousVersion": "1.106.6",
+  "version": "1.106.7",
+  "affectedComponents": [
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "previousVersion": "1.26.3",
+      "version": "1.26.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.106.6",
+      "version": "1.106.7"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.106.6",
+      "version": "1.106.7"
+    }
+  ],
+  "changes": [
+    "Resolve CN POL and CR POD with opaque Config port IDs",
+    "Normalize all 11 ICC Incoterms from config codes and names",
+    "Use import/export buyer/seller responsibility with explicit contracted transport preserved"
+  ],
+  "regressionTests": [
+    "pricingClientCountryOperation.test.ts",
+    "pricingPodVat.test.ts",
+    "pricingMultiStopIncoterms.test.ts"
+  ],
+  "schemaMigration": false,
+  "realtime": "unchanged, existing SignalR and REST are retained",
+  "ci": "pending",
+  "staging": "pending",
+  "productionDeploymentAuthorized": false
+}

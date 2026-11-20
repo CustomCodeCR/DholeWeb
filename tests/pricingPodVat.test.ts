@@ -98,3 +98,15 @@ test('Both pricing wizards offer the IVA checkbox on every rate line and recalcu
     assert.doesNotMatch(source, /v-if="canApplyDestinationTax\(line\)" class="crystal-line-vat"/)
   }
 })
+
+test('China origin with an opaque Config port ID resolves ISO CN for import direction', () => {
+  const origin = item('POL-2026-003', 'Shanghai, China')
+  const originLocode = item('CNSHA', 'Shanghai')
+  const invalidMeta = item('POL-2026-011', 'Ningbo, China', { countryCode: 'CHINA' })
+  const destination = item('POD-2026-012', 'San José, Costa Rica')
+  assert.equal(resolvePodCountryCode(origin, countries), 'CN')
+  assert.equal(resolvePodCountryCode(originLocode, countries), 'CN')
+  assert.equal(resolvePodCountryCode(invalidMeta, countries), 'CN')
+  assert.equal(resolvePodCountryCode(destination, countries), 'CR')
+  assert.equal(resolvePodCountryCode(item('POL-2026-999', 'Shanghai'), countries), '')
+})

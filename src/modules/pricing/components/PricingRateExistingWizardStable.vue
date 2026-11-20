@@ -64,7 +64,8 @@ import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { linkedAcceptedQuoteNumber } from '@/modules/pricing/utils/pricingLinkedAcceptedQuote'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
-import { resolveDestinationVatRate, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
+import { resolveDestinationVatRate, resolvePodCountryCode, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
+import { incotermClientSections, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
   calculateCargoInsurance,
@@ -72,7 +73,6 @@ import {
   cargoInsuranceNote,
   commercialTermKey,
   incotermBuyerPaysMainTransport,
-  incotermRateSections,
   resolveCommercialTerms,
 } from '@/modules/pricing/services/pricingCommercialRules'
 
@@ -1196,11 +1196,12 @@ const lclCargoLines = computed(() => shipmentModeForApi.value === 'Lcl' && lclCh
   : [])
 
 const direction = computed(() => {
-  if (!selectedOrigin.value || !selectedDestination.value) return ''
-  const originCr = isCostaRica(selectedOrigin.value)
-  const destinationCr = isCostaRica(selectedDestination.value)
-  if (originCr && !destinationCr) return 'Exportación'
-  if (!originCr && destinationCr) return 'Importación'
+  const origin = resolvePodCountryCode(selectedOrigin.value, catalogs.countries)
+  const destination = resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries)
+  if (!origin || !destination) return ''
+  if (origin === destination) return 'Tránsito / doméstico'
+  if (destination === 'CR') return 'Importación'
+  if (origin === 'CR') return 'Exportación'
   return 'Tránsito / doméstico'
 })
 const operationType = computed<RateOperationType>(() => {
@@ -1268,7 +1269,9 @@ function enforceLineCurrency(_line: RateLine) {
 
 const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
-  return incotermRateSections(selectedIncoterm.value?.code, configured) as RateSection[]
+  return incotermClientSections(operationType.value,
+    normalizeIncotermCode(selectedIncoterm.value?.code, displayValue(selectedIncoterm.value)),
+    configured) as RateSection[]
 })
 
 const visibleSections = computed<RateSection[]>(() => {

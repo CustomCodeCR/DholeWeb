@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolveCrmCountryCode, operationForClientCountry } from '../src/modules/pricing/utils/pricingClientCountryOperation.ts'
-import { incotermClientPaysMainTransport } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
+import { incotermClientPaysMainTransport, incotermClientSections, normalizeIncotermCode } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
 
 test('client located in Honduras sees a Costa Rica to Honduras route as an import', () => {
   assert.equal(operationForClientCountry('HN', 'CR', 'HN'), 'Import')
@@ -158,4 +158,23 @@ test('reselecting the own manual LTL source retains previously entered freight a
   assert.match(plugin, /form\.freightCost = previousCost/)
   assert.match(plugin, /form\.freightSale = previousSale/)
   assert.match(plugin, /form\.transitDays = previousTransitDays/)
+})
+
+test('China to Costa Rica is an import from the Costa Rican client perspective for all ICC terms', () => {
+  const operation = operationForClientCountry('CR', 'CN', 'CR')
+  assert.equal(operation, 'Import')
+  for (const [code, mainTransport] of [
+    ['EXW', true], ['FCA', true], ['FAS', true], ['FOB', true],
+    ['CFR', false], ['CIF', false], ['CPT', false], ['CIP', false],
+    ['DAP', false], ['DPU', false], ['DDP', false],
+  ] as const) {
+    const normalized = normalizeIncotermCode('INC-2026-005', `${code} - Config Catalog`)
+    assert.equal(normalized, code)
+    assert.equal(incotermClientPaysMainTransport(operation!, normalized), mainTransport)
+  }
+  assert.deepEqual(incotermClientSections('Import', 'CIF'), ['destination_charges', 'delivery_destination'])
+  assert.deepEqual(incotermClientSections('Export', 'CIF'),
+    ['pickup_origin', 'origin_charges', 'international_freight'])
+  assert.equal(normalizeIncotermCode('INC-2026-005', 'CIFRA Freight'), 'INC-2026-005')
+  assert.equal(operationForClientCountry('CN', 'CN', 'CR'), 'Export')
 })
