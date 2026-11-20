@@ -1,3 +1,11 @@
+## [1.106.4] - 2026-11-20 (DH-20261120-PRICING-MERCHANT-HAULAGE-346 · recuperar Merchant Haulage configurado para rutas FCL)
+
+- PATCH: Pantalla 6 reconoce transporte en destino Merchant/Carrier también cuando el Inland de Costos y recargos es Fixed o Variable, no solamente Optional. Se respeta la coincidencia de POE Balboa, POD seleccionado, modalidad, Incoterm, naviera/agente y servicios resuelta por Pricing.
+- Inland sin naviera explícita se presenta como Merchant, y el vinculado a naviera como Carrier. Cargos fijos comunes (p. ej. Cargos en destino Línea Naviera) no se reclasifican ni desaparecen de las dos alternativas.
+- Al elegir Merchant o Carrier se incluye exclusivamente el transporte seleccionado en Pantalla 7. Los costos fijos de transporte no se vuelven a sumar como costo compartido; cada línea mantiene su CostId, base por contenedor y monto configurado.
+- Pruebas de regresión: Merchant fijo Balboa→San José, Carrier fijo, costos comunes, restricciones de ruta, condiciones explícitas y cambio de alternativa. Web/System 1.106.3 → 1.106.4; 15 componentes restantes sin cambios binarios.
+- Compatible con APIs REST y la infraestructura SignalR existente. CI y staging pendientes; no hay autorización de producción.
+
 ## [1.106.3] - 2026-11-20 (DH-20261120-PRICING-IMPORT-COSTS-345 · costos de importación según contexto real)
 
 - PATCH: los costos devueltos por `/api/pricing/costs/select` para el contexto FCL (POL, POE, POD, naviera, agente, servicios e Incoterm) son autoritativos; se evita una segunda exclusión en Web basada en IDs legados de puertos únicos.
