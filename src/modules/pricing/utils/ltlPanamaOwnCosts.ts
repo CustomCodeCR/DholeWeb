@@ -66,8 +66,8 @@ function sourceMatchesRoute(cost: CostSelectDto) {
 function activeLtlCost(cost: CostSelectDto, ctx: LtlPanamaCostContext): boolean {
   if (cost.isActive === false || !ltlPanamaCostKind(cost.name)) return false
   const modes = cost.shipmentModes?.length ? cost.shipmentModes : cost.shipmentMode ? [cost.shipmentMode] : []
-  if (modes.length && !modes.some((mode) => String(mode).toLowerCase() === 'ltl')) return false
-  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === ctx.incotermId)) return false
+  if (modes.length && !modes.some((mode) => ['ltl', 'any'].includes(String(mode).toLowerCase()))) return false
+  // Incoterm is advisory during the temporary commercial cost unblock.
   if (cost.services?.length && !cost.services.some((item) => ctx.serviceIds?.includes(item.id))) return false
   return sourceMatchesRoute(cost)
 }
@@ -78,7 +78,7 @@ function specificity(cost: CostSelectDto) {
   return (origins.some(isLtlCfzLocation) ? 8 : 0)
     + (destinations.some((s) => /\bsan jose\b/.test(s)) ? 4 : 0)
     + (cost.shipmentModes?.includes('Ltl') || cost.shipmentMode === 'Ltl' ? 2 : 0)
-    + (cost.incoterms?.length ? 1 : 0)
+
 }
 
 /** A single cost per commercial concept; no duplicated fixed charges. */
