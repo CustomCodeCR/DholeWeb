@@ -1,3 +1,9 @@
+## [1.104.5] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-324 · aplicar tarifas preferenciales CRM en Pricing)
+
+- PATCH: al generar una nueva cotización para una cuenta CRM, Pantalla 7 obtiene los acuerdos vigentes de esa cuenta y sustituye solamente el importe de venta en los cargos que coinciden: CostId/rubro, modalidad, equipo, POL, POE, POD, naviera, Incoterm y servicios.
+- Respeta opción más específica, rangos de venta, cargos manuales y descuentos; conserva costos, IVA y cotizaciones existentes. Ante fallo de CRM impide guardar cotización estándar silenciosa y permite reintentar.
+- Coordinado con CRM 1.42.8 y DholeSystem 1.104.5. CI/staging pendientes antes de master.
+
 ## [1.104.4] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-312 · aprobación desde el dashboard vendedor)
 
 - PATCH: Roy y José Pablo, este último vendedor sin rol Pricing o SuperUsuario, ven la bandeja de autorizaciones para tarifas vencidas desde Inicio y pueden aprobar o rechazar de manera segura.
