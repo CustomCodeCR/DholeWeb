@@ -6,6 +6,7 @@ import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
 import { CRM_WORKSPACE_SCOPES, PRICING_SCOPES, VIEW_SCOPES } from '@/core/auth/scopes'
 import { i18n } from '@/core/i18n'
 import { crmEnabled } from '@/modules/crm/services/crmApi'
+import { hasCrmCalendarAdministratorRole } from '@/modules/crm/model/crmCalendarAdministrator'
 import { translateUiText } from '@/core/i18n/uiTextBridge'
 
 declare module 'vue-router' {
@@ -17,6 +18,7 @@ declare module 'vue-router' {
     closable?: boolean
     requiredScope?: string
     requiredAnyScopes?: string[]
+    calendarAdministratorAccess?: boolean
     requiredAllScopes?: string[]
     requiredRole?: string
     crmSection?: string
@@ -104,6 +106,13 @@ export const router = createRouter({
             requiredScope: 'operations.case.read' },
         },
         {
+          path: 'operations/cases/:id',
+          name: 'operations-case-detail',
+          component: () => import('@/modules/operations/views/OperationsCaseDetailView.vue'),
+          meta: { tabTitle: 'Expediente IDTRA', closable: true,
+            requiredScope: 'operations.case.read' },
+        },
+        {
           path: 'operations/teams',
           name: 'operations-teams',
           component: () => import('@/modules/operations/views/OperationsTeamsView.vue'),
@@ -113,7 +122,7 @@ export const router = createRouter({
         {
           path: 'operations/apertures',
           name: 'operations-apertures',
-          component: () => import('@/modules/operations/views/OperationsAperturesView.vue'),
+          redirect: { name: 'operations-cases' },
           meta: { tabTitleKey: 'operations.apertures', closable: true,
             requiredScope: 'operations.case.read' },
         },
@@ -181,25 +190,25 @@ export const router = createRouter({
           path: 'crm/activities',
           name: 'crm-activities',
           component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
         },
         {
           path: 'crm/activities/:id',
           name: 'crm-activities-detail',
           component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
-          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
+          meta: { tabTitleKey: 'crm.nav.activities', closable: true, crmSection: 'activities', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.activity.read', 'crm.activity.read-all'] },
         },
         {
           path: 'crm/followups',
           name: 'crm-followups',
           component: () => import('@/modules/crm/views/CrmWorkspaceView.vue'),
-          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
         },
         {
           path: 'crm/followups/:id',
           name: 'crm-followups-detail',
           component: () => import('@/modules/crm/views/CrmRecordDetailView.vue'),
-          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
+          meta: { tabTitleKey: 'crm.nav.followups', closable: true, crmSection: 'followups', calendarAdministratorAccess: true, requiredAnyScopes: ['crm.followup.manage', 'crm.task.manage'] },
         },
         {
           path: 'crm/analyses',
@@ -670,6 +679,150 @@ export const router = createRouter({
           },
         },
 
+
+        {
+          path: 'agents',
+          redirect: '/agents/profiles',
+          meta: {
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentBrowserProfiles,
+              VIEW_SCOPES.agentSchedules,
+              VIEW_SCOPES.agentExecutions,
+            ],
+          },
+        },
+        {
+          path: 'agents/profiles',
+          name: 'agent-profiles',
+          component: () => import('@/modules/agent/views/AgentProfilesView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentProfiles',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentProviders,
+          },
+        },
+        {
+          path: 'agents/profiles/new',
+          name: 'agent-profile-new',
+          component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentProfileNew',
+            closable: true,
+            requiredScope: 'agent.providers.manage',
+          },
+        },
+        {
+          path: 'agents/profiles/:id',
+          name: 'agent-profile-detail',
+          component: () => import('@/modules/agent/views/AgentProfileDetailView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentProfileDetail',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentProviders,
+          },
+        },
+        {
+          path: 'agents/profiles/:id/edit',
+          name: 'agent-profile-edit',
+          component: () => import('@/modules/agent/views/AgentProfileWizardView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentProfileEdit',
+            closable: true,
+            requiredScope: 'agent.providers.manage',
+          },
+        },
+        {
+          path: 'agents/generations',
+          name: 'agent-generation-orchestrator',
+          component: () => import('@/modules/agent/views/AgentGenerationOrchestratorView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentGenerations',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
+          },
+        },
+        {
+          path: 'agents/maersk',
+          name: 'agent-maersk-operations',
+          component: () => import('@/modules/agent/views/MaerskOperationsView.vue'),
+          meta: {
+            tabTitleKey: 'maerskOperations.title',
+            closable: true,
+            requiredAllScopes: [VIEW_SCOPES.agentExecutions, VIEW_SCOPES.agentBrowserProfiles],
+          },
+        },
+        {
+          path: 'agents/executions',
+          name: 'agent-executions',
+          component: () => import('@/modules/agent/views/AgentExecutionsView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentExecutions',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentExecutions,
+          },
+        },
+        {
+          path: 'agents/executions/:id',
+          name: 'agent-execution-detail',
+          component: () => import('@/modules/agent/views/AgentExecutionDetailView.vue'),
+          meta: {
+            tabTitleKey: 'routes.agentExecutionDetail',
+            closable: true,
+            requiredScope: VIEW_SCOPES.agentExecutions,
+          },
+        },
+        {
+          path: 'agents/advanced',
+          name: 'agent-advanced-settings',
+          component: () => import('@/modules/agent/views/AgentAdvancedSettingsView.vue'),
+          meta: {
+            tabTitleKey: 'sidebar.agentAdvanced',
+            closable: true,
+            requiredAnyScopes: [
+              VIEW_SCOPES.agentProviders,
+              VIEW_SCOPES.agentDefinitions,
+              VIEW_SCOPES.agentCredentials,
+              VIEW_SCOPES.agentBrowserProfiles,
+              VIEW_SCOPES.agentSchedules,
+            ],
+          },
+        },
+
+        // Legacy technical routes remain available for bookmarks and advanced configuration.
+        {
+          path: 'agents/providers',
+          name: 'agent-providers',
+          component: () => import('@/modules/agent/views/AgentProvidersView.vue'),
+          meta: { tabTitleKey: 'routes.agentProviders', closable: true, requiredScope: VIEW_SCOPES.agentProviders },
+        },
+        {
+          path: 'agents/definitions',
+          name: 'agent-definitions',
+          component: () => import('@/modules/agent/views/AgentDefinitionsView.vue'),
+          meta: { tabTitleKey: 'routes.agentDefinitions', closable: true, requiredScope: VIEW_SCOPES.agentDefinitions },
+        },
+        {
+          path: 'agents/credentials',
+          name: 'agent-credentials',
+          component: () => import('@/modules/agent/views/AgentCredentialsView.vue'),
+          meta: { tabTitleKey: 'routes.agentCredentials', closable: true, requiredScope: VIEW_SCOPES.agentCredentials },
+        },
+        {
+          path: 'agents/browser-profiles',
+          name: 'agent-browser-profiles',
+          component: () => import('@/modules/agent/views/AgentBrowserProfilesView.vue'),
+          meta: { tabTitleKey: 'routes.agentBrowserProfiles', closable: true, requiredScope: VIEW_SCOPES.agentBrowserProfiles },
+        },
+        {
+          path: 'agents/schedules',
+          name: 'agent-schedules',
+          component: () => import('@/modules/agent/views/AgentSchedulesView.vue'),
+          meta: { tabTitleKey: 'routes.agentSchedules', closable: true, requiredScope: VIEW_SCOPES.agentSchedules },
+        },
+
         {
           path: 'agents',
           redirect: '/agents/profiles',
@@ -944,7 +1097,9 @@ router.beforeEach(async (to) => {
   if (
     !isPublic &&
     requiredAnyScopes.length > 0 &&
-    !requiredAnyScopes.some((scope) => authStore.hasScope(scope))
+    !requiredAnyScopes.some((scope) => authStore.hasScope(scope)) &&
+    !(to.meta.calendarAdministratorAccess &&
+      hasCrmCalendarAdministratorRole(role => authStore.hasRole(role)))
   ) {
     return '/home'
   }
