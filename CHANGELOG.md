@@ -1,8 +1,8 @@
-## [1.103.21] - 2026-11-20 (DH-20261120-PRICING-CLIENT-COUNTRY-298 · desbloqueo de país CRM FCL)
+## [1.103.23] - 2026-11-20 (DH-20261120-PRICING-CLIENT-COUNTRY-298 · desbloqueo de país CRM FCL)
 
 - PATCH: selección de país del cliente en Pantalla 3 cuando CRM no aporta un país resoluble; la operación nunca se infiere a partir de la ruta y no se modifica la ficha de CRM.
 - Detecta Vietnam (ISO VN) a partir de la etiqueta explícita del POL si la metadata Config está incompleta; respeta el POD para IVA. Guarda y valida en el paso correcto.
-- Regresión FCL Vietnam→Costa Rica y país CRM ISO. Web/System 1.103.20→1.103.21, 15 componentes inalterados, sin cambios de REST/SignalR/backend. CI y staging antes de master; despliegue productivo no autorizado.
+- Regresión FCL Vietnam→Costa Rica y país CRM ISO. Web master 1.103.20→1.103.23; System master 1.103.22→1.103.23, 15 componentes inalterados, sin cambios de REST/SignalR/backend. CI y staging antes de master; despliegue productivo no autorizado.
 
 ## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítems manuales)
 
