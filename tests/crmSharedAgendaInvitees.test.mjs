@@ -35,3 +35,21 @@ test('Followup calendar retains persisted guests omitted from the first Auth dir
   assert.match(calendar, /detailInviteesReady\.value = true/)
   assert.match(calendar, /CRM no confirmó todos los invitados/)
 })
+
+test('Activity detail resolves persisted internal invitees by name, not a generic role', () => {
+  assert.match(collaboration, /row\.internalUserName/)
+  assert.match(collaboration, /Invitado interno/)
+  assert.match(collaboration, /'Usuario interno \('/)
+  assert.match(collaboration, /crmPath\('activities',props\.activityId,'participants'\)/)
+})
+
+test('Invited task/followup users can see shared activities in their own calendar', () => {
+  assert.match(calendar, /can\('crm\.followup\.manage'\) \|\| can\('crm\.task\.manage'\)/)
+  assert.match(calendar, /tasks\.push\(fetchAll\('activities'/)
+})
+
+test('Activity guest list reloads following realtime changes and reconnect', () => {
+  assert.match(collaboration, /dhole:notification:realtime-connected/)
+  assert.match(collaboration, /dhole:data:changed/)
+  assert.match(collaboration, /refreshSharedActivity/)
+})
