@@ -91,7 +91,7 @@ const countryAliases: Record<string, string[]> = {
   KP: ['North Korea', 'Democratic People\'s Republic of Korea', 'Corea del Norte'],
   CN: ['Mainland China', 'China Mainland', 'People\'s Republic of China', 'República Popular China'],
   TW: ['Taiwan, Province of China'],
-  HK: ['Hong Kong SAR', 'Hong Kong SAR China'],
+  HK: ['Hong Kong', 'Hong Kong SAR', 'Hong Kong SAR China'],
   MO: ['Macau', 'Macao SAR', 'Macao SAR China'],
   CI: ['Ivory Coast', 'Costa de Marfil', 'Côte d\'Ivoire'],
   CZ: ['Czech Republic', 'República Checa'],
