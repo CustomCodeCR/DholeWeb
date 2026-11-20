@@ -1,3 +1,8 @@
+## [1.103.16] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · guardado preferencial por tramos)
+
+- PATCH: CRM 1.42.3 habilita TIERED_SALE en el CHECK PostgreSQL; DholeWeb elimina duplicados por ID en el lote y conserva los ítems pendientes tras un fallo, evitando reenvíos de cargos que se guardaron.
+- Web/System 1.103.15→1.103.16; conserva cambios recientes de Dashboard, Pricing, REST y SignalR. Prueba CI y migración staging previa a master.
+
 ## [1.103.15] - 2026-11-19 (DH-20261119-DASHBOARD-TABLE-293 · filtros de tarjetas y clientes en seguimiento)
 
 - PATCH: las tarjetas del Dashboard de Ventas filtran localmente la tabla «Tarifas del equipo y seguimiento de ventas» y desplazan hacia la tabla; nunca navegan a Pricing al pulsar indicadores.
