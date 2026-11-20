@@ -1,3 +1,9 @@
+## [1.104.0] - 2026-11-20 (DH-20261120-EXPIRED-RATE-APPROVAL-301 · autorización de actualización de tarifas vencidas)
+
+- MINOR: permite solicitar la revisión de una tarifa vencida indicando el motivo obligatorio (mínimo 15 caracteres). La edición permanece bloqueada hasta la aprobación de Roy o José Pablo y muestra el historial de decisiones.
+- Bandeja de autorizaciones de jefatura, aviso por sistema/SignalR y correo a través de Notifications Outbox y refresco de interfaz en tiempo real. Validación también en Pricing API contra ediciones directas.
+- DholeWeb/DholeSystem 1.103.20 → 1.104.0; Pricing 1.25.4 → 1.26.0. Mantiene compatibilidad REST y los demás componentes. Requiere CI y staging antes de master.
+
 ## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítems manuales)
 
 - PATCH selectivo 1.103.18→1.103.20: Vue 3 v-model en campos numéricos entrega number y manual.amount.trim() lanzaba TypeError antes del try/catch, impidiendo el POST.
