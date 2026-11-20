@@ -7079,7 +7079,7 @@ onMounted(async () => {
               <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
             <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha. La operación se calcula por el país del cliente frente al POL y POD final.</p>
-            <div v-if="form.clientId && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
+            <div v-if="form.clientId && !pricingQuoteOperationOverride && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
               class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
               <p class="text-sm font-black">País del cliente pendiente en CRM</p>
               <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione el país real de esta cuenta para la cotización. No modifica la ficha de CRM y evita bloquear el avance a las siguientes pantallas.</p>
@@ -7520,7 +7520,7 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 5" class="space-y-6">
-          <div v-if="props.rateRequestId && form.clientId && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
+          <div v-if="props.rateRequestId && form.clientId && !pricingQuoteOperationOverride && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
             class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
             <p class="text-sm font-black">País del cliente pendiente en CRM</p>
             <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
