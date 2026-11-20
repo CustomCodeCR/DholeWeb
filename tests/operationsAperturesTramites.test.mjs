@@ -13,7 +13,7 @@ test('trámites and Aperturas use paginated server filters instead of filtering 
   assert.match(api, /params\.set\('q', filters\.q\.trim\(\)\)/)
   assert.match(cases, /operationsApi\.cases\(page\.value, \{/)
   assert.match(apertures, /operationsApi\.apertures\(page\.value, \{/)
-  assert.match(cases, /const filtered = computed\(\(\) => rows\.value\)/)
+  assert.match(cases, /:rows="rows"/)
   assert.match(apertures, /const filteredRows = computed\(\(\) => rows\.value\)/)
 })
 
