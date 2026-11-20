@@ -1,3 +1,9 @@
+## [1.106.12] - 2026-11-20 (DH-20261120-INCOTERM-TEMP-UNBLOCK-353 · desbloqueo temporal de Incoterms)
+
+- PATCH temporal: habilita todas las secciones de cotización y evita los bloqueos de navegación EXW/FCA por ubicación, WHS y clasificación especial de carga en Pricing Web.
+- Sin cambios en validación de servicio seleccionado, costos asociados por catálogo, rutas, IVA, permisos ni contratos REST/SignalR. Transforms de Vite alineados para impedir que reaparezcan restricciones en producción.
+- DholeWeb 1.106.11 (develop) / 1.106.9 (master) → 1.106.12 y DholePricingService 1.26.6 (develop) / 1.26.4 (master) → 1.26.7; versión global 1.106.12. Requiere posterior solución definitiva del modelo de responsabilidades.
+
 ## [1.106.10] - 2026-11-20 (DH-20261120-PRICING-VAT-TOTAL-353 · IVA correcto en resumen de oferta)
 
 - PATCH: en tarifas guardadas y en vista de solo lectura, si una respuesta histórica de Pricing devuelve IVA total cero aunque las líneas comerciales tengan IVA, la pantalla recupera cada importe comercial guardado y lo agrega en USD y CRC.
