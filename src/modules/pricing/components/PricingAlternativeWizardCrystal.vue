@@ -8197,12 +8197,9 @@ onMounted(async () => {
 
           <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
-            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-              No hay líneas para este bloque en la ruta seleccionada. Puede agregar un rubro manual o documentar un servicio cubierto por un tercero; no se genera un costo ficticio.
-            </p>
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
-              <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
+              <div v-if="group.lines.length > 0" class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
                 <DhInput
                   :model-value="billToBatchByGroup[group.key] ?? ''"
                   class="min-w-[240px]"
@@ -8217,6 +8214,9 @@ onMounted(async () => {
                 </DhButton>
               </div>
             </div>
+            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Sin cargos configurados para {{ group.label.toLowerCase() }} en esta ruta. Solo se facturarán servicios que se seleccionen o agreguen expresamente.
+            </p>
             <div
               v-for="line in group.lines"
               :key="line.key"
@@ -8260,8 +8260,14 @@ onMounted(async () => {
                 />
                 
               </div>
-              <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
-              <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              <div>
+                <p class="crystal-line__field-label">Costo unitario · {{ canonicalCurrencyCode(line) }}</p>
+                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge' || line.costType !== 'Variable'" />
+              </div>
+              <div>
+                <p class="crystal-line__field-label">Venta unitaria · {{ canonicalCurrencyCode(line) }}</p>
+                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+              </div>
               <DhInput
                 :model-value="line.billToClient ?? ''"
                 class="min-w-[220px]"
@@ -8285,7 +8291,7 @@ onMounted(async () => {
           <div class="crystal-bottom-charges space-y-4 p-4">
             <div v-if="optionalChargeOptions.length">
               <div class="crystal-group-header mb-3">
-                <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales</p>
+                <p class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">Cargos opcionales · seleccione los que se cotizan</p>
               </div>
               <PricingCrystalMultiSelect
                 v-model="selectedOptionalChargeKeys"
@@ -8320,6 +8326,7 @@ onMounted(async () => {
         </div>
                 </div>
                 <div>
+                  <p class="crystal-line__field-label">Divisa</p>
                   <DhSelect
                     :model-value="line.currencyId"
                     label="Divisa"
@@ -8329,8 +8336,14 @@ onMounted(async () => {
                   />
                   
                 </div>
-                <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
-                <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+                <div>
+                  <p class="crystal-line__field-label">Costo unitario · {{ canonicalCurrencyCode(line) }}</p>
+                  <DhInput v-model.number="line.costAmount" type="number" step="0.01" min="0" label="Costo" :disabled="line.costDetailType === 'AgentCharge'" />
+                </div>
+                <div>
+                  <p class="crystal-line__field-label">Venta unitaria · {{ canonicalCurrencyCode(line) }}</p>
+                  <DhInput v-model.number="line.saleAmount" type="number" step="0.01" min="0" label="Venta" :disabled="line.costDetailType === 'AgentCharge'" />
+                </div>
               <DhInput
                 :model-value="line.billToClient ?? ''"
                 class="min-w-[220px]"
@@ -9504,10 +9517,11 @@ onMounted(async () => {
 }
 
 .crystal-lines-header {
-  position: -webkit-sticky;
-  position: sticky;
-  top: 5.75rem;
-  z-index: 120;
+  /* The previous sticky card obscured charge titles, prices and labels while
+     scrolling. Keep the summary above the rows, in normal document flow. */
+  position: relative;
+  top: auto;
+  z-index: 1;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr);
   align-self: flex-start;
@@ -9582,6 +9596,15 @@ onMounted(async () => {
   transition: opacity 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
+.crystal-line__field-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dh-text-muted);
+}
 .crystal-line--optional-off {
   border-style: dashed;
   opacity: 0.68;
@@ -9671,7 +9694,7 @@ onMounted(async () => {
   }
 
   .crystal-lines-header {
-    top: 5rem;
+    top: auto;
     gap: 0.5rem;
     padding: 0.65rem;
   }
