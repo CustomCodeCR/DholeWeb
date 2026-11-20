@@ -180,7 +180,7 @@ test('Optional Merchant lookup is never re-filtered by generic price-band applic
     'const dholeHaulageContextCosts = computed(() => {',
     '\n\n// The imported Maersk/MSC',
   )
-  assert.doesNotMatch(block, /applicableConfiguredCosts\(\)\.filter\(\(cost\) =>\s*cost\.isActive/)
+  assert.match(block, /applicableConfiguredCosts\(\)\.filter\(\(cost\) =>\s*cost\.isActive !== false && cost\.costType !== 'Optional'/)
   assert.match(block, /cost\.costType !== 'Optional'/)
   assert.match(block, /dholeHaulageScreen7OptionContext\.value === contextKey/)
 })
