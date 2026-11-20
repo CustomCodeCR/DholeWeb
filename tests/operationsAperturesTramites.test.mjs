@@ -7,14 +7,14 @@ const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'u
 test('trámites and Aperturas use paginated server filters instead of filtering one page locally', () => {
   const api = source('src/modules/operations/services/operationsApi.ts')
   const cases = source('src/modules/operations/views/OperationsCasesView.vue')
-  const apertures = source('src/modules/operations/views/OperationsAperturesView.vue')
+  const fullForm = source('src/modules/operations/views/OperationsManualOpeningView.vue')
   assert.match(api, /function caseQuery\(page: number, pageSize: number/)
   assert.match(api, /params\.set\('apertureType', filters\.apertureType\)/)
   assert.match(api, /params\.set\('q', filters\.q\.trim\(\)\)/)
   assert.match(cases, /operationsApi\.cases\(page\.value, \{/)
-  assert.match(apertures, /operationsApi\.apertures\(page\.value, \{/)
+  assert.match(fullForm, /operationsApi\.createAperture/)
   assert.match(cases, /:rows="rows"/)
-  assert.match(apertures, /const filteredRows = computed\(\(\) => rows\.value\)/)
+  assert.doesNotMatch(fullForm, /seriesCode|DhModal/)
 })
 
 test('manual creation uses CRM customer lookup and no placeholder sales executive', () => {
