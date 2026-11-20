@@ -1,3 +1,10 @@
+## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítem manual sin solicitud HTTP)
+
+- PATCH: Vue convierte v-model de input type=number a número; el formulario ejecutaba manual.amount.trim() antes del try/catch y fallaba sin enviar POST.
+- Normaliza valores numéricos/textuales, valida rango sin lanzar TypeError y utiliza novalidate para que todos los errores se muestren en el formulario, evitando cancelaciones silenciosas.
+- Pruebas de regresión ejecutables para números Vue, importes vacíos/no válidos y flujo del formulario manual. No cambia CRM, contratos REST, datos ni SignalR.
+- DholeWeb/DholeSystem 1.103.19 → 1.103.20; sincronización del manifiesto y CHANGELOG antes del merge.
+
 ## [1.103.19] - 2026-11-20 (DH-20261120-CRM-INVITEE-PERSISTENCE-296 · persistencia de invitados)
 
 - PATCH: mantiene invitados persistidos del seguimiento aunque estén fuera de la primera página del directorio Auth y verifica GET después de guardar cambios.

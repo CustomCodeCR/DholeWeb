@@ -12,6 +12,7 @@ import { sellerRateCurrencyValue } from '@/modules/pricing/utils/sellerRateCurre
 import { groupPreferentialCosts, preferentialCostOwners, preferentialCostBasis } from '../utils/crmPreferentialCostGroups'
 import { costTiers, currentTierSale, discounted, tierSalesMatch, tierSalesPayload, tierText } from '../utils/crmPreferentialTierSales'
 import { crmError, crmPath, crmRequest } from '../services/crmApi'
+import { parseManualPreferentialAmount } from '../utils/crmPreferentialManualAmount'
 import { matchesPreferentialRoute, matchesPreferentialCommercialScope, PREFERENTIAL_INCOTERMS, saleUnitForBasis, type PreferentialShipment } from '../utils/crmPreferentialCostRoute'
 import { exactPreferentialScope, mostSpecificPreferentialRate } from '../utils/crmPreferentialMatching'
 
@@ -47,7 +48,7 @@ const providerFilter = ref('all')
 const bulkDiscount = ref('')
 const bulkReview = ref(false)
 const showAllCosts = ref(true)
-const manual = reactive({ name: '', chargeCode: 'Other', amount: '', currency: 'USD', unit: 'SHIPMENT' })
+const manual = reactive({ name: '', chargeCode: 'Other', amount: '' as string | number, currency: 'USD', unit: 'SHIPMENT' })
 const manualChargeOptions = [
   {value:'Other',label:'Otro / servicio manual'}, {value:'Freight',label:'Flete internacional'},
   {value:'OriginCharge',label:'Cargo en origen'}, {value:'DestinationCharge',label:'Cargo en destino'},
@@ -413,12 +414,12 @@ async function saveManual() {
   if (saving.value) return
   error.value = ''; success.value = ''
   const name = manual.name.trim()
-  const value = Number(manual.amount)
+  const value = parseManualPreferentialAmount(manual.amount)
   if (!name || name.length > 120) {
     error.value = 'Ingresá un nombre de cargo manual de hasta 120 caracteres.'
     return
   }
-  if (!manual.amount.trim() || !Number.isFinite(value) || value < 0 || value > 999999999999) {
+  if (value === null) {
     error.value = 'Ingresá un precio de venta válido, entre 0 y 999999999999.'
     return
   }
@@ -513,7 +514,7 @@ async function saveManual() {
     <p v-if="error" role="alert" class="mt-3 rounded-lg border border-red-500/40 p-3 text-sm text-red-500">{{ error }}</p>
     <p v-if="success" role="status" class="mt-3 rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
     <form class="mt-5 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-4"
-      aria-label="Agregar cargo manual preferencial" @submit.prevent="saveManual">
+      aria-label="Agregar cargo manual preferencial" novalidate @submit.prevent="saveManual">
       <h4 class="text-sm font-extrabold">Agregar ítem manual</h4>
       <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
         Agregá servicios y cargos que todavía no figuran en los costos de Pricing.
