@@ -41,6 +41,9 @@ export type OperationsCaseRow = {
   sourceQuoteId: string | null
   sourceQuoteOptionId: string | null
   executiveUserId: string
+  originCountryCode?: string | null
+  destinationCountryCode?: string | null
+  departmentCode?: string | null
   status: string
   priority: number
   createdAtUtc: string
@@ -55,6 +58,11 @@ export interface OperationsCaseDetail {
   sourceQuoteId: string | null
   sourceQuoteOptionId: string | null
   executiveUserId: string
+  originCountryCode: string | null
+  destinationCountryCode: string | null
+  companyId: string
+  version: number
+  complexityPoints: number
   status: string
   priority: number
   createdAtUtc: string
@@ -89,6 +97,56 @@ export interface OperationsDashboard {
     createdAtUtc: string; teamId: string | null; approvedReviews: number; pendingReviews: number
   }>
 }
+
+export type OperationsTabCode = 'RESUMEN' | 'QUO' | 'COORDINACION_ORIGEN' | 'DOCUMENTACION' | 'TRANSITO' | 'PANAMA' | 'COSTA_RICA' | 'FINANZAS'
+export type OperationsTabLevel = 'EDITABLE' | 'READ_ONLY' | 'LOCKED' | 'NOT_APPLICABLE'
+export interface OperationsCaseTab { code: OperationsTabCode; accessLevel: OperationsTabLevel }
+export interface OperationsCaseWorkspace {
+  caseId: string
+  stages: Array<{
+    id: string; departmentCode: string; status: string; teamId: string | null
+    teamName: string | null; assignedUserId: string | null
+    startedAtUtc: string | null; completedAtUtc: string | null
+  }>
+  quotes: Array<{
+    id: string; quoteId: string; quoteOptionId: string | null; quoteNumber: string | null
+    status: string; isPrimary: boolean; snapshotVersion: number; linkedAtUtc: string
+  }>
+  milestones: Array<{
+    id: string; caseStageId: string | null; milestoneCode: string
+    title: string; status: string; plannedAtUtc: string | null; actualAtUtc: string | null
+  }>
+  tasks: Array<{
+    id: string; caseStageId: string | null; title: string; details: string | null
+    status: string; priority: number; assignedUserId: string | null
+    dueAtUtc: string | null; completedAtUtc: string | null
+  }>
+}
+export interface OperationsCaseCost {
+  id: string; costCode: string; description: string; supplierName: string | null
+  currencyCode: string; costAmount: number; saleAmount: number; capturedAtUtc: string
+}
+export interface OperationsInternalNote {
+  id: string; body: string; createdBy: string
+  createdAtUtc: string; updatedAtUtc: string; version: number
+}
+export interface OperationsOriginProgress {
+  caseId: string
+  stage: { id: string; status: string; version: number }
+  progress: {
+    statusCode: string; actualDepartureAtUtc: string | null
+    departureSource: string | null; version: number
+  } | null
+}
+export interface OperationsOpeningEdit {
+  expectedVersion: number
+  modalityCode: string
+  priority: number
+  complexityPoints: number
+  originCountryCode: string | null
+  destinationCountryCode: string | null
+}
+
 export interface CrmAccountOption { id: string; displayName: string; legalName?: string }
 export interface OperationsCaseFilters { q?: string; status?: string; apertureType?: string }
 function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilters = {}) {
@@ -110,6 +168,21 @@ export const operationsApi = {
   cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow>>(
     '/api/operations/cases?' + caseQuery(page, 25, filters)),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
+  caseTabs: (id: string) => request<{ caseId: string; tabs: OperationsCaseTab[] }>(
+    `/api/operations/cases/${id}/tabs`),
+  caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
+    `/api/operations/cases/${id}/workspace`),
+  caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[] }>(
+    `/api/operations/cases/${id}/commercial/costs`),
+  caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
+    `/api/operations/cases/${id}/origin/progress`),
+  caseInternalNotes: (id: string) => request<OperationsInternalNote[]>(
+    `/api/operations/cases/${id}/internal-notes`),
+  addCaseInternalNote: (id: string, body: string) =>
+    request<{ id: string }>(`/api/operations/cases/${id}/internal-notes`, 'POST', { body }),
+  updateCase: (id: string, body: OperationsOpeningEdit) =>
+    request<{ id: string; version: number; updatedAtUtc: string }>(
+      `/api/operations/cases/${id}`, 'PATCH', body),
   teams: () => request<OperationsTeam[]>('/api/operations/teams'),
   initializeTeams: () => request<{ created: number; total: number }>('/api/operations/teams/initialize', 'POST'),
   createTeam: (body: { companyId: string; name: string; departmentCode: string }) =>
@@ -155,7 +228,8 @@ export const operationsApi = {
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
     companyId: string; accountId: string; seriesCode: string; modalityCode: string;
-    priority: number; complexityPoints: number
+    priority: number; complexityPoints: number; originCountryCode?: string | null;
+    destinationCountryCode?: string | null
   }) => request<{ id: string; idtra: string; status: string }>(
     '/api/operations/cases', 'POST', body),
   validations: (caseId: string) =>
