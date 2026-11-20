@@ -39,14 +39,21 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
     )
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'`,
   )
-  loader = replaceOnce(loader,
-    "      maritimeFcl\n        ? PricingService.selectCosts({ isActive: true })",
-    "      (maritimeFcl || panamaOwnLtl)\n        ? PricingService.selectCosts({ isActive: true })",
-  )
-  loader = replaceOnce(loader,
-    "(!maritimeFcl || fullCatalogResult.status === 'rejected')",
-    "(!(maritimeFcl || panamaOwnLtl) || fullCatalogResult.status === 'rejected')",
-  )
+  // Prior releases queried the full catalogue only for maritime FCL.
+  // DH-20261120-PRICING-COSTS-355 queries it for every shipment mode;
+  // keep compatibility with both loader shapes.
+  const legacyCatalogueBranch = "      maritimeFcl\n        ? PricingService.selectCosts({ isActive: true })"
+  if (loader.includes(legacyCatalogueBranch)) {
+    loader = replaceOnce(loader, legacyCatalogueBranch,
+      "      (maritimeFcl || panamaOwnLtl)\n        ? PricingService.selectCosts({ isActive: true })")
+  } else if (!loader.includes("PricingService.selectCosts({ isActive: true })")) {
+    throw new Error('[pricingOwnLtlPanamaCosts] Active catalogue query is missing.')
+  }
+  const legacyFailureGuard = "(!maritimeFcl || fullCatalogResult.status === 'rejected')"
+  if (loader.includes(legacyFailureGuard)) {
+    loader = replaceOnce(loader, legacyFailureGuard,
+      "(!(maritimeFcl || panamaOwnLtl) || fullCatalogResult.status === 'rejected')")
+  }
   loader = replaceOnce(loader,
     "    if (activeContext !== activeCostContextKey()) return false\n    costs.value = [...mergedCosts.values()]",
     `    if (panamaOwnLtl) {
@@ -57,7 +64,12 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
       for (const cost of selectLtlPanamaCosts(fullCatalog, {
         incotermId: form.incotermId,
         serviceIds: form.serviceIds,
-      }).values()) mergedCosts.set(cost.id, cost)
+      }).values()) mergedCosts.set(cost.id, {
+        ...cost,
+        // The CFZ -> San José selector verified the commercial route by names;
+        // the legacy POE/POD IDs are intentionally different from the UI trip.
+        __dholePricingContextKey: contextKey,
+      })
     }
 
     if (activeContext !== activeCostContextKey()) return false
