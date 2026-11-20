@@ -3442,10 +3442,10 @@ async function loadApplicableCosts(): Promise<boolean> {
 }
 
 function rebuildRateLines() {
-  // Never show an ordinary sale when a linked account's commercial agreement is unavailable.
-  if (customerPreferentialError.value && !props.rateId) return
   const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
     ? copyPoeLines(rateLines.value) : []
+  // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
+  if (customerPreferentialError.value && !props.rateId) return
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!currency) return
 
