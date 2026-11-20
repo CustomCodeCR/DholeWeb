@@ -8,6 +8,7 @@ import { unwrapApiResponse } from '@/core/api/apiResponse'
 import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { useToastStore } from '@/core/stores/toastStore'
 import { DhButton, DhInput, DhSelect, DhSpinner } from '@/shared/components/atoms'
+import { isInDashboardDateRange } from '../utils/commercialDashboardMetrics'
 
 type RequestStatus = 'Open' | 'Completed' | 'Cancelled'
 type PendingStage = 'AwaitingReceipt' | 'AwaitingClient' | 'Expired'
@@ -51,7 +52,17 @@ interface ReportDto {
   pendingSellerRates: PendingRateRow[]
 }
 
-const props = defineProps<{ role: 'pricing' | 'seller' }>()
+const props = defineProps<{
+  role: 'pricing' | 'seller'
+  filterFrom?: string
+  filterTo?: string
+  filterSeller?: string
+  filterMode?: string
+}>()
+const emit = defineEmits<{
+  'filter-options': [value: { sellers: Array<{ value: string; label: string }>; modes: Array<{ value: string; label: string }> }]
+}>()
+const useGlobalFilters = computed(() => props.role === 'seller')
 const router = useRouter()
 const localeStore = useLocale()
 const toast = useToastStore()
@@ -63,6 +74,10 @@ const mode = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 const report = ref<ReportDto | null>(null)
+const selectedFrom = computed(() => useGlobalFilters.value ? (props.filterFrom || '') : from.value)
+const selectedTo = computed(() => useGlobalFilters.value ? (props.filterTo || '') : to.value)
+const selectedSeller = computed(() => useGlobalFilters.value ? (props.filterSeller || '') : seller.value)
+const selectedMode = computed(() => useGlobalFilters.value ? (props.filterMode || '') : mode.value)
 
 function localDay(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -129,13 +144,16 @@ function modeLabel(value: string) {
   } as Record<string, string>)[value] ?? value
 }
 
+watch([sellerOptions, modeOptions], ([sellers, modes]) => emit('filter-options', { sellers, modes }), { immediate: true })
 const requests = computed(() => (report.value?.requests ?? []).filter(row =>
-  (!seller.value || row.sellerUserId === seller.value)
-  && (!mode.value || row.shipmentMode === mode.value),
+  (!selectedSeller.value || row.sellerUserId === selectedSeller.value)
+  && (!selectedMode.value || row.shipmentMode === selectedMode.value)
+  && (!useGlobalFilters.value || isInDashboardDateRange(row.requestedAtUtc, selectedFrom.value, selectedTo.value)),
 ))
 const pendingRates = computed(() => (report.value?.pendingSellerRates ?? []).filter(row =>
-  (!seller.value || row.sellerUserId === seller.value)
-  && (!mode.value || row.shipmentMode === mode.value),
+  (!selectedSeller.value || row.sellerUserId === selectedSeller.value)
+  && (!selectedMode.value || row.shipmentMode === selectedMode.value)
+  && (!useGlobalFilters.value || isInDashboardDateRange(row.createdAtUtc, selectedFrom.value, selectedTo.value)),
 ))
 
 const completed = computed(() => requests.value.filter(row =>
@@ -212,7 +230,7 @@ function isLate(row: ResponseRow) {
 }
 
 async function load() {
-  if (from.value && to.value && from.value > to.value) {
+  if (selectedFrom.value && selectedTo.value && selectedFrom.value > selectedTo.value) {
     errorMessage.value = 'La fecha inicial no puede ser posterior a la final.'
     return
   }
@@ -220,8 +238,8 @@ async function load() {
   errorMessage.value = ''
   try {
     const query = new URLSearchParams()
-    if (from.value) query.set('from', from.value)
-    if (to.value) query.set('to', to.value)
+    if (selectedFrom.value) query.set('from', selectedFrom.value)
+    if (selectedTo.value) query.set('to', selectedTo.value)
     const response = await callEndpoint<ReportDto>({
       method: 'GET',
       path: `/api/pricing/rate-requests/operational-report?${query.toString()}`,
@@ -257,8 +275,8 @@ function exportResponseExcel() {
       { name: 'Resumen', columns: [
         { key: 'metric', label: 'Indicador' }, { key: 'value', label: 'Valor' },
       ], rows: [
-        { metric: 'Desde', value: from.value || 'Sin fecha inicial' },
-        { metric: 'Hasta', value: to.value || 'Sin fecha final' },
+        { metric: 'Desde', value: selectedFrom.value || 'Sin fecha inicial' },
+        { metric: 'Hasta', value: selectedTo.value || 'Sin fecha final' },
         { metric: 'Solicitudes completadas', value: completed.value.length },
         { metric: 'Tiempo medio (horas)', value: averageHours.value },
         { metric: 'Mediana (horas)', value: medianHours.value },
@@ -320,7 +338,10 @@ function exportPendingExcel() {
   })
 }
 
-watch(() => props.role, () => { seller.value = ''; mode.value = ''; void load() })
+watch([() => props.role, () => props.filterFrom, () => props.filterTo], () => {
+  if (!useGlobalFilters.value) { seller.value = ''; mode.value = '' }
+  void load()
+})
 onMounted(load)
 </script>
 
@@ -339,7 +360,7 @@ onMounted(load)
       <DhButton label="Actualizar" variant="secondary" size="sm" :icon="RefreshCw" :loading="loading" @click="load" />
     </div>
 
-    <div class="grid gap-3 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div v-if="!useGlobalFilters" class="grid gap-3 rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:grid-cols-2 xl:grid-cols-4">
       <DhInput v-model="from" type="date" label="Solicitadas desde" />
       <DhInput v-model="to" type="date" label="Solicitadas hasta" />
       <DhSelect v-model="seller" label="Vendedor" placeholder="" :options="sellerOptions" />
@@ -405,7 +426,7 @@ onMounted(load)
             <p class="flex items-center gap-1 text-xs text-[var(--dh-text-muted)]">
               <AlertTriangle class="h-4 w-4" /> {{ overdue.length }} fuera del plazo SLA
             </p>
-            <p class="text-xs text-[var(--dh-text-muted)]">Se muestran todas las solicitudes abiertas, incluso las anteriores al filtro.</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ useGlobalFilters ? 'Solicitudes abiertas dentro del período seleccionado.' : 'Se muestran todas las solicitudes abiertas, incluso las anteriores al filtro.' }}</p>
           </div>
         </div>
 
