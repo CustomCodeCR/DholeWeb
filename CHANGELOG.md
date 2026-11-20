@@ -1,3 +1,9 @@
+## [1.104.3] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-311 · autorización de tarifas vencidas en Dashboard de Ventas)
+
+- PATCH: José Pablo (jmesen@castrofallas.com) tiene bandeja de aprobación y contador de pendientes en su Dashboard de Ventas sin permiso Pricing ni rol SuperUsuario. Roy también puede aprobar desde su dashboard. Identidad validada por Auth en el servidor.
+- SignalR actualiza contador de solicitudes; notificación de autorización enlaza a /home?expiredApprovals=1 para que el vendedor pueda abrir directamente el modal seguro.
+- Web/System 1.104.2 → 1.104.3 y Pricing 1.26.1 → 1.26.2, otros 14 componentes sin cambios. CI y staging antes de master.
+
 ## [1.104.2] - 2026-11-20 (DH-20261120-PRICING-COUNTRY-OPTIONS-310 · reparación del wizard en blanco)
 
 - PATCH: el selector de países obtiene opciones del catálogo Config reactivo, sin acceso a computed pricingQuoteCountryOptions inexistente tras transformaciones de Vite. Evita el TypeError al abrir Crear tarifa.
