@@ -39,12 +39,23 @@ function patchWizard(source: string) {
   )
 
   // Terrestrial providers are selectable; agent cost lines remain controlled by the tariff.
-  code = replaceRequired(
-    code,
-    `const providerAgentCosts = computed(() => {\n  const seen = new Set<string>()`,
-    `const providerAgentCosts = computed(() => {\n  if (form.modality === 'Land') return []\n  const seen = new Set<string>()`,
-    'provider agent costs',
-  )
+  const multiRelationAgentCosts = `const providerAgentCosts = computed(() =>
+  // A distinct CostId is a distinct configured supplier charge`
+  if (code.includes(multiRelationAgentCosts)) {
+    code = replaceRequired(
+      code,
+      `const providerAgentCosts = computed(() =>\n`,
+      `const providerAgentCosts = computed(() => form.modality === 'Land' ? [] :\n`,
+      'provider agent costs (multi-relation)',
+    )
+  } else {
+    code = replaceRequired(
+      code,
+      `const providerAgentCosts = computed(() => {\n  const seen = new Set<string>()`,
+      `const providerAgentCosts = computed(() => {\n  if (form.modality === 'Land') return []\n  const seen = new Set<string>()`,
+      'provider agent costs',
+    )
+  }
 
   const lclOwnProvider = `v-if="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Own'"`
   if (code.includes(lclOwnProvider)) {

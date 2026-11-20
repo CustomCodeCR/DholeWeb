@@ -141,13 +141,6 @@ function patchWizard(source: string) {
           '    : lines',
         ].join('\n')
       : '  rateLines.value = lines'
-    const afterAssignment = [
-      "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
-      '    syncResolvedLandLtlTariffLines()',
-      '  }',
-      '  // syncResolvedLandLtlTariffLines() after every rebuild',
-    ].join('\n')
-    const before = assignment + '\n' + afterAssignment
     const keepOptionals = [
       "  const previousLtlOptionals = shipmentModeForApi.value === 'Ltl'",
       '    ? rateLines.value.filter((line) => line.optional',
@@ -156,26 +149,37 @@ function patchWizard(source: string) {
       '      .map((line) => ({ ...line }))',
       '    : []',
     ].join('\n')
-    const restoreOptionals = [
-      "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
-      '    syncResolvedLandLtlTariffLines()',
-      '    for (const previous of previousLtlOptionals) {',
-      '      const current = rateLines.value.find((line) => line.key === previous.key && line.optional)',
-      '      if (!current) continue',
-      '      current.costAmount = previous.costAmount',
-      '      current.saleAmount = previous.saleAmount',
-      '      current.included = previous.included',
-      '      current.currencyId = previous.currencyId',
-      '      current.currencyName = previous.currencyName',
-      '      current.currencyCode = previous.currencyCode',
-      '      current.amountCurrencyCode = previous.amountCurrencyCode',
-      '      current.billToClient = previous.billToClient',
-      '    }',
+    const restoreValues = [
+      '  for (const previous of previousLtlOptionals) {',
+      '    const current = rateLines.value.find((line) => line.key === previous.key && line.optional)',
+      '    if (!current) continue',
+      '    current.costAmount = previous.costAmount',
+      '    current.saleAmount = previous.saleAmount',
+      '    current.included = previous.included',
+      '    current.currencyId = previous.currencyId',
+      '    current.currencyName = previous.currencyName',
+      '    current.currencyCode = previous.currencyCode',
+      '    current.amountCurrencyCode = previous.amountCurrencyCode',
+      '    current.billToClient = previous.billToClient',
       '  }',
-      '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const after = keepOptionals + '\n' + assignment + '\n' + restoreOptionals
-    code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+    const rebuildStart = code.indexOf('function rebuildRateLines() {')
+    const rebuildEnd = code.indexOf('\nfunction mergeConfiguredOptionalCostsIntoRateLines(', rebuildStart)
+    if (rebuildStart < 0 || rebuildEnd <= rebuildStart) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró la reconstrucción de Pantalla 7.')
+    }
+    let source = code.slice(rebuildStart, rebuildEnd)
+    // Preserve optional edits regardless of where earlier Pricing transforms put
+    // the CostId reconciliation, Incoterm context flags and LTL source sync.
+    const header = 'function rebuildRateLines() {\n'
+    const finalClose = source.lastIndexOf('\n}')
+    if (!source.includes(header) || finalClose < 0 || !source.includes('rateLines.value =')) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró: preservar cambios al reconstruir Pantalla 7')
+    }
+    source = source.replace(header, header + keepOptionals + '\n')
+    const closeAfterHeader = source.lastIndexOf('\n}')
+    source = source.slice(0, closeAfterHeader) + '\n' + restoreValues + source.slice(closeAfterHeader)
+    code = code.slice(0, rebuildStart) + source + code.slice(rebuildEnd)
 
   }
 

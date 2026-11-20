@@ -1,3 +1,12 @@
+## [1.108.0] - 2026-11-20 (DH-20261120-INCOTERMS-WIZARD-367 · primera fase de flujo Incoterms P1–P9 en develop)
+
+- MINOR coordinado DholeWeb/DholeSystem 1.107.5 → 1.108.0; DholePricingService permanece en 1.26.9. Trabajo sobre feature branch con destino develop; sin autorización de producción.
+- P7 conserva abiertos los seis bloques de Recolecta, Origen, Flete, Destino, Entrega y Seguro; Incoterms® 2020 orientan responsabilidades pero no bloquean servicios válidos contratados.
+- P6→P7 no avanza ante una consulta fallida u obsoleta de costos. Los importes y selecciones previamente editados se reconcilian solo si coincide el contexto comercial (POE, POD, naviera, agente, Incoterm, servicios y cliente).
+- Cambiar de Incoterm no descarta silenciosamente las ubicaciones EXW/FCA capturadas. CIF y CIP advierten que el seguro del vendedor se documenta sin duplicar primas.
+- Previene la creación de flete ficticio cuando no está cotizado, y evita generar rubros variables de recolección/origen por el único hecho de mostrar el bloque. Los cargos catalogados siguen sujetos a las condiciones de Pricing.
+- Incluye prueba `tests/pricingIncotermsWizardStage367.test.mjs`. Pendiente de CI, validación autenticada de staging y evolución de contratos backend para lugar convenido, evidencia de seguro y estado de responsabilidad por línea.
+
 ## [1.107.5] - 2026-11-20 (DH-20261120-PRICING-WIZARD-RUNTIME-366 · corregir bloqueo de creación de tarifas en producción)
 
 - PATCH urgente coordinado DholeWeb/DholeSystem 1.107.4 → 1.107.5. Elimina la dependencia del símbolo `automaticOperationType`, que desaparecía durante los transforms de Vite y producía `ReferenceError` al abrir o reabrir Pricing.

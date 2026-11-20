@@ -64,6 +64,7 @@ import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPe
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -354,6 +355,9 @@ let customerPreferentialRequest = 0
 const pricingQuoteCountryOverrideId = ref('')
 // Explicit quote-level choice takes precedence over automatic client-country detection.
 const pricingQuoteOperationOverride = ref<RateOperationType | ''>('')
+// Only preserve edited P7 lines when the commercial cost context still matches.
+const lastIncotermRateLinesContextKey = ref('')
+const lastIncotermRateLinesRouteKey = ref('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -2149,7 +2153,11 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
 const visibleSections = computed<RateSection[]>(() => {
   // ICC assigns default responsibility; an explicitly contracted international
   // transport service must remain quotable, including buyer-import CIF or DDP.
-  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  // The Incoterm suggests who is commercially responsible, NOT which Dhole
+  // services the customer may contract. Keep all five priced sections usable;
+  // insurance is displayed as its own sixth block in P7.
+  const allowed = new Set<RateSection>(sectionOrder)
+  incotermResponsibilitySections.value.forEach((section) => allowed.add(section))
   const internationalTransportQuoted = selectedServices.value.some((service) => {
     const code = String(service.code ?? '').trim().toUpperCase()
     const label = normalizeCatalogValue([displayValue(service), service.label].filter(Boolean).join(' '))
@@ -2276,18 +2284,15 @@ const orderedRateGroups = computed(() => [
   { key: 'destination', label: 'Cargos en destino', lines: standardSectionLines('destination_charges') },
   { key: 'insurance', label: 'Seguro de carga', lines: insuranceLines.value },
   { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
-].filter((group) => group.lines.length > 0))
+].filter((group) => group.key !== 'agent' || group.lines.length > 0))
 
-const providerAgentCosts = computed(() => {
-  const seen = new Set<string>()
-  return applicableConfiguredCosts().filter((cost) => {
-    if (cost.costDetailType !== 'AgentCharge' || cost.costType === 'Optional') return false
-    const key = normalizeCatalogValue(cost.name)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-})
+const providerAgentCosts = computed(() =>
+  // A distinct CostId is a distinct configured supplier charge, even when
+  // different suppliers use the same commercial label ("Manejos"/"Release").
+  applicableConfiguredCosts().filter((cost) =>
+    cost.costDetailType === 'AgentCharge' && cost.costType !== 'Optional',
+  ),
+)
 const providerAgentCost = computed(() =>
   providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.costAmount), 0),
 )
@@ -3180,24 +3185,16 @@ function applicableCost(cost: CostSelectDto) {
   if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
   if (!pickupCargoConditionsMatch(cost.operationalConditions)) return false
-  if (cost.carrierId && cost.carrierId !== form.carrierId) return false
-  if (cost.agentId && cost.agentId !== form.agentId) return false
-  if (cost.polId && cost.polId !== form.originId) return false
-  if (cost.poeId && cost.poeId !== form.destinationId) return false
-  if (cost.podId && cost.podId !== form.podId) return false
-  // The actual mode, route, provider, service and Incoterm associations
-  // determine this cost's eligibility; its display section does not.
-
-  if (cost.portId) {
-    const matchesLegacyPort = cost.portRole === 'Pol'
-      ? cost.portId === form.originId
-      : cost.portRole === 'Poe'
-        ? cost.portId === form.destinationId
-        : cost.portRole === 'Pod'
-          ? cost.portId === form.podId
-          : [form.originId, form.destinationId, form.podId].includes(cost.portId)
-    if (!matchesLegacyPort) return false
-  }
+  if (!costRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
+  if (!costRelationMatches(cost.agents, cost.agentId, form.agentId)) return false
+  if (!costRelationMatches(cost.pols, cost.polId, form.originId)) return false
+  if (!costRelationMatches(cost.poes, cost.poeId, form.destinationId)) return false
+  if (!costRelationMatches(cost.pods, cost.podId, form.podId)) return false
+  // Multiple selections returned by Pricing are authoritative; singular port IDs
+  // are legacy snapshots, not exclusions for a second selected POE or POD.
+  if (!costLegacyPortMatches(cost, {
+    polId: form.originId, poeId: form.destinationId, podId: form.podId,
+  })) return false
 
   return true
 }
@@ -3483,8 +3480,18 @@ async function loadApplicableCosts(): Promise<boolean> {
 }
 
 function rebuildRateLines() {
-  const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
-    ? copyPoeLines(rateLines.value) : []
+  const currentContext = activeCostContextKey()
+  const routeKey = JSON.stringify([
+    form.originId, form.destinationId, form.podId, form.carrierId,
+    form.agentId, shipmentModeForApi.value, form.clientId, form.crmClientKind,
+  ])
+  const sameContext = lastIncotermRateLinesContextKey.value === currentContext
+  const previousOptionLines = !props.rateId
+    && lastIncotermRateLinesRouteKey.value === routeKey
+    // On an Incoterm/service change keep user-created lines only. CostIds from
+    // the previous filter must requalify against the freshly loaded catalogue.
+    ? copyPoeLines(rateLines.value).filter(line => sameContext || line.manual)
+    : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
@@ -3498,7 +3505,15 @@ function rebuildRateLines() {
       normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
     )
 
-  if (visible.has('international_freight')) {
+  // An Incoterm alone must not manufacture an unrequested freight line.
+  const freightRequested = incotermResponsibilitySections.value.includes('international_freight')
+    || number(form.freightCost) > 0 || number(form.freightSale) > 0
+    || Boolean(form.selectedImportRateId)
+    || selectedServices.value.some(service => {
+      const label = normalizeCatalogValue([service.code, displayValue(service), service.label].filter(Boolean).join(' '))
+      return label.includes('int transport') || label.includes('transporte internacional') || label.includes('international transport')
+    })
+  if (visible.has('international_freight') && freightRequested) {
     lines.push({
       key: 'freight',
       section: 'international_freight',
@@ -3525,7 +3540,9 @@ function rebuildRateLines() {
     const section = sectionForCost(cost)
     if (!visible.has(section)) return
     if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
-    if (hasEquivalent(cost.name, cost.costDetailType)) return
+    // Two genuinely different CostIds can share a name; do not merge their
+    // cost/sale amounts solely by commercial label.
+    if (lines.some(line => line.costId === cost.id)) return
     lines.push({
       key: `cost:${cost.id}`,
       section,
@@ -3565,7 +3582,9 @@ const addVariableSectionFallback = (
   const alreadyPresent = section === 'pickup_origin'
     ? lines.some((line) => line.section === section && line.costDetailType === 'InlandTransport')
     : lines.some((line) => line.section === section && line.costDetailType === 'OriginCharge')
-  if (!visible.has(section) || alreadyPresent) return
+  // Keep the block available but do not create a zero-priced line unless
+  // this party is normally responsible. Manual P7 charges remain permitted.
+  if (!incotermResponsibilitySections.value.includes(section) || alreadyPresent) return
   lines.push({
     key: `variable-section:${section}`,
     section,
@@ -3751,6 +3770,8 @@ if (insuranceRequested && visible.has('destination_charges')) {
   }
   lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
+  lastIncotermRateLinesContextKey.value = currentContext
+  lastIncotermRateLinesRouteKey.value = routeKey
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -3811,18 +3832,14 @@ function mergeConfiguredOptionalCostsIntoRateLines(includeFixed = false) {
   const existingCostIds = new Set(
     rateLines.value.map((line) => line.costId).filter((value): value is string => Boolean(value)),
   )
-  const existingKeys = new Set(
-    rateLines.value.map((line) => `${normalizeCatalogValue(line.name)}|${line.costDetailType}`),
-  )
-
   applicableConfiguredCosts()
     .filter((cost) => includeFixed ? cost.costDetailType !== 'Freight' : cost.costType === 'Optional')
     .forEach((cost) => {
       const resolvedAmount = resolvedConditionalCost(cost)
       if (!resolvedAmount) return
       const section = sectionForCost(cost)
-      const equivalentKey = `${normalizeCatalogValue(cost.name)}|${cost.costDetailType}`
-      if (!visible.has(section) || existingCostIds.has(cost.id) || existingKeys.has(equivalentKey)) return
+      // A distinct configured charge is identified by CostId, not display name.
+      if (!visible.has(section) || existingCostIds.has(cost.id)) return
 
       rateLines.value.push({
         key: `cost:${cost.id}`,
@@ -5180,7 +5197,10 @@ async function next() {
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
-    await loadApplicableCosts()
+    // A failed or stale response must never advance P6 -> P7 using costs
+    // belonging to a different POE, carrier, agent or customer.
+    const costsReady = await loadApplicableCosts()
+    if (!costsReady) return
     rebuildRateLines()
   }
   if (step.value < 8) step.value += 1
@@ -6491,6 +6511,8 @@ function resetWizard() {
   ++approvedRatesSearchSequence
   availableRates.value = []
   rateLines.value = []
+  lastIncotermRateLinesContextKey.value = ''
+  lastIncotermRateLinesRouteKey.value = ''
   supportEntityId.value = crypto.randomUUID()
   finalBackupEntityId.value = crypto.randomUUID()
   allInPresentation.value = true
@@ -6574,19 +6596,11 @@ watch(
 
 watch(
   () => selectedIncotermCode.value,
-  (code) => {
+  () => {
+    // Incoterm changes must not silently erase an EXW pickup or FCA warehouse.
+    // The payload already sends them only for their applicable term; retaining
+    // the draft lets users switch back without re-entering locations.
     nearestPortRecommendations.value = []
-    if (code !== 'FCA') form.warehouseId = ''
-    if (code !== 'EXW') {
-      pickupLocations.value = []
-      pickupCargoCondition.value = ''
-      editingPickupIndex.value = null
-    }
-    if (code !== 'EXW' && code !== 'FCA') {
-      form.pickupAddress = ''
-      form.pickupLatitude = null
-      form.pickupLongitude = null
-    }
   },
 )
 
@@ -7965,6 +7979,12 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Incoterm {{ selectedIncotermCode || 'sin seleccionar' }} · Seis bloques disponibles: recolecta, origen, flete, destino, entrega y seguro. Los cargos dependen de ruta, proveedor, servicios contratados y cliente, no solo del responsable comercial sugerido.
+          </p>
+          <p v-if="selectedIncotermCode === 'CIF' || selectedIncotermCode === 'CIP'" role="status" class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-600">
+            {{ selectedIncotermCode }} exige documentar el seguro contratado por el vendedor. Si la póliza está incluida por un tercero, no agregue una segunda prima; adjunte su respaldo antes de emitir.
+          </p>
           <div v-if="customerPreferentialError" role="alert" class="crystal-soft flex flex-wrap items-center justify-between gap-3 border border-amber-600 p-4">
             <p class="text-sm font-bold text-amber-600">{{ customerPreferentialError }}</p>
             <DhButton type="button" variant="secondary" @click="retryCustomerPreferredRates">Reintentar tarifas CRM</DhButton>
@@ -8081,6 +8101,9 @@ onMounted(async () => {
 
           <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
+            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              No hay líneas para este bloque en la ruta seleccionada. Puede agregar un rubro manual o documentar un servicio cubierto por un tercero; no se genera un costo ficticio.
+            </p>
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
               <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
