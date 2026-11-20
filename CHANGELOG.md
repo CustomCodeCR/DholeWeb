@@ -1,3 +1,10 @@
+## [1.103.16] - 2026-11-19 (DH-20261119-CRM-AGREEMENT-INVITEES-294 · invitados persistidos en seguimientos CRM)
+
+- PATCH: el detalle de seguimientos consulta y muestra la cantidad de invitados realmente almacenados en CRM. Cuando falla la carga, la agenda bloquea cambios que podrían borrar invitados sin conocimiento del usuario.
+- El selector confirma una actualización solo después de recuperar la lista guardada y verificar que coincida con los usuarios seleccionados.
+- Coordinación DholeCRMService 1.42.3 y DholeSystem 1.103.16; nueva regresión en test:crm.
+- Staging y CI antes de master; despliegue productivo sujeto a autorización expresa.
+
 ## [1.103.15] - 2026-11-19 (DH-20261119-DASHBOARD-TABLE-293 · filtros de tarjetas y clientes en seguimiento)
 
 - PATCH: las tarjetas del Dashboard de Ventas filtran localmente la tabla «Tarifas del equipo y seguimiento de ventas» y desplazan hacia la tabla; nunca navegan a Pricing al pulsar indicadores.
