@@ -90,6 +90,14 @@ export function resolvePodCountryCode(
   if (surroundedDescription.includes(' costa rica ') || surroundedDescription.includes(' costarica ')) return 'CR'
   if (surroundedDescription.includes(' panama ')) return 'PA'
   if (surroundedDescription.includes(' guatemala ')) return 'GT'
+  // Config legacy terminal records may contain the full explicit country name
+  // but lack countryId/ISO metadata. Match country tokens, never city names.
+  if (surroundedDescription.includes(' el salvador ')) return 'SV'
+  if (surroundedDescription.includes(' mexico ')) return 'MX'
+  if (surroundedDescription.includes(' honduras ')) return 'HN'
+  if (surroundedDescription.includes(' nicaragua ')) return 'NI'
+  if (surroundedDescription.includes(' colombia ')) return 'CO'
+  if (surroundedDescription.includes(' estados unidos ') || surroundedDescription.includes(' united states ')) return 'US'
   return ''
 }
 
