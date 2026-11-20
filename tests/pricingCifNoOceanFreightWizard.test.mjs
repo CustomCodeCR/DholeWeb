@@ -30,13 +30,13 @@ test('both manual ocean freight cards are gated, not just the first one', () => 
   )
 })
 
-test('CIF skips rate selection, supports provider choice and prevents direct manual freight persistence', () => {
+test('CIF without contracted transport skips rates but lets users quote customs and destination charges', () => {
   const source = readFileSync(new URL('../build/pricingCustomsOnlyWizard.ts', import.meta.url), 'utf8')
   assert.match(source, /step\.value === 4 && !hasInternationalTransportService\.value/)
   assert.match(source, /if \(!hasInternationalTransportService\.value\) \{/)
   assert.match(source, /prevent no-freight manual ocean rate creation/)
   assert.match(source, /multiCarrierSelectionMode && hasInternationalTransportService/)
-  assert.match(source, /El flete marítimo ya está cubierto por el Incoterm/)
+  assert.match(source, /Esta cotización no incluye transporte internacional/)
   assert.match(source, /line\.costDetailType !== 'Freight'/)
 })
 

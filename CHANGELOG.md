@@ -1,3 +1,20 @@
+## [1.106.3] - 2026-11-20 (DH-20261120-PRICING-IMPORT-COSTS-345 · costos de importación según contexto real)
+
+- PATCH: los costos devueltos por `/api/pricing/costs/select` para el contexto FCL (POL, POE, POD, naviera, agente, servicios e Incoterm) son autoritativos; se evita una segunda exclusión en Web basada en IDs legados de puertos únicos.
+- La consulta complementaria del catálogo general mantiene validación estricta de ruta, Incoterm, modalidad, servicios y proveedores: no mezcla costos de otros clientes o rutas.
+- La Pantalla 7 permite visualizar todos los cargos aplicables de origen, destino y documentación aun si su etapa no figura en las obligaciones predeterminadas del comprador. El flete internacional solo aparece si se contrata Transporte Internacional; se conservan cargas sin flete.
+- Los asistentes nuevo y legado permiten seleccionar cualquier etapa al agregar un rubro manual; se respetan los rubros activos, reglas por tramos y permisos.
+- Pruebas regresivas CIF importación con manejo de origen, aduana, documentación, servicio de transporte opcional y costo de otra ruta excluido.
+- DholeWeb/DholeSystem 1.106.2 → 1.106.3; DholePricingService 1.26.3 sin cambios binarios y otros 14 componentes sin nuevas versiones. REST/SignalR conservados. CI y staging obligatorios antes de master/producción.
+
+## [1.106.2] - 2026-11-20 (DH-20261120-INCOTERM-QUOTED-FREIGHT-344 · todos los Incoterms respetan el transporte contratado)
+
+- PATCH: la selección de Transporte Internacional, en lugar de una exclusión fija del Incoterm, determina si se presentan y guardan fletes de cotizaciones marítimas, aéreas, FTL y LTL.
+- CPT, CIF, CFR, CIP, DAP, DPU y DDP pueden incluir flete explícito y gastos asociados cuando el cliente contrata ese servicio, sin alterar las obligaciones comerciales del Incoterm.
+- Las cotizaciones sin el servicio de transporte internacional siguen ocultando flete; conservar manejos, documentos, destino y días de tránsito terrestre. Nuevo mensaje explica que falta seleccionar el servicio.
+- Regresión LTL CPT Colón–Managua, CIF/DDP por operación y filtros de cargos seleccionados. Web/System 1.106.1 → 1.106.2; Pricing 1.26.2 → 1.26.3; 14 servicios restantes sin nuevos binarios.
+- Sin migraciones ni cambios REST/SignalR; CI y staging pendientes. Sin autorización para producción.
+
 ## [1.106.1] - 2026-11-20 (DH-20261120-CRM-PRICING-PREFERRED-ALIAS-343 · aplicación de tarifas preferenciales por identidad de cliente y ruta)
 
 - PATCH: la caché de costos de Pantalla 7 incorpora la cuenta CRM para impedir reutilizar precios de otro cliente en alternativas con idéntica ruta.
