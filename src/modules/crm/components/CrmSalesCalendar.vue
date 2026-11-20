@@ -105,26 +105,43 @@ const creationOpen = ref(false)
 const active = ref<CalendarEvent | null>(null)
 const detailInviteeIds = ref<string[]>([])
 const detailInviteesBusy = ref(false)
+const detailInviteesReady = ref(false)
+const detailInviteesLoadError = ref('')
 watch(active, async item => {
   detailInviteeIds.value = []
+  detailInviteesReady.value = false
+  detailInviteesLoadError.value = ''
   if (!item || item.source !== 'followup') return
   void searchInvitees()
   try {
     const list = await crmRequest<Array<{ userId: string }>>(
       crmPath('followups', item.id, 'invitees'))
-    if (active.value?.id === item.id) detailInviteeIds.value = list.map(x => x.userId)
-  } catch { /* Read-only detail is still available without invitee listing. */ }
+    if (active.value?.id === item.id) {
+      detailInviteeIds.value = list.map(x => x.userId)
+      detailInviteesReady.value = true
+    }
+  } catch (cause) {
+    if (active.value?.id === item.id)
+      detailInviteesLoadError.value = 'No se pudieron consultar los invitados. ' + crmError(cause)
+  }
 })
 async function saveDetailInvitees() {
   const item = active.value
-  if (!item || item.source !== 'followup' || detailInviteesBusy.value) return
+  if (!item || item.source !== 'followup' || detailInviteesBusy.value || !detailInviteesReady.value) return
   detailInviteesBusy.value = true
   error.value = ''
   try {
+    const expected = [...new Set(detailInviteeIds.value.filter(id => id !== item.ownerId))]
     await crmRequest(crmPath('followups', item.id, 'invitees'), 'PUT', {
-      userIds: detailInviteeIds.value.filter(id => id !== item.ownerId),
+      userIds: expected,
     }, crmUuid())
-    notice.value = 'Invitados actualizados y recordatorios sincronizados.'
+    const verified = await crmRequest<Array<{ userId: string }>>(
+      crmPath('followups', item.id, 'invitees'))
+    const stored = verified.map(invitee => invitee.userId).sort()
+    if (stored.length !== expected.length ||
+      stored.some((id, index) => id !== [...expected].sort()[index]))
+      throw new Error('CRM no confirmó todos los invitados. Revisá la lista antes de cerrar.')
+    notice.value = 'Invitados guardados y verificados en CRM. Recordatorios sincronizados.'
     active.value = null
     await load()
   } catch (cause) { error.value = crmError(cause) }
@@ -1485,8 +1502,15 @@ function openEvent(item: CalendarEvent) {
         <DhMultiSelect v-model="detailInviteeIds" label="Usuarios internos"
           :options="inviteeChoices.filter(x => x.value!==active?.ownerId)"
           placeholder="Seleccionar invitadas" search-placeholder="Buscar…" empty-text="Buscá usuarios activos." />
+        <div v-if="detailInviteesLoadError" role="alert" class="text-xs text-amber-600">
+          {{ detailInviteesLoadError }}
+        </div>
+        <p v-if="detailInviteesReady" role="status" class="text-xs text-[var(--dh-text-muted)]">
+          {{ detailInviteeIds.length }} invitados guardados en CRM
+        </p>
         <div v-if="error" role="alert" class="text-xs text-amber-600">{{ error }}</div>
-        <button type="button" class="calendar-btn calendar-primary" :disabled="detailInviteesBusy"
+        <button type="button" class="calendar-btn calendar-primary"
+          :disabled="detailInviteesBusy || !detailInviteesReady"
           @click="saveDetailInvitees">Actualizar invitados</button>
       </div>
       <div v-if="canMove(active)" class="mt-3 flex flex-wrap items-end gap-2">
