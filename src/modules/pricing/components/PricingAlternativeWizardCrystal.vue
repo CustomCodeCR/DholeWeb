@@ -5124,9 +5124,9 @@ async function next() {
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
-    const loaded = await loadApplicableCosts()
-    if (!loaded) return
+    await loadApplicableCosts()
     rebuildRateLines()
+    if (customerPreferentialError.value) return
   }
   if (step.value < 8) step.value += 1
 }
