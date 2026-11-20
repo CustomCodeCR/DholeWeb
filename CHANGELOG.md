@@ -1,3 +1,10 @@
+## [1.106.6] - 2026-11-20 (DH-20261120-MERCHANT-OPTIONS-348 · Merchant en Pantalla 6 sin filtro duplicado)
+
+- PATCH: Pantalla 6 mantiene los CostIds Optional validados por la misma consulta y reglas de ruta que Pantalla 7, sin repetirles el filtro `applicableConfiguredCosts()` de precios por tramo. Corrige el Inland de Balboa a Colon Free Zone (Merchant) visible en Pantalla 7 pero excluido de la comparación.
+- El caché opcional se vincula a POE/POD/naviera/agente/servicios/Incoterm/cliente y se descarta ante cambios de ruta; se impiden respuestas obsoletas. Un fallo aislado de la consulta contextual no impide mostrar los opcionales válidos de Pricing.
+- Se conservan CostId, base por contenedor, exclusividad Merchant/Naviera, recargos comunes e importes sin duplicados. Pruebas de regresión reproducen el filtro que descartaba Merchant, fallo contextual y cambio de contexto.
+- Release coordinado DholeWeb/DholeSystem 1.106.5 → 1.106.6; 15 componentes sin cambios de binario, sin modificaciones REST/SignalR. CI y staging obligatorios antes de producción.
+
 ## [1.106.5] - 2026-11-20 (DH-20261120-MERCHANT-OPTIONAL-SCREEN6-347 · Merchant Balboa–Colón visible en Pantalla 6)
 
 - PATCH: Pantalla 6 carga el mismo catálogo opcional filtrado que Pantalla 7 antes de resolver las alternativas Merchant/Carrier. Se corrige el caso Inland de Balboa a Colon Free Zone (Merchant) disponible en Pantalla 7 pero ausente en la comparación previa.
