@@ -7,6 +7,9 @@ export function resolveCrmCountryCode(
   countries: CatalogItemSelectDto[],
 ): string {
   if (!countryId) return ''
+  // CRM may return a canonical ISO-2 country instead of a Config UUID.
+  // Accept only an explicit two-letter code, not a guessed country.
+  if (/^[A-Z]{2}$/.test(countryId.trim().toUpperCase())) return countryId.trim().toUpperCase()
   const country = countries.find(item => item.id.toLowerCase() === countryId.trim().toLowerCase())
   if (!country) return ''
   let code = String(country.code ?? '').trim().toUpperCase()

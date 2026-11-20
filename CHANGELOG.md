@@ -1,3 +1,9 @@
+## [1.103.23] - 2026-11-20 (DH-20261120-PRICING-CLIENT-COUNTRY-298 · país CRM y POL Vietnam en FCL)
+
+- PATCH: al cotizar rutas FCL, permite seleccionar el país real del cliente en pantalla 3 si CRM no lo proporciona, sin editar CRM. Evita el bloqueo circular de campo requerido antes de pantalla 5.
+- Reconoce Vietnam explícito en la etiqueta Ho Chi Minh, Vietnam aunque metadata Config incompleta; admite códigos ISO explícitos de CRM y conserva el POD para IVA.
+- Web 1.103.22→1.103.23, System 1.103.22→1.103.23, 15 componentes sin cambios. Pruebas de regresión y CI; requiere validación staging antes del merge y producción no autorizada.
+
 ## [1.103.22] - 2026-11-20 (DH-20261120-CRM-INVITEE-SYNC-309 · persistencia de invitados de actividades y acuerdos CRM)
 
 - PATCH: confirma los invitados en CRM mediante lectura tras guardar y conserva las selecciones incluso fuera de la primera página del directorio de Auth.

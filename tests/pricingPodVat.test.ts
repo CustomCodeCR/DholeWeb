@@ -50,6 +50,14 @@ test('Can identify the POD country through countryId or name', () => {
   assert.equal(resolvePodVatRate(item('DEST2', 'Puerto Guatemala'), countries), 15)
 })
 
+test('Resolves Vietnam from a full port label without depending on countries catalogue completeness', () => {
+  const origin = item('POL-2026-029', 'Ho Chi Minh, Vietnam')
+  const destination = item('POD-2026-012', 'San Jose, Costa Rica')
+  assert.equal(resolvePodCountryCode(origin, countries), 'VN')
+  assert.equal(resolvePodCountryCode(destination, countries), 'CR')
+  assert.equal(resolvePodCountryCode(item('UNKNOWN', 'Ho Chi Minh'), countries), '')
+})
+
 test('Does not fall back to POE or stale VAT when the POD is absent or unknown', () => {
   assert.equal(resolvePodVatRate(null, countries), 0)
   assert.equal(resolvePodVatRate(item('UNKNOWN', 'Puerto sin país'), countries), 0)

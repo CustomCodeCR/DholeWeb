@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-CLIENT-COUNTRY-298",
+  "date": "2026-11-20",
+  "kind": "patch",
+  "ecosystemVersion": "1.103.23",
+  "summary": "Desbloquear clasificación comercial FCL Vietnam–Costa Rica cuando país CRM no está completo",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.22",
+      "version": "1.103.23"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.22",
+      "version": "1.103.23"
+    }
+  ],
+  "unchangedComponents": 15,
+  "changes": [
+    "Mostrar selección explícita del país del cliente en Pantalla 3 si CRM no tiene un país resoluble",
+    "Resolver Vietnam desde el nombre explícito del POL si falta metadata de país",
+    "Mantener país POD para IVA y evitar inferir país del cliente a partir de la ruta",
+    "Añadir pruebas de regresión de ruta, CRM ISO, navegación y guardado"
+  ],
+  "branch": "release/DH-20261120-PRICING-CLIENT-COUNTRY-298-v23-master",
+  "targetBranches": [
+    "develop",
+    "master"
+  ],
+  "checks": {
+    "tests": "passed on develop; master CI pending",
+    "ci": "pending",
+    "staging": "unverified",
+    "production": "not-authorized"
+  },
+  "backwardCompatibleRest": true,
+  "realtime": "SignalR actual permanece sin cambios",
+  "productionDeploymentAuthorized": false
+}
