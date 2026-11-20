@@ -35,7 +35,7 @@ test('a CostId remains unique while names and different providers may repeat', (
 
 test('P7 rejects empty cached cost-line drafts, preserves any-shipment costs, and retries without refreshing page', () => {
   assert.match(wizard, /alternativeCostsLoaded.value\[key\] === context && rateLines.value.length > 0/)
-  assert.match(wizard, /cost.shipmentMode !== 'Any'/)
+  assert.match(wizard, /String\(cost\.shipmentMode\) !== 'Any'/)
   assert.match(wizard, /restoreMissingScreenSevenLines\(\)/)
   assert.match(wizard, /await reloadCurrentAlternativeCosts\(\)/)
   assert.match(wizard, /Reconstruir cargos/)
