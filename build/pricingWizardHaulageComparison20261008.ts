@@ -110,6 +110,7 @@ function dholeHaulageCostsFor(mode: DholeHaulageChoice) {
       || label.includes('inland')
       || label.includes('flete terrestre')
       || label.includes('transporte interno')
+      || label.includes('transporte terrestre')
   })) return []
   return rows
 }
