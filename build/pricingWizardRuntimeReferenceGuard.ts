@@ -957,6 +957,12 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
     throw new Error('[pricingWizardRuntimeReferenceGuard] restorePersistedFclDistribution call remained unresolved.')
   }
 
+  // No intermediate trade-direction binding may escape into the runtime:
+  // production 1.107.4 crashed because its source was transformed away.
+  if (/\bautomaticOperationType\b/.test(code)) {
+    throw new Error('[pricingWizardRuntimeReferenceGuard] legacy automaticOperationType may be missing after Vite transforms.')
+  }
+
   return code
 }
 
