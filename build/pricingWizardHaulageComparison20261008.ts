@@ -16,13 +16,34 @@ const dholeHaulagePending = ref(false)
 const dholeHaulageLoadedContext = ref('')
 let dholeHaulageRequestVersion = 0
 
-// Only read prices returned for the exact current context, not stale entries
-// retained while changing naviera, route or agent.
-const dholeHaulageContextCosts = computed(() =>
-  applicableConfiguredCosts().filter((cost) =>
-    cost.isActive !== false && costResolvedByBackendContext(cost),
-  ),
-)
+// The Screen 7 Optional selector validates route/provider/port associations,
+// but applicableConfiguredCosts() also enforces the pricing-band resolver.
+// An Optional with a valid CostId (including Balboa -> Colon Free Zone Merchant)
+// must not vanish from Screen 6 just because its amount is resolved later.
+const dholeHaulageScreen7OptionCosts = ref<CostSelectDto[]>([])
+const dholeHaulageScreen7OptionContext = ref('')
+const dholeHaulageContextCosts = computed(() => {
+  const contextKey = currentCostContextKey()
+  const fixedAndVariable = applicableConfiguredCosts().filter((cost) =>
+    cost.isActive !== false && cost.costType !== 'Optional'
+    && costResolvedByBackendContext(cost),
+  )
+  // Match the SAME eligible Optional options shown by Screen 7. Avoid the
+  // second legacy applicability/price-band check from the fixed-charge builder.
+  const optionalFromContext = costs.value.filter((cost) =>
+    cost.isActive !== false && cost.costType === 'Optional'
+    && costResolvedByBackendContext(cost)
+    && finalOptionalMatchesCurrentContext(cost),
+  )
+  const optionalFromScreen7 = dholeHaulageScreen7OptionContext.value === contextKey
+    ? dholeHaulageScreen7OptionCosts.value
+    : []
+  return [...new Map(
+    [...fixedAndVariable, ...optionalFromContext, ...optionalFromScreen7]
+      .filter((cost) => cost.isActive !== false)
+      .map((cost) => [cost.id, cost] as const),
+  ).values()]
+})
 
 // The imported Maersk/MSC/etc. rate determines the REAL Panama POE.
  // An inland named for Rodman/Manzanillo cannot be selected for Balboa.
@@ -268,11 +289,20 @@ async function dholeMergeScreen7OptionalCostsForComparison(
     || requestVersion !== dholeHaulageRequestVersion) return false
 
   const byId = new Map(costs.value.map((cost) => [cost.id, cost]))
-  for (const cost of optionalCosts) {
-    // loadAllApplicableOptionalCosts applies the same route, ports, agent,
-    // carrier, services, Incoterm and terminal filters as Pantalla 7.
+  const scopedOptionalCosts = optionalCosts.filter((cost) =>
+    cost.isActive !== false && cost.costType === 'Optional'
+    && finalOptionalMatchesCurrentContext(cost),
+  )
+  for (const cost of scopedOptionalCosts) {
+    // The Screen 7 optional-query filters apply to every cost here.
     byId.set(cost.id, { ...cost, __dholePricingContextKey: requestedContext })
   }
+  // Preserve the validated Optional list separately: another watcher may
+  // replace costs.value when refreshing a carrier/route while still on Step 6.
+  dholeHaulageScreen7OptionCosts.value = scopedOptionalCosts.map((cost) => ({
+    ...cost, __dholePricingContextKey: requestedContext,
+  }))
+  dholeHaulageScreen7OptionContext.value = requestedContext
   costs.value = [...byId.values()]
   return true
 }
@@ -289,6 +319,11 @@ watch(
     }
 
     const requestedContext = currentCostContextKey()
+    // Drop previously loaded route options before making any request.
+    if (dholeHaulageScreen7OptionContext.value !== requestedContext) {
+      dholeHaulageScreen7OptionCosts.value = []
+      dholeHaulageScreen7OptionContext.value = ''
+    }
     dholeHaulagePending.value = true
     // activateCarrierRoute already restores the per-POE/carrier draft or clears
     // the mode for a brand-new route. Do not reset it here: when returning from
@@ -296,16 +331,16 @@ watch(
     // it had been restored, right before entering step 7.
 
     try {
-      const loaded = await loadApplicableCosts()
+      // An API context query can fail (e.g. account pricing preferences)
+      // while the independent Screen 7 Optional lookup still succeeds.
+      // Do not suppress valid Merchant options when that happens.
+      await loadApplicableCosts()
       if (
-        !loaded
-        || requestVersion !== dholeHaulageRequestVersion
+        requestVersion !== dholeHaulageRequestVersion
         || step.value !== 6
         || currentCostContextKey() !== requestedContext
       ) return
 
-      // Do not compute "no Merchant available" from the incomplete contextual
-      // result: the Screen 7 selector may have additional valid Optional costs.
       if (!await dholeMergeScreen7OptionalCostsForComparison(requestedContext, requestVersion)) return
 
       dholeHaulageLoadedContext.value = requestedContext
