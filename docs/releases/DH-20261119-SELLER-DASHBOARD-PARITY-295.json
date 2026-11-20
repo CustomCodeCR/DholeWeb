@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-SELLER-DASHBOARD-PARITY-295",
+  "component": "DholeWeb",
+  "previousVersion": "1.103.17",
+  "version": "1.103.18",
+  "ecosystemVersion": "1.103.18",
+  "releaseType": "PATCH",
+  "pricingVersion": "1.25.4",
+  "scope": "seller/supervisor commercial dashboard parity, shared published projection, retain 2026-11-19 performance formula",
+  "ci": "pending",
+  "staging": "pending",
+  "productionAuthorized": false
+}
