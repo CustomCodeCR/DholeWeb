@@ -1,3 +1,19 @@
+## [1.104.4] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-312 · aprobación desde el dashboard vendedor)
+
+- PATCH: Roy y José Pablo, este último vendedor sin rol Pricing o SuperUsuario, ven la bandeja de autorizaciones para tarifas vencidas desde Inicio y pueden aprobar o rechazar de manera segura.
+- Contador actualizado por SignalR y acceso directo desde la notificación en /home?expiredApprovals=1. Se reutiliza la validación de identidad de Auth ya implementada en la API.
+- DholeSystem/Web 1.104.3 → 1.104.4; Pricing 1.26.1 → 1.26.2.
+
+## [1.104.1] - 2026-11-20 (DH-20261120-EXPIRED-RATE-OUTBOX-HOTFIX · correlación segura en avisos de jefatura)
+
+- PATCH coordinado tras la autorización para tarifas vencidas: limita la clave de correlación de las notificaciones a 100 caracteres; conserva entrega duradera System/SignalR y Email a Roy/José Pablo.
+- Web/System 1.104.0 → 1.104.1; Pricing 1.26.0 → 1.26.1.
+
+## [1.104.0] - 2026-11-20 (DH-20261120-EXPIRED-RATE-APPROVAL-301 · autorización de tarifas vencidas)
+
+- MINOR: solicita justificación obligatoria y aprobación de Roy o José Pablo antes de actualizar una tarifa vencida; historial, control server-side y avisos por SignalR/correo, con bandeja de aprobación.
+- Web/System 1.103.23 → 1.104.0 y Pricing 1.25.4 → 1.26.0, 14 componentes sin cambios. Validación CI y staging antes de master.
+
 ## [1.103.24] - 2026-11-20 (DH-20261120-PRICING-COUNTRY-OPTIONS-310 · corrección del wizard de tarifas en blanco)
 
 - PATCH: reparar TypeError pricingQuoteCountryOptions undefined al abrir Crear tarifa; la vista consume las opciones de países desde el catálogo reactivo de Config en ambas pantallas, sin acceso a computed susceptible a transformaciones Vite.
