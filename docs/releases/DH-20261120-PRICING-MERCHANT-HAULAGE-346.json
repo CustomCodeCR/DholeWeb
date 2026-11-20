@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-MERCHANT-HAULAGE-346",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.4",
+  "releaseType": "PATCH",
+  "changes": [
+    "Include route-matched Fixed/Variable inland as Merchant or Carrier Haulage in screen 6",
+    "Carry only selected transport to screen 7; preserve common fixed charges and prevent duplicate totals",
+    "Maintain authoritative selected POE and POD, per-container charges, international freight and REST/SignalR"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.106.3",
+      "version": "1.106.4"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.106.3",
+      "version": "1.106.4"
+    }
+  ],
+  "otherComponentVersions": "Unchanged in DholeSystem/release-manifest.json",
+  "regressionTests": [
+    "tests/pricingMerchantFixedHaulage20261120.test.ts"
+  ],
+  "realtime": "Existing SignalR architecture unchanged",
+  "schemaMigration": false,
+  "ci": "pending",
+  "staging": "pending",
+  "productionDeploymentAuthorized": false,
+  "promotion": {
+    "source": "develop",
+    "target": "master",
+    "strategy": "selective-branch-from-master",
+    "ci": "pending",
+    "staging": "not-authenticated-verified",
+    "production": "pending"
+  }
+}

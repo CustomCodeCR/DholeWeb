@@ -1,3 +1,10 @@
+## [1.106.4] - 2026-11-20 (DH-20261120-PRICING-MERCHANT-HAULAGE-346 · Merchant Haulage FCL por Balboa y destinos seleccionados)
+
+- PATCH: Pantalla 6 identifica como transporte Merchant/Naviera costos Inland Fixed, Variable u Optional, no sólo cargos opcionales; admite Balboa → San José y mantiene coincidencia estricta de ruta, servicios e Incoterm según Pricing.
+- La alternativa seleccionada pasa a Pantalla 7 sin duplicar transporte terrestre, manteniendo CostId, precios, cantidad por contenedor y cargos fijos comunes independientes. Los cargos de naviera no son reclasificados como Merchant.
+- Regresión Merchant/Naviera fijo, condición explícita, selección exclusiva de transporte y contexto de ruta. Promoción selectiva de develop 1.106.4 a master; Vite/REST/SignalR sin cambios contractuales.
+- DholeWeb y DholeSystem 1.106.3 → 1.106.4; los otros 15 componentes no se alteran. CI y comprobación de staging requeridas antes de producción.
+
 ## [1.106.3] - 2026-11-20 (DH-20261120-PRICING-IMPORT-COSTS-345 · costos de importación según contexto real)
 
 - PATCH: los costos devueltos por `/api/pricing/costs/select` para el contexto FCL (POL, POE, POD, naviera, agente, servicios e Incoterm) son autoritativos; se evita una segunda exclusión en Web basada en IDs legados de puertos únicos.
