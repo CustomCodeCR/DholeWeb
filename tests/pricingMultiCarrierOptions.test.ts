@@ -178,7 +178,7 @@ test('Caldera MSC Carrier Inland from screen 6 reaches screen 7 priced with its 
   assert.match(haulagePlugin, /costAmount: number\(price\.costAmount\)/)
   assert.match(haulagePlugin, /saleAmount: number\(price\.saleAmount\)/)
   assert.match(haulagePlugin, /dholeEnsureSelectedHaulageLines\(\)/)
-  assert.match(haulagePlugin, /if \(props\.viewOnly \|\| step\.value !== 7 \|\| !dholeHaulageVisible\.value\) return/)
+  assert.match(haulagePlugin, /if \(props\.viewOnly \|\| !multiCarrierSelectionMode\.value \|\| step\.value !== 7\) return/)
   assert.match(wizard, /await activateCarrierRoute\(first\.poeId, first\.carrierId\)/)
   assert.match(wizard, /await loadCostsForSelectedAlternative\(\)/)
 })
