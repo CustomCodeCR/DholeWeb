@@ -352,6 +352,8 @@ const customerPreferentialAccountId = ref('')
 const customerPreferentialError = ref('')
 let customerPreferentialRequest = 0
 const pricingQuoteCountryOverrideId = ref('')
+// Explicit quote-level choice takes precedence over automatic client-country detection.
+const pricingQuoteOperationOverride = ref<RateOperationType | ''>('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -2048,25 +2050,23 @@ const lclCargoLines = computed(() => consolidatedCargoMode.value && lclChargeabl
 
 // Quote-country picker derives its choices from the always-reactive Config catalog.
 // Do not bind template markup to an injected computed that may be absent after Vite transforms.
+const automaticOperationType = computed(() => operationForClientCountry(
+  resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
+    || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
+  resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
+  resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
+))
 const direction = computed(() => {
-  const perspective = operationForClientCountry(
-    resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
-      || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
-    resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
-    resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
-  )
+  const perspective = pricingQuoteOperationOverride.value || automaticOperationType.value
   if (perspective === 'Import') return 'Importación'
   if (perspective === 'Export') return 'Exportación'
   if (perspective === 'TransitDomestic') return 'Tránsito / doméstico'
   return ''
 })
-// Do not infer a missing CRM/route country during save validation.
-const operationType = computed<RateOperationType>(() => operationForClientCountry(
-  resolveCrmCountryCode(crmClientCountryId.value, catalogs.countries)
-      || resolveCrmCountryCode(pricingQuoteCountryOverrideId.value, catalogs.countries),
-  resolvePodCountryCode(selectedOrigin.value, catalogs.countries),
-  resolvePodCountryCode(selectedPod.value ?? selectedDestination.value, catalogs.countries),
-) ?? 'TransitDomestic')
+// Unresolved countries require a user choice, rather than an unverified default.
+const operationType = computed<RateOperationType>(() =>
+  pricingQuoteOperationOverride.value || automaticOperationType.value || 'TransitDomestic',
+)
 const crcImportContext = computed(
   // Physical destination governs Costa Rican customs/CRC handling, not the customer's trade perspective.
   () => isCostaRica(selectedPod.value ?? selectedDestination.value),
@@ -4641,6 +4641,8 @@ async function hydrateExistingRate() {
       PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
     ])
     editingRate.value = rate
+    // Preserve the persisted commercial perspective when reopening a quotation.
+    pricingQuoteOperationOverride.value = rate.operationType || ''
     rateRevisions.value = revisions
     const groupedQuote = await PricingService.getRateGroup(rate.id)
     // Redirect old parent and discarded sub-QUO links to the definitive quote.
@@ -6596,6 +6598,7 @@ function setCrmClient(client: {
 } | null) {
   crmClientCountryId.value = client?.countryId || ''
   pricingQuoteCountryOverrideId.value = ''
+  pricingQuoteOperationOverride.value = ''
   resolvedCountryClientId.value = client?.id || ''
   form.crmClientKind = client?.kind || ''
   form.clientId = client?.id || ''
@@ -6620,6 +6623,7 @@ watch(
     if (clientId !== resolvedCountryClientId.value) {
       crmClientCountryId.value = ''
       pricingQuoteCountryOverrideId.value = ''
+      pricingQuoteOperationOverride.value = ''
       resolvedCountryClientId.value = ''
     }
   },
@@ -7121,7 +7125,7 @@ onMounted(async () => {
               <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
             <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha. La operación se calcula por el país del cliente frente al POL y POD final.</p>
-            <div v-if="form.clientId && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
+            <div v-if="form.clientId && !pricingQuoteOperationOverride && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
               class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
               <p class="text-sm font-black">País del cliente pendiente en CRM</p>
               <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione el país real de esta cuenta para la cotización. No modifica la ficha de CRM y evita bloquear el avance a las siguientes pantallas.</p>
@@ -7130,8 +7134,24 @@ onMounted(async () => {
                 :options="catalogs.countries.filter(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries))).map(country => ({ value: country.id, label: displayValue(country) || country.label || country.id }))" />
               <p v-if="!catalogs.countries.some(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries)))" role="alert" class="text-xs font-semibold text-amber-600">El catálogo de países de Config está vacío. Es necesario cargarlo para seleccionar el país del cliente.</p>
             </div>
+            <div class="grid gap-2 md:grid-cols-2">
+              <DhSelect v-model="pricingQuoteOperationOverride"
+                label="Operación comercial (selección manual disponible)"
+                data-required-field="clientCountry"
+                :options="[
+                  { value: '', label: 'Automática según el cliente y la ruta' },
+                  { value: 'Import', label: 'Importación' },
+                  { value: 'Export', label: 'Exportación' },
+                  { value: 'TransitDomestic', label: 'Tránsito / doméstico' },
+                ]" />
+              <p class="self-center text-xs font-semibold text-[var(--dh-text-muted)]">
+                {{ pricingQuoteOperationOverride ? 'Se respetará la operación seleccionada para esta cotización.' : 'La operación se calcula automáticamente si los países están disponibles.' }}
+              </p>
+            </div>
             <p v-if="form.clientId && form.originId && (form.podId || form.destinationId) && !direction"
-              data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Revise el país del cliente y los códigos ISO de origen y destino en Config.</p>
+              data-required-field="clientCountry" role="status" class="text-xs font-semibold text-amber-500">
+              Faltan datos de país en CRM o Config. Seleccione manualmente la operación comercial para continuar.
+            </p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">
@@ -7546,7 +7566,7 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 5" class="space-y-6">
-          <div v-if="props.rateRequestId && form.clientId && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
+          <div v-if="props.rateRequestId && form.clientId && !pricingQuoteOperationOverride && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
             class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
             <p class="text-sm font-black">País del cliente pendiente en CRM</p>
             <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
