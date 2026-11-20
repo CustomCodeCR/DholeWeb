@@ -11,7 +11,7 @@ export function normalizeIncotermCode(code?: string | null, displayName?: string
     const value = String(candidate ?? '').trim().toUpperCase()
     if (ICC_INCOTERM_CODES.has(value)) return value
     const match = value.match(/(?:^|[^A-Z])(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)(?=$|[^A-Z])/)
-    if (match) return match[1]
+    if (match) return match[1]!
   }
   return String(code || displayName || '').trim().toUpperCase()
 }
