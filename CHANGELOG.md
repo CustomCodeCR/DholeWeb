@@ -1,3 +1,10 @@
+## [1.106.9] - 2026-11-20 (DH-20261120-LCL-CRC-AGENCY-352 · Agencia de Aduanas CRC en LCL propio)
+
+- PATCH: La pantalla 7 carga la Agencia de Aduanas CRC solicitada por Ventas incluso si la fuente es un consolidado LCL propio.
+- Resuelve Costos Pricing por servicio, ruta, Incoterm y tramo de peso; reconoce el suplemento como CustomsCharge.
+- Preserva el suplemento al recalcular, guardar y reabrir sin duplicar la matriz del consolidado ni Manejos.
+- Si no hay precio aplicable, mantiene un renglón editable sin inventar costos; cubierto por pruebas de regresión.
+
 ## [1.106.8] - 2026-11-20 (DH-20261120-INCOTERM-SAVE-351 · Guardado de importaciones FOB y flete contratado)
 
 - PATCH: El transformador de Vite deja de utilizar la referencia eliminada `freightNotRequiredByIncoterm`, que producía un ReferenceError y bloqueaba el guardado de tarifas antes de enviar el PUT a Pricing.
