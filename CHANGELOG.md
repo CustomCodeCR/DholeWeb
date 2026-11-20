@@ -1,3 +1,9 @@
+## [1.103.11] - 2026-11-19 (DH-20261119-CRM-INVITATIONS-SAVE-290 · sincronización global CRM invitados)
+
+- PATCH: sincroniza la versión Web con DholeSystem 1.103.11 y CRM 1.42.2; el payload participantUserIds y los contratos REST/SignalR existentes permanecen intactos.
+- La creación de actividades comerciales valida invitados activos contra el directorio Auth en el backend, conserva recordatorios individuales y evita errores internos por consultas individuales de permisos.
+- CI y staging pendientes; ninguna autorización de despliegue a producción en este release.
+
 ## [1.103.8] - 2026-11-19 (DH-20261119-PRICING-LTL-DDP-FREIGHT-284 · sincronización release DDP/LTL terrestre)
 
 - PATCH coordinado con DholePricingService 1.25.2 y DholeSystem 1.103.8. Cotizaciones LTL con DDP y flete internacional por CBM ya no se rechazan por distribución FCL en backend; se conserva el payload del wizard (shipmentMode=Ltl, contenedores vacíos, cantidad facturable por CBM).
