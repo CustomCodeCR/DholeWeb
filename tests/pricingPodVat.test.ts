@@ -117,6 +117,7 @@ test('El Salvador country is resolved from an explicit POD country label without
   const destination = item('POD-2026-014', 'San Salvador, El Salvador')
   assert.equal(resolvePodCountryCode(origin, []), 'CN')
   assert.equal(resolvePodCountryCode(destination, []), 'SV')
+  assert.equal(resolvePodCountryCode(destination, [item('CAT-SV', 'El Salvador', { countryCode: 'SLV' })]), 'SV')
   assert.equal(resolvePodCountryCode(item('POD-UNKNOWN', 'San Salvador'), []), '')
   assert.equal(resolvePodCountryCode(item('POE-2026-001', 'Acajutla, El Salvador'), []), 'SV')
 })
