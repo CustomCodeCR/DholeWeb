@@ -107,6 +107,14 @@ const detailInviteeIds = ref<string[]>([])
 const detailInviteesBusy = ref(false)
 const detailInviteesReady = ref(false)
 const detailInviteesLoadError = ref('')
+// Retain selected users when the paginated Auth directory does not list them.
+const detailInviteeChoices = computed(() => {
+  const available = inviteeChoices.value.filter(x => x.value !== active.value?.ownerId)
+  const known = new Set(available.map(x => x.value))
+  return [...available, ...detailInviteeIds.value
+    .filter(id => id !== active.value?.ownerId && !known.has(id))
+    .map(id => ({ value: id, label: 'Usuario invitado (' + id.slice(0, 8) + ')' }))]
+})
 watch(active, async item => {
   detailInviteeIds.value = []
   detailInviteesReady.value = false
@@ -1500,7 +1508,7 @@ function openEvent(item: CalendarEvent) {
           <button type="button" class="calendar-btn" @click="searchInvitees" :disabled="inviteesBusy">Buscar</button>
         </div>
         <DhMultiSelect v-model="detailInviteeIds" label="Usuarios internos"
-          :options="inviteeChoices.filter(x => x.value!==active?.ownerId)"
+          :options="detailInviteeChoices"
           placeholder="Seleccionar invitadas" search-placeholder="Buscar…" empty-text="Buscá usuarios activos." />
         <div v-if="detailInviteesLoadError" role="alert" class="text-xs text-amber-600">
           {{ detailInviteesLoadError }}
