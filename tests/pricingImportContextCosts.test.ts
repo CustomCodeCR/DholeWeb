@@ -46,7 +46,7 @@ test('CIF import reveals matched origin, destination and documentation costs wit
   assert.ok(result.includes('origin_charges'), 'matched origin handling must not vanish because CIF buyer sections omit it')
   assert.ok(result.includes('destination_charges'))
   assert.ok(result.includes('international_freight'), 'matched documentation may appear without a purchased freight leg')
-  assert.ok(!result.includes('pickup_origin'), 'unmatched route costs remain excluded')
+  assert.ok(result.includes('pickup_origin'), 'all commercial sections must remain selectable independently of Incoterm')
 })
 
 test('CIF import without an international transport service does not invent a freight stage', () => {
@@ -60,13 +60,13 @@ test('CIF import without an international transport service does not invent a fr
     'explicitly selected International Transport must be available under CIF')
 })
 
-test('inactive and unmatched catalog costs never widen the visible sections', () => {
+test('temporary Incoterm unblock keeps every section available for manual charges', () => {
   const result = resolvedSections(false, [
     { id: 'inactive', section: 'pickup_origin', costDetailType: 'OriginCharge', isActive: false },
     { id: 'another-provider', section: 'origin_charges', costDetailType: 'OriginCharge', applicable: false },
   ])
-  assert.ok(!result.includes('pickup_origin'))
-  assert.ok(!result.includes('origin_charges'))
+  assert.ok(result.includes('pickup_origin'))
+  assert.ok(result.includes('origin_charges'))
 })
 
 test('FTL/LTL preserve all stage choices independently of the Incoterm', () => {

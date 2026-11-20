@@ -28,7 +28,8 @@ function patchWizard(source: string) {
 
   // Incoterms describe the responsible party, not a ban on separately quoted
   // origin / destination / customs / documentation charges.
-  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  // Temporary unblock: do not hide sections because an Incoterm assigns them to another party.
+  const allowed = new Set<RateSection>(sectionOrder)
   if (hasInternationalTransportService.value) allowed.add('international_freight')
   else allowed.delete('international_freight')
   for (const cost of costs.value) {

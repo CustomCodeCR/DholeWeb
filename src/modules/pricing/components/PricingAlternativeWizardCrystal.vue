@@ -1682,16 +1682,10 @@ const warehouseMapMarkers = computed(() =>
     }]
   }),
 )
-const exwLocationReady = computed(() =>
-  selectedIncotermCode.value !== 'EXW' ||
-  (pickupLocations.value.length > 0 && !form.pickupAddress.trim()),
-)
-const fcaLocationReady = computed(() =>
-  selectedIncotermCode.value !== 'FCA' ||
-  (catalogs.warehouses.length
-    ? Boolean(selectedWarehouse.value)
-    : Boolean(form.pickupAddress.trim())),
-)
+// DH-20261120-INCOTERM-TEMP-UNBLOCK-353: EXW/FCA pickup and WHS are optional
+// until the contractual responsibility rules are corrected.
+const exwLocationReady = computed(() => true)
+const fcaLocationReady = computed(() => true)
 const selectedServices = computed(() => catalogs.services.filter((item) => form.serviceIds.includes(item.id)))
 function isCrcCustomsService(service: CatalogItemSelectDto) {
   if (String(service.code ?? '').trim().toUpperCase() === 'CUSTOMS_CR') return true
@@ -2135,7 +2129,8 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
 const visibleSections = computed<RateSection[]>(() => {
   // ICC assigns default responsibility; an explicitly contracted international
   // transport service must remain quotable, including buyer-import CIF or DDP.
-  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  // Temporary compatibility: every section is quotable for every Incoterm.
+  const allowed = new Set<RateSection>([...sectionOrder, ...incotermResponsibilitySections.value])
   const internationalTransportQuoted = selectedServices.value.some((service) => {
     const code = String(service.code ?? '').trim().toUpperCase()
     const label = normalizeCatalogValue([displayValue(service), service.label].filter(Boolean).join(' '))
@@ -2650,15 +2645,8 @@ function validityTone(validTo: string) {
 }
 
 // Ventas debe indicar la condición aduanera antes de avanzar.
-const sellerCargoConditionReady = computed(() => {
-  if (!props.sellerRequestMode) return true
-  const valid = (value: PickupCargoCondition | null | undefined | '') =>
-    value === 'FiscalCargo' || value === 'NationalizedCargo'
-  if (selectedIncotermCode.value === 'EXW') {
-    return pickupLocations.value.length > 0 && pickupLocations.value.every((pickup) => valid(pickup.cargoCondition))
-  }
-  return valid(form.cargoCondition)
-})
+// Temporary compatibility: no Incoterm-specific cargo classification gate.
+const sellerCargoConditionReady = computed(() => true)
 
 // FCL/LCL maritimos require the final destination (POD), in both
 // seller requests and Pricing quotations. Other modalities are unchanged.
@@ -5147,12 +5135,6 @@ async function next() {
     toastStore.warning('Tarifas del CRM sin verificar', customerPreferentialError.value)
     return
   }
-  if (step.value === 3 && selectedIncotermCode.value === 'EXW' && !props.viewOnly
-    && (!pickupLocations.value.length || form.pickupAddress.trim())) {
-    validateRequiredFields()
-    return
-  }
-
   if (props.rateId) {
     if (step.value < maxStep.value) step.value += 1
     return
