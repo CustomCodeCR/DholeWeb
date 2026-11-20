@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261120-PRICING-WIZARD-RUNTIME-366",
+  "date": "2026-11-20",
+  "ecosystemVersion": "1.107.5",
+  "releaseType": "PATCH",
+  "scope": [
+    "DholeWeb",
+    "DholeSystem"
+  ],
+  "branches": {
+    "develop": "fix/DH-20261120-PRICING-RUNTIME-366-develop",
+    "master": "fix/DH-20261120-PRICING-RUNTIME-366-master"
+  },
+  "affectedComponents": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "from": "1.107.4",
+      "to": "1.107.5"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "from": "1.107.4",
+      "to": "1.107.5"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "unchanged": "1.26.9"
+    }
+  ],
+  "rootCause": "After promotion of Pricing v1.107.4, production bundle references automaticOperationType although source declares it; a legacy wizard rewrite drops its binding, causing Vue runtime setup failure.",
+  "changes": [
+    "Remove automaticOperationType computed and inline operationForClientCountry inside direction and operationType computed",
+    "Build guard and minified bundle scan prohibit the stale unresolved global symbol",
+    "Regression test covers source, build diagnostic, manual Import/Export/Transit and original production failure"
+  ],
+  "tests": [
+    "pnpm run test:pricing-rate-update",
+    "pnpm run type-check",
+    "pnpm run build",
+    "production minified bundle static symbol inspection",
+    "headless Chrome pricing wizard smoke",
+    "authenticated create and existing view/edit routes in staging"
+  ],
+  "schemaMigration": false,
+  "realtime": "No SignalR/REST/back-end changes",
+  "rollback": "Revert synchronized Web/System v1.107.5 release if new severe regression after rollout; preserve 1.107.4 data.",
+  "ci": "pending",
+  "staging": "pending",
+  "productionApproval": "Not independently confirmed for this new patch; earlier user authorized master promotion of original issue."
+}
