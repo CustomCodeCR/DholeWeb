@@ -30,7 +30,7 @@ export function operationForClientCountry(
   const client = String(clientCountry ?? '').trim().toUpperCase()
   const origin = String(originCountry ?? '').trim().toUpperCase()
   const destination = String(destinationCountry ?? '').trim().toUpperCase()
-  if (![client, origin, destination].every(code => normalizeIsoCountryCode(code) === code)) return null
+  if (![client, origin, destination].every(code => code.length > 0 && normalizeIsoCountryCode(code) === code)) return null
   if (origin === destination) return 'TransitDomestic'
   if (client === origin) return 'Export'
   if (client === destination) return 'Import'
