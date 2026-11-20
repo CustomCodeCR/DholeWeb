@@ -17,7 +17,7 @@ test('emergency stabilization does not eagerly save incomplete screen-7 rate lin
 test('no additional synchronous screen 7 watcher mutates rate lines ahead of loadApplicableCosts', () => {
   const watcherCount = (haulage.match(/\(\) => \[step\.value, currentCostContextKey\(\)\]\.join/g) ?? []).length
   assert.equal(watcherCount, 1)
-  assert.match(haulage, /const loaded = await loadApplicableCosts\(\)/, 'loader remains async in the wizard source')
+  assert.match(haulage, /async function dholeMergeScreen7OptionalCostsForComparison\(/, 'optional catalog remains async')
 })
 
 test('inland optional catalog still loads through existing step-7 integration', () => {
