@@ -65,6 +65,7 @@ import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pric
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
 import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
+import { reconcileActiveCostCatalog } from '@/modules/pricing/utils/pricingScreenSevenCostRecovery'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -846,7 +847,9 @@ async function loadCostsForSelectedAlternative(force = false) {
   if (step.value !== 7 || !multiCarrierSelectionMode.value || switchingPoeRoute.value) return
   const key = carrierRouteKey(form.destinationId, form.carrierId)
   const context = activeCostContextKey()
-  if (!force && alternativeCostsLoaded.value[key] === context) return
+  // A previous request can be marked loaded while another route/Incoterm watcher
+  // has cleared the displayed lines. Never treat an empty P7 as a valid cache.
+  if (!force && alternativeCostsLoaded.value[key] === context && rateLines.value.length > 0) return
   const loaded = await loadApplicableCosts()
   // Do not cache failed requests or attach the response to another alternative.
   if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
@@ -857,8 +860,36 @@ async function loadCostsForSelectedAlternative(force = false) {
 }
 
 async function reloadCurrentAlternativeCosts() {
-  await loadCostsForSelectedAlternative(true)
+  if (multiCarrierSelectionMode.value) {
+    await loadCostsForSelectedAlternative(true)
+  } else if (await loadApplicableCosts()) {
+    rebuildRateLines()
+  }
 }
+
+// Recover automatically if a carrier/POD draft watcher clears P7 after the
+// costs request succeeded. Don't wait for a full page refresh, and don't
+// overwrite already populated or persisted quotation lines.
+let recoveringScreenSevenCosts = false
+async function restoreMissingScreenSevenLines() {
+  if (recoveringScreenSevenCosts || props.rateId || step.value !== 7
+    || switchingPoeRoute.value || rateLines.value.length > 0) return
+  recoveringScreenSevenCosts = true
+  try {
+    await reloadCurrentAlternativeCosts()
+  } finally {
+    recoveringScreenSevenCosts = false
+  }
+}
+watch(
+  () => [step.value, rateLines.value.length, switchingPoeRoute.value] as const,
+  ([currentStep, lines, switching]) => {
+    if (currentStep === 7 && !lines && !switching && !props.rateId) {
+      void restoreMissingScreenSevenLines()
+    }
+  },
+  { flush: 'post' },
+)
 
 /** "Continue" means next carrier within the current screen, not skipping work. */
 async function advanceSequentialWizard() {
@@ -3182,7 +3213,7 @@ function applicableCost(cost: CostSelectDto) {
   if (isFullUnitCost && (mode === 'Lcl'
       || ((mode === 'Ltl' || mode === 'AirConsol') && !cost.shipmentMode))) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
-  if (cost.shipmentMode && cost.shipmentMode !== shipmentModeForApi.value) return false
+  if (cost.shipmentMode && String(cost.shipmentMode) !== 'Any' && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
   if (!pickupCargoConditionsMatch(cost.operationalConditions)) return false
   if (!costRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
@@ -3236,6 +3267,8 @@ function applicableConfiguredCosts() {
     .filter(applicableCost)
     .sort((left, right) => costSpecificity(right) - costSpecificity(left))
 }
+
+const applicableConfiguredCostCount = computed(() => applicableConfiguredCosts().length)
 
 function revisionSnapshotRecord(revision: RateRevisionDto) {
   try {
@@ -3466,7 +3499,11 @@ async function loadApplicableCosts(): Promise<boolean> {
     // Resolve CRM's current customer-specific sale agreement before generating screen 7.
     await loadCustomerPreferentialRates()
     if (requestContext !== activeCostContextKey()) return false
-    costs.value = received
+    // Pricing's contextual endpoint sometimes returns optional-only matches when
+    // carrier and agent filters coexist (MAERSK + WWL). The full active catalog
+    // was already fetched at wizard startup. Reconcile by CostId, then apply
+    // all route/provider/service guards locally in applicableConfiguredCosts().
+    costs.value = reconcileActiveCostCatalog(received, allCosts.value)
     return true
   } catch (error) {
     if (requestContext !== activeCostContextKey()) return false
@@ -7985,6 +8022,10 @@ onMounted(async () => {
           <p v-if="selectedIncotermCode === 'CIF' || selectedIncotermCode === 'CIP'" role="status" class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-600">
             {{ selectedIncotermCode }} exige documentar el seguro contratado por el vendedor. Si la póliza está incluida por un tercero, no agregue una segunda prima; adjunte su respaldo antes de emitir.
           </p>
+          <div v-if="!rateLines.length && !customerPreferentialError" role="alert" class="crystal-soft flex flex-wrap items-center justify-between gap-3 border border-amber-500/40 p-4">
+            <p class="text-xs font-bold text-amber-600">No se reconstruyeron las líneas para esta opción. Reintente la consulta de cargos sin salir de la cotización.</p>
+            <DhButton type="button" variant="secondary" @click="reloadCurrentAlternativeCosts">Reconstruir cargos</DhButton>
+          </div>
           <div v-if="customerPreferentialError" role="alert" class="crystal-soft flex flex-wrap items-center justify-between gap-3 border border-amber-600 p-4">
             <p class="text-sm font-bold text-amber-600">{{ customerPreferentialError }}</p>
             <DhButton type="button" variant="secondary" @click="retryCustomerPreferredRates">Reintentar tarifas CRM</DhButton>
@@ -8045,7 +8086,7 @@ onMounted(async () => {
               <div v-if="multiCarrierSelectionMode" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-xs font-bold">
                 <Ship class="h-4 w-4 text-[var(--dh-primary)]" />
                 <span class="text-[var(--dh-text)]">{{ currentRouteLabel }}</span>
-                <span class="ml-auto text-[10px] text-[var(--dh-text-muted)]">{{ costs.length }} costos consultados</span>
+                <span class="ml-auto text-[10px] text-[var(--dh-text-muted)]">{{ applicableConfiguredCostCount }} cargos aplicables · {{ costs.length }} revisados</span>
                 <DhButton variant="secondary" size="sm" :disabled="switchingPoeRoute" @click="reloadCurrentAlternativeCosts">Recargar costos</DhButton>
               </div>
               <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>
