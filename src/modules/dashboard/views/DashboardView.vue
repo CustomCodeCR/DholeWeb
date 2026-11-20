@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
-import { DhSelect } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import OperationsRoleDashboard from '@/modules/dashboard/components/OperationsRoleDashboard.vue'
 import PricingRoleDashboard from '@/modules/dashboard/components/PricingRoleDashboard.vue'
@@ -13,6 +13,51 @@ import PricingRateRequestsPanel from '@/modules/pricing/components/PricingRateRe
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+
+function localDate(date: Date) {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+}
+const globalFilters = reactive({
+  from: localDate(new Date(Date.now() - 89 * 86_400_000)),
+  to: localDate(new Date()),
+  seller: '',
+  mode: '',
+})
+const appliedFrom = ref(globalFilters.from)
+const appliedTo = ref(globalFilters.to)
+const sellerDashboardOptions = ref<Array<{ value: string; label: string }>>([])
+const sellerReportOptions = ref<Array<{ value: string; label: string }>>([])
+const dashboardModes = ref<Array<{ value: string; label: string }>>([])
+const reportModes = ref<Array<{ value: string; label: string }>>([])
+const globalDateError = computed(() => globalFilters.from && globalFilters.to && globalFilters.from > globalFilters.to)
+function applyGlobalDates() {
+  if (globalDateError.value) return
+  appliedFrom.value = globalFilters.from
+  appliedTo.value = globalFilters.to
+}
+function setSellerOptions(value: { sellers: Array<{ value: string; label: string }>; modes: Array<{ value: string; label: string }> }) {
+  sellerDashboardOptions.value = value.sellers
+  dashboardModes.value = value.modes
+}
+function setReportOptions(value: { sellers: Array<{ value: string; label: string }>; modes: Array<{ value: string; label: string }> }) {
+  sellerReportOptions.value = value.sellers
+  reportModes.value = value.modes
+}
+function mergeFilterOptions(...sources: Array<Array<{ value: string; label: string }>>) {
+  const entries = new Map<string, string>()
+  for (const source of sources) for (const option of source) {
+    if (option.value) entries.set(option.value, option.label)
+  }
+  return [...entries].sort((a, b) => a[1].localeCompare(b[1], 'es')).map(([value, label]) => ({ value, label }))
+}
+const globalSellerOptions = computed(() => [
+  { value: '', label: 'Todos los vendedores' },
+  ...mergeFilterOptions(sellerDashboardOptions.value, sellerReportOptions.value),
+])
+const globalModeOptions = computed(() => [
+  { value: '', label: 'Todas las modalidades' },
+  ...mergeFilterOptions(dashboardModes.value, reportModes.value),
+])
 
 function isSuperUser(): boolean {
   return (
@@ -140,6 +185,31 @@ const activeDashboardRole = computed<DashboardRole>(() => {
       </div>
     </section>
 
+    <section v-if="activeDashboardRole === 'seller'" class="rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5" aria-label="Filtros generales del dashboard">
+      <div class="mb-3">
+        <h2 class="text-sm font-black text-[var(--dh-text)]">Filtros generales del dashboard</h2>
+        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Se aplican a los indicadores comerciales, las tarifas, solicitudes y la reportería.</p>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <DhInput v-model="globalFilters.from" type="date" label="Solicitadas desde" />
+        <DhInput v-model="globalFilters.to" type="date" label="Solicitadas hasta" />
+        <DhSelect
+          v-if="isSuperUser() || canViewAllCommercialRates"
+          v-model="globalFilters.seller"
+          label="Vendedor"
+          placeholder=""
+          :options="globalSellerOptions"
+        />
+        <DhSelect v-model="globalFilters.mode" label="Modalidad" placeholder="" :options="globalModeOptions" />
+      </div>
+      <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p :class="globalDateError ? 'text-red-500' : 'text-[var(--dh-text-muted)]'" class="text-xs">
+          {{ globalDateError ? 'La fecha inicial no puede ser posterior a la final.' : 'Los cambios de vendedor y modalidad son inmediatos; aplique las fechas para actualizar el período.' }}
+        </p>
+        <DhButton label="Aplicar fechas" size="sm" :disabled="Boolean(globalDateError)" @click="applyGlobalDates" />
+      </div>
+    </section>
+
     <!-- SuperUsuario supervisa globalmente y puede operar lo propio. Un usuario
          Pricing + Vendedor consulta sus propias tarifas, no las de terceros. -->
     <OperationsRoleDashboard v-if="activeDashboardRole === 'operations' && canUseOperations">
@@ -160,6 +230,11 @@ const activeDashboardRole = computed<DashboardRole>(() => {
       v-else-if="activeDashboardRole === 'seller'"
       :admin-preview="isSuperUser() || (canViewAllCommercialRates && !canSelectDashboard)"
       :enable-seller-actions="authStore.hasScope('pricing.rate-request.create')"
+      :filter-from="appliedFrom"
+      :filter-to="appliedTo"
+      :filter-seller="globalFilters.seller"
+      :filter-mode="globalFilters.mode"
+      @filter-options="setSellerOptions"
     />
 
     <template v-else-if="canUsePricing">
@@ -171,6 +246,11 @@ const activeDashboardRole = computed<DashboardRole>(() => {
       v-if="(activeDashboardRole === 'seller' && hasSellerDashboardAccess) || (activeDashboardRole === 'pricing' && canUsePricing)"
       :key="activeDashboardRole"
       :role="activeDashboardRole"
+      :filter-from="appliedFrom"
+      :filter-to="appliedTo"
+      :filter-seller="globalFilters.seller"
+      :filter-mode="globalFilters.mode"
+      @filter-options="setReportOptions"
     />
   </section>
 </template>

@@ -13,6 +13,7 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
+import { commercialPerformancePercent, isInDashboardDateRange } from '../utils/commercialDashboardMetrics'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
@@ -20,8 +21,17 @@ import { canSellerRequestRateModification } from '@/modules/pricing/utils/seller
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
 // Los endpoints personales y la autorización de Pricing determinan las acciones propias.
-const props = withDefaults(defineProps<{ adminPreview?: boolean; enableSellerActions?: boolean }>(), { adminPreview: false, enableSellerActions: false })
-const selectedSellerId = ref('')
+const props = withDefaults(defineProps<{
+  adminPreview?: boolean
+  enableSellerActions?: boolean
+  filterFrom?: string
+  filterTo?: string
+  filterSeller?: string
+  filterMode?: string
+}>(), { adminPreview: false, enableSellerActions: false })
+const emit = defineEmits<{
+  'filter-options': [value: { sellers: Array<{ value: string; label: string }>; modes: Array<{ value: string; label: string }> }]
+}>()
 
 interface SellerRateRequestDto {
   id: string
@@ -63,10 +73,11 @@ const loading = ref(false)
 const hasLoaded = ref(false)
 const loadError = ref(false)
 const allRequests = ref<SellerRateRequestDto[]>([])
-const requests = computed(() => props.adminPreview && selectedSellerId.value
-  ? allRequests.value.filter((request) => request.sellerUserId === selectedSellerId.value)
-  : allRequests.value,
-)
+const requests = computed(() => allRequests.value.filter(request =>
+  (!props.adminPreview || !props.filterSeller || request.sellerUserId === props.filterSeller)
+  && (!props.filterMode || request.shipmentMode === props.filterMode)
+  && isInDashboardDateRange(request.requestedAtUtc, props.filterFrom, props.filterTo),
+))
 
 const sellerOptions = computed(() => {
   const sellers = new Map<string, string>()
@@ -78,6 +89,14 @@ const sellerOptions = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 })
 const rates = ref<RateDto[]>([])
+const availableModes = computed(() => [...new Set([
+  ...allRequests.value.map(request => request.shipmentMode),
+  ...rates.value.map(rate => rate.shipmentMode),
+].filter((mode): mode is string => Boolean(mode)))].sort())
+watch([sellerOptions, availableModes], ([sellers, modes]) => emit('filter-options', {
+  sellers: sellers.map(({ id, name }) => ({ value: id, label: name })),
+  modes: modes.map(value => ({ value, label: value === 'Air' ? 'Aéreo' : value === 'AirConsol' ? 'Aéreo consolidado' : value.toUpperCase() })),
+}), { immediate: true })
 // En supervisión conservamos la visibilidad global y consultamos por separado
 // las tarifas/solicitudes autorizadas para operar con la identidad actual.
 const ownRates = ref<RateDto[]>([])
@@ -177,11 +196,20 @@ function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutr
 }
 
 const myRates = computed(() => {
-  const allowedRateIds = props.adminPreview && selectedSellerId.value
-    ? new Set(requests.value.map((request) => request.rateId).filter(Boolean))
+  // La selección del vendedor se cruza con solicitudes originales, no con la
+  // identidad del usuario que consulta ni con los últimos trabajos de modificación.
+  const allowedRateIds = props.adminPreview && props.filterSeller
+    ? new Set(allRequests.value.filter(request => request.sellerUserId === props.filterSeller)
+      .map(request => request.rateId).filter(Boolean))
     : null
-  return [...new Map(rates.value.map((rate) => [rate.id, ownRatesById.value.get(rate.id) ?? rate])).values()]
-    .filter((rate) => !allowedRateIds || allowedRateIds.has(rate.id))
+  return [...new Map(rates.value.map(rate => [rate.id, ownRatesById.value.get(rate.id) ?? rate])).values()]
+    .filter(rate => !allowedRateIds || allowedRateIds.has(rate.id))
+    .filter(rate => !props.filterMode || rate.shipmentMode === props.filterMode)
+    .filter(rate => isInDashboardDateRange(
+      requestDateByRate.value.get(rate.id)
+        ?? (typeof rate.createdAtUtc === 'string' ? rate.createdAtUtc : rate.validFrom),
+      props.filterFrom, props.filterTo,
+    ))
 })
 const pendingRequests = computed(() => requests.value.filter((request) =>
   (request.status === 'Open' && !request.rateId) || modificationStillPending(request)).length)
@@ -201,10 +229,10 @@ const clients = computed(() => new Set([
   ...myRates.value.map((rate) => rate.clientName?.trim().toLocaleLowerCase()).filter(Boolean),
 ]).size)
 
-const closedDecisions = computed(() => acceptedRates.value + rejectedRates.value)
-const acceptancePercent = computed(() =>
-  closedDecisions.value ? (acceptedRates.value * 100 / closedDecisions.value) : 0,
-)
+const quotedRates = computed(() => openRates.value + sentRates.value + acceptedRates.value + rejectedRates.value + expiredRates.value)
+const commercialPerformance = computed(() => commercialPerformancePercent(
+  quotedRates.value, openRates.value, acceptedRates.value, expiredRates.value,
+))
 
 const statusCards = computed(() => [
   { label: 'Total de tarifas', count: totalRates.value, filter: 'All' as SellerStatusFilter, icon: FileText },
@@ -222,10 +250,10 @@ function cleanSearch(value: string | null | undefined) {
 
 const requestDateByRate = computed(() => {
   const result = new Map<string, number>()
-  for (const request of requests.value) {
-    if (!request.rateId) continue
+  for (const request of allRequests.value) {
+    if (!request.rateId || request.kind === 'Modification') continue
     const timestamp = Date.parse(request.requestedAtUtc)
-    if (Number.isFinite(timestamp) && timestamp > (result.get(request.rateId) ?? 0))
+    if (Number.isFinite(timestamp) && timestamp < (result.get(request.rateId) ?? Infinity))
       result.set(request.rateId, timestamp)
   }
   return result
@@ -257,7 +285,7 @@ const pagedRates = computed(() => filteredRates.value.slice(
   (currentPage.value - 1) * pageSize,
   currentPage.value * pageSize,
 ))
-watch([search, statusFilter, selectedSellerId], () => { currentPage.value = 1 })
+watch([search, statusFilter, () => props.filterSeller, () => props.filterMode, () => props.filterFrom, () => props.filterTo], () => { currentPage.value = 1 })
 
 // Misma navegación que el dashboard de Pricing: abre la página Tarifas con el estado seleccionado.
 function openStatusRates(filter: SellerStatusFilter) {
@@ -292,11 +320,13 @@ const salesByCurrency = computed(() => {
     const rawAmount = Number(rate.totalSaleAmount)
     const amount = Number.isFinite(rawAmount) ? rawAmount : 0
     const status = commercialStatus(rate)
-    totals.quoted += amount
+    // Canceladas no son ventas cotizadas vigentes; cada estado se suma una sola vez.
+    if (status === 'Cancelled') continue
     if (status === 'AcceptedByClient') totals.accepted += amount
-    if (status === 'Sent') totals.inClientReview += amount
+    if (status === 'Sent' || status === 'Expired') totals.inClientReview += amount
     if (status === 'Open') totals.inPreparation += amount
     if (status === 'RejectedByClient') totals.rejected += amount
+    totals.quoted = totals.accepted + totals.inClientReview + totals.inPreparation + totals.rejected
     map.set(currency, totals)
   }
   return [...map.values()].sort((a, b) => a.currency.localeCompare(b.currency))
@@ -523,8 +553,7 @@ function openSellerRate(rate: RateDto) {
 }
 
 function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'RejectedByClient') {
-  // Guard the action as well as the visible button: a stale tab must not
-  // open a commercial decision for an unpublished Pricing revision.
+  // Conservar el guard de master: solo una revisión publicada permite decidir.
   if (!canRespondToRate(rate)) return
   modalStore.open({
     title: decision === 'AcceptedByClient'
@@ -696,19 +725,10 @@ onBeforeUnmount(() => {
       <div>
         <p class="text-sm font-black text-[var(--dh-text)]">Vista de supervisión comercial</p>
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-          Datos de todas las solicitudes de vendedores o de un vendedor seleccionado. Solo lectura; no modifica su identidad ni permite aceptar o rechazar tarifas ajenas.
+          Los indicadores obedecen el filtro general de fechas, vendedor y modalidad. Solo lectura; no modifica su identidad ni permite aceptar o rechazar tarifas ajenas.
         </p>
       </div>
-      <select
-        v-model="selectedSellerId"
-        aria-label="Seleccionar vendedor"
-        class="w-full rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2.5 text-sm font-semibold text-[var(--dh-text)] sm:w-72"
-      >
-        <option value="">Todos los vendedores</option>
-        <option v-for="seller in sellerOptions" :key="seller.id" :value="seller.id">
-          {{ seller.name }}
-        </option>
-      </select>
+
     </section>
 
     <div v-if="loading && !hasLoaded" class="rounded-3xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-10 text-center text-sm font-bold text-[var(--dh-text-muted)]">
@@ -747,7 +767,7 @@ onBeforeUnmount(() => {
             <div>
               <h3 class="font-black text-[var(--dh-text)]">Resultado de ventas</h3>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Importes de tarifas cotizadas, separados por moneda. No representan ingresos cobrados.
+                Aceptadas, abiertas, en espera del cliente (enviadas + vencidas) y rechazadas, separadas por moneda. Excluye canceladas; no son cobros.
               </p>
             </div>
           </div>
@@ -760,11 +780,11 @@ onBeforeUnmount(() => {
             >
               <div class="flex items-center justify-between">
                 <strong class="text-base font-black text-[var(--dh-text)]">{{ summary.currency }}</strong>
-                <span class="text-[10px] font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Mi cartera</span>
+                <span class="text-[10px] font-black uppercase tracking-wide text-[var(--dh-text-muted)]">{{ props.adminPreview ? 'Equipo comercial' : 'Mi cartera' }}</span>
               </div>
               <div class="mt-2 grid grid-cols-2 gap-2">
                 <div class="rounded-xl bg-black/[0.025] p-2.5 dark:bg-white/[0.035]">
-                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Venta aceptada</p>
+                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Aceptada</p>
                   <p class="mt-1 break-words text-base font-black text-green-600 dark:text-green-400">
                     {{ money(summary.accepted, summary.currency) }}
                   </p>
@@ -776,14 +796,20 @@ onBeforeUnmount(() => {
                   </p>
                 </div>
                 <div class="rounded-xl bg-black/[0.025] p-2.5 dark:bg-white/[0.035]">
-                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">En preparación</p>
+                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Abierta</p>
                   <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">
                     {{ money(summary.inPreparation, summary.currency) }}
                   </p>
                 </div>
                 <div class="rounded-xl bg-black/[0.025] p-2.5 dark:bg-white/[0.035]">
-                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Total cotizado</p>
+                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Rechazadas</p>
                   <p class="mt-1 break-words text-sm font-black text-[var(--dh-text)]">
+                    {{ money(summary.rejected, summary.currency) }}
+                  </p>
+                </div>
+                <div class="col-span-2 rounded-xl bg-black/[0.025] p-2.5 dark:bg-white/[0.035]">
+                  <p class="text-[10px] font-black uppercase text-[var(--dh-text-muted)]">Total cotizado · suma de los cuatro grupos</p>
+                  <p class="mt-1 break-words text-base font-black text-[var(--dh-text)]">
                     {{ money(summary.quoted, summary.currency) }}
                   </p>
                 </div>
@@ -801,14 +827,14 @@ onBeforeUnmount(() => {
             <h3 class="font-black text-[var(--dh-text)]">Desempeño comercial</h3>
           </div>
           <div class="mt-4 flex items-end gap-3">
-            <strong class="text-4xl font-black tabular-nums text-[var(--dh-text)]">{{ acceptancePercent.toFixed(1) }}%</strong>
-            <span class="pb-1 text-xs font-semibold text-[var(--dh-text-muted)]">tasa de aceptación</span>
+            <strong class="text-4xl font-black tabular-nums" :class="commercialPerformance < 0 ? 'text-rose-500' : 'text-[var(--dh-text)]'">{{ commercialPerformance.toFixed(1) }}%</strong>
+            <span class="pb-1 text-xs font-semibold text-[var(--dh-text-muted)]">desempeño sobre cotizaciones</span>
           </div>
           <div class="mt-3 h-2.5 overflow-hidden rounded-full bg-[var(--dh-input)]">
-            <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: acceptancePercent + '%' }" />
+            <div class="h-full rounded-full transition-all" :class="commercialPerformance < 0 ? 'bg-rose-500' : 'bg-emerald-500'" :style="{ width: Math.min(100, Math.abs(commercialPerformance)) + '%' }" />
           </div>
           <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-            {{ acceptedRates }} aceptadas de {{ closedDecisions }} decididas (aceptadas + rechazadas). No incluye vencidas.
+            ({{ acceptedRates }} aceptadas + {{ openRates }} abiertas − {{ expiredRates }} vencidas) / {{ quotedRates }} cotizadas. Los vencimientos restan desempeño y pueden generar un resultado negativo.
           </p>
           <div class="mt-4 grid grid-cols-2 gap-2">
             <div class="rounded-[16px] bg-[var(--dh-input)] p-3">
@@ -823,7 +849,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <p class="mt-4 text-xs font-semibold leading-5 text-[var(--dh-text-muted)]">
-            Las abiertas incluyen tarifas en elaboración; las enviadas esperan respuesta del cliente. Los indicadores muestran el estado actual de su cartera.
+            Las abiertas incluyen tarifas en elaboración; las enviadas y vencidas se agrupan en espera del cliente. Todos los indicadores respetan los filtros globales.
           </p>
         </article>
       </section>
