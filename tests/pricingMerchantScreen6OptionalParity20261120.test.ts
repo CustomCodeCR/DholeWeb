@@ -91,6 +91,8 @@ function fixture() {
     loadApplicableCosts: state.loadApplicableCosts,
     loadAllApplicableOptionalCosts: state.loadAllApplicableOptionalCosts,
     syncHaulageOptionalLines: state.syncHaulageOptionalLines,
+    rememberCurrentCarrierDraft: () => {},
+    savePricingDraftNow: () => {},
     toastStore: state.toastStore,
     dholeHaulageRecommended: state.dholeHaulageRecommended,
     get dholeMerchantAvailable() { return state.dholeMerchantAvailable },
