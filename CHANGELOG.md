@@ -1,3 +1,9 @@
+## [1.103.19] - 2026-11-20 (DH-20261120-CRM-INVITEE-PERSISTENCE-296 · invitaciones y compromisos CRM)
+
+- PATCH: guardar invitados de actividad y propagarlos a acuerdos pendientes ya creados, idempotente y con notificaciones durables por outbox/SignalR.
+- Web muestra invitados persistidos aunque no aparezcan en la primera página del directorio Auth y confirma guardado con GET después del PUT.
+- Coordinación CRM 1.42.4 → 1.42.5 y Web/System 1.103.17 → 1.103.19; selección específica del hotfix sobre master, sin importar otras modificaciones de develop. CI y staging obligatorios; producción no autorizada aún.
+
 ## [1.103.17] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · guardar TIERED_SALE sin 409)
 
 - PATCH: CRM 1.42.3 habilita TIERED_SALE en PostgreSQL; Web elimina duplicados y conserva pendientes tras fallos parciales, sin reenviar ítems ya persistidos.
