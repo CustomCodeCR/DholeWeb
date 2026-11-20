@@ -76,7 +76,8 @@ export function resolvePodCountryCode(
   const surroundedDescription = ` ${description} `
   for (const country of countries) {
     const name = normalizeCountryText(country.value || country.label || '')
-    if (name.length >= 4 && surroundedDescription.includes(` ${name} `)) return countryCatalogCode(country)
+    const iso = countryCatalogCode(country)
+    if (/^[A-Z]{2}$/.test(iso) && name.length >= 4 && surroundedDescription.includes(` ${name} `)) return iso
   }
 
   // China UN/LOCODEs are authoritative even if Config has not loaded CN.
