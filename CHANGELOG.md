@@ -1,3 +1,11 @@
+## [1.107.4] - 2026-11-20 (DH-20261120-PRICING-UNIVERSAL-COUNTRY-365 · resolución universal de países en Pricing)
+
+- PATCH coordinado DholeWeb/DholeSystem 1.107.3 → 1.107.4: reemplaza excepciones por país con un resolvedor ISO 3166-1 de los 249 países/territorios, ISO alpha-2/alpha-3, UN/LOCODE y nombres localizados (ES/EN/PT/FR).
+- Calcula el país físico de POL, POE y POD con precedencia Config countryId → metadatos ISO explícitos → país del nombre → UN/LOCODE; el CRM comparte el mismo resolvedor, sin asumir países por ciudades ni identificadores opacos.
+- Mantiene el selector manual Importación/Exportación/Tránsito cuando un país falta o es ambiguo; sin modificar el país real del cliente, cargos, IVA por POD, Incoterms ni contratos REST/SignalR.
+- Pruebas automatizadas: 249 ISO y múltiples rutas Asia/América/Europa/África/Oceanía, catálogos vacíos, ISO3, idiomas, conflictos y persistencia de la operación. DholePricingService sigue 1.26.9.
+- Despliegue de producción no autorizado. CI completo y prueba autenticada staging requeridos antes de master.
+
 ## [1.107.3] - 2026-11-20 (DH-20261120-PRICING-PERSPECTIVE-364 · corregir perspectiva comercial de Pricing)
 
 - PATCH: resuelve SV desde etiquetas explícitas «El Salvador» en POL/POE/POD aunque Config no incluya ISO, y lee metadatos ISO-2 alternativos para clientes CRM.
