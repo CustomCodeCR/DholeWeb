@@ -91,11 +91,9 @@ function fixture() {
     watch: (_expr: unknown, cb: () => Promise<void>) => { state.callback = cb },
   }
 
-  const merge = runSource(helper, environment, 'dholeMergeScreen7OptionalCostsForComparison')
-  environment.dholeMergeScreen7OptionalCostsForComparison = merge
-  // The watch block keeps request-version state in one closure, just like Vue.
-  const start = 'let dholeHaulageRequestVersion = 0;\n' + watcher
-  runSource(start, environment, 'true')
+  // Evaluate the loader and watcher in the same lexical module, matching Vue.
+  const combined = 'let dholeHaulageRequestVersion = 0;\\n' + helper + '\\n' + watcher
+  const merge = runSource(combined, environment, 'dholeMergeScreen7OptionalCostsForComparison')
   return { state, environment, merchant, merge, callback: () => state.callback?.() }
 }
 
@@ -126,7 +124,7 @@ test('A changed route must never receive stale optional Merchant costs', async (
 
 test('A stale request serial must never overwrite the latest quotation context', async () => {
   const { state, environment, merge } = fixture()
-  environment.dholeHaulageRequestVersion = 2
+  // No watcher ran yet: the current request serial is 0.
   assert.equal(await merge(state.context, 1), false)
   assert.equal(state.costs.value.length, 0)
 })
