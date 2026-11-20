@@ -110,7 +110,6 @@ const boolOptions = [
   { label: 'No', value: 'no' },
 ]
 const asNumber = (v: string | number) => v === '' || v === null || v === undefined ? null : Number(v)
-const asText = (v: string | null | undefined) => v || ''
 const toNullable = (v: string) => v.trim() || null
 const isoDate = (value: string) => value ? new Date(value).toISOString() : null
 function toLocal(value: string | null | undefined) {
@@ -349,7 +348,7 @@ onUnmounted(() => clearTimeout(timer))
         </div>
         <p v-else class="text-sm text-amber-400">Solicite al administrador la sincronización del histórico de IDTRA.</p>
       </DhCard>
-      <DhCard v-if="!companyId.valueOf() && isAdmin" title="Empresa operativa"
+      <DhCard v-if="!companyId && isAdmin" title="Empresa operativa"
         subtitle="El catálogo de equipos aún no ha sido inicializado en este entorno.">
         <DhButton variant="secondary" label="Inicializar equipos de Operations" @click="initializeTeams" />
       </DhCard>
@@ -388,11 +387,11 @@ onUnmounted(() => clearTimeout(timer))
             :options="selections('countries')" />
           <DhSelect v-model="form.destinationCountryCode" label="País de destino"
             :options="selections('countries')" />
-          <PricingLocationSearchSelect v-model="draft.polCode" label="POL · Origen"
+          <PricingLocationSearchSelect  :model-value="draft.polCode || ''" @update:model-value="draft.polCode = $event" label="POL · Origen"
             :options="locationOptions('pol')" :optional="true" />
-          <PricingLocationSearchSelect v-model="draft.poeCode" label="POE · Salida"
+          <PricingLocationSearchSelect  :model-value="draft.poeCode || ''" @update:model-value="draft.poeCode = $event" label="POE · Salida"
             :options="locationOptions('poe')" :optional="true" />
-          <PricingLocationSearchSelect v-model="draft.podCode" label="POD · Destino"
+          <PricingLocationSearchSelect  :model-value="draft.podCode || ''" @update:model-value="draft.podCode = $event" label="POD · Destino"
             :options="locationOptions('pod')" :optional="true" />
           <DhSelect v-if="isMaritime" v-model="draft.carrierCode" label="Naviera" :options="selections('carriers')" />
           <DhSelect v-model="draft.agentCode" label="Agente / oficina de origen" :options="selections('agents')" />
