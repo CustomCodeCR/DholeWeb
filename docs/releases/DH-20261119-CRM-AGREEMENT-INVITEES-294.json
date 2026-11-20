@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-CRM-AGREEMENT-INVITEES-294",
+  "kind": "patch",
+  "ecosystemVersion": "1.103.16",
+  "summary": "Followup guest inheritance, display and safe persistence confirmation",
+  "previousVersion": "1.103.15",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.15",
+      "version": "1.103.16"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.15",
+      "version": "1.103.16"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previousVersion": "1.42.2",
+      "version": "1.42.3"
+    }
+  ],
+  "branch": "fix/DH-20261119-CRM-AGREEMENT-INVITEES-294",
+  "checks": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
