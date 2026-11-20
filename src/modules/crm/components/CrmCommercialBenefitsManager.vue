@@ -466,7 +466,7 @@ function scopeText(rate: Rate): string {
       <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
         data-crm-agreement-blocks>
         <h3 class="text-sm font-extrabold">
-          Acuerdos preferenciales por bloque ({{ agreementGroups.length }}) · {{ rates.length }} ítems guardados
+          Todos los ítems preferenciales guardados ({{ rates.length }}) · {{ agreementGroups.length }} bloques comerciales
         </h3>
         <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
           Los cargos del mismo cliente, ruta, equipo, naviera, Incoterm y servicios se muestran juntos,
