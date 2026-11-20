@@ -1,3 +1,10 @@
+## [1.105.1] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-RUNTIME-331 · consulta real de tarifas preferenciales CRM en Pricing)
+
+- PATCH: soluciona la causa raíz: el transformador de Vite que sustituía loadApplicableCosts() omitía la carga de acuerdos comerciales de CRM y dejaba todas las ventas con el importe general del catálogo aunque el cliente tuviera beneficios compatibles.
+- El cargador FCL/FTL generado consulta los acuerdos del cliente antes de calcular los importes, conserva costos del proveedor y el guard de error. Un guard posterior a todas las transformaciones falla la compilación si se elimina nuevamente esa consulta.
+- En Pantalla 7 se muestra cuántos cargos preferenciales fueron realmente aplicados y se advierte cuando ningún acuerdo coincide con la ruta, naviera, equipo, servicio, Incoterm, moneda o unidad. Se mantienen los snapshots ya emitidos.
+- Prueba de regresión de transformaciones en prebuild; versión global Web/System 1.105.0 → 1.105.1, CRM 1.42.8 y Operations 0.13.0 sin cambios. Compilación, CI y staging requeridos antes de master.
+
 ## [1.105.0] - 2026-11-20 (DH-20261120-OPERATIONS-APERTURES-330 · Aperturas y expedientes)
 
 - MINOR: Dashboard Operations distingue aperturas manuales y originadas en Pricing. Bandeja Aperturas y Trámites filtran por origen, estado e IDTRA desde backend paginado y enlazan a la QUO vinculada.
