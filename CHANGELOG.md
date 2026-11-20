@@ -1,3 +1,9 @@
+## [1.104.0] - 2026-11-20 (DH-20261120-EXPIRED-RATE-APPROVAL-298 · autorización de actualización de tarifas vencidas)
+
+- MINOR: permite solicitar la revisión de una tarifa vencida indicando el motivo obligatorio (mínimo 15 caracteres). La edición permanece bloqueada hasta la aprobación de Roy o José Pablo y muestra el historial de decisiones.
+- Bandeja de autorizaciones de jefatura, aviso por sistema/SignalR y correo a través de Notifications Outbox, y refresco de interfaz en tiempo real. Validación también en Pricing API para impedir ediciones directas.
+- DholeWeb/DholeSystem 1.103.20 → 1.104.0; Pricing 1.25.4 → 1.26.0. Mantiene compatibilidad REST y los demás componentes. Requiere CI y staging antes de master.
+
 ## [1.103.19] - 2026-11-20 (DH-20261120-CRM-INVITEE-PERSISTENCE-296 · persistencia de invitados)
 
 - PATCH: mantiene invitados persistidos del seguimiento aunque estén fuera de la primera página del directorio Auth y verifica GET después de guardar cambios.
