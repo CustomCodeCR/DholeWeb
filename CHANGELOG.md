@@ -1,3 +1,11 @@
+## [1.105.0] - 2026-11-20 (DH-20261120-OPERATIONS-APERTURES-330 · Aperturas y expedientes)
+
+- MINOR: Dashboard Operations distingue aperturas manuales y originadas en Pricing. Bandeja Aperturas y Trámites filtran por origen, estado e IDTRA desde backend paginado y enlazan a la QUO vinculada.
+- Apertura manual: selector de cuenta CRM (en vez de UUID escrito), empresa resuelta en servidor y ejecutivo obtenido de CRM sin identidad de prueba.
+- Expediente en Trámites presenta navegación de ocho pestañas en una vista: Resumen con datos y etapas existentes, QUO relacionada y estados de departamentos. La operación avanzada de cada tab depende de fases posteriores y permisos del backend.
+- La creación automática real desde QUO aceptada todavía necesita contrato de aceptación duradero, snapshot comercial y consumidor idempotente en Operations; no se declara terminada.
+- Web 1.104.3 → 1.105.0 y Operations 0.12.0 → 0.13.0; release global candidato 1.105.0. No integrar a master ni desplegar sin CI y staging.
+
 ## [1.104.3] - 2026-11-20 (DH-20261120-CRM-INVITEE-VISIBILITY-323 · participantes internos visibles)
 
 - PATCH: en la ficha de actividad se muestran los nombres reales de las invitadas internas recuperados de Auth y se distingue visualmente su condición de invitadas frente a contactos externos.
