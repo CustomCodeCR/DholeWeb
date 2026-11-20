@@ -89,17 +89,34 @@ function fixture() {
   return { env, ...methods }
 }
 
-test('LCL propio conserva exclusivamente las líneas de su matriz al sincronizar aduanas', () => {
+test('LCL propio agrega la agencia aduanal CRC solicitada sin alterar la matriz', () => {
   const { env, sync } = fixture()
   sync()
-  sync(true)
   assert.deepEqual(env.rateLines.value.map((line: { name: string }) => line.name),
-    ['Flete internacional', 'CUSTOMS'])
-  assert.equal(env.rateLines.value.length, 2,
-    'un catálogo global seleccionado no debe convertirse en cargo adicional al consolidado')
+    ['Flete internacional', 'CUSTOMS', 'Servicio de agencia'])
+  const agency = env.rateLines.value[2]
+  assert.equal(agency.key, 'own-lcl-customs:agency-cost')
+  assert.equal(agency.costDetailType, 'CustomsCharge')
+  assert.equal(agency.costId, null)
+  assert.equal(agency.currencyCode, 'CRC')
+  assert.equal(agency.costAmount, 40000)
+  assert.equal(agency.saleAmount, 40000)
+  assert.deepEqual(Array.from(agency.serviceIds), ['AGENCIA-CRC'])
+  assert.equal(env.rateLines.value[0].saleAmount, 120)
+  assert.equal(env.rateLines.value[1].saleAmount, 25)
 })
 
-test('LCL propio no reemplaza Manejos ni otros importes guardados durante recálculos', () => {
+test('LCL propio no duplica la agencia al sincronizar o recalcular', () => {
+  const { env, sync } = fixture()
+  sync()
+  sync()
+  sync(true)
+  assert.equal(env.rateLines.value.length, 3)
+  assert.equal(env.rateLines.value.filter((line: { key: string }) =>
+    line.key === 'own-lcl-customs:agency-cost').length, 1)
+})
+
+test('LCL propio preserva Manejos y los importes guardados', () => {
   const { env, sync } = fixture()
   env.rateLines.value.push({
     key: 'existing:SAVED', detailId: 'SAVED', costId: null,
@@ -110,19 +127,53 @@ test('LCL propio no reemplaza Manejos ni otros importes guardados durante recál
   })
   sync()
   sync(true)
-  assert.equal(env.rateLines.value.length, 3)
-  assert.equal(env.rateLines.value[2].costAmount, 35)
-  assert.equal(env.rateLines.value[2].saleAmount, 65)
-  assert.equal(env.rateLines.value[2].detailId, 'SAVED')
+  assert.equal(env.rateLines.value.length, 4)
+  const saved = env.rateLines.value.find((line: { detailId?: string }) =>
+    line.detailId === 'SAVED')
+  assert.equal(saved?.costAmount, 35)
+  assert.equal(saved?.saleAmount, 65)
 })
 
-test('LCL propio tampoco agrega cargos de aduana si cambia el peso o el servicio', () => {
+test('LCL propio aplica el tramo Pricing por peso', () => {
   const { env, sync } = fixture()
   env.form.cargoWeightKg = 501
   sync()
-  assert.equal(env.rateLines.value.length, 2)
-  env.allCosts.value = [{ ...target, services: [{ id: 'OTHER' }] }]
-  env.ensureCrcCustomsLine = () => { throw Error('No se permite el cargo adicional') }
+  assert.equal(env.rateLines.value[2].saleAmount, 60000)
+  env.form.cargoWeightKg = 500
+  sync()
+  assert.equal(env.rateLines.value[2].saleAmount, 40000)
+  assert.equal(env.rateLines.value.length, 3)
+})
+
+test('no aparece agencia si no fue solicitada', () => {
+  const { env, sync } = fixture()
+  env.selectedCrcCustomsService.value = null
   sync()
   assert.equal(env.rateLines.value.length, 2)
+})
+
+test('agencia solicitada sin costo aplicable usa una línea editable sin precio inventado', () => {
+  const { env, sync } = fixture()
+  env.allCosts.value = []
+  env.ensureCrcCustomsLine = (lines: Record<string, any>[]) => {
+    if (lines.some((line) => line.key === 'service:customs-cr')) return
+    lines.push({
+      key: 'service:customs-cr', name: 'Servicio de aduanas (Costa Rica)',
+      section: 'destination_charges', costDetailType: 'CustomsCharge',
+      costId: null, costAmount: 0, saleAmount: 0, included: true,
+      serviceIds: ['AGENCIA-CRC'],
+    })
+  }
+  sync()
+  sync()
+  assert.equal(env.rateLines.value.length, 3)
+  assert.equal(env.rateLines.value[2].key, 'service:customs-cr')
+  assert.equal(env.rateLines.value[2].saleAmount, 0)
+})
+
+test('los filtros del plugin conservan la agencia para guardar y reabrir', () => {
+  assert.ok(pluginSource.includes("selectedCrcCustomsService.value && (\\n"))
+  assert.ok(pluginSource.includes("line.key === 'service:customs-cr'"))
+  assert.ok(pluginSource.includes("startsWith('own-lcl-customs:')"))
+  assert.ok(!pluginSource.includes("'function ensureCrcCustomsLine(lines: RateLine[], currency: CatalogItemSelectDto) {\\\\n  if (isOwnLclMatrixContext()) return'"))
 })
