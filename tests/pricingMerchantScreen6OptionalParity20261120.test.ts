@@ -92,7 +92,7 @@ function fixture() {
   }
 
   // Evaluate the loader and watcher in the same lexical module, matching Vue.
-  const combined = 'let dholeHaulageRequestVersion = 0;\\n' + helper + '\\n' + watcher
+  const combined = 'let dholeHaulageRequestVersion = 0;\n' + helper + '\n' + watcher
   const merge = runSource(combined, environment, 'dholeMergeScreen7OptionalCostsForComparison')
   return { state, environment, merchant, merge, callback: () => state.callback?.() }
 }
