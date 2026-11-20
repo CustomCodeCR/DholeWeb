@@ -1,3 +1,10 @@
+## [1.107.5] - 2026-11-20 (DH-20261120-PRICING-WIZARD-RUNTIME-366 · corregir bloqueo de creación de tarifas en producción)
+
+- PATCH urgente coordinado DholeWeb/DholeSystem 1.107.4 → 1.107.5. Elimina la dependencia del símbolo `automaticOperationType`, que desaparecía durante los transforms de Vite y producía `ReferenceError` al abrir o reabrir Pricing.
+- Computa directamente la perspectiva comercial con el país CRM, origen y POD sin variables computadas intermedias susceptibles a transformaciones; conserva selección manual Import/Export/Tránsito, países ISO universales, borradores, IVA por POD e inland.
+- Añade pruebas de regresión del wizard Vue, rechazo durante compilación si reaparece el binding inseguro y análisis del paquete final minificado en CI.
+- DholePricingService 1.26.9 sin cambios. Sin cambios en REST, SignalR, datos ni permisos. Validación de compilación, smoke en Chrome y staging antes de producción.
+
 ## [1.107.4] - 2026-11-20 (DH-20261120-PRICING-UNIVERSAL-COUNTRY-365 · resolución universal de países en Pricing)
 
 - PATCH coordinado DholeWeb/DholeSystem 1.107.3 → 1.107.4: reemplaza excepciones por país con un resolvedor ISO 3166-1 de los 249 países/territorios, ISO alpha-2/alpha-3, UN/LOCODE y nombres localizados (ES/EN/PT/FR).
