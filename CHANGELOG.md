@@ -1,3 +1,9 @@
+## [1.103.21] - 2026-11-20 (DH-20261120-CRM-INVITEE-SYNC-309 · persistencia de invitados CRM)
+
+- PATCH: verifica por GET el guardado de invitados y conserva selecciones fuera de la primera página del directorio de Auth; backend CRM propaga invitados a compromisos pendientes existentes.
+- Coordinado DholeSystem/DholeWeb 1.103.18 → 1.103.21, CRM 1.42.4 → 1.42.6, sin arrastrar releases de otros módulos. REST/SignalR compatibles.
+- Release staging ya validado a nivel funcional y CI del parche previo; nueva coordinación de versiones bajo CI; promoción de producción autorizada explícitamente.
+
 ## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítems manuales)
 
 - PATCH selectivo 1.103.18→1.103.20: Vue 3 v-model en campos numéricos entrega number y manual.amount.trim() lanzaba TypeError antes del try/catch, impidiendo el POST.
