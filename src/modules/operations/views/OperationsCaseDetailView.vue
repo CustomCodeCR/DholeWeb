@@ -90,6 +90,8 @@ const modalityOptions = [
 const level = (code: OperationsTabCode): OperationsTabLevel =>
   access.value.find(tab => tab.code === code)?.accessLevel ?? 'LOCKED'
 const canEditSummary = computed(() => level('RESUMEN') === 'EDITABLE')
+const canEditCompleteOpening = computed(() => canEditSummary.value &&
+  record.value?.apertureType === 'MANUAL')
 const currentStage = computed(() =>
   workspace.value?.stages.find(s => s.departmentCode === selectedTab.value))
 const currentTasks = computed(() =>
@@ -242,7 +244,10 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
       <template #actions>
         <DhBadge v-if="record" variant="primary">{{ statusLabel(record.status) }}</DhBadge>
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
-        <DhButton v-if="record && canEditSummary && selectedTab === 'RESUMEN' && !editing" :icon="Pencil" label="Editar apertura" @click="editing = true" />
+        <RouterLink v-if="record && canEditCompleteOpening" :to="{ name: 'operations-case-edit', params: { id: record.id } }">
+          <DhButton :icon="Pencil" label="Editar datos completos de Apertura" />
+        </RouterLink>
+        <DhButton v-if="record && canEditSummary && selectedTab === 'RESUMEN' && !editing" :icon="Pencil" label="Editar datos rápidos" @click="editing = true" />
       </template>
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
