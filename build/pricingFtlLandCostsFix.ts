@@ -291,6 +291,10 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
 async function loadApplicableCosts() {
   const activeContext = activeCostContextKey()
   try {
+    // This Vite transform replaces the source loader: it MUST load CRM agreements
+    // before rebuilding the quote. Otherwise all CostId prices remain the catalog sales.
+    await loadCustomerPreferentialRates()
+    if (activeContext !== activeCostContextKey()) return false
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
 
