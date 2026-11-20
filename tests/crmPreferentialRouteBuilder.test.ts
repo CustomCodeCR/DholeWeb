@@ -58,3 +58,10 @@ test('Manual preferential rate is verified from CRM and remains visible near the
   assert.ok(builder.includes('data-crm-saved-manual-rates'))
   assert.ok(builder.includes('Ítems manuales guardados para esta combinación'))
 })
+
+test('Bulk preferential edits avoid duplicate cost IDs and keep failed entries for retry', () => {
+  assert.ok(builder.includes('all.findIndex(item => item.id === cost.id) === index'))
+  assert.ok(builder.includes('delete pendingSales[cost.id]'))
+  assert.ok(builder.includes('delete pendingTiers[cost.id]'))
+  assert.ok(builder.includes('las ediciones pendientes se conservaron para reintentar sin duplicados'))
+})
