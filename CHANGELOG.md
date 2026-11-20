@@ -1,3 +1,9 @@
+## [1.104.5] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-324 · aplicar tarifas preferenciales CRM en Pricing)
+
+- PATCH: al generar una nueva cotización para una cuenta CRM, Pantalla 7 obtiene los acuerdos comerciales vigentes de esa cuenta y sustituye exclusivamente el importe de venta en los cargos cuyas condiciones coinciden: modalidad, CostId/rubro, equipo, POL, POE, POD, naviera, Incoterm y servicios.
+- Respeta la opción más específica por ruta/servicio, rangos de venta, cargos manuales y descuentos; conserva costos proveedores, IVA y snapshots de cotizaciones ya persistidas. Ante fallo CRM impide guardar una cotización estándar silenciosa y permite reintentar.
+- Coordinado con CRM 1.42.8 y DholeSystem 1.104.5. REST de CRM y realtime existentes sin incompatibilidad; CI/staging previos a master.
+
 ## [1.104.3] - 2026-11-20 (DH-20261120-CRM-INVITEE-VISIBILITY-323 · participantes internos visibles)
 
 - PATCH: en la ficha de actividad se muestran los nombres reales de las invitadas internas recuperados de Auth y se distingue visualmente su condición de invitadas frente a contactos externos.
