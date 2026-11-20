@@ -1,3 +1,10 @@
+## [1.107.3] - 2026-11-20 (DH-20261120-PRICING-PERSPECTIVE-364 · corregir perspectiva comercial de Pricing)
+
+- PATCH: resuelve SV desde etiquetas explícitas «El Salvador» en POL/POE/POD aunque Config no incluya ISO, y lee metadatos ISO-2 alternativos para clientes CRM.
+- Permite seleccionar manualmente Importación, Exportación o Tránsito sin bloquear una cotización por datos de países incompletos; conserva la elección en borradores y cotizaciones existentes.
+- Elimina la advertencia genérica de perspectiva no determinada y utiliza una instrucción accionable. Se mantiene el cálculo de IVA por POD y la responsabilidad Incoterm según la operación seleccionada.
+- DholeWeb/DholeSystem 1.107.2 → 1.107.3; DholePricingService 1.26.9 sin cambios. Sin migraciones, nuevos endpoints ni cambios en SignalR. Validación CI/staging requerida antes de master.
+
 ## [1.107.1] - 2026-11-20 (DH-20261120-VERSION-NOTICE-500-362 · corrección 500 de ajustes de avisos)
 
 - PATCH coordinado con DholeAuthService 1.17.1: backend envuelve preferencia + outbox en Npgsql execution strategy, para permitir guardar global y por usuario.
