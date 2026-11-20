@@ -147,10 +147,10 @@ onMounted(load)
         <div class="flex shrink-0 flex-wrap items-center gap-2">
           <DhButton variant="secondary" :icon="RefreshCw" :loading="loading" :label="t('operations.refresh')" @click="load" />
           <RouterLink
-            to="/operations/apertures"
+            to="/operations/cases"
             class="inline-flex min-h-11 items-center justify-center gap-2 rounded-[18px] bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-black text-[var(--dh-on-primary)] shadow-[var(--dh-glow)] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
           >
-            {{ t('operations.dashboard.openQueue') }}
+            Ver trámites
             <ArrowUpRight aria-hidden="true" class="h-4 w-4 shrink-0" />
           </RouterLink>
         </div>
@@ -212,7 +212,7 @@ onMounted(load)
           <span>{{ t('operations.validation.reviews') }}</span>
           <span>{{ t('operations.validation.created') }}</span>
         </div>
-        <RouterLink v-for="item in data.items" :key="item.id" to="/operations/apertures"
+        <RouterLink v-for="item in data.items" :key="item.id"  :to="{ name: 'operations-case-detail', params: { id: item.id } }"
           class="grid min-w-0 gap-2 border-b border-[var(--dh-border)] px-4 py-3 last:border-0 transition-colors hover:bg-[var(--dh-input)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.85fr)] md:items-center md:gap-3">
           <strong class="flex min-w-0 flex-wrap items-center gap-2 text-sm font-bold text-[var(--dh-text)]"><span class="truncate">{{ item.idtra }}</span><DhBadge :variant="item.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ item.apertureType === 'AUTOMATIC' ? 'Pricing' : 'Manual' }}</DhBadge></strong>
           <span class="text-sm text-[var(--dh-text-soft)]">{{ item.modalityCode }}</span>
