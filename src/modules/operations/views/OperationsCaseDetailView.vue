@@ -35,6 +35,32 @@ const costs = ref<OperationsCaseCost[]>([])
 const origin = ref<OperationsOriginProgress | null>(null)
 const notes = ref<OperationsInternalNote[]>([])
 const noteText = ref('')
+const originStatus = ref('ORIGIN_COORDINATION')
+const savingOrigin = ref(false)
+const originStatusChoices = computed(() => {
+  switch (record.value?.modalityCode) {
+    case 'FCL': case 'LCL': return [
+      { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      { label: 'Booking listo', value: 'BOOKING_READY' },
+      { label: 'Carga en puerto de salida', value: 'PORT_OF_LOADING' },
+    ]
+    case 'AIR': return [
+      { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      { label: 'Carga WHS Origen', value: 'ORIGIN_WAREHOUSE' },
+      { label: 'Carga en aeropuerto salida', value: 'DEPARTURE_AIRPORT' },
+    ]
+    case 'FTL': case 'MULTIMODAL': return [
+      { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      { label: 'Preparando envío', value: 'PREPARING_DISPATCH' },
+    ]
+    case 'LTL': return [
+      { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      { label: 'Carga WHS Origen', value: 'ORIGIN_WAREHOUSE' },
+      { label: 'Preparando envío', value: 'PREPARING_DISPATCH' },
+    ]
+    default: return [{ label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' }]
+  }
+})
 const postingNote = ref(false)
 const audit = ref<OperationsAudit[]>([])
 const actors = ref<OperationsUser[]>([])
@@ -133,7 +159,7 @@ async function load() {
       operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) costs.value = x.items }).catch(() => {}))
     if (auth.hasScope('operations.origin.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
-      operationsApi.caseOriginProgress(caseId.value).then(x => { if (current === sequence) origin.value = x }).catch(() => {}))
+      operationsApi.caseOriginProgress(caseId.value).then(x => { if (current === sequence) { origin.value = x; originStatus.value = x.progress?.statusCode || 'ORIGIN_COORDINATION' } }).catch(() => {}))
     if (auth.hasScope('operations.internal-note.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
       operationsApi.caseInternalNotes(caseId.value).then(x => { if (current === sequence) notes.value = x }).catch(() => {}))
@@ -169,6 +195,18 @@ async function saveEdit() {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudo actualizar el expediente. Actualice antes de volver a intentarlo.'
   } finally { saving.value = false }
+}
+async function saveOriginStatus() {
+  if (!record.value || !origin.value || level('COORDINACION_ORIGEN') !== 'EDITABLE' || savingOrigin.value) return
+  savingOrigin.value = true
+  error.value = ''
+  try {
+    await operationsApi.updateOriginStatus(record.value.id, originStatus.value, origin.value.progress?.version ?? 0)
+    await load()
+    message.value = 'Estado de Coordinación Origen actualizado y auditado.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo guardar el estado de Origen.'
+  } finally { savingOrigin.value = false }
 }
 async function addNote() {
   if (!record.value || !canWriteNote.value || !noteText.value.trim() || postingNote.value) return
@@ -364,6 +402,12 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado específico de Origen</p>
                 <p class="mt-2 font-black">{{ statusLabel(origin.progress?.statusCode || origin.stage.status) }}</p>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Salida real: {{ dateLabel(origin.progress?.actualDepartureAtUtc) }}</p>
+                <div v-if="level('COORDINACION_ORIGEN') === 'EDITABLE' && !origin.progress?.actualDepartureAtUtc" class="mt-4 space-y-2">
+                  <DhSelect v-model="originStatus" label="Actualizar estado operativo" :options="originStatusChoices" />
+                  <DhButton :icon="Save" label="Guardar estado de Origen" :loading="savingOrigin"
+                    :disabled="originStatus === (origin.progress?.statusCode || 'ORIGIN_COORDINATION')" @click="saveOriginStatus" />
+                  <p class="text-xs text-[var(--dh-text-muted)]">La transición a Tránsito requiere confirmación de salida real con evidencia. Este formulario no la simula.</p>
+                </div>
               </div>
             </div>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">Esta etapa no está activa en el flujo del trámite.</p>
