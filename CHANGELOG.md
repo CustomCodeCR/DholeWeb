@@ -1,3 +1,10 @@
+## [1.103.16] - 2026-11-19 (DH-20261119-CRM-AGREEMENT-INVITEES-294 · invitados persistidos en seguimientos CRM)
+
+- PATCH: confirmación del guardado real de invitados desde la agenda y visualización del número de invitados de cada seguimiento; bloquea escrituras si falla la lectura inicial para evitar borrar invitados.
+- Backend CRM 1.42.3 añade memberships heredados en compromisos derivados y migración aditiva de datos.
+- Promoción selectiva sobre master 1.103.14 → 1.103.16 sin arrastrar los cambios pendientes del dashboard 1.103.15 de develop.
+- Tests CRM nuevos y versionamiento universal. Producir únicamente tras CI/staging y autorización expresa.
+
 ## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · ajuste de desempeño comercial)
 
 - PATCH: el desempeño comercial se calcula como (aceptadas − vencidas) / (total cotizadas − abiertas) × 100. Las rechazadas se contabilizan en la base; las abiertas aún no se han entregado. Las vencidas penalizan incluso si producen porcentaje negativo.
