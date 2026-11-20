@@ -159,7 +159,7 @@ function dholeHaulageConverted(value: number, currencyCode: string) {
 }
 
 function dholeEnsureSelectedHaulageLines() {
-  if (props.viewOnly || step.value !== 7 || !dholeHaulageVisible.value) return
+  if (props.viewOnly || !multiCarrierSelectionMode.value || step.value !== 7) return
   // Screen 6 and 7 must use the SAME eligible CostIds for the active route.
   // This also covers a configured Inland classified as delivery_destination
   // that the generic Incoterm line builder would otherwise omit.
@@ -264,21 +264,6 @@ function dholeHaulageMoney(value: number) {
     : 'Tipo de cambio pendiente'
 }
 
-// Screen 6 owns the validated Optional CostIds for this exact POE/carrier.
-// loadApplicableCosts() refreshes the ordinary context and can replace costs.value
-// before Screen 7's second Optional request finishes. Restore only the CURRENT
-// context; another naviera's inland must never bleed into this quotation.
-function dholeRestoreCurrentHaulageCatalog() {
-  const context = currentCostContextKey()
-  if (!dholeHaulageVisible.value || dholeHaulageScreen7OptionContext.value !== context) return
-  const eligible = dholeHaulageScreen7OptionCosts.value.filter((cost) =>
-    cost.isActive !== false && finalOptionalMatchesCurrentContext(cost))
-  if (!eligible.length) return
-  const merged = new Map(costs.value.map((cost) => [cost.id, cost] as const))
-  for (const cost of eligible) merged.set(cost.id, { ...cost, __dholePricingContextKey: context })
-  costs.value = [...merged.values()]
-}
-
 function dholeChooseHaulage(mode: DholeHaulageChoice) {
   if (dholeHaulagePending.value || !dholeHaulageVisible.value) return
   if (mode === 'merchant' && !dholeMerchantAvailable.value) return
@@ -290,7 +275,6 @@ function dholeChooseHaulage(mode: DholeHaulageChoice) {
   // The decision belongs to THIS POE+carrier, not to the global wizard.
   // Persist it as soon as it is clicked, before navigating to another option.
   rememberCurrentCarrierDraft()
-  savePricingDraftNow()
 }
 
 // Pantalla 7 already has a separate, route-validated Optional catalog lookup.
@@ -374,10 +358,6 @@ watch(
         form.carrierHaulage = mode === 'carrier'
       }
       syncHaulageOptionalLines()
-      // Automatic Merchant/Carrier selection is a user-visible decision too.
-      // Snapshot it per POE/naviera before the first Screen 7 navigation.
-      rememberCurrentCarrierDraft()
-      savePricingDraftNow()
     } catch (error) {
       if (requestVersion === dholeHaulageRequestVersion && step.value === 6
         && currentCostContextKey() === requestedContext) {
@@ -391,21 +371,6 @@ watch(
   },
   { immediate: true, flush: 'post' },
 )
-
-// A direct step jump (or restored draft) must transfer the Step 6 choice
-// synchronously. Route/provider refreshes may still run afterwards.
-watch(
-  () => [step.value, currentCostContextKey()].join('~'),
-  () => {
-    if (props.viewOnly || step.value !== 7 || !dholeHaulageVisible.value) return
-    dholeRestoreCurrentHaulageCatalog()
-    syncHaulageOptionalLines()
-    rememberCurrentCarrierDraft()
-    savePricingDraftNow()
-  },
-  { flush: 'post' },
-)
-
 
 `
 
@@ -581,22 +546,6 @@ function patchWizard(source: string) {
   if (!code.includes(afterFetch)) throw new Error('[haulage screen6] Missing contextual fetch.')
   code = code.replace(afterFetch,
     '    if (contextKey !== currentCostContextKey()) return\n\n' + afterFetch)
-
-  // The route loader rebuilds RateLines after refreshing costs/select. Keep the
-  // valid Optional Inland CostIds from Screen 6 before that rebuild can drop them.
-  const loadStart = code.indexOf('async function loadCostsForSelectedAlternative(')
-  const loadEnd = code.indexOf('async function reloadCurrentAlternativeCosts(', loadStart)
-  if (loadStart < 0 || loadEnd <= loadStart) {
-    throw new Error('[haulage screen6] Missing alternative cost loader.')
-  }
-  const loader = code.slice(loadStart, loadEnd)
-  const reloadAnchor = '  rebuildRateLines()\\n  syncHaulageOptionalLines()'.replace('\\n', '\n')
-  if (loader.split(reloadAnchor).length !== 2) {
-    throw new Error('[haulage screen6] Missing alternative line-refresh anchor.')
-  }
-  code = code.slice(0, loadStart)
-    + loader.replace(reloadAnchor, '  dholeRestoreCurrentHaulageCatalog()\\n'.replace('\\n', '\n') + reloadAnchor)
-    + code.slice(loadEnd)
 
   const nextAnchor = 'const canNext = computed(() => {'
   if (code.split(nextAnchor).length !== 2) throw new Error('[haulage screen6] Missing wizard canNext.')
