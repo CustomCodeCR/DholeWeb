@@ -27,3 +27,9 @@ test('supervisor reviews and realtime refresh use existing Notifications channel
   assert.match(modal, /dhole:notification:received/)
   assert.match(service, /\/expired-rate-updates\/pending/)
 })
+
+test('Pricing and Superadmin skip seller-only expired rate approval', () => {
+  assert.match(rates, /function canRequestExpiryApproval\(rate: RateDto\) \{[\s\S]*?&& isSellerUser\.value/)
+  assert.match(rates, /if \(isSellerUser\.value && isExpiredRate\(rate\)\)/)
+  assert.doesNotMatch(rates, /canUpdate\.value \|\| isSellerUser\.value/)
+})

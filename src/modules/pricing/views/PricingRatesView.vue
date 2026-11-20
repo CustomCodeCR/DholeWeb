@@ -382,7 +382,7 @@ function canUpdateRate(rate: RateDto) {
 function canRequestExpiryApproval(rate: RateDto) {
   return !isMasterTariff(rate) && isExpiredRate(rate)
     && rate.status !== 'Closed' && rate.status !== 'Cancelled'
-    && (canUpdate.value || isSellerUser.value)
+    && isSellerUser.value
 }
 
 const isExpiredApprovalSupervisor = computed(() =>
@@ -687,7 +687,7 @@ async function openEdit(rate: RateDto) {
     toastStore.warning('Actualización no disponible', 'No tiene autorización para modificar esta cotización.')
     return
   }
-  if (isExpiredRate(rate)) {
+  if (isSellerUser.value && isExpiredRate(rate)) {
     try {
       const approval = await expiredRateApprovalService.forRate(rate.id)
       if (!approval.canUpdate) {

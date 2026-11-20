@@ -1,3 +1,9 @@
+## [1.106.11] - 2026-11-20 (DH-20261120-EXPIRED-ROLE-354 · autorización de vencidas solo para vendedores)
+
+- PATCH: en listado de tarifas, “Solicitar autorización” se muestra solo a vendedores; Pricing y Superadmin editan cotizaciones vencidas directamente sin modal de jefatura.
+- La API Pricing usa el mismo permiso y conserva la solicitud a Roy/José Pablo para vendedores, histórico y notificaciones realtime. Web/System 1.106.10 → 1.106.11; Pricing 1.26.5 → 1.26.6.
+- Regresión de roles en listado y API; sin migración ni cambio de contratos REST/SignalR. CI y staging pendientes; producción no autorizada.
+
 ## [1.106.10] - 2026-11-20 (DH-20261120-PRICING-VAT-TOTAL-353 · IVA correcto en resumen de oferta)
 
 - PATCH: en tarifas guardadas y en vista de solo lectura, si una respuesta histórica de Pricing devuelve IVA total cero aunque las líneas comerciales tengan IVA, la pantalla recupera cada importe comercial guardado y lo agrega en USD y CRC.
