@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-CRM-TIERED-CHECK-293",
+  "kind": "patch",
+  "ecosystemVersion": "1.103.17",
+  "summary": "Fix TIERED_SALE preferred tariffs and partial retry",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.16",
+      "version": "1.103.17"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "version": "1.103.17"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "version": "1.42.3"
+    }
+  ],
+  "branch": "fix/DH-20261119-CRM-TIERED-CHECK-293-v17-develop",
+  "checks": {
+    "ci": "pending",
+    "staging": "CRM migrator success",
+    "production": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}
