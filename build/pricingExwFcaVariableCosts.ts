@@ -19,7 +19,7 @@ function patchWizard(source: string) {
     "  if (cost.costDetailType === 'Freight') return false",
     '  if (!resolvedConditionalCost(cost)) return false',
     // Temporary unblock: do not drop an otherwise matching cost by the Incoterm's responsibility section.
-    '  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId)) return false',
+    // Incoterm associations are advisory during the temporary unblock.
     '  if (cost.services?.length && !cost.services.some((item) => form.serviceIds.includes(item.id))) {',
     '    // An EXW pickup is part of the requested door-origin operation even',
     '    // when the separate pickup service was not checked explicitly.',
