@@ -3492,7 +3492,6 @@ function rebuildRateLines() {
   const currentContext = activeCostContextKey()
   const previousOptionLines = !props.rateId
     && lastIncotermRateLinesContextKey.value === currentContext
-    && (!multiCarrierSelectionMode.value || step.value >= 7)
     ? copyPoeLines(rateLines.value) : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
