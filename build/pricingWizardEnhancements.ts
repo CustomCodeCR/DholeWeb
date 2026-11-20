@@ -187,7 +187,7 @@ export function pricingWizardEnhancements(): Plugin {
       const nextReplacement = `  if (!canNext.value) return\n  if (step.value === 4) await searchApprovedRates()\n  if (step.value === 6) {\n    await loadApplicableCosts()\n    if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {\n      const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')\n      if (freight) {\n        freight.costAmount = number(form.freightCost)\n        freight.saleAmount = number(form.freightSale)\n      }\n      mergeConfiguredOptionalCostsIntoRateLines(true)\n    } else {\n      rebuildRateLines()\n    }\n  }\n  if (step.value < 8) step.value += 1`
       const guardedNextAnchor = nextAnchor.replace(
         '    await loadApplicableCosts()\n    rebuildRateLines()',
-        '    const costsReady = await loadApplicableCosts()\n    if (!costsReady) return\n    rebuildRateLines()',
+        '    // A failed or stale response must never advance P6 -> P7 using costs\n    // belonging to a different POE, carrier, agent or customer.\n    const costsReady = await loadApplicableCosts()\n    if (!costsReady) return\n    rebuildRateLines()',
       )
       const guardedNextReplacement = nextReplacement.replace(
         '    await loadApplicableCosts()\n    if (shipmentModeForApi.value',
