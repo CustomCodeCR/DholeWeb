@@ -26,6 +26,12 @@ export function pricingWizardLclRouteContextFix(): Plugin {
       // Incoterm catalogs can expose opaque ids/codes and labels such as
       // "Free On Board (FOB)". Normalize punctuation before checking the token so
       // FOB/FCA/EXW are always sent to the own-LCL calculator as their canonical code.
+      // Current wizard resolves all ICC terms at source with normalizeIncotermCode.
+      // Keep the POL label transform, but do not require a legacy computed block.
+      if (code.includes('const selectedIncotermCode = computed(() => normalizeIncotermCode(')) {
+        return { code, map: null }
+      }
+
       const incotermBlock = `const selectedIncotermCode = computed(() => {\n  const raw = normalizeCatalogValue(\`${'${selectedIncoterm.value?.code ?? \'\'} ${displayValue(selectedIncoterm.value)}'}\`)\n  if (/(^|\\s)exw(\\s|$)/.test(raw)) return 'EXW'\n  if (/(^|\\s)fca(\\s|$)/.test(raw)) return 'FCA'\n  return String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).trim().toUpperCase()\n})`
       const incotermOccurrences = code.split(incotermBlock).length - 1
       if (incotermOccurrences !== 1) {

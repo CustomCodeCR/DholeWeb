@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { inlandBillingParty, incotermOperationExplanation, incotermClientSections, incotermClientPaysMainTransport } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
+import { inlandBillingParty, incotermOperationExplanation, incotermClientSections, incotermClientPaysMainTransport, normalizeIncotermCode } from '../src/modules/pricing/utils/pricingIncotermPerspective.ts'
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
 const wizard = read('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
@@ -58,4 +58,12 @@ test('cost sections change with the party receiving the quotation', () => {
   assert.equal(incotermClientPaysMainTransport('Export', 'DDP'), true)
   assert.equal(incotermClientPaysMainTransport('Import', 'DDP'), false)
   assert.equal(incotermClientPaysMainTransport('Export', 'EXW'), false)
+})
+
+test('opaque Incoterm catalogue codes resolve all 11 ICC terms and wizard permits quoted freight', () => {
+  for (const term of ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']) {
+    assert.equal(normalizeIncotermCode('INC-2026-001', `Incoterm ${term}`), term)
+  }
+  assert.match(wizard, /if \(internationalTransportQuoted\) allowed\.add\('international_freight'\)/)
+  assert.match(wizard, /normalizeIncotermCode\(\s*selectedIncoterm\.value\?\.code/)
 })
