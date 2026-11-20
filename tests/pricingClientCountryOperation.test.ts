@@ -76,7 +76,7 @@ test('wizard has no unbound country perspective helper after Vite transforms', (
   assert.match(wizard, /const perspective = operationForClientCountry\(/)
   assert.match(wizard, /const operationType = computed<RateOperationType>\(\(\) => operationForClientCountry\(/)
   assert.match(wizard, /if \(form\.clientId && !direction\.value\)/)
-  assert.match(wizard, /v-if="form\.clientId && !direction"/)
+  assert.match(wizard, /v-if="form\.clientId && form\.originId && \(form\.podId \|\| form\.destinationId\) && !direction"/)
   assert.match(diagnostic, /Unresolved Pricing wizard runtime binding/)
 })
 
