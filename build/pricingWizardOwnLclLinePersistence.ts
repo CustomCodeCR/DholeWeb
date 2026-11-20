@@ -322,13 +322,25 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
     'if (hydratingExistingRate.value || editingRate.value) return',
     'if (hydratingExistingRate.value || switchingPoeRoute.value || editingRate.value) return',
   )
-  const currencyWatcher = code.includes(multiPoeCurrencyWatcher)
-    ? multiPoeCurrencyWatcher
-    : code.includes(preservedCurrencyWatcher) ? preservedCurrencyWatcher : legacyCurrencyWatcher
+  const freightSyncedCurrencyWatcher = multiPoeCurrencyWatcher.replace(
+    'if (step.value === 7) rebuildRateLines()',
+    'if (step.value === 7) {\\n    rebuildRateLines()\\n    ensureProviderFreightOnScreenSeven()\\n  }'.replaceAll('\\n', '\n'),
+  )
+  const currencyWatcher = code.includes(freightSyncedCurrencyWatcher)
+    ? freightSyncedCurrencyWatcher
+    : code.includes(multiPoeCurrencyWatcher)
+      ? multiPoeCurrencyWatcher
+      : code.includes(preservedCurrencyWatcher) ? preservedCurrencyWatcher : legacyCurrencyWatcher
+  const currencyReplacement = currencyWatcher === freightSyncedCurrencyWatcher
+    ? currencyWatcher.replace(
+      '    rebuildRateLines()\\n    ensureProviderFreightOnScreenSeven()'.replaceAll('\\n', '\n'),
+      '    refreshRateLinesForCurrentSource()\\n    ensureProviderFreightOnScreenSeven()'.replaceAll('\\n', '\n'),
+    )
+    : currencyWatcher.replace('if (step.value === 7) rebuildRateLines()', 'if (step.value === 7) refreshRateLinesForCurrentSource()')
   code = replaceOne(
     code,
     currencyWatcher,
-    currencyWatcher.replace('if (step.value === 7) rebuildRateLines()', 'if (step.value === 7) refreshRateLinesForCurrentSource()'),
+    currencyReplacement,
     'currency line refresh',
   )
 
