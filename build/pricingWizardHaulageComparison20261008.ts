@@ -56,29 +56,37 @@ function dholeHaulageOptionalAssociation(cost: {
   notes?: string | null
   operationalConditions?: string[] | null
 }): DholeHaulageChoice | null {
-  // Fixed charges remain common to both alternatives; never reclassify them
-  // merely because they are associated with COSCO or another carrier.
-  if (cost.costType !== 'Optional') return null
-
   const conditions = cost.operationalConditions ?? []
   const merchant = conditions.includes('MerchantHaulage')
   const carrier = conditions.includes('CarrierHaulage')
+  // Contradictory conditions cannot select a transport provider.
   if (merchant && carrier) return null
+
+  const name = normalizeCatalogValue(String(cost.name ?? ''))
+  const isInland = cost.costDetailType === 'InlandTransport'
+    || ['inland', 'transporte interno', 'transporte terrestre', 'flete terrestre']
+      .some((term) => name.includes(term))
+  const explicitlyHaulage = merchant || carrier
+    || name.includes('merchant haulage') || name.includes('carrier haulage')
+
+  // A fixed/variable destination fee (e.g. Cargos Línea Naviera) is shared.
+  // An actual inland can be priced as Fixed, Variable OR Optional in Config.
+  if (cost.costType !== 'Optional' && !isInland && !explicitlyHaulage) return null
   if (merchant) return 'merchant'
   if (carrier) return 'carrier'
-
-  const name = normalizeCatalogValue(cost.name)
   if (name.includes('merchant')) return 'merchant'
-  if (name.includes('carrier haulage')) return 'carrier'
-  if (name.includes('inland') && name.includes('naviera')) return 'carrier'
+  if (name.includes('carrier haulage') || (isInland && name.includes('naviera'))) return 'carrier'
 
-  // Older Caldera charges often have an InlandTransport type and an explicit
-  // carrier relationship but no "CarrierHaulage" flag in the display name.
-  // CarrierId represents only the FIRST carrier in legacy multi-select costs.
-  // Accept the hydrated list as evidence of carrier association as well.
+  // Legacy carrier-linked InlandTransport has no explicit condition; a
+  // non-carrier inland is Merchant Haulage (including agent/payee providers).
+  // The actual route and destination are still checked by costs/select.
   const belongsToCarrier = Boolean(cost.carrierId)
     || (Array.isArray(cost.carriers) && cost.carriers.length > 0)
-  if (cost.costDetailType === 'InlandTransport' && belongsToCarrier) return 'carrier'
+  if (isInland) return belongsToCarrier ? 'carrier' : 'merchant'
+
+  // Legacy Gate optional charges complement Merchant, but never make a
+  // Panama transport alternative available without an Inland charge.
+  if (cost.costType === 'Optional' && name === 'gate') return 'merchant'
   return null
 }
 
@@ -90,8 +98,7 @@ function dholeHaulageOtherConditionsMatch(cost: CostSelectDto) {
 
 function dholeHaulageCostsFor(mode: DholeHaulageChoice) {
   const rows = dholeHaulageContextCosts.value.filter((cost) =>
-    cost.costType === 'Optional'
-    && dholeHaulageOptionalAssociation(cost) === mode
+    dholeHaulageOptionalAssociation(cost) === mode
     && dholeHaulageOtherConditionsMatch(cost)
     && dholeHaulageMatchesSelectedTerminal(cost),
   )
@@ -103,6 +110,7 @@ function dholeHaulageCostsFor(mode: DholeHaulageChoice) {
       || label.includes('inland')
       || label.includes('flete terrestre')
       || label.includes('transporte interno')
+      || label.includes('transporte terrestre')
   })) return []
   return rows
 }
@@ -164,7 +172,7 @@ function dholeEnsureSelectedHaulageLines() {
       costAmount: number(price.costAmount),
       saleAmount: number(price.saleAmount),
       included: true,
-      optional: true,
+      optional: cost.costType === 'Optional',
       manual: false,
     })
   }
@@ -191,7 +199,7 @@ const dholeBaseCosts = computed(() =>
   dholeHaulageContextCosts.value.filter((cost) =>
     cost.costDetailType !== 'Freight'
     // Los costos fijos pertenecen a ambas alternativas por igual.
-    && (cost.costType !== 'Optional' || dholeHaulageOptionalAssociation(cost) === null)
+    && dholeHaulageOptionalAssociation(cost) === null
     && (cost.costType !== 'Optional' || shouldIncludeOptionalCost(cost)),
   ),
 )
@@ -303,7 +311,7 @@ watch(
 const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" class="crystal-soft space-y-4 p-4 md:p-5">
             <div>
               <p class="text-base font-black">Transporte en destino · Naviera o Merchant</p>
-              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se recomienda automáticamente el menor costo de los cargos opcionales aplicables a la naviera, ruta y agente. Los cargos fijos son comunes a ambas alternativas; puede seleccionar otra opción.</p>
+              <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Se recomienda automáticamente el menor costo del transporte aplicable a la naviera, ruta y agente. Los cargos fijos son comunes a ambas alternativas; puede seleccionar otra opción.</p>
             </div>
             <p v-if="dholeHaulagePending" class="text-sm font-semibold text-[var(--dh-text-muted)]">Consultando costos y alternativas disponibles…</p>
             <template v-else>
@@ -318,13 +326,13 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                 >
                   <span class="flex items-center justify-between gap-2 font-black"><span>Naviera (Carrier Haulage)</span><Check v-if="form.carrierHaulage" class="h-4 w-4" /></span>
                   <span v-if="dholeCarrierAvailable" class="mt-2 block space-y-1 text-xs">
-                    <span class="block">Cargos opcionales: {{ dholeCarrierCosts.length }}</span>
+                    <span class="block">Cargos aplicables: {{ dholeCarrierCosts.length }}</span>
                     <span class="block">Costo: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('carrier').cost) }}</strong></span>
                     <span class="block">Venta: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('carrier').sale) }}</strong></span>
                     <span class="block">Margen total estimado: <strong>{{ dholeCarrierEstimate.margin.toFixed(2) }}%</strong></span>
                     <span v-if="dholeHaulageRecommended === 'carrier' && dholeMerchantAvailable" class="block font-black text-[var(--dh-primary)]">Menor costo estimado</span>
                   </span>
-                  <span v-else class="mt-2 block text-xs">Sin cargos opcionales de Carrier Haulage para esta selección.</span>
+                  <span v-else class="mt-2 block text-xs">Sin transporte Carrier Haulage aplicable para esta selección.</span>
                 </button>
                 <button
                   type="button"
@@ -336,13 +344,13 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                 >
                   <span class="flex items-center justify-between gap-2 font-black"><span>Merchant Haulage</span><Check v-if="form.merchantHaulage" class="h-4 w-4" /></span>
                   <span v-if="dholeMerchantAvailable" class="mt-2 block space-y-1 text-xs">
-                    <span class="block">Cargos opcionales: {{ dholeMerchantCosts.length }}</span>
+                    <span class="block">Cargos aplicables: {{ dholeMerchantCosts.length }}</span>
                     <span class="block">Costo: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('merchant').cost) }}</strong></span>
                     <span class="block">Venta: <strong>{{ dholeHaulageMoney(dholeHaulageOptionTotals('merchant').sale) }}</strong></span>
                     <span class="block">Margen total estimado: <strong>{{ dholeMerchantEstimate.margin.toFixed(2) }}%</strong></span>
                     <span v-if="dholeHaulageRecommended === 'merchant' && dholeCarrierAvailable" class="block font-black text-[var(--dh-primary)]">Menor costo estimado</span>
                   </span>
-                  <span v-else class="mt-2 block text-xs">Sin cargos opcionales de Merchant Haulage para esta naviera y ruta.</span>
+                  <span v-else class="mt-2 block text-xs">Sin transporte Merchant Haulage aplicable para esta naviera y ruta.</span>
                 </button>
               </div>
               <p v-if="!dholeCarrierAvailable && !dholeMerchantAvailable" class="text-sm font-semibold text-amber-600">No hay cargos de Naviera ni de Merchant aplicables en Costos y recargos. No se agregará transporte interno automáticamente.</p>
@@ -402,9 +410,8 @@ function patchWizard(source: string) {
   if (props.viewOnly && props.rateId) return
 
   rateLines.value.forEach((line) => {
-    // Fixed / Variable cargos (incluido Cargos Línea Naviera) nunca son
-    // controles Merchant/Carrier: conservar su inclusión original.
-    if (!line.optional) return
+    // A configured Inland can be Fixed/Variable. Classify the actual route
+    // before deciding whether this is a shared fixed charge or an alternative.
     const configured = line.costId ? costs.value.find((cost) => cost.id === line.costId) : null
     const association = dholeHaulageOptionalAssociation(configured ?? line)
     if (association) {
@@ -415,7 +422,7 @@ function patchWizard(source: string) {
       if (!line.included) line.applyDestinationTax = false
       return
     }
-    if (!configured) return
+    if (!line.optional || !configured) return
     line.included = shouldIncludeOptionalCost({ ...configured, costId: line.costId })
     if (!line.included) line.applyDestinationTax = false
   })
