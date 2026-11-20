@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import { parseManualPreferentialAmount } from '../src/modules/crm/utils/crmPreferentialManualAmount'
+import { parseManualPreferentialAmount } from '../src/modules/crm/utils/crmPreferentialManualAmount.ts'
 
 test('Manual preferential rate handles Vue numeric v-model values', () => {
   assert.equal(parseManualPreferentialAmount(175), 175)
