@@ -1,3 +1,12 @@
+## [1.106.0] - 2026-11-20 (DH-20261120-OPERATIONS-TRAMITES-UX-332 · Trámites unificado y expediente en pantalla completa)
+
+- MINOR: Trámites reemplaza la bandeja redundante: botón Nuevo trámite manual con cuenta CRM, búsqueda y filtros paginados, resumen del IDTRA en DhDrawer y vista de detalle independiente.
+- El expediente muestra los ocho tabs formales y la matriz de acceso calculada por Operations (EDITABLE, READ_ONLY, LOCKED, NOT_APPLICABLE), sin ediciones ficticias de departamentos todavía no implementados.
+- Resumen permite modificar metadata autorizada de Aperturas con versión optimista, audit trail, y doble validación en el propio expediente; QUO muestra snapshot y costos autorizados; Origen permite consultar estado y guardar notas privadas según ACL.
+- Enlace directo desde Dashboard a detalle IDTRA. Canal SignalR de caso con reconexión, invalidaciones y nueva lectura REST. Formularios con cambios locales no se sobrescriben ante eventos concurrentes.
+- Web y System 1.105.2 → 1.106.0; Operations 0.13.0 → 0.14.0. Pricing → apertura automática continúa pendiente, al igual que formularios avanzados para otras áreas.
+- CI, staging, autorización y despliegue a producción por verificar.
+
 ## [1.105.2] - 2026-11-20 (DH-20261120-CRM-PREFERRED-BLOCKS-342 · corrección de bloques comerciales CRM y conciliación Pricing)
 
 - PATCH: los acuerdos de igual modalidad, ruta, equipo, naviera, Incoterm, servicios y vigencia se muestran como un bloque coherente en CRM; pueden reabrirse en el editor por ruta sin borrar ni duplicar los seis ítems persistidos. Vista avanzada identifica los ítems manuales y elimina el mensaje falso de desconexión con Pricing.

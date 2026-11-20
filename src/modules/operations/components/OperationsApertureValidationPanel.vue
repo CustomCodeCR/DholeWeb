@@ -1,0 +1,88 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { ShieldCheck, UsersRound } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhTextarea } from '@/shared/components/atoms'
+import { DhCard } from '@/shared/components/molecules'
+import { useAuthStore } from '@/core/stores/authStore'
+import { operationsApi, type ValidationPair } from '../services/operationsApi'
+
+const props = defineProps<{ caseId: string }>()
+const emit = defineEmits<{ updated: [] }>()
+const auth = useAuthStore()
+const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
+const canReview = computed(() => auth.hasScope('operations.aperture.validation.review'))
+const pair = ref<ValidationPair | null>(null)
+const busy = ref(false)
+const error = ref('')
+const comment = ref('')
+let sequence = 0
+async function load() {
+  const current = ++sequence
+  error.value = ''
+  try {
+    const next = await operationsApi.validations(props.caseId)
+    if (sequence === current) pair.value = next
+  } catch (cause) {
+    if (sequence === current) error.value = cause instanceof Error ? cause.message : 'No se pudo obtener la validación.'
+  }
+}
+watch(() => props.caseId, () => { void load() }, { immediate: true })
+async function assign() {
+  if (!canAssign.value || busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    await operationsApi.assign(props.caseId)
+    await load()
+    emit('updated')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo asignar la validación.'
+  } finally { busy.value = false }
+}
+async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
+  if (!canReview.value || busy.value) return
+  if (decision === 'REJECTED' && !comment.value.trim()) {
+    error.value = 'Debe indicar el motivo de devolución.'
+    return
+  }
+  busy.value = true
+  error.value = ''
+  try {
+    await operationsApi.decide(props.caseId, id, decision, comment.value.trim())
+    comment.value = ''
+    await load()
+    emit('updated')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo registrar la decisión.'
+  } finally { busy.value = false }
+}
+function label(status: string) { return status.replaceAll('_', ' ') }
+</script>
+
+<template>
+  <DhCard :icon="ShieldCheck" title="Validación de Aperturas" subtitle="El equipo valida el expediente sin salir de Trámites.">
+    <p v-if="error" role="alert" class="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</p>
+    <div v-if="pair">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <DhBadge variant="neutral">{{ label(pair.stage.status) }}</DhBadge>
+        <DhButton v-if="canAssign && !pair.validators.length && pair.stage.status === 'PENDING_VALIDATION'"
+          :icon="UsersRound" label="Asignar validadores" :loading="busy" @click="assign" />
+      </div>
+      <p v-if="!pair.validators.length" class="text-sm text-[var(--dh-text-muted)]">Pendiente de asignar validadores autorizados.</p>
+      <div v-for="validator in pair.validators" :key="validator.id" class="mb-3 space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-sm font-bold">Revisión {{ validator.slot }}</p>
+          <DhBadge :variant="validator.status === 'APPROVED' ? 'success' : validator.status === 'REJECTED' ? 'danger' : 'warning'">{{ label(validator.status) }}</DhBadge>
+        </div>
+        <p v-if="validator.comment" class="whitespace-pre-wrap text-sm text-[var(--dh-text-soft)]">{{ validator.comment }}</p>
+        <div v-if="canReview && validator.userId === auth.userId && validator.status === 'PENDING' && pair.stage.status === 'PENDING_VALIDATION'">
+          <DhTextarea v-model="comment" label="Observación de validación" :rows="2" />
+          <div class="mt-2 flex flex-wrap gap-2">
+            <DhButton size="sm" label="Aprobar" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
+            <DhButton size="sm" variant="danger" label="Solicitar cambios" :disabled="busy || !comment.trim()" @click="decide(validator.id, 'REJECTED')" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </DhCard>
+</template>
