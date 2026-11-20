@@ -20,13 +20,11 @@ test('DDP exports always allow international freight billed to exporter', () => 
   assert.equal(incotermClientPaysMainTransport('Import', 'CIF'), false)
 })
 
-test('customs-only transform derives exporter/importer before filtering freight', () => {
-  assert.match(customsTransform, /const freightNotRequiredByIncoterm = computed/)
-  assert.match(customsTransform, /const origin = selectedOrigin\.value/)
-  assert.match(customsTransform, /const destination = selectedPod\.value \?\? selectedDestination\.value/)
-  assert.match(customsTransform, /operationForClientCountry\(/)
-  assert.match(customsTransform, /!incotermClientPaysMainTransport\(perspective, match\[2\]\.toUpperCase\(\)\)/)
-  assert.doesNotMatch(customsTransform, /return \/\(\^\|\[\^a-z\]\)\(CFR\|CIF\|CPT\|CIP\|DAP\|DPU\|DDP\)/)
+test('quotation service selection allows explicit freight under every Incoterm', () => {
+  assert.match(customsTransform, /const hasInternationalTransportService = computed/)
+  assert.doesNotMatch(customsTransform, /freightNotRequiredByIncoterm/)
+  assert.doesNotMatch(customsTransform, /!incotermClientPaysMainTransport\(perspective/)
+  assert.match(customsTransform, /selectedServices\.value\.some/)
   assert.match(customsTransform, /!catalogs\.services\.length && form\.serviceIds\.length > 0/)
 })
 
