@@ -110,3 +110,14 @@ test('China origin with an opaque Config port ID resolves ISO CN for import dire
   assert.equal(resolvePodCountryCode(destination, countries), 'CR')
   assert.equal(resolvePodCountryCode(item('POL-2026-999', 'Shanghai'), countries), '')
 })
+
+
+test('El Salvador country is resolved from an explicit POD country label without Config ISO', () => {
+  const origin = item('POL-2026-003', 'Qingdao, China')
+  const destination = item('POD-2026-014', 'San Salvador, El Salvador')
+  assert.equal(resolvePodCountryCode(origin, []), 'CN')
+  assert.equal(resolvePodCountryCode(destination, []), 'SV')
+  assert.equal(resolvePodCountryCode(destination, [item('CAT-SV', 'El Salvador', { countryCode: 'SLV' })]), 'SV')
+  assert.equal(resolvePodCountryCode(item('POD-UNKNOWN', 'San Salvador'), []), '')
+  assert.equal(resolvePodCountryCode(item('POE-2026-001', 'Acajutla, El Salvador'), []), 'SV')
+})
