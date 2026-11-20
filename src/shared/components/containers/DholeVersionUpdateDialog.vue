@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RefreshCw, AlertCircle } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import DhButton from '@/shared/components/atoms/DhButton.vue'
+import { useVersionUpdateNotificationStore } from '@/core/stores/versionUpdateNotificationStore'
 import {
   normalizeWebBuild,
   requiresWebUpdate,
@@ -11,6 +12,7 @@ import {
 } from '@/core/version/webBuildUpdate'
 
 const { t } = useI18n()
+const notificationSettings = useVersionUpdateNotificationStore()
 const currentBuild: WebBuildVersion = {
   version: __DHOLE_WEB_VERSION__,
   commit: (import.meta.env.VITE_BUILD_SHA ?? '').slice(0, 12),
@@ -18,7 +20,7 @@ const currentBuild: WebBuildVersion = {
 const availableBuild = ref<WebBuildVersion | null>(null)
 const dismissedKey = ref<string | null>(null)
 const visible = computed(() =>
-  availableBuild.value !== null && webBuildKey(availableBuild.value) !== dismissedKey.value,
+  notificationSettings.effectiveEnabled && availableBuild.value !== null && webBuildKey(availableBuild.value) !== dismissedKey.value,
 )
 let pollTimer: number | undefined
 let checking = false
@@ -28,6 +30,11 @@ async function checkForUpdate() {
   if (!active || checking || document.visibilityState === 'hidden' || !navigator.onLine) return
   checking = true
   try {
+    await notificationSettings.refresh()
+    if (!notificationSettings.effectiveEnabled) {
+      availableBuild.value = null
+      return
+    }
     const response = await fetch(`/version.json?t=${Date.now()}`, {
       cache: 'no-store',
       headers: { Accept: 'application/json' },
