@@ -1,3 +1,9 @@
+## [1.103.19] - 2026-11-20 (DH-20261120-CRM-INVITEE-PERSISTENCE-296 · persistencia de invitados CRM)
+
+- PATCH: coordina CRM 1.42.5 con Web/System 1.103.19. Los invitados añadidos posteriormente a una actividad se heredan en compromisos pendientes vinculados, guardados con notificaciones durables.
+- Web mantiene visibles invitados persistidos fuera de la primera página del directorio Auth y verifica el guardado con lectura de API.
+- Backport selectivo sobre master 1.103.18 sin importar cambios de develop pendientes. CI y staging obligatorios; no desplegar producción sin autorización.
+
 ## [1.103.18] - 2026-11-19 (DH-20261119-SELLER-DASHBOARD-PARITY-295 · equivalencia de dashboards vendedor/supervisión)
 
 - PATCH: al seleccionar vendedor en supervisión, consulta /seller-rates/dashboard?sellerUserId y reutiliza exactamente la proyección personal publicada (manuales/directas, recibos, vinculadas y alternativas), evitando recorte por RateRequest. Cambios de selección invalidan cifras previas y respeta fechas por vendedor.
