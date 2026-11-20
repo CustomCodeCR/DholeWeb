@@ -181,7 +181,20 @@ function showPricingVariation(notification: SystemNotificationPush) {
   })
 }
 
+const recentPolicyEventIds = new Set<string>()
+
 function handleNotification(notification: SystemNotificationPush) {
+  if (notification.notificationType === 'system.version-update-policy.changed') {
+    // An authenticated user-targeted invalidation, not a persistent inbox item.
+    if (recentPolicyEventIds.has(notification.notificationId)) return
+    recentPolicyEventIds.add(notification.notificationId)
+    if (recentPolicyEventIds.size > 128) {
+      const oldest = recentPolicyEventIds.values().next().value
+      if (oldest) recentPolicyEventIds.delete(oldest)
+    }
+    window.dispatchEvent(new CustomEvent('dhole:version-update-policy:changed'))
+    return
+  }
   if (notification.notificationType === 'pricing.imported-rate.variation') {
     showPricingVariation(notification)
 
