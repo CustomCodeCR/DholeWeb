@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-INLAND-REGRESSION-360",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.17",
+  "releaseType": "PATCH",
+  "releaseStatus": "candidate-staging-validation-pending",
+  "component": "DholeWeb",
+  "versionBefore": "1.106.16",
+  "versionAfter": "1.106.17",
+  "scope": [
+    "Withdraw premature screen-7 sync and draft snapshots from release 1.106.16",
+    "Restore pre-release inland behavior without changing Pricing REST or Incoterm master workaround"
+  ],
+  "risk": "Original missing auto-load issue remains open; authenticated wizard scenarios require verification",
+  "productionAuthorization": "Requires explicit approval for deployment after passing staging"
+}
