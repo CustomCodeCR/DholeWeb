@@ -1,3 +1,9 @@
+## [1.103.17] - 2026-11-20 (DH-20261120-CRM-AGREEMENT-INVITEES-295 · invitados guardados en seguimientos)
+
+- PATCH: master 1.103.15 → 1.103.17 con corrección puntual de lectura y verificación de invitados. En el detalle se ve cuántos usuarios están guardados y se bloquea la actualización si falla la consulta inicial.
+- Coordinado con CRM 1.42.4 y System 1.103.17. Conserva cambios previos de master sin incorporar el resto de develop.
+- Prueba de regresión CRM incluida; CI y staging antes de master, despliegue productivo no autorizado.
+
 ## [1.103.15] - 2026-11-19 (DH-20261119-DASHBOARD-TABLE-293 · backport contextual del dashboard)
 
 - PATCH: backport selectivo de tarjetas que filtran la tabla «Tarifas del equipo y seguimiento de ventas» y hacen scroll a esa tabla; no abre Pricing.
