@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
 import CrmPricingLocationSelect from './CrmPricingLocationSelect.vue'
 import CrmPricingEquipmentSelect from './CrmPricingEquipmentSelect.vue'
@@ -276,6 +276,21 @@ function changeModality(value: 'MARITIME' | 'TERRESTRIAL' | 'AIR') {
 watch(() => [route.modality, route.shipment, route.equipmentCodes.join('|'),
   route.polCodes.join('|'), route.poeCodes.join('|'), route.podCodes.join('|'),
   route.carrierCode, route.incotermCode, route.serviceCodes.join('|')], resetPreview)
+async function openSavedScope(rate: SavedRate) {
+  route.modality = rate.modality === 'AIR' ? 'AIR' :
+    ['FTL', 'LTL'].includes(rate.modality) ? 'TERRESTRIAL' : 'MARITIME'
+  route.shipment = rate.modality as PreferentialShipment
+  route.equipmentCodes = [...(rate.equipmentCodes?.length ? rate.equipmentCodes : [])]
+  route.polCodes = [...(rate.polCodes?.length ? rate.polCodes : [])]
+  route.poeCodes = [...(rate.poeCodes?.length ? rate.poeCodes : [])]
+  route.podCodes = [...(rate.podCodes?.length ? rate.podCodes : [])]
+  route.carrierCode = rate.carrierCode ?? ''
+  route.incotermCode = rate.incotermCode ?? ''
+  route.serviceCodes = [...(rate.serviceCodes ?? [])]
+  await nextTick()
+  consult()
+}
+defineExpose({ openSavedScope })
 function consult() {
   error.value = ''; success.value = ''
   // Se puede consultar el catálogo completo o guardar un cargo manual sin puertos ni equipo.
