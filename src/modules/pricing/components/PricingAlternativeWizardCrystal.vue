@@ -3837,7 +3837,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
 }
 
 function ensureProviderFreightOnScreenSeven() {
-  if (props.rateId || (number(form.freightCost) <= 0 && number(form.freightSale) <= 0)) return
+  if (shipmentModeForApi.value !== 'Fcl' || props.rateId || (number(form.freightCost) <= 0 && number(form.freightSale) <= 0)) return
   if (rateLines.value.some(line => line.costDetailType === 'Freight' && line.included)) return
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!currency) return
