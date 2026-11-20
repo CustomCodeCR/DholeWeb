@@ -141,20 +141,6 @@ function patchWizard(source: string) {
           '    : lines',
         ].join('\n')
       : '  rateLines.value = lines'
-    const afterAssignment = [
-      "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
-      '    syncResolvedLandLtlTariffLines()',
-      '  }',
-      '  // syncResolvedLandLtlTariffLines() after every rebuild',
-    ].join('\n')
-    const incumbentContextState = [
-      '  lastIncotermRateLinesContextKey.value = currentContext',
-      '  lastIncotermRateLinesRouteKey.value = routeKey',
-    ].join('\n')
-    const suffix = code.includes(assignment + '\n' + incumbentContextState + '\n' + afterAssignment)
-      ? '\n' + incumbentContextState
-      : ''
-    const before = assignment + suffix + '\n' + afterAssignment
     const keepOptionals = [
       "  const previousLtlOptionals = shipmentModeForApi.value === 'Ltl'",
       '    ? rateLines.value.filter((line) => line.optional',
@@ -163,26 +149,33 @@ function patchWizard(source: string) {
       '      .map((line) => ({ ...line }))',
       '    : []',
     ].join('\n')
-    const restoreOptionals = [
-      "  if (shipmentModeForApi.value === 'Ltl' && resolvedFtlTariff.value) {",
-      '    syncResolvedLandLtlTariffLines()',
-      '    for (const previous of previousLtlOptionals) {',
-      '      const current = rateLines.value.find((line) => line.key === previous.key && line.optional)',
-      '      if (!current) continue',
-      '      current.costAmount = previous.costAmount',
-      '      current.saleAmount = previous.saleAmount',
-      '      current.included = previous.included',
-      '      current.currencyId = previous.currencyId',
-      '      current.currencyName = previous.currencyName',
-      '      current.currencyCode = previous.currencyCode',
-      '      current.amountCurrencyCode = previous.amountCurrencyCode',
-      '      current.billToClient = previous.billToClient',
-      '    }',
+    const restoreValues = [
+      '  for (const previous of previousLtlOptionals) {',
+      '    const current = rateLines.value.find((line) => line.key === previous.key && line.optional)',
+      '    if (!current) continue',
+      '    current.costAmount = previous.costAmount',
+      '    current.saleAmount = previous.saleAmount',
+      '    current.included = previous.included',
+      '    current.currencyId = previous.currencyId',
+      '    current.currencyName = previous.currencyName',
+      '    current.currencyCode = previous.currencyCode',
+      '    current.amountCurrencyCode = previous.amountCurrencyCode',
+      '    current.billToClient = previous.billToClient',
       '  }',
-      '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const after = keepOptionals + '\n' + assignment + suffix + '\n' + restoreOptionals
-    code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+    const marker = '  // syncResolvedLandLtlTariffLines() after every rebuild'
+    const rebuildStart = code.indexOf('function rebuildRateLines() {')
+    const rebuildEnd = code.indexOf('\nfunction mergeConfiguredOptionalCostsIntoRateLines(', rebuildStart)
+    if (rebuildStart < 0 || rebuildEnd <= rebuildStart) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró la reconstrucción de Pantalla 7.')
+    }
+    let source = code.slice(rebuildStart, rebuildEnd)
+    if (!source.includes(assignment) || !source.includes(marker)) {
+      throw new Error('[pricingLtlOptionalEditable] No se encontró: preservar cambios al reconstruir Pantalla 7')
+    }
+    source = source.replace(assignment, keepOptionals + '\n' + assignment)
+    source = source.replace(marker, restoreValues + '\n' + marker)
+    code = code.slice(0, rebuildStart) + source + code.slice(rebuildEnd)
 
   }
 
