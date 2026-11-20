@@ -147,7 +147,14 @@ function patchWizard(source: string) {
       '  }',
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const before = assignment + '\n' + afterAssignment
+    const incumbentContextState = [
+      '  lastIncotermRateLinesContextKey.value = currentContext',
+      '  lastIncotermRateLinesRouteKey.value = routeKey',
+    ].join('\n')
+    const suffix = code.includes(assignment + '\n' + incumbentContextState + '\n' + afterAssignment)
+      ? '\n' + incumbentContextState
+      : ''
+    const before = assignment + suffix + '\n' + afterAssignment
     const keepOptionals = [
       "  const previousLtlOptionals = shipmentModeForApi.value === 'Ltl'",
       '    ? rateLines.value.filter((line) => line.optional',
@@ -174,7 +181,7 @@ function patchWizard(source: string) {
       '  }',
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const after = keepOptionals + '\n' + assignment + '\n' + restoreOptionals
+    const after = keepOptionals + '\n' + assignment + suffix + '\n' + restoreOptionals
     code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
 
   }
