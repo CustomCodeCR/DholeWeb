@@ -1,3 +1,11 @@
+## [1.106.1] - 2026-11-20 (DH-20261120-CRM-PRICING-PREFERRED-ALIAS-343 · aplicación de tarifas preferenciales por identidad de cliente y ruta)
+
+- PATCH: la caché de costos de Pantalla 7 incorpora la cuenta CRM para impedir reutilizar precios de otro cliente en alternativas con idéntica ruta.
+- CRM y Pricing pueden expresar códigos diferentes para el mismo POL/POE/POD/naviera: se concilian únicamente mediante el ID exacto de catálogo seleccionado; si el catálogo es ambiguo, conserva el criterio original y nunca aplica el acuerdo de otra ruta.
+- Los precios preferenciales fijos, por tramos y conceptos manuales vuelven a evaluarse con el contexto conciliado. Se preservan costos proveedor, cantidades, bases, impuestos y snapshots de QUO existentes.
+- Una respuesta incompleta de CRM deja de tomarse por una lista de cero acuerdos y bloqueará el recálculo silencioso con ventas estándar; prueba de regresión reproduce los seis cargos FCL CIF 40HC para ONE/Caldera/San José.
+- Coordinación de release Web/System 1.106.0 → 1.106.1; sin cambios de binario en servicios backend. CI y staging requeridos antes de integración a master; producción no autorizada.
+
 ## [1.106.0] - 2026-11-20 (DH-20261120-OPERATIONS-TRAMITES-UX-332 · Trámites unificado y expediente en pantalla completa)
 
 - MINOR: Trámites reemplaza la bandeja redundante: botón Nuevo trámite manual con cuenta CRM, búsqueda y filtros paginados, resumen del IDTRA en DhDrawer y vista de detalle independiente.

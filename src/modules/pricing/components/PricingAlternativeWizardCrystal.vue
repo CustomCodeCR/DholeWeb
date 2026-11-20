@@ -53,7 +53,7 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { crmPath as customerBenefitCrmPath, crmRequest as customerBenefitCrmRequest } from '@/modules/crm/services/crmApi'
 import { customerPreferentialAmounts, customerManualPreferentialRates,
-  customerPreferentialScopeIssues, type CustomerPreferentialRate
+  customerPreferentialScopeIssues, customerPreferentialCatalogContext, type CustomerPreferentialRate
 } from '@/modules/pricing/utils/pricingPreferentialBenefits'
 import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
@@ -824,11 +824,16 @@ async function advanceScreenFive() {
 }
 
 function activeCostContextKey(): string {
-  return pricingCostContextKey({
-    poeId: form.destinationId, podId: form.podId, carrierId: form.carrierId,
-    agentId: form.agentId, polId: form.originId, incotermId: form.incotermId,
-    shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
-  })
+  // Sales belong to the CRM account, not merely the physical route. Never reuse
+  // another customer's screen-7 quote lines from the alternative-cost cache.
+  return [
+    pricingCostContextKey({
+      poeId: form.destinationId, podId: form.podId, carrierId: form.carrierId,
+      agentId: form.agentId, polId: form.originId, incotermId: form.incotermId,
+      shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
+    }),
+    form.crmClientKind, form.clientId,
+  ].join('|')
 }
 
 async function loadCostsForSelectedAlternative(force = false) {
@@ -3124,10 +3129,18 @@ function resolvedConditionalCost(cost: CostSelectDto) {
   // CRM's service qualifiers describe the quotation, not only the supplier's
   // Cost.services (a document surcharge may have no overlap with selected services).
   const quoteServices = selectedServices.value.map(service => String(service.code ?? '').trim()).filter(Boolean)
-  return customerPreferentialAmounts({
-    ...cost, chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
-  }, base, customerPreferentialRates.value,
-  currentPreferentialContext(quoteServices), cargo, costs.value)
+  const configured = { ...cost, chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType) }
+  const selectedContext = currentPreferentialContext(quoteServices)
+  const direct = customerPreferentialAmounts(configured, base, customerPreferentialRates.value,
+    selectedContext, cargo, costs.value)
+  if (direct.agreement) return direct
+  // The CRM editor uses Pricing codes, whereas the wizard can receive Config
+  // codes for the same selected catalog IDs. Retry only an ID-proven alias.
+  return customerPreferentialAmounts(configured, base, customerPreferentialRates.value,
+    customerPreferentialCatalogContext(selectedContext, costs.value, {
+      polId: form.originId, poeId: form.destinationId,
+      podId: form.podId, carrierId: form.carrierId,
+    }), cargo, costs.value)
 }
 
 function applicableCost(cost: CostSelectDto) {
@@ -3387,7 +3400,11 @@ async function loadCustomerPreferentialRates(): Promise<void> {
       customerBenefitCrmPath('accounts', accountId, 'commercial-benefits'),
     )
     if (request !== customerPreferentialRequest || accountId !== form.clientId) return
-    customerPreferentialRates.value = Array.isArray(response.rates) ? response.rates : []
+    // A malformed/partial response must never silently produce regular sales.
+    if (!response || !Array.isArray(response.rates)) {
+      throw new Error('CRM devolvió una respuesta sin tarifas verificables')
+    }
+    customerPreferentialRates.value = response.rates
     customerPreferentialAccountId.value = accountId
   } catch (error) {
     if (request !== customerPreferentialRequest || accountId !== form.clientId) return
@@ -3680,8 +3697,19 @@ if (insuranceRequested && visible.has('destination_charges')) {
       TRUCK: 'PerTruck', CBM: 'PerCbm', CFT: 'PerCft', KG: 'PerKg',
       DOCUMENT: 'PerDocument', PALLET: 'PerPallet', PACKAGE: 'PerPackage',
     }
-    for (const agreement of customerManualPreferentialRates(
-      customerPreferentialRates.value, currentPreferentialContext())) {
+    const manualDirect = customerManualPreferentialRates(
+      customerPreferentialRates.value, currentPreferentialContext())
+    const manualByCatalogId = customerManualPreferentialRates(customerPreferentialRates.value,
+      customerPreferentialCatalogContext(currentPreferentialContext(), costs.value, {
+        polId: form.originId, poeId: form.destinationId,
+        podId: form.podId, carrierId: form.carrierId,
+      }))
+    // Direct matches win; do not invoice the same manual benefit twice.
+    const manualAgreements = [...manualDirect, ...manualByCatalogId.filter(rate =>
+      !manualDirect.some(existing => existing.chargeCode === rate.chargeCode &&
+        normalizeCatalogValue(existing.customChargeName ?? '') ===
+        normalizeCatalogValue(rate.customChargeName ?? '')))]
+    for (const agreement of manualAgreements) {
       const name = agreement.customChargeName?.trim() ?? ''
       const kind = agreement.chargeCode as CostDetailType
       const section = sectionForDetail(kind, name)
