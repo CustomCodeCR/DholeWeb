@@ -28,6 +28,12 @@ test('quotation service selection allows explicit freight under every Incoterm',
   assert.match(customsTransform, /!catalogs\.services\.length && form\.serviceIds\.length > 0/)
 })
 
+test('legacy and crystal wizards retain the selected international transport service', () => {
+  const legacyWizard = readFileSync(new URL('../src/modules/pricing/components/PricingRateExistingWizardStable.vue', import.meta.url), 'utf8')
+  assert.doesNotMatch(legacyWizard, /serviceCodes\.delete\('INT_TRANSPORT'\)/)
+  assert.doesNotMatch(wizard, /serviceCodes\.delete\('INT_TRANSPORT'\)/)
+})
+
 test('freight inputs, pricing lines, and quote persistence use the same selected-service guard', () => {
   assert.match(customsTransform, /const hasInternationalTransportService = computed/)
   assert.match(customsTransform, /const visibility = tag\.includes\('v-model\.number="form\.transitDays"'\)/)
