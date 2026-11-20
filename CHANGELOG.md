@@ -1,8 +1,14 @@
-## [1.106.17] - 2026-11-20 (DH-20261120-PRICING-INLAND-REGRESSION-360 · estabilización urgente del inland)
+## [1.106.19] - 2026-11-20 (DH-20261120-PRICING-INLAND-CONFLICTS-362 · contención de la regresión de cargos sin perder tarifas vencidas)
 
-- PATCH de contención: revierte únicamente la sincronización temprana introducida en DholeWeb 1.106.15/1.106.16 que puede excluir líneas inland durante la carga asíncrona y guardar borradores incompletos.
-- Restablece el comportamiento frontend previo para el traspaso de Pantalla 6 a 7. **No se declara resuelto el problema original de autoload**: requiere reproducción autenticada con ruta/POE/naviera real antes de otra corrección.
-- Preserva el desbloqueo temporal de Incoterms en master y contratos REST/SignalR. Sin modificaciones de PricingService ni base de datos.
+- PATCH de recuperación sobre master 1.106.18: elimina el guardado y sincronización temprana de líneas del inland entre pantallas 6 y 7 que regresó la carga de cargos en producción.
+- Incorpora el comportamiento de contención desplegado en staging como Web 1.106.17, sin incorporar develop entero. Conserva el desbloqueo temporal de Incoterms y la política de autorizaciones para tarifas vencidas de 1.106.18.
+- DholeWeb y DholeSystem 1.106.18 → 1.106.19; PricingService mantiene 1.26.9, sin cambios de REST, SignalR ni base de datos. CI del backport y validación funcional en producción pendientes; no se declara resuelto el fallo original de autoload.
+
+## [1.106.18] - 2026-11-20 (DH-20261120-PRICING-EXPIRED-MASTER-361 · tarifas vencidas solo requieren aprobación para Ventas)
+
+- PATCH: hotfix selectivo de política ya integrada en develop/staging como 354. Oculta “Solicitar autorización” a Pricing y Superadmin y permite abrir editor directo; vendedores siguen solicitud y flujo de jefatura.
+- Mantiene el resto de master incluido desbloqueo temporal de Incoterms e inland reciente. Web/System 1.106.16 → 1.106.18, Pricing 1.26.8 → 1.26.9, para no disminuir versión respecto de develop 1.106.17.
+- Backend validará permisos con alcance de JWT y rol, tests de regresión y CI antes de producción. REST/SignalR, notificaciones y auditoría sin cambios de contrato.
 
 ## [1.106.16] - 2026-11-20 (DH-20261120-PRICING-INLAND-QA-358 · pruebas del inland 6→7)
 
