@@ -1,4 +1,5 @@
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
+import { catalogMetadata, resolveCatalogCountryCode, resolveLocationCountryCode } from './pricingCountryIso.ts'
 
 type VatCatalogMetadata = {
   countryCode?: string
@@ -12,25 +13,11 @@ type VatCatalogMetadata = {
 const DEFAULT_POD_VAT_RATES: Record<string, number> = { CR: 13, PA: 7, GT: 15 }
 
 function itemMetadata(item?: CatalogItemSelectDto | null): VatCatalogMetadata {
-  if (!item?.metadataJson) return {}
-  try {
-    return JSON.parse(item.metadataJson) as VatCatalogMetadata
-  } catch {
-    return {}
-  }
-}
-
-function normalizeCountryText(value: string) {
-  return value.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  return catalogMetadata(item) as VatCatalogMetadata
 }
 
 function countryCatalogCode(item: CatalogItemSelectDto) {
-  return String(item.code || itemMetadata(item).countryCode || '').trim().toUpperCase()
+  return resolveCatalogCountryCode(item)
 }
 
 function configuredVatRate(item?: CatalogItemSelectDto | null) {
@@ -50,56 +37,7 @@ export function resolvePodCountryCode(
   pod: CatalogItemSelectDto | null | undefined,
   countries: CatalogItemSelectDto[],
 ): string {
-  if (!pod) return ''
-
-  const podMetadata = itemMetadata(pod)
-  const countryId = String(podMetadata.countryId ?? '').trim()
-  const countryById = countryId ? countries.find((country) => country.id === countryId) : null
-  if (countryById && /^[A-Z]{2}$/.test(countryCatalogCode(countryById))) return countryCatalogCode(countryById)
-
-  const explicitCode = String(podMetadata.countryCode ?? '').trim().toUpperCase()
-  if (/^[A-Z]{2}$/.test(explicitCode)) return explicitCode
-
-  const alternateCode = String(podMetadata.country ?? '').trim().toUpperCase()
-  if (/^[A-Z]{2}$/.test(alternateCode)) return alternateCode
-
-  const portCode = String(pod.code ?? '').trim().toUpperCase()
-  // ISO 3166 country prefix in a UN/LOCODE, when the country is in the catalog.
-  if (/^[A-Z]{2}[A-Z0-9]{3}$/.test(portCode)) {
-    const matchingCountry = countries.find((country) => countryCatalogCode(country) === portCode.slice(0, 2))
-    if (matchingCountry) return countryCatalogCode(matchingCountry)
-  }
-
-  const description = normalizeCountryText([
-    pod.value, pod.label, pod.slug, podMetadata.country, podMetadata.countryName,
-  ].filter(Boolean).join(' '))
-  const surroundedDescription = ` ${description} `
-  for (const country of countries) {
-    const name = normalizeCountryText(country.value || country.label || '')
-    const iso = countryCatalogCode(country)
-    if (/^[A-Z]{2}$/.test(iso) && name.length >= 4 && surroundedDescription.includes(` ${name} `)) return iso
-  }
-
-  // China UN/LOCODEs are authoritative even if Config has not loaded CN.
-  if (/^CN[A-Z0-9]{3}$/.test(portCode)) return 'CN'
-
-  // Some legacy Config ports have location labels but no ISO metadata, and
-  // the countries catalogue can be incomplete. Use only an explicit country
-  // token in the port label; never guess from the port/city name alone.
-  if (surroundedDescription.includes(' china ') || surroundedDescription.includes(' china mainland ')) return 'CN'
-  if (surroundedDescription.includes(' vietnam ') || surroundedDescription.includes(' viet nam ')) return 'VN'
-  if (surroundedDescription.includes(' costa rica ') || surroundedDescription.includes(' costarica ')) return 'CR'
-  if (surroundedDescription.includes(' panama ')) return 'PA'
-  if (surroundedDescription.includes(' guatemala ')) return 'GT'
-  // Config legacy terminal records may contain the full explicit country name
-  // but lack countryId/ISO metadata. Match country tokens, never city names.
-  if (surroundedDescription.includes(' el salvador ')) return 'SV'
-  if (surroundedDescription.includes(' mexico ')) return 'MX'
-  if (surroundedDescription.includes(' honduras ')) return 'HN'
-  if (surroundedDescription.includes(' nicaragua ')) return 'NI'
-  if (surroundedDescription.includes(' colombia ')) return 'CO'
-  if (surroundedDescription.includes(' estados unidos ') || surroundedDescription.includes(' united states ')) return 'US'
-  return ''
+  return resolveLocationCountryCode(pod, countries)
 }
 
 export function resolvePodVatRate(
