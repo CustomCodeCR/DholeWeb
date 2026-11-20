@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-MERCHANT-OPTIONAL-SCREEN6-347",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.5",
+  "releaseType": "PATCH",
+  "changes": [
+    "Screen 6 now uses the same route-filtered Optional catalogue as Screen 7 before computing Merchant/Carrier choices",
+    "Fix Balboa to Colon Free Zone Merchant inland invisible until Screen 7",
+    "Discard stale async cost requests and preserve current CostId, unit prices and exclusive selection"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.106.4",
+      "version": "1.106.5"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.106.4",
+      "version": "1.106.5"
+    }
+  ],
+  "otherComponentVersions": "15 unchanged components listed in DholeSystem/release-manifest.json",
+  "regressionTests": [
+    "tests/pricingMerchantScreen6OptionalParity20261120.test.ts",
+    "tests/pricingMerchantFixedHaulage20261120.test.ts"
+  ],
+  "realtime": "Existing SignalR architecture unchanged",
+  "schemaMigration": false,
+  "ci": "pending",
+  "staging": "pending",
+  "productionDeploymentAuthorized": true
+}
