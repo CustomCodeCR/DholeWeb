@@ -4,8 +4,16 @@
 - El expediente muestra los ocho tabs formales y la matriz de acceso calculada por Operations (EDITABLE, READ_ONLY, LOCKED, NOT_APPLICABLE), sin ediciones ficticias de departamentos todavía no implementados.
 - Resumen permite modificar metadata autorizada de Aperturas con versión optimista, audit trail, y doble validación en el propio expediente; QUO muestra snapshot y costos autorizados; Origen permite consultar estado y guardar notas privadas según ACL.
 - Enlace directo desde Dashboard a detalle IDTRA. Canal SignalR de caso con reconexión, invalidaciones y nueva lectura REST. Formularios con cambios locales no se sobrescriben ante eventos concurrentes.
-- Web y System 1.105.1 → 1.106.0; Operations 0.13.0 → 0.14.0. Pricing → apertura automática continúa pendiente, al igual que formularios avanzados para otras áreas.
+- Web y System 1.105.2 → 1.106.0; Operations 0.13.0 → 0.14.0. Pricing → apertura automática continúa pendiente, al igual que formularios avanzados para otras áreas.
 - CI, staging, autorización y despliegue a producción por verificar.
+
+## [1.105.2] - 2026-11-20 (DH-20261120-CRM-PREFERRED-BLOCKS-342 · corrección de bloques comerciales CRM y conciliación Pricing)
+
+- PATCH: los acuerdos de igual modalidad, ruta, equipo, naviera, Incoterm, servicios y vigencia se muestran como un bloque coherente en CRM; pueden reabrirse en el editor por ruta sin borrar ni duplicar los seis ítems persistidos. Vista avanzada identifica los ítems manuales y elimina el mensaje falso de desconexión con Pricing.
+- El matching de Pricing utiliza los servicios seleccionados en la cotización y reconcilia un CostId antiguo solo si no existe en el catálogo y hay un único costo actual con igual rubro y nombre. Un cargo manual Other también se puede relacionar con un concepto único de mismo nombre sin alterar costo proveedor.
+- Las ventas de CRM por EMBARQUE/CONTENEDOR/DOCUMENTO se normalizan respecto de la cantidad de la línea existente para preservar costo y base original; nunca se convierte una unidad desconocida. Los acuerdos en pantalla 7 muestran razones individuales de ruta cuando no coinciden.
+- Prueba regresiva que representa seis ítems del caso CIF 40HC, POL Ho Chi Minh, POE Caldera, POD San José y naviera ONE, además de unidad, divisa, ruta y CostId ambiguo. Misma API REST y SignalR existentes, sin migración; CI y staging antes de master.
+- DholeWeb/DholeSystem 1.105.1 → 1.105.2; otros 15 componentes sin cambio.
 
 ## [1.105.1] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-RUNTIME-331 · consulta real de tarifas preferenciales CRM en Pricing)
 

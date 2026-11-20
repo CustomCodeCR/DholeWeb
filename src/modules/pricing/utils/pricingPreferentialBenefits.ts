@@ -17,23 +17,63 @@ export type CustomerPreferentialRate = PreferentialRule & {
 export interface CustomerPreferentialContext extends PreferentialSelection {
   serviceCodes: string[]
 }
+export type PreferentialCargo = CostCargoContext & {
+  containerQuantity?: number | null
+  teuQuantity?: number | null
+}
 
 const norm = (value?: string | null) => String(value ?? '').trim().toUpperCase()
+const itemName = (value?: string | null) => norm(value)
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Z0-9]+/g, ' ').trim()
 const round = (value: number) => Math.round(value * 1_000_000) / 1_000_000
 
-/** Prefer source-cost links, then most specific route/service. Never mix customers or currencies. */
+// The CRM route builder stores CostIds, but a Pricing cost can be recreated.
+// Only recover an old link when the old CostId is absent AND exactly one current
+// eligible cost has the same canonical name and charge. Never guess by name alone.
+function reconciledItem(
+  rate: CustomerPreferentialRate, selection: CustomerPreferentialContext,
+  costs: readonly CostSelectDto[],
+): PreferentialSelection | undefined {
+  if (!rate.sourceCostId || norm(rate.sourceCostId) === norm(selection.sourceCostId))
+    return selection
+  if (!costs.length || !rate.customChargeName?.trim() || !selection.sourceCostId ||
+    costs.some(cost => norm(cost.id) === norm(rate.sourceCostId))) return
+  const candidates = costs.filter(cost => itemName(cost.name) === itemName(rate.customChargeName) &&
+    norm(cost.costDetailType) === norm(rate.chargeCode))
+  if (candidates.length !== 1 || norm(candidates[0]?.id) !== norm(selection.sourceCostId)) return
+  return { ...selection, sourceCostId: rate.sourceCostId }
+}
+
+function matchedSelection(
+  rate: CustomerPreferentialRate, selection: CustomerPreferentialContext,
+  costs: readonly CostSelectDto[],
+): PreferentialSelection | undefined {
+  if (rate.sourceCostId) return reconciledItem(rate, selection, costs)
+  if (norm(rate.chargeCode) === 'OTHER' && rate.customChargeName && selection.sourceCostId &&
+    itemName(rate.customChargeName) === itemName(selection.customChargeName)) {
+    const candidates = costs.filter(cost => itemName(cost.name) === itemName(rate.customChargeName))
+    if (candidates.length === 1 && norm(candidates[0]?.id) === norm(selection.sourceCostId)) {
+      return { ...selection, chargeCode: rate.chargeCode, customChargeName: rate.customChargeName }
+    }
+  }
+  return selection
+}
+
+/** Favor the most specific active agreement, including a safely reconciled CostId. */
 export function customerPreferentialRate(
   rates: CustomerPreferentialRate[], selection: CustomerPreferentialContext,
-  currencyCode?: string, unitCode?: string,
-  at = new Date(),
+  currencyCode?: string, unitCode?: string, at = new Date(),
+  availableCosts: readonly CostSelectDto[] = [],
 ): CustomerPreferentialRate | undefined {
   const services = selection.serviceCodes.length ? selection.serviceCodes : ['']
-  const eligible = rates.filter(rate =>
-    (!rate.currencyCode || !currencyCode || norm(rate.currencyCode) === norm(currencyCode)) &&
-    (!rate.unitCode || !unitCode || norm(rate.unitCode) === norm(unitCode)) &&
-    services.some(serviceCode => matchesPreferentialRule(rate, {
-      ...selection, serviceCode: serviceCode || undefined,
-    }, at)))
+  const eligible = rates.filter(rate => {
+    if ((rate.currencyCode && currencyCode && norm(rate.currencyCode) !== norm(currencyCode)) ||
+        (rate.unitCode && unitCode && norm(rate.unitCode) !== norm(unitCode))) return false
+    const candidate = matchedSelection(rate, selection, availableCosts)
+    return candidate && services.some(serviceCode => matchesPreferentialRule(rate, {
+      ...candidate, serviceCode: serviceCode || undefined,
+    }, at))
+  })
   return eligible.sort((a,b) =>
     preferentialSpecificity(b) - preferentialSpecificity(a) ||
     Number(Boolean(b.sourceCostId)) - Number(Boolean(a.sourceCostId)) ||
@@ -41,22 +81,51 @@ export function customerPreferentialRate(
     norm(a.id).localeCompare(norm(b.id)))[0]
 }
 
-/** A negotiated sale alters the sell price only. Supplier costs remain in Pricing. */
+function unitQuantity(unit: string, cargo: PreferentialCargo): number | null {
+  switch (norm(unit)) {
+    case 'SHIPMENT': case 'SERVICE': case 'DOCUMENT': case 'BL': case 'PICKUP':
+    case 'PACKAGE': return 1
+    case 'CONTAINER': return Number(cargo.containerQuantity ?? 0) > 0 ? Number(cargo.containerQuantity) : null
+    case 'TEU': return Number(cargo.teuQuantity ?? 0) > 0 ? Number(cargo.teuQuantity) : null
+    case 'KG': return Number(cargo.weightKg ?? 0) > 0 ? Number(cargo.weightKg) : null
+    case 'PALLET': return Number(cargo.packages ?? 0) > 0 ? Number(cargo.packages) : null
+    default: return null
+  }
+}
+
+/** The customer sale basis may differ from the provider basis. Normalize the
+ * sale to the existing RateLine quantity; never change the provider's basis/cost. */
+function normalizedSale(
+  agreement: CustomerPreferentialRate, cost: CostSelectDto, value: number,
+  cargo: PreferentialCargo,
+): number | null {
+  const desired = norm(agreement.unitCode)
+  if (!desired) return value
+  const basis = saleUnitForBasis(cost.chargeBasis as ChargeBasis)
+  const canonical = (unit: string) => norm(unit) === 'BL' ? 'DOCUMENT' : norm(unit)
+  if (canonical(desired) === canonical(basis)) return value
+  const desiredQuantity = unitQuantity(desired, cargo)
+  const costQuantity = unitQuantity(basis, cargo)
+  if (desiredQuantity === null || costQuantity === null || costQuantity <= 0) return null
+  return value * desiredQuantity / costQuantity
+}
+
+/** Only change the unit sale, leaving supplier costs and saved snapshots untouched. */
 export function customerPreferentialAmounts(
   cost: CostSelectDto, base: {costAmount:number; saleAmount:number},
   rates: CustomerPreferentialRate[], selection: CustomerPreferentialContext,
-  cargo: CostCargoContext,
+  cargo: PreferentialCargo,
+  availableCosts: readonly CostSelectDto[] = [],
 ): {costAmount:number; saleAmount:number; agreement?: CustomerPreferentialRate} {
-  const unitCode = saleUnitForBasis(cost.chargeBasis as ChargeBasis)
   const agreement = customerPreferentialRate(rates, {
     ...selection, sourceCostId: cost.id, chargeCode: cost.costDetailType, customChargeName: cost.name,
-  }, cost.currencyCode, unitCode)
+  }, cost.currencyCode, undefined, new Date(), availableCosts)
   if (!agreement) return base
-  const value = Number(agreement.value)
+  const value = agreement.value === null ? NaN : Number(agreement.value)
   let sale: number | null = null
   if (agreement.rateType === 'WAIVE') sale = 0
   if (Number.isFinite(value) && value >= 0) {
-    if (agreement.rateType === 'FIXED_AMOUNT') sale = value
+    if (agreement.rateType === 'FIXED_AMOUNT') sale = normalizedSale(agreement, cost, value, cargo)
     if (agreement.rateType === 'DISCOUNT_AMOUNT') sale = Math.max(0, base.saleAmount - value)
     if (agreement.rateType === 'DISCOUNT_PERCENT' && value <= 100)
       sale = base.saleAmount * (1 - value / 100)
@@ -79,12 +148,9 @@ export function customerPreferentialAmounts(
       }
     }
   }
-  if (agreement.rateType === 'INSURANCE_PERCENT' && cost.costDetailType === 'Insurance'
-    && Number.isFinite(agreement.insuranceCostPercent) && Number.isFinite(agreement.insuranceSalePercent)
-    && Number.isFinite(cargo.weightKg)) {
-    // Insurance percentages require declared cargo value; the wizard handles this separately.
-    return base
-  }
+  // Percentage insurance depends on declared cargo value and a separate insurer
+  // cost. Without both inputs, never invent an insurance premium.
+  if (agreement.rateType === 'INSURANCE_PERCENT') return base
   if (sale === null || !Number.isFinite(sale) || sale < 0) return base
   return {
     costAmount: base.costAmount,
@@ -93,7 +159,7 @@ export function customerPreferentialAmounts(
   }
 }
 
-/** Standalone manual CRM charges have no Pricing CostId. They must not disappear in screen 7. */
+/** Manual agreements remain billable if no matching master cost exists. */
 export function customerManualPreferentialRates(
   rates: CustomerPreferentialRate[], selection: CustomerPreferentialContext,
 ): CustomerPreferentialRate[] {
@@ -102,11 +168,11 @@ export function customerManualPreferentialRates(
     && x.rateType === 'FIXED_AMOUNT' && x.value !== null && Number.isFinite(Number(x.value))
     && Number(x.value) >= 0)
   return manual.flatMap(rate => {
-    const key = norm(rate.chargeCode) + '|' + norm(rate.customChargeName)
+    const key = norm(rate.chargeCode) + '|' + itemName(rate.customChargeName)
     if (seen.has(key)) return []
     const best = customerPreferentialRate(manual.filter(x =>
       norm(x.chargeCode) === norm(rate.chargeCode) &&
-      norm(x.customChargeName) === norm(rate.customChargeName)), {
+      itemName(x.customChargeName) === itemName(rate.customChargeName)), {
         ...selection, sourceCostId: undefined,
         chargeCode: rate.chargeCode, customChargeName: rate.customChargeName ?? '',
       })
@@ -114,4 +180,34 @@ export function customerManualPreferentialRates(
     seen.add(key)
     return [best]
   })
+}
+
+
+/** Explain route-level failures without inventing match results or revealing other CRM accounts. */
+export function customerPreferentialScopeIssues(
+  rate: CustomerPreferentialRate, selection: CustomerPreferentialContext,
+  at = new Date(),
+): string[] {
+  const issues: string[] = []
+  if (!rate.isActive) issues.push('Desactivado')
+  if (norm(rate.modality) !== norm(selection.modality)) issues.push('Modalidad')
+  if (rate.validFrom && Date.parse(rate.validFrom) > at.getTime()) issues.push('Aún no vigente')
+  if (rate.validUntil && Date.parse(rate.validUntil) < at.getTime()) issues.push('Vencido')
+  const check = (name: string, expected?: string | null, actual?: string | null) => {
+    if (expected && norm(expected) !== norm(actual)) issues.push(name)
+  }
+  const includes = (name: string, list?: string[], legacy?: string | null, actual?: string | null) => {
+    const accepted = list?.length ? list : legacy ? [legacy] : []
+    if (accepted.length && !accepted.some(code => norm(code) === norm(actual))) issues.push(name)
+  }
+  check('Servicio LCL/LTL',rate.laneCode,selection.laneCode)
+  check('Naviera',rate.carrierCode,selection.carrierCode)
+  check('Incoterm',rate.incotermCode,selection.incotermCode)
+  includes('Equipo',rate.equipmentCodes,rate.equipmentCode,selection.equipmentCode)
+  includes('POL',rate.polCodes,rate.originCode,selection.polCode)
+  includes('POE',rate.poeCodes,rate.destinationCode,selection.poeCode)
+  includes('POD',rate.podCodes,null,selection.podCode)
+  if (rate.serviceCodes?.length && !rate.serviceCodes.some(x =>
+    selection.serviceCodes.some(service => norm(service) === norm(x)))) issues.push('Servicios')
+  return issues
 }

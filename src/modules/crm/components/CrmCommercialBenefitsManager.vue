@@ -9,6 +9,7 @@ import CrmMultiCatalogPicker from './CrmMultiCatalogPicker.vue'
 import CrmPreferentialRouteBuilder from './CrmPreferentialRouteBuilder.vue'
 import { PREFERENTIAL_INCOTERMS } from '../utils/crmPreferentialCostRoute'
 import { benefitUsesPod } from '../utils/crmBenefitRouteCatalog'
+import { groupCustomerAgreementBlocks } from '../utils/crmPreferentialGroups'
 import { crmError, crmPath, crmRequest, fromUtc, toUtc } from '../services/crmApi'
 
 type Mode = 'FCL' | 'LCL' | 'FTL' | 'LTL' | 'AIR'
@@ -49,6 +50,11 @@ const router = useRouter()
 const auth = useAuthStore()
 const canEdit = computed(() => auth.hasScope('crm.account.update'))
 const canReadPricingConcepts = computed(() => auth.hasScope('pricing.cost.select'))
+const routeEditor = ref<{ openSavedScope: (rate: Rate) => Promise<void> } | null>(null)
+const agreementGroups = computed(() => groupCustomerAgreementBlocks(rates.value))
+function openAgreementGroup(rate: Rate) {
+  void routeEditor.value?.openSavedScope(rate)
+}
 const modes: { key: Mode; label: string; description: string }[] = [
   { key: 'FCL', label: 'FCL', description: 'Contenedores' },
   { key: 'LCL', label: 'LCL', description: 'Carga consolidada' },
@@ -429,7 +435,7 @@ function scopeText(rate: Rate): string {
     <p v-if="success" role="status" class="rounded-lg border border-emerald-500/40 p-3 text-sm text-emerald-600">{{ success }}</p>
     <p v-if="loading" role="status" class="text-sm text-[var(--dh-text-muted)]">Consultando beneficios de la cuenta…</p>
     <template v-if="loaded">
-      <CrmPreferentialRouteBuilder v-if="canEdit" :account-id="accountId"
+      <CrmPreferentialRouteBuilder v-if="canEdit" ref="routeEditor" :account-id="accountId"
         :category-type="category.type" :category-code="category.code"
         :costs="costs" :rates="rates" :can-read-pricing-concepts="canReadPricingConcepts"
         :costs-loading="costsLoading" @saved="reload" />
@@ -457,32 +463,51 @@ function scopeText(rate: Rate): string {
         </form>
       </section>
 
-      <details class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-        <summary class="cursor-pointer text-sm font-extrabold">
-          Todos los ítems preferenciales guardados ({{ rates.length }})
-        </summary>
+      <section class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5"
+        data-crm-agreement-blocks>
+        <h3 class="text-sm font-extrabold">
+          Todos los ítems preferenciales guardados ({{ rates.length }}) · {{ agreementGroups.length }} bloques comerciales
+        </h3>
         <p class="mt-2 text-xs text-[var(--dh-text-muted)]">
-          Se incluyen cargos manuales y conceptos de Pricing, con ámbitos opcionales. Las reglas generales
-          permanecen disponibles como respaldo de las más específicas.
+          Los cargos del mismo cliente, ruta, equipo, naviera, Incoterm y servicios se muestran juntos,
+          incluidos los manuales y los vinculados a costos de Pricing. No es necesario volver a guardarlos.
         </p>
-        <div class="mt-3 max-h-96 space-y-2 overflow-auto">
-          <div v-for="rate in rates" :key="rate.id"
-            class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2">
-            <div class="flex items-start justify-between gap-2">
-              <strong class="text-xs">{{ rate.customChargeName || chargeLabels[canonicalCharge(rate.chargeCode)] || rate.chargeCode }}</strong>
-              <span class="text-[11px]">{{ stateLabel(rate) }}</span>
+        <div class="mt-3 space-y-3">
+          <details v-for="(block, index) in agreementGroups" :key="block.key"
+            class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] p-3"
+            :open="agreementGroups.length === 1">
+            <summary class="cursor-pointer text-sm font-bold">
+              Bloque {{ index + 1 }} · {{ block.first.modality }}
+              · {{ block.first.incotermCode || 'Todos los Incoterms' }}
+              · {{ block.lines.length }} ítems
+            </summary>
+            <p class="mt-2 break-words text-xs text-[var(--dh-text-muted)]">{{ scopeText(block.first) }}</p>
+            <button v-if="canEdit" type="button" class="benefit-button mt-3"
+              @click="openAgreementGroup(block.first)">
+              Revisar o editar bloque por ruta
+            </button>
+            <div class="mt-3 grid gap-2 md:grid-cols-2">
+              <article v-for="rate in block.lines" :key="rate.id"
+                class="rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                <div class="flex justify-between gap-3">
+                  <strong class="text-xs">{{ rate.customChargeName || chargeLabels[canonicalCharge(rate.chargeCode)] || rate.chargeCode }}</strong>
+                  <span class="text-[11px]">{{ stateLabel(rate) }}</span>
+                </div>
+                <p class="mt-1 text-xs font-bold text-[var(--dh-primary)]">{{ displayValue(rate) }}</p>
+                <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">
+                  {{ rate.sourceCostId ? 'Concepto vinculado a Pricing' : 'Cargo manual de CRM' }}
+                </p>
+              </article>
             </div>
-            <p class="mt-1 text-xs text-[var(--dh-primary)]">{{ displayValue(rate) }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ scopeText(rate) }}</p>
-          </div>
+          </details>
         </div>
-      </details>
+      </section>
 
       <details class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
         <summary class="cursor-pointer text-sm font-extrabold text-[var(--dh-text)]">
           Configuración avanzada · beneficios y acuerdos anteriores
           <span class="ml-2 text-xs font-normal text-[var(--dh-text-muted)]">
-            Solo para acuerdos heredados; el configurador por ruta está arriba.
+            Edición individual de acuerdos sin CostId; los conceptos de Pricing se editan por bloque.
           </span>
         </summary>
         <div class="mt-4">
@@ -671,7 +696,7 @@ function scopeText(rate: Rate): string {
         </form>
       </section>
       <p class="text-xs text-[var(--dh-text-muted)]">
-        Los beneficios se guardan en CRM; Pricing aún no los aplica automáticamente.
+        Los acuerdos se guardan en CRM y Pricing los evalúa al crear una cotización nueva. Si no coinciden, la pantalla 7 indica las condiciones a revisar.
       </p>
     </template>
   </section>
