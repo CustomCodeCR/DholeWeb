@@ -17,7 +17,12 @@ export function isInDashboardDateRange(
   return (!from || day >= from) && (!to || day <= to)
 }
 
-/** Un vencimiento resta progreso; el resultado puede ser negativo. */
+/**
+ * Total cotizado incluye enviadas, aceptadas, rechazadas y vencidas.
+ * Las abiertas aún no se entregan al vendedor: se excluyen de la base.
+ * Una vencida resta al numerador, por lo que el desempeño puede ser negativo.
+ */
 export function commercialPerformancePercent(quoted: number, open: number, accepted: number, expired: number): number {
-  return quoted > 0 ? ((open + accepted - expired) * 100) / quoted : 0
+  const delivered = Math.max(0, quoted - open)
+  return delivered > 0 ? ((accepted - expired) * 100) / delivered : 0
 }

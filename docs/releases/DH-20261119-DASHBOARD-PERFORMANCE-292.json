@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-DASHBOARD-PERFORMANCE-292",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "previousVersion": "1.103.13",
+  "version": "1.103.14",
+  "ecosystemVersion": "1.103.14",
+  "scope": "Correct seller commercial performance: (accepted-expired)/(quoted-open), include rejected and exclude pending not delivered.",
+  "branch": "fix/DH-20261119-DASHBOARD-PERFORMANCE-292",
+  "ci": "pending",
+  "staging": "pending",
+  "productionAuthorized": false
+}
