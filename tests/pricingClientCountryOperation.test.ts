@@ -88,8 +88,9 @@ test('wizard has no unbound country perspective helper after Vite transforms', (
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const diagnostic = readFileSync(new URL('../scripts/diagnose-pricing-bundle.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(wizard, /\b(?:resolveClientRouteOperation|routeOperation|clientCountryCode)\b/)
-  assert.match(wizard, /const perspective = operationForClientCountry\(/)
-  assert.match(wizard, /const operationType = computed<RateOperationType>\(\(\) => operationForClientCountry\(/)
+  assert.match(wizard, /const automaticOperationType = computed\(\(\) => operationForClientCountry\(/)
+  assert.match(wizard, /pricingQuoteOperationOverride\.value \|\| automaticOperationType\.value/)
+  assert.match(wizard, /const operationType = computed<RateOperationType>\(/)
   assert.match(wizard, /if \(form\.clientId && !direction\.value\)/)
   assert.match(wizard, /v-if="form\.clientId && form\.originId && \(form\.podId \|\| form\.destinationId\) && !direction"/)
   assert.match(diagnostic, /Unresolved Pricing wizard runtime binding/)
@@ -177,4 +178,22 @@ test('China to Costa Rica is an import from the Costa Rican client perspective f
     ['pickup_origin', 'origin_charges', 'international_freight'])
   assert.equal(normalizeIncotermCode('INC-2026-005', 'CIFRA Freight'), 'INC-2026-005')
   assert.equal(operationForClientCountry('CN', 'CN', 'CR'), 'Export')
+})
+
+
+test('the commercial direction has an explicit Import/Export fallback when Config is incomplete', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const drafts = readFileSync(new URL('../build/pricingWizardDraftAutosave.ts', import.meta.url), 'utf8')
+  assert.match(wizard, /label="Operación comercial \(selección manual disponible\)"/)
+  assert.match(wizard, /value: 'Import', label: 'Importación'/)
+  assert.match(wizard, /value: 'Export', label: 'Exportación'/)
+  assert.match(wizard, /pricingQuoteOperationOverride\.value = rate\.operationType \|\| ''/)
+  assert.doesNotMatch(wizard, /No se puede determinar la perspectiva comercial/)
+  assert.match(drafts, /pricingQuoteOperationOverride: pricingQuoteOperationOverride\.value/)
+  assert.match(drafts, /draft\.pricingQuoteOperationOverride === 'Import'/)
+})
+test('CRM accepts legacy ISO-2 country metadata keys without guessing names', () => {
+  const configured = [{ id: 'country-el-salvador', code: 'SLV', metadataJson: '{"countryIso2":"SV"}' }] as Parameters<typeof resolveCrmCountryCode>[1]
+  assert.equal(resolveCrmCountryCode('country-el-salvador', configured), 'SV')
+  assert.equal(resolveCrmCountryCode('unlisted-country', configured), '')
 })
