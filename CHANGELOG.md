@@ -1,3 +1,9 @@
+## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · corrección de desempeño comercial)
+
+- PATCH: desempeño comercial = (aceptadas − vencidas) / (total cotizadas − abiertas) × 100; las rechazadas siguen incluidas en el total cotizado y las abiertas, que no se entregan al vendedor, se excluyen de la base.
+- Vencidas penalizan el numerador; permite porcentajes negativos y evita división por cero sin tarifas entregadas. Se conservan filtros generales y las cinco categorías de resultados de ventas.
+- DholeWeb/DholeSystem 1.103.13 → 1.103.14, otros 15 componentes sin cambios. Contratos REST, SignalR y seguridad preservados. CI/staging previos a master.
+
 ## [1.103.13] - 2026-11-19 (DH-20261119-DASHBOARD-GLOBAL-FILTER-291 · reportes comerciales con filtro general)
 
 - PATCH: filtros compartidos fechas/vendedor/modalidad en Dashboard de Ventas, aplicados a las métricas, la tabla de tarifas, solicitudes y la reportería; la vista de Pricing conserva sus filtros de auditoría.

@@ -10,9 +10,15 @@ test('las fechas son inclusivas y sin desplazamiento UTC en entradas date-only',
   assert.equal(isInDashboardDateRange('2026-11-18', '2026-11-19', '2026-11-19'), false)
   assert.equal(isInDashboardDateRange('2026-11-20', '2026-11-19', '2026-11-19'), false)
 })
-test('vencidas penalizan y el desempeño puede quedar negativo', () => {
-  assert.equal(commercialPerformancePercent(10, 2, 3, 1), 40)
-  assert.equal(commercialPerformancePercent(10, 1, 1, 5), -30)
+test('desempeño comercial usa todas las cotizadas salvo abiertas, con rechazadas y vencidas en la base', () => {
+  // 3 aceptadas, 2 abiertas (aún no entregadas), 1 vencida y 4 más
+  assert.equal(commercialPerformancePercent(10, 2, 3, 1), 25)
+  // 1 aceptada, 1 abierta y 5 vencidas: desempeño negativo
+  assert.ok(Math.abs(commercialPerformancePercent(10, 1, 1, 5) - (-400 / 9)) < 0.000001)
+  // 2 aceptadas, 2 abiertas, 1 vencida y 2 rechazadas: las rechazadas permanecen en el denominador
+  assert.equal(commercialPerformancePercent(7, 2, 2, 1), 20)
+  // Ninguna tarifa recibida por el vendedor; evitar división entre cero
+  assert.equal(commercialPerformancePercent(5, 5, 0, 0), 0)
   assert.equal(commercialPerformancePercent(0, 0, 0, 0), 0)
 })
 test('dashboard comercial comparte filtros entre métricas y reportería', () => {
