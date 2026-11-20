@@ -1,3 +1,10 @@
+## [1.103.9] - 2026-11-19 (DH-20261119-CRM-MANUAL-BENEFITS-285 · backport corrección guardado de ítems manuales)
+
+- PATCH: backport funcional del release 275 a la versión actual de master (1.103.8), sin perder las correcciones posteriores de Pricing/CIF/LTL y CRM.
+- Verifica con GET que CRM guardó el ítem manual (nombre, valor, moneda, unidad) antes de limpiar el formulario; muestra los cargos manuales de la combinación y el resultado junto al botón.
+- Evita solicitudes simultáneas y añade prueba de regresión. Coordinación DholeWeb/DholeSystem 1.103.8→1.103.9. Backend CRM, REST y SignalR sin modificaciones.
+- Validar CI, versionado y despliegue automático tras merge a master.
+
 ## [1.103.8] - 2026-11-19 (DH-20261119-PRICING-LTL-DDP-FREIGHT-284 · promoción selectiva DDP/LTL a master)
 
 - PATCH Web/System 1.103.7→1.103.8 coordinado con DholePricingService 1.25.1→1.25.2. El backend ahora acepta flete internacional cotizado DDP para LTL/FTL por CBM/camión sin exigir distribución FCL.
