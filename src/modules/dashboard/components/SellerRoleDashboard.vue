@@ -294,7 +294,7 @@ const pagedRates = computed(() => filteredRates.value.slice(
   (currentPage.value - 1) * pageSize,
   currentPage.value * pageSize,
 ))
-watch([search, statusFilter, selectedClient, selectedSellerId], () => { currentPage.value = 1 })
+watch([search, statusFilter, selectedClient, () => props.adminPreview], () => { currentPage.value = 1 })
 watch(clientOptions, (options) => {
   if (selectedClient.value && !options.some(option => option.value === selectedClient.value)) {
     selectedClient.value = ''
