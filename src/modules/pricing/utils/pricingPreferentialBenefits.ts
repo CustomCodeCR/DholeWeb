@@ -181,3 +181,33 @@ export function customerManualPreferentialRates(
     return [best]
   })
 }
+
+
+/** Explain route-level failures without inventing match results or revealing other CRM accounts. */
+export function customerPreferentialScopeIssues(
+  rate: CustomerPreferentialRate, selection: CustomerPreferentialContext,
+  at = new Date(),
+): string[] {
+  const issues: string[] = []
+  if (!rate.isActive) issues.push('Desactivado')
+  if (norm(rate.modality) !== norm(selection.modality)) issues.push('Modalidad')
+  if (rate.validFrom && Date.parse(rate.validFrom) > at.getTime()) issues.push('Aún no vigente')
+  if (rate.validUntil && Date.parse(rate.validUntil) < at.getTime()) issues.push('Vencido')
+  const check = (name: string, expected?: string | null, actual?: string | null) => {
+    if (expected && norm(expected) !== norm(actual)) issues.push(name)
+  }
+  const includes = (name: string, list?: string[], legacy?: string | null, actual?: string | null) => {
+    const accepted = list?.length ? list : legacy ? [legacy] : []
+    if (accepted.length && !accepted.some(code => norm(code) === norm(actual))) issues.push(name)
+  }
+  check('Servicio LCL/LTL',rate.laneCode,selection.laneCode)
+  check('Naviera',rate.carrierCode,selection.carrierCode)
+  check('Incoterm',rate.incotermCode,selection.incotermCode)
+  includes('Equipo',rate.equipmentCodes,rate.equipmentCode,selection.equipmentCode)
+  includes('POL',rate.polCodes,rate.originCode,selection.polCode)
+  includes('POE',rate.poeCodes,rate.destinationCode,selection.poeCode)
+  includes('POD',rate.podCodes,null,selection.podCode)
+  if (rate.serviceCodes?.length && !rate.serviceCodes.some(x =>
+    selection.serviceCodes.some(service => norm(service) === norm(x)))) issues.push('Servicios')
+  return issues
+}
