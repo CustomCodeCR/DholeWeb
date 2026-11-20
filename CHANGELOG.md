@@ -1,3 +1,8 @@
+## [1.103.17] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · guardar TIERED_SALE sin 409)
+
+- PATCH: CRM 1.42.3 habilita TIERED_SALE en PostgreSQL; Web elimina duplicados y conserva pendientes tras fallos parciales, sin reenviar ítems ya persistidos.
+- Master Web/System 1.103.15→1.103.17. Backport selectivo que conserva Dashboard, Pricing, APIs, SignalR y las funcionalidades existentes. CI/staging antes de producción.
+
 ## [1.103.15] - 2026-11-19 (DH-20261119-DASHBOARD-TABLE-293 · backport contextual del dashboard)
 
 - PATCH: backport selectivo de tarjetas que filtran la tabla «Tarifas del equipo y seguimiento de ventas» y hacen scroll a esa tabla; no abre Pricing.
