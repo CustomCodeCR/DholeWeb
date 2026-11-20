@@ -5120,9 +5120,11 @@ async function next() {
   if (step.value === 6) {
     await loadApplicableCosts()
     rebuildRateLines()
-    if (customerPreferentialError.value) return
   }
   if (step.value < 8) step.value += 1
+  // Preserve the LCL Vite transform's navigation anchor while staying on provider
+  // when the commercial agreement lookup cannot be verified.
+  if (customerPreferentialError.value && step.value === 7) step.value = 6
 }
 
 function previous() {
