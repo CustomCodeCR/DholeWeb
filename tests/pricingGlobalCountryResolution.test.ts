@@ -145,7 +145,8 @@ test('VAT remains based on the physical POD and not the commercial direction', (
 
 test('Pricing has an explicit manual override when an unknown route cannot be identified safely', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
-  assert.match(wizard, /pricingQuoteOperationOverride\.value \|\| automaticOperationType\.value/)
+  assert.equal((wizard.match(/pricingQuoteOperationOverride\.value \|\| operationForClientCountry\(/g) ?? []).length, 2)
+  assert.doesNotMatch(wizard, /automaticOperationType/)
   assert.match(wizard, /label="Operación comercial \(selección manual disponible\)"/)
   assert.match(wizard, /label="Operación comercial de la solicitud"/)
   assert.doesNotMatch(wizard, /No se puede determinar la perspectiva comercial/)
