@@ -1,3 +1,9 @@
+## [1.103.21] - 2026-11-20 (DH-20261120-PRICING-CLIENT-COUNTRY-298 · desbloqueo de perspectiva comercial de tarifas)
+
+- PATCH: el país ausente de cuentas/prospectos CRM puede seleccionarse en Pantalla 3 para esta cotización, sin cambiar la ficha original, evitando el bloqueo que impedía avanzar hasta Pantalla 5.
+- Resuelve POL Ho Chi Minh, Vietnam como VN cuando la metadata de Config está incompleta y mantiene el país del POD Costa Rica para IVA; acepta códigos ISO explícitos de CRM, sin inferir el país a partir de la ruta.
+- Pruebas de regresión para FCL Vietnam→Costa Rica, país CRM y bloqueo antes de guardar. Web/System 1.103.20→1.103.21, 15 servicios sin cambios; CI y staging antes de master. Sin autorización para despliegue productivo.
+
 ## [1.103.20] - 2026-11-20 (DH-20261120-CRM-MANUAL-AMOUNT-297 · corregir guardado de ítem manual sin solicitud HTTP)
 
 - PATCH: Vue convierte v-model de input type=number a número; el formulario ejecutaba manual.amount.trim() antes del try/catch y fallaba sin enviar POST.

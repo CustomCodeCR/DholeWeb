@@ -5547,9 +5547,9 @@ async function retrySavedModificationDelivery() {
 async function saveRate() {
   if (form.clientId && !direction.value) {
     if (props.rateRequestId) {
-      step.value = 5
+      step.value = 3
       toastStore.warning('País necesario para guardar',
-        'La solicitud no tiene suficiente información de país para determinar la operación. Seleccione el país real del cliente en Pantalla 5 o revise los países de origen/destino.')
+        'La solicitud no tiene suficiente información de país para determinar la operación. Seleccione el país real del cliente en Pantalla 3 o revise los países de origen/destino.')
       void Promise.resolve().then(() => { validateRequiredFields() })
       return
     }
@@ -6977,7 +6977,17 @@ onMounted(async () => {
               <DhInput :model-value="form.executiveName" label="Ejecutivo comercial (asignado en CRM)" disabled />
             </div>
             <p class="text-[11px] font-bold text-[var(--dh-text-muted)]">El cliente se selecciona desde cuentas o prospectos del CRM. El ejecutivo se asigna automáticamente según su ficha. La operación se calcula por el país del cliente frente al POL y POD final.</p>
-            <p v-if="form.clientId && !direction" data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Verifique el país de esta cuenta/prospecto en CRM y los países de origen y destino en Config.</p>
+            <div v-if="form.clientId && !resolveCrmCountryCode(crmClientCountryId, catalogs.countries)"
+              class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+              <p class="text-sm font-black">País del cliente pendiente en CRM</p>
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione el país real de esta cuenta para la cotización. No modifica la ficha de CRM y evita bloquear el avance a las siguientes pantallas.</p>
+              <DhSelect v-model="pricingQuoteCountryOverrideId" data-required-field="clientCountry"
+                :error="fieldError('clientCountry')" label="País del cliente para esta cotización *"
+                :options="pricingQuoteCountryOptions" />
+              <p v-if="!pricingQuoteCountryOptions.length" role="alert" class="text-xs font-semibold text-amber-600">El catálogo de países de Config está vacío. Es necesario cargarlo para seleccionar el país del cliente.</p>
+            </div>
+            <p v-if="form.clientId && form.originId && (form.podId || form.destinationId) && !direction"
+              data-required-field="clientCountry" role="alert" class="text-xs font-semibold text-amber-500">No se puede determinar la perspectiva comercial. Revise el país del cliente y los códigos ISO de origen y destino en Config.</p>
 
             <!-- Fila 2: buscadores de ubicación estilo freight search. CY = Container Yard; SD = Store Door. -->
             <div class="grid gap-4 md:grid-cols-3">
