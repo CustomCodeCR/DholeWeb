@@ -160,8 +160,11 @@ async function ensureAllApplicableOptionalCosts() {
   if (isOwnLclMatrixContext()) return
 
   try {
-    const optionalCosts = await loadAllApplicableOptionalCosts()
+    // Capture route/provider BEFORE the asynchronous Optional request.
+    // Stale responses must not replace another naviera's newly chosen inland.
     const contextKey = currentCostContextKey()
+    const optionalCosts = await loadAllApplicableOptionalCosts()
+    if (contextKey !== currentCostContextKey() || ![6, 7].includes(step.value)) return
     const merged = new Map(costs.value.map((cost) => [cost.id, cost]))
 
     optionalCosts.forEach((cost) => {
