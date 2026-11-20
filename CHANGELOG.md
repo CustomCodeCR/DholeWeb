@@ -1,3 +1,8 @@
+## [1.107.1] - 2026-11-20 (DH-20261120-VERSION-NOTICE-500-362 · corrección 500 de ajustes de avisos)
+
+- PATCH coordinado con DholeAuthService 1.17.1: backend envuelve preferencia + outbox en Npgsql execution strategy, para permitir guardar global y por usuario.
+- Metadatos Web/Sistema 1.107.1 alineados; sin cambios adicionales de UI ni APIs.
+
 ## [1.107.0] - 2026-11-20 (DH-20261120-VERSION-NOTICES-361 · preferencias de avisos de actualización)
 
 - MINOR: Ajustes permite apagar el aviso de nuevas versiones para el usuario actual, por usuario específico (SuperUsuario), o globalmente (SuperUsuario); la desactivación global tiene prioridad.
