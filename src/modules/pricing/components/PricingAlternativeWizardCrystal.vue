@@ -51,6 +51,9 @@ import type {
 } from '@/core/interfaces/pricing'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
+import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
+import { customerPreferentialAmounts, customerManualPreferentialRates,
+  type CustomerPreferentialRate } from '@/modules/pricing/utils/pricingPreferentialBenefits'
 import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
@@ -241,6 +244,11 @@ const toastStore = useToastStore()
 const modalStore = useModalStore()
 const authStore = useAuthStore()
 const crmClientCountryId = ref('')
+// Agreements belong to the selected CRM account. Existing quotations are immutable snapshots.
+const customerPreferentialRates = ref<CustomerPreferentialRate[]>([])
+const customerPreferentialAccountId = ref('')
+const customerPreferentialError = ref('')
+let customerPreferentialRequest = 0
 const pricingQuoteCountryOverrideId = ref('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
@@ -3089,7 +3097,7 @@ function isOwnLclCarrierCatalogCost(cost: CostSelectDto) {
 }
 
 function resolvedConditionalCost(cost: CostSelectDto) {
-  return resolveCostPricing(cost, {
+  const cargo = {
     weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : null,
     storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : null,
     packages: number(form.cargoPackages) > 0
@@ -3097,7 +3105,17 @@ function resolvedConditionalCost(cost: CostSelectDto) {
       : consolidatedCargoMode.value && number(form.cargoPallets) > 0
         ? Math.trunc(number(form.cargoPallets)) : null,
     containerTypeId: selectedEquipment.value?.id ?? null,
-  })
+  }
+  const base = resolveCostPricing(cost, cargo)
+  if (!base || props.rateId || customerPreferentialAccountId.value !== form.clientId) return base
+  const matchedServices = (cost.services ?? [])
+    .filter(service => form.serviceIds.includes(service.id))
+    .map(service => String(service.code ?? '').trim()).filter(Boolean)
+  const services = matchedServices.length ? matchedServices : (cost.services?.length ? [] :
+    selectedServices.value.map(service => String(service.code ?? '').trim()).filter(Boolean))
+  return customerPreferentialAmounts({
+    ...cost, chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
+  }, base, customerPreferentialRates.value, currentPreferentialContext(services), cargo)
 }
 
 function applicableCost(cost: CostSelectDto) {
@@ -3345,6 +3363,42 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
   return changedCount
 }
 
+async function loadCustomerPreferentialRates(): Promise<void> {
+  const request = ++customerPreferentialRequest
+  const accountId = !props.rateId && form.crmClientKind === 'account' ? form.clientId : ''
+  customerPreferentialRates.value = []
+  customerPreferentialAccountId.value = ''
+  customerPreferentialError.value = ''
+  if (!accountId) return
+  try {
+    const response = await crmRequest<{ rates: CustomerPreferentialRate[] }>(
+      crmPath('accounts', accountId, 'commercial-benefits'),
+    )
+    if (request !== customerPreferentialRequest || accountId !== form.clientId) return
+    customerPreferentialRates.value = Array.isArray(response.rates) ? response.rates : []
+    customerPreferentialAccountId.value = accountId
+  } catch (error) {
+    if (request !== customerPreferentialRequest || accountId !== form.clientId) return
+    customerPreferentialError.value = 'No se pudieron consultar las tarifas preferenciales del CRM. Reintente antes de cotizar.'
+    throw error
+  }
+}
+
+function currentPreferentialContext(serviceCodes = selectedServices.value.map(item => String(item.code ?? ''))) {
+  const mode = String(shipmentModeForApi.value).toUpperCase()
+  return {
+    modality: mode.startsWith('AIR') ? 'AIR' : mode,
+    laneCode: ['LCL', 'LTL'].includes(mode) ? 'OWN' : null,
+    polCode: selectedOrigin.value?.code ?? '',
+    poeCode: selectedDestination.value?.code ?? '',
+    podCode: selectedPod.value?.code ?? '',
+    equipmentCode: selectedEquipment.value?.code ?? '',
+    carrierCode: selectedCarrier.value?.code ?? '',
+    incotermCode: selectedIncotermCode.value,
+    serviceCodes,
+  }
+}
+
 async function loadApplicableCosts(): Promise<boolean> {
   const requestContext = activeCostContextKey()
   try {
@@ -3361,6 +3415,9 @@ async function loadApplicableCosts(): Promise<boolean> {
       serviceIds: form.serviceIds.join(',') || undefined,
     })
     if (requestContext !== activeCostContextKey()) return false
+    // Resolve CRM's current customer-specific sale agreement before generating screen 7.
+    await loadCustomerPreferentialRates()
+    if (requestContext !== activeCostContextKey()) return false
     costs.value = received
     return true
   } catch (error) {
@@ -3375,6 +3432,8 @@ async function loadApplicableCosts(): Promise<boolean> {
 }
 
 function rebuildRateLines() {
+  // Never show an ordinary sale when a linked account's commercial agreement is unavailable.
+  if (customerPreferentialError.value && !props.rateId) return
   const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
     ? copyPoeLines(rateLines.value) : []
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
@@ -3424,7 +3483,9 @@ function rebuildRateLines() {
       costType: cost.costType,
       chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
       costId: cost.id,
-      contextLabel: costContextLabel(cost),
+      contextLabel: 'agreement' in resolvedAmount && resolvedAmount.agreement
+        ? [costContextLabel(cost), 'Venta preferencial del CRM'].filter(Boolean).join(' · ')
+        : costContextLabel(cost),
       notes: cost.notes?.trim() || null,
       serviceIds: cost.services?.map((service) => service.id) ?? [],
       currencyId: cost.currencyId,
@@ -3591,6 +3652,33 @@ if (insuranceRequested && visible.has('destination_charges')) {
 }
 
   ensureCrcCustomsLine(lines, currency)
+  // CRM-only items cannot be sourced from Pricing. Keep the promised sale, mark cost for review.
+  if (!props.rateId && customerPreferentialAccountId.value === form.clientId) {
+    const basisByUnit: Record<string, ChargeBasis> = {
+      CONTAINER: 'PerContainer', SHIPMENT: 'PerShipment', SERVICE: 'PerService',
+      TRUCK: 'PerTruck', CBM: 'PerCbm', CFT: 'PerCft', KG: 'PerKg',
+      DOCUMENT: 'PerDocument', PALLET: 'PerPallet', PACKAGE: 'PerPackage',
+    }
+    for (const agreement of customerManualPreferentialRates(
+      customerPreferentialRates.value, currentPreferentialContext())) {
+      const name = agreement.customChargeName?.trim() ?? ''
+      const kind = agreement.chargeCode as CostDetailType
+      const section = sectionForDetail(kind, name)
+      const currency = catalogs.currencies.find(item =>
+        String(item.code ?? '').toUpperCase() === String(agreement.currencyCode ?? 'USD').toUpperCase())
+      if (!name || !currency || !visible.has(section) || hasEquivalent(name, kind)) continue
+      const basis = basisByUnit[String(agreement.unitCode ?? 'SHIPMENT').toUpperCase()] ?? 'PerShipment'
+      lines.push({
+        key: 'crm-preferential:' + agreement.id,
+        section, name, costDetailType: kind, costType: 'Variable', chargeBasis: basis,
+        contextLabel: 'Tarifa preferencial CRM · costo proveedor pendiente de validación',
+        notes: agreement.notes ?? 'Acuerdo comercial registrado en CRM',
+        currencyId: currency.id, currencyName: displayValue(currency), currencyCode: currency.code,
+        costAmount: 0, saleAmount: Number(agreement.value), included: true,
+        optional: false, manual: true,
+      })
+    }
+  }
   lines.forEach((line) => {
     line.amountCurrencyCode = canonicalCurrencyCode(line)
     enforceLineCurrency(line)
