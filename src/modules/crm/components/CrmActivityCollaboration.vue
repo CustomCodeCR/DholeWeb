@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { MessageSquareText, Plus, UsersRound, RefreshCw } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhMultiSelect } from '@/shared/components/atoms'
 import { crmError, crmPath, crmRequest, crmUuid, type CrmRow } from '../services/crmApi'
@@ -169,9 +169,16 @@ const labelForContact = (id: unknown) =>
   contacts.value.find(x => String(x.contactId ?? x.id) === String(id))?.name ?? 'Contacto de la cuenta'
 const roleLabel = (value: unknown) =>
   ({ORGANIZER:'Organizador',RESPONSIBLE:'Responsable',ATTENDEE:'Asistente',GUEST:'Invitado'} as Record<string,string>)[String(value)] ?? String(value ?? 'Participante')
-const participantLabel = (row: CrmRow) =>
-  String(row.participantName ?? (row.contactId ? labelForContact(row.contactId) : null) ??
-    (row.userId ? internalDirectory.value.find(x => x.id === String(row.userId))?.displayName || 'Usuario interno' : 'Participante'))
+// The CRM API resolves only invitees of this authorized activity through Auth.
+const participantLabel = (row: CrmRow) => {
+  if (row.userId) {
+    const id = String(row.userId)
+    const known = internalDirectory.value.find(x => x.id === id)
+    return String(row.internalUserName || known?.displayName || known?.userName ||
+      'Usuario interno (' + id.slice(0, 8) + ')')
+  }
+  return String(row.contactId ? labelForContact(row.contactId) : row.participantName || 'Participante')
+}
 const initials = (name: string) => name.trim().split(/\s+/).slice(0,2).map(x => x.slice(0,1)).join('').toLocaleUpperCase('es')
 const formattedDate = (value: unknown) => {
   const time = value ? new Date(String(value)) : null
@@ -301,10 +308,32 @@ async function addNote() {
 watch(() => [props.activityId, props.accountId], () => {
   noteAutosave.stop(); participantAutosave.stop()
   note.value = ''; noteCommitments.value = []
+  participants.value = []
   participantName.value = ''; selectedContactIds.value = []; selectedInternalIds.value = []; role.value = 'ATTENDEE'
   noteAutosave.begin()
   void load()
 }, { immediate: true })
+
+// Keep invitee names/memberships current after SignalR notifications and reconnects.
+function refreshSharedActivity(event: Event) {
+  const detail = (event as CustomEvent<{ endpoint?: string; entityType?: string }>).detail
+  const endpoint = String(detail?.endpoint ?? '').toLowerCase()
+  const type = String(detail?.entityType ?? '').toLowerCase()
+  if (event.type === 'dhole:notification:realtime-connected' ||
+      (event.type === 'dhole:notification:received' && ['activity', 'followup'].includes(type)) ||
+      (event.type === 'dhole:data:changed' && /\/api\/crm\/activities/.test(endpoint)))
+    void load()
+}
+onMounted(() => {
+  window.addEventListener('dhole:data:changed', refreshSharedActivity)
+  window.addEventListener('dhole:notification:received', refreshSharedActivity)
+  window.addEventListener('dhole:notification:realtime-connected', refreshSharedActivity)
+})
+onUnmounted(() => {
+  window.removeEventListener('dhole:data:changed', refreshSharedActivity)
+  window.removeEventListener('dhole:notification:received', refreshSharedActivity)
+  window.removeEventListener('dhole:notification:realtime-connected', refreshSharedActivity)
+})
 </script>
 
 <template>
@@ -374,7 +403,10 @@ watch(() => [props.activityId, props.accountId], () => {
             </span>
             <span class="min-w-0 flex-1">
               <strong class="block truncate text-sm">{{ participantLabel(person) }}</strong>
-              <span class="text-xs text-[var(--dh-text-muted)]">{{ roleLabel(person.role) }}</span>
+              <span class="text-xs text-[var(--dh-text-muted)]">
+                {{ person.userId ? 'Invitado interno' : person.contactId ? 'Contacto externo' : 'Participante externo' }}
+                · {{ person.userId ? 'Invitado' : roleLabel(person.role) }}
+              </span>
             </span>
             <DhButton v-if="canManage && person.userId" label="Retirar invitación"
               size="sm" variant="secondary" :disabled="saving"

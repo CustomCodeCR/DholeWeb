@@ -844,7 +844,9 @@ async function load() {
       error.value = 'No contás con permiso para consultar la bitácora comercial.'
     }
   } else {
-    if (canManageAcrossUsers.value || can('crm.activity.read')) {
+    // Shared activity membership is also valid for followup/task users without activity.read.
+    if (canManageAcrossUsers.value || can('crm.activity.read') ||
+        can('crm.followup.manage') || can('crm.task.manage')) {
       tasks.push(fetchAll('activities', from || '', to || '')); sources.push('activity')
     }
     if (can('crm.task.manage') || can('crm.followup.manage') ||
