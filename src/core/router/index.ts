@@ -106,6 +106,13 @@ export const router = createRouter({
             requiredScope: 'operations.case.read' },
         },
         {
+          path: 'operations/cases/:id',
+          name: 'operations-case-detail',
+          component: () => import('@/modules/operations/views/OperationsCaseDetailView.vue'),
+          meta: { tabTitle: 'Expediente IDTRA', closable: true,
+            requiredScope: 'operations.case.read' },
+        },
+        {
           path: 'operations/teams',
           name: 'operations-teams',
           component: () => import('@/modules/operations/views/OperationsTeamsView.vue'),
@@ -115,7 +122,7 @@ export const router = createRouter({
         {
           path: 'operations/apertures',
           name: 'operations-apertures',
-          component: () => import('@/modules/operations/views/OperationsAperturesView.vue'),
+          redirect: { name: 'operations-cases' },
           meta: { tabTitleKey: 'operations.apertures', closable: true,
             requiredScope: 'operations.case.read' },
         },
