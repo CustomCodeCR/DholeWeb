@@ -69,7 +69,7 @@ export function catalogMetadata(item?: CatalogItemSelectDto | null): Record<stri
 const namesByCode = new Map<string, Set<string>>()
 function addCountryName(name: unknown, iso2: string, target = namesByCode) {
   const normalized = normalizeCountryText(String(name ?? ''))
-  if (normalized.length < 3) return
+  if (normalized.length < 2) return
   const codes = target.get(normalized) ?? new Set<string>()
   codes.add(iso2)
   target.set(normalized, codes)
