@@ -357,6 +357,7 @@ const pricingQuoteCountryOverrideId = ref('')
 const pricingQuoteOperationOverride = ref<RateOperationType | ''>('')
 // Only preserve edited P7 lines when the commercial cost context still matches.
 const lastIncotermRateLinesContextKey = ref('')
+const lastIncotermRateLinesRouteKey = ref('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -3483,9 +3484,17 @@ async function loadApplicableCosts(): Promise<boolean> {
 
 function rebuildRateLines() {
   const currentContext = activeCostContextKey()
+  const routeKey = JSON.stringify([
+    form.originId, form.destinationId, form.podId, form.carrierId,
+    form.agentId, shipmentModeForApi.value, form.clientId, form.crmClientKind,
+  ])
+  const sameContext = lastIncotermRateLinesContextKey.value === currentContext
   const previousOptionLines = !props.rateId
-    && lastIncotermRateLinesContextKey.value === currentContext
-    ? copyPoeLines(rateLines.value) : []
+    && lastIncotermRateLinesRouteKey.value === routeKey
+    // On an Incoterm/service change keep user-created lines only. CostIds from
+    // the previous filter must requalify against the freshly loaded catalogue.
+    ? copyPoeLines(rateLines.value).filter(line => sameContext || line.manual)
+    : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
@@ -3763,6 +3772,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
   lastIncotermRateLinesContextKey.value = currentContext
+  lastIncotermRateLinesRouteKey.value = routeKey
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -6506,6 +6516,8 @@ function resetWizard() {
   ++approvedRatesSearchSequence
   availableRates.value = []
   rateLines.value = []
+  lastIncotermRateLinesContextKey.value = ''
+  lastIncotermRateLinesRouteKey.value = ''
   supportEntityId.value = crypto.randomUUID()
   finalBackupEntityId.value = crypto.randomUUID()
   allInPresentation.value = true
