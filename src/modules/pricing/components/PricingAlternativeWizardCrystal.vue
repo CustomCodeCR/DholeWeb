@@ -3173,7 +3173,8 @@ function applicableCost(cost: CostSelectDto) {
   if (cost.polId && cost.polId !== form.originId) return false
   if (cost.poeId && cost.poeId !== form.destinationId) return false
   if (cost.podId && cost.podId !== form.podId) return false
-  if (!incotermResponsibilitySections.value.includes(sectionForCost(cost))) return false
+  // The actual mode, route, provider, service and Incoterm associations
+  // determine this cost's eligibility; its display section does not.
 
   if (cost.portId) {
     const matchesLegacyPort = cost.portRole === 'Pol'
@@ -8190,7 +8191,7 @@ onMounted(async () => {
               <p class="mb-3 text-sm font-black">Agregar rubro manual</p>
               <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px_210px_auto]">
                 <DhInput v-model="form.manualName" label="Nombre del rubro" />
-                <DhSelect v-model="form.manualSection" label="Etapa" :options="visibleSections.map((value) => ({ value, label: sectionLabel(value) }))" />
+                <DhSelect v-model="form.manualSection" label="Etapa" :options="sectionOrder.map((value) => ({ value, label: sectionLabel(value) }))" />
                 <DhSelect v-model="form.manualChargeBasis" label="Base de cobro" placeholder="Seleccione la base" :options="manualChargeBasisOptions" />
                 <DhButton class="md:mt-6" variant="secondary" :disabled="!form.manualName.trim() || !form.manualChargeBasis" @click="addManualCharge"><Plus class="h-4 w-4" /> Añadir rubro</DhButton>
               </div>
