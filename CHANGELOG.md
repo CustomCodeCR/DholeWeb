@@ -1,3 +1,9 @@
+## [1.103.15] - 2026-11-19 (DH-20261119-DASHBOARD-TABLE-293 · backport contextual del dashboard)
+
+- PATCH: backport selectivo de tarjetas que filtran la tabla «Tarifas del equipo y seguimiento de ventas» y hacen scroll a esa tabla; no abre Pricing.
+- Selector muestra únicamente clientes existentes en las tarifas del vendedor y el estado/búsqueda activos. Deduplica nombres y reinicia paginación; preserva la versión global 1.103.15 coordinada con System.
+- Master 1.103.14→1.103.15. Sin migraciones REST ni cambios en SignalR. Antes de merge debe aprobar CI y staging; despliegue a producción no autorizado.
+
 ## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · ajuste de desempeño comercial)
 
 - PATCH: el desempeño comercial se calcula como (aceptadas − vencidas) / (total cotizadas − abiertas) × 100. Las rechazadas se contabilizan en la base; las abiertas aún no se han entregado. Las vencidas penalizan incluso si producen porcentaje negativo.
