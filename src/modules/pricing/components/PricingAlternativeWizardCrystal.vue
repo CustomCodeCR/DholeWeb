@@ -344,6 +344,9 @@ const form = reactive({
 const crmClientCountryId = ref('')
 // Agreements belong to the selected CRM account. Existing quotations are immutable snapshots.
 const customerPreferentialRates = ref<CustomerPreferentialRate[]>([])
+const customerPreferentialAppliedCount = computed(() => rateLines.value.filter(line =>
+  String(line.contextLabel ?? '').includes('Venta preferencial del CRM') ||
+  line.key.startsWith('crm-preferential:')).length)
 const customerPreferentialAccountId = ref('')
 const customerPreferentialError = ref('')
 let customerPreferentialRequest = 0
@@ -7883,7 +7886,13 @@ onMounted(async () => {
             <DhButton type="button" variant="secondary" @click="retryCustomerPreferredRates">Reintentar tarifas CRM</DhButton>
           </div>
           <div v-else-if="customerPreferentialAccountId && customerPreferentialRates.length" role="status" class="crystal-soft border border-[var(--dh-border)] p-3 text-xs font-bold text-[var(--dh-primary)]">
-            Precios preferenciales del CRM verificados para este cliente. Los cargos coincidentes se identifican en cada línea.
+            CRM: {{ customerPreferentialRates.length }} tarifas preferenciales registradas para esta cuenta.
+            <span v-if="customerPreferentialAppliedCount > 0">
+              Se aplicaron {{ customerPreferentialAppliedCount }} cargos preferenciales a esta alternativa.
+            </span>
+            <span v-else class="text-amber-600">
+              Ningún acuerdo coincide con estos cargos. Revise rubro, servicio, equipo, ruta, naviera, Incoterm, moneda, unidad y vigencia en CRM.
+            </span>
           </div>
           <div v-if="multiCarrierSelectionMode" class="crystal-soft flex flex-wrap items-center gap-3 p-4" aria-label="Transporte seleccionado en Proveedor">
             <div class="min-w-0 flex-1">
