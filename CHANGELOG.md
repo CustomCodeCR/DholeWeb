@@ -1,3 +1,9 @@
+## [1.104.3] - 2026-11-20 (DH-20261120-CRM-INVITEE-VISIBILITY-323 · participantes internos visibles)
+
+- PATCH: en la ficha de actividad se muestran los nombres reales de las invitadas internas recuperados de Auth y se distingue visualmente su condición de invitadas frente a contactos externos.
+- La agenda comercial también carga actividades compartidas para usuarios internos con permisos de seguimiento/tareas; lista de asistentes y eventos se sincroniza mediante SignalR y REST al reconectar.
+- Global 1.104.2 → 1.104.3, Web 1.104.1 → 1.104.3 y CRM 1.42.6 → 1.42.7, resto de componentes sin cambios. CI y staging pendientes; producción no autorizada.
+
 ## [1.104.2] - 2026-11-20 (DH-20261120-PRICING-COUNTRY-OPTIONS-310 · reparación del wizard en blanco)
 
 - PATCH: el selector de países obtiene opciones del catálogo Config reactivo, sin acceso a computed pricingQuoteCountryOptions inexistente tras transformaciones de Vite. Evita el TypeError al abrir Crear tarifa.
