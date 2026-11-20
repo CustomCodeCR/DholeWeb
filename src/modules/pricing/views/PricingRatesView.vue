@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhMultiSelect } from '@/shared/components/atoms'
@@ -18,6 +18,8 @@ import { fetchBlobClient } from '@/core/api/fetchBlobClient'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
+import PricingExpiredRateApprovalModal from '@/modules/pricing/components/PricingExpiredRateApprovalModal.vue'
+import { expiredRateApprovalService } from '@/modules/pricing/services/expiredRateApprovalService'
 import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
@@ -362,8 +364,51 @@ const requestedRateUpdateStatuses = new Set<RateStatus>([
   'RequestedByClient',
 ])
 
+function isExpiredRate(rate: RateDto) {
+  const validUntil = String(rate.validTo ?? '').slice(0, 10)
+  const today = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'America/Costa_Rica', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
+  return rate.status === 'Expired' || (validUntil.length === 10 && validUntil < today)
+}
+
 function canUpdateRate(rate: RateDto) {
-  return canUpdate.value && requestedRateUpdateStatuses.has(rate.status)
+  return canUpdate.value
+    && rate.status !== 'Closed' && rate.status !== 'Cancelled'
+    && (requestedRateUpdateStatuses.has(rate.status) || isExpiredRate(rate))
+}
+
+function canRequestExpiryApproval(rate: RateDto) {
+  return !isMasterTariff(rate) && isExpiredRate(rate)
+    && rate.status !== 'Closed' && rate.status !== 'Cancelled'
+    && (canUpdate.value || isSellerUser.value)
+}
+
+const isExpiredApprovalSupervisor = computed(() =>
+  ['rsibaja@castrofallas.com', 'jmesen@castrofallas.com']
+    .includes(String(authStore.email ?? '').trim().toLowerCase()),
+)
+
+function openExpiryApproval(rate: RateDto) {
+  if (!canRequestExpiryApproval(rate)) return
+  modalStore.open({
+    title: 'Autorización para actualizar tarifa vencida',
+    component: PricingExpiredRateApprovalModal,
+    size: 'lg',
+    surface: 'solid',
+    props: { rate, mode: 'request', onSaved: load },
+  })
+}
+
+function openExpiryApprovalQueue() {
+  if (!isExpiredApprovalSupervisor.value) return
+  modalStore.open({
+    title: 'Autorizaciones de tarifas vencidas',
+    component: PricingExpiredRateApprovalModal,
+    size: 'xl',
+    surface: 'solid',
+    props: { mode: 'review', onSaved: load },
+  })
 }
 
 function isMasterTariff(rate: RateDto | null | undefined) {
@@ -376,13 +421,6 @@ function canApplyTariffRate(rate: RateDto) {
   return canCreate.value
     && isMasterTariff(rate)
     && ['ApprovedByManagement', 'Open', 'Sent', 'RequestedByClient', 'AcceptedByClient'].includes(rate.status)
-}
-
-function rateUpdateWindowMessage(rate: RateDto) {
-  if (rate.status === 'Sent' || rate.status === 'RequestedByClient') {
-    return 'La tarifa está enviada y todavía está pendiente de aceptación o rechazo del vendedor.'
-  }
-  return 'La tarifa todavía se encuentra dentro de la solicitud antes del envío de Pricing.'
 }
 
 const statusOptions: Array<{ label: string; value: CommercialRateStatusFilter }> = [
@@ -643,16 +681,26 @@ function openDetail(rate: RateDto) {
   void router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'view' } })
 }
 
-function openEdit(rate: RateDto) {
+async function openEdit(rate: RateDto) {
   if (!canUpdateRate(rate)) {
-    toastStore.warning(
-      'Actualización no disponible',
-      'Solo se puede actualizar una tarifa antes de que Pricing la envíe o mientras está enviada y pendiente de aceptación/rechazo del vendedor.',
-    )
+    toastStore.warning('Actualización no disponible', 'No tiene autorización para modificar esta cotización.')
     return
   }
-  toastStore.info('Actualización de tarifa', `${rateUpdateWindowMessage(rate)} Debe indicar el motivo del cambio antes de guardar.`)
-  router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
+  if (isExpiredRate(rate)) {
+    try {
+      const approval = await expiredRateApprovalService.forRate(rate.id)
+      if (!approval.canUpdate) {
+        openExpiryApproval(rate)
+        return
+      }
+    } catch (error) {
+      toastStore.backendError(error, 'No se pudo comprobar la aprobación de jefatura.')
+      return
+    }
+  }
+  toastStore.info('Actualización de tarifa',
+    'Indique el motivo de modificación. La nueva revisión conservará el historial comercial.')
+  void router.push({ name: 'pricing-rate-wizard', params: { rateId: rate.id }, query: { mode: 'edit' } })
 }
 
 function applyTariff(rate: RateDto) {
@@ -753,7 +801,15 @@ watch(
   },
 )
 
+function refreshExpiryApprovals(event: Event) {
+  const detail = (event as CustomEvent<{ notificationType?: string }>).detail
+  if (detail?.notificationType?.startsWith('pricing.rate.expired-update.')) void load()
+}
+
+onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', refreshExpiryApprovals))
 onMounted(async () => {
+  window.addEventListener('dhole:notification:received', refreshExpiryApprovals)
+  if (isExpiredApprovalSupervisor.value && route.query.expiredApprovals === '1') openExpiryApprovalQueue()
   if (!isSellerUser.value) void loadExecutiveOptions()
   try {
     await catalogs.loadAll()
@@ -777,6 +833,11 @@ onMounted(async () => {
       :hide-excel-export="authStore.hasScope('pricing.rate-request.view-all')"
     >
       <template #actions>
+        <DhButton
+          v-if="isExpiredApprovalSupervisor"
+          label="Autorizar tarifas vencidas"
+          @click="openExpiryApprovalQueue"
+        />
         <DhButton
           v-if="authStore.hasScope('pricing.rate-request.view-all')"
           label="Exportar Excel"
@@ -1106,6 +1167,14 @@ onMounted(async () => {
                 <Eye class="h-4 w-4" />
               </button>
               <button
+                v-if="canRequestExpiryApproval(row)"
+                type="button"
+                class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-amber-500/40 px-2 text-xs font-bold text-amber-600"
+                title="Solicitar actualización de tarifa vencida"
+                aria-label="Solicitar actualización de tarifa vencida"
+                @click="openExpiryApproval(row)"
+              >Solicitar</button>
+              <button
                 v-if="canUpdateRate(row)"
                 type="button"
                 class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-[var(--dh-primary)] hover:bg-black/5 dark:hover:bg-white/10"
@@ -1285,6 +1354,13 @@ onMounted(async () => {
                       title="Registrar IDTRA y enviar la Quote a Dynamics"
                       @click="assignIdtra(row)"
                     >Asignar IDTRA</button>
+                    <button
+                      v-if="canRequestExpiryApproval(row)"
+                      type="button"
+                      class="shrink-0 rounded-lg border border-amber-500/40 px-2.5 py-2 text-[11px] font-black text-amber-700 dark:text-amber-300"
+                      title="Solicitar autorización de jefatura para modificar tarifa vencida"
+                      @click="openExpiryApproval(row)"
+                    >Solicitar autorización</button>
                     <button
                       v-if="canUpdateRate(row)"
                       type="button"
