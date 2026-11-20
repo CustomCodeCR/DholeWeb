@@ -8,7 +8,6 @@ import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace, type CrmAccountOption } from '../services/operationsApi'
-import OperationsManualCreateModal from '../components/OperationsManualCreateModal.vue'
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 
@@ -22,7 +21,6 @@ const selected = ref<OperationsCaseDetail | null>(null)
 const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
 const selectedCaseId = computed(() => selected.value?.id || '')
 const clientName = ref('')
-const showCreate = ref(false)
 const search = ref('')
 const status = ref('')
 const apertureType = ref('')
@@ -138,7 +136,7 @@ useOperationsCaseRealtime(selectedCaseId, () => {
 useRealtimeListRefresh({
   prefixes: ['/api/operations'],
   refresh: load,
-  isEditing: () => showCreate.value,
+  isEditing: () => false,
 })
 function closeDrawer() {
   detailSequence++
@@ -146,11 +144,6 @@ function closeDrawer() {
   selectedWorkspace.value = null
   loadingDetail.value = false
   detailError.value = ''
-}
-async function onCreated(value: { id: string; idtra: string }) {
-  page.value = 1
-  await load()
-  await openCase(value.id)
 }
 async function changePage(next: number) {
   page.value = Math.min(pages.value, Math.max(1, next))
@@ -175,7 +168,9 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
     <DhPageHeader title="Trámites" subtitle="Crea, busca y administra todos los expedientes operativos IDTRA a los que tienes acceso." :icon="FolderOpen" :hide-excel-export="true">
       <template #actions>
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
-        <DhButton v-if="canCreate" :icon="Plus" label="Nuevo trámite" @click="showCreate = true" />
+        <RouterLink v-if="canCreate" :to="{ name: 'operations-case-create' }">
+          <DhButton :icon="Plus" label="Nuevo trámite" />
+        </RouterLink>
       </template>
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
@@ -220,7 +215,6 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
       </div>
     </DhCard>
 
-    <OperationsManualCreateModal :open="showCreate && canCreate" @close="showCreate = false" @created="onCreated" />
     <DhDrawer :open="Boolean(selected) || loadingDetail || Boolean(detailError)" :title="selected ? 'Resumen · ' + selected.idtra : 'Resumen de trámite'" size="lg" @close="closeDrawer">
       <div v-if="loadingDetail" class="py-16 text-center text-sm text-[var(--dh-text-muted)]">Cargando expediente…</div>
       <div v-else-if="detailError" role="alert" class="rounded-xl bg-red-500/10 p-4 text-sm text-red-500">{{ detailError }}</div>
