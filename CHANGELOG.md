@@ -1,3 +1,9 @@
+## [1.106.17] - 2026-11-20 (DH-20261120-PRICING-INLAND-REGRESSION-360 · estabilización urgente del inland)
+
+- PATCH de contención: revierte únicamente la sincronización temprana introducida en DholeWeb 1.106.15/1.106.16 que puede excluir líneas inland durante la carga asíncrona y guardar borradores incompletos.
+- Restablece el comportamiento frontend previo para el traspaso de Pantalla 6 a 7. **No se declara resuelto el problema original de autoload**: requiere reproducción autenticada con ruta/POE/naviera real antes de otra corrección.
+- Preserva el desbloqueo temporal de Incoterms en master y contratos REST/SignalR. Sin modificaciones de PricingService ni base de datos.
+
 ## [1.106.16] - 2026-11-20 (DH-20261120-PRICING-INLAND-QA-358 · pruebas del inland 6→7)
 
 - PATCH: ajusta la prueba automatizada de paridad Merchant/Carrier para que simule el guardado del borrador ahora obligatorio al elegir inland en Pantalla 6. Sin cambio adicional al contrato REST/SignalR ni a los precios aplicados.
