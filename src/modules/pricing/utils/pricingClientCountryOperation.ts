@@ -1,5 +1,6 @@
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import type { RateOperationType } from '@/core/interfaces/pricing'
+import { normalizeIsoCountryCode, resolveCatalogCountryCode } from './pricingCountryIso.ts'
 
 /** Account/lead country is an authoritative Config country ID, not a port name. */
 export function resolveCrmCountryCode(
@@ -7,19 +8,11 @@ export function resolveCrmCountryCode(
   countries: CatalogItemSelectDto[],
 ): string {
   if (!countryId) return ''
-  // CRM may return a canonical ISO-2 country instead of a Config UUID.
-  // Accept only an explicit two-letter code, not a guessed country.
-  if (/^[A-Z]{2}$/.test(countryId.trim().toUpperCase())) return countryId.trim().toUpperCase()
-  const country = countries.find(item => item.id.toLowerCase() === countryId.trim().toLowerCase())
-  if (!country) return ''
-  let code = String(country.code ?? '').trim().toUpperCase()
-  if (!/^[A-Z]{2}$/.test(code) && country.metadataJson) {
-    try {
-      const metadata = JSON.parse(country.metadataJson) as { countryCode?: string; iso2?: string }
-      code = String(metadata.countryCode ?? metadata.iso2 ?? '').trim().toUpperCase()
-    } catch { return '' }
-  }
-  return /^[A-Z]{2}$/.test(code) ? code : ''
+  // CRM may return either a Config country UUID or a canonical ISO-2/ISO-3 code.
+  const literalIso = normalizeIsoCountryCode(countryId)
+  if (literalIso) return literalIso
+  const country = countries.find((item) => item.id.toLowerCase() === countryId.trim().toLowerCase())
+  return resolveCatalogCountryCode(country)
 }
 
 /**
@@ -37,7 +30,7 @@ export function operationForClientCountry(
   const client = String(clientCountry ?? '').trim().toUpperCase()
   const origin = String(originCountry ?? '').trim().toUpperCase()
   const destination = String(destinationCountry ?? '').trim().toUpperCase()
-  if (![client, origin, destination].every(code => /^[A-Z]{2}$/.test(code))) return null
+  if (![client, origin, destination].every(code => code.length > 0 && normalizeIsoCountryCode(code) === code)) return null
   if (origin === destination) return 'TransitDomestic'
   if (client === origin) return 'Export'
   if (client === destination) return 'Import'
