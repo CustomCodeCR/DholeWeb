@@ -2,35 +2,25 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-// Regression guard for the transformed (production) wizard; the original Vue
-// source is patched by Vite, so asserting only its untransformed source misses
-// exactly the step-6 -> step-7 failure observed in production.
+// The previously deployed 1.106.16 handoff attempted synchronous mutations
+// while step 7's cost catalog was still loading. This smoke guard prevents a
+// reintroduction without authenticated multi-POE browser coverage.
 const haulage = readFileSync(new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8')
 const optional = readFileSync(new URL('../build/pricingOptionalChargesFinalGuard.ts', import.meta.url), 'utf8')
 
-test('step 7 restores validated screen 6 CostIds after the REST context refresh', () => {
-  assert.match(haulage, /function dholeRestoreCurrentHaulageCatalog\(\)/)
-  assert.match(haulage, /dholeHaulageScreen7OptionContext\.value !== context/)
-  assert.match(haulage, /finalOptionalMatchesCurrentContext\(cost\)/)
-  assert.match(haulage, /loader\.replace\(reloadAnchor/)
-  assert.match(haulage, /dholeRestoreCurrentHaulageCatalog\(\).*?reloadAnchor/s)
+test('emergency stabilization does not eagerly save incomplete screen-7 rate lines', () => {
+  assert.doesNotMatch(haulage, /savePricingDraftNow\(\)/)
+  assert.doesNotMatch(haulage, /dholeRestoreCurrentHaulageCatalog\(\)/)
+  assert.match(haulage, /if \(props\.viewOnly \|\| !multiCarrierSelectionMode\.value \|\| step\.value !== 7\) return/)
 })
 
-test('selected inland is added to rate lines by CostId before save', () => {
-  assert.match(haulage, /function dholeEnsureSelectedHaulageLines\(\)/)
-  assert.match(haulage, /if \(props\.viewOnly \|\| step\.value !== 7 \|\| !dholeHaulageVisible\.value\) return/)
-  assert.match(haulage, /const existing = rateLines\.value\.find\(\(line\) => line\.costId === cost\.id\)/)
-  assert.match(haulage, /costId: cost\.id/)
+test('no additional synchronous screen 7 watcher mutates rate lines ahead of loadApplicableCosts', () => {
+  const watcherCount = (haulage.match(/\(\) => \[step\.value, currentCostContextKey\(\)\]\.join/g) ?? []).length
+  assert.equal(watcherCount, 1)
+  assert.match(haulage, /const loaded = await loadApplicableCosts\(\)/, 'loader remains async in the wizard source')
 })
 
-test('manual and automatic Merchant or Carrier decisions survive POE/carrier and reload', () => {
-  assert.match(haulage, /function dholeChooseHaulage\(mode: DholeHaulageChoice\)/)
-  assert.match(haulage, /rememberCurrentCarrierDraft\(\)\n  savePricingDraftNow\(\)/)
-  assert.match(haulage, /syncHaulageOptionalLines\(\)\n      \/\/ Automatic Merchant/)
-  assert.match(haulage, /watch\(\n  \(\) => \[step\.value, currentCostContextKey\(\)\]/)
-})
-
-test('stale Optional REST responses cannot overwrite another route after navigation', () => {
-  assert.match(optional, /const contextKey = currentCostContextKey\(\)\n    const optionalCosts = await loadAllApplicableOptionalCosts\(\)/)
-  assert.match(optional, /if \(contextKey !== currentCostContextKey\(\) \|\| !\[6, 7\]\.includes\(step\.value\)\) return/)
+test('inland optional catalog still loads through existing step-7 integration', () => {
+  assert.match(optional, /await ensureAllApplicableOptionalCosts\(\)/)
+  assert.match(optional, /const optionalCosts = await loadAllApplicableOptionalCosts\(\)/)
 })
