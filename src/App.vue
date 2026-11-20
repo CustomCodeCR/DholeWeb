@@ -132,7 +132,7 @@ onBeforeUnmount(() => {
 <template>
   <!-- Toasts are global feedback and must also be available on public auth screens such as /login. -->
   <DhToastContainer />
-  <DholeVersionUpdateDialog v-if="!isEmbedded" />
+  <DholeVersionUpdateDialog v-if="!isEmbedded && !isPublicRoute && authStore.isAuthenticated" />
 
   <template v-if="!isPublicRoute">
     <DhModalContainer />

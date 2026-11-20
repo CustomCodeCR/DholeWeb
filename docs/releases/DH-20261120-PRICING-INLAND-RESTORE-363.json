@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-INLAND-RESTORE-363",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.107.2",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "versionBefore": "1.107.1",
+  "versionAfter": "1.107.2",
+  "sourceStagingVersion": "1.106.17",
+  "sourceStagingRelease": "DH-20261120-PRICING-INLAND-REGRESSION-360",
+  "scope": [
+    "Restore stable async catalog loading and remove prematurely persisted inland rate lines",
+    "Preserve master version notices, expired rate authorization, Incoterm temporary unblock"
+  ],
+  "pricingServiceVersion": "1.26.9",
+  "productionAuthorization": "User explicitly requested 'subelo a master' for this hotfix",
+  "requiresCI": true,
+  "requiresPostDeployVerification": true,
+  "knownLimitation": "Original automatic inland selection issue remains open"
+}

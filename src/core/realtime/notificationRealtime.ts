@@ -177,7 +177,20 @@ function showPricingVariation(notification: SystemNotificationPush) {
   })
 }
 
+const recentPolicyEventIds = new Set<string>()
+
 function handleNotification(notification: SystemNotificationPush) {
+  if (notification.notificationType === 'system.version-update-policy.changed') {
+    if (recentPolicyEventIds.has(notification.notificationId)) return
+    recentPolicyEventIds.add(notification.notificationId)
+    if (recentPolicyEventIds.size > 128) {
+      const oldest = recentPolicyEventIds.values().next().value
+      if (oldest) recentPolicyEventIds.delete(oldest)
+    }
+    // A policy invalidation only: never display a toast or insert into the inbox.
+    window.dispatchEvent(new CustomEvent('dhole:version-update-policy:changed'))
+    return
+  }
   if (notification.notificationType === 'pricing.imported-rate.variation') {
     showPricingVariation(notification)
 

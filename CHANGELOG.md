@@ -1,8 +1,19 @@
-## [1.106.19] - 2026-11-20 (DH-20261120-PRICING-INLAND-CONFLICTS-362 · contención de la regresión de cargos sin perder tarifas vencidas)
+## [1.107.2] - 2026-11-20 (DH-20261120-PRICING-INLAND-RESTORE-363 · restaurar carga de cargos en producción)
 
-- PATCH de recuperación sobre master 1.106.18: elimina el guardado y sincronización temprana de líneas del inland entre pantallas 6 y 7 que regresó la carga de cargos en producción.
-- Incorpora el comportamiento de contención desplegado en staging como Web 1.106.17, sin incorporar develop entero. Conserva el desbloqueo temporal de Incoterms y la política de autorizaciones para tarifas vencidas de 1.106.18.
-- DholeWeb y DholeSystem 1.106.18 → 1.106.19; PricingService mantiene 1.26.9, sin cambios de REST, SignalR ni base de datos. CI del backport y validación funcional en producción pendientes; no se declara resuelto el fallo original de autoload.
+- PATCH urgente sobre 1.107.1: revierte solamente la mutación sincronizada y el guardado prematuro de CostId/inland de pantallas 6 a 7 que provocó una regresión en producción.
+- Reutiliza el comportamiento de contención previamente desplegado en staging (DholeWeb 1.106.17), sin mezclar develop completo. Se preservan todos los cambios posteriores de master, incluida la configuración de avisos de versión, la autorización de vencidas y el desbloqueo temporal de Incoterms.
+- DholeWeb y DholeSystem 1.107.1 → 1.107.2; DholePricingService se mantiene 1.26.9. REST, SignalR, esquema de base de datos e infraestructura sin modificaciones. Pruebas CI y verificación funcional posterior al despliegue obligatorias; el problema original de selección automática todavía requiere prueba autenticada.
+
+## [1.107.1] - 2026-11-20 (DH-20261120-VERSION-NOTICE-500-362 · hotfix 500 de avisos de actualización)
+
+- PATCH metadatos coordinados para corrección de backend Auth 1.17.1, transacción y outbox con estrategia de reintentos.
+- Interfaz y permisos sin cambios funcionales. Sistema y Web sincronizados 1.107.1.
+
+## [1.107.0] - 2026-11-20 (DH-20261120-VERSION-NOTICES-361 · notificaciones de versiones por usuario)
+
+- MINOR: Ajustes permite desactivar el aviso de actualización globalmente o para usuarios específicos. Las preferencias personales se conservan en Auth; SuperUsuario administra todas las cuentas. Global=false prevalece.
+- DholeWeb recibe invalidación por SignalR sin generar notificaciones y reconcilia preferencias por REST cada 60 segundos.
+- Backport aislado sobre master 1.106.18; DholeWeb/DholeSystem → 1.107.0. CI, staging y pruebas multiusuario pendientes; producción autorizada para promoción solo cuando se cumplan las validaciones.
 
 ## [1.106.18] - 2026-11-20 (DH-20261120-PRICING-EXPIRED-MASTER-361 · tarifas vencidas solo requieren aprobación para Ventas)
 
