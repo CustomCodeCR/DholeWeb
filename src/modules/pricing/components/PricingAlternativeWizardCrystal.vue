@@ -74,6 +74,7 @@ import { useToastStore } from '@/core/stores/toastStore'
 import { useRequiredFieldFeedback, type RequiredFieldIssue } from '@/core/composables/useRequiredFieldFeedback'
 import { useModalStore } from '@/core/stores/modalStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
+import PricingIncotermResponsibilityGuide from '@/modules/pricing/components/PricingIncotermResponsibilityGuide.vue'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
@@ -2139,18 +2140,11 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
 })
 
 const visibleSections = computed<RateSection[]>(() => {
-  // ICC assigns default responsibility; an explicitly contracted international
-  // transport service must remain quotable, including buyer-import CIF or DDP.
-  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
-  const internationalTransportQuoted = selectedServices.value.some((service) => {
-    const code = String(service.code ?? '').trim().toUpperCase()
-    const label = normalizeCatalogValue([displayValue(service), service.label].filter(Boolean).join(' '))
-    return code === 'INT_TRANSPORT'
-      || label.includes('transporte internacional')
-      || label.includes('international transport')
-  })
-  if (internationalTransportQuoted) allowed.add('international_freight')
-  return sectionOrder.filter((section) => allowed.has(section))
+  // Incoterms assign recommended payers, never prohibit optional services.
+  // Every cost section remains accessible even outside the normal allocation.
+  const suggested = incotermResponsibilitySections.value
+  return [...new Set<RateSection>([...suggested, ...sectionOrder])]
+    .sort((a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b))
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) =>
@@ -7261,6 +7255,13 @@ onMounted(async () => {
             <p v-if="form.incotermId" class="text-xs font-semibold text-[var(--dh-text-muted)]">
               {{ incotermOperationExplanation(operationType, selectedIncotermCode) }}
             </p>
+            <PricingIncotermResponsibilityGuide
+              v-if="form.incotermId"
+              :code="selectedIncotermCode"
+              :operation-type="operationType"
+              :modality="form.modality"
+              :named-place="displayValue(selectedDestination)"
+            />
             <PricingCrystalMultiSelect
               v-model="form.serviceIds"
               data-required-field="serviceIds" :error="fieldError('serviceIds')"

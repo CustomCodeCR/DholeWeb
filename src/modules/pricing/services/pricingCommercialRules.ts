@@ -51,7 +51,7 @@ const INCOTERM_SECTIONS: Record<string, PricingRateSection[]> = {
   CIP: ['destination_charges', 'delivery_destination'],
   DAP: ['destination_charges'],
   DPU: ['destination_charges'],
-  DDP: ['destination_charges'],
+  DDP: [],
 }
 
 export function incotermRateSections(

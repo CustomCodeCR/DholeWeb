@@ -51,6 +51,7 @@ import { StorageService } from '@/core/services/storageService'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useModalStore } from '@/core/stores/modalStore'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
+import PricingIncotermResponsibilityGuide from '@/modules/pricing/components/PricingIncotermResponsibilityGuide.vue'
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingEmailSourceModal from '@/modules/pricing/components/PricingEmailSourceModal.vue'
@@ -1275,14 +1276,11 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
 })
 
 const visibleSections = computed<RateSection[]>(() => {
-  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
-  // Selected Costs & Surcharges may be in a section outside the buyer's
-  // default Incoterm responsibilities. Preserve these explicitly quoted rows.
-  for (const cost of costs.value) {
-    if (cost.isActive === false || !applicableCost(cost)) continue
-    allowed.add(sectionForCost(cost))
-  }
-  return sectionOrder.filter((section) => allowed.has(section))
+  // Incoterms assign recommended payers, never prohibit optional services.
+  // Every cost section remains accessible even outside the normal allocation.
+  const suggested = incotermResponsibilitySections.value
+  return [...new Set<RateSection>([...suggested, ...sectionOrder])]
+    .sort((a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b))
 })
 
 const includedLines = computed(() => rateLines.value.filter((line) => line.included))
@@ -4544,6 +4542,13 @@ onMounted(async () => {
               <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
 
+            <PricingIncotermResponsibilityGuide
+              v-if="form.incotermId"
+              :code="selectedIncotermCode"
+              :operation-type="operationType"
+              :modality="form.modality"
+              :named-place="displayValue(selectedDestination)"
+            />
             <PricingCrystalMultiSelect
               v-model="form.serviceIds"
               label="Servicios"
