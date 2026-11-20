@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ClipboardList, Plus, RefreshCw, UsersRound, ShieldCheck, Clock3, FolderOpen } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhEmptyState, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhModal, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
-import { operationsApi, type ApertureRow, type OperationsAudit, type OperationsUser, type ValidationPair } from '../services/operationsApi'
+import { operationsApi, type ApertureRow, type CrmAccountOption, type OperationsAudit, type OperationsUser, type ValidationPair } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 
 const { t, locale } = useI18n()
@@ -24,17 +24,26 @@ const page = ref(1)
 const pages = computed(() => Math.max(1, Math.ceil(total.value / 50)))
 const columns = computed<DhTableColumn<ApertureRow>[]>(() => [
   { key: 'idtra', label: t('operations.validation.record') },
+  { key: 'apertureType', label: 'Origen' },
+  { key: 'sourceQuoteId', label: 'QUO' },
   { key: 'modalityCode', label: t('operations.validation.modality') },
   { key: 'status', label: t('operations.validation.status') },
   { key: 'validators', label: t('operations.validation.reviews') },
   { key: 'createdAtUtc', label: t('operations.validation.created') },
   { key: 'actions', label: '', align: 'right' },
  ])
-const filteredRows = computed(() => rows.value.filter(row =>
-  (!statusFilter.value || row.status === statusFilter.value) &&
-  (!search.value.trim() || [row.idtra, row.modalityCode, row.status].some(value => value.toLowerCase().includes(search.value.trim().toLowerCase()))),
-))
-const statusOptions = computed(() => [{ label: t('operations.validation.allStatuses'), value: '' }, ...[...new Set(rows.value.map(row => row.status))].map(value => ({ label: stateLabel(value), value }))])
+const filteredRows = computed(() => rows.value)
+const typeFilter = ref('')
+const typeOptions = [
+  { label: 'Todas las aperturas', value: '' },
+  { label: 'Manuales', value: 'MANUAL' },
+  { label: 'Automáticas desde Pricing', value: 'AUTOMATIC' },
+]
+const statusOptions = computed(() => [
+  { label: t('operations.validation.allStatuses'), value: '' },
+  ...['DRAFT', 'PENDING_VALIDATION', 'APERTURA_VALIDADA', 'APERTURA_REQUIERE_CAMBIOS', 'ACTIVE', 'COMPLETED', 'CANCELLED']
+    .map(value => ({ label: stateLabel(value), value })),
+])
 const unassigned = computed(() => rows.value.filter(row => !row.validators?.length).length)
 const inReview = computed(() => rows.value.filter(row => row.validators?.some(v => v.status === 'PENDING')).length)
 const approved = computed(() => rows.value.filter(row => row.validators?.length >= 2 && row.validators.every(v => v.status === 'APPROVED')).length)
@@ -65,7 +74,13 @@ const message = ref('')
 const busy = ref(false)
 const comment = ref('')
 const showCreate = ref(false)
-const blankUser = '00000000-0000-0000-0000-000000000000'
+const crmSearch = ref('')
+const crmAccounts = ref<CrmAccountOption[]>([])
+const loadingCrm = ref(false)
+const crmOptions = computed(() => [
+  { label: 'Seleccione una cuenta de CRM', value: '' },
+  ...crmAccounts.value.map(a => ({ label: a.displayName, value: a.id })),
+])
 const opening = ref({
   companyId: '', accountId: '', seriesCode: '',
   modalityCode: 'FCL', priority: 1, complexityPoints: 1,
@@ -77,7 +92,9 @@ async function load() {
   error.value = ''
   loading.value = true
   try {
-    const data = await operationsApi.apertures(page.value)
+    const data = await operationsApi.apertures(page.value, {
+      q: search.value, status: statusFilter.value, apertureType: typeFilter.value,
+    })
     rows.value = data.items
     total.value = data.total
     if (selectedId.value && !rows.value.some(x => x.id === selectedId.value)) selectedId.value = ''
@@ -87,6 +104,33 @@ async function load() {
   finally { loading.value = false }
 }
 async function changePage(next: number) { page.value = Math.min(pages.value, Math.max(1, next)); await load() }
+let filterTimer: ReturnType<typeof setTimeout> | undefined
+watch([search, statusFilter, typeFilter], () => {
+  clearTimeout(filterTimer)
+  filterTimer = setTimeout(() => { page.value = 1; void load() }, 250)
+})
+async function loadCrmAccounts() {
+  loadingCrm.value = true
+  try {
+    const response = await operationsApi.crmAccounts(crmSearch.value)
+    crmAccounts.value = response.items
+  } catch (e) { report(e) }
+  finally { loadingCrm.value = false }
+}
+let crmTimer: ReturnType<typeof setTimeout> | undefined
+watch(crmSearch, () => {
+  clearTimeout(crmTimer)
+  crmTimer = setTimeout(() => { void loadCrmAccounts() }, 250)
+})
+async function openCreate() {
+  error.value = ''
+  try {
+    const context = await operationsApi.createContext()
+    if (context.companyId) opening.value.companyId = context.companyId
+    await loadCrmAccounts()
+    showCreate.value = true
+  } catch (e) { report(e) }
+}
 async function choose(id: string) { selectedId.value = id; await loadDetail() }
 async function loadDetail() {
   const caseId = selectedId.value
@@ -111,9 +155,7 @@ async function createOpening() {
   if (busy.value || !canCreate.value || !validOpening.value) return
   busy.value = true; error.value = ''; message.value = ''
   try {
-    const created = await operationsApi.createAperture({
-      ...opening.value, executiveUserId: blankUser,
-    })
+    const created = await operationsApi.createAperture(opening.value)
     message.value = t('operations.validation.createdMessage', { idtra: created.idtra })
     showCreate.value = false
     page.value = 1
@@ -161,7 +203,7 @@ onMounted(load)
           <DhButton :label="t('operations.teams')" :icon="UsersRound" variant="secondary" />
         </RouterLink>
         <DhButton :label="t('operations.refresh')" :icon="RefreshCw" variant="secondary" :loading="loading" @click="load" />
-        <DhButton v-if="canCreate" :label="t('operations.validation.new')" :icon="Plus" @click="showCreate = true" />
+        <DhButton v-if="canCreate" :label="t('operations.validation.new')" :icon="Plus" @click="openCreate" />
       </template>
     </DhPageHeader>
 
@@ -176,12 +218,15 @@ onMounted(load)
     </div>
 
     <DhCard :icon="ClipboardList" :title="t('operations.validation.queue')" :subtitle="t('operations.validation.queueHintDetail')">
-      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_240px]">
-        <DhSearchInput v-model="search" :placeholder="t('operations.validation.search')" />
+      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_240px]">
+        <DhSearchInput v-model="search" placeholder="Buscar IDTRA" />
+        <DhSelect v-model="typeFilter" :options="typeOptions" placeholder="" />
         <DhSelect v-model="statusFilter" :options="statusOptions" placeholder="" />
       </div>
       <DhDataTable :columns="columns" :rows="filteredRows" :loading="loading" :empty-text="t('operations.validation.noCases')" @row-click="choose($event.id)">
         <template #cell-idtra="{ row }"><strong class="text-[var(--dh-text)]">{{ row.idtra }}</strong></template>
+        <template #cell-apertureType="{ row }"><DhBadge :variant="row.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ row.apertureType === 'AUTOMATIC' ? 'Pricing' : 'Manual' }}</DhBadge></template>
+        <template #cell-sourceQuoteId="{ row }"><RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>Ver QUO</RouterLink><span v-else class="text-[var(--dh-text-muted)]">Sin QUO</span></template>
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
         <template #cell-status="{ row }"><DhBadge :variant="stateVariant(row.status)">{{ stateLabel(row.status) }}</DhBadge></template>
         <template #cell-validators="{ row }"><span class="font-bold">{{ approvalCount(row) }} / 2</span></template>
@@ -230,14 +275,18 @@ onMounted(load)
         <OperationsAuditTimeline :events="audit" :users="auditPeople" :empty-title="t('operations.validation.noAudit')" :empty-description="t('operations.validation.noAuditDescription')" />
       </DhCard>
     </div>
-    <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? t('operations.validation.new') : undefined" @action="showCreate = true" />
+    <DhEmptyState v-else-if="!loading" :icon="FolderOpen" :title="t('operations.validation.noSelection')" :description="t('operations.validation.noSelectionHint')" :action-label="canCreate ? t('operations.validation.new') : undefined" @action="openCreate" />
 
     <DhModal :open="showCreate && canCreate" :title="t('operations.validation.formTitle')" size="lg" @close="showCreate = false">
       <form class="space-y-5" @submit.prevent="createOpening">
         <p class="text-sm text-[var(--dh-text-muted)]">{{ t('operations.validation.formHint') }}</p>
         <div class="grid gap-4 sm:grid-cols-2">
           <DhInput v-model="opening.companyId" :label="t('operations.validation.company')" placeholder="UUID de empresa" :error="opening.companyId && !uuidPattern.test(opening.companyId.trim()) ? t('operations.validation.uuidError') : undefined" />
-          <DhInput v-model="opening.accountId" :label="t('operations.validation.account')" placeholder="UUID de cuenta" :error="opening.accountId && !uuidPattern.test(opening.accountId.trim()) ? t('operations.validation.uuidError') : undefined" />
+          <div class="space-y-2">
+            <DhSearchInput v-model="crmSearch" placeholder="Buscar cliente por nombre o cédula en CRM" />
+            <DhSelect v-model="opening.accountId" :label="t('operations.validation.account')" :options="crmOptions" :disabled="loadingCrm" placeholder="Seleccione un cliente" />
+            <p class="text-xs text-[var(--dh-text-muted)]">El ejecutivo responsable se consulta automáticamente desde CRM.</p>
+          </div>
           <DhInput v-model="opening.seriesCode" :label="t('operations.validation.series')" placeholder="00000" :error="opening.seriesCode && !/^[0-9]{5}$/.test(opening.seriesCode) ? t('operations.validation.seriesError') : undefined" />
           <DhSelect v-model="opening.modalityCode" :label="t('operations.validation.modality')" :options="modalityOptions" placeholder="" />
           <DhInput :model-value="opening.priority" :label="t('operations.validation.priority')" type="number" :min="1" :max="5" :step="1" @update:model-value="opening.priority = Number($event)" />
