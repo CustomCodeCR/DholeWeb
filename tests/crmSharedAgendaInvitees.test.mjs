@@ -27,3 +27,11 @@ test('Activity detail allows internal invitations without replacing external acc
   assert.match(collaboration, /v-model="selectedContactIds"/)
   assert.match(collaboration, /v-model="selectedInternalIds"/)
 })
+
+test('Followup calendar retains persisted guests omitted from the first Auth directory page', () => {
+  assert.match(calendar, /const detailInviteeChoices = computed/)
+  assert.match(calendar, /detailInviteeIds\.value\.filter\(id =>/)
+  assert.match(calendar, /:options="detailInviteeChoices"/)
+  assert.match(calendar, /detailInviteesReady\.value = true/)
+  assert.match(calendar, /CRM no confirmó todos los invitados/)
+})
