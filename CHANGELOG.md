@@ -6,6 +6,12 @@
 - La creación automática real desde QUO aceptada todavía necesita contrato de aceptación duradero, snapshot comercial y consumidor idempotente en Operations; no se declara terminada.
 - Web 1.104.3 → 1.105.0 y Operations 0.12.0 → 0.13.0; release global candidato 1.105.0. No integrar a master ni desplegar sin CI y staging.
 
+## [1.104.4] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-312 · aprobación desde el dashboard vendedor)
+
+- PATCH: Roy y José Pablo, este último vendedor sin rol Pricing o SuperUsuario, ven la bandeja de autorizaciones para tarifas vencidas desde Inicio y pueden aprobar o rechazar de manera segura.
+- Contador actualizado por SignalR y acceso directo desde la notificación en /home?expiredApprovals=1. Se reutiliza la validación de identidad de Auth ya implementada en la API.
+- DholeSystem/Web 1.104.3 → 1.104.4; Pricing 1.26.1 → 1.26.2.
+
 ## [1.104.3] - 2026-11-20 (DH-20261120-CRM-INVITEE-VISIBILITY-323 · participantes internos visibles)
 
 - PATCH: en la ficha de actividad se muestran los nombres reales de las invitadas internas recuperados de Auth y se distingue visualmente su condición de invitadas frente a contactos externos.
