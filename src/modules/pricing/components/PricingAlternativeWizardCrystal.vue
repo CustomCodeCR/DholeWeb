@@ -3507,7 +3507,15 @@ function rebuildRateLines() {
       normalizeCatalogValue(line.name) === normalizeCatalogValue(name),
     )
 
-  if (visible.has('international_freight')) {
+  // An Incoterm alone must not manufacture an unrequested freight line.
+  const freightRequested = incotermResponsibilitySections.value.includes('international_freight')
+    || number(form.freightCost) > 0 || number(form.freightSale) > 0
+    || Boolean(form.selectedImportRateId)
+    || selectedServices.value.some(service => {
+      const label = normalizeCatalogValue([service.code, displayValue(service), service.label].filter(Boolean).join(' '))
+      return label.includes('int transport') || label.includes('transporte internacional') || label.includes('international transport')
+    })
+  if (visible.has('international_freight') && freightRequested) {
     lines.push({
       key: 'freight',
       section: 'international_freight',
@@ -3574,7 +3582,9 @@ const addVariableSectionFallback = (
   const alreadyPresent = section === 'pickup_origin'
     ? lines.some((line) => line.section === section && line.costDetailType === 'InlandTransport')
     : lines.some((line) => line.section === section && line.costDetailType === 'OriginCharge')
-  if (!visible.has(section) || alreadyPresent) return
+  // Keep the block available but do not create a zero-priced line unless
+  // this party is normally responsible. Manual P7 charges remain permitted.
+  if (!incotermResponsibilitySections.value.includes(section) || alreadyPresent) return
   lines.push({
     key: `variable-section:${section}`,
     section,
@@ -7970,6 +7980,12 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+            Incoterm {{ selectedIncotermCode || 'sin seleccionar' }} · Seis bloques disponibles: recolecta, origen, flete, destino, entrega y seguro. Los cargos dependen de ruta, proveedor, servicios contratados y cliente, no solo del responsable comercial sugerido.
+          </p>
+          <p v-if="selectedIncotermCode === 'CIF' || selectedIncotermCode === 'CIP'" role="status" class="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-600">
+            {{ selectedIncotermCode }} exige documentar el seguro contratado por el vendedor. Si la póliza está incluida por un tercero, no agregue una segunda prima; adjunte su respaldo antes de emitir.
+          </p>
           <div v-if="customerPreferentialError" role="alert" class="crystal-soft flex flex-wrap items-center justify-between gap-3 border border-amber-600 p-4">
             <p class="text-sm font-bold text-amber-600">{{ customerPreferentialError }}</p>
             <DhButton type="button" variant="secondary" @click="retryCustomerPreferredRates">Reintentar tarifas CRM</DhButton>
