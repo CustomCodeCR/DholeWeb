@@ -19,7 +19,7 @@ test('Operations dashboard uses scoped API aggregates, DhSelect and a route to t
   assert.match(api, /\/api\/operations\/dashboard/)
   assert.match(view, /operationsApi\.dashboard\(selectedTeamId\.value \|\| undefined\)/)
   assert.match(view, /<DhSelect v-model="selectedTeamId"/)
-  assert.match(view, /to="\/operations\/apertures"/)
+  assert.match(view, /to="\/operations\/cases"/)
   assert.match(view, /const current = \+\+requestId/)
 })
 
