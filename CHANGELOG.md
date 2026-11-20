@@ -1,3 +1,9 @@
+## [1.106.19] - 2026-11-20 (DH-20261120-PRICING-INLAND-CONFLICTS-362 · contención de la regresión de cargos sin perder tarifas vencidas)
+
+- PATCH de recuperación sobre master 1.106.18: elimina el guardado y sincronización temprana de líneas del inland entre pantallas 6 y 7 que regresó la carga de cargos en producción.
+- Incorpora el comportamiento de contención desplegado en staging como Web 1.106.17, sin incorporar develop entero. Conserva el desbloqueo temporal de Incoterms y la política de autorizaciones para tarifas vencidas de 1.106.18.
+- DholeWeb y DholeSystem 1.106.18 → 1.106.19; PricingService mantiene 1.26.9, sin cambios de REST, SignalR ni base de datos. CI del backport y validación funcional en producción pendientes; no se declara resuelto el fallo original de autoload.
+
 ## [1.106.18] - 2026-11-20 (DH-20261120-PRICING-EXPIRED-MASTER-361 · tarifas vencidas solo requieren aprobación para Ventas)
 
 - PATCH: hotfix selectivo de política ya integrada en develop/staging como 354. Oculta “Solicitar autorización” a Pricing y Superadmin y permite abrir editor directo; vendedores siguen solicitud y flujo de jefatura.
