@@ -354,6 +354,8 @@ let customerPreferentialRequest = 0
 const pricingQuoteCountryOverrideId = ref('')
 // Explicit quote-level choice takes precedence over automatic client-country detection.
 const pricingQuoteOperationOverride = ref<RateOperationType | ''>('')
+// Only preserve edited P7 lines when the commercial cost context still matches.
+const lastIncotermRateLinesContextKey = ref('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -2149,7 +2151,11 @@ const incotermResponsibilitySections = computed<RateSection[]>(() => {
 const visibleSections = computed<RateSection[]>(() => {
   // ICC assigns default responsibility; an explicitly contracted international
   // transport service must remain quotable, including buyer-import CIF or DDP.
-  const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  // The Incoterm suggests who is commercially responsible, NOT which Dhole
+  // services the customer may contract. Keep all five priced sections usable;
+  // insurance is displayed as its own sixth block in P7.
+  const allowed = new Set<RateSection>(sectionOrder)
+  incotermResponsibilitySections.value.forEach((section) => allowed.add(section))
   const internationalTransportQuoted = selectedServices.value.some((service) => {
     const code = String(service.code ?? '').trim().toUpperCase()
     const label = normalizeCatalogValue([displayValue(service), service.label].filter(Boolean).join(' '))
@@ -2276,7 +2282,7 @@ const orderedRateGroups = computed(() => [
   { key: 'destination', label: 'Cargos en destino', lines: standardSectionLines('destination_charges') },
   { key: 'insurance', label: 'Seguro de carga', lines: insuranceLines.value },
   { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
-].filter((group) => group.lines.length > 0))
+].filter((group) => group.key !== 'agent' || group.lines.length > 0))
 
 const providerAgentCosts = computed(() => {
   const seen = new Set<string>()
@@ -3483,7 +3489,10 @@ async function loadApplicableCosts(): Promise<boolean> {
 }
 
 function rebuildRateLines() {
-  const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
+  const currentContext = activeCostContextKey()
+  const previousOptionLines = !props.rateId
+    && lastIncotermRateLinesContextKey.value === currentContext
+    && (!multiCarrierSelectionMode.value || step.value >= 7)
     ? copyPoeLines(rateLines.value) : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
@@ -3751,6 +3760,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   }
   lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
+  lastIncotermRateLinesContextKey.value = currentContext
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {
@@ -5180,7 +5190,10 @@ async function next() {
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
-    await loadApplicableCosts()
+    // A failed or stale response must never advance P6 -> P7 using costs
+    // belonging to a different POE, carrier, agent or customer.
+    const costsReady = await loadApplicableCosts()
+    if (!costsReady) return
     rebuildRateLines()
   }
   if (step.value < 8) step.value += 1
@@ -6574,19 +6587,11 @@ watch(
 
 watch(
   () => selectedIncotermCode.value,
-  (code) => {
+  () => {
+    // Incoterm changes must not silently erase an EXW pickup or FCA warehouse.
+    // The payload already sends them only for their applicable term; retaining
+    // the draft lets users switch back without re-entering locations.
     nearestPortRecommendations.value = []
-    if (code !== 'FCA') form.warehouseId = ''
-    if (code !== 'EXW') {
-      pickupLocations.value = []
-      pickupCargoCondition.value = ''
-      editingPickupIndex.value = null
-    }
-    if (code !== 'EXW' && code !== 'FCA') {
-      form.pickupAddress = ''
-      form.pickupLatitude = null
-      form.pickupLongitude = null
-    }
   },
 )
 
@@ -8081,6 +8086,9 @@ onMounted(async () => {
 
           <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
+            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              No hay líneas para este bloque en la ruta seleccionada. Puede agregar un rubro manual o documentar un servicio cubierto por un tercero; no se genera un costo ficticio.
+            </p>
             <div class="crystal-group-header">
               <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
               <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
