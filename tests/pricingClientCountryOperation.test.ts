@@ -56,6 +56,18 @@ test('the wizard lets users supply a missing CRM country before validating step 
   assert.match(wizard, /step\.value = 3\s+toastStore\.warning\('País necesario para guardar'/)
 })
 
+test('CRM country picker renders from the reactive catalog without an optional setup binding', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const diagnostic = readFileSync(new URL('../scripts/diagnose-pricing-bundle.mjs', import.meta.url), 'utf8')
+  // Vite's pricing transforms may remove source-only computed bindings, while Vue
+  // still compiles template access as $setup.*. A missing binding previously
+  // crashed the entire wizard on creation/restore.
+  assert.doesNotMatch(wizard, /pricingQuoteCountryOptions/)
+  assert.equal((wizard.match(/:options="catalogs\\.countries\\.filter\\(country =>/g) ?? []).length, 2)
+  assert.match(wizard, /!catalogs\\.countries\\.some\\(country =>/)
+  assert.match(diagnostic, /'pricingQuoteCountryOptions'/)
+})
+
 test('wizard and freight guard share the CRM-derived operation', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const plugin = readFileSync(new URL('../build/pricingCustomsOnlyWizard.ts', import.meta.url), 'utf8')
