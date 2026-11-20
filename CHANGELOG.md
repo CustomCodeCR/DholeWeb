@@ -1,3 +1,9 @@
+## [1.103.12] - 2026-11-19 (DH-20261119-PRICING-EXPIRY-1D-SYSTEM-291 · recordatorio interno 1 día antes del vencimiento)
+
+- PATCH de versión coordinada DholeWeb/DholeSystem 1.103.11→1.103.12 y Pricing 1.25.2→1.25.3. Sin cambios visuales ni de rutas; el centro de notificaciones existente recibe eventos System desde Pricing a través de Redis Streams y SignalR.
+- Recordatorio al vendedor asignado a las 09:00 (Costa Rica) del día anterior a ValidTo; correo preexistente conservado, mensaje interno idempotente. Migración compatible para marcador 1d-system.
+- CI, staging y pruebas obligatorias antes de master. Producción no autorizada.
+
 ## [1.103.11] - 2026-11-19 (DH-20261119-CRM-INVITATIONS-SAVE-290 · CRM: guardado de invitados)
 
 - PATCH: versión coordinada con DholeSystem 1.103.11 y DholeCRMService 1.42.2; conserva los selectores de invitados y payload participantUserIds de la agenda.
