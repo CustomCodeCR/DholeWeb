@@ -30,11 +30,12 @@ test('both service locations require a written address without map coordinates',
   assert.match(picker, /ubicar el punto en el mapa es opcional/)
 })
 
-test('EXW requires adding the pickup but allows null geographic coordinates', () => {
+test('master temporary Incoterm unblock leaves EXW pickup optional; saved pickup accepts null geographic coordinates', () => {
   const savePickup = wizard.match(/function savePickupLocation\(\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
   assert.match(savePickup, /if \(!address\)/)
   assert.doesNotMatch(savePickup, /!pickupCoordinates/)
-  assert.match(wizard, /!pickupLocations\.value\.length \|\| form\.pickupAddress\.trim\(\)/)
+  // Existing master release deliberately unblocks EXW/FCA while responsibility rules are revised.
+  assert.match(wizard, /const exwLocationReady = computed\(\(\) => true\)/)
   assert.match(wizard, /:disabled="!form\.pickupAddress\.trim\(\) \|\| \(sellerRequestMode && !pickupCargoCondition\)"/)
   assert.match(wizard, /latitude: form\.pickupLatitude/)
   assert.match(wizard, /longitude: form\.pickupLongitude/)
