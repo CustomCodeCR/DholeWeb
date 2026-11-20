@@ -1,0 +1,23 @@
+{
+  "releaseId": "DH-20261120-PRICING-EXPIRED-MASTER-361",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.106.18",
+  "component": "DholeWeb",
+  "versionBefore": "1.106.16",
+  "versionAfter": "1.106.18",
+  "changeType": "PATCH",
+  "sourceRelease": "DH-20261120-EXPIRED-ROLE-354",
+  "changes": [
+    "Hide expired-rate approval CTA for Pricing and Superadmin",
+    "Only sellers check expired rate approval before opening editor",
+    "Preserve later master Pricing and Incoterm changes"
+  ],
+  "branches": [
+    "develop",
+    "master"
+  ],
+  "productionDeploymentAuthorized": true,
+  "ci": "pending",
+  "staging": "source release 354 deploy successful",
+  "rollback": "Revert coordinated release master PRs; no schema migration."
+}

@@ -1,3 +1,9 @@
+## [1.106.18] - 2026-11-20 (DH-20261120-PRICING-EXPIRED-MASTER-361 · tarifas vencidas solo requieren aprobación para Ventas)
+
+- PATCH: hotfix selectivo de política ya integrada en develop/staging como 354. Oculta “Solicitar autorización” a Pricing y Superadmin y permite abrir editor directo; vendedores siguen solicitud y flujo de jefatura.
+- Mantiene el resto de master incluido desbloqueo temporal de Incoterms e inland reciente. Web/System 1.106.16 → 1.106.18, Pricing 1.26.8 → 1.26.9, para no disminuir versión respecto de develop 1.106.17.
+- Backend validará permisos con alcance de JWT y rol, tests de regresión y CI antes de producción. REST/SignalR, notificaciones y auditoría sin cambios de contrato.
+
 ## [1.106.16] - 2026-11-20 (DH-20261120-PRICING-INLAND-QA-358 · pruebas del inland 6→7)
 
 - PATCH: ajusta la prueba automatizada de paridad Merchant/Carrier para que simule el guardado del borrador ahora obligatorio al elegir inland en Pantalla 6. Sin cambio adicional al contrato REST/SignalR ni a los precios aplicados.
