@@ -4641,9 +4641,9 @@ async function hydrateExistingRate() {
       PricingService.getRateRevisions(props.rateId).catch(() => [] as RateRevisionDto[]),
     ])
     editingRate.value = rate
+    rateRevisions.value = revisions
     // Preserve the persisted commercial perspective when reopening a quotation.
     pricingQuoteOperationOverride.value = rate.operationType || ''
-    rateRevisions.value = revisions
     const groupedQuote = await PricingService.getRateGroup(rate.id)
     // Redirect old parent and discarded sub-QUO links to the definitive quote.
     if (groupedQuote?.selectedRateId && groupedQuote.selectedRateId !== rate.id) {
