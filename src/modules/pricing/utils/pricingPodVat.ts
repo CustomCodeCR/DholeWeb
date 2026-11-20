@@ -79,6 +79,10 @@ export function resolvePodCountryCode(
     if (name.length >= 4 && surroundedDescription.includes(` ${name} `)) return countryCatalogCode(country)
   }
 
+  // Some legacy Config ports have location labels but no ISO metadata, and
+  // the countries catalogue can be incomplete. Use only an explicit country
+  // token in the port label; never guess from the port/city name alone.
+  if (surroundedDescription.includes(' vietnam ') || surroundedDescription.includes(' viet nam ')) return 'VN'
   if (surroundedDescription.includes(' costa rica ') || surroundedDescription.includes(' costarica ')) return 'CR'
   if (surroundedDescription.includes(' panama ')) return 'PA'
   if (surroundedDescription.includes(' guatemala ')) return 'GT'
