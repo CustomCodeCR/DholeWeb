@@ -3108,17 +3108,19 @@ function resolvedConditionalCost(cost: CostSelectDto) {
       : consolidatedCargoMode.value && number(form.cargoPallets) > 0
         ? Math.trunc(number(form.cargoPallets)) : null,
     containerTypeId: selectedEquipment.value?.id ?? null,
+    containerQuantity: Math.max(1, number(form.equipmentQuantity)),
+    teuQuantity: Math.max(1, number(form.equipmentQuantity)) *
+      (/20/.test(String(selectedEquipment.value?.code ?? '')) ? 1 : 2),
   }
   const base = resolveCostPricing(cost, cargo)
   if (!base || props.rateId || customerPreferentialAccountId.value !== form.clientId) return base
-  const matchedServices = (cost.services ?? [])
-    .filter(service => form.serviceIds.includes(service.id))
-    .map(service => String(service.code ?? '').trim()).filter(Boolean)
-  const services = matchedServices.length ? matchedServices : (cost.services?.length ? [] :
-    selectedServices.value.map(service => String(service.code ?? '').trim()).filter(Boolean))
+  // CRM's service qualifiers describe the quotation, not only the supplier's
+  // Cost.services (a document surcharge may have no overlap with selected services).
+  const quoteServices = selectedServices.value.map(service => String(service.code ?? '').trim()).filter(Boolean)
   return customerPreferentialAmounts({
     ...cost, chargeBasis: cost.chargeBasis ?? defaultChargeBasis(cost.costDetailType),
-  }, base, customerPreferentialRates.value, currentPreferentialContext(services), cargo)
+  }, base, customerPreferentialRates.value,
+  currentPreferentialContext(quoteServices), cargo, costs.value)
 }
 
 function applicableCost(cost: CostSelectDto) {
