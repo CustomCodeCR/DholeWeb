@@ -1,3 +1,9 @@
+## [1.106.8] - 2026-11-20 (DH-20261120-INCOTERM-SAVE-351 · Guardado de importaciones FOB y flete contratado)
+
+- PATCH: El transformador de Vite deja de utilizar la referencia eliminada `freightNotRequiredByIncoterm`, que producía un ReferenceError y bloqueaba el guardado de tarifas antes de enviar el PUT a Pricing.
+- El servicio Transporte Internacional seleccionado, y no el Incoterm por sí solo, controla la inclusión del flete en ediciones de importación y exportación; se conservan los cargos contratados de FOB China → Costa Rica y se quita flete histórico solo cuando no se selecciona ese servicio.
+- Pruebas de regresión de conciliación de RateDetails y protección contra referencias obsoletas. Versión global Web/System 1.106.7 → 1.106.8; Pricing 1.26.4 permanece sin modificaciones. Sin cambios REST/SignalR.
+
 ## [1.106.7] - 2026-11-20 (DH-20261120-INCOTERM-IMPORT-350 · Incoterms de importación según cliente y país real)
 
 - PATCH: Importación China → Costa Rica se calcula con país del cliente CRM y país real de POL/POD, incluyendo puertos China con código Config opaco o UN/LOCODE, sin convertir al importador en exportador.

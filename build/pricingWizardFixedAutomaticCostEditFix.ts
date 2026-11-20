@@ -147,13 +147,14 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
         includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) })),
         editingRate.value!.rateDetails,
       )
-      // Reconcile the actual PUT details with inferred removals. In CIF an old
-      // Freight Id cannot also update Release, HBL, Manejos or other charges.
+      // Reconcile the actual PUT details with inferred removals. Exclude
+      // freight only when International Transport is not selected, never
+      // merely because an import or export uses a particular Incoterm.
       const { extraDetails, removedExtraDetailIds } = reconcileRateUpdateDetailChanges(
         proposedExtraDetails,
         proposedRemovedExtraDetailIds,
         editingRate.value!.rateDetails,
-        freightNotRequiredByIncoterm.value,
+        !hasInternationalTransportService.value,
         true, // final update snapshot, not transient includedLines,
       )`
       code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
