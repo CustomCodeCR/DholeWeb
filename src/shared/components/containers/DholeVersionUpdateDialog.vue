@@ -72,6 +72,7 @@ onMounted(() => {
   window.addEventListener('online', checkWhenVisible)
   // Reconcile after SignalR reconnect; periodic REST polling remains the offline fallback.
   window.addEventListener('dhole:notification:realtime-connected', checkWhenVisible)
+  window.addEventListener('dhole:version-update-policy:changed', checkWhenVisible)
 })
 
 onBeforeUnmount(() => {
@@ -81,6 +82,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', checkWhenVisible)
   window.removeEventListener('online', checkWhenVisible)
   window.removeEventListener('dhole:notification:realtime-connected', checkWhenVisible)
+  window.removeEventListener('dhole:version-update-policy:changed', checkWhenVisible)
 })
 </script>
 
