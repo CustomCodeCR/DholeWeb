@@ -139,13 +139,22 @@ export function resolveExplicitCountryText(value: unknown, countries: CatalogIte
     if (matches) return matches.size === 1 ? [...matches][0]! : ''
   }
 
-  // Some old labels have no delimiter ("Puerto Guatemala"). Never infer from
-  // a city alone. Choose only an unambiguous *longest* full-word country name.
-  const text = ` ${normalizeCountryText(original)} `
+  // A city name alone is not sufficient evidence of country. A country
+  // phrase without a comma must be explicit (e.g. "Costa Rica") or appear
+  // after a descriptive terminal qualifier ("Puerto Guatemala").
+  const normalizedFullText = normalizeCountryText(original)
+  const hasTerminalQualifier = /^(?:puerto|terminal|aeropuerto|zona franca|free zone)\s/.test(normalizedFullText)
+  const text = ` ${normalizedFullText} `
   let longest = 0
   const matches = new Set<string>()
   for (const [name, codes] of names.entries()) {
     if (name.length < 4 || !text.includes(` ${name} `)) continue
+    if (!original.includes(',') && !original.includes(';') && !original.includes('|')
+      && !hasTerminalQualifier && !normalizedFullText.endsWith(` ${name}`)) continue
+    // A one-word region alias (e.g. 'Salvador') inside a city ('San Salvador')
+    // is not proof of country. Only compound names may use the trailing rule.
+    if (!hasTerminalQualifier && !original.includes(',') && !original.includes(';')
+      && !original.includes('|') && name.split(' ').length < 2) continue
     if (name.length > longest) { longest = name.length; matches.clear() }
     if (name.length === longest) for (const code of codes) matches.add(code)
   }
@@ -209,14 +218,18 @@ export function resolveLocationCountryCode(
     if (named) return named
   }
 
-  const description = [location.value, location.label, location.slug].filter(Boolean).join(', ')
-  const labelCode = resolveExplicitCountryText(description, countries)
+  const explicitLabelCountries = [location.value, location.label, location.slug]
+    .map((value) => resolveExplicitCountryText(value, countries))
+    .filter(Boolean)
+  const uniqueLabelCountries = new Set(explicitLabelCountries)
+  const labelCode = uniqueLabelCountries.size === 1 ? [...uniqueLabelCountries][0]! : ''
 
   // Country prefix is valid for a genuine five-character UN/LOCODE, never a
   // fabricated identifier such as POL-2026-003. Prefer explicit country labels.
   const portCode = String(location.code ?? '').trim().toUpperCase()
   const unlocode = /^[A-Z]{2}[A-Z0-9]{3}$/.test(portCode)
     ? normalizeIsoCountryCode(portCode.slice(0, 2)) : ''
+  if (uniqueLabelCountries.size > 1) return '' // conflicting explicit labels need correction
   if (labelCode && unlocode && labelCode !== unlocode) return '' // conflicting data needs correction
   return labelCode || unlocode
 }
