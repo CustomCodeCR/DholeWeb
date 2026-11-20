@@ -53,7 +53,8 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { PricingService } from '@/core/services/pricingService'
 import { crmPath as customerBenefitCrmPath, crmRequest as customerBenefitCrmRequest } from '@/modules/crm/services/crmApi'
 import { customerPreferentialAmounts, customerManualPreferentialRates,
-  type CustomerPreferentialRate } from '@/modules/pricing/utils/pricingPreferentialBenefits'
+  customerPreferentialScopeIssues, type CustomerPreferentialRate
+} from '@/modules/pricing/utils/pricingPreferentialBenefits'
 import { uniqueDisplayRates, uniqueVisibleFclBundles } from '@/modules/pricing/utils/pricingRateDisplayDedup'
 import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/services/pricingService'
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
@@ -3392,6 +3393,11 @@ async function loadCustomerPreferentialRates(): Promise<void> {
 async function retryCustomerPreferredRates() {
   if (await loadApplicableCosts()) rebuildRateLines()
 }
+
+const customerPreferentialDiagnostics = computed(() => customerPreferentialRates.value.map(rate => ({
+  id: rate.id, name: rate.customChargeName || rate.chargeCode,
+  issues: customerPreferentialScopeIssues(rate, currentPreferentialContext()),
+})))
 
 function currentPreferentialContext(serviceCodes = selectedServices.value.map(item => String(item.code ?? ''))) {
   const mode = String(shipmentModeForApi.value).toUpperCase()
@@ -7865,8 +7871,18 @@ onMounted(async () => {
               Se aplicaron {{ customerPreferentialAppliedCount }} cargos preferenciales a esta alternativa.
             </span>
             <span v-else class="text-amber-600">
-              Ningún acuerdo coincide con estos cargos. Revise rubro, servicio, equipo, ruta, naviera, Incoterm, moneda, unidad y vigencia en CRM.
+              Ningún precio preferencial aplicado. Consulte el detalle para identificar las condiciones distintas o los cargos no encontrados.
             </span>
+            <details v-if="customerPreferentialAppliedCount === 0" class="mt-3 border-t border-[var(--dh-border)] pt-2" data-crm-preferential-diagnostics>
+              <summary class="cursor-pointer text-xs font-bold">Por qué no se aplicaron los {{ customerPreferentialRates.length }} acuerdos</summary>
+              <ul class="mt-2 space-y-1 text-xs font-normal">
+                <li v-for="item in customerPreferentialDiagnostics" :key="item.id" class="flex flex-wrap gap-2">
+                  <strong>{{ item.name }}:</strong>
+                  <span v-if="item.issues.length" class="text-amber-600">No coincide: {{ item.issues.join(', ') }}</span>
+                  <span v-else class="text-amber-600">La ruta y los servicios coinciden; falta asociar el cargo, validar moneda/unidad o revisar el tramo de Pricing.</span>
+                </li>
+              </ul>
+            </details>
           </div>
           <div v-if="multiCarrierSelectionMode" class="crystal-soft flex flex-wrap items-center gap-3 p-4" aria-label="Transporte seleccionado en Proveedor">
             <div class="min-w-0 flex-1">
