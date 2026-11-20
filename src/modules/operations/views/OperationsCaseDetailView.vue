@@ -19,6 +19,7 @@ import {
 } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
+import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -40,6 +41,7 @@ const actors = ref<OperationsUser[]>([])
 const accountName = ref('')
 const selectedTab = ref<OperationsTabCode>('RESUMEN')
 const editing = ref(false)
+const serverChangedWhileEditing = ref(false)
 const edit = ref<OperationsOpeningEdit>({
   expectedVersion: 0, modalityCode: 'FCL', priority: 1,
   complexityPoints: 1, originCountryCode: null, destinationCountryCode: null,
@@ -103,6 +105,7 @@ async function load() {
   error.value = ''
   message.value = ''
   editing.value = false
+  serverChangedWhileEditing.value = false
   try {
     const [detail, work, tabResponse] = await Promise.all([
       operationsApi.caseDetail(caseId.value),
@@ -151,6 +154,7 @@ async function load() {
 }
 async function saveEdit() {
   if (!record.value || !canEditSummary.value || !validEdit.value || saving.value) return
+  if (serverChangedWhileEditing.value) { error.value = 'Primero recargue los cambios realizados por otro usuario.'; return }
   saving.value = true
   error.value = ''
   message.value = ''
@@ -179,6 +183,13 @@ async function addNote() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la nota.'
   } finally { postingNote.value = false }
 }
+useOperationsCaseRealtime(caseId, () => {
+  if (editing.value || saving.value) {
+    serverChangedWhileEditing.value = true
+    return
+  }
+  void load()
+})
 watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate: true })
 </script>
 
@@ -197,6 +208,10 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
       </template>
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
+    <div v-if="serverChangedWhileEditing" role="alert" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-400">
+      Otro usuario modificó el trámite. Actualice para revisar la nueva versión antes de guardar.
+      <DhButton size="sm" variant="secondary" label="Recargar" @click="serverChangedWhileEditing = false; load()" />
+    </div>
     <div v-if="message" role="status" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">{{ message }}</div>
     <div v-if="loading" class="rounded-2xl bg-[var(--dh-input)] p-8 text-center text-[var(--dh-text-muted)]">Cargando expediente operativo…</div>
 
