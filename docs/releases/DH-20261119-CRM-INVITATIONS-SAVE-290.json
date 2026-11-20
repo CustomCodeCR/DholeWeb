@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-CRM-INVITATIONS-SAVE-290",
+  "kind": "patch",
+  "ecosystemVersion": "1.103.11",
+  "summary": "Coordinate CRM invitee save fix",
+  "previousVersion": "1.103.8",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.103.8",
+      "version": "1.103.11"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.103.8",
+      "version": "1.103.11"
+    },
+    {
+      "repository": "CustomCodeCR/DholeCRMService",
+      "previousVersion": "1.42.1",
+      "version": "1.42.2"
+    }
+  ],
+  "branch": "fix/DH-20261119-CRM-INVITEES-SAVE-290",
+  "checks": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false
+}
