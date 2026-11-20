@@ -47,18 +47,22 @@ function fixture() {
     context: 'FCL|BALBOA|COLON_FREE_ZONE|MAERSK',
     queried: 0,
     syncCount: 0,
+    contextualResult: true,
     costs: { value: [] as typeof merchant[] },
     step: { value: 6 },
     form: { merchantHaulage: false, carrierHaulage: false },
     dholeHaulageVisible: { value: true },
     dholeHaulagePending: { value: false },
     dholeHaulageLoadedContext: { value: '' },
+    dholeHaulageScreen7OptionCosts: { value: [] as typeof merchant[] },
+    dholeHaulageScreen7OptionContext: { value: '' },
     dholeHaulageRequestVersion: 0,
     props: { viewOnly: false },
     toastStore: { backendError: (error: unknown) => { throw error } },
     selected: [merchant],
     currentCostContextKey: () => state.context,
-    loadApplicableCosts: async () => { state.queried++; state.costs.value = []; return true },
+    loadApplicableCosts: async () => { state.queried++; state.costs.value = []; return state.contextualResult },
+    finalOptionalMatchesCurrentContext: (cost: { id: string }) => cost.id === merchant.id,
     loadAllApplicableOptionalCosts: async () => state.selected,
     syncHaulageOptionalLines: () => { state.syncCount++ },
     get dholeMerchantAvailable() {
@@ -79,6 +83,9 @@ function fixture() {
     dholeHaulageVisible: state.dholeHaulageVisible,
     dholeHaulagePending: state.dholeHaulagePending,
     dholeHaulageLoadedContext: state.dholeHaulageLoadedContext,
+    dholeHaulageScreen7OptionCosts: state.dholeHaulageScreen7OptionCosts,
+    dholeHaulageScreen7OptionContext: state.dholeHaulageScreen7OptionContext,
+    finalOptionalMatchesCurrentContext: state.finalOptionalMatchesCurrentContext,
     props: state.props,
     currentCostContextKey: state.currentCostContextKey,
     loadApplicableCosts: state.loadApplicableCosts,
@@ -132,5 +139,48 @@ test('A stale request serial must never overwrite the latest quotation context',
 test('Regression: Screen 6 no longer calculates empty Merchant before Optional fetch', () => {
   assert.match(source, /await dholeMergeScreen7OptionalCostsForComparison\(requestedContext, requestVersion\)/)
   assert.match(source, /await loadAllApplicableOptionalCosts\(\)/)
-  assert.match(source, /\!loaded\s*\|\| requestVersion !== dholeHaulageRequestVersion/)
+  assert.doesNotMatch(source, /\!loaded\s*\|\| requestVersion !== dholeHaulageRequestVersion/)
+  assert.match(source, /dholeHaulageScreen7OptionCosts\.value = scopedOptionalCosts/)
+  assert.match(source, /finalOptionalMatchesCurrentContext\(cost\)/)
+})
+
+test('Optional transport survives a failure in the contextual price query', async () => {
+  const { state, callback } = fixture()
+  state.contextualResult = false
+  await callback()
+  assert.equal(state.form.merchantHaulage, true)
+  assert.equal(state.dholeHaulageScreen7OptionCosts.value.length, 1)
+})
+
+test('Screen 6 comparison includes valid Screen 7 Merchant options even if applicableConfiguredCosts excludes them', () => {
+  const block = between(
+    'const dholeHaulageContextCosts = computed(() => {',
+    '\n\n// The imported Maersk/MSC',
+  )
+  const { merchant, state } = fixture()
+  const environment = {
+    currentCostContextKey: () => state.context,
+    applicableConfiguredCosts: () => [], // Pricing-band filtering removed the option.
+    costs: { value: [] },
+    dholeHaulageScreen7OptionCosts: { value: [merchant] },
+    dholeHaulageScreen7OptionContext: { value: state.context },
+    costResolvedByBackendContext: () => false,
+    finalOptionalMatchesCurrentContext: () => true,
+    computed: (fn: () => unknown) => ({ get value() { return fn() } }),
+  }
+  const result = runSource(block, environment, 'dholeHaulageContextCosts')
+  assert.equal(result.value.length, 1)
+  assert.equal(result.value[0].id, merchant.id)
+  state.context = 'FCL|RODMAN|SAN_JOSE|MSC'
+  assert.equal(result.value.length, 0)
+})
+
+test('Optional Merchant lookup is never re-filtered by generic price-band applicability', () => {
+  const block = between(
+    'const dholeHaulageContextCosts = computed(() => {',
+    '\n\n// The imported Maersk/MSC',
+  )
+  assert.doesNotMatch(block, /applicableConfiguredCosts\(\)\.filter\(\(cost\) =>\s*cost\.isActive/)
+  assert.match(block, /cost\.costType !== 'Optional'/)
+  assert.match(block, /dholeHaulageScreen7OptionContext\.value === contextKey/)
 })
