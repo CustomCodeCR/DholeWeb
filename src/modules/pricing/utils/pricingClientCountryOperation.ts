@@ -12,14 +12,18 @@ export function resolveCrmCountryCode(
   if (/^[A-Z]{2}$/.test(countryId.trim().toUpperCase())) return countryId.trim().toUpperCase()
   const country = countries.find(item => item.id.toLowerCase() === countryId.trim().toLowerCase())
   if (!country) return ''
-  let code = String(country.code ?? '').trim().toUpperCase()
-  if (!/^[A-Z]{2}$/.test(code) && country.metadataJson) {
+  const code = String(country.code ?? '').trim().toUpperCase()
+  if (/^[A-Z]{2}$/.test(code)) return code
+  if (country.metadataJson) {
     try {
-      const metadata = JSON.parse(country.metadataJson) as { countryCode?: string; iso2?: string }
-      code = String(metadata.countryCode ?? metadata.iso2 ?? '').trim().toUpperCase()
+      const metadata = JSON.parse(country.metadataJson) as Record<string, unknown>
+      for (const candidate of [metadata.countryCode, metadata.iso2, metadata.countryIso2, metadata.alpha2, metadata.isoCode]) {
+        const iso = String(candidate ?? '').trim().toUpperCase()
+        if (/^[A-Z]{2}$/.test(iso)) return iso
+      }
     } catch { return '' }
   }
-  return /^[A-Z]{2}$/.test(code) ? code : ''
+  return ''
 }
 
 /**
