@@ -63,7 +63,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
-import { incotermClientSections, incotermOperationExplanation } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -1485,12 +1485,10 @@ const multimodalAllInPresentation = computed(() => shouldUseFclPanamaCostaRicaAl
 const selectedPod = computed(() => findById(catalogs.pod, form.podId))
 const selectedEquipment = computed(() => findById(equipmentSource.value, form.equipmentId))
 const selectedIncoterm = computed(() => findById(catalogs.incoterms, form.incotermId))
-const selectedIncotermCode = computed(() => {
-  const raw = normalizeCatalogValue(`${selectedIncoterm.value?.code ?? ''} ${displayValue(selectedIncoterm.value)}`)
-  if (/(^|\s)exw(\s|$)/.test(raw)) return 'EXW'
-  if (/(^|\s)fca(\s|$)/.test(raw)) return 'FCA'
-  return String(selectedIncoterm.value?.code ?? displayValue(selectedIncoterm.value)).trim().toUpperCase()
-})
+const selectedIncotermCode = computed(() => normalizeIncotermCode(
+  selectedIncoterm.value?.code,
+  [displayValue(selectedIncoterm.value), selectedIncoterm.value?.label].filter(Boolean).join(' '),
+))
 const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
 
 function normalizedWarehouseContactModes(contact: WarehouseContactDirectoryEntry) {
@@ -2130,16 +2128,22 @@ function enforceLineCurrency(_line: RateLine) {
 
 const incotermResponsibilitySections = computed<RateSection[]>(() => {
   const configured = (metadata(selectedIncoterm.value)?.rateSections ?? ['international_freight']) as RateSection[]
-  // Config's `code` can be an opaque catalog identifier. Use the normalized
-  // EXW/FCA/FOB term resolved from its display value instead.
+  // Normalize all 11 ICC Incoterms, not only EXW/FCA: Config can use opaque IDs.
   return incotermClientSections(operationType.value, selectedIncotermCode.value, configured) as RateSection[]
 })
 
 const visibleSections = computed<RateSection[]>(() => {
-  // El Incoterm es el límite de responsabilidad. Servicios y costos pueden aportar
-  // líneas dentro de ese límite, pero nunca volver a mostrar una etapa que el
-  // Incoterm quitó para el comprador.
+  // ICC assigns default responsibility; an explicitly contracted international
+  // transport service must remain quotable, including buyer-import CIF or DDP.
   const allowed = new Set<RateSection>(incotermResponsibilitySections.value)
+  const internationalTransportQuoted = selectedServices.value.some((service) => {
+    const code = String(service.code ?? '').trim().toUpperCase()
+    const label = normalizeCatalogValue([displayValue(service), service.label].filter(Boolean).join(' '))
+    return code === 'INT_TRANSPORT'
+      || label.includes('transporte internacional')
+      || label.includes('international transport')
+  })
+  if (internationalTransportQuoted) allowed.add('international_freight')
   return sectionOrder.filter((section) => allowed.has(section))
 })
 

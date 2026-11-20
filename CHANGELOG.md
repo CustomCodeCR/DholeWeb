@@ -1,3 +1,9 @@
+## [1.106.7] - 2026-11-20 (DH-20261120-INCOTERM-IMPORT-350 · Incoterms de importación según cliente y país real)
+
+- PATCH: Importación China → Costa Rica se calcula con país del cliente CRM y país real de POL/POD, incluyendo puertos China con código Config opaco o UN/LOCODE, sin convertir al importador en exportador.
+- Normalización de los 11 Incoterms ICC desde código o etiqueta de Config; la importación aplica responsabilidades del comprador y la exportación las del vendedor. El flete internacional expresamente contratado sigue siendo cotizable aunque CIF/DDP lo asigne originalmente a otra parte.
+- Alineación de asistentes de creación/edición, pruebas de regresión de importación y exportación; versiones Web/System 1.106.6 → 1.106.7 y Pricing 1.26.3 → 1.26.4. Sin migración ni cambio REST/SignalR; CI/staging pendientes y producción no autorizada.
+
 ## [1.106.6] - 2026-11-20 (DH-20261120-MERCHANT-OPTIONS-348 · Merchant en Pantalla 6 sin filtro duplicado)
 
 - PATCH: Pantalla 6 mantiene los CostIds Optional validados por la misma consulta y reglas de ruta que Pantalla 7, sin repetirles el filtro `applicableConfiguredCosts()` de precios por tramo. Corrige el Inland de Balboa a Colon Free Zone (Merchant) visible en Pantalla 7 pero excluido de la comparación.

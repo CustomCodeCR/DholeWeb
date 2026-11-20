@@ -55,10 +55,10 @@ export function resolvePodCountryCode(
   const podMetadata = itemMetadata(pod)
   const countryId = String(podMetadata.countryId ?? '').trim()
   const countryById = countryId ? countries.find((country) => country.id === countryId) : null
-  if (countryById) return countryCatalogCode(countryById)
+  if (countryById && /^[A-Z]{2}$/.test(countryCatalogCode(countryById))) return countryCatalogCode(countryById)
 
   const explicitCode = String(podMetadata.countryCode ?? '').trim().toUpperCase()
-  if (explicitCode) return explicitCode
+  if (/^[A-Z]{2}$/.test(explicitCode)) return explicitCode
 
   const alternateCode = String(podMetadata.country ?? '').trim().toUpperCase()
   if (/^[A-Z]{2}$/.test(alternateCode)) return alternateCode
@@ -79,9 +79,13 @@ export function resolvePodCountryCode(
     if (name.length >= 4 && surroundedDescription.includes(` ${name} `)) return countryCatalogCode(country)
   }
 
+  // China UN/LOCODEs are authoritative even if Config has not loaded CN.
+  if (/^CN[A-Z0-9]{3}$/.test(portCode)) return 'CN'
+
   // Some legacy Config ports have location labels but no ISO metadata, and
   // the countries catalogue can be incomplete. Use only an explicit country
   // token in the port label; never guess from the port/city name alone.
+  if (surroundedDescription.includes(' china ') || surroundedDescription.includes(' china mainland ')) return 'CN'
   if (surroundedDescription.includes(' vietnam ') || surroundedDescription.includes(' viet nam ')) return 'VN'
   if (surroundedDescription.includes(' costa rica ') || surroundedDescription.includes(' costarica ')) return 'CR'
   if (surroundedDescription.includes(' panama ')) return 'PA'

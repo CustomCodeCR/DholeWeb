@@ -1,5 +1,21 @@
 import type { RateOperationType } from '@/core/interfaces/pricing'
 
+const ICC_INCOTERM_CODES = new Set([
+  'EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP',
+])
+
+/** Resolve an ICC term from Config codes or labels without treating opaque IDs
+ * (e.g. INC-2026-005) as Incoterms and without matching partial words. */
+export function normalizeIncotermCode(code?: string | null, displayName?: string | null): string {
+  for (const candidate of [code, displayName]) {
+    const value = String(candidate ?? '').trim().toUpperCase()
+    if (ICC_INCOTERM_CODES.has(value)) return value
+    const match = value.match(/(?:^|[^A-Z])(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)(?=$|[^A-Z])/)
+    if (match) return match[1]
+  }
+  return String(code || displayName || '').trim().toUpperCase()
+}
+
 export type InlandBillingParty = 'Exporter' | 'Importer' | 'Both' | 'ByAgreement'
 
 /**
@@ -66,7 +82,7 @@ export function incotermClientSections(
   fallback: IncotermCostSection[] = ['international_freight'],
 ): IncotermCostSection[] {
   if (operation === 'TransitDomestic') return [...SECTIONS] // Hybrid, manually split costs.
-  const buyerSections = BUYER_SECTIONS[code.trim().toUpperCase()] ?? fallback
+  const buyerSections = BUYER_SECTIONS[normalizeIncotermCode(code)] ?? fallback
   if (operation === 'Import') return [...buyerSections]
   return SECTIONS.filter(section => !buyerSections.includes(section))
 }
