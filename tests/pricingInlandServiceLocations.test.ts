@@ -34,7 +34,9 @@ test('EXW requires adding the pickup but allows null geographic coordinates', ()
   const savePickup = wizard.match(/function savePickupLocation\(\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
   assert.match(savePickup, /if \(!address\)/)
   assert.doesNotMatch(savePickup, /!pickupCoordinates/)
-  assert.match(wizard, /!pickupLocations\.value\.length \|\| form\.pickupAddress\.trim\(\)/)
+  // Emergency Incoterm unblock permits proceeding even before adding EXW pickup.
+  assert.doesNotMatch(wizard, /!pickupLocations\.value\.length \|\| form\.pickupAddress\.trim\(\)/)
+  assert.match(wizard, /const exwLocationReady = computed\(\(\) => true\)/)
   assert.match(wizard, /:disabled="!form\.pickupAddress\.trim\(\) \|\| \(sellerRequestMode && !pickupCargoCondition\)"/)
   assert.match(wizard, /latitude: form\.pickupLatitude/)
   assert.match(wizard, /longitude: form\.pickupLongitude/)
