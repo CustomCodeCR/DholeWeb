@@ -834,7 +834,7 @@ onBeforeUnmount(() => {
             <div class="h-full rounded-full transition-all" :class="commercialPerformance < 0 ? 'bg-rose-500' : 'bg-emerald-500'" :style="{ width: Math.min(100, Math.abs(commercialPerformance)) + '%' }" />
           </div>
           <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-            ({{ acceptedRates }} aceptadas + {{ openRates }} abiertas − {{ expiredRates }} vencidas) / {{ quotedRates }} cotizadas. Los vencimientos restan desempeño y pueden generar un resultado negativo.
+            ({{ acceptedRates }} aceptadas − {{ expiredRates }} vencidas) / ({{ quotedRates }} cotizadas − {{ openRates }} abiertas). Las rechazadas también cuentan; las abiertas no se entregaron y los vencimientos penalizan el resultado.
           </p>
           <div class="mt-4 grid grid-cols-2 gap-2">
             <div class="rounded-[16px] bg-[var(--dh-input)] p-3">

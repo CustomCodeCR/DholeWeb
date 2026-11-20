@@ -1,0 +1,13 @@
+{
+  "releaseId": "DH-20261119-DASHBOARD-PERFORMANCE-292",
+  "previousVersion": "1.103.13",
+  "version": "1.103.14",
+  "ecosystemVersion": "1.103.14",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "promotionTarget": "master",
+  "branch": "release/DH-20261119-DASHBOARD-GLOBAL-FILTER-291-master",
+  "staging": "pending",
+  "productionAuthorized": false,
+  "scope": "(accepted-expired)/(quoted-open) with rejected included"
+}

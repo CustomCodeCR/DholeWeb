@@ -59,5 +59,7 @@ jobs:
         run: node --test tests/pricingSellerCancelQuote.test.mjs
       - name: Pricing seller return flow regression
         run: node --test tests/pricingRateRequestReturn.test.mjs
+      - name: Commercial dashboard performance regression
+        run: node --experimental-strip-types --test tests/dashboardGlobalCommercialFilters.test.ts
       - name: CRM and SRM navigation/integration tests
         run: pnpm run test:crm

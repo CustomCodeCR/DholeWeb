@@ -1,3 +1,9 @@
+## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · ajuste de desempeño comercial)
+
+- PATCH: el desempeño comercial se calcula como (aceptadas − vencidas) / (total cotizadas − abiertas) × 100. Las rechazadas se contabilizan en la base; las abiertas aún no se han entregado. Las vencidas penalizan incluso si producen porcentaje negativo.
+- Conserva todos los filtros generales y los cinco grupos de ventas de la versión 1.103.13; incorpora prueba de regresión en CI.
+- Web y System se sincronizan a 1.103.14 desde 1.103.13. 15 componentes sin cambios, REST y SignalR compatibles. Staging requerido antes de master.
+
 ## [1.103.13] - 2026-11-19 (DH-20261119-DASHBOARD-GLOBAL-FILTER-291 · dashboard comercial global)
 
 - PATCH: filtros generales de fecha, vendedor y modalidad se aplican a indicadores comerciales, ventas, cotizaciones, solicitudes y reportería.
