@@ -20,14 +20,18 @@ test('DDP exports always allow international freight billed to exporter', () => 
   assert.equal(incotermClientPaysMainTransport('Import', 'CIF'), false)
 })
 
-test('customs-only transform derives exporter/importer before filtering freight', () => {
-  assert.match(customsTransform, /const freightNotRequiredByIncoterm = computed/)
-  assert.match(customsTransform, /const origin = selectedOrigin\.value/)
-  assert.match(customsTransform, /const destination = selectedPod\.value \?\? selectedDestination\.value/)
-  assert.match(customsTransform, /operationForClientCountry\(/)
-  assert.match(customsTransform, /!incotermClientPaysMainTransport\(perspective, match\[2\]\.toUpperCase\(\)\)/)
-  assert.doesNotMatch(customsTransform, /return \/\(\^\|\[\^a-z\]\)\(CFR\|CIF\|CPT\|CIP\|DAP\|DPU\|DDP\)/)
+test('quotation service selection allows explicit freight under every Incoterm', () => {
+  assert.match(customsTransform, /const hasInternationalTransportService = computed/)
+  assert.doesNotMatch(customsTransform, /freightNotRequiredByIncoterm/)
+  assert.doesNotMatch(customsTransform, /!incotermClientPaysMainTransport\(perspective/)
+  assert.match(customsTransform, /selectedServices\.value\.some/)
   assert.match(customsTransform, /!catalogs\.services\.length && form\.serviceIds\.length > 0/)
+})
+
+test('legacy and crystal wizards retain the selected international transport service', () => {
+  const legacyWizard = readFileSync(new URL('../src/modules/pricing/components/PricingRateExistingWizardStable.vue', import.meta.url), 'utf8')
+  assert.doesNotMatch(legacyWizard, /serviceCodes\.delete\('INT_TRANSPORT'\)/)
+  assert.doesNotMatch(wizard, /serviceCodes\.delete\('INT_TRANSPORT'\)/)
 })
 
 test('freight inputs, pricing lines, and quote persistence use the same selected-service guard', () => {
@@ -37,5 +41,8 @@ test('freight inputs, pricing lines, and quote persistence use the same selected
   assert.match(customsTransform, /form\.freightSale = 0/)
   assert.match(customsTransform, /hasInternationalTransportService\.value \|\| line\.costDetailType !== 'Freight'/)
   assert.match(customsTransform, /hasInternationalTransportService\.value \? 5 : 6/)
-  assert.match(wizard, /incotermClientPaysMainTransport\(operationType\.value, selectedIncotermCode\.value\)/)
+  assert.doesNotMatch(wizard, /serviceCodes\.delete\('INT_TRANSPORT'\)/,
+    'explicitly contracted international transport must survive every Incoterm')
+  assert.doesNotMatch(wizard, /incotermClientPaysMainTransport\(operationType\.value, selectedIncotermCode\.value\)/,
+    'LCL restoration must not drop freight because of payer perspective')
 })
