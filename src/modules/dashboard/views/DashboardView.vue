@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/core/stores/authStore'
+import { useModalStore } from '@/core/stores/modalStore'
+import { useToastStore } from '@/core/stores/toastStore'
+import PricingExpiredRateApprovalModal from '@/modules/pricing/components/PricingExpiredRateApprovalModal.vue'
+import { expiredRateApprovalService } from '@/modules/pricing/services/expiredRateApprovalService'
 import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { PRICING_SCOPES } from '@/core/auth/scopes'
 import OperationsRoleDashboard from '@/modules/dashboard/components/OperationsRoleDashboard.vue'
@@ -13,6 +18,60 @@ import PricingRateRequestsPanel from '@/modules/pricing/components/PricingRateRe
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const route = useRoute()
+const modalStore = useModalStore()
+const toastStore = useToastStore()
+
+// Approval belongs to the authenticated identity, not a Pricing role.
+const expiredRateApprovers = ['rsibaja@castrofallas.com', 'jmesen@castrofallas.com']
+const canApproveExpiredRates = computed(() =>
+  expiredRateApprovers.includes(String(authStore.email ?? '').trim().toLowerCase()),
+)
+const pendingExpiredApprovals = ref(0)
+const expiredApprovalCountLoading = ref(false)
+
+async function reloadExpiredApprovals() {
+  if (!canApproveExpiredRates.value) return
+  expiredApprovalCountLoading.value = true
+  try {
+    pendingExpiredApprovals.value = (await expiredRateApprovalService.pending()).length
+  } catch (error) {
+    toastStore.backendError(error, 'No se pudieron cargar las autorizaciones de tarifas vencidas.')
+  } finally {
+    expiredApprovalCountLoading.value = false
+  }
+}
+
+function openExpiredApprovalInbox() {
+  if (!canApproveExpiredRates.value) return
+  modalStore.open({
+    title: 'Solicitudes de autorización de tarifas vencidas',
+    component: PricingExpiredRateApprovalModal,
+    size: 'xl',
+    surface: 'solid',
+    props: { mode: 'review', onSaved: reloadExpiredApprovals },
+  })
+}
+
+function onExpiredApprovalNotification(event: Event) {
+  const notification = (event as CustomEvent<{ notificationType?: string }>).detail
+  if (notification?.notificationType?.startsWith('pricing.rate.expired-update.')) {
+    void reloadExpiredApprovals()
+  }
+}
+
+onMounted(() => {
+  if (canApproveExpiredRates.value) void reloadExpiredApprovals()
+  window.addEventListener('dhole:notification:received', onExpiredApprovalNotification)
+})
+onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', onExpiredApprovalNotification))
+watch(
+  () => route.query.expiredApprovals,
+  (value) => {
+    if (value === '1' && canApproveExpiredRates.value) openExpiredApprovalInbox()
+  },
+  { immediate: true },
+)
 
 function localDate(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
@@ -182,6 +241,28 @@ const activeDashboardRole = computed<DashboardRole>(() => {
             <ChevronDown aria-hidden="true" class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-text-muted)]" />
           </div>
         </div>
+      </div>
+    </section>
+
+    <section
+      v-if="canApproveExpiredRates"
+      class="rounded-[24px] border border-amber-500/30 bg-[var(--dh-card)] p-4 sm:p-5"
+      aria-label="Autorizaciones pendientes de tarifas vencidas"
+    >
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-base font-black text-[var(--dh-text)]">Autorizaciones de tarifas vencidas</h2>
+          <p class="mt-1 text-sm text-[var(--dh-text-muted)]">
+            <strong>{{ pendingExpiredApprovals }}</strong>
+            solicitud{{ pendingExpiredApprovals === 1 ? '' : 'es' }} pendiente{{ pendingExpiredApprovals === 1 ? '' : 's' }} de revisión.
+            Esta bandeja es independiente de los permisos de Pricing.
+          </p>
+        </div>
+        <DhButton
+          label="Revisar solicitudes"
+          :loading="expiredApprovalCountLoading"
+          @click="openExpiredApprovalInbox"
+        />
       </div>
     </section>
 
