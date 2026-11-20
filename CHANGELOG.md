@@ -1,3 +1,8 @@
+## [1.107.1] - 2026-11-20 (DH-20261120-VERSION-NOTICE-500-362 · hotfix 500 de avisos de actualización)
+
+- PATCH metadatos coordinados para corrección de backend Auth 1.17.1, transacción y outbox con estrategia de reintentos.
+- Interfaz y permisos sin cambios funcionales. Sistema y Web sincronizados 1.107.1.
+
 ## [1.107.0] - 2026-11-20 (DH-20261120-VERSION-NOTICES-361 · notificaciones de versiones por usuario)
 
 - MINOR: Ajustes permite desactivar el aviso de actualización globalmente o para usuarios específicos. Las preferencias personales se conservan en Auth; SuperUsuario administra todas las cuentas. Global=false prevalece.
