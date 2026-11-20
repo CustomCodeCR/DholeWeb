@@ -1,3 +1,15 @@
+## [1.103.14] - 2026-11-19 (DH-20261119-DASHBOARD-PERFORMANCE-292 · ajuste de desempeño comercial)
+
+- PATCH: el desempeño comercial se calcula como (aceptadas − vencidas) / (total cotizadas − abiertas) × 100. Las rechazadas se contabilizan en la base; las abiertas aún no se han entregado. Las vencidas penalizan incluso si producen porcentaje negativo.
+- Conserva todos los filtros generales y los cinco grupos de ventas de la versión 1.103.13; incorpora prueba de regresión en CI.
+- Web y System se sincronizan a 1.103.14 desde 1.103.13. 15 componentes sin cambios, REST y SignalR compatibles. Staging requerido antes de master.
+
+## [1.103.13] - 2026-11-19 (DH-20261119-DASHBOARD-GLOBAL-FILTER-291 · dashboard comercial global)
+
+- PATCH: filtros generales de fecha, vendedor y modalidad se aplican a indicadores comerciales, ventas, cotizaciones, solicitudes y reportería.
+- Desempeño: (aceptadas + abiertas − vencidas) / cotizadas no canceladas × 100. Venta por moneda: aceptadas, abiertas, enviadas + vencidas, rechazadas y total sumado.
+- DholeWeb y DholeSystem 1.103.12 → 1.103.13. Conserva el guard de recepción de decisiones comerciales publicado en master; sin alteraciones REST ni SignalR. Staging y CI requeridos antes de la promoción.
+
 ## [1.103.12] - 2026-11-19 (DH-20261119-PRICING-EXPIRY-1D-SYSTEM-291 · recordatorio interno 1 día antes del vencimiento)
 
 - PATCH de versión coordinada DholeWeb/DholeSystem 1.103.11→1.103.12 y Pricing 1.25.2→1.25.3. Sin cambios visuales ni de rutas; el centro de notificaciones existente recibe eventos System desde Pricing a través de Redis Streams y SignalR.

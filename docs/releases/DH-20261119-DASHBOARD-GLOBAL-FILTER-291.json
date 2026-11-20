@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261119-DASHBOARD-GLOBAL-FILTER-291",
+  "component": "DholeWeb",
+  "previousVersion": "1.103.12",
+  "version": "1.103.13",
+  "ecosystemVersion": "1.103.13",
+  "releaseType": "PATCH",
+  "scope": "global commercial dashboard filters, negative expiry performance and five sales results",
+  "branch": "feature/DH-20261119-DASHBOARD-GLOBAL-FILTER-291",
+  "validation": "CI/staging required before master",
+  "promotionBranch": "release/DH-20261119-DASHBOARD-GLOBAL-FILTER-291-master",
+  "promotionTarget": "master"
+}
