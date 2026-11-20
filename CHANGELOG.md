@@ -1,3 +1,9 @@
+## [1.107.0] - 2026-11-20 (DH-20261120-VERSION-NOTICES-361 · preferencias de avisos de actualización)
+
+- MINOR: Ajustes permite apagar el aviso de nuevas versiones para el usuario actual, por usuario específico (SuperUsuario), o globalmente (SuperUsuario); la desactivación global tiene prioridad.
+- La ventana de actualización Web consulta preferencias autenticadas persistidas en Auth; no cambia notificaciones operativas de CRM, Pricing ni correo. Reconciliación periódica de 60 segundos.
+- DholeWeb 1.106.17 → 1.107.0; DholeAuthService 1.16.2 → 1.17.0; DholeSystem 1.106.17 → 1.107.0. Requiere migración de Auth; CI, compilación, SignalR E2E y staging pendientes. Producción no autorizada.
+
 ## [1.106.17] - 2026-11-20 (DH-20261120-PRICING-INLAND-REGRESSION-360 · estabilización urgente del inland)
 
 - PATCH de contención: revierte únicamente la sincronización temprana introducida en DholeWeb 1.106.15/1.106.16 que puede excluir líneas inland durante la carga asíncrona y guardar borradores incompletos.
