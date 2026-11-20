@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.103.21",
-  "ecosystemVersion": "1.103.21",
+  "version": "1.103.23",
+  "ecosystemVersion": "1.103.23",
   "releaseId": "DH-20261120-PRICING-CLIENT-COUNTRY-298",
   "releaseStatus": "candidate-ci-and-production-pending",
   "businessReleaseId": "DH-20261120-PRICING-CLIENT-COUNTRY-298"
