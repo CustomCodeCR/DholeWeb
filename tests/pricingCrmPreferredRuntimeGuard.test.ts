@@ -37,3 +37,16 @@ test('the FCL\/FTL source replacement includes the benefits load inside its gene
     'loadCustomerPreferentialRates() must be inside the final loader before Pricing retrieves costs')
   assert.match(transform.slice(start, firstCostQuery), /activeContext !== activeCostContextKey\(\)/)
 })
+
+test('customer switch and malformed CRM responses cannot silently reuse standard pricing', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  const build = readFileSync(new URL('../build/pricingFtlLandCostsFix.ts', import.meta.url), 'utf8')
+  const cacheKey = wizard.slice(wizard.indexOf('function activeCostContextKey(): string {'),
+    wizard.indexOf('async function loadCostsForSelectedAlternative'))
+  assert.match(cacheKey,/form\.crmClientKind, form\.clientId/)
+  const compiledKey = build.slice(build.indexOf('function currentCostContextKey() {'),
+    build.indexOf('function costResolvedByBackendContext'))
+  assert.match(compiledKey,/form\.crmClientKind,[\s\S]*form\.clientId/)
+  assert.match(wizard,/if \(!response \|\| !Array\.isArray\(response\.rates\)\)/)
+  assert.match(wizard,/customerPreferentialCatalogContext\(selectedContext, costs\.value/)
+})
