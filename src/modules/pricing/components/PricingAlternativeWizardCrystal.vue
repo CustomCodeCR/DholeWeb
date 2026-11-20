@@ -3384,6 +3384,10 @@ async function loadCustomerPreferentialRates(): Promise<void> {
   }
 }
 
+async function retryCustomerPreferredRates() {
+  if (await loadApplicableCosts()) rebuildRateLines()
+}
+
 function currentPreferentialContext(serviceCodes = selectedServices.value.map(item => String(item.code ?? ''))) {
   const mode = String(shipmentModeForApi.value).toUpperCase()
   return {
@@ -5095,6 +5099,10 @@ async function downloadRateLinesExcel() {
 }
 
 async function next() {
+  if (customerPreferentialError.value && !props.rateId && step.value >= 7) {
+    toastStore.warning('Tarifas del CRM sin verificar', customerPreferentialError.value)
+    return
+  }
   if (step.value === 3 && selectedIncotermCode.value === 'EXW' && !props.viewOnly
     && (!pickupLocations.value.length || form.pickupAddress.trim())) {
     validateRequiredFields()
@@ -5110,7 +5118,8 @@ async function next() {
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
-    await loadApplicableCosts()
+    const loaded = await loadApplicableCosts()
+    if (!loaded) return
     rebuildRateLines()
   }
   if (step.value < 8) step.value += 1
@@ -5615,6 +5624,11 @@ async function retrySavedModificationDelivery() {
 }
 
 async function saveRate() {
+  if (!props.rateId && customerPreferentialError.value) {
+    step.value = 7
+    toastStore.warning('Tarifas preferenciales no disponibles', customerPreferentialError.value)
+    return
+  }
   if (form.clientId && !direction.value) {
     if (props.rateRequestId) {
       step.value = 3
@@ -7834,6 +7848,13 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <div v-if="customerPreferentialError" role="alert" class="crystal-soft flex flex-wrap items-center justify-between gap-3 border border-amber-600 p-4">
+            <p class="text-sm font-bold text-amber-600">{{ customerPreferentialError }}</p>
+            <DhButton type="button" variant="secondary" @click="retryCustomerPreferredRates">Reintentar tarifas CRM</DhButton>
+          </div>
+          <div v-else-if="customerPreferentialAccountId && customerPreferentialRates.length" role="status" class="crystal-soft border border-[var(--dh-border)] p-3 text-xs font-bold text-[var(--dh-primary)]">
+            Precios preferenciales del CRM verificados para este cliente. Los cargos coincidentes se identifican en cada línea.
+          </div>
           <div v-if="multiCarrierSelectionMode" class="crystal-soft flex flex-wrap items-center gap-3 p-4" aria-label="Transporte seleccionado en Proveedor">
             <div class="min-w-0 flex-1">
               <p class="text-sm font-black">Transporte en destino · {{ form.carrierHaulage ? 'Carrier Haulage' : form.merchantHaulage ? 'Merchant Haulage' : 'Pendiente de selección' }}</p>
