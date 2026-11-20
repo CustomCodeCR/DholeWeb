@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 import type { CatalogItemSelectDto } from '../src/core/interfaces/catalogs'
 import {
   normalizeIsoCountryCode,
+  supportedIsoCountryCodes,
   resolveCatalogCountryCode,
   resolveExplicitCountryText,
   resolveLocationCountryCode,
@@ -24,6 +25,11 @@ function item(code: string, value: string, metadata: Record<string, unknown> = {
 }
 
 test('ISO-3166 coverage is worldwide and excludes unknown codes', () => {
+  assert.equal(supportedIsoCountryCodes().length, 249)
+  for (const code of supportedIsoCountryCodes()) {
+    assert.equal(normalizeIsoCountryCode(code), code)
+    assert.equal(resolveLocationCountryCode(item(code + 'XYZ', 'Terminal sin país'), []), code)
+  }
   assert.equal(normalizeIsoCountryCode('CHN'), 'CN')
   assert.equal(normalizeIsoCountryCode('SLV'), 'SV')
   assert.equal(normalizeIsoCountryCode('DEU'), 'DE')
