@@ -4,7 +4,13 @@
 - Apertura manual: selector de cuenta CRM (en vez de UUID escrito), empresa resuelta en servidor y ejecutivo obtenido de CRM sin identidad de prueba.
 - Expediente en Trámites presenta navegación de ocho pestañas en una vista: Resumen con datos y etapas existentes, QUO relacionada y estados de departamentos. La operación avanzada de cada tab depende de fases posteriores y permisos del backend.
 - La creación automática real desde QUO aceptada todavía necesita contrato de aceptación duradero, snapshot comercial y consumidor idempotente en Operations; no se declara terminada.
-- Web 1.104.3 → 1.105.0 y Operations 0.12.0 → 0.13.0; release global candidato 1.105.0. No integrar a master ni desplegar sin CI y staging.
+- Web 1.104.5 → 1.105.0 y Operations 0.12.0 → 0.13.0; release global candidato 1.105.0. No integrar a master ni desplegar sin CI y staging.
+
+## [1.104.5] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-324 · aplicar tarifas preferenciales CRM en Pricing)
+
+- PATCH: al generar una nueva cotización para una cuenta CRM, Pantalla 7 obtiene los acuerdos comerciales vigentes de esa cuenta y sustituye exclusivamente el importe de venta en los cargos cuyas condiciones coinciden: modalidad, CostId/rubro, equipo, POL, POE, POD, naviera, Incoterm y servicios.
+- Respeta la opción más específica por ruta/servicio, rangos de venta, cargos manuales y descuentos; conserva costos proveedores, IVA y snapshots de cotizaciones ya persistidas. Ante fallo CRM impide guardar una cotización estándar silenciosa y permite reintentar.
+- Coordinado con CRM 1.42.8 y DholeSystem 1.104.5. REST de CRM y realtime existentes sin incompatibilidad; CI/staging previos a master.
 
 ## [1.104.4] - 2026-11-20 (DH-20261120-EXPIRED-APPROVAL-SELLER-ACCESS-312 · aprobación desde el dashboard vendedor)
 
