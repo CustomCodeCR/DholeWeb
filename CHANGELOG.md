@@ -1,3 +1,9 @@
+## [1.103.8] - 2026-11-19 (DH-20261119-PRICING-LTL-DDP-FREIGHT-284 · promoción selectiva DDP/LTL a master)
+
+- PATCH Web/System 1.103.7→1.103.8 coordinado con DholePricingService 1.25.1→1.25.2. El backend ahora acepta flete internacional cotizado DDP para LTL/FTL por CBM/camión sin exigir distribución FCL.
+- Web conserva íntegra la funcionalidad de master y el payload existente (shipmentMode Ltl, containers []); solo cambia metadatos/versionado para el parche backend. No se incorporan diferencias no relacionadas de develop.
+- Misma corrección validada en CI/staging; controles CIF/FCL, contratos REST, SignalR y datos existentes sin cambios.
+
 ## [1.103.7] - 2026-11-19 (DH-20261119-PRICING-LTL-MANUAL-ENDTOEND-278 · recuperación de LTL manual y país CRM)
 
 - PATCH master 1.103.6→1.103.7 solo para Web/System: reconoce LTL manual propio como fuente válida en pantallas 5 y 6; conserva importe y estado en borradores.
