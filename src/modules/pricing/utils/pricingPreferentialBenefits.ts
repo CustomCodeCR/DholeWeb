@@ -81,6 +81,60 @@ export function customerPreferentialRate(
     norm(a.id).localeCompare(norm(b.id)))[0]
 }
 
+
+/** The CRM route editor stores Pricing catalog codes. The quote wizard can
+ * receive a different code for that *same catalog ID* from Config. Reconcile
+ * only through exact selected relation IDs, never through location names. */
+export interface CustomerPreferentialCatalogIds {
+  polId?: string | null
+  poeId?: string | null
+  podId?: string | null
+  carrierId?: string | null
+}
+
+function catalogCodeForSelectedId(
+  selectedId: string | null | undefined, currentCode: string,
+  costs: readonly CostSelectDto[],
+  relation: (cost: CostSelectDto) => {
+    items?: Array<{ id: string; code: string }> | null
+    legacyId?: string | null
+    legacyCode?: string | null
+  },
+): string {
+  if (!norm(selectedId)) return currentCode
+  const candidates = new Map<string, string>()
+  for (const cost of costs) {
+    const { items, legacyId, legacyCode } = relation(cost)
+    const related = items?.length
+      ? items.filter(item => norm(item.id) === norm(selectedId)).map(item => item.code)
+      : norm(legacyId) === norm(selectedId) ? [legacyCode] : []
+    for (const candidate of related) {
+      if (norm(candidate)) candidates.set(norm(candidate), String(candidate))
+    }
+  }
+  // A conflicting catalog is not enough evidence to substitute the quote code.
+  if (candidates.has(norm(currentCode)) || candidates.size !== 1) return currentCode
+  return [...candidates.values()][0] ?? currentCode
+}
+
+export function customerPreferentialCatalogContext(
+  context: CustomerPreferentialContext,
+  costs: readonly CostSelectDto[],
+  selected: CustomerPreferentialCatalogIds,
+): CustomerPreferentialContext {
+  return {
+    ...context,
+    polCode: catalogCodeForSelectedId(selected.polId, context.polCode ?? '', costs,
+      cost => ({ items: cost.pols, legacyId: cost.polId, legacyCode: cost.polCode })),
+    poeCode: catalogCodeForSelectedId(selected.poeId, context.poeCode ?? '', costs,
+      cost => ({ items: cost.poes, legacyId: cost.poeId, legacyCode: cost.poeCode })),
+    podCode: catalogCodeForSelectedId(selected.podId, context.podCode ?? '', costs,
+      cost => ({ items: cost.pods, legacyId: cost.podId, legacyCode: cost.podCode })),
+    carrierCode: catalogCodeForSelectedId(selected.carrierId, context.carrierCode ?? '', costs,
+      cost => ({ items: cost.carriers, legacyId: cost.carrierId, legacyCode: cost.carrierCode })),
+  }
+}
+
 function unitQuantity(unit: string, cargo: PreferentialCargo): number | null {
   switch (norm(unit)) {
     case 'SHIPMENT': case 'SERVICE': case 'DOCUMENT': case 'BL': case 'PICKUP':
