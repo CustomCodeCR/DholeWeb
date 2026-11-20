@@ -3213,7 +3213,7 @@ function applicableCost(cost: CostSelectDto) {
   if (isFullUnitCost && (mode === 'Lcl'
       || ((mode === 'Ltl' || mode === 'AirConsol') && !cost.shipmentMode))) return false
   if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
-  if (cost.shipmentMode && cost.shipmentMode !== 'Any' && cost.shipmentMode !== shipmentModeForApi.value) return false
+  if (cost.shipmentMode && String(cost.shipmentMode) !== 'Any' && cost.shipmentMode !== shipmentModeForApi.value) return false
   if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
   if (!pickupCargoConditionsMatch(cost.operationalConditions)) return false
   if (!costRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
