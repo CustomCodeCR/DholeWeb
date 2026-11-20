@@ -13,8 +13,9 @@ import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import SellerRateDecisionModal from './SellerRateDecisionModal.vue'
-import { filterSellerRatesByClient, sellerClientOptions } from '../utils/sellerClientTableFilter'
+import { sellerDashboardRatesPath } from '../utils/sellerDashboardRatesPath'
 import { commercialPerformancePercent, isInDashboardDateRange } from '../utils/commercialDashboardMetrics'
+import { filterSellerRatesByClient, sellerClientOptions } from '../utils/sellerClientTableFilter'
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
@@ -199,14 +200,11 @@ function statusVariant(rate: RateDto): 'success' | 'warning' | 'danger' | 'neutr
 }
 
 const myRates = computed(() => {
-  // La selección del vendedor se cruza con solicitudes originales, no con la
-  // identidad del usuario que consulta ni con los últimos trabajos de modificación.
-  const allowedRateIds = props.adminPreview && props.filterSeller
-    ? new Set(allRequests.value.filter(request => request.sellerUserId === props.filterSeller)
-      .map(request => request.rateId).filter(Boolean))
-    : null
+  // /seller-rates/dashboard?sellerUserId=... ya resuelve exactamente la
+  // cartera personal (solicitudes, recibos y asignaciones directas) en la API.
+  // No volver a recortarla por RateRequest: esas filas no son la fuente única
+  // de propiedad y el recorte eliminaba tarifas manuales del SuperUsuario.
   return [...new Map(rates.value.map(rate => [rate.id, ownRatesById.value.get(rate.id) ?? rate])).values()]
-    .filter(rate => !allowedRateIds || allowedRateIds.has(rate.id))
     .filter(rate => !props.filterMode || rate.shipmentMode === props.filterMode)
     .filter(rate => isInDashboardDateRange(
       requestDateByRate.value.get(rate.id)
@@ -254,6 +252,9 @@ function cleanSearch(value: string | null | undefined) {
 const requestDateByRate = computed(() => {
   const result = new Map<string, number>()
   for (const request of allRequests.value) {
+    // Cuando supervisión consulta un vendedor, usar la fecha de sus propias
+    // solicitudes y no la de un tercero asociado a la misma tarifa.
+    if (props.adminPreview && props.filterSeller && request.sellerUserId !== props.filterSeller) continue
     if (!request.rateId || request.kind === 'Modification') continue
     const timestamp = Date.parse(request.requestedAtUtc)
     if (Number.isFinite(timestamp) && timestamp < (result.get(request.rateId) ?? Infinity))
@@ -294,7 +295,7 @@ const pagedRates = computed(() => filteredRates.value.slice(
   (currentPage.value - 1) * pageSize,
   currentPage.value * pageSize,
 ))
-watch([search, statusFilter, selectedClient, () => props.adminPreview], () => { currentPage.value = 1 })
+watch([search, statusFilter, selectedClient, () => props.filterSeller, () => props.filterMode, () => props.filterFrom, () => props.filterTo], () => { currentPage.value = 1 })
 watch(clientOptions, (options) => {
   if (selectedClient.value && !options.some(option => option.value === selectedClient.value)) {
     selectedClient.value = ''
@@ -583,7 +584,9 @@ function openCustomerDecision(rate: RateDto, decision: 'AcceptedByClient' | 'Rej
   })
 }
 
+let sellerLoadToken = 0
 async function load() {
+  const token = ++sellerLoadToken
   try {
     loading.value = true
     loadError.value = false
@@ -595,10 +598,11 @@ async function load() {
       }),
       callEndpoint<unknown>({
         method: 'GET',
-        path: props.adminPreview ? '/api/pricing/seller-rates/dashboard' : '/api/pricing/seller-rates',
+        path: sellerDashboardRatesPath(props.adminPreview, props.filterSeller),
         headers: { Accept: 'application/json' },
       }),
     ])
+    if (token !== sellerLoadToken) return
     allRequests.value = unwrapListResponse<SellerRateRequestDto>(requestResponse)
     rates.value = unwrapListResponse<RateDto>(rateResponse)
     lastSellerRateRefreshAt = Date.now()
@@ -609,6 +613,7 @@ async function load() {
         callEndpoint<unknown>({ method: 'GET', path: '/api/pricing/rate-requests/mine', headers: { Accept: 'application/json' } }),
         callEndpoint<unknown>({ method: 'GET', path: '/api/pricing/seller-rates', headers: { Accept: 'application/json' } }),
       ])
+      if (token !== sellerLoadToken) return
       ownRequests.value = ownRequestResult.status === 'fulfilled'
         ? unwrapListResponse<SellerRateRequestDto>(ownRequestResult.value) : []
       ownRates.value = ownRateResult.status === 'fulfilled'
@@ -620,13 +625,28 @@ async function load() {
       ownRates.value = props.adminPreview ? [] : rates.value
     }
   } catch (error) {
-    loadError.value = true
-    toast.backendError(error, 'No se pudo cargar el seguimiento comercial del vendedor.')
+    if (token === sellerLoadToken) {
+      loadError.value = true
+      toast.backendError(error, 'No se pudo cargar el seguimiento comercial del vendedor.')
+    }
   } finally {
-    loading.value = false
-    hasLoaded.value = true
+    if (token === sellerLoadToken) {
+      loading.value = false
+      hasLoaded.value = true
+    }
   }
 }
+
+watch(() => props.filterSeller, () => {
+  if (!props.adminPreview) return
+  // No mostrar cifras del vendedor anterior durante la nueva consulta.
+  hasLoaded.value = false
+  allRequests.value = []
+  rates.value = []
+  ownRates.value = []
+  lastSellerRateRefreshAt = 0
+  void load()
+})
 
 // Keep the seller's published-revision projection synchronized when Pricing
 // completes a request or asynchronously finishes PDF/email delivery.
@@ -635,12 +655,14 @@ let sellerRatesRefreshing = false
 async function refreshSellerRateStatuses(force = false) {
   if (loading.value || sellerRatesRefreshing || (!force && Date.now() - lastSellerRateRefreshAt < 20_000)) return
   sellerRatesRefreshing = true
+  const requestedSellerId = props.filterSeller
   try {
     const rateResponse = await callEndpoint<unknown>({
       method: 'GET',
-      path: props.adminPreview ? '/api/pricing/seller-rates/dashboard' : '/api/pricing/seller-rates',
+      path: sellerDashboardRatesPath(props.adminPreview, requestedSellerId),
       headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
     })
+    if (requestedSellerId !== props.filterSeller) return
     rates.value = unwrapListResponse<RateDto>(rateResponse)
     if (props.adminPreview && props.enableSellerActions) {
       const ownRateResponse = await callEndpoint<unknown>({
@@ -648,6 +670,7 @@ async function refreshSellerRateStatuses(force = false) {
         path: '/api/pricing/seller-rates',
         headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
       })
+      if (requestedSellerId !== props.filterSeller) return
       ownRates.value = unwrapListResponse<RateDto>(ownRateResponse)
     } else {
       ownRates.value = props.adminPreview ? [] : rates.value
