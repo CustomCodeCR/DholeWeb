@@ -275,7 +275,9 @@ function reconcilePersistedEditLinesForIncoterm() {
   const rate = editingRate.value
   if (!rate || !shouldPreservePersistedEditLines()) return
 
-  const allowed = new Set(incotermResponsibilitySections.value)
+  // Keep persisted CostIds and manual charges visible when the Incoterm changes.
+  // Contractual responsibility cannot delete a commercial line.
+  const allowed = new Set(sectionOrder)
 
   // Eliminar solamente el delta del Incoterm anterior y las secciones que ya no
   // corresponden. Todo RateDetail persistido permitido conserva exactamente su valor.

@@ -134,29 +134,11 @@ function costResolvedByBackendContext(cost: CostSelectDto) {
   return String(cost.__dholePricingContextKey ?? '') === currentCostContextKey()
 }
 
+// The catalog fallback resolves all configured route relationships, not only
+// the first legacy POL/POE/POD value. The backend remains authoritative when
+// it explicitly returns a cost for the current context.
 function costMatchesHardRouteContext(cost: CostSelectDto) {
-  const contextPoeId = costContextPoeId()
-  const selectedPodId = String(form.podId ?? '').trim()
-
-  // POL/POE/POD are hard route constraints even when Pricing says the cost matched the
-  // requested context. In particular, a POD-specific cost must never leak into a quote
-  // whose POD is empty.
-  if (cost.polId && cost.polId !== form.originId) return false
-  if (cost.poeId && cost.poeId !== contextPoeId) return false
-  if (cost.podId && (!selectedPodId || cost.podId !== selectedPodId)) return false
-
-  if (cost.portId) {
-    const matchesLegacyPort = cost.portRole === 'Pol'
-      ? cost.portId === form.originId
-      : cost.portRole === 'Poe'
-        ? cost.portId === contextPoeId
-        : cost.portRole === 'Pod'
-          ? Boolean(selectedPodId) && cost.portId === selectedPodId
-          : [form.originId, contextPoeId, selectedPodId].filter(Boolean).includes(cost.portId)
-    if (!matchesLegacyPort) return false
-  }
-
-  return true
+  return catalogCostMatchesCurrentContext(cost)
 }
 
 function applicableCost(cost: CostSelectDto) {
@@ -169,19 +151,7 @@ function applicableCost(cost: CostSelectDto) {
   // A cost can be linked to several POD/POL/POE values; its legacy podId/polId/poeId only
   // keeps the first selected value for backwards compatibility. Re-checking that legacy
   // field here would incorrectly discard matches for the second and following selections.
-  if (!backendContextMatched) {
-    if (!costMatchesHardRouteContext(cost)) return false
-    if (cost.services?.length && !cost.services.some((service) => form.serviceIds.includes(service.id))) return false
-    const configuredModes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
-      ? cost.shipmentModes
-      : cost.shipmentMode
-        ? [cost.shipmentMode]
-        : []
-    if (configuredModes.length && !configuredModes.includes(costShipmentModeForApi())) return false
-    if (cost.incoterms?.length && !cost.incoterms.some((incoterm) => incoterm.id === form.incotermId)) return false
-    if (cost.carrierId && cost.carrierId !== form.carrierId) return false
-    if (cost.agentId && cost.agentId !== costContextAgentId()) return false
-  }
+  if (!backendContextMatched && !costMatchesHardRouteContext(cost)) return false
 
   // /costs/select ya evaluó las restricciones reales del costo: ruta, naviera/agente,
   // Incoterm explícito, modalidad y servicios. CostDetailType/section es presentación,
@@ -261,6 +231,47 @@ ${optionalSelectorAnchor}`,
   return !legacyId || (Boolean(selected) && String(legacyId) === selected)
 }
 
+function catalogCostMatchesCurrentContext(cost: CostSelectDto) {
+  if (cost.isActive === false) return false
+
+  const expectedMode = String(costShipmentModeForApi() ?? '').toLowerCase()
+  const modes = Array.isArray(cost.shipmentModes) && cost.shipmentModes.length
+    ? cost.shipmentModes
+    : cost.shipmentMode ? [cost.shipmentMode] : []
+  if (modes.length && !modes.some((mode) => {
+    const value = String(mode ?? '').trim().toLowerCase()
+    return value === 'any' || value === expectedMode
+      || (expectedMode === 'airconsol' && value === 'air')
+  })) return false
+
+  if (cost.services?.length && !cost.services.some((service) =>
+    form.serviceIds.includes(service.id))) return false
+
+  // Intentionally do not filter by cost.incoterms: the quotation can purchase
+  // services independently of the party normally responsible under Incoterms.
+  const poeId = costContextPoeId()
+  if (!maritimeFclRelationMatches(cost.pols, cost.polId, form.originId)) return false
+  if (!maritimeFclRelationMatches(cost.poes, cost.poeId, poeId)) return false
+  if (!maritimeFclRelationMatches(cost.pods, cost.podId, form.podId)) return false
+  if (!maritimeFclRelationMatches(cost.carriers, cost.carrierId, form.carrierId)) return false
+  if (!maritimeFclRelationMatches(cost.agents, cost.agentId, costContextAgentId())) return false
+
+  // Do not reject a valid multi-POL/POE/POD association just because PortId
+  // stores the first historical port. Check it only when no role relation exists.
+  if (cost.portId) {
+    const role = String(cost.portRole ?? '').toLowerCase()
+    const relation = role === 'pol' ? cost.pols : role === 'poe' ? cost.poes : role === 'pod' ? cost.pods : null
+    const hasPortRelations = Boolean(cost.pols?.length || cost.poes?.length || cost.pods?.length)
+    if (!hasPortRelations && (!Array.isArray(relation) || relation.length === 0)) {
+      const selected = role === 'pol' ? form.originId : role === 'poe' ? poeId : role === 'pod' ? form.podId : null
+      const candidates = selected ? [selected] : [form.originId, poeId, form.podId].filter(Boolean)
+      if (!candidates.includes(String(cost.portId))) return false
+    }
+  }
+
+  return true
+}
+
 function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.isActive === false) return false
 
@@ -275,7 +286,7 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
     return value === 'fcl' || value === 'any'
   })) return false
 
-  if (cost.incoterms?.length && !cost.incoterms.some((item) => item.id === form.incotermId)) return false
+  // Temporary Incoterm unblock: a matched surcharge is still quotable.
   if (cost.services?.length && !cost.services.some((item) => form.serviceIds.includes(item.id))) return false
 
   const poeId = costContextPoeId()
@@ -290,7 +301,8 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
   if (cost.portId) {
     const role = String(cost.portRole ?? '').toLowerCase()
     const relation = role === 'pol' ? cost.pols : role === 'poe' ? cost.poes : role === 'pod' ? cost.pods : null
-    if (!Array.isArray(relation) || relation.length === 0) {
+    const hasPortRelations = Boolean(cost.pols?.length || cost.poes?.length || cost.pods?.length)
+    if (!hasPortRelations && (!Array.isArray(relation) || relation.length === 0)) {
       const expected = role === 'pol' ? form.originId : role === 'poe' ? poeId : role === 'pod' ? form.podId : null
       const candidates = expected ? [expected] : [form.originId, poeId, form.podId].filter(Boolean)
       if (!candidates.includes(String(cost.portId))) return false
@@ -305,7 +317,14 @@ async function loadApplicableCosts() {
   try {
     // This Vite transform replaces the source loader: it MUST load CRM agreements
     // before rebuilding the quote. Otherwise all CostId prices remain the catalog sales.
-    await loadCustomerPreferentialRates()
+    try {
+      await loadCustomerPreferentialRates()
+    } catch {
+      // CRM commercial-benefit outages must not prevent catalog charges from
+      // loading. Existing save/next checks still require benefit verification.
+      toastStore.warning('Tarifas preferenciales sin verificar',
+        'Se cargarán los cargos de Pricing, pero no se podrá guardar hasta verificar el CRM.')
+    }
     if (activeContext !== activeCostContextKey()) return false
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
@@ -332,12 +351,12 @@ async function loadApplicableCosts() {
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
     const [contextResult, fullCatalogResult] = await Promise.allSettled([
       PricingService.selectCosts(contextualQuery),
-      maritimeFcl
-        ? PricingService.selectCosts({ isActive: true })
-        : Promise.resolve([] as CostSelectDto[]),
+      // The Incoterm-specific API query can omit otherwise contracted charges.
+      // Recover from the active catalogue for every mode, not only maritime FCL.
+      PricingService.selectCosts({ isActive: true }),
     ])
 
-    if (contextResult.status === 'rejected' && (!maritimeFcl || fullCatalogResult.status === 'rejected')) {
+    if (contextResult.status === 'rejected' && fullCatalogResult.status === 'rejected') {
       throw contextResult.reason
     }
 
@@ -345,28 +364,23 @@ async function loadApplicableCosts() {
     const fullCatalog = fullCatalogResult.status === 'fulfilled' ? fullCatalogResult.value : []
     const mergedCosts = new Map<string, CostSelectDto>()
 
-    // The contextual API may reject a valid multi-port entry because PortId/
-    // PoeId/PodId represent only the first historical selection. Reconcile with
-    // the active catalog using explicit relation arrays as the source of truth.
-    if (maritimeFcl) {
-      fullCatalog
-        .filter(maritimeFclCostMatchesCurrentContext)
-        .forEach((cost) => mergedCosts.set(cost.id, cost))
-      // Pricing's contextual response already validated route, provider, mode,
-      // service and Incoterm. Do not reject it against legacy single-port fields.
-      // Keep the stricter browser predicate for the full-catalog fallback only.
-      contextualCosts
-        .filter((cost) => cost.isActive !== false)
-        .forEach((cost) => mergedCosts.set(cost.id, cost))
-    } else {
-      contextualCosts.forEach((cost) => mergedCosts.set(cost.id, cost))
-    }
+    fullCatalog
+      .filter((cost) => maritimeFcl
+        ? maritimeFclCostMatchesCurrentContext(cost)
+        : catalogCostMatchesCurrentContext(cost))
+      .forEach((cost) => mergedCosts.set(cost.id, cost))
+
+    // Backend-context costs have already passed Pricing's original checks.
+    // Prefer those records for identical CostIds and mark only those authoritative.
+    contextualCosts
+      .filter((cost) => cost.isActive !== false)
+      .forEach((cost) => mergedCosts.set(cost.id, {
+        ...cost,
+        __dholePricingContextKey: contextKey,
+      }))
 
     if (activeContext !== activeCostContextKey()) return false
-    costs.value = [...mergedCosts.values()].map((cost) => ({
-      ...cost,
-      __dholePricingContextKey: contextKey,
-    }))
+    costs.value = [...mergedCosts.values()]
     return true
   } catch (error) {
     if (activeContext !== activeCostContextKey()) return false

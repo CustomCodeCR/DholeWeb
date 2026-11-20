@@ -121,7 +121,7 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
       ? [String(cost.shipmentMode).toLowerCase()]
       : []
 
-  if (configuredModes.length && !configuredModes.includes(shipmentMode)) return false
+  if (configuredModes.length && !configuredModes.some((mode) => mode === 'any' || mode === shipmentMode || (shipmentMode === 'airconsol' && mode === 'air'))) return false
 
   if (!finalOptionalRelationMatches(cost.pols, cost.polId, form.originId)) return false
   if (!finalOptionalPoeMatches(cost)) return false
@@ -130,11 +130,8 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
   if (!finalOptionalRelationMatches(cost.agents, cost.agentId, costContextAgentId())) return false
   if (!finalOptionalLegacyPortMatches(cost)) return false
 
-  // Incoterm y servicio continúan siendo restricciones cuando fueron configurados
-  // explícitamente en Costos y recargos.
-  if (Array.isArray(cost.incoterms) && cost.incoterms.length) {
-    if (!cost.incoterms.some((item) => String(item.id) === String(form.incotermId))) return false
-  }
+  // Temporary Incoterm unblock: a surcharge selected for the route/provider
+  // must not disappear solely because its historical Incoterm differs.
 
   if (Array.isArray(cost.services) && cost.services.length) {
     const selectedServices = new Set(form.serviceIds.map((id) => String(id)))

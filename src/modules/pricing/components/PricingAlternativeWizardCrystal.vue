@@ -3459,8 +3459,8 @@ async function loadApplicableCosts(): Promise<boolean> {
 function rebuildRateLines() {
   const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
     ? copyPoeLines(rateLines.value) : []
-  // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
-  if (customerPreferentialError.value && !props.rateId) return
+  // Catalog charges remain visible even if CRM preferred rates could not be verified.
+  // The existing save/navigation guards still prevent unverified commercial terms.
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
   if (!currency) return
 

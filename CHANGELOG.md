@@ -1,3 +1,10 @@
+## [1.106.13] - 2026-11-20 (DH-20261120-PRICING-COSTS-355 · recuperación de cargos y recargos en Pricing)
+
+- PATCH: Pantalla 7 reconstruye cargos y recargos con respaldo del catálogo activo para FCL, LCL, LTL, FTL y aéreo cuando /costs/select contextual omite costos; coteja multi-POL/POE/POD, agente, naviera, modalidad y servicios sin bloquear por el Incoterm.
+- Recupera recargos Optional y cargos EXW/FCA, preserva CostIds distintos y detalles existentes al cambiar Incoterm. No rellena precios por tramos inexistentes ni filtra proveedores ajenos.
+- La indisponibilidad temporal de beneficios CRM no deja la pantalla 7 vacía: muestra costos del catálogo, informa la incidencia y mantiene el bloqueo existente para guardar tarifas comerciales no verificadas.
+- Web 1.106.12 → 1.106.13; System 1.106.10 → 1.106.13 (manifiesto global); Pricing 1.26.7 sin modificación. REST, SignalR, permisos y esquema sin cambios. CI, staging y validación autenticada pendientes.
+
 ## [1.106.12] - 2026-11-20 (DH-20261120-INCOTERM-TEMP-UNBLOCK-353 · desbloqueo temporal de Incoterms)
 
 - PATCH temporal: habilita todas las secciones de cotización y evita los bloqueos de navegación EXW/FCA por ubicación, WHS y clasificación especial de carga en Pricing Web.

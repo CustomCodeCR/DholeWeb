@@ -92,5 +92,5 @@ test('Variable catalog matching honors EXW/FCA, multi-party assignments, modalit
   context.form.incotermId = 'FCA1'
   context.selectedIncotermCode.value = 'FCA'
   assert.equal(match({ ...generic, incoterms: [{ id: 'FCA1' }] }), true)
-  assert.equal(match(generic), false, 'EXW-only cost must not leak into FCA')
+  assert.equal(match(generic), true, 'Temporary unblock permits contracted EXW costs under FCA')
 })
