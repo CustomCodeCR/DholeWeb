@@ -383,10 +383,8 @@ onUnmounted(() => clearTimeout(timer))
           <DhSelect v-model="draft.shipmentTypeCode" label="Tipo de embarque" :options="shipmentTypes" />
           <DhSelect v-model="draft.transportTypeCode" label="Tipo de transporte" :options="transportTypes" />
           <DhSelect v-model="draft.incotermCode" label="Incoterm" :options="selections('incoterms')" />
-          <DhSelect v-model="form.originCountryCode" label="País de origen"
-            :options="selections('countries')" />
-          <DhSelect v-model="form.destinationCountryCode" label="País de destino"
-            :options="selections('countries')" />
+          <DhInput v-model="form.originCountryCode" label="País de origen · ISO 2 letras" placeholder="CR, US, CN..." />
+          <DhInput v-model="form.destinationCountryCode" label="País de destino · ISO 2 letras" placeholder="CR, PA, GT..." />
           <PricingLocationSearchSelect  :model-value="draft.polCode || ''" @update:model-value="draft.polCode = $event" label="POL · Origen"
             :options="locationOptions('pol')" :optional="true" />
           <PricingLocationSearchSelect  :model-value="draft.poeCode || ''" @update:model-value="draft.poeCode = $event" label="POE · Salida"
