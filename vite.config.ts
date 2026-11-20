@@ -96,6 +96,7 @@ import { pricingLtlOptionalEditable } from './build/pricingLtlOptionalEditable'
 import { pricingOwnLtlPanamaCosts } from './build/pricingOwnLtlPanamaCosts'
 import { pricingPanamaFclOverweight } from './build/pricingPanamaFclOverweight'
 import { pricingLclNoCarrierCostGuard } from './build/pricingLclNoCarrierCostGuard'
+import { pricingCrmPreferredRuntimeGuard } from './build/pricingCrmPreferredRuntimeGuard'
 import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
 import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules20261002'
@@ -258,6 +259,8 @@ export default defineConfig({
     pricingPanamaFclOverweight(),
     // Final hard business gate: maritime LCL never inherits costs assigned to navieras.
     pricingLclNoCarrierCostGuard(),
+    // Gate the final source after all Vite pricing rewrites; never silently lose CRM sales.
+    pricingCrmPreferredRuntimeGuard(),
     vue(),
     tailwindcss(),
   ],
