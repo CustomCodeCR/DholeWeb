@@ -147,6 +147,69 @@ export interface OperationsOpeningEdit {
   destinationCountryCode: string | null
 }
 
+export interface ApertureEquipmentLine {
+  equipmentCode: string
+  quantity: number
+}
+export interface ApertureDraft {
+  clientPoReference: string | null
+  crmDivisionId: string | null
+  shipmentTypeCode: string | null
+  transportTypeCode: string | null
+  incotermCode: string | null
+  polCode: string | null
+  poeCode: string | null
+  podCode: string | null
+  cargoDescription: string | null
+  weightValue: number | null
+  weightUnit: 'KG' | 'LB'
+  weightKg?: number | null
+  volumeValue: number | null
+  volumeUnit: 'CBM' | 'CFT'
+  volumeCbm?: number | null
+  packageCount: number | null
+  packageTypeCode: string | null
+  requiresPickup: boolean
+  pickupAddress: string | null
+  pickupContact: string | null
+  pickupWindow: string | null
+  warehouseName: string | null
+  consolidationReference: string | null
+  isImo: boolean
+  imoClass: string | null
+  unNumber: string | null
+  stackable: boolean | null
+  isOverweight: boolean
+  overweightNotes: string | null
+  carrierCode: string | null
+  agentCode: string | null
+  merchantCode: string | null
+  bookingReference: string | null
+  collectionReference: string | null
+  estimatedDepartureAtUtc: string | null
+  estimatedArrivalAtUtc: string | null
+  observations: string | null
+  equipment: ApertureEquipmentLine[]
+  serviceCodes: string[]
+  operationalContactIds?: string[]
+}
+export interface ApertureCompleteness {
+  details: ApertureDraft
+  version: number
+  status: string
+  missingBlocking: string[]
+}
+export interface OperationsManualCaseRequest {
+  companyId: string
+  accountId: string
+  modalityCode: string
+  priority: number
+  complexityPoints: number
+  originCountryCode?: string | null
+  destinationCountryCode?: string | null
+  details?: ApertureDraft
+}
+
 export interface CrmAccountOption { id: string; displayName: string; legalName?: string }
 export interface OperationsCaseFilters { q?: string; status?: string; apertureType?: string; accountId?: string }
 function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilters = {}) {
@@ -159,7 +222,7 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
@@ -228,14 +291,31 @@ export const operationsApi = {
     : Promise.resolve({ items: [] as OperationsUser[] }),
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
-  createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
+  createContext: () => request<{ companyId: string | null; idtraCounterReady: boolean }>('/api/operations/apertures/create-context'),
+  synchronizeIdtraCounter: (lastIssuedIdtra: string, reference: string) =>
+    request<{ ready: boolean; nextFormat: string }>(
+      '/api/operations/apertures/idtra-counter/synchronize', 'POST',
+      { lastIssuedIdtra, reference }),
+  apertureDetails: (id: string) => request<ApertureCompleteness>(
+    `/api/operations/cases/${id}/aperture-details`),
+  updateApertureDetails: (id: string, expectedVersion: number, details: ApertureDraft,
+    metadata: {
+      modalityCode: string
+      originCountryCode: string | null
+      destinationCountryCode: string | null
+      priority: number
+      complexityPoints: number
+    }) =>
+    request<{ id: string; version: number; missingBlocking: string[] }>(
+      `/api/operations/cases/${id}/aperture-details`, 'PUT',
+      { expectedVersion, details, ...metadata }),
+  submitAperture: (id: string, expectedVersion: number) =>
+    request<{ id: string; status: string; version: number }>(
+      `/api/operations/cases/${id}/submit-aperture`, 'POST', { expectedVersion }),
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
-  createAperture: (body: {
-    companyId: string; accountId: string; seriesCode: string; modalityCode: string;
-    priority: number; complexityPoints: number; originCountryCode?: string | null;
-    destinationCountryCode?: string | null
-  }) => request<{ id: string; idtra: string; status: string }>(
+  createAperture: (body: OperationsManualCaseRequest) =>
+    request<{ id: string; idtra: string; status: string }>(
     '/api/operations/cases', 'POST', body),
   validations: (caseId: string) =>
     request<ValidationPair>(`/api/operations/cases/${caseId}/aperture-validations`),
