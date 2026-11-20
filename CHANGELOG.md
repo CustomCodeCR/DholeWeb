@@ -1,3 +1,9 @@
+## [1.103.22] - 2026-11-20 (DH-20261120-CRM-INVITEE-SYNC-309 · persistencia de invitados de actividades y acuerdos CRM)
+
+- PATCH: confirma los invitados en CRM mediante lectura tras guardar y conserva las selecciones incluso fuera de la primera página del directorio de Auth.
+- Coordina con backend CRM 1.42.6 que propaga invitados posteriores a compromisos pendientes; preserva outbox, SignalR, permisos y REST.
+- Web/System 1.103.21 → 1.103.22. Se respetan los releases concurrentes anteriores y CI/staging; producción expresamente autorizada para master.
+
 ## [1.103.21] - 2026-11-20 (DH-20261120-PRICING-CLIENT-COUNTRY-298 · desbloqueo de perspectiva comercial de tarifas)
 
 - PATCH: el país ausente de cuentas/prospectos CRM puede seleccionarse en Pantalla 3 para esta cotización, sin cambiar la ficha original, evitando el bloqueo que impedía avanzar hasta Pantalla 5.
