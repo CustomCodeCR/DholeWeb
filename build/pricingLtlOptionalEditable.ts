@@ -163,18 +163,22 @@ function patchWizard(source: string) {
       '    current.billToClient = previous.billToClient',
       '  }',
     ].join('\n')
-    const marker = '  // syncResolvedLandLtlTariffLines() after every rebuild'
     const rebuildStart = code.indexOf('function rebuildRateLines() {')
     const rebuildEnd = code.indexOf('\nfunction mergeConfiguredOptionalCostsIntoRateLines(', rebuildStart)
     if (rebuildStart < 0 || rebuildEnd <= rebuildStart) {
       throw new Error('[pricingLtlOptionalEditable] No se encontró la reconstrucción de Pantalla 7.')
     }
     let source = code.slice(rebuildStart, rebuildEnd)
-    if (!source.includes(assignment) || !source.includes(marker)) {
+    // Preserve optional edits regardless of where earlier Pricing transforms put
+    // the CostId reconciliation, Incoterm context flags and LTL source sync.
+    const header = 'function rebuildRateLines() {\n'
+    const finalClose = source.lastIndexOf('\n}')
+    if (!source.includes(header) || finalClose < 0 || !source.includes('rateLines.value =')) {
       throw new Error('[pricingLtlOptionalEditable] No se encontró: preservar cambios al reconstruir Pantalla 7')
     }
-    source = source.replace(assignment, keepOptionals + '\n' + assignment)
-    source = source.replace(marker, restoreValues + '\n' + marker)
+    source = source.replace(header, header + keepOptionals + '\n')
+    const closeAfterHeader = source.lastIndexOf('\n}')
+    source = source.slice(0, closeAfterHeader) + '\n' + restoreValues + source.slice(closeAfterHeader)
     code = code.slice(0, rebuildStart) + source + code.slice(rebuildEnd)
 
   }
