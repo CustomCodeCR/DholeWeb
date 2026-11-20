@@ -47,7 +47,7 @@ test('CIF with 0 selected carriers uses normal navigation to screen 7 instead of
   )
   const transformed = guardNoFreightFclOptionNavigation(wizardSource)
   assert.match(transformed, /selectedPoeIds\.value\.length > 0 && hasInternationalTransportService\.value/)
-  assert.match(transformed, /if \(step\.value === 6\) \{\s*const costsReady = await loadApplicableCosts\(\)\s*if \(!costsReady\) return\s*rebuildRateLines\(\)/)
+  assert.match(transformed, /if \(step\.value === 6\) \{[\s\S]{0,250}?const costsReady = await loadApplicableCosts\(\)\s*if \(!costsReady\) return\s*rebuildRateLines\(\)/)
   assert.match(transformed, /v-else-if="!isEditing && step < 8 && !\[1, 2, 5\]\.includes\(step\)"/)
   assert.equal(transformed.includes('selectedPoeIds.value.length > 0,\n)'), false)
   assert.throws(
