@@ -1,3 +1,10 @@
+## [1.103.18] - 2026-11-19 (DH-20261119-SELLER-DASHBOARD-PARITY-295 · paridad comercial entre vendedor y supervisión)
+
+- PATCH: la supervisión con vendedor seleccionado solicita al backend la misma cartera de su cuenta (/seller-rates/dashboard?sellerUserId), incluyendo tarifas manuales/directas que carecen de solicitudes, recibos y alternativas de QUO.
+- Elimina el recorte local por RateRequest; al cambiar de vendedor recarga tasas y listados sin mezclar respuestas anteriores, y atribuye fechas de solicitud al vendedor elegido. Mantiene las acciones propias del usuario conectado, sin suplantación.
+- El desempeño sigue siendo (aceptadas − vencidas) / (cotizadas − abiertas) × 100, pero ahora utiliza las mismas cotizaciones y revisiones publicadas en ambos roles. Pruebas de regresión y compilación CI.
+- Web/System 1.103.17 → 1.103.18, Pricing 1.25.3 → 1.25.4; los 14 componentes restantes conservan sus versiones. Staging antes de master.
+
 ## [1.103.17] - 2026-11-19 (DH-20261119-CRM-TIERED-CHECK-293 · TIERED_SALE y reintentos seguros)
 
 - PATCH: CRM 1.42.3 aplica migración PostgreSQL para admitir TIERED_SALE; el cliente conserva los ítems pendientes y evita duplicar costos de Pricing ya guardados.
