@@ -184,12 +184,10 @@ async function restorePricingDraft() {
     }
 
     pricingDraftRestoring.value = true
-    if (draft.form && typeof draft.form === 'object') {
-      // Restore the client identity before reactive client-change watchers run.
-      // Otherwise the valid manual operation override is cleared on nextTick.
-      if (typeof draft.form.clientId === 'string') resolvedCountryClientId.value = draft.form.clientId
-      Object.assign(form, draft.form)
+    if (draft.form && typeof draft.form === 'object' && typeof draft.form.clientId === 'string') {
+      resolvedCountryClientId.value = draft.form.clientId
     }
+    if (draft.form && typeof draft.form === 'object') Object.assign(form, draft.form)
     if (typeof draft.pricingQuoteCountryOverrideId === 'string') pricingQuoteCountryOverrideId.value = draft.pricingQuoteCountryOverrideId
     if (draft.pricingQuoteOperationOverride === 'Import' || draft.pricingQuoteOperationOverride === 'Export' || draft.pricingQuoteOperationOverride === 'TransitDomestic') {
       pricingQuoteOperationOverride.value = draft.pricingQuoteOperationOverride
