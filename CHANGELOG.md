@@ -1,3 +1,9 @@
+## [1.107.0] - 2026-11-20 (DH-20261120-VERSION-NOTICES-361 · notificaciones de versiones por usuario)
+
+- MINOR: Ajustes permite desactivar el aviso de actualización globalmente o para usuarios específicos. Las preferencias personales se conservan en Auth; SuperUsuario administra todas las cuentas. Global=false prevalece.
+- DholeWeb recibe invalidación por SignalR sin generar notificaciones y reconcilia preferencias por REST cada 60 segundos.
+- Backport aislado sobre master 1.106.18; DholeWeb/DholeSystem → 1.107.0. CI, staging y pruebas multiusuario pendientes; producción autorizada para promoción solo cuando se cumplan las validaciones.
+
 ## [1.106.18] - 2026-11-20 (DH-20261120-PRICING-EXPIRED-MASTER-361 · tarifas vencidas solo requieren aprobación para Ventas)
 
 - PATCH: hotfix selectivo de política ya integrada en develop/staging como 354. Oculta “Solicitar autorización” a Pricing y Superadmin y permite abrir editor directo; vendedores siguen solicitud y flujo de jefatura.

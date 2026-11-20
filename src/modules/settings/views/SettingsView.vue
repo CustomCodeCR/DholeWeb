@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ArrowLeft, ContactRound, DatabaseZap, Info, Keyboard, Palette, RefreshCcw, Settings } from 'lucide-vue-next'
+import { ArrowLeft, Bell, ContactRound, DatabaseZap, Info, Keyboard, Palette, RefreshCcw, Settings } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -11,12 +11,14 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import DatabaseMaintenanceView from './DatabaseMaintenanceView.vue'
 import EmployeeDirectorySettingsView from './EmployeeDirectorySettingsView.vue'
 import EnvironmentRecoveryView from './EnvironmentRecoveryView.vue'
+import VersionUpdateNotificationSettingsView from './VersionUpdateNotificationSettingsView.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const showDirectory = computed(() => route.query.section === 'extensions')
+const showVersionNotifications = computed(() => route.query.section === 'version-notifications')
 const showDatabaseMaintenance = computed(
   () => route.query.section === 'database-maintenance' && authStore.hasRole('SuperUsuario'),
 )
@@ -38,6 +40,12 @@ const cards = computed(() => {
       description: t('settings.directoryDescription'),
       icon: ContactRound,
       path: '/settings?section=extensions',
+    },
+    {
+      title: t('settings.versionNotificationsTitle'),
+      description: t('settings.versionNotificationsDescription'),
+      icon: Bell,
+      path: '/settings?section=version-notifications',
     },
     {
       title: t('settings.shortcuts'),
@@ -77,6 +85,10 @@ const cards = computed(() => {
       @click="router.push('/settings')"
     />
     <EmployeeDirectorySettingsView />
+  </section>
+
+  <section v-else-if="showVersionNotifications" class="space-y-4">
+    <VersionUpdateNotificationSettingsView />
   </section>
 
   <section v-else-if="showDatabaseMaintenance" class="space-y-4">
