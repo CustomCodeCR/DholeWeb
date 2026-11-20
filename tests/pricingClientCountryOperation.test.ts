@@ -88,8 +88,11 @@ test('wizard has no unbound country perspective helper after Vite transforms', (
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const diagnostic = readFileSync(new URL('../scripts/diagnose-pricing-bundle.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(wizard, /\b(?:resolveClientRouteOperation|routeOperation|clientCountryCode)\b/)
-  assert.match(wizard, /const automaticOperationType = computed\(\(\) => operationForClientCountry\(/)
-  assert.match(wizard, /pricingQuoteOperationOverride\.value \|\| automaticOperationType\.value/)
+  // Catch the exact missing runtime reference that blanked Pricing in v1.107.4.
+  assert.doesNotMatch(wizard, /automaticOperationType/)
+  assert.equal((wizard.match(/pricingQuoteOperationOverride\.value \|\| operationForClientCountry\(/g) ?? []).length, 2)
+  assert.match(wizard, /const direction = computed\(\(\) => \{/)
+  assert.match(diagnostic, /'automaticOperationType'/)
   assert.match(wizard, /const operationType = computed<RateOperationType>\(/)
   assert.match(wizard, /if \(form\.clientId && !direction\.value\)/)
   assert.match(wizard, /v-if="form\.clientId && form\.originId && \(form\.podId \|\| form\.destinationId\) && !direction"/)
