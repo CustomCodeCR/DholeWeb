@@ -1,3 +1,11 @@
+## [1.106.2] - 2026-11-20 (DH-20261120-INCOTERM-QUOTED-FREIGHT-344 · todos los Incoterms respetan el transporte contratado)
+
+- PATCH: la selección de Transporte Internacional, en lugar de una exclusión fija del Incoterm, determina si se presentan y guardan fletes de cotizaciones marítimas, aéreas, FTL y LTL.
+- CPT, CIF, CFR, CIP, DAP, DPU y DDP pueden incluir flete explícito y gastos asociados cuando el cliente contrata ese servicio, sin alterar las obligaciones comerciales del Incoterm.
+- Las cotizaciones sin el servicio de transporte internacional siguen ocultando flete; conservar manejos, documentos, destino y días de tránsito terrestre. Nuevo mensaje explica que falta seleccionar el servicio.
+- Regresión LTL CPT Colón–Managua, CIF/DDP por operación y filtros de cargos seleccionados. Web/System 1.106.1 → 1.106.2; Pricing 1.26.2 → 1.26.3; 14 servicios restantes sin nuevos binarios.
+- Sin migraciones ni cambios REST/SignalR; CI y staging pendientes. Sin autorización para producción.
+
 ## [1.106.1] - 2026-11-20 (DH-20261120-CRM-PRICING-PREFERRED-ALIAS-343 · aplicación de tarifas preferenciales por identidad de cliente y ruta)
 
 - PATCH: la caché de costos de Pantalla 7 incorpora la cuenta CRM para impedir reutilizar precios de otro cliente en alternativas con idéntica ruta.
