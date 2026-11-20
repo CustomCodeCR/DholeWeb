@@ -7583,6 +7583,19 @@ onMounted(async () => {
               No se identificó el país del origen o destino de la ruta. Revise POL, POE o POD.
             </p>
           </div>
+          <div v-if="props.rateRequestId && form.clientId" class="crystal-soft space-y-2 p-4">
+            <DhSelect v-model="pricingQuoteOperationOverride"
+              label="Operación comercial de la solicitud"
+              :options="[
+                { value: '', label: 'Automática según el cliente y la ruta' },
+                { value: 'Import', label: 'Importación' },
+                { value: 'Export', label: 'Exportación' },
+                { value: 'TransitDomestic', label: 'Tránsito / doméstico' },
+              ]" />
+            <p v-if="!direction" role="status" class="text-xs font-semibold text-amber-500">
+              Para continuar sin país confirmado en CRM o Config, seleccione Importación o Exportación manualmente.
+            </p>
+          </div>
           <div>
             <p class="crystal-kicker">Pantalla 5</p>
             <p v-if="multiCarrierSelectionMode" class="mt-1 text-xs font-black text-[var(--dh-primary)]">POE {{ currentPoeIndex + 1 }} de {{ selectedPoeIds.length }} · {{ displayValue(selectedDestination) }}</p>
