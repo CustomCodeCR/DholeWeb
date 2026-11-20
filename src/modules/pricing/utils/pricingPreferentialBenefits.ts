@@ -1,5 +1,5 @@
 import type { CostSelectDto, ChargeBasis } from '../../../core/interfaces/pricing'
-import { mostSpecificPreferentialRate, matchesPreferentialRule, preferentialSpecificity,
+import { matchesPreferentialRule, preferentialSpecificity,
   type PreferentialRule, type PreferentialSelection } from '../../crm/utils/crmPreferentialMatching'
 import { savedTierSales, tierSalesMatch, tierSignature } from '../../crm/utils/crmPreferentialTierSales'
 import { readCostPricingRules, type CostCargoContext } from './pricingCostRules'
@@ -12,6 +12,7 @@ export type CustomerPreferentialRate = PreferentialRule & {
   insuranceCostPercent?: number | null
   insuranceSalePercent?: number | null
   tierSalesJson?: string | null
+  notes?: string | null
 }
 export interface CustomerPreferentialContext extends PreferentialSelection {
   serviceCodes: string[]
