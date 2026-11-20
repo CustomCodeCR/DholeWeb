@@ -1,3 +1,11 @@
+## [1.105.0] - 2026-11-20 (DH-20261120-OPERATIONS-APERTURES-330 · Aperturas y expedientes)
+
+- MINOR: Dashboard Operations distingue aperturas manuales y originadas en Pricing. Bandeja Aperturas y Trámites filtran por origen, estado e IDTRA desde backend paginado y enlazan a la QUO vinculada.
+- Apertura manual: selector de cuenta CRM (en vez de UUID escrito), empresa resuelta en servidor y ejecutivo obtenido de CRM sin identidad de prueba.
+- Expediente en Trámites presenta navegación de ocho pestañas en una vista: Resumen con datos y etapas existentes, QUO relacionada y estados de departamentos. La operación avanzada de cada tab depende de fases posteriores y permisos del backend.
+- La creación automática real desde QUO aceptada todavía necesita contrato de aceptación duradero, snapshot comercial y consumidor idempotente en Operations; no se declara terminada.
+- Web 1.104.5 → 1.105.0 y Operations 0.12.0 → 0.13.0; release global candidato 1.105.0. No integrar a master ni desplegar sin CI y staging.
+
 ## [1.104.5] - 2026-11-20 (DH-20261120-PRICING-CRM-PREFERRED-324 · aplicar tarifas preferenciales CRM en Pricing)
 
 - PATCH: al generar una nueva cotización para una cuenta CRM, Pantalla 7 obtiene los acuerdos comerciales vigentes de esa cuenta y sustituye exclusivamente el importe de venta en los cargos cuyas condiciones coinciden: modalidad, CostId/rubro, equipo, POL, POE, POD, naviera, Incoterm y servicios.

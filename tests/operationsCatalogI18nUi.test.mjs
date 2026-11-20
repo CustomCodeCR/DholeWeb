@@ -43,6 +43,6 @@ test('Operations translations are registered for Spanish and English', () => {
   assert.match(catalog, /title: 'Operations'/)
   assert.match(catalog, /casesView: \{/)
   assert.match(aperture, /useI18n\(\)/)
-  assert.match(cases, /operationsApi\.cases\(page\.value\)/)
+  assert.match(cases, /operationsApi\.cases\(page\.value,\s*\{/)
   assert.match(cases, /operationsApi\.caseDetail\(id\)/)
 })
