@@ -124,7 +124,7 @@ export interface OperationsCaseWorkspace {
 }
 export interface OperationsCaseCost {
   id: string; costCode: string; description: string; supplierName: string | null
-  currencyCode: string; costAmount: number; saleAmount: number; capturedAtUtc: string
+  currencyCode: string; costAmount: number; saleAmount: number | null; capturedAtUtc: string
 }
 export interface OperationsInternalNote {
   id: string; body: string; createdBy: string
@@ -148,12 +148,13 @@ export interface OperationsOpeningEdit {
 }
 
 export interface CrmAccountOption { id: string; displayName: string; legalName?: string }
-export interface OperationsCaseFilters { q?: string; status?: string; apertureType?: string }
+export interface OperationsCaseFilters { q?: string; status?: string; apertureType?: string; accountId?: string }
 function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilters = {}) {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
   if (filters.q?.trim()) params.set('q', filters.q.trim())
   if (filters.status) params.set('status', filters.status)
   if (filters.apertureType) params.set('apertureType', filters.apertureType)
+  if (filters.accountId) params.set('accountId', filters.accountId)
   return params.toString()
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
