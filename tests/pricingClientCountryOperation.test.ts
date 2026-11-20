@@ -63,8 +63,8 @@ test('CRM country picker renders from the reactive catalog without an optional s
   // still compiles template access as $setup.*. A missing binding previously
   // crashed the entire wizard on creation/restore.
   assert.doesNotMatch(wizard, /pricingQuoteCountryOptions/)
-  assert.equal((wizard.match(/:options="catalogs\\.countries\\.filter\\(country =>/g) ?? []).length, 2)
-  assert.match(wizard, /!catalogs\\.countries\\.some\\(country =>/)
+  assert.equal(wizard.split(':options="catalogs.countries.filter(country =>').length - 1, 2)
+  assert.ok(wizard.includes('!catalogs.countries.some(country =>'))
   assert.match(diagnostic, /'pricingQuoteCountryOptions'/)
 })
 
