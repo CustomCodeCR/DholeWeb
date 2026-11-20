@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261120-PRICING-PERSPECTIVE-364",
+  "date": "2026-11-20",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.107.3",
+  "releaseType": "PATCH",
+  "scope": [
+    "DholeWeb",
+    "DholeSystem"
+  ],
+  "affectedComponents": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "from": "1.107.2",
+      "to": "1.107.3"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "from": "1.107.2",
+      "to": "1.107.3",
+      "scope": "central-manifest"
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "unchanged": "1.26.9"
+    }
+  ],
+  "changes": [
+    "Resolve explicit El Salvador destination from legacy POD labels without Config ISO metadata",
+    "Read legacy CRM country ISO-2 metadata and allow explicit Import/Export/Transit commercial operation when countries are unavailable",
+    "Preserve manual operation in browser drafts and existing quote editing, with no silent country guess",
+    "Keep destination VAT based on POD regardless of commercial operation override"
+  ],
+  "tests": [
+    "pricingPodVat.test.ts",
+    "pricingClientCountryOperation.test.ts",
+    "pnpm run version:check",
+    "pnpm run build",
+    "Dhole semantic version gate",
+    "Authenticated staging pricing wizard E2E"
+  ],
+  "schemaMigration": false,
+  "realtime": "no REST or SignalR contract changes",
+  "productionDeploymentAuthorized": false,
+  "ci": "pending",
+  "staging": "pending",
+  "rollback": "Revert synchronized Web/System release commits and retest draft direction and country resolution."
+}
