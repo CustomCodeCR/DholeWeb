@@ -929,6 +929,7 @@ function activeCostContextKey(): string {
 }
 
 async function loadCostsForSelectedAlternative(force = false) {
+  if (props.rateId) return // Do not rehydrate an existing quote from its catalog.
   if (step.value !== 7 || !multiCarrierSelectionMode.value || switchingPoeRoute.value) return
   const key = carrierRouteKey(form.destinationId, form.carrierId)
   const context = activeCostContextKey()
@@ -3818,6 +3819,7 @@ async function loadApplicableCosts(): Promise<boolean> {
   const serial = ++applicableCostRequestSerial
   try {
     // One Pricing response contains a complete active catalog and route context.
+    if (props.rateId) return true // Editing uses saved RateDetails, not master pricing.
     const bundle = await PricingService.selectWizardCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
@@ -3847,9 +3849,8 @@ async function loadApplicableCosts(): Promise<boolean> {
     if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
     // Recover missing fixed/variable candidates after backend filtering,
     // but NEVER reintroduce unselected optional costs from the full catalog.
-    costs.value = reconcileActiveCostCatalog(
-      bundle.applicable, allCosts.value, cost => cost.costType !== 'Optional',
-    )
+    // Only contextual Pricing candidates may generate rows, never global catalog.
+    costs.value = bundle.applicable
     return true
   } catch (error) {
     if (requestContext !== activeCostContextKey()) return false
@@ -3868,6 +3869,7 @@ function rebuildRateLines() {
     form.cargoPackages, form.cargoPallets, form.storageDays,
   ])
   const sameTierInputs = lastTierPricingInputKey.value === tierPricingInputKey
+  if (props.rateId) return // Only explicit editing of persisted lines is allowed.
   const previousOptionLines = !props.rateId
     && lastIncotermRateLinesRouteKey.value === routeKey
     // Screen 6 edits the source freight fields. Never let a stale P7 snapshot
@@ -5232,7 +5234,7 @@ async function hydrateExistingRate() {
     }
     // Two different catalog CostIds can represent the same Release.
     // Keep a single identical line; edit/save removes the extra persisted Id.
-    const uniqueReleaseLines = props.viewOnly ? rateLines.value : dedupeEquivalentReleaseLines(rateLines.value)
+    const uniqueReleaseLines = props.rateId ? rateLines.value : dedupeEquivalentReleaseLines(rateLines.value)
     if (uniqueReleaseLines.length !== rateLines.value.length) {
       toastStore.warning(
         'Release duplicado en la tarifa',
@@ -5241,7 +5243,7 @@ async function hydrateExistingRate() {
     }
     rateLines.value = uniqueReleaseLines
     mergeConfiguredOptionalCostsIntoRateLines()
-    if (!props.viewOnly) {
+    if (!props.rateId && !props.viewOnly) {
       const serviceCurrency = selectedCurrency.value ?? catalogs.currencies[0]
       if (serviceCurrency) ensureCrcCustomsLine(rateLines.value, serviceCurrency)
     }
