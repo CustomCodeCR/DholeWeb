@@ -75,3 +75,19 @@ test('Inland choices remain scoped per route, CRM customer, agent and services',
   assert.match(wizard, /form\.merchantHaulage = saved\.merchantHaulage/)
   assert.match(wizard, /rateLines\.value = lines\s*restoreCurrentInland\(\)/)
 })
+
+test('P6 permits a verified same-route cost snapshot to enter P7 without a second HTTP call', () => {
+  const helper = wizard.slice(wizard.indexOf('function screenSixHasValidCostSnapshot('),
+    wizard.indexOf('async function advanceSequentialWizard()'))
+  assert.match(helper, /context !== activeCostContextKey\(\)/)
+  assert.match(helper, /customerPreferentialError\.value/)
+  assert.match(helper, /customerPreferentialAccountId\.value !== form\.clientId/)
+  assert.match(helper, /draft\.fields\.agentId !== form\.agentId/)
+  assert.match(helper, /draft\.fields\.currencyId !== form\.currencyId/)
+  assert.match(helper, /activeIds\.has\(cost\.id\) && applicableCost\(cost\)/)
+  assert.match(wizard, /const verifiedSnapshot = sameRoute && screenSixHasValidCostSnapshot\(screenSixContext\)/)
+  assert.match(wizard, /ready = verifiedSnapshot \|\| await loadApplicableCosts\(\)/)
+  assert.match(wizard, /if \(!ready && sameRoute\) ready = screenSixHasValidCostSnapshot\(screenSixContext\)/)
+  assert.match(wizard, /restoreCurrentInland\(\)/)
+  assert.match(wizard, /ensureProviderFreightOnScreenSeven\(\)/)
+})
