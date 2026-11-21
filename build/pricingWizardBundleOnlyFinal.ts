@@ -53,7 +53,25 @@ async function pricingWizardBundleSelectCosts(
 }
 `
   const rewritten = source.replaceAll(LEGACY_COST_CALL, 'pricingWizardBundleSelectCosts(')
-  const result = rewritten.replace('</script>', bridge + '\n</script>')
+  // Zero-value variables are editable but never auto-added to an unrelated quote.
+  const applicableAnchor = 'function applicableCost(cost: CostSelectDto) {'
+  const eligibleZeroVariable = `
+  if (cost.costType === 'Variable'
+      && !cost.pricingRulesJson
+      && Number(cost.costAmount) === 0
+      && Number(cost.saleAmount) === 0) {
+    const explicitlySelectedService = Boolean(cost.services?.some((service) =>
+      form.serviceIds.includes(service.id)))
+    const explicitlyMatchedIncoterm = Boolean(cost.incoterms?.some((incoterm) =>
+      incoterm.id === form.incotermId))
+    const exwPickup = selectedIncotermCode.value === 'EXW'
+      && /recole|pick.?up/.test(normalizeCatalogValue(cost.name))
+    if (!explicitlySelectedService && !explicitlyMatchedIncoterm && !exwPickup) return false
+  }`
+  const withVariableGuard = rewritten.includes(applicableAnchor)
+    ? rewritten.replace(applicableAnchor, applicableAnchor + eligibleZeroVariable)
+    : rewritten
+  const result = withVariableGuard.replace('</script>', bridge + '\n</script>')
   if (result.includes(LEGACY_COST_CALL) || !result.includes('pricingWizardBundleSelectCosts(')) {
     throw new Error('[pricingWizardBundleOnlyFinal] Incomplete legacy cost migration')
   }

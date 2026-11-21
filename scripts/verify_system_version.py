@@ -11,6 +11,14 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
+def github_headers():
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "Dhole-Version-Gate"}
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def main():
     branch = os.environ.get("DH_SYSTEM_BRANCH", "develop").strip()
     if branch not in {"develop", "master"}:
@@ -26,7 +34,7 @@ def main():
     # On mismatch, confirm the actual branch file through GitHub's Contents API.
     if not (version == pkg == system["version"] == system["ecosystemVersion"]):
         api_url = f"https://api.github.com/repos/CustomCodeCR/DholeSystem/contents/version.json?ref={branch}"
-        with urlopen(Request(api_url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Dhole-Version-Gate"}), timeout=20) as response:
+        with urlopen(Request(api_url, headers=github_headers()), timeout=20) as response:
             payload = json.load(response)
         system = json.loads(b64decode(payload["content"]).decode("utf-8"))
     if not (version == pkg == system["version"] == system["ecosystemVersion"]):
@@ -45,10 +53,7 @@ def main():
                 def candidate_file(path):
                     api_url = ("https://api.github.com/repos/CustomCodeCR/DholeSystem/"
                                f"contents/{path}?ref={quote(candidate_branch, safe='')}")
-                    with urlopen(Request(api_url, headers={
-                        "Accept": "application/vnd.github+json",
-                        "User-Agent": "Dhole-Version-Gate",
-                    }), timeout=20) as response:
+                    with urlopen(Request(api_url, headers=github_headers()), timeout=20) as response:
                         payload = json.load(response)
                     return json.loads(b64decode(payload["content"]).decode("utf-8"))
 
