@@ -39,23 +39,8 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
     )
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'`,
   )
-  // Prior releases queried the full catalogue only for maritime FCL.
-  // DH-20261120-PRICING-COSTS-355 queries it for every shipment mode;
-  // keep compatibility with both loader shapes.
-  const legacyCatalogueBranch = "      maritimeFcl\n        ? PricingService.selectCosts({ isActive: true })"
-  if (loader.includes(legacyCatalogueBranch)) {
-    loader = replaceOnce(loader, legacyCatalogueBranch,
-      "      (maritimeFcl || panamaOwnLtl)\n        ? PricingService.selectCosts({ isActive: true })")
-  } else if (!loader.includes("PricingService.selectCosts({ isActive: true })")) {
-    throw new Error('[pricingOwnLtlPanamaCosts] Active catalogue query is missing.')
-  }
-  const legacyFailureGuard = "(!maritimeFcl || fullCatalogResult.status === 'rejected')"
-  if (loader.includes(legacyFailureGuard)) {
-    loader = replaceOnce(loader, legacyFailureGuard,
-      "(!(maritimeFcl || panamaOwnLtl) || fullCatalogResult.status === 'rejected')")
-  }
   loader = replaceOnce(loader,
-    "    if (activeContext !== activeCostContextKey()) return false\n    costs.value = [...mergedCosts.values()]",
+    "    if (activeContext !== activeCostContextKey()) return false\n    if (!fullCatalog.length",
     `    if (panamaOwnLtl) {
       // The contextual API uses exact POE/POD IDs. CFZ -> San José is an LTL
       // warehouse route; the configured Panama -> Costa Rica charges instead
@@ -64,16 +49,11 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
       for (const cost of selectLtlPanamaCosts(fullCatalog, {
         incotermId: form.incotermId,
         serviceIds: form.serviceIds,
-      }).values()) mergedCosts.set(cost.id, {
-        ...cost,
-        // The CFZ -> San José selector verified the commercial route by names;
-        // the legacy POE/POD IDs are intentionally different from the UI trip.
-        __dholePricingContextKey: contextKey,
-      })
+      }).values()) mergedCosts.set(cost.id, cost)
     }
 
     if (activeContext !== activeCostContextKey()) return false
-    costs.value = [...mergedCosts.values()]`,
+    if (!fullCatalog.length`,
   )
   loader = replaceOnce(loader,
     "    return true\n  } catch (error) {",

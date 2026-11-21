@@ -2214,6 +2214,8 @@ function isAutomaticOutsideIncoterm(line: RateLine) {
   // Generated equipment freight is not a manually contracted client charge.
   const generatedEquipmentFreight = line.costDetailType === 'Freight'
     && (line.key === 'freight' || line.key.startsWith('freight:'))
+  // A declared value or selected insurance service is an explicit customer request.
+  if (line.costDetailType === 'Insurance' && (number(form.cargoValue) > 0 || cargoInsuranceSelected.value)) return false
   if (props.rateId || editingRate.value || line.detailId
     || (line.manual && !generatedEquipmentFreight)) return false
   const section = line.costDetailType === 'Insurance' ? 'insurance'
@@ -2393,6 +2395,23 @@ const orderedRateGroups = computed(() => [
   { key: 'insurance', label: 'Seguro de carga', lines: insuranceLines.value },
   { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
 ].filter((group) => group.key !== 'agent' || group.lines.length > 0))
+
+// The final detail table and create/update request must share P7's group order.
+const orderedCompleteRateLines = computed(() => {
+  const groupKeys = orderedRateGroups.value.flatMap(group => group.lines.map(line => line.key))
+  const position = new Map(groupKeys.map((key, index) => [key, index] as const))
+  return includedLines.value
+    .map((line, index) => ({ line, index }))
+    .sort((a, b) => {
+      const aOrder = position.get(a.line.key)
+      const bOrder = position.get(b.line.key)
+      if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder
+      if (aOrder !== undefined) return -1
+      if (bOrder !== undefined) return 1
+      return a.index - b.index
+    })
+    .map(entry => entry.line)
+})
 
 const providerAgentCosts = computed(() => {
   const seen = new Set<string>()
@@ -3665,47 +3684,8 @@ function rebuildRateLines() {
   })
 
 
-const addVariableSectionFallback = (
-  section: RateSection,
-  name: string,
-  detailType: CostDetailType,
-  contextLabel: string,
-) => {
-  const alreadyPresent = section === 'pickup_origin'
-    ? lines.some((line) => line.section === section && line.costDetailType === 'InlandTransport')
-    : lines.some((line) => line.section === section && line.costDetailType === 'OriginCharge')
-  if (!visible.has(section) || alreadyPresent) return
-  lines.push({
-    key: `variable-section:${section}`,
-    section,
-    name,
-    costDetailType: detailType,
-    costType: 'Variable',
-    chargeBasis: defaultChargeBasis(detailType),
-    contextLabel,
-    currencyId: currency.id,
-    currencyName: displayValue(currency),
-    currencyCode: currency.code,
-    costAmount: 0,
-    saleAmount: 0,
-    included: true,
-    optional: false,
-    manual: false,
-  })
-}
-
-addVariableSectionFallback(
-  'pickup_origin',
-  'Recolecta',
-  'InlandTransport',
-  'Variable: complete costo y venta según la recolección aplicable.',
-)
-addVariableSectionFallback(
-  'origin_charges',
-  'Cargos en Origen',
-  'OriginCharge',
-  'Variable: complete costo y venta según los cargos de origen aplicables.',
-)
+  // A missing catalog cost is not an authorized zero-priced quote line.
+  // Operators can still add a manual charge explicitly from screen 7.
 
   const cargoConditionSection: RateSection | null = visible.has('destination_charges')
     ? 'destination_charges'
@@ -4110,7 +4090,8 @@ async function loadCatalogs() {
       selectOptional('country-vat-rates', 'country-tax-rates'),
       selectOptional('pricing-clients'),
       selectOptional('pricing-sales-executives'),
-      PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
+      // In edit mode the contextual bundle is authoritative; skip a redundant full select.
+      props.rateId ? Promise.resolve([] as CostSelectDto[]) : PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
     ])
 
     Object.assign(catalogs, {
@@ -4941,7 +4922,7 @@ async function hydrateExistingRate() {
         destinationTaxRate: Number(detail.destinationTaxRate || 0),
       } as RateLine
     })
-    if (!props.viewOnly) syncPersistedLinesWithChangedConfiguredCosts()
+    // An existing quote is a pricing snapshot; opening it must not overwrite its amounts.
     persistedRateLineBaselines.clear()
     for (const line of rateLines.value) {
       if (line.detailId) persistedRateLineBaselines.set(line.detailId, rateLineEditableSignature(line))
@@ -5283,7 +5264,8 @@ async function next() {
   if (!canNext.value) return
   if (step.value === 4) await searchApprovedRates()
   if (step.value === 6) {
-    await loadApplicableCosts()
+    // Do not generate fake empty lines when costs could not be loaded.
+    if (!(await loadApplicableCosts())) return
     rebuildRateLines()
   }
   if (step.value < 8) step.value += 1
@@ -5916,12 +5898,7 @@ async function saveRate() {
     return
   }
 
-  if (editingRate.value && !props.viewOnly) {
-    // Re-query immediately before saving so changes made in Costos y recargos while
-    // this quote was open are applied only to the linked detail that actually changed.
-    await loadApplicableCosts()
-    syncPersistedLinesWithChangedConfiguredCosts()
-  }
+  // Persist only the explicit P7 edits, never an implicit master-cost repricing.
 
   const customsService = selectedCrcCustomsService.value
   if (customsService && crcImportContext.value) {
@@ -5943,7 +5920,7 @@ async function saveRate() {
   // coexist with the equipment-specific freight from the selected bundle.
   rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
   if (!editingRate.value) applyIncotermAutomaticChargeGuard()
-  const normalizedIncludedLines = includedLines.value.map((line) => {
+  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {
     if (line.currencyId) return line
 
     return {
@@ -9054,7 +9031,7 @@ onMounted(async () => {
                   <tr><th class="px-4 py-3">Rubro</th><th class="px-4 py-3">Base</th><th class="px-4 py-3">Cant.</th><th class="px-4 py-3">Divisa</th><th class="px-4 py-3">Facturar / cobrar a</th><th class="px-4 py-3 text-right">Costo unit.</th><th class="px-4 py-3 text-right">Venta unit.</th><th class="px-4 py-3 text-right">Venta subtotal</th><th class="px-4 py-3 text-right">IVA</th><th class="px-4 py-3 text-right">Venta total</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-for="line in includedLines" :key="line.key" class="border-t border-[var(--dh-border)]">
+                  <tr v-for="line in orderedCompleteRateLines" :key="line.key" class="border-t border-[var(--dh-border)]">
                     <td class="px-4 py-3">
                       <strong>{{ line.name }}</strong>
                       <p v-if="line.notes" class="mt-1 max-w-[360px] whitespace-pre-wrap text-[10px] font-semibold text-[var(--dh-text-muted)]">{{ line.notes }}</p>

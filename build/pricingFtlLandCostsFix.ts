@@ -349,19 +349,10 @@ async function loadApplicableCosts() {
     }
 
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
-    const [contextResult, fullCatalogResult] = await Promise.allSettled([
-      PricingService.selectCosts(contextualQuery),
-      // The Incoterm-specific API query can omit otherwise contracted charges.
-      // Recover from the active catalogue for every mode, not only maritime FCL.
-      PricingService.selectCosts({ isActive: true }),
-    ])
-
-    if (contextResult.status === 'rejected' && fullCatalogResult.status === 'rejected') {
-      throw contextResult.reason
-    }
-
-    const contextualCosts = contextResult.status === 'fulfilled' ? contextResult.value : []
-    const fullCatalog = fullCatalogResult.status === 'fulfilled' ? fullCatalogResult.value : []
+    // A single consistent response replaces the two legacy select calls.
+    const bundle = await PricingService.selectWizardCosts(contextualQuery)
+    const contextualCosts = bundle.applicable
+    const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
     fullCatalog
@@ -380,6 +371,10 @@ async function loadApplicableCosts() {
       }))
 
     if (activeContext !== activeCostContextKey()) return false
+    if (!fullCatalog.length && !allCosts.value.length) {
+      throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
+    }
+    allCosts.value = fullCatalog
     costs.value = [...mergedCosts.values()]
     return true
   } catch (error) {
@@ -410,12 +405,14 @@ function rebuildRateLines`,
   // Pantalla 7 no debe inventar una fila "Recolecta". Si existe Recolecta en Cargos y
   // recargos llegará desde /costs/select y se mostrará en su sección real; si no existe,
   // no se agrega una línea variable con costo/venta en cero.
+  if (code.includes("addVariableSectionFallback(\n  'pickup_origin'")) {
   code = replaceRegexOne(
     code,
     /\naddVariableSectionFallback\(\n\s*'pickup_origin',\n\s*'Recolecta',\n\s*'InlandTransport',\n\s*'Variable: complete costo y venta según la recolección aplicable\.',\n\)\n/,
     '\n',
     'synthetic pickup fallback',
   )
+  }
 
   // Every Optional cost returned for the active Pricing context must be visible in the
   // selector. Haulage/cargo flags may still auto-select or clear their related lines, but
