@@ -1,3 +1,10 @@
+## [1.108.8] - 2026-11-21 (DH-20261121-INCOTERM-CATEGORY-VISIBILITY-375 · categorías de responsabilidad por Incoterm)
+
+- PATCH: pantalla 7 resalta en rojo las categorías cuyo responsable contractual habitual no es el cliente según operación manual/automática e Incoterm (p. ej. EXPORT + FOB → Flete Internacional en rojo).
+- Para categorías mixtas (FCA, cargos destino/aduanas y tramos CPT/CIP/DAP/DPU) muestra aviso contextual sin marcarlas incorrectamente como excluidas. Los cargos de agente sin tramo conocido no se califican por un Incoterm genérico.
+- Ambos wizards preservan visibles y editables los cargos ya cotizados o seleccionados, sin alterar CostId, flete, inland, seguro, precios, IVA, totals, guardado o API. Un cargo rojo puede seguir contratado expresamente; la responsabilidad del Incoterm no es el servicio facturable.
+- Solo DholeWeb y DholeSystem cambian 1.108.7 → 1.108.8; PricingService queda 1.26.11. Staging/develop, sin autorización master/producción.
+
 ## [1.108.7] - 2026-11-21 (DH-20261121-INCOTERMS-EDIT-P0-374 · Incoterms y primera protección P0 de modificación)
 
 - PATCH: selección de Incoterms de Dhole: marítimo/multimodal muestran los 11; aéreo/terrestre muestran los 7 de cualquier modalidad; al reabrir una QUO antigua nunca se elimina el valor histórico sin confirmación.

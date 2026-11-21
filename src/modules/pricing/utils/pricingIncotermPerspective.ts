@@ -93,3 +93,52 @@ export function incotermClientPaysMainTransport(
 ): boolean {
   return incotermClientSections(operation, code).includes('international_freight')
 }
+
+/**
+ * Visual indicator only. The Incoterm describes the usual contractual party
+ * paying a block, not which services Dhole may contract or bill separately.
+ * NEVER use this value to hide/delete stored RateDetails or alter their amounts.
+ */
+export type IncotermSectionApplicability = 'client' | 'other-party' | 'mixed' | 'unknown'
+type VisualSection = IncotermCostSection | 'agent' | 'insurance'
+const VISUAL_SECTIONS: readonly IncotermCostSection[] = [
+  'pickup_origin', 'origin_charges', 'international_freight',
+  'destination_charges', 'delivery_destination',
+]
+// Per section in VISUAL_SECTIONS: B=buyer, S=seller, M=mixed by exact place/charge.
+const CONTRACTUAL_PARTY: Record<string, string> = {
+  EXW: 'BBBBB',
+  FCA: 'MMBBB',
+  FAS: 'SMBBB',
+  FOB: 'SSBBB',
+  CFR: 'SSSMB',
+  CIF: 'SSSMB',
+  CPT: 'SSSMM',
+  CIP: 'SSSMM',
+  DAP: 'SSSMS',
+  DPU: 'SSSMS',
+  DDP: 'SSSSS',
+}
+
+export function incotermSectionApplicability(
+  operation: RateOperationType,
+  incoterm: string,
+  section: VisualSection,
+): IncotermSectionApplicability {
+  if (operation !== 'Import' && operation !== 'Export') return 'unknown'
+  const term = normalizeIncotermCode(incoterm)
+  const mapping = CONTRACTUAL_PARTY[term]
+  if (!mapping || section === 'agent') return 'unknown'
+  // Insurance stays optional in other terms; under CIF/CIP the seller must
+  // document coverage, but the importer must not be billed a second premium.
+  if (section === 'insurance') {
+    if (term !== 'CIF' && term !== 'CIP') return 'mixed'
+    return operation === 'Export' ? 'client' : 'other-party'
+  }
+  const index = VISUAL_SECTIONS.indexOf(section)
+  if (index < 0) return 'unknown'
+  const party = mapping[index]
+  if (party === 'M') return 'mixed'
+  return party === (operation === 'Import' ? 'B' : 'S') ? 'client' : 'other-party'
+}
+

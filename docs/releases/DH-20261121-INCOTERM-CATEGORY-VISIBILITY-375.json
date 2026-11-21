@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261121-INCOTERM-CATEGORY-VISIBILITY-375",
+  "globalVersion": "1.108.8",
+  "releaseType": "PATCH",
+  "target": "develop",
+  "productionAuthorized": false,
+  "components": {
+    "DholeWeb": {
+      "from": "1.108.7",
+      "to": "1.108.8"
+    },
+    "DholeSystem": {
+      "from": "1.108.7",
+      "to": "1.108.8"
+    },
+    "DholePricingService": {
+      "from": "1.26.11",
+      "to": "1.26.11",
+      "unchanged": true
+    }
+  },
+  "scope": [
+    "P7 shows not-assigned Incoterm sections in red, not hidden",
+    "Preserve every selected/persisted charge on UI and API",
+    "No backend rules change"
+  ],
+  "validation": {
+    "ci": "pending",
+    "authenticatedStaging": "pending",
+    "master": "not-authorized"
+  }
+}

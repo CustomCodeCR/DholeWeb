@@ -63,7 +63,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
-import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { incotermClientSections, incotermOperationExplanation, incotermSectionApplicability, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
 import { reconcileActiveCostCatalog } from '@/modules/pricing/utils/pricingScreenSevenCostRecovery'
 import { captureInlandRows, restoreInlandRows, type InlandRowMemory } from '@/modules/pricing/utils/pricingInlandDraftMemory'
@@ -2505,6 +2505,23 @@ const bottomRateLines = computed(() =>
       && line.costDetailType !== 'Freight',
   ),
 )
+
+
+// Purely visual responsibility signal, never used by cost filtering or saving.
+// Mixed areas (e.g. destination THC + customs) must not be marked "no aplica".
+function categoryIncotermApplicability(groupKey: string) {
+  const sections: Record<string, RateSection | 'agent' | 'insurance'> = {
+    pickup: 'pickup_origin',
+    origin: 'origin_charges',
+    agent: 'agent',
+    freight: 'international_freight',
+    destination: 'destination_charges',
+    insurance: 'insurance',
+    delivery: 'delivery_destination',
+  }
+  const section = sections[groupKey]
+  return section ? incotermSectionApplicability(operationType.value, selectedIncotermCode.value, section) : 'unknown'
+}
 
 const orderedRateGroups = computed(() => [
   { key: 'pickup', label: 'Recolecta', lines: standardSectionLines('pickup_origin') },
@@ -8411,8 +8428,16 @@ onMounted(async () => {
 
           <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
-            <div class="crystal-group-header">
-              <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
+            <div class="crystal-group-header" :class="categoryIncotermApplicability(group.key) === 'other-party' ? 'rounded-xl border border-red-500/50 bg-red-500/5 px-3 py-3' : ''">
+              <div class="min-w-0">
+                <h3 class="text-xs font-black uppercase tracking-[0.15em]" :class="categoryIncotermApplicability(group.key) === 'other-party' ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text-muted)]'">{{ group.label }}</h3>
+                <p v-if="categoryIncotermApplicability(group.key) === 'other-party'" class="mt-1 text-xs font-bold text-red-600 dark:text-red-300">
+                  {{ group.key === 'insurance' ? 'Seguro a documentar por el vendedor, no volver a cobrar.' : 'No corresponde normalmente al cliente para' }} {{ selectedIncotermCode }} · {{ direction }}. Si se contrata por separado, conserve el cargo; no se elimina automáticamente.
+                </p>
+                <p v-else-if="categoryIncotermApplicability(group.key) === 'mixed'" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                  Responsabilidad según tramo, lugar y acuerdo; confirme cada cargo antes de facturar.
+                </p>
+              </div>
               <div v-if="group.lines.length > 0" class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
                 <DhInput
                   :model-value="billToBatchByGroup[group.key] ?? ''"
