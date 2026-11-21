@@ -14,17 +14,17 @@ export function patchPricingP7TierLandFinalGuard386(source: string): string {
   if (source.includes('// dhole-p7-tier-land-386')) return source
   let code = source
   code = replaceOnce(code,
-    'function syncPanamaOverweightLines() {\\n  if (props.viewOnly || hydratingExistingRate.value) return',
-    'function syncPanamaOverweightLines() {\\n  if (props.rateId || editingRate.value || props.viewOnly || hydratingExistingRate.value) return',
+    'function syncPanamaOverweightLines() {\n  if (props.viewOnly || hydratingExistingRate.value) return',
+    'function syncPanamaOverweightLines() {\n  if (props.rateId || editingRate.value || props.viewOnly || hydratingExistingRate.value) return',
     'saved-quote overwrite guard')
   code = replaceOnce(code,
     "    if (!line.manual && line.costId && selectedIds.has(line.costId)) return false",
-    "    // A priced base freight is not an excess surcharge; preserve it.\\n"
+    "    // A priced base freight is not an excess surcharge; preserve it.\n"
       + "    if (!line.manual && line.costId && selectedIds.has(line.costId)) return true",
     'tiered base CostId retention')
   code = replaceOnce(code,
     '? quote.charges.map(({ kind, cost, costAmount, saleAmount }) => {',
-    '? quote.charges.filter(({ cost }) => !other.some((line) => line.included && line.costId === cost.id))\\n'
+    '? quote.charges.filter(({ cost }) => !other.some((line) => line.included && line.costId === cost.id))\n'
       + '      .map(({ kind, cost, costAmount, saleAmount }) => {',
     'no double billing base and surcharge')
   code = replaceOnce(code,
@@ -39,10 +39,10 @@ export function patchPricingP7TierLandFinalGuard386(source: string): string {
   // The historical fixed GCF route is a fallback only when no master freight exists.
   // An unpriced tier should be reported, not silently replaced by USD 2,140.
   code = replaceOnce(code,
-    'function appendPanamaProductionLandLine(lines: RateLine[]) {\\n  if (!panamaProductionNoSearchActive.value) return',
-    'function appendPanamaProductionLandLine(lines: RateLine[]) {\\n'
-      + '  if (props.rateId || !panamaProductionNoSearchActive.value) return\\n'
-      + "  if (lines.some((line) => line.costId && /flete.*terrestre.*panama.*costa rica/.test(normalizeCatalogValue(line.name)))) return\\n"
+    'function appendPanamaProductionLandLine(lines: RateLine[]) {\n  if (!panamaProductionNoSearchActive.value) return',
+    'function appendPanamaProductionLandLine(lines: RateLine[]) {\n'
+      + '  if (props.rateId || !panamaProductionNoSearchActive.value) return\n'
+      + "  if (lines.some((line) => line.costId && /flete.*terrestre.*panama.*costa rica/.test(normalizeCatalogValue(line.name)))) return\n"
       + "  if (allCosts.value.some((cost) => /flete.*terrestre.*panama.*costa rica/.test(normalizeCatalogValue(cost.name)) && cost.pricingRulesJson)) return",
     'no fixed 2140 replacement when tier configured')
   return code + '\n// dhole-p7-tier-land-386\n'
