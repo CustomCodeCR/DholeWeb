@@ -114,7 +114,7 @@ function quoteEditRemoveInvalidDetails387() {
     if (!line.costId || line.manual) return false
     // A changed muellaje mode explicitly removes the opposite persisted line.
     // All unrelated saved charges and their negotiated prices remain intact.
-    if (changed.has('portHandlingMode')) {
+    if (form.portHandlingMode) {
       const label = normalizeCatalogValue(line.name)
       const oldChoice = (label.includes('anticipado') && form.portHandlingMode !== 'Anticipado')
         || (label.includes('redestino') && form.portHandlingMode !== 'Redestino')
