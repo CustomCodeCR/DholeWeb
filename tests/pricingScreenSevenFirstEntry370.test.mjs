@@ -41,7 +41,8 @@ test('P6 edits replace stale freight but preserve other P7 price, CostId and inc
 test('P7 groups are explicitly named, empty blocks do not render billing forms', () => {
   assert.match(wizard, /<h3[^>]*>{{ group\.label }}<\/h3>/)
   assert.match(wizard, /<div v-if="group\.lines\.length > 0" class="flex w-full flex-col/)
-  assert.match(wizard, /Sin cargos configurados para {{ group\.label\.toLowerCase\(\) }}/)
+  assert.match(wizard, /Sin cargos incluidos para {{ group\.label\.toLowerCase\(\) }}/)
+  assert.match(wizard, /outsideIncotermCandidateLines\(group\.key\)/)
   assert.match(wizard, /Costo unitario · {{ canonicalCurrencyCode\(line\) }}/)
   assert.match(wizard, /Venta unitaria · {{ canonicalCurrencyCode\(line\) }}/)
   assert.match(wizard, /\.crystal-lines-header \{\s*\/\*[^]*?position: relative;\s*top: auto;/)
