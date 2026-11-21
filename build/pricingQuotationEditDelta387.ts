@@ -262,12 +262,13 @@ export function patchPricingQuotationEditDelta387(source: string): string {
       + before, 'edit navigation')
   s = s.slice(0, nextStart) + next + s.slice(nextEnd)
 
-  const saveStart = s.indexOf('  if (editingRate.value && !props.viewOnly) {\n    await loadApplicableCosts()')
-  const saveEnd = s.indexOf('  const details: CreateRateDetailRequest[]', saveStart)
-  if (saveStart < 0 || saveEnd < 0) throw new Error('[pricingQuotationEditDelta387] Save reconciliation guard')
-  s = s.slice(0, saveStart)
-    + '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) return\n\n'
-    + s.slice(saveEnd)
+  // Some downstream plugins already replace the legacy pre-save refresh.
+  // The final invariant is inserted directly at the detail serialization point.
+  s = replaceSingle(s,
+    '  const details: CreateRateDetailRequest[] =',
+    '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) return\n\n'
+      + '  const details: CreateRateDetailRequest[] =',
+    'save-side request delta')
 
   const freight = 'function syncPersistedFreightLineForEdit() {'
   s = replaceSingle(s, freight,
