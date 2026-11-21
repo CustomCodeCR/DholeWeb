@@ -28,8 +28,8 @@ test('all six Incoterm logistics blocks stay available regardless of who pays', 
 })
 
 test('P6-P7 refuses stale or failed costs and retains P7 edits by context', () => {
-  assert.match(wizard, /applicableToContext: true/)
-  assert.match(wizard, /if \(requestContext !== activeCostContextKey\(\)\) return false/)
+  assert.match(wizard, /PricingService\.selectWizardCosts\(\{/)
+  assert.match(wizard, /serial !== applicableCostRequestSerial \|\| requestContext !== activeCostContextKey\(\)/)
   assert.match(wizard, /const costsReady = await loadApplicableCosts\(\)/)
   assert.match(wizard, /if \(!costsReady\) return\s+rebuildRateLines\(\)/)
   assert.match(wizard, /lastIncotermRateLinesContextKey\.value === currentContext/)
