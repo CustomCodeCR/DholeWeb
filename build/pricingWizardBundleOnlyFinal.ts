@@ -53,7 +53,28 @@ async function pricingWizardBundleSelectCosts(
 }
 `
   const rewritten = source.replaceAll(LEGACY_COST_CALL, 'pricingWizardBundleSelectCosts(')
-  const result = rewritten.replace('</script>', bridge + '\n</script>')
+  // The API must return 0/0 variable templates so EXW pickup and selected
+  // delivery can be entered by Pricing. A generic zero template with no
+  // selected service or Incoterm must NOT automatically add itself to a
+  // different quotation (for example Recolecta on an unrelated FOB).
+  const applicableAnchor = 'function applicableCost(cost: CostSelectDto) {'
+  const eligibleZeroVariable = `
+  if (cost.costType === 'Variable'
+      && !cost.pricingRulesJson
+      && Number(cost.costAmount) === 0
+      && Number(cost.saleAmount) === 0) {
+    const explicitlySelectedService = Boolean(cost.services?.some((service) =>
+      form.serviceIds.includes(service.id)))
+    const explicitlyMatchedIncoterm = Boolean(cost.incoterms?.some((incoterm) =>
+      incoterm.id === form.incotermId))
+    const exwPickup = selectedIncotermCode.value === 'EXW'
+      && /recole|pick.?up/.test(normalizeCatalogValue(cost.name))
+    if (!explicitlySelectedService && !explicitlyMatchedIncoterm && !exwPickup) return false
+  }`
+  const withVariableGuard = rewritten.includes(applicableAnchor)
+    ? rewritten.replace(applicableAnchor, applicableAnchor + eligibleZeroVariable)
+    : rewritten // The compact DH-386 fixture has no wizard applicability function.
+  const result = withVariableGuard.replace('</script>', bridge + '\n</script>')
   if (result.includes(LEGACY_COST_CALL) || !result.includes('pricingWizardBundleSelectCosts(')) {
     throw new Error('[pricingWizardBundleOnlyFinal] Incomplete legacy cost migration')
   }
