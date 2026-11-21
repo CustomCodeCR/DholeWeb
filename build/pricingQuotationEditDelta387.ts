@@ -234,14 +234,14 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     'newly requested service inclusion')
   s = s.slice(0, appendStart) + append + s.slice(appendEnd)
 
-  // The original is immutable; hydration must not add charges or refresh prices.
-  const hydrateStart = s.indexOf('    if (!props.viewOnly) {\n      // RateDetails persistidos')
-  const hydrateEnd = s.indexOf('\n    step.value = props.viewOnly', hydrateStart)
-  if (hydrateStart < 0 || hydrateEnd < 0) throw new Error('[pricingQuotationEditDelta387] Hydrate guard')
-  s = s.slice(0, hydrateStart) + [
-    '    // Editing opens an exact financial copy. No automatic additions.',
-    '    if (!props.viewOnly) relinkExistingDetailIdsForEdit()',
-  ].join('\n') + s.slice(hydrateEnd)
+  // Existing-rate hydration calls the filtered list, which is empty until the
+  // operator changes a field. Prevent implicit haulage inclusion changes as well.
+  s = replaceSingle(s,
+    'function syncHaulageOptionalLines() {',
+    'function syncHaulageOptionalLines() {\\n'
+      + '  if (props.rateId && !quoteEditChangedKeys387().has("merchant")'
+      + ' && !quoteEditChangedKeys387().has("carrier")) return',
+    'preserve persisted haulage selections')
 
   s = replaceSingle(s,
     '    // An existing quote is a pricing snapshot; opening it must not overwrite its amounts.',
