@@ -54,7 +54,7 @@ test('P7 obtains catalog and contextual costs from one Pricing HTTP call', () =>
   assert.match(loader, /PricingService\.selectWizardCosts\(\{/)
   assert.doesNotMatch(loader, /PricingService\.selectCosts\(/)
   assert.match(loader, /allCosts\.value = bundle\.catalog/)
-  assert.match(loader, /costs\.value = reconcileActiveCostCatalog\(bundle\.applicable, allCosts\.value\)/)
+  assert.match(loader, /costs\.value = reconcileActiveCostCatalog\([\s\S]*?cost => cost\.costType !== 'Optional'/)
   assert.match(loader, /activeCatalogValidatedContexts\.add\(requestContext\)/)
   assert.match(loader, /serial !== applicableCostRequestSerial/)
   assert.match(wizard, /const missingCatalogLines = applicableConfiguredCosts\(\)/)
