@@ -54,7 +54,7 @@ function fixture() {
     selectedCrcCustomsService: { value: { id: 'AGENCIA-CRC' } },
     visibleSections: { value: ['international_freight', 'origin_charges', 'destination_charges'] },
     lclSelectedSource: { value: { kind: 'Own' } },
-    allCosts: { value: [target] }, costs: { value: [] },
+    allCosts: { value: [target] }, costs: { value: [target] }, // wizard-bundle applicable
     costContextPoeId: () => 'BALBOA',
     costContextAgentId: () => '',
     costSpecificity: () => 0,
@@ -155,6 +155,7 @@ test('no aparece agencia si no fue solicitada', () => {
 test('agencia solicitada sin costo aplicable usa una línea editable sin precio inventado', () => {
   const { env, sync } = fixture()
   env.allCosts.value = []
+  env.costs.value = []
   env.ensureCrcCustomsLine = (lines: Record<string, any>[]) => {
     if (lines.some((line) => line.key === 'service:customs-cr')) return
     lines.push({

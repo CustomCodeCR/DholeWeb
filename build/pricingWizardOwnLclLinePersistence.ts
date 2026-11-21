@@ -62,7 +62,7 @@ function syncOwnLclCrcAgencyLine(forceReprice = false) {
 
   // Pricing's full active catalog is loaded at wizard initialization. Service
   // association and complete route restrictions are authoritative; names are not.
-  const configured = [...allCosts.value, ...costs.value]
+  const configured = costs.value
     .filter((cost) => ownLclCustomsCostApplies(cost, service.id))
     .sort((a, b) => costSpecificity(b) - costSpecificity(a))[0]
   const currency = selectedCurrency.value ?? catalogs.currencies[0]

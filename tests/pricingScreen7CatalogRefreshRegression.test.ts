@@ -120,7 +120,8 @@ function refreshHarness(pricingCosts: Array<Record<string, unknown>>, own = fals
     screen7RefreshPromptOpen: { value: true },
     rateLines: { value: original.map((line) => ({ ...line })) },
     costs: { value: [] },
-    allCosts: { value: [] },
+    // Same wizard-bundle response also includes the reference catalog.
+    allCosts: { value: allActiveCosts },
     selectedCrcCustomsService: { value: null },
     syncOwnLclCrcAgencyLine: () => {},
     pricingDraftLastLineContext: 'normal-context',

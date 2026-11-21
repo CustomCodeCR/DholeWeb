@@ -1,3 +1,17 @@
+## [1.108.20] - 2026-11-21 · DH-20261121-QUO-EDIT-DELTA-387
+
+- PATCH: modificación de QUO por delta comparado con snapshot original; servicios adicionales crean solo líneas solicitadas (Servicio de Aduanas, Seguro de Carga) sin alterar costo/venta, CostId, DetailId o moneda de líneas retenidas.
+- PATCH: cambios explícitos de ruta/naviera/agente/Incoterm/inland/condiciones habilitan solo rubros aplicables; deshacer selección revierte exclusivamente el delta. Sin consultas legacy de catálogo de costos.
+- Incluye en este candidato master el release anterior 1.108.19 DH-386 (wizard-bundle único y flete internacional terrestre independiente), con historial preservado. DholeSystem 1.108.20, DholePricingService 1.26.18.
+- CI, validación de staging y control de versionamiento obligatorios antes de promoción.
+
+## [1.108.19] - 2026-11-21 · DH-20261121-WIZARD-BUNDLE-ONLY-386
+
+- PATCH: costos del asistente de creación/modificación exclusivamente desde GET /api/pricing/costs/wizard-bundle; solo data.applicable crea líneas y data.catalog es referencia histórica por CostId.
+- PATCH: mantiene Flete Internacional Terrestre como CostId independiente del flete marítimo por equipo FCL y muestra ambos en Flete Internacional.
+- PATCH: edición conserva RateDetails originales y evita cargos globales no solicitados; pruebas DH-386, compilación y staging en develop aprobadas; release master aislado sujeto a CI y verificación.
+- DholeSystem 1.108.19 y DholePricingService 1.26.18 coordinados.
+
 ## [1.108.18] - 2026-11-21 · DH-20261121-PRICING-EDIT-TIERS-LAND-385
 
 - PATCH: el cost loader final de Vite envía contenedor, kg, bultos y días a Pricing; mantiene la clave de contexto alineada para evitar precios obsoletos.

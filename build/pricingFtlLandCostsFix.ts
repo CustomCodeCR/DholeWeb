@@ -367,20 +367,9 @@ async function loadApplicableCosts() {
     const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
-    // A saved quote (even during explicit refresh) never draws additional
-    // charges from the global catalog. Only the contextual result is eligible.
-    if (!props.rateId) {
-      fullCatalog
-        .filter((cost) => maritimeFcl
-          ? maritimeFclCostMatchesCurrentContext(cost)
-          : catalogCostMatchesCurrentContext(cost))
-        .forEach((cost) => mergedCosts.set(cost.id, cost))
-    }
-
-    // Backend-context costs have already passed Pricing's original checks.
-    // Prefer those records for identical CostIds and mark only those authoritative.
-    contextualCosts
-      .filter((cost) => cost.isActive !== false)
+    // Only data.applicable can originate new wizard charge lines.
+    // data.catalog remains reference-only for previously persisted CostIds.
+    contextualCosts.filter((cost) => cost.isActive !== false)
       .forEach((cost) => mergedCosts.set(cost.id, {
         ...cost,
         __dholePricingContextKey: contextKey,

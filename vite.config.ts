@@ -97,6 +97,7 @@ import { pricingOwnLtlPanamaCosts } from './build/pricingOwnLtlPanamaCosts'
 import { pricingPanamaFclOverweight } from './build/pricingPanamaFclOverweight'
 import { pricingLclNoCarrierCostGuard } from './build/pricingLclNoCarrierCostGuard'
 import { pricingCrmPreferredRuntimeGuard } from './build/pricingCrmPreferredRuntimeGuard'
+import { pricingWizardBundleOnlyFinal } from './build/pricingWizardBundleOnlyFinal'
 import { pricingOptionalChargesFinalGuard } from './build/pricingOptionalChargesFinalGuard'
 import { pricingConsolidatedCargo20261001 } from './build/pricingConsolidatedCargo20261001'
 import { pricingMiamiLclRules20261002 } from './build/pricingMiamiLclRules20261002'
@@ -261,6 +262,8 @@ export default defineConfig({
     pricingLclNoCarrierCostGuard(),
     // Gate the final source after all Vite pricing rewrites; never silently lose CRM sales.
     pricingCrmPreferredRuntimeGuard(),
+    // Run after every source rewrite, but before Vue compilation.
+    pricingWizardBundleOnlyFinal(),
     vue(),
     tailwindcss(),
   ],
