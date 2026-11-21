@@ -232,9 +232,9 @@ export const operationsApi = {
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
-    companyId: string; accountId: string; seriesCode: string; modalityCode: string;
+    companyId: string; accountId: string; modalityCode: string;
     priority: number; complexityPoints: number; originCountryCode?: string | null;
-    destinationCountryCode?: string | null
+    destinationCountryCode?: string | null; openingData?: Record<string, unknown>
   }) => request<{ id: string; idtra: string; status: string }>(
     '/api/operations/cases', 'POST', body),
   validations: (caseId: string) =>
