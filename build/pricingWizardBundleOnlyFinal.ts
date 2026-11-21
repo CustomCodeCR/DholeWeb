@@ -66,7 +66,7 @@ export function pricingWizardBundleOnlyFinal(): Plugin {
     name: 'dhole-pricing-wizard-bundle-only-final',
     transform(source, id) {
       if (id.includes('?')) return null
-      if (!id.replaceAll('\\\\', '/').endsWith(WIZARD_PATH)) return null
+      if (!id.replaceAll(String.fromCharCode(92), '/').endsWith(WIZARD_PATH)) return null
       return { code: patchPricingWizardBundleOnlyFinal(source), map: null }
     },
   }
