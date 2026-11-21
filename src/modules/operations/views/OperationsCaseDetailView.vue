@@ -29,6 +29,37 @@ const saving = ref(false)
 const error = ref('')
 const message = ref('')
 const record = ref<OperationsCaseDetail | null>(null)
+const openingData = computed<Record<string, unknown>>(() => {
+  try {
+    const value = JSON.parse(record.value?.openingDataJson || '{}') as unknown
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : {}
+  } catch { return {} }
+})
+const openingRows = computed(() => {
+  const data = openingData.value
+  const pairs = [
+    ['Referencia / PO del cliente', 'clientPoReference'],
+    ['Origen de solicitud', 'provenance'],
+    ['Tipo de embarque', 'shipmentType'],
+    ['Tipo de transporte', 'transportType'],
+    ['Incoterm', 'incoterm'],
+    ['POL', 'pol'], ['POE', 'poe'], ['POD', 'pod'],
+    ['Descripción de carga', 'cargoDescription'],
+    ['Bultos', 'packageCount'], ['Tipo de bulto', 'packageType'],
+    ['Peso original', 'weightValue'], ['Unidad peso', 'weightUnit'],
+    ['Volumen original', 'volumeValue'], ['Unidad volumen', 'volumeUnit'],
+    ['Peso kg', 'weightKg'], ['Volumen CBM', 'volumeCbm'],
+    ['Consolidado', 'consolidationReference'],
+    ['Recolecta', 'pickupAddress'], ['WHS', 'whsName'],
+    ['Entrega', 'destinationAddress'], ['Naviera', 'carrierReference'],
+    ['Agente', 'agentReference'], ['Merchant', 'merchantReference'],
+    ['ETD', 'etm'], ['ETA', 'eta'], ['Observaciones', 'observations'],
+  ] as const
+  return pairs.map(([label, key]) => ({ label, value: data[key] }))
+    .filter(entry => entry.value !== null && entry.value !== undefined && entry.value !== '')
+})
+
 const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
@@ -334,6 +365,23 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
               <DhBadge variant="neutral">{{ statusLabel(stage.status) }}</DhBadge>
             </div>
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
+          </DhCard>
+          <DhCard v-if="Object.keys(openingData).length" title="Ficha de apertura y mercancía" subtitle="Información operativa capturada. No sustituye los datos ni los costos de la QUO aceptada.">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div v-for="field in openingRows" :key="field.label" class="rounded-xl bg-[var(--dh-input)] p-3">
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
+                <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
+              </div>
+            </div>
+            <div v-if="Array.isArray(openingData.equipment) && openingData.equipment.length" class="mt-4">
+              <h4 class="mb-2 text-sm font-semibold">Equipos</h4>
+              <div v-for="(item, index) in openingData.equipment" :key="index" class="mb-1 rounded-lg bg-[var(--dh-input)] px-3 py-2 text-sm">
+                {{ (item as { quantity: number; equipmentType: string }).quantity }} × {{ (item as { equipmentType: string }).equipmentType }}
+              </div>
+            </div>
+            <p v-if="openingData.completionStatus === 'DRAFT_INCOMPLETE'" class="mt-3 text-xs text-amber-400">
+              Borrador con campos pendientes; requiere completar la captura antes de validar.
+            </p>
           </DhCard>
           <OperationsApertureValidationPanel
             v-if="record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS'"
