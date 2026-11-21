@@ -43,3 +43,20 @@ test('DH-386: separate terrestrial FCL cost keeps CostId and freight block', () 
   assert.match(fcl, /independentTerrestrialFreight\.includes\(line\)/)
   assert.match(fcl, /!independentTerrestrialFreight\.includes\(line\)/)
 })
+
+
+test('DH-390: generic zero-valued variable templates do not leak into unrelated quotes', () => {
+  const fixture = [
+    '<script setup lang="ts">',
+    'PricingService.selectWizardCosts({ isActive: true })',
+    'function applicableCost(cost: CostSelectDto) { return true }',
+    '</script>',
+  ].join('\n')
+  const patched = patchPricingWizardBundleOnlyFinal(fixture)
+  assert.match(patched, /cost\.costType === 'Variable'/)
+  assert.match(patched, /!cost\.pricingRulesJson/)
+  assert.match(patched, /explicitlySelectedService/)
+  assert.match(patched, /explicitlyMatchedIncoterm/)
+  assert.match(patched, /selectedIncotermCode\.value === 'EXW'/)
+  assert.match(patched, /if \(!explicitlySelectedService && !explicitlyMatchedIncoterm && !exwPickup\) return false/)
+})

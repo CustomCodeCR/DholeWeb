@@ -8,7 +8,7 @@ interface QuoteEditContext387 {
   podId: string; agentId: string; carrierId: string; incotermId: string
   equipmentId: string; importRateId: string; services: string[]
   merchant: boolean; carrier: boolean; dangerous: boolean; overweight: boolean
-  nonStackable: boolean; storageDays: number; cargoValue: number
+  nonStackable: boolean; storageDays: number; cargoValue: number; portHandlingMode: string
 }
 const quoteEditOriginalContext387 = ref<QuoteEditContext387 | null>(null)
 const quoteEditAutoRemovedIds387 = new Set<string>()
@@ -25,7 +25,7 @@ function quoteEditContext387(): QuoteEditContext387 {
     merchant: Boolean(form.merchantHaulage), carrier: Boolean(form.carrierHaulage),
     dangerous: Boolean(form.dangerousCargo), overweight: Boolean(form.overweight),
     nonStackable: Boolean(form.nonStackable), storageDays: number(form.storageDays),
-    cargoValue: number(form.cargoValue),
+    cargoValue: number(form.cargoValue), portHandlingMode: String(form.portHandlingMode ?? ''),
   }
 }
 function quoteEditAddedServices387() {
@@ -80,6 +80,11 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
     // general permission to append every optional charge on the route.
     const selectedHaulage = form.merchantHaulage ? 'merchant'
       : form.carrierHaulage ? 'carrier' : null
+    const newlySelectedPortHandling = changed.has('portHandlingMode')
+      && Boolean(form.portHandlingMode)
+      && name.includes(normalizeCatalogValue(form.portHandlingMode))
+      && !(name.includes('redestino') && name.includes('anticipado'))
+    if (newlySelectedPortHandling) return true
     const newlySelectedInland = contextChanged && selectedHaulage
       && (cost.costDetailType === 'InlandTransport' || /inland|haulage/.test(name))
       && dholeHaulageOptionalAssociation(cost) === selectedHaulage
@@ -107,6 +112,14 @@ function quoteEditRemoveInvalidDetails387() {
   // authorize removal. Unknown old CostIds, manual prices and unrelated rows stay.
   const outdated = (line: RateLine) => {
     if (!line.costId || line.manual) return false
+    // A changed muellaje mode explicitly removes the opposite persisted line.
+    // All unrelated saved charges and their negotiated prices remain intact.
+    if (form.portHandlingMode) {
+      const label = normalizeCatalogValue(line.name)
+      const oldChoice = (label.includes('anticipado') && form.portHandlingMode !== 'Anticipado')
+        || (label.includes('redestino') && form.portHandlingMode !== 'Redestino')
+      if (oldChoice) return true
+    }
     const master = allCosts.value.find(cost => cost.id === line.costId)
     const services = line.serviceIds?.length ? line.serviceIds
       : master?.services?.map(service => service.id) ?? []
@@ -122,6 +135,10 @@ function quoteEditRemoveInvalidDetails387() {
   }
   rateLines.value = rateLines.value.filter(line => {
     if (line.key.startsWith('edit-incoterm-cost:') || line.key === 'quote-edit:insurance') {
+      // Unsaved additions have no RateDetailId. Removing an opposite
+      // muellaje choice must precede the legacy keep-if-no-service shortcut.
+      if (form.portHandlingMode && /anticipado|redestino/.test(normalizeCatalogValue(line.name))
+          && outdated(line)) return false
       if (!line.serviceIds?.length) return true
       return line.serviceIds.some(id => selected.has(id))
     }
@@ -198,7 +215,7 @@ watch(
   () => [step.value, form.serviceIds.join('|'), form.incotermId,
     form.carrierId, form.agentId, form.originId, form.destinationId, form.podId,
     form.modality, form.shipmentMode, form.merchantHaulage, form.carrierHaulage,
-    form.overweight, form.dangerousCargo, form.equipmentId] as const,
+    form.overweight, form.dangerousCargo, form.equipmentId, form.portHandlingMode] as const,
   () => {
     if (step.value !== 7 || !props.rateId || props.viewOnly || hydratingExistingRate.value) return
     void quoteEditApplyDelta387()
@@ -255,7 +272,8 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     'function syncHaulageOptionalLines() {',
     'function syncHaulageOptionalLines() {\n'
       + '  if (props.rateId && !quoteEditChangedKeys387().has("merchant")'
-      + ' && !quoteEditChangedKeys387().has("carrier")) return',
+      + ' && !quoteEditChangedKeys387().has("carrier")'
+      + ' && !quoteEditChangedKeys387().has("portHandlingMode")) return',
     'preserve persisted haulage selections')
 
   s = replaceSingle(s,

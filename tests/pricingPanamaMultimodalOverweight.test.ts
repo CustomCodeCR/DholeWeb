@@ -5,6 +5,7 @@ import {
   pricePanamaMultimodalOverweight,
 } from '../src/modules/pricing/utils/panamaMultimodalOverweight.ts'
 import type { CostSelectDto } from '../src/core/interfaces/pricing.ts'
+import { readFileSync } from 'node:fs'
 
 const names = [
   'Flete Terrestre Internacional Panamá a Costa Rica',
@@ -65,4 +66,18 @@ test('incomplete catalogs and unavailable weight bands fail closed', () => {
 test('costs for unrelated Panama origins cannot be substituted', () => {
   const wrong = catalog().map((cost) => ({ ...cost, poes: [{ id: 'balboa', name: 'Balboa Panamá', code: 'BAL' }] }))
   assert.equal(pricePanamaMultimodalOverweight([22000], wrong as CostSelectDto[]).missing.length, 4)
+})
+
+
+test('DH-390: FCL multimodal overweight uses the LTL master catalog from the same wizard bundle', () => {
+  const transform = readFileSync(
+    new URL('../build/pricingPanamaFclOverweight.ts', import.meta.url), 'utf8')
+  assert.match(transform, /allCosts\.value/)
+  assert.doesNotMatch(transform, /\bcosts\.value/)
+  assert.match(transform, /pricePanamaMultimodalOverweight\(/)
+  // In the FCL request, the applicable collection has no LTL tier rows.
+  // They are retained in catalog for the local 19,000 kg excess calculation.
+  const result = pricePanamaMultimodalOverweight([22000], catalog())
+  assert.equal(result.excessKg, 3000)
+  assert.equal(result.charges.length, 4)
 })
