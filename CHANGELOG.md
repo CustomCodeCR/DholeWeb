@@ -1,3 +1,10 @@
+## [1.108.20] - 2026-11-21 · DH-20261121-QUO-EDIT-DELTA-387
+
+- PATCH: al modificar QUO, se conserva el snapshot original y sus precios/DetailId; no se vuelven a añadir todos los costos aplicables al cargar, avanzar ni guardar.
+- PATCH: comparación de servicios, modalidad, tipo de embarque, ruta, naviera, agente, Incoterm, inland y condiciones. Servicio de Aduanas y Seguro de Carga solo crean sus líneas solicitadas; costos por tramos calculados por la regla correspondiente de wizard-bundle.
+- PATCH: eliminar/deshacer servicios conserva o restaura precios originales, evita duplicados y no recupera cargos no solicitados. CI/staging y pruebas manuales pendientes.
+- Release coordinado DholeSystem 1.108.20, DholePricingService conserva 1.26.18. Producción no aprobada sin validaciones.
+
 ## [1.108.19] - 2026-11-21 · DH-20261121-WIZARD-BUNDLE-ONLY-386
 
 - PATCH: el asistente de creación/modificación consulta costos exclusivamente mediante GET /api/pricing/costs/wizard-bundle; data.applicable es la única fuente de líneas nuevas y data.catalog solo sirve para referencia histórica.
