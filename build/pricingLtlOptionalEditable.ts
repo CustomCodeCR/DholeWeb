@@ -198,7 +198,10 @@ function patchWizard(source: string) {
       const markerAt = scoped.indexOf(marker, assignmentAt + assignment.length)
       if (assignmentAt < 0 || markerAt < 0
         || scoped.includes('const previousLtlOptionals =')) {
-        throw new Error('[pricingLtlOptionalEditable] Missing scoped LTL assignment/sync anchors')
+        throw new Error('[pricingLtlOptionalEditable] Missing scoped LTL assignment/sync anchors' +
+          ' assignment=' + assignmentAt + ' marker=' + markerAt +
+          ' previouslyInjected=' + scoped.includes('const previousLtlOptionals =') +
+          ' context=' + scoped.slice(Math.max(0, scoped.lastIndexOf('rateLines.value', scoped.length - 10) - 260), scoped.length).slice(-1600))
       }
       const restoreAfterSync = restoreOptionals.replace(
         "    syncResolvedLandLtlTariffLines()\n", '',
