@@ -1,4 +1,4 @@
-## 1.108.16 — DH-20261121-PRICING-P7-EDIT-SAFETY-383
+## [1.108.16] - 2026-11-21 · DH-20261121-PRICING-P7-EDIT-SAFETY-383
 - Persisted P7 RateDetails are authoritative: no automatic catalog rehydration, zero cost regeneration, Release dedup, or customs placeholders when editing.
 - New quotations generate charges exclusively from contextual wizard-bundle applicable entries.
 - All existing line identifiers, cost and sale remain unchanged until explicit user action.
