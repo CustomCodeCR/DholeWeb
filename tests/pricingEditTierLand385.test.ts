@@ -11,7 +11,8 @@ test('DH-385: final Vite cost loader sends each tier dimension to Pricing', () =
     assert.ok(loader.includes(input), 'Missing contextual input: ' + input)
   }
   assert.match(loader, /if \(props\.rateId && !allowCatalogRefreshForSavedQuote\.value\) return true/)
-  assert.match(loader, /if \(maritimeFcl && !props\.rateId\)|if \(!props\.rateId\) \{\s*fullCatalog/)
+  assert.match(loader, /contextualCosts\.filter\(\(cost\) => cost\.isActive !== false\)/)
+  assert.doesNotMatch(loader, /fullCatalog\s*\.filter\(maritimeFclCostMatchesCurrentContext\)/)
 })
 
 test('DH-385: explicitly refreshing a saved quote never resurrects unselected optional rows', () => {
