@@ -6,9 +6,10 @@ const wizard = file('src/modules/pricing/components/PricingAlternativeWizardCrys
 const stable = file('src/modules/pricing/components/PricingRateExistingWizardStable.vue')
 
 test('Incoterms are modal: maritime and multimodal include all, air and land reject 4 maritime only', () => {
-  assert.match(wizard, /new Set\(\['FAS', 'FOB', 'CFR', 'CIF'\]\)/)
+  assert.match(wizard, /isMaritimeOnlyIncoterm\(code\)/)
+  assert.match(wizard, /isMaritimeOnlyIncoterm\(selectedIncotermCode\.value\)/)
   assert.match(wizard, /form\.modality === 'Maritime' \|\| form\.modality === 'Multimodal'/)
-  assert.match(wizard, /!maritimeOnlyIncoterms\.has\(code\)/)
+  assert.match(wizard, /!isMaritimeOnlyIncoterm\(code\)/)
   assert.match(wizard, /props\.rateId && form\.incotermId === item\.id/)
 })
 test('Commercial direction is compact but manual override and automatic reset remain available', () => {

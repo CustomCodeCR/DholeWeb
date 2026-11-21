@@ -63,7 +63,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
-import { incotermClientSections, incotermOperationExplanation, incotermSectionApplicability, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { incotermClientSections, incotermOperationExplanation, incotermSectionApplicability, isMaritimeOnlyIncoterm, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
 import { reconcileActiveCostCatalog } from '@/modules/pricing/utils/pricingScreenSevenCostRecovery'
 import { captureInlandRows, restoreInlandRows, type InlandRowMemory } from '@/modules/pricing/utils/pricingInlandDraftMemory'
@@ -1702,7 +1702,7 @@ const selectedIncotermCode = computed(() => normalizeIncotermCode(
 const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
 const maritimeIncotermIncompatible = computed(() =>
   (form.modality === 'Air' || form.modality === 'Land')
-  && maritimeOnlyIncoterms.has(selectedIncotermCode.value))
+  && isMaritimeOnlyIncoterm(selectedIncotermCode.value))
 const incotermDocumentationTip = computed(() => {
   const requirements: Record<string, string> = {
     EXW: 'Indique la fábrica o bodega y la dirección exacta de recolecta; el POL no sustituye ese lugar.',
@@ -2086,7 +2086,6 @@ function remainingValidityDays(validTo: string) {
 const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.id, label: displayValue(item) })))
 const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
-const maritimeOnlyIncoterms = new Set(['FAS', 'FOB', 'CFR', 'CIF'])
 // Multimodal intentionally includes the maritime rules for its ocean leg.
 // Air/Land cannot select maritime-only terms on new quotations.
 const incotermOptions = computed(() => catalogs.incoterms
@@ -2094,7 +2093,7 @@ const incotermOptions = computed(() => catalogs.incoterms
     const code = normalizeIncotermCode(item.code,
       [displayValue(item), item.label].filter(Boolean).join(' '))
     return form.modality === 'Maritime' || form.modality === 'Multimodal'
-      || !maritimeOnlyIncoterms.has(code)
+      || !isMaritimeOnlyIncoterm(code)
       // Preserve a historical persisted selection when viewing/editing:
       // never rewrite or silently clear an existing quotation's Incoterm.
       || Boolean(props.rateId && form.incotermId === item.id)

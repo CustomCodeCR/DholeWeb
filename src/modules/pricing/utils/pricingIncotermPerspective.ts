@@ -142,3 +142,9 @@ export function incotermSectionApplicability(
   return party === (operation === 'Import' ? 'B' : 'S') ? 'client' : 'other-party'
 }
 
+
+/** Use one module-initialized predicate in every Vite-transformed Pricing wizard. */
+const MARITIME_ONLY_INCOTERM_CODES = new Set(['FAS', 'FOB', 'CFR', 'CIF'])
+export function isMaritimeOnlyIncoterm(code: string): boolean {
+  return MARITIME_ONLY_INCOTERM_CODES.has(normalizeIncotermCode(code))
+}
