@@ -140,6 +140,7 @@ export interface OperationsOriginProgress {
   } | null
 }
 export interface OperationsOpeningEdit {
+  openingData?: Record<string, unknown>
   expectedVersion: number
   modalityCode: string
   priority: number
