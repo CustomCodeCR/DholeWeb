@@ -1,3 +1,10 @@
+## [1.108.17] - 2026-11-21 · DH-20261121-PRICING-P7-RESTORE-384
+
+- PATCH: Pantalla 7 registra eliminaciones de RateDetail por ID y las envía como RemovedExtraDetailIds, sin confiar en el nombre, CostId ni ocultaciones.
+- PATCH: refresco explícito de costos en una cotización guardada vuelve a consultar Pricing y no remezcla opcionales del catálogo global.
+- PATCH: recuperación explícita de líneas de la revisión original compatible, con previsualización y guardado como nueva revisión; no cambia la base automáticamente.
+- PATCH: seguro nunca se agrega o repricia al entrar en la pantalla de edición.
+
 ## [1.108.16] - 2026-11-21 · DH-20261121-PRICING-P7-EDIT-SAFETY-383
 - Persisted P7 RateDetails are authoritative: no automatic catalog rehydration, zero cost regeneration, Release dedup, or customs placeholders when editing.
 - New quotations generate charges exclusively from contextual wizard-bundle applicable entries.
