@@ -43,10 +43,9 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
     "    if (activeContext !== activeCostContextKey()) return false\n    if (!fullCatalog.length",
     `    if (panamaOwnLtl) {
       // The contextual API uses exact POE/POD IDs. CFZ -> San José is an LTL
-      // warehouse route; the configured Panama -> Costa Rica charges instead
-      // select their eligible border ports. Resolve the four charges from the
-      // full active catalog while retaining all other contextual restrictions.
-      for (const cost of selectLtlPanamaCosts(fullCatalog, {
+      // warehouse route. Never inject rows from the full catalog: resolve only
+      // the costs already authorized by the wizard-bundle applicable response.
+      for (const cost of selectLtlPanamaCosts(contextualCosts, {
         incotermId: form.incotermId,
         serviceIds: form.serviceIds,
       }).values()) mergedCosts.set(cost.id, cost)
