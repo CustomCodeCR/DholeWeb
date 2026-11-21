@@ -50,6 +50,7 @@ export type OperationsCaseRow = {
   updatedAtUtc: string
 }
 export interface OperationsCaseDetail {
+  openingDataJson?: string
   id: string
   idtra: string
   accountId: string
