@@ -30,12 +30,23 @@ const canUpload = computed(() => validId.value && auth.hasScope('srm.supplier.up
 const entityType = computed(() => props.kind === 'credit' ? 'srm.supplier.credit' : 'srm.supplier.tariff')
 const isTariff = computed(() => props.kind === 'tariff')
 function detail(file: StorageFileDto) {
-  if (!file.metadataJson) return ''
+  // Older Storage responses use "metadatJson"; accept both during rollout.
+  const raw = file.metadataJson ?? file.metadatJson
+  if (!raw) return null
   try {
-    const data = JSON.parse(file.metadataJson) as { description?: string; validFrom?: string; validTo?: string }
-    return [data.description, data.validFrom && ('Desde ' + data.validFrom), data.validTo && ('Hasta ' + data.validTo)]
-      .filter(Boolean).join(' · ')
-  } catch { return '' }
+    const data = JSON.parse(raw) as Record<string, unknown>
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null
+    return {
+      description: typeof data.description === 'string' ? data.description.trim() : '',
+      validFrom: typeof data.validFrom === 'string' ? data.validFrom : '',
+      validTo: typeof data.validTo === 'string' ? data.validTo : '',
+    }
+  } catch { return null }
+}
+function formatMetadataDate(value?: string) {
+  if (!value) return en.value ? 'Not provided' : 'No indicada'
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(value)
+  return isoDate ? `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}` : value
 }
 function filePreviewable(file: StorageFileDto) {
   return ['image', 'pdf', 'text'].includes(storagePreviewKind({
@@ -150,7 +161,20 @@ watch(() => [props.supplierId, props.kind, canRead.value], () => {
         <div class="min-w-0 flex-1">
           <p class="break-all text-xs font-bold">{{ file.originalFileName }}</p>
           <p class="text-[11px] text-[var(--dh-text-muted)]">{{ new Date(file.createdAt).toLocaleDateString(en ? 'en-US' : 'es-CR') }} · {{ Math.ceil(file.sizeInBytes / 1024) }} KB</p>
-          <p v-if="detail(file)" class="mt-1 break-words text-[11px]">{{ detail(file) }}</p>
+          <div v-if="detail(file)" class="mt-2 grid gap-1.5 rounded-lg border border-[var(--dh-border)] p-2 text-[11px] sm:grid-cols-2">
+            <p class="break-words sm:col-span-2">
+              <span class="font-bold">{{ en ? 'Description:' : 'Descripción:' }}</span>
+              {{ detail(file)?.description || (en ? 'Not provided' : 'Sin descripción') }}
+            </p>
+            <p v-if="isTariff">
+              <span class="font-bold">{{ en ? 'Valid from:' : 'Válida desde:' }}</span>
+              {{ formatMetadataDate(detail(file)?.validFrom) }}
+            </p>
+            <p v-if="isTariff">
+              <span class="font-bold">{{ en ? 'Valid until:' : 'Válida hasta:' }}</span>
+              {{ formatMetadataDate(detail(file)?.validTo) }}
+            </p>
+          </div>
         </div>
         <button v-if="canDownload && filePreviewable(file)" type="button"
           class="rounded-lg border border-[var(--dh-border)] px-3 py-2 text-xs font-semibold" @click="preview(file)">
