@@ -1024,7 +1024,12 @@ async function advanceSequentialWizard() {
     // catalogue and route/carrier/agent matching charges.
     let ready = false
     try {
-      ready = await loadApplicableCosts()
+      // Screen 6 already hydrated this same customer/route/provider snapshot.
+      // Do not issue a second Pricing GET on the P6→P7 click unless the
+      // context changed or the active rows were invalidated.
+      ready = (activeCatalogValidatedContexts.has(activeCostContextKey())
+        && allCosts.value.length > 0 && costs.value.length > 0)
+        || await loadApplicableCosts()
     } finally {
       loadingScreenSevenCosts.value = false
     }
