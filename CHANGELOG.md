@@ -1,3 +1,14 @@
+## [1.108.12] - 2026-11-21 (DH-20261121-FOB-FCL-MASTER-379 · promoción selectiva de develop)
+
+- PATCH coordinado DholeWeb/DholeSystem 1.108.10 → 1.108.12 en master; versión idéntica a develop. DholePricingService continúa 1.26.12. Mantiene los cambios exclusivos de master sin incorporar toda la divergencia de develop.
+- FOB + Exportación: flete FCL por contenedor generado desde naviera se conserva como costo de proveedor, no se incluye automáticamente en líneas, totales ni POST. Incorporación fuera de responsabilidad requiere «Agregar servicio fuera del Incoterm» y «Cotizar por acuerdo» para el contexto actual.
+- Corrección de Vite que eliminaba helpers del wizard: scoped optional-cost replacement y verificación de los símbolos en código final; soporte de pruebas nativas Node 24 con imports .ts. Mantiene cambios históricos de cotizaciones, Price/CostId y Realtime existentes.
+- Incluye regresiones 377/378/379, diagnósticos del bundle, version.json/lock/CHANGELOG. CI, build y verificación de producción obligatorios. Sin migración de BD, cambios backend ni despliegue de infraestructura.
+
+## [1.108.11] - 2026-11-21 (DH-20261121-INCOTERM-RUNTIME-SCOPE-378 · incluido en la promoción a master)
+
+- Corrige los dos transformadores Vite que reemplazaban shouldIncludeOptionalCost con un patrón demasiado amplio y eliminaban applyIncotermAutomaticChargeGuard. Aserciones de bindings Incoterm en la fuente compilada y test regresivo.
+
 ## [1.108.10] - 2026-11-21 (DH-20261121-INCOTERMS-MODIFICATIONS-MASTER-378 · backport selectivo de correcciones Incoterms y modificación de cotizaciones)
 
 - Solo los cambios solicitados ya integrados en develop, sin integrar miles de commits ajenos: en Marítimo/Multimodal se admiten 11 Incoterms y en Aéreo/Terrestre 7. Operación comercial ahora se muestra compacta con override manual y notas de requisitos de EXW/FCA/CIF/CIP.

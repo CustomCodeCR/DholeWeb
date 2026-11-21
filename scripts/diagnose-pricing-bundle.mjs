@@ -22,7 +22,7 @@ for (const regex of [/\bconst W\s*=/g, /\blet W\s*=/g, /\bW\s*=\s*\w/g, /\bW\s*=
 
 // The CI must catch unresolved symbols in the minified production bundle,
 // not just find a declaration in the Vue source (the previous false positive).
-for (const binding of ['routeOperation', 'resolveClientRouteOperation', 'pricingQuoteCountryOptions', 'automaticOperationType', 'maritimeOnlyIncoterms']) {
+for (const binding of ['routeOperation', 'resolveClientRouteOperation', 'pricingQuoteCountryOptions', 'automaticOperationType', 'maritimeOnlyIncoterms', 'applyIncotermAutomaticChargeGuard']) {
   if (new RegExp('\\b' + binding + '\\b').test(code)) {
     throw new Error('Unresolved Pricing wizard runtime binding: ' + binding)
   }

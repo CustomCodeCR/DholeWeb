@@ -16,7 +16,8 @@ test('CIF importer insurance and CPT mixed destination are not blindly billed',(
 })
 test('P7 suppresses uncontracted automatic lines for new QUOs, not historical or manually added rows',()=>{
  assert.match(wizard,/function isAutomaticOutsideIncoterm\(line: RateLine\)/)
- assert.match(wizard,/props\.rateId \|\| editingRate\.value \|\| line\.detailId \|\| line\.manual/)
+ assert.match(wizard,/props\.rateId \|\| editingRate\.value \|\| line\.detailId/)
+ assert.match(wizard,/line\.manual && !generatedEquipmentFreight/)
  assert.match(wizard,/incotermSectionApplicability\(/)
  assert.match(wizard,/function applyIncotermAutomaticChargeGuard\(\)/)
  assert.match(wizard,/if \(!line\.included \|\| !isAutomaticOutsideIncoterm\(line\)\) continue/)
