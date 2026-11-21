@@ -14,6 +14,12 @@ function replaceRegexOne(source: string, pattern: RegExp, replacement: string, l
 
 function patchWizard(source: string) {
   let code = source
+  code = replaceRegexOne(
+    code,
+    /^<script setup lang="ts">/m,
+    '<script setup lang="ts">\\nimport { selectPanamaTerrestrialFreight } from "@/modules/pricing/utils/pricingPanamaTerrestrialFreight"',
+    'Panama terrestrial source import',
+  )
 
   // Terrestrial costs are already filtered by Pricing using the selected FTL/LTL context.
   // Do not hide a configured POL/POE charge only because the maritime Incoterm section map
@@ -344,6 +350,16 @@ async function loadApplicableCosts() {
     const contextualCosts = bundle.applicable
     const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
+    // A cross-border land leg uses a different cost context than the ocean.
+    const terrestrial = selectPanamaTerrestrialFreight(fullCatalog, {
+      viaPanama: form.modality === 'Multimodal' || isMultimodalViaPanama(selectedDestination.value),
+      destinationName: [displayValue(selectedPod.value), displayValue(selectedDestination.value)].join(' '),
+      serviceIds: form.serviceIds,
+      weightKg: number(form.cargoWeightKg),
+      packages: number(form.cargoPackages) || null,
+      containerTypeId: form.equipmentId || null,
+      storageDays: number(form.storageDays) || null,
+    })
 
     // The contextual API may reject a valid multi-port entry because PortId/
     // PoeId/PodId represent only the first historical selection. Reconcile with
@@ -361,6 +377,14 @@ async function loadApplicableCosts() {
     } else {
       contextualCosts.forEach((cost) => mergedCosts.set(cost.id, cost))
     }
+
+    if (terrestrial) mergedCosts.set(terrestrial.cost.id, {
+      ...terrestrial.cost,
+      costAmount: terrestrial.costAmount,
+      saleAmount: terrestrial.saleAmount,
+      __dholeLandLeg: true,
+      __dholePricingContextKey: contextKey,
+    })
 
     if (activeContext !== activeCostContextKey()) return false
     if (!fullCatalog.length && !allCosts.value.length) {
