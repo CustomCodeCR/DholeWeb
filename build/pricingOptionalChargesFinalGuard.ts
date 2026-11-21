@@ -142,10 +142,7 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
 }
 
 async function loadAllApplicableOptionalCosts() {
-  const optionalCosts = await PricingService.selectCosts({
-    costType: 'Optional',
-    isActive: true,
-  })
+  const optionalCosts = costs.value.filter((cost) => cost.costType === 'Optional' && cost.isActive !== false)
 
   // Cargar todos los Optional que correspondan al contexto. Las condiciones de
   // Pantalla 4 controlan la preselección mediante syncHaulageOptionalLines(),
