@@ -1,3 +1,11 @@
+## [1.109.1] - 2026-11-21 · DH-20261121-PRICING-EDIT-BUNDLE-389
+
+- PATCH: al modificar una QUO, Pantalla 6 y Pantalla 7 consultan GET /api/pricing/costs/wizard-bundle para el contexto vigente; no aceptan una respuesta vacía por la existencia de RateId.
+- PATCH: recupera las alternativas Inland Merchant/Carrier y agrega únicamente cargos nuevos solicitados y aplicables; Flete Internacional Terrestre mantiene su CostId independiente del marítimo FCL.
+- PATCH: preserva RateDetails originales (DetailId, CostId, costo, venta, moneda) y la selección Inland; no reintroduce opcionales no seleccionados ni duplica líneas por navegación.
+- Tests DH-389 de carga read-only, validación de contexto y compatibilidad con release 1.109.0 Blobatar. CI y staging obligatorios antes de promoción.
+- DholeSystem 1.109.1; PricingService permanece en 1.26.18 con wizard-bundle compatible; REST y SignalR sin cambios.
+
 ## [1.109.0] - 2026-11-21 · DH-20261121-BLOBATAR-ACCESSORIES-388
 
 - MINOR: personalización avanzada de Blobatar: selector visual por categorías, tarjetas de accesorios, vista previa ampliada, etiquetas activas y selección múltiple accesible en Apariencia.
