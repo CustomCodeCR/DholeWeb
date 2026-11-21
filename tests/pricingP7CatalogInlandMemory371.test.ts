@@ -49,17 +49,18 @@ test('empty rebuilds cannot discard existing Inland memory, different CostIds ne
   assert.equal(wrongSupplier[0].saleAmount, 20)
 })
 
-test('P7 waits for both active and contextual queries and does not cache partial CostIds', () => {
-  assert.match(wizard, /const catalogFetch = refreshCatalog/)
-  assert.match(wizard, /PricingService\.selectCosts\(\{ isActive: true \}\)/)
-  assert.match(wizard, /const active = await catalogFetch/)
-  assert.match(wizard, /allCosts\.value = active\.list/)
-  assert.match(wizard, /activeCatalogValidatedContexts\.add\(requestContext\)/)
-  assert.match(wizard, /serial !== applicableCostRequestSerial/)
+test('P7 obtains catalog and contextual costs from one Pricing HTTP call', () => {
+  const loader = wizard.slice(wizard.indexOf('async function loadApplicableCosts()'), wizard.indexOf('function rebuildRateLines()'))
+  assert.match(loader, /PricingService\.selectWizardCosts\(\{/)
+  assert.doesNotMatch(loader, /PricingService\.selectCosts\(/)
+  assert.match(loader, /allCosts\.value = bundle\.catalog/)
+  assert.match(loader, /costs\.value = reconcileActiveCostCatalog\(bundle\.applicable, allCosts\.value\)/)
+  assert.match(loader, /activeCatalogValidatedContexts\.add\(requestContext\)/)
+  assert.match(loader, /serial !== applicableCostRequestSerial/)
   assert.match(wizard, /const missingCatalogLines = applicableConfiguredCosts\(\)/)
   assert.match(wizard, /if \(!force && activeCatalogValidatedContexts\.has\(context\)/)
   assert.match(wizard, /ready = await loadApplicableCosts\(\)/)
-  assert.match(wizard, /if \(!ready\) return\s*rebuildRateLines\(\)/)
+  assert.match(wizard, /if \(!ready\) \{[\s\S]*?return\s*\}\s*rebuildRateLines\(\)/)
 })
 
 test('Inland choices remain scoped per route, CRM customer, agent and services', () => {

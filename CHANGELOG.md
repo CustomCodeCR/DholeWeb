@@ -1,3 +1,10 @@
+## [1.108.5] - 2026-11-21 (DH-20261121-P7-COST-BUNDLE-372 · carga conjunta de costos y avance P6–P7)
+
+- PATCH coordinado DholeWeb 1.108.4 → 1.108.5 y DholePricingService 1.26.9 → 1.26.10, versión global de ecosistema 1.108.5. Destino exclusivo develop/staging, sin master ni producción.
+- Pantalla 7 usa un único GET /api/pricing/costs/wizard-bundle para el catálogo activo y sus cargos aplicables con CostId, relaciones de ruta/naviera/agente, Incoterm y servicios; preserva los importes del flete, Inland Carrier/Merchant y preferencias del cliente.
+- Se adaptaron el cargador original y transformadores Vite FTL/FCL, LTL propio de Panamá y LCL coloader. El flujo P6→P7 advierte sobre validaciones o consultas fallidas y evita un watcher prematuro desde P6.
+- Permanece el contrato /select, la compatibilidad REST y SignalR/outbox/inbox. Pruebas de CI y smoke autenticado de staging necesarios antes de dar el release por validado.
+
 ## [1.108.4] - 2026-11-21 (DH-20261121-P7-INLAND-HYDRATE-371 · hidratación P7 e Inland en memoria)
 
 - PATCH sincronizado DholeWeb/DholeSystem 1.108.3 → 1.108.4, únicamente develop/staging. No cambia DholePricingService, master ni producción.
