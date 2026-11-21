@@ -52,7 +52,7 @@ function ownLclCustomsCostApplies(cost: CostSelectDto, serviceId: string) {
   return true
 }
 
-const ownLclCrcMasterCosts391 = ref<CostSelectDto[]>([])
+const ownLclCrcMasterCosts391: { value: CostSelectDto[] } = { value: [] }
 let ownLclCrcMasterRequest391 = 0
 
 async function loadOwnLclCrcMasterCosts391() {
@@ -106,7 +106,8 @@ async function loadOwnLclCrcMasterCosts391() {
       toastStore.backendError(error, 'No se pudo consultar el servicio aduanal LCL por tramo.')
   }
 }
-watch(
+// Unit VMs execute the isolated helper without Vue; the actual wizard has watch.
+if (typeof watch === 'function') watch(
   () => [step.value, hydratingExistingRate.value, form.serviceIds.join('|'),
     form.originId, form.destinationId, form.podId, form.incotermId,
     form.agentId, form.cargoWeightKg, form.cargoPackages, form.storageDays,
