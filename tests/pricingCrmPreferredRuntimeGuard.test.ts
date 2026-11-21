@@ -31,7 +31,7 @@ test('final compiled loader MUST ask CRM before applying ordinary catalog costs'
 test('the FCL\/FTL source replacement includes the benefits load inside its generated loader', () => {
   const transform = readFileSync(new URL('../build/pricingFtlLandCostsFix.ts', import.meta.url), 'utf8')
   const start = transform.indexOf('async function loadApplicableCosts() {')
-  const firstCostQuery = transform.indexOf('PricingService.selectCosts(contextualQuery)', start)
+  const firstCostQuery = transform.indexOf('PricingService.selectWizardCosts(contextualQuery)', start)
   const preferredLoad = transform.indexOf('await loadCustomerPreferentialRates()', start)
   assert.ok(start >= 0 && preferredLoad > start && firstCostQuery > preferredLoad,
     'loadCustomerPreferentialRates() must be inside the final loader before Pricing retrieves costs')
