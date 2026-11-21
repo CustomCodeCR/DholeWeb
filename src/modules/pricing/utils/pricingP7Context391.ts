@@ -33,12 +33,15 @@ function allowedRelation(cost: CostSelectDto, relation: 'poes' | 'pods', candida
     [relation === 'poes' ? cost.poeId : cost.podId].filter(Boolean).map(String)
   return !ids.length || ids.some(id => selected.includes(id))
 }
-function relevant(cost: CostSelectDto, route: P7CostRoute391, mode: 'Ltl' | 'Fcl') {
+function relevant(cost: CostSelectDto, route: P7CostRoute391, mode: 'Ltl' | 'Fcl', landLeg = false) {
   if (cost.isActive === false) return false
   const allowedModes = cost.shipmentModes?.length ? cost.shipmentModes : cost.shipmentMode ? [cost.shipmentMode] : []
   if (allowedModes.length && !allowedModes.some(value => {
     const name = normal(value)
+    // Multimodal FCL uses an FTL/Land cost master for its independent
+    // Panama -> Costa Rica leg. Do not force that land master to also be FCL.
     return name === normal(mode) || name === 'any'
+      || (landLeg && (name === 'ftl' || name === 'land' || name === 'multimodal'))
   })) return false
   if (cost.incoterms?.length && !cost.incoterms.some(i => i.id === route.incotermId)) return false
   if (cost.services?.length && !cost.services.some(i => route.serviceIds.includes(i.id))) return false
@@ -77,9 +80,9 @@ export function selectPanamaLtlCharges391(catalog: CostSelectDto[], route: P7Cos
 
 /** Multimodal land leg is independent of the maritime Freight and its container allocation. */
 export function selectMultimodalLandFreight391(catalog: CostSelectDto[], route: P7CostRoute391) {
-  const eligible = catalog.filter(c => c.costDetailType === 'Freight'
+  const eligible = catalog.filter(c => ['Freight', 'InlandTransport'].includes(String(c.costDetailType))
     && /flete.*terrestre|terrestre.*flete|land freight/.test(normal(c.name))
-    && relevant(c, route, 'Fcl'))
+    && relevant(c, route, 'Fcl', true))
     .sort((a,b) => a.id.localeCompare(b.id))
   return eligible[0] ?? null
 }
