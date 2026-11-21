@@ -14,6 +14,12 @@ function replaceRegexOne(source: string, pattern: RegExp, replacement: string, l
 
 function patchWizard(source: string) {
   let code = source
+  code = replaceRegexOne(
+    code,
+    /^<script setup lang="ts">/m,
+    '<script setup lang="ts">\\nimport { selectPanamaTerrestrialFreight } from "@/modules/pricing/utils/pricingPanamaTerrestrialFreight"',
+    'Panama terrestrial source import',
+  )
 
   // Terrestrial costs are already filtered by Pricing using the selected FTL/LTL context.
   // Do not hide a configured POL/POE charge only because the maritime Incoterm section map
@@ -367,6 +373,18 @@ async function loadApplicableCosts() {
     const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
+    // A cross-border land leg has a different origin/agent from the ocean segment.
+    // Use its real tiered Costos y recargos tariff, never a generic 0/0 row.
+    const terrestrial = selectPanamaTerrestrialFreight(fullCatalog, {
+      viaPanama: form.modality === 'Multimodal' || isMultimodalViaPanama(selectedDestination.value),
+      destinationName: [displayValue(selectedPod.value), displayValue(selectedDestination.value)].join(' '),
+      serviceIds: form.serviceIds,
+      weightKg: number(form.cargoWeightKg),
+      packages: number(form.cargoPackages) || null,
+      containerTypeId: form.equipmentId || null,
+      storageDays: number(form.storageDays) || null,
+    })
+
     // A saved quote (even during explicit refresh) never draws additional
     // charges from the global catalog. Only the contextual result is eligible.
     if (!props.rateId) {
@@ -376,6 +394,16 @@ async function loadApplicableCosts() {
           : catalogCostMatchesCurrentContext(cost))
         .forEach((cost) => mergedCosts.set(cost.id, cost))
     }
+
+    // The Panama leg is validated separately from the maritime POL/POE.
+    // For a saved quote this is only available after an explicit cost refresh.
+    if (terrestrial) mergedCosts.set(terrestrial.cost.id, {
+      ...terrestrial.cost,
+      costAmount: terrestrial.costAmount,
+      saleAmount: terrestrial.saleAmount,
+      __dholeLandLeg: true,
+      __dholePricingContextKey: contextKey,
+    })
 
     // Backend-context costs have already passed Pricing's original checks.
     // Prefer those records for identical CostIds and mark only those authoritative.
