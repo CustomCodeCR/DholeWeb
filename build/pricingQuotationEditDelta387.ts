@@ -238,7 +238,7 @@ export function patchPricingQuotationEditDelta387(source: string): string {
   // operator changes a field. Prevent implicit haulage inclusion changes as well.
   s = replaceSingle(s,
     'function syncHaulageOptionalLines() {',
-    'function syncHaulageOptionalLines() {\\n'
+    'function syncHaulageOptionalLines() {\n'
       + '  if (props.rateId && !quoteEditChangedKeys387().has("merchant")'
       + ' && !quoteEditChangedKeys387().has("carrier")) return',
     'preserve persisted haulage selections')
