@@ -238,3 +238,23 @@ test('screen 7 regenerates tiered rows after equipment and cargo context changes
   assert.match(source, /sameTierInputs \|\| line\.manual \|\| !costs\.value\.some\(cost =>/)
   assert.match(source, /lastTierPricingInputKey\.value = tierPricingInputKey/)
 })
+test('existing quotation rate details never inherit new catalog amounts or unrequested extras', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /function syncPersistedLinesWithChangedConfiguredCosts\(\) \{[^]*?if \(props\.rateId \|\| !editingRate\.value \|\| props\.viewOnly\) return 0/)
+  assert.match(source, /function mergeConfiguredOptionalCostsIntoRateLines\(includeFixed = false\) \{[^]*?if \(props\.rateId\) return/)
+  assert.match(source, /rateLines\.value = rate\.rateDetails\.filter/)
+  assert.match(source, /costs\.value = bundle\.applicable/)
+  assert.doesNotMatch(source, /costs\.value = reconcileActiveCostCatalog\(bundle\.applicable, allCosts\.value\)/)
+})
+
+test('wizard sends tier context and hydrates persisted cargo before requesting priced costs', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /containerTypeId: form\.equipmentId \|\| undefined/)
+  assert.match(source, /weightKg: number\(form\.cargoWeightKg\) > 0/)
+  assert.match(source, /packages: number\(form\.cargoPackages\) > 0/)
+  assert.match(source, /storageDays: number\(form\.storageDays\) > 0/)
+  assert.match(source, /containerTypeId: form\.equipmentId \|\| selectedEquipment\.value\?\.id \|\| null/)
+  const hydration = source.slice(source.indexOf('async function hydrateExistingRate()'), source.indexOf('function editCurrentRate()'))
+  assert.ok(hydration.indexOf('form.storageDays = Math.max') < hydration.indexOf('await loadApplicableCosts()'))
+  assert.ok(hydration.indexOf('await loadApplicableCosts()') < hydration.indexOf('rateLines.value = rate.rateDetails.filter'))
+})

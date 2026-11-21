@@ -1,0 +1,21 @@
+{
+  "releaseId": "DH-20261121-PRICING-P7-SNAPSHOT-TIERS-382",
+  "releaseType": "PATCH",
+  "date": "2026-11-21",
+  "component": "DholeWeb",
+  "from": "1.108.14",
+  "to": "1.108.15",
+  "ecosystemVersion": "1.108.15",
+  "status": "candidate-develop-ci-pending",
+  "changes": [
+    "Contextual pricingRulesJson server results",
+    "Preserve existing RateDetails",
+    "Prevent automatic optional row resurrection",
+    "Hydrate cargo before pricing query"
+  ],
+  "validation": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  }
+}
