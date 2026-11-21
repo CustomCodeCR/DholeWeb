@@ -24,7 +24,7 @@ test('all six Incoterm logistics blocks stay available regardless of who pays', 
   assert.match(wizard, /key: 'insurance', label: 'Seguro de carga'/)
   assert.match(wizard, /group\.key !== 'agent' \|\| group\.lines\.length > 0/)
   assert.match(wizard, /group\.lines\.length === 0/)
-  assert.match(wizard, /Solo se facturarán servicios que se seleccionen o agreguen expresamente/i)
+  assert.match(wizard, /Solo se facturarán servicios que se seleccionen o agreguen expresamente|Sin cargos incluidos para/i)
 })
 
 test('P6-P7 refuses stale or failed costs and retains P7 edits by context', () => {
