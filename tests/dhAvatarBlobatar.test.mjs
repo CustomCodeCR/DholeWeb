@@ -306,30 +306,41 @@ test('Blobatar mascot is always available without a profile picture and has no b
   assert.ok(!mascot.includes('bg-[var(--dh-card)] shadow-xl'))
 })
 
-test('Seven mascot accessory choices are configurable and user-persistent', () => {
+test('Combinable Blobatar accessories are localized, layered and safely persisted per account', () => {
   const store = readFileSync(new URL('../src/core/stores/avatarMascotStore.ts', import.meta.url), 'utf8')
+  const catalog = readFileSync(new URL('../src/shared/components/atoms/mascotAccessoryCatalog.ts', import.meta.url), 'utf8')
   const accessory = readFileSync(new URL('../src/shared/components/atoms/DhMascotAccessory.vue', import.meta.url), 'utf8')
   const mascot = readFileSync(new URL('../src/shared/components/atoms/DhMascot.vue', import.meta.url), 'utf8')
   const appearance = readFileSync(new URL('../src/modules/settings/views/AppearanceSettingsView.vue', import.meta.url), 'utf8')
-  const kinds = ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat']
-  assert.ok(store.includes("const accessory = ref<MascotAccessory>('none')"))
-  assert.ok(store.includes("write('accessory', accessory.value)"))
-  assert.ok(store.includes("read('accessory')"))
-  assert.ok(store.includes("encodeURIComponent(userId.value)"))
-  assert.ok(store.includes("setAccessory"))
+  const kinds = ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat',
+    'jester', 'monocle', 'party', 'santa', 'reindeer', 'scarf', 'candyCane', 'lights',
+    'witch', 'pumpkin', 'vampire', 'bat', 'ghost',
+    'patrioticBand', 'patrioticBow', 'patrioticFlag', 'patrioticFlower']
+  assert.ok(store.includes("const accessories = ref<Exclude<MascotAccessory, 'none'>[]>([])"))
+  assert.ok(store.includes("read('accessory')"), 'legacy selections are restored')
+  assert.ok(store.includes("read('accessories')"), 'multiple selections are restored')
+  assert.ok(store.includes("write('accessories', JSON.stringify(accessories.value))"))
+  assert.ok(store.includes("write('accessory', accessories.value[0] ?? 'none')"), 'legacy key remains compatible')
+  assert.ok(store.includes("encodeURIComponent(userId.value)"), 'preferences stay user-scoped')
+  assert.ok(store.includes("setAccessories") && store.includes("toggleAccessory"))
+  assert.ok(catalog.includes('normalizeMascotAccessories'), 'incompatible same-slot selections are replaced')
+  assert.ok(catalog.includes('MASCOT_ACCESSORY_SLOT[kind]'))
+  assert.ok(mascot.includes('<DhMascotAccessory :kinds="mascot.accessories"'))
+  assert.ok(appearance.includes('avatarMascot.toggleAccessory(kind)'))
+  assert.ok(appearance.includes('<DhMascotAccessory :kinds="avatarMascot.accessories"'))
+  assert.ok(appearance.includes('mascotVisibleAccessories'))
+  assert.ok(accessory.includes('v-for="item in rendered"'))
+  assert.ok(accessory.includes('pointer-events-none'))
   for (const kind of kinds) {
-    assert.ok(store.includes("'" + kind + "'"))
-    assert.ok(appearance.includes("'" + kind + "'"))
-    if (kind !== 'none') assert.ok(accessory.includes("kind === '" + kind + "'"))
+    assert.ok(catalog.includes("'" + kind + "'"), kind + ' missing from catalog')
+    if (kind !== 'none') assert.ok(accessory.includes("item === '" + kind + "'"), kind + ' missing SVG')
     for (const lang of ['es', 'en']) {
       const translations = JSON.parse(readFileSync(new URL('../src/core/i18n/' + lang + '.json', import.meta.url), 'utf8'))
       assert.ok(translations.appearance.mascotAccessories[kind], lang + ' translation for ' + kind)
+      for (const category of ['basic', 'christmas', 'halloween', 'patriotic', 'fun'])
+        assert.ok(translations.appearance.mascotAccessoryCategories[category], lang + ' category ' + category)
     }
   }
-  assert.ok(mascot.includes('<DhMascotAccessory :kind="mascot.accessory"'))
-  assert.ok(appearance.includes('avatarMascot.setAccessory'))
-  assert.ok(appearance.includes('<DhSelect'))
-  assert.ok(accessory.includes('pointer-events-none'))
   assert.ok(mascot.includes('document.hidden'))
   assert.ok(mascot.includes('prefers-reduced-motion: reduce'))
 })
