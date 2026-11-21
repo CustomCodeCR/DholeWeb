@@ -993,10 +993,18 @@ watch(
 
 /** "Continue" means next carrier within the current screen, not skipping work. */
 async function advanceSequentialWizard() {
-  if (!multiCarrierSelectionMode.value || switchingPoeRoute.value || loadingRates.value) return
+  if (!multiCarrierSelectionMode.value) return next()
+  if (switchingPoeRoute.value || loadingRates.value || loadingScreenSevenCosts.value) {
+    toastStore.warning('Carga en curso', 'Termine de cargar la naviera y sus costos antes de avanzar.')
+    return
+  }
   if (step.value === 5) return advanceScreenFive()
   if (step.value !== 6 && step.value !== 7) return next()
-  if (!validateRequiredFields() || !canNext.value) return
+  if (!validateRequiredFields() || !canNext.value) {
+    toastStore.warning('Faltan datos para continuar',
+      requiredStepIssues.value.map(issue => issue.label).join(', ') || 'Revise los campos de esta pantalla.')
+    return
+  }
   rememberCurrentCarrierDraft()
   const nextRoute = nextCarrierRoute(selectedCarrierRoutes.value, form.destinationId, form.carrierId)
   if (nextRoute) {
@@ -1005,7 +1013,10 @@ async function advanceSequentialWizard() {
     return
   }
   const first = selectedCarrierRoutes.value[0]
-  if (!first) return
+  if (!first) {
+    toastStore.warning('Navieras sin configurar', 'Seleccione una alternativa POE–naviera válida.')
+    return
+  }
   await activateCarrierRoute(first.poeId, first.carrierId)
   if (step.value === 6) {
     loadingScreenSevenCosts.value = true
@@ -1017,7 +1028,10 @@ async function advanceSequentialWizard() {
     } finally {
       loadingScreenSevenCosts.value = false
     }
-    if (!ready) return
+    if (!ready) {
+      toastStore.warning('Costos no disponibles', 'No se puede abrir Pantalla 7 sin confirmar los costos. Reintente.')
+      return
+    }
     rebuildRateLines()
     syncHaulageOptionalLines()
     restoreCurrentInland()
@@ -3558,8 +3572,9 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
 }
 
 async function loadCustomerPreferentialRates(): Promise<void> {
-  const request = ++customerPreferentialRequest
   const accountId = !props.rateId && form.crmClientKind === 'account' ? form.clientId : ''
+  if (accountId && accountId === customerPreferentialAccountId.value && !customerPreferentialError.value) return
+  const request = ++customerPreferentialRequest
   customerPreferentialRates.value = []
   customerPreferentialAccountId.value = ''
   customerPreferentialError.value = ''
@@ -3614,16 +3629,8 @@ async function loadApplicableCosts(): Promise<boolean> {
   const requestContext = activeCostContextKey()
   const serial = ++applicableCostRequestSerial
   try {
-    // The startup catalogue can be empty/partial while Config/CRM initializes.
-    // Validate the full active list on first P7 entry for EACH route/customer
-    // before caching its contextual cost response. Both requests run together.
-    const refreshCatalog = !activeCatalogValidatedContexts.has(requestContext)
-    const catalogFetch = refreshCatalog
-      ? PricingService.selectCosts({ isActive: true })
-          .then(list => ({ list, error: null as unknown }))
-          .catch(error => ({ list: null as CostSelectDto[] | null, error }))
-      : Promise.resolve({ list: null as CostSelectDto[] | null, error: null as unknown })
-    const received = await PricingService.selectCosts({
+    // One Pricing response contains a complete active catalog and route context.
+    const bundle = await PricingService.selectWizardCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
       polId: form.originId || undefined,
@@ -3632,35 +3639,22 @@ async function loadApplicableCosts(): Promise<boolean> {
       incotermId: form.incotermId || undefined,
       shipmentMode: shipmentModeForApi.value,
       isActive: true,
-      applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
     })
-    const active = await catalogFetch
     if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
-    if (active.error) throw active.error
-    if (refreshCatalog) {
-      if (!active.list?.length && !allCosts.value.length) {
-        throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
-      }
-      if (active.list?.length) {
-        // Replace any stale/inactive startup rows with Pricing's current active
-        // catalogue; never depend on a previously partial alternative snapshot.
-        allCosts.value = active.list
-        activeCatalogValidatedContexts.add(requestContext)
-      }
+    if (!bundle.catalog.length && !allCosts.value.length) {
+      throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
     }
-    // Resolve customer-specific sale prices only after BOTH catalog queries.
+    allCosts.value = bundle.catalog
+    activeCatalogValidatedContexts.add(requestContext)
     await loadCustomerPreferentialRates()
     if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
-    costs.value = reconcileActiveCostCatalog(received, allCosts.value)
+    costs.value = reconcileActiveCostCatalog(bundle.applicable, allCosts.value)
     return true
   } catch (error) {
     if (requestContext !== activeCostContextKey()) return false
-    // Keep previously edited and cached costs instead of erasing the draft on a transient failure.
-    toastStore.backendError(
-      error,
-      'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
-    )
+    toastStore.backendError(error,
+      'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.')
     return false
   }
 }
@@ -6972,7 +6966,7 @@ watch(
 watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
-    if (hydratingExistingRate.value || switchingPoeRoute.value || loadingScreenSevenCosts.value || step.value < 6 || !agentId) return
+    if (hydratingExistingRate.value || switchingPoeRoute.value || loadingScreenSevenCosts.value || step.value < 7 || !agentId) return
     const loaded = await loadApplicableCosts()
     if (loaded && step.value >= 7) {
       rebuildRateLines()

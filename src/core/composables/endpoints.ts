@@ -475,6 +475,7 @@ export const ScrapingEndpoints = {
 export const PricingEndpoints = {
   browseCosts: { method: 'GET', path: '/api/pricing/costs', headers: acceptJson },
   selectCosts: { method: 'GET', path: '/api/pricing/costs/select', headers: acceptJson },
+  selectWizardCosts: { method: 'GET', path: '/api/pricing/costs/wizard-bundle', headers: acceptJson },
   exportActiveCostsExcel: {
     method: 'GET',
     path: '/api/pricing/costs/export.xlsx',
