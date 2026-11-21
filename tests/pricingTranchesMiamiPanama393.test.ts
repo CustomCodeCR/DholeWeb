@@ -129,9 +129,11 @@ test('DH-394: FCL multimodal retains the second (road) Freight master', () => {
       poes: [{ id: 'balboa', name: 'Balboa, Panama', code: 'BAL' }],
     })
   assert.equal(selectMultimodalLandFreight391([fcl], route)?.id, fcl.id)
-  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
-  assert.match(wizard, /isSeparateMultimodalLandFreight/)
-  assert.match(wizard, /&& !isSeparateMultimodalLandFreight\) return/)
+  const transform = readFileSync(new URL('../build/pricingFtlLandCostsFix.ts', import.meta.url), 'utf8')
+  assert.match(transform, /form.modality === 'Multimodal' && isTerrestrial/)
+  const p7 = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
+  assert.match(p7, /costs.value.find\(cost =>/)
+  assert.match(p7, /selectMultimodalLandFreight391\(allCosts.value, route\)/)
 })
 
 test('DH-394: missing Miami FAK items are restored only for new own-LCL quotes', () => {
