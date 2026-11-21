@@ -60,6 +60,7 @@ import type { GroupQuoteAlternativeRequest, GroupQuoteSnapshot } from '@/core/se
 import { OwnLclConsolidationService } from '@/core/services/ownLclConsolidationService'
 import { RateRequestLeaseService } from '@/modules/pricing/services/rateRequestLeaseService'
 import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
+import { reconcileActiveCostCatalog } from '@/modules/pricing/utils/pricingScreenSevenCostRecovery'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
@@ -833,6 +834,8 @@ function activeCostContextKey(): string {
       shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
     }),
     form.crmClientKind, form.clientId,
+    form.equipmentId, form.equipmentQuantity, form.cargoWeightKg,
+    form.cargoPackages, form.cargoPallets, form.storageDays,
   ].join('|')
 }
 
@@ -3262,7 +3265,7 @@ function resolvedConditionalCost(cost: CostSelectDto) {
       ? Math.trunc(number(form.cargoPackages))
       : consolidatedCargoMode.value && number(form.cargoPallets) > 0
         ? Math.trunc(number(form.cargoPallets)) : null,
-    containerTypeId: selectedEquipment.value?.id ?? null,
+    containerTypeId: form.equipmentId || selectedEquipment.value?.id || null,
     containerQuantity: Math.max(1, number(form.equipmentQuantity)),
     teuQuantity: Math.max(1, number(form.equipmentQuantity)) *
       (/20/.test(String(selectedEquipment.value?.code ?? '')) ? 1 : 2),
@@ -3433,7 +3436,9 @@ function applyConfiguredMetadataToPersistedLine(line: RateLine, configured: Cost
 }
 
 function syncPersistedLinesWithChangedConfiguredCosts() {
-  if (!editingRate.value || props.viewOnly) return 0
+  // Editing a quotation is not an implicit re-application of the current
+  // master catalog. Persisted RateDetail amounts/IDs remain authoritative.
+  if (props.rateId || !editingRate.value || props.viewOnly) return 0
 
   const configuredCosts = applicableConfiguredCosts()
   const persistedById = new Map(
@@ -3585,10 +3590,12 @@ function currentPreferentialContext(serviceCodes = selectedServices.value.map(it
   }
 }
 
+let applicableCostRequestSerial = 0
 async function loadApplicableCosts(): Promise<boolean> {
   const requestContext = activeCostContextKey()
+  const serial = ++applicableCostRequestSerial
   try {
-    const received = await PricingService.selectCosts({
+    const bundle = await PricingService.selectWizardCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
       polId: form.originId || undefined,
@@ -3597,18 +3604,30 @@ async function loadApplicableCosts(): Promise<boolean> {
       incotermId: form.incotermId || undefined,
       shipmentMode: shipmentModeForApi.value,
       isActive: true,
-      applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
+      containerTypeId: form.equipmentId || undefined,
+      weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : undefined,
+      packages: number(form.cargoPackages) > 0
+        ? Math.trunc(number(form.cargoPackages))
+        : consolidatedCargoMode.value && number(form.cargoPallets) > 0
+          ? Math.trunc(number(form.cargoPallets)) : undefined,
+      storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : undefined,
     })
-    if (requestContext !== activeCostContextKey()) return false
-    // Resolve CRM's current customer-specific sale agreement before generating screen 7.
+    if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
+    if (!bundle.catalog.length && !allCosts.value.length) {
+      throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
+    }
+    allCosts.value = bundle.catalog
     await loadCustomerPreferentialRates()
-    if (requestContext !== activeCostContextKey()) return false
-    costs.value = received
+    if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
+    // Only actually applicable optionals are returned. The full catalogue is
+    // never permission to silently add Despacho a bordo or other extras.
+    costs.value = reconcileActiveCostCatalog(
+      bundle.applicable, allCosts.value, cost => cost.costType !== 'Optional',
+    )
     return true
   } catch (error) {
-    if (requestContext !== activeCostContextKey()) return false
-    // Keep previously edited and cached costs instead of erasing the draft on a transient failure.
+    if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
     toastStore.backendError(
       error,
       'No se pudieron cargar los costos que coinciden con Naviera, Agente, POL, POE, POD e Incoterm.',
@@ -4871,7 +4890,6 @@ async function hydrateExistingRate() {
       && (hasColoaderSource || !hasOwnSource)
     form.carrierId = isColoaderRate ? '' : (rate.carrierId ?? '')
     form.currencyId = rate.currencyId
-    await loadApplicableCosts()
     exchangeRatePurchase.value = Number(rate.exchangeRatePurchase || rate.exchangeRateApplied || 0) || null
     exchangeRateSale.value = Number(rate.exchangeRateSale || rate.exchangeRateApplied || 0) || null
     exchangeRateDate.value = String(rate.exchangeRateDate ?? '').slice(0,10)
@@ -4889,6 +4907,8 @@ async function hydrateExistingRate() {
     form.cargoLengthCm = Number(rate.cargoLines?.[0]?.lengthCm ?? 0)
     form.cargoWidthCm = Number(rate.cargoLines?.[0]?.widthCm ?? 0)
     form.cargoHeightCm = Number(rate.cargoLines?.[0]?.heightCm ?? 0)
+    // Ensure Pricing sees the saved equipment, packages, weight and storage days.
+    await loadApplicableCosts()
 
     // Existing rate details are an authoritative snapshot. Do not delete
     // the only saved coloader charges merely because their charge basis,
