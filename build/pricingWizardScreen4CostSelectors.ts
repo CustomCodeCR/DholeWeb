@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite'
-import { replaceScopedOptionalCostFunction } from './pricingOptionalCostFunctionScope'
+import { replaceScopedOptionalCostFunction } from './pricingOptionalCostFunctionScope.ts'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
