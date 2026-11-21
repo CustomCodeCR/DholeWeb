@@ -283,15 +283,21 @@ export function patchFclMultiCarrierCosts(source: string): string {
   code = editFn(code, 'function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto)', (s) =>
     swap(s, 'maritimeFclRelationMatches(cost.carriers, cost.carrierId, form.carrierId)',
       'fclMatchesCarrierSet(cost.carriers, cost.carrierId)'))
-  code = editFn(code, 'async function loadApplicableCosts() {', (s) =>
-    swap(s, 'PricingService.selectCosts(contextualQuery),',
-      `Promise.allSettled(
-        maritimeFcl && fclAllCarrierIds.value.length > 1
-          ? fclAllCarrierIds.value.map((carrierId) =>
-            PricingService.selectCosts({ ...contextualQuery, carrierId }))
-          : [PricingService.selectCosts(contextualQuery)],
-      ).then((results) => results.flatMap((result) =>
-        result.status === 'fulfilled' ? result.value : [])),`))
+  // DH-380: the wizard-bundle request returns the full active catalog and one
+  // contextual subset. The multi-carrier reconciliation above uses the complete
+  // catalog and fclMatchesCarrierSet; extra per-carrier requests are not needed.
+  // Keep legacy select support for unported wizard implementations only.
+  if (!code.includes('PricingService.selectWizardCosts(contextualQuery)')) {
+    code = editFn(code, 'async function loadApplicableCosts() {', (s) =>
+      swap(s, 'PricingService.selectCosts(contextualQuery),',
+        `Promise.allSettled(
+          maritimeFcl && fclAllCarrierIds.value.length > 1
+            ? fclAllCarrierIds.value.map((carrierId) =>
+              PricingService.selectCosts({ ...contextualQuery, carrierId }))
+            : [PricingService.selectCosts(contextualQuery)],
+        ).then((results) => results.flatMap((result) =>
+          result.status === 'fulfilled' ? result.value : [])),`))
+  }
   if (code.includes('finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)'))
     code = swap(code, 'finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)',
       "(shipmentModeForApi.value === 'Fcl' && fclContainerAllocations.value.length > 1 ? fclMatchesCarrierSet(cost.carriers, cost.carrierId) : finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId))")
