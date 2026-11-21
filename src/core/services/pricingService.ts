@@ -156,7 +156,7 @@ export const PricingService = {
       ...Endpoints.selectWizardCosts,
       path: withQuery(Endpoints.selectWizardCosts.path, query),
     })
-    const value = unwrapApiResponse<{ catalog: CostSelectDto[]; applicable: CostSelectDto[] }>(response)
+    const value = unwrapApiResponse<unknown>(response) as { catalog: CostSelectDto[]; applicable: CostSelectDto[] } | null
     if (!value || !Array.isArray(value.catalog) || !Array.isArray(value.applicable)) {
       throw new Error('Pricing devolvió un paquete de costos incompleto.')
     }
