@@ -68,7 +68,22 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
     || ((changed.has('overweight') || changed.has('dangerous')) &&
       /sobrepeso|overweight|imo|peligros/i.test(cost.name))
   return applicableConfiguredCosts().filter(cost => {
-    if (cost.costDetailType === 'Freight' || cost.isActive === false) return false
+    if (cost.isActive === false) return false
+    const name = normalizeCatalogValue(cost.name)
+    const contextChanged = quoteEditTransportChanged387()
+      || changed.has('merchant') || changed.has('carrier')
+    // Land Freight is an independent CostId. Do not touch ocean/equipment Freight.
+    if (cost.costDetailType === 'Freight') {
+      return contextChanged && /terrestre|land freight/.test(name)
+    }
+    // Optional inland is a user-driven Merchant/Carrier selection, not a
+    // general permission to append every optional charge on the route.
+    const selectedHaulage = form.merchantHaulage ? 'merchant'
+      : form.carrierHaulage ? 'carrier' : null
+    const newlySelectedInland = contextChanged && selectedHaulage
+      && (cost.costDetailType === 'InlandTransport' || /inland|haulage/.test(name))
+      && dholeHaulageOptionalAssociation(cost) === selectedHaulage
+    if (newlySelectedInland) return true
     const associatedNewService = cost.services?.some(service => added.has(service.id)) ?? false
     const newlyRequestedInsurance = cost.costDetailType === 'Insurance'
       && [...added].some(id => catalogs.services.some(service => service.id === id
@@ -169,7 +184,7 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
     quoteEditRemoveInvalidDetails387()
     return true
   }
-  const loaded = await loadApplicableCosts()
+  const loaded = await loadApplicableCosts(true)
   if (!loaded || sequence !== quoteEditRequest387
       || signature !== JSON.stringify(quoteEditContext387())) return false
   quoteEditRemoveInvalidDetails387()

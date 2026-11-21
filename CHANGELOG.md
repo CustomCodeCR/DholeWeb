@@ -1,3 +1,11 @@
+## [1.109.1] - 2026-11-21 · DH-20261121-PRICING-EDIT-BUNDLE-389
+
+- PATCH: modifica el flujo de cotizaciones persistidas para consultar GET /api/pricing/costs/wizard-bundle en Pantalla 6 (Merchant/Carrier) y Pantalla 7 (delta explícito), aun cuando la cotización ya tenga RateDetails guardados.
+- PATCH: la consulta del catálogo es de solo lectura para líneas históricas y nunca reconstruye ni actualiza costos/ventas negociadas. Solo data.applicable puede originar costos de nuevas líneas correspondientes a cambios expresos.
+- PATCH: el Flete Internacional Terrestre con CostId propio se puede añadir al cambiar transporte, sin borrar el Flete FCL marítimo; opciones Inland Merchant/Carrier nuevas solo si fueron seleccionadas y están aplicables al contexto.
+- PATCH: cargar opciones no cambia automáticamente el Inland elegido en una cotización existente. Pruebas DH-389 de llamada a endpoint, selección y no duplicación; validación CI/staging pendiente.
+- Release coordinado DholeSystem 1.109.1; PricingService mantiene su contrato/versión 1.26.18; REST y realtime conservados. Promoción mediante PRs intermedios a develop y master.
+
 ## [1.109.0] - 2026-11-21 · DH-20261121-BLOBATAR-ACCESSORIES-388
 
 - MINOR: personalización avanzada de Blobatar: selector visual por categorías, tarjetas de accesorios, vista previa ampliada, etiquetas activas y selección múltiple accesible en Apariencia.
