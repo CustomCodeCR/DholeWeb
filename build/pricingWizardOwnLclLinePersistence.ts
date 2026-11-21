@@ -255,10 +255,16 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
     )
   }
 
+  const tierRebuildAnchor = "function rebuildRateLines() {\n  const tierPricingInputKey = JSON.stringify(["
   const modernRebuildAnchor = "function rebuildRateLines() {\n  const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7"
   const legacyRebuildAnchor = "function rebuildRateLines() {\n  const currency = selectedCurrency.value ?? catalogs.currencies[0]"
   const rebuildLclGuard = "  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') return\n  if (isOwnLclMatrixContext()) {\n    restoreOwnLclMatrixLines()\n    return\n  }\n\n"
-  if (code.includes(modernRebuildAnchor)) {
+  if (code.includes(tierRebuildAnchor)) {
+    code = replaceOne(code, tierRebuildAnchor,
+      tierRebuildAnchor.replace("\n  const tierPricingInputKey", "\n" + rebuildLclGuard + "  const tierPricingInputKey"),
+      'own LCL rebuild guard (tiered)',
+    )
+  } else if (code.includes(modernRebuildAnchor)) {
     code = replaceOne(code, modernRebuildAnchor,
       modernRebuildAnchor.replace("\n  const previousOptionLines", "\n" + rebuildLclGuard + "  const previousOptionLines"),
       'own LCL rebuild guard (context-aware)',
