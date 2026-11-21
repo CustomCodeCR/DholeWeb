@@ -181,7 +181,35 @@ function patchWizard(source: string) {
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
     const after = keepOptionals + '\n' + assignment + '\n' + intermediate + restoreOptionals
-    code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+    if (code.includes(before)) {
+      code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+    } else {
+      // Other Vite plugins may put cargo-tier bookkeeping between the quoted
+      // lines and the land tariff sync. Patch inside rebuildRateLines instead
+      // of depending on one exact adjacent snippet.
+      const start = code.indexOf('function rebuildRateLines() {')
+      const end = code.indexOf('\nfunction ', start + 1)
+      if (start < 0 || end <= start) {
+        throw new Error('[pricingLtlOptionalEditable] Missing scoped rebuild function')
+      }
+      let scoped = code.slice(start, end)
+      const assignmentAt = scoped.indexOf(assignment)
+      const marker = '  // syncResolvedLandLtlTariffLines() after every rebuild'
+      const markerAt = scoped.indexOf(marker, assignmentAt + assignment.length)
+      if (assignmentAt < 0 || markerAt < 0
+        || scoped.includes('const previousLtlOptionals =')) {
+        throw new Error('[pricingLtlOptionalEditable] Missing scoped LTL assignment/sync anchors')
+      }
+      const restoreAfterSync = restoreOptionals.replace(
+        "    syncResolvedLandLtlTariffLines()\\n", '',
+      )
+      scoped = scoped.slice(0, markerAt + marker.length)
+        + '\n' + restoreAfterSync
+        + scoped.slice(markerAt + marker.length)
+      scoped = scoped.slice(0, assignmentAt)
+        + keepOptionals + '\n' + scoped.slice(assignmentAt)
+      code = code.slice(0, start) + scoped + code.slice(end)
+    }
 
   }
 
