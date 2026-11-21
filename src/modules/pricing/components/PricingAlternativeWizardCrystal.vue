@@ -991,6 +991,23 @@ watch(
   { flush: 'post' },
 )
 
+// Use the exact, already-displayed P6 catalog when a late watcher/API response
+// fails. Do not reprice and never use a different POE, carrier, CRM account or
+// agent. A full active catalog and a saved per-route draft are required.
+function screenSixHasValidCostSnapshot(context: string): boolean {
+  if (step.value !== 6 || context !== activeCostContextKey()
+    || customerPreferentialError.value || !allCosts.value.length) return false
+  if (form.crmClientKind === 'account' && form.clientId
+    && customerPreferentialAccountId.value !== form.clientId) return false
+  const route = carrierRouteKey(form.destinationId, form.carrierId)
+  const draft = optionDrafts.value[route]
+  if (!draft || draft.fields.carrierId !== form.carrierId
+    || draft.fields.agentId !== form.agentId || draft.fields.currencyId !== form.currencyId) return false
+  const activeIds = new Set(allCosts.value.filter(cost => cost.isActive !== false).map(cost => cost.id))
+  return (draft.costs ?? []).some(cost =>
+    Boolean(cost.id) && activeIds.has(cost.id) && applicableCost(cost))
+}
+
 /** "Continue" means next carrier within the current screen, not skipping work. */
 async function advanceSequentialWizard() {
   if (!multiCarrierSelectionMode.value) return next()
@@ -1005,6 +1022,7 @@ async function advanceSequentialWizard() {
       requiredStepIssues.value.map(issue => issue.label).join(', ') || 'Revise los campos de esta pantalla.')
     return
   }
+  const screenSixContext = activeCostContextKey()
   rememberCurrentCarrierDraft()
   const nextRoute = nextCarrierRoute(selectedCarrierRoutes.value, form.destinationId, form.carrierId)
   if (nextRoute) {
@@ -1024,12 +1042,14 @@ async function advanceSequentialWizard() {
     // catalogue and route/carrier/agent matching charges.
     let ready = false
     try {
-      // Screen 6 already hydrated this same customer/route/provider snapshot.
-      // Do not issue a second Pricing GET on the P6→P7 click unless the
-      // context changed or the active rows were invalidated.
-      ready = (activeCatalogValidatedContexts.has(activeCostContextKey())
-        && allCosts.value.length > 0 && costs.value.length > 0)
-        || await loadApplicableCosts()
+      // When Screen 6 already shows route-eligible and catalog-backed charges,
+      // a second request must not block P7 or replace the user's inland draft.
+      const sameRoute = screenSixContext === activeCostContextKey()
+      const verifiedSnapshot = sameRoute && screenSixHasValidCostSnapshot(screenSixContext)
+      ready = verifiedSnapshot || await loadApplicableCosts()
+      // A newer watcher may supersede the request while P6 remains valid.
+      // Fall back ONLY to the original, verified snapshot for this exact route.
+      if (!ready && sameRoute) ready = screenSixHasValidCostSnapshot(screenSixContext)
     } finally {
       loadingScreenSevenCosts.value = false
     }

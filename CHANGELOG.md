@@ -1,3 +1,10 @@
+## [1.108.6] - 2026-11-21 (DH-20261121-P6-P7-SNAPSHOT-373 · desbloqueo P6→P7 con costos visibles)
+
+- PATCH exclusivo de develop: la transición P6→P7 reconoce el catálogo activo y las líneas aplicables ya verificadas y mostradas en P6, incluso cuando una petición adicional falla o es anulada por un watcher. No inventa cargos ni exige nuevas solicitudes si ya están validados para el mismo contexto.
+- La reutilización verifica POE, carrier, agente, moneda, cliente CRM, relaciones y CostId en un borrador específico de ruta; nunca mezcla alternativas ni clientes, y respeta el bloqueo comercial cuando falla la verificación de tarifas preferenciales.
+- Conserva Inland Carrier/Merchant, flete, costos/ventas y criterios de selección. No cambia endpoints REST, backend Pricing, SignalR ni base de datos.
+- DholeWeb y DholeSystem 1.108.5 → 1.108.6; DholePricingService mantiene 1.26.10. CI y smoke autenticado de staging obligatorios; master y producción no autorizados.
+
 ## [1.108.5] - 2026-11-21 (DH-20261121-P7-COST-BUNDLE-372 · carga conjunta de costos y avance P6–P7)
 
 - PATCH coordinado DholeWeb 1.108.4 → 1.108.5 y DholePricingService 1.26.9 → 1.26.10, versión global de ecosistema 1.108.5. Destino exclusivo develop/staging, sin master ni producción.
