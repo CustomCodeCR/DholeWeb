@@ -2,7 +2,7 @@ import type { Plugin } from 'vite'
 
 const WIZARD = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
-const EDIT_HELPERS = String.raw\`
+const EDIT_HELPERS = String.raw`
 interface QuoteEditContext387 {
   modality: string; shipmentMode: string; originId: string; destinationId: string
   podId: string; agentId: string; carrierId: string; incotermId: string
@@ -190,7 +190,7 @@ watch(
   },
   { flush: 'post' },
 )
-\`
+`
 
 function replaceSingle(source: string, oldText: string, newText: string, label: string) {
   const n = source.split(oldText).length - 1
@@ -222,16 +222,12 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     '    if (!equivalent.costId && !props.rateId) {',
     'do not relink persisted details')
   append = replaceSingle(append,
-    '  rateLines.value.push({\n    key: \\'edit-incoterm-cost:\\' + cost.id,',
-    '  rateLines.value.push({\n    key: \\'edit-incoterm-cost:\\' + cost.id,',
-    'append key')
-  append = replaceSingle(append,
     '    costAmount: number(cost.costAmount),\n    saleAmount: number(cost.saleAmount),',
     '    costAmount: number(resolvedConditionalCost(cost)?.costAmount ?? cost.costAmount),\n    saleAmount: number(resolvedConditionalCost(cost)?.saleAmount ?? cost.saleAmount),',
     'tier pricing')
   append = replaceSingle(append,
     '      || shouldIncludeOptionalCost(cost),',
-    '      || shouldIncludeOptionalCost(cost)\n      || Boolean(cost.services?.some(service => quoteEditAddedServices387().has(service.id)))\n      || (cost.costDetailType === \\'Insurance\\' && cargoInsuranceSelected.value),',
+    '      || shouldIncludeOptionalCost(cost)\n      || Boolean(cost.services?.some(service => quoteEditAddedServices387().has(service.id)))\n      || (cost.costDetailType === "Insurance" && cargoInsuranceSelected.value),',
     'newly requested service inclusion')
   s = s.slice(0, appendStart) + append + s.slice(appendEnd)
 
