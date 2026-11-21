@@ -1,34 +1,79 @@
 #!/usr/bin/env python3
-"""Require Web release metadata to match the System release on the target branch."""
+"""Require matching DholeSystem version on target or same-release PR candidate."""
 import json
 import os
 import sys
 from pathlib import Path
 from base64 import b64decode
 from time import time_ns
+from urllib.parse import quote
 from urllib.request import Request, urlopen
+
+
+def contents_json(path: str, ref: str) -> dict:
+    encoded = quote(ref, safe="")
+    api_url = f"https://api.github.com/repos/CustomCodeCR/DholeSystem/contents/{path}?ref={encoded}"
+    with urlopen(Request(api_url, headers={
+        "Accept": "application/vnd.github+json",
+        "Cache-Control": "no-cache",
+        "User-Agent": "Dhole-Version-Gate",
+    }), timeout=20) as response:
+        payload = json.load(response)
+    return json.loads(b64decode(payload["content"]).decode("utf-8"))
 
 
 def main():
     branch = os.environ.get("DH_SYSTEM_BRANCH", "develop").strip()
     if branch not in {"develop", "master"}:
         raise ValueError(f"Unsupported DholeSystem release branch: {branch}")
-    version = json.loads(Path("version.json").read_text(encoding="utf-8"))["version"]
+
+    metadata = json.loads(Path("version.json").read_text(encoding="utf-8"))
+    version = metadata["version"]
     pkg = json.loads(Path("package.json").read_text(encoding="utf-8"))["version"]
-    # Bust GitHub's raw-file CDN cache after a coordinated System/Web merge.
-    url = f"https://raw.githubusercontent.com/CustomCodeCR/DholeSystem/{branch}/version.json?release_check={time_ns()}"
-    with urlopen(Request(url, headers={"Accept": "application/json", "Cache-Control": "no-cache", "User-Agent": "Dhole-Version-Gate"}), timeout=20) as response:
+    if version != pkg:
+        raise ValueError(f"Web version metadata {version} != package {pkg}")
+
+    url = (f"https://raw.githubusercontent.com/CustomCodeCR/DholeSystem/"
+           f"{branch}/version.json?release_check={time_ns()}")
+    with urlopen(Request(url, headers={
+        "Accept": "application/json", "Cache-Control": "no-cache",
+        "User-Agent": "Dhole-Version-Gate",
+    }), timeout=20) as response:
         system = json.load(response)
-    # Raw CDN can lag a just-merged System release even with query cache busting.
-    # On mismatch, confirm the actual branch file through GitHub's Contents API.
-    if not (version == pkg == system["version"] == system["ecosystemVersion"]):
-        api_url = f"https://api.github.com/repos/CustomCodeCR/DholeSystem/contents/version.json?ref={branch}"
-        with urlopen(Request(api_url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Dhole-Version-Gate"}), timeout=20) as response:
-            payload = json.load(response)
-        system = json.loads(b64decode(payload["content"]).decode("utf-8"))
-    if not (version == pkg == system["version"] == system["ecosystemVersion"]):
-        raise ValueError(f"Web {version} (package {pkg}) does not match DholeSystem/{branch} {system['version']}")
-    print(f"PASS Web/System shared release version {version} ({branch})")
+    if not (version == system["version"] == system["ecosystemVersion"]):
+        system = contents_json("version.json", branch)
+
+    if version == system["version"] == system["ecosystemVersion"]:
+        print(f"PASS Web/System shared release version {version} ({branch})")
+        return
+
+    # A coordinated Web/System release cannot update two repos atomically.
+    # While validating a PR into develop, require matching System candidate branch,
+    # release ID, and CENTRAL manifest. This is not a production/master bypass.
+    candidate = os.environ.get("GITHUB_HEAD_REF", "").strip()
+    is_pr = os.environ.get("GITHUB_EVENT_NAME") == "pull_request"
+    if branch == "develop" and is_pr and candidate.startswith(("fix/", "feature/")):
+        system = contents_json("version.json", candidate)
+        manifest = contents_json("release-manifest.json", candidate)
+        versions = {c["component"]: c["version"] for c in manifest["components"]}
+        if (system["version"] == version
+                and system["ecosystemVersion"] == version
+                and system["releaseId"] == metadata["releaseId"]
+                and manifest["ecosystemVersion"] == version
+                and manifest["releaseId"] == metadata["releaseId"]
+                and manifest.get("productionDeploymentAuthorized") is False
+                and versions.get("DholeWeb") == version
+                and versions.get("DholeSystem") == version
+                and candidate in manifest.get("branches", {}).values()):
+            print(f"PASS Web/System coordinated PR candidate {version} ({candidate}); "
+                  "develop still requires integration before deployment")
+            return
+        raise ValueError("DholeSystem candidate, component versions and central "
+                         "release manifest do not match this Web release")
+
+    raise ValueError(
+        f"Web {version} (package {pkg}) does not match DholeSystem/{branch} "
+        f"{system['version']} and no verified coordinated PR candidate is allowed")
 
 
 if __name__ == "__main__":

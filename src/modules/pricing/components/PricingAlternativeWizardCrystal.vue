@@ -3251,10 +3251,11 @@ function sectionForDetail(type: CostDetailType, name = ''): RateSection {
 }
 
 function sectionForCost(cost: CostSelectDto): RateSection {
-  if (cost.costDetailType !== 'Freight') {
-    const explicitSection = explicitSectionFromName(cost.name)
-    if (explicitSection) return explicitSection
-  }
+  // A freight leg stays in the international freight block regardless of POE/POD.
+  // Multimodal terrestrial freight is not a destination surcharge.
+  if (cost.costDetailType === 'Freight') return 'international_freight'
+  const explicitSection = explicitSectionFromName(cost.name)
+  if (explicitSection) return explicitSection
 
   const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)
   if (byPortRole) return byPortRole
@@ -4396,7 +4397,7 @@ async function loadCatalogs() {
       selectOptional('country-vat-rates', 'country-tax-rates'),
       selectOptional('pricing-clients'),
       selectOptional('pricing-sales-executives'),
-      PricingService.selectCosts().catch(() => [] as CostSelectDto[]),
+      Promise.resolve([] as CostSelectDto[]),
     ])
 
     Object.assign(catalogs, {

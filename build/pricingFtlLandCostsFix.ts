@@ -338,6 +338,7 @@ async function loadApplicableCosts() {
       storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : undefined,
     }
 
+    // Compatibility anchor for downstream Vite cost transforms; not a catalog fallback.
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
     // One server snapshot replaces separate active/contextual requests.
     const bundle = await PricingService.selectWizardCosts(contextualQuery)
@@ -345,22 +346,11 @@ async function loadApplicableCosts() {
     const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
-    // The contextual API may reject a valid multi-port entry because PortId/
-    // PoeId/PodId represent only the first historical selection. Reconcile with
-    // the active catalog using explicit relation arrays as the source of truth.
-    if (maritimeFcl && !props.rateId) {
-      fullCatalog
-        .filter(maritimeFclCostMatchesCurrentContext)
-        .forEach((cost) => mergedCosts.set(cost.id, cost))
-      // Pricing's contextual response already validated route, provider, mode,
-      // service and Incoterm. Do not reject it against legacy single-port fields.
-      // Keep the stricter browser predicate for the full-catalog fallback only.
-      contextualCosts
-        .filter((cost) => cost.isActive !== false)
-        .forEach((cost) => mergedCosts.set(cost.id, cost))
-    } else {
-      contextualCosts.forEach((cost) => mergedCosts.set(cost.id, cost))
-    }
+    // The endpoint has two independent responsibilities: catalog is reference data,
+    // applicable is the authoritative set of costs for THIS quote/context.
+    // Catalog-only entries must never create tariff lines, in create or edit.
+    contextualCosts.filter((cost) => cost.isActive !== false)
+      .forEach((cost) => mergedCosts.set(cost.id, cost))
 
     if (activeContext !== activeCostContextKey()) return false
     if (!fullCatalog.length && !allCosts.value.length) {

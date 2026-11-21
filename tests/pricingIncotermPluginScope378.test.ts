@@ -81,5 +81,5 @@ test('final wizard runtime assertion prevents missing declarations before Vue co
     ),
     /expandedOutsideIncotermGroups/,
   )
-  assert.match(read('vite.config.ts'), /pricingCrmPreferredRuntimeGuard\(\),\s*vue\(\)/)
+  assert.match(read('vite.config.ts'), /pricingCrmPreferredRuntimeGuard\(\),[\s\S]*?pricingWizardBundleOnlyFinal\(\),\s*vue\(\)/)
 })

@@ -104,7 +104,7 @@ const fclInlandCarrierRows = computed(() => {
     equipment: string; cost: CostSelectDto; pricedCost: number; pricedSale: number
   }>
   const fullCatalog = new Map<string, CostSelectDto>()
-  ;[...allCosts.value, ...costs.value]
+  ;[...costs.value]
     .filter((cost) => fclInlandIsCarrierCost(cost)
       && maritimeFclCostMatchesCurrentContext(cost)
       && dholeHaulageOtherConditionsMatch(cost)
