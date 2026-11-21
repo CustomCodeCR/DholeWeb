@@ -135,6 +135,10 @@ function quoteEditRemoveInvalidDetails387() {
   }
   rateLines.value = rateLines.value.filter(line => {
     if (line.key.startsWith('edit-incoterm-cost:') || line.key === 'quote-edit:insurance') {
+      // Unsaved additions have no RateDetailId. Removing an opposite
+      // muellaje choice must precede the legacy keep-if-no-service shortcut.
+      if (form.portHandlingMode && /anticipado|redestino/.test(normalizeCatalogValue(line.name))
+          && outdated(line)) return false
       if (!line.serviceIds?.length) return true
       return line.serviceIds.some(id => selected.has(id))
     }
