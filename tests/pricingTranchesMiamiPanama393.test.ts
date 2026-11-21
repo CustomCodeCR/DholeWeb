@@ -70,3 +70,75 @@ test('Miami plan D matches the attached cotizador HTML', () => {
   const breakdown = readFileSync(new URL('../build/pricingMiamiOwnLclBreakdown.ts', import.meta.url), 'utf8')
   assert.match(breakdown, /number\(miamiChargeableCft\.value\)/)
 })
+
+
+test('DH-394: CFZ commercial POL resolves all Panama LTL costs through the physical POE name', () => {
+  const names = {
+    pol: 'c2600000-0000-4000-8000-000000000010',
+    poe: 'c2610000-0000-4000-8000-000000000010',
+    commercialPoe: 'c2610000-0000-4000-8000-000000000008',
+    pod: '7bca5d96-127f-4c90-9453-22f5057380b6',
+    agent: '0c5be554-8842-4eef-abae-824dc474ae65',
+    service: 'c2300000-0000-4000-8000-000000000001',
+  }
+  const route394: P7CostRoute391 = {
+    originIds: [names.pol, names.commercialPoe],
+    destinationIds: [names.pod],
+    originNames: ['Colon Free Zone, Panama', 'San Jose, Costa Rica'],
+    destinationNames: ['San Jose, Costa Rica'],
+    agentId: names.agent, serviceIds: [names.service], weightKg: 500,
+    incotermId: 'fca',
+  }
+  const amounts = (costAmount: number, saleAmount: number) => JSON.stringify([
+    { dimension: 'WeightKg', minValue: 1, maxValue: 500, calculationMode: 'Flat',
+      containerTypeId: null, costAmount, saleAmount },
+  ])
+  const selected = [
+    row('freight', 'Flete Terrestre Internacional Panama a Costa Rica',
+      { pricingRulesJson: amounts(180, 205) }),
+    row('bunker', 'Bunker Panama a Costa Rica',
+      { pricingRulesJson: amounts(90, 90) }),
+    row('expenses', 'Gastos Panama a Costa Rica',
+      { pricingRulesJson: amounts(0, 0) }),
+    row('custody', 'Custodia + Marchamo',
+      { costAmount: 55, saleAmount: 55 }),
+  ].map(c => ({
+    ...c, costType: 'Optional', agentId: names.agent,
+    agents: [{ id: names.agent, name: 'GRUPO CASTRO FALLAS', code: 'GCF' }],
+    services: [{ id: names.service, name: 'Transporte Internacional', code: 'INT_TRANSPORT' }],
+    poes: [{ id: names.poe, name: 'Colon Free Zone, Panama', code: 'CFZ' }],
+    pods: [{ id: names.pod, name: 'San Jose, Costa Rica', code: 'SJO' }],
+    shipmentModes: ['Lcl','Ltl'],
+  })) as CostSelectDto[]
+  const matches = selectPanamaLtlCharges391(selected, route394)
+  assert.equal(matches.size, 4)
+  assert.equal(matches.get('freight')?.costAmount, 180)
+  assert.equal(matches.get('bunker')?.costAmount, 90)
+  assert.equal(matches.get('panama-expenses')?.costAmount, 0)
+  assert.equal(matches.get('custody')?.saleAmount, 55)
+  const wrong: P7CostRoute391 = {
+    ...route394, originIds: ['wrong'], originNames: ['Miami, United States'],
+  }
+  assert.equal(selectPanamaLtlCharges391(selected, wrong).size, 0)
+})
+
+test('DH-394: FCL multimodal retains the second (road) Freight master', () => {
+  const fcl = row('ae17c229-3d18-48a2-a22d-61f23264780d',
+    'Flete Internacional Terrestre', {
+      shipmentModes: ['Fcl','Ftl'], costAmount: 2140, saleAmount: 2140,
+      poes: [{ id: 'balboa', name: 'Balboa, Panama', code: 'BAL' }],
+    })
+  assert.equal(selectMultimodalLandFreight391([fcl], route)?.id, fcl.id)
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(wizard, /isSeparateMultimodalLandFreight/)
+  assert.match(wizard, /&& !isSeparateMultimodalLandFreight\) return/)
+})
+
+test('DH-394: missing Miami FAK items are restored only for new own-LCL quotes', () => {
+  const plugin = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
+  for (const expected of ['p7SyncMiamiCommercialItems394', "name: 'VGM'", "name: 'Documentación'",
+    "name: 'Forwarding'", "name: 'SED'", "name: 'Marchamo'", "name: 'TICA'",
+    'props.rateId', "lclSelectedSource.value?.kind !== 'Own'"]) {
+    assert.ok(plugin.includes(expected), expected)
+  }
+})
