@@ -1,0 +1,31 @@
+{
+  "releaseId": "DH-20261121-BLOBATAR-ACCESSORIES-388",
+  "date": "2026-11-21",
+  "ecosystem": "Dhole",
+  "ecosystemVersion": "1.109.0",
+  "scope": "Combinable layered Blobatar accessories, seasonal collections, Costa Rica patriotic month",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "version": "1.109.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "version": "1.109.0"
+    }
+  ],
+  "unchangedComponents": "All other components retain version pins from DholeSystem/release-manifest.json",
+  "branches": {
+    "develop": "feature/DH-20261121-BLOBATAR-ACCESSORIES-388-develop",
+    "master": "feature/DH-20261121-BLOBATAR-ACCESSORIES-388-master"
+  },
+  "qualityGates": [
+    "CI build and typecheck",
+    "Blobatar regression tests",
+    "version gate",
+    "staging verification before master"
+  ],
+  "productionDeployment": "requires explicit deployment authorization"
+}
