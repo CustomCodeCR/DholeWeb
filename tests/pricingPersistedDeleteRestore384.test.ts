@@ -11,10 +11,10 @@ test('explicit removal passes the persisted ID to the backend removal reconcilia
   assert.match(refresh, /removedScreen7LineKeys\.value = \[\]/)
 })
 test('explicit refresh is not disabled by the saved quote guard', () => {
-  assert.match(wizard, /loadApplicableCosts\(forceRefresh = false\)/)
-  assert.match(wizard, /rebuildRateLines\(forceRefresh = false\)/)
-  assert.match(refresh, /loadApplicableCosts\(true\)/)
-  assert.match(refresh, /rebuildRateLines\(true\)/)
+  assert.match(wizard, /allowCatalogRefreshForSavedQuote = ref\(false\)/)
+  assert.match(wizard, /props\.rateId && !allowCatalogRefreshForSavedQuote\.value/)
+  assert.match(refresh, /allowCatalogRefreshForSavedQuote\.value = true/)
+  assert.match(refresh, /allowCatalogRefreshForSavedQuote\.value = false/)
   assert.doesNotMatch(refresh, /await loadAllApplicableOptionalCosts\(\)/)
 })
 test('navigating existing quote must never append insurance', () => {

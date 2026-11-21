@@ -462,6 +462,7 @@ async function applyScreen7DatabaseCosts() {
   const requestedContext = pricingDraftLineContextKey()
   screen7RefreshBusy.value = true
   screen7RefreshAllowed.value = true
+  allowCatalogRefreshForSavedQuote.value = true
   try {
     if (!selectedCurrency.value && catalogs.currencies.length === 0) {
       throw new Error('No se cargó la moneda de la cotización. Recargue los catálogos antes de actualizar.')
@@ -507,8 +508,8 @@ async function applyScreen7DatabaseCosts() {
       )
       return
     }
-    const refreshed = await loadApplicableCosts(true)
-    if (!refreshed) throw new Error('Pricing no devolvió cargos aplicables para actualizar esta cotización.')
+    const bundleLoaded = await loadApplicableCosts()
+    if (!bundleLoaded) throw new Error('Pricing no devolvió cargos aplicables para actualizar esta cotización.')
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
@@ -551,7 +552,7 @@ async function applyScreen7DatabaseCosts() {
     // disable the normal draft-price-preservation wrapper for this one
     // explicitly confirmed refresh.
     pricingDraftLastLineContext = '__explicit_catalog_refresh__'
-    rebuildRateLines(true)
+    rebuildRateLines()
     const generated = rateLines.value.map((line) => ({ ...line }))
     const previousByKey = new Map(previous.map((line) => [screen7CostLineKey(line), line]))
     // A price refresh on the same saved route updates only existing items.
@@ -753,6 +754,7 @@ async function applyScreen7DatabaseCosts() {
     }
   } finally {
     screen7RefreshAllowed.value = false
+    allowCatalogRefreshForSavedQuote.value = false
     screen7RefreshBusy.value = false
   }
 }

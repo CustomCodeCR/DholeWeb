@@ -539,6 +539,7 @@ const pageDescription = computed(() => isEditing.value
 const costs = ref<CostSelectDto[]>([])
 const allCosts = ref<CostSelectDto[]>([])
 const rateLines = ref<RateLine[]>([])
+const allowCatalogRefreshForSavedQuote = ref(false)
 const availableRates = ref<ImportRateSelectDto[]>([])
 const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
 const cabysResults = ref<CabysItem[]>([])
@@ -3814,12 +3815,12 @@ const activeCatalogValidatedContexts = new Set<string>()
 let applicableCostRequestSerial = 0
 const loadingScreenSevenCosts = ref(false)
 
-async function loadApplicableCosts(forceRefresh = false): Promise<boolean> {
+async function loadApplicableCosts(): Promise<boolean> {
   const requestContext = activeCostContextKey()
   const serial = ++applicableCostRequestSerial
   try {
     // One Pricing response contains a complete active catalog and route context.
-    if (props.rateId && !forceRefresh) return true // Only explicit P7 refresh can request master pricing.
+    if (props.rateId && !allowCatalogRefreshForSavedQuote.value) return true // Explicit P7 refresh only.
     const bundle = await PricingService.selectWizardCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
@@ -3860,7 +3861,7 @@ async function loadApplicableCosts(forceRefresh = false): Promise<boolean> {
   }
 }
 
-function rebuildRateLines(forceRefresh = false) {
+function rebuildRateLines() {
   const currentContext = activeCostContextKey()
   const routeKey = currentRateLineRouteKey()
   const sameContext = lastIncotermRateLinesContextKey.value === currentContext
@@ -3869,7 +3870,7 @@ function rebuildRateLines(forceRefresh = false) {
     form.cargoPackages, form.cargoPallets, form.storageDays,
   ])
   const sameTierInputs = lastTierPricingInputKey.value === tierPricingInputKey
-  if (props.rateId && !forceRefresh) return // Saved snapshots never auto-regenerate.
+  if (props.rateId && !allowCatalogRefreshForSavedQuote.value) return // Never regenerate saved quotes.
   const previousOptionLines = !props.rateId
     && lastIncotermRateLinesRouteKey.value === routeKey
     // Screen 6 edits the source freight fields. Never let a stale P7 snapshot
