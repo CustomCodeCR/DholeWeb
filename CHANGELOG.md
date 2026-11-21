@@ -1,3 +1,10 @@
+## [1.110.1] - 2026-11-21 · DH-20261121-PRICING-TRANCHE-MIAMI-PANAMA-393 (candidato develop)
+
+- PATCH: Pantalla 7 de FCL Multimodal encuentra el tramo internacional terrestre aunque el maestro esté clasificado InlandTransport/FTL; conserva el flete marítimo y usa la regla oficial USD 2140 para Panamá → GAM únicamente si falta el maestro aplicable.
+- PATCH: LTL Panamá → Costa Rica concilia independientemente Flete terrestre, Bunker, Gastos y Custodia + Marchamo por tramos WeightKg, incluso cuando falta temporalmente un cargo; no repricia líneas históricas ni elimina importes editados.
+- PATCH: LCL Miami plan D ajustado a cotizador_miami.html; desglose de flete P8 emplea CFT cobrable aunque el backend persista un importe Flat para conservar el mínimo monetario exacto.
+- Pruebas DH-393 agregadas. CI, staging y promoción a master pendientes; sin despliegue productivo autorizado. DholePricingService 1.26.20; global 1.110.1.
+
 ## [1.110.0] - 2026-11-21 · DH-20261121-OPERATIONS-OPENING-IDTRA-392 (candidato develop)
 
 - MINOR: creación manual de expedientes desde Trámites usa una pantalla completa (ya no modal), con edición posterior por ruta propia; captura datos de cliente CRM, ruta POL/POE/POD, Incoterm, transporte, mercancía, peso, volumen, carga IMO, recolecta, WHS, proveedores, equipo múltiple, servicios y observaciones.
