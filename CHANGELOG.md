@@ -1,3 +1,10 @@
+## [1.108.19] - 2026-11-21 · DH-20261121-WIZARD-BUNDLE-ONLY-386
+
+- PATCH: costos del asistente de creación/modificación exclusivamente desde GET /api/pricing/costs/wizard-bundle; solo data.applicable crea líneas y data.catalog es referencia histórica por CostId.
+- PATCH: mantiene Flete Internacional Terrestre como CostId independiente del flete marítimo por equipo FCL y muestra ambos en Flete Internacional.
+- PATCH: edición conserva RateDetails originales y evita cargos globales no solicitados; pruebas DH-386, compilación y staging en develop aprobadas; release master aislado sujeto a CI y verificación.
+- DholeSystem 1.108.19 y DholePricingService 1.26.18 coordinados.
+
 ## [1.108.18] - 2026-11-21 · DH-20261121-PRICING-EDIT-TIERS-LAND-385
 
 - PATCH: el cost loader final de Vite envía contenedor, kg, bultos y días a Pricing; mantiene la clave de contexto alineada para evitar precios obsoletos.
