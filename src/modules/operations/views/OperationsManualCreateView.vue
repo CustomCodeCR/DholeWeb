@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, Plus, Trash2, Save, FolderPlus } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhSearchInput } from '@/shared/components/molecules'
@@ -9,21 +9,26 @@ import { operationsApi, type CrmAccountOption } from '../services/operationsApi'
 import { useAuthStore } from '@/core/stores/authStore'
 
 const router = useRouter()
+const route = useRoute()
+const editingId = computed(() => typeof route.params.id === 'string' ? route.params.id : '')
+const existingVersion = ref(0)
+const canEdit = ref(false)
 const auth = useAuthStore()
 const companyId = ref('')
 const accountId = ref('')
 const accountSearch = ref('')
 const accounts = ref<CrmAccountOption[]>([])
 const loadingAccounts = ref(false)
-const modality = ref('FCL')
+const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
+const initializing = ref(false)
 const loading = ref(true)
 const error = ref('')
 const form = ref({
   provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '',
-  shipmentType: '', transportType: 'MARITIME', incoterm: 'FOB',
+  shipmentType: '', transportType: '', incoterm: '',
   pol: '', poe: '', pod: '', pickupAddress: '', pickupContact: '',
   pickupWindow: '', requiresPickup: false, whsName: '',
   destinationAddress: '', cargoDescription: '', packageCount: '',
@@ -34,7 +39,7 @@ const form = ref({
   agentReference: '', merchantReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', commercialReviewRequested: false,
-  equipment: [{ equipmentType: '40HC', quantity: 1 }],
+  equipment: [] as Array<{ equipmentType: string; quantity: number }>,
   originCountryCode: '', destinationCountryCode: '',
 })
 const modalOptions = [
@@ -68,7 +73,8 @@ const accountOptions = computed(() => [
   ...accounts.value.map(a => ({ label: a.displayName || a.legalName || a.id, value: a.id })),
 ])
 const valid = computed(() =>
-  /^[0-9a-f-]{36}$/i.test(companyId.value) &&
+  (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
+  modalOptions.some(x => x.value === modality.value) &&
   /^[0-9a-f-]{36}$/i.test(accountId.value) &&
   priority.value >= 1 && priority.value <= 5 && complexity.value > 0 &&
   (!form.value.originCountryCode || /^[A-Za-z]{2}$/.test(form.value.originCountryCode)) &&
@@ -105,7 +111,7 @@ async function loadContext() {
   finally { loading.value = false }
 }
 async function save() {
-  if (!valid.value || saving.value || !auth.hasScope('operations.case.create')) return
+  if (!valid.value || saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
   saving.value = true
   error.value = ''
   try {
@@ -122,7 +128,16 @@ async function save() {
       missingFields: blockers.value,
       commercialStatus: 'SIN_QUO',
     }
-    const result = await operationsApi.createAperture({
+    const result = editingId.value
+      ? await operationsApi.updateCase(editingId.value, {
+          expectedVersion: existingVersion.value,
+          modalityCode: modality.value, priority: Number(priority.value),
+          complexityPoints: Number(complexity.value),
+          originCountryCode: form.value.originCountryCode.toUpperCase() || null,
+          destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
+          openingData,
+        }).then(() => ({ id: editingId.value }))
+      : await operationsApi.createAperture({
       companyId: companyId.value,
       accountId: accountId.value,
       modalityCode: modality.value,
@@ -146,7 +161,32 @@ watch(modality, value => {
   form.value.transportType = value === 'AIR' ? 'AIR' :
     ['FTL','LTL'].includes(value) ? 'ROAD' : value === 'MULTIMODAL' ? 'MULTIMODAL' : 'MARITIME'
 })
-onMounted(() => { void loadContext(); void loadAccounts() })
+onMounted(async () => {
+  await Promise.all([loadContext(), loadAccounts()])
+  if (editingId.value) {
+    try {
+      const [detail, tabs] = await Promise.all([
+        operationsApi.caseDetail(editingId.value), operationsApi.caseTabs(editingId.value),
+      ])
+      canEdit.value = tabs.tabs.some(x => x.code === 'RESUMEN' && x.accessLevel === 'EDITABLE')
+      if (!canEdit.value) { error.value = 'No tiene permisos para modificar esta apertura.'; return }
+      existingVersion.value = detail.version
+      accountId.value = detail.accountId
+      companyId.value = detail.companyId
+      modality.value = detail.modalityCode
+      priority.value = detail.priority
+      complexity.value = detail.complexityPoints
+      const parsed = JSON.parse(detail.openingDataJson || '{}') as Record<string, unknown>
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        form.value = { ...form.value, ...parsed } as typeof form.value
+      }
+      form.value.originCountryCode = detail.originCountryCode || ''
+      form.value.destinationCountryCode = detail.destinationCountryCode || ''
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : 'No fue posible abrir la captura.'
+    }
+  }
+})
 onUnmounted(() => { clearTimeout(accountTimer) })
 </script>
 
@@ -155,9 +195,9 @@ onUnmounted(() => { clearTimeout(accountTimer) })
     <RouterLink to="/operations/cases" class="inline-flex items-center gap-2 text-sm font-semibold text-[var(--dh-primary)]">
       <ArrowLeft class="h-4 w-4" /> Volver a Trámites
     </RouterLink>
-    <DhPageHeader title="Nueva apertura manual" subtitle="Expediente operativo con la misma estructura de datos que una apertura desde Pricing." :icon="FolderPlus" :hide-excel-export="true">
+    <DhPageHeader :title="editingId ? 'Modificar apertura' : 'Nueva apertura manual'" subtitle="Expediente operativo con la misma estructura de datos que una apertura desde Pricing." :icon="FolderPlus" :hide-excel-export="true">
       <template #actions>
-        <DhButton :icon="Save" label="Guardar apertura" :loading="saving" :disabled="loading || !valid" @click="save" />
+        <DhButton :icon="Save" :label="editingId ? 'Guardar modificaciones' : 'Guardar apertura'" :loading="saving" :disabled="loading || !valid" @click="save" />
       </template>
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-500">{{ error }}</div>
@@ -166,7 +206,7 @@ onUnmounted(() => { clearTimeout(accountTimer) })
         <div class="space-y-2 lg:col-span-2">
           <label class="text-xs font-semibold">Buscar cuenta en CRM</label>
           <DhSearchInput v-model="accountSearch" placeholder="Nombre o cédula de la cuenta…" />
-          <DhSelect v-model="accountId" :options="accountOptions" label="Cliente" :disabled="loadingAccounts" />
+          <DhSelect v-model="accountId" :options="accountOptions" label="Cliente" :disabled="loadingAccounts || Boolean(editingId)" />
         </div>
         <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
         <DhInput v-model="form.clientPoReference" label="PO / Referencia cliente" />
@@ -262,7 +302,7 @@ onUnmounted(() => { clearTimeout(accountTimer) })
       </ul>
       <div class="mt-5 flex justify-end gap-3">
         <RouterLink to="/operations/cases"><DhButton variant="secondary" label="Cancelar" /></RouterLink>
-        <DhButton :icon="Save" label="Guardar apertura manual" :disabled="!valid || loading" :loading="saving" @click="save" />
+        <DhButton :icon="Save" :label="editingId ? 'Guardar modificaciones' : 'Guardar apertura manual'" :disabled="!valid || loading" :loading="saving" @click="save" />
       </div>
     </DhCard>
   </div>
