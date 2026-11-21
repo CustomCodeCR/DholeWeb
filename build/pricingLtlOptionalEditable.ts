@@ -201,7 +201,7 @@ function patchWizard(source: string) {
         throw new Error('[pricingLtlOptionalEditable] Missing scoped LTL assignment/sync anchors')
       }
       const restoreAfterSync = restoreOptionals.replace(
-        "    syncResolvedLandLtlTariffLines()\\n", '',
+        "    syncResolvedLandLtlTariffLines()\n", '',
       )
       scoped = scoped.slice(0, markerAt + marker.length)
         + '\n' + restoreAfterSync
