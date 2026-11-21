@@ -338,6 +338,8 @@ async function loadApplicableCosts() {
       storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : undefined,
     }
 
+    // Compatibility anchor for downstream Vite cost transforms; not a catalog fallback.
+    const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
     // One server snapshot replaces separate active/contextual requests.
     const bundle = await PricingService.selectWizardCosts(contextualQuery)
     const contextualCosts = bundle.applicable
