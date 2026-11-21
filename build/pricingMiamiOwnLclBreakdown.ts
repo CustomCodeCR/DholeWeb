@@ -23,8 +23,11 @@ const showMiamiFreightCostMatrix = computed(() =>
 )
 function miamiFreightMatrixParts(line: RateLine) {
   const rates = miamiFreightCostMatrix.value
-  const cft = Math.max(0, number(quantityForRateLine(line)))
-  const costTotal = number(line.costAmount) * cft
+  // Backend Miami quotes the exact commercial freight total as one Flat line
+  // so minimum charges survive two-decimal persistence. P8 nevertheless needs
+  // to show the true total billable CFT and the matrix's per-CFT cost splits.
+  const cft = Math.max(0, number(miamiChargeableCft.value))
+  const costTotal = number(line.costAmount) * number(quantityForRateLine(line))
   const sumRates = rates.reduce((sum, part) => sum + part.rate, 0)
   let allocated = 0
   return rates.map((part, index) => {
