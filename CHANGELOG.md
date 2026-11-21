@@ -1,3 +1,10 @@
+## [1.109.2] - 2026-11-21 · DH-20261121-WIZARD-COSTS-390 (candidato develop)
+
+- PATCH: el excedente de FCL multimodal Panamá → Costa Rica sobre 19.000 kg por contenedor se calcula con los cuatro costos LTL maestros presentes en data.catalog del mismo wizard-bundle, no con data.applicable filtrado a FCL.
+- PATCH: la edición de muellaje registra Anticipado/Redestino como delta explícito; elimina únicamente el detalle persistido de la alternativa reemplazada y permite restaurarlo al revertir, conservando flete, costo, venta e identidad de los demás RateDetails.
+- Integración con PricingService 1.26.19 para exponer Recolecta/Entrega editables y gastos Panamá con tramos cero correctamente evaluados. No se importan rubros ajenos del catálogo ni se recrean cotizaciones.
+- Pruebas de regresión agregadas. CI, staging y promoción a master pendientes; producción sin despliegue autorizado.
+
 ## [1.109.1] - 2026-11-21 · DH-20261121-PRICING-EDIT-BUNDLE-389
 
 - PATCH: modifica el flujo de cotizaciones persistidas para consultar GET /api/pricing/costs/wizard-bundle en Pantalla 6 (Merchant/Carrier) y Pantalla 7 (delta explícito), aun cuando la cotización ya tenga RateDetails guardados.
