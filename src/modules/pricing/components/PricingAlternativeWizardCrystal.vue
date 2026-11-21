@@ -66,6 +66,7 @@ import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineIncl
 import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
 import { reconcileActiveCostCatalog } from '@/modules/pricing/utils/pricingScreenSevenCostRecovery'
+import { captureInlandRows, restoreInlandRows, type InlandRowMemory } from '@/modules/pricing/utils/pricingInlandDraftMemory'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -704,8 +705,71 @@ function resolveConfiguredCarrierId(id: string, name: string): string {
   )?.id ?? ''
 }
 
+type InlandRouteMemory = {
+  carrierHaulage: boolean
+  merchantHaulage: boolean
+  lines: InlandRowMemory[]
+}
+// In-memory working copy belongs to the exact route/agent/services/customer,
+// never to the carrier name alone. Keep it while navigating 6 ↔ 7 and POE tabs.
+const inlandDraftMemory = ref<Record<string, InlandRouteMemory>>({})
+let restoringInlandMemory = false
+function rememberCurrentInland() {
+  if (props.rateId || !multiCarrierSelectionMode.value || switchingPoeRoute.value || restoringInlandMemory) return
+  const context = activeCostContextKey()
+  const previous = inlandDraftMemory.value[context]
+  inlandDraftMemory.value = {
+    ...inlandDraftMemory.value,
+    [context]: {
+      carrierHaulage: form.carrierHaulage,
+      merchantHaulage: form.merchantHaulage,
+      lines: captureInlandRows(rateLines.value, line => haulageAssociation(line) !== null, previous?.lines),
+    },
+  }
+}
+
+function restoreCurrentInland() {
+  if (props.rateId || !multiCarrierSelectionMode.value) return
+  const saved = inlandDraftMemory.value[activeCostContextKey()]
+  if (!saved) return
+  restoringInlandMemory = true
+  try {
+    form.carrierHaulage = saved.carrierHaulage
+    form.merchantHaulage = saved.merchantHaulage
+    restoreInlandRows(
+      rateLines.value, saved.lines,
+      line => haulageAssociation(line) !== null,
+      line => {
+        const mode = haulageAssociation(line)
+        return (mode === 'carrier' && form.carrierHaulage)
+          || (mode === 'merchant' && form.merchantHaulage)
+      },
+    )
+  } finally {
+    restoringInlandMemory = false
+  }
+}
+
+// Capture user-entered Inland price, currency, VAT and CostId even when the
+// route tab is not changed immediately. A rebuild restores the saved values
+// synchronously before these post-flush updates run.
+watch(
+  () => [
+    form.carrierHaulage, form.merchantHaulage,
+    rateLines.value
+      .filter(line => haulageAssociation(line) !== null)
+      .map(line => [
+        line.costId ?? line.key, line.costAmount, line.saleAmount, line.included,
+        line.currencyId, line.applyDestinationTax, line.destinationTaxRate, line.billToClient,
+      ].join(':')).join('|'),
+  ] as const,
+  () => rememberCurrentInland(),
+  { flush: 'post' },
+)
+
 function rememberCurrentCarrierDraft() {
   if (!multiCarrierSelectionMode.value) return
+  rememberCurrentInland()
   const poeId = form.destinationId
   const carrierId = activeCarrierByPoe.value[poeId]
   if (!poeId || !carrierId || !(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
@@ -773,6 +837,7 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
     switchingPoeRoute.value = false
   }
   // Switching tabs must hydrate the destination's catalog context, not reuse another POE's costs.
+  restoreCurrentInland()
   await loadCostsForSelectedAlternative()
 }
 
@@ -866,20 +931,35 @@ async function loadCostsForSelectedAlternative(force = false) {
   // has cleared the displayed lines. Never treat an empty P7 as a valid cache.
   const freightExpected = (number(form.freightCost) > 0 || number(form.freightSale) > 0)
     && !rateLines.value.some(line => line.costDetailType === 'Freight' && line.included)
-  if (!force && alternativeCostsLoaded.value[key] === context && rateLines.value.length > 0 && !freightExpected) return
+  const missingCatalogLines = applicableConfiguredCosts().some(cost =>
+    cost.costDetailType !== 'Freight'
+    && visibleSections.value.includes(sectionForCost(cost))
+    && !rateLines.value.some(line => line.costId === cost.id))
+  if (!force && activeCatalogValidatedContexts.has(context)
+    && alternativeCostsLoaded.value[key] === context
+    && rateLines.value.length > 0 && !freightExpected && !missingCatalogLines) return
+  loadingScreenSevenCosts.value = true
   const loaded = await loadApplicableCosts()
   // Do not cache failed requests or attach the response to another alternative.
-  if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
+  if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) {
+    loadingScreenSevenCosts.value = false
+    return
+  }
   rebuildRateLines()
   syncHaulageOptionalLines()
+  restoreCurrentInland()
   // A missing international freight must not silently pass as a complete P7.
   // In the normal wizard this row is produced from P6's actual cost/sale.
   ensureProviderFreightOnScreenSeven()
   alternativeCostsLoaded.value = { ...alternativeCostsLoaded.value, [key]: context }
   rememberCurrentCarrierDraft()
+  loadingScreenSevenCosts.value = false
 }
 
 async function reloadCurrentAlternativeCosts() {
+  // The explicit reload must also refresh Pricing's active catalog, not only
+  // the narrower contextual endpoint.
+  activeCatalogValidatedContexts.delete(activeCostContextKey())
   if (multiCarrierSelectionMode.value) {
     await loadCostsForSelectedAlternative(true)
   } else if (await loadApplicableCosts()) {
@@ -928,10 +1008,25 @@ async function advanceSequentialWizard() {
   if (!first) return
   await activateCarrierRoute(first.poeId, first.carrierId)
   if (step.value === 6) {
-    // Build once with the P6 freight as authoritative, before any P7 watcher
-    // or CostId refresh can reapply a stale zero-priced draft.
+    loadingScreenSevenCosts.value = true
+    // Do not show a partial P7 before Pricing has resolved BOTH the active
+    // catalogue and route/carrier/agent matching charges.
+    let ready = false
+    try {
+      ready = await loadApplicableCosts()
+    } finally {
+      loadingScreenSevenCosts.value = false
+    }
+    if (!ready) return
     rebuildRateLines()
+    syncHaulageOptionalLines()
+    restoreCurrentInland()
     ensureProviderFreightOnScreenSeven()
+    alternativeCostsLoaded.value = {
+      ...alternativeCostsLoaded.value,
+      [carrierRouteKey(form.destinationId, form.carrierId)]: activeCostContextKey(),
+    }
+    rememberCurrentCarrierDraft()
   }
   step.value += 1
   await loadCostsForSelectedAlternative()
@@ -1043,6 +1138,7 @@ async function activatePoeRoute(destinationId: string) {
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
   }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
+  restoreCurrentInland()
   switchingPoeRoute.value = false
   if (!cached && destinationId && step.value > 5 && !multiCarrierSelectionMode.value) step.value = 5
   if (!cached && destinationId && step.value === 5) await searchApprovedRates()
@@ -3510,9 +3606,23 @@ function currentPreferentialContext(serviceCodes = selectedServices.value.map(it
   }
 }
 
+const activeCatalogValidatedContexts = new Set<string>()
+let applicableCostRequestSerial = 0
+const loadingScreenSevenCosts = ref(false)
+
 async function loadApplicableCosts(): Promise<boolean> {
   const requestContext = activeCostContextKey()
+  const serial = ++applicableCostRequestSerial
   try {
+    // The startup catalogue can be empty/partial while Config/CRM initializes.
+    // Validate the full active list on first P7 entry for EACH route/customer
+    // before caching its contextual cost response. Both requests run together.
+    const refreshCatalog = !activeCatalogValidatedContexts.has(requestContext)
+    const catalogFetch = refreshCatalog
+      ? PricingService.selectCosts({ isActive: true })
+          .then(list => ({ list, error: null as unknown }))
+          .catch(error => ({ list: null as CostSelectDto[] | null, error }))
+      : Promise.resolve({ list: null as CostSelectDto[] | null, error: null as unknown })
     const received = await PricingService.selectCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
@@ -3525,14 +3635,23 @@ async function loadApplicableCosts(): Promise<boolean> {
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
     })
-    if (requestContext !== activeCostContextKey()) return false
-    // Resolve CRM's current customer-specific sale agreement before generating screen 7.
+    const active = await catalogFetch
+    if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
+    if (active.error) throw active.error
+    if (refreshCatalog) {
+      if (!active.list?.length && !allCosts.value.length) {
+        throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
+      }
+      if (active.list?.length) {
+        // Replace any stale/inactive startup rows with Pricing's current active
+        // catalogue; never depend on a previously partial alternative snapshot.
+        allCosts.value = active.list
+        activeCatalogValidatedContexts.add(requestContext)
+      }
+    }
+    // Resolve customer-specific sale prices only after BOTH catalog queries.
     await loadCustomerPreferentialRates()
-    if (requestContext !== activeCostContextKey()) return false
-    // Pricing's contextual endpoint sometimes returns optional-only matches when
-    // carrier and agent filters coexist (MAERSK + WWL). The full active catalog
-    // was already fetched at wizard startup. Reconcile by CostId, then apply
-    // all route/provider/service guards locally in applicableConfiguredCosts().
+    if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
     costs.value = reconcileActiveCostCatalog(received, allCosts.value)
     return true
   } catch (error) {
@@ -3836,6 +3955,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   }
   lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
+  restoreCurrentInland()
   lastIncotermRateLinesContextKey.value = currentContext
   lastIncotermRateLinesRouteKey.value = routeKey
 }
@@ -4041,6 +4161,7 @@ function toggleMerchantHaulage() {
   form.merchantHaulage = !form.merchantHaulage
   if (form.merchantHaulage) form.carrierHaulage = false
   syncHaulageOptionalLines()
+  rememberCurrentInland()
   if (step.value === 7 && multiCarrierSelectionMode.value) {
     void reloadCurrentAlternativeCosts()
   }
@@ -4050,6 +4171,7 @@ function toggleCarrierHaulage() {
   form.carrierHaulage = !form.carrierHaulage
   if (form.carrierHaulage) form.merchantHaulage = false
   syncHaulageOptionalLines()
+  rememberCurrentInland()
   if (step.value === 7 && multiCarrierSelectionMode.value) {
     void reloadCurrentAlternativeCosts()
   }
@@ -6850,7 +6972,7 @@ watch(
 watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
-    if (hydratingExistingRate.value || switchingPoeRoute.value || step.value < 6 || !agentId) return
+    if (hydratingExistingRate.value || switchingPoeRoute.value || loadingScreenSevenCosts.value || step.value < 6 || !agentId) return
     const loaded = await loadApplicableCosts()
     if (loaded && step.value >= 7) {
       rebuildRateLines()
@@ -8146,7 +8268,8 @@ onMounted(async () => {
                 <Ship class="h-4 w-4 text-[var(--dh-primary)]" />
                 <span class="text-[var(--dh-text)]">{{ currentRouteLabel }}</span>
                 <span class="ml-auto text-[10px] text-[var(--dh-text-muted)]">{{ applicableConfiguredCostCount }} cargos aplicables · {{ costs.length }} revisados</span>
-                <DhButton variant="secondary" size="sm" :disabled="switchingPoeRoute" @click="reloadCurrentAlternativeCosts">Recargar costos</DhButton>
+                <span v-if="loadingScreenSevenCosts" role="status" class="text-xs font-semibold text-[var(--dh-primary)]">Cargando todos los cargos de Pricing…</span>
+                <DhButton variant="secondary" size="sm" :disabled="switchingPoeRoute || loadingScreenSevenCosts" @click="reloadCurrentAlternativeCosts">Recargar costos</DhButton>
               </div>
               <p class="mt-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] px-3 py-2 text-xs font-semibold text-[var(--dh-text)]">Facturación por cliente: puede escribir el cliente en cada ítem o asignarlo de una vez a todo un bloque.</p>
             </div>

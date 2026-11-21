@@ -1,3 +1,12 @@
+## [1.108.4] - 2026-11-21 (DH-20261121-P7-INLAND-HYDRATE-371 · hidratación P7 e Inland en memoria)
+
+- PATCH sincronizado DholeWeb/DholeSystem 1.108.3 → 1.108.4, únicamente develop/staging. No cambia DholePricingService, master ni producción.
+- Primera carga de Pantalla 7 valida el catálogo completo activo de Pricing en paralelo con el endpoint contextual de POE/naviera/agente; no confía en listados de inicio incompletos, evita respuestas obsoletas y descarta cachés a las que les falten CostIds aplicables.
+- No se avanza del último proveedor P6 a P7 hasta finalizar ambas consultas y la reconstrucción de líneas, de forma que el usuario no deba recargar el navegador para ver todos los cargos disponibles.
+- Inland guarda memoria en sesión del componente por ruta/POE/POD/naviera/agente, servicios y cliente, conservando Carrier/Merchant, CostId, costo, venta, divisa, IVA y cliente a facturar. Reconstruir P7 o cambiar de alternativa restaura estas selecciones sin copiar valores a otras rutas.
+- Recarga manual invalida el catálogo validado y vuelve a solicitar ambos conjuntos, pero no sobreescribe ediciones de Inland.
+- Test: `tests/pricingP7CatalogInlandMemory371.test.ts`, incluido en la suite obligatoria de Pricing. Validación autenticada en staging pendiente para P6/P7→P8→PDF.
+
 ## [1.108.3] - 2026-11-20 (DH-20261120-P7-FREIGHT-DRAFT-370 · preservar flete P6/P7 y etiquetas)
 
 - PATCH coordinado Web/System 1.108.2 → 1.108.3, únicamente develop y staging, PricingService no se modifica.
