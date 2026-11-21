@@ -4060,7 +4060,14 @@ async function saveRate() {
     if (editingRate.value) {
       const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
-      const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
+      const missingPersistedDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
+      if (missingPersistedDetailIds.length > 0) {
+        step.value = 7
+        toastStore.warning('Edición incompleta',
+          `Faltan ${missingPersistedDetailIds.length} cargos guardados. No se eliminarán automáticamente; recargue la cotización y revise Pantalla 7.`)
+        return
+      }
+      const removedExtraDetailIds: string[] = []
       const extraDetails = createPayload.details.map((detail, index) => ({
         ...detail,
         id: includedLines.value[index]?.detailId ?? null,
@@ -4081,6 +4088,7 @@ async function saveRate() {
         extraDetails,
         removedExtraDetailIds,
         replaceExtraDetails: true,
+        expectedRevisionNumber: editingRate.value.revisionNumber,
       } as UpdateRateRequest
       await PricingService.updateRate(editingRate.value.id, updatePayload)
       rateId = editingRate.value.id

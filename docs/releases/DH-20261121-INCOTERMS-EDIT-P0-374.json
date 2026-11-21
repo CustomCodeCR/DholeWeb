@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261121-INCOTERMS-EDIT-P0-374",
+  "globalVersion": "1.108.7",
+  "releaseType": "PATCH",
+  "target": "develop",
+  "productionAuthorized": false,
+  "components": {
+    "DholeWeb": {
+      "from": "1.108.6",
+      "to": "1.108.7"
+    },
+    "DholeSystem": {
+      "from": "1.108.6",
+      "to": "1.108.7"
+    },
+    "DholePricingService": {
+      "from": "1.26.10",
+      "to": "1.26.11"
+    }
+  },
+  "scope": [
+    "Incoterms mode filtering",
+    "P3 operation compact override",
+    "Incoterm documentary guidance",
+    "P0 no implicit persisted detail deletion"
+  ],
+  "pending": [
+    "full functional Incoterm responsibility and named-place models",
+    "complete modification delta contract/UI confirmation and tests E01-E30",
+    "authenticated staging regression with persisted quotations"
+  ]
+}
