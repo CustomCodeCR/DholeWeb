@@ -148,7 +148,7 @@ async function loadAllApplicableOptionalCosts() {
   // The full active catalog was returned together with applicable costs in the
   // single /wizard-bundle request. Reuse it instead of a second Optional GET.
   // Keep P6/P7 selections and CostIds from the same backend snapshot.
-  return allCosts.value
+  return costs.value
     .filter(cost => cost.costType === 'Optional' && cost.isActive !== false)
     .filter(finalOptionalMatchesCurrentContext)
 }
