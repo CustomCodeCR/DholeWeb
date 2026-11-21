@@ -278,8 +278,8 @@ function patchWizard(source: string) {
   )
   code = replaceRequired(
     code,
-    '  if (editingRate.value && !props.viewOnly) {',
-    "  if (shipmentModeForApi.value === 'Fcl') reconcileFclFreightLines()\n\n  if (editingRate.value && !props.viewOnly) {",
+    '  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {',
+    "  if (!editingRate.value && shipmentModeForApi.value === 'Fcl') reconcileFclFreightLines()\n\n  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {",
     'FCL freight before update snapshot',
   )
   code = replaceRequired(

@@ -185,7 +185,17 @@ export function pricingWizardEnhancements(): Plugin {
 
       const nextAnchor = `  if (!canNext.value) return\n  if (step.value === 4) await searchApprovedRates()\n  if (step.value === 6) {\n    await loadApplicableCosts()\n    rebuildRateLines()\n  }\n  if (step.value < 8) step.value += 1`
       const nextReplacement = `  if (!canNext.value) return\n  if (step.value === 4) await searchApprovedRates()\n  if (step.value === 6) {\n    await loadApplicableCosts()\n    if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value) {\n      const freight = rateLines.value.find((line) => line.costDetailType === 'Freight')\n      if (freight) {\n        freight.costAmount = number(form.freightCost)\n        freight.saleAmount = number(form.freightSale)\n      }\n      mergeConfiguredOptionalCostsIntoRateLines(true)\n    } else {\n      rebuildRateLines()\n    }\n  }\n  if (step.value < 8) step.value += 1`
-      code = replaceOne(code, nextAnchor, nextReplacement, 'LCL line preservation while advancing')
+      const guardedNextAnchor = nextAnchor.replace(
+        '    await loadApplicableCosts()\\n    rebuildRateLines()',
+        '    // Do not generate fake empty lines when costs could not be loaded.\\n    if (!(await loadApplicableCosts())) return\\n    rebuildRateLines()',
+      )
+      const guardedNextReplacement = nextReplacement.replace(
+        '    await loadApplicableCosts()\\n    if (shipmentModeForApi.value',
+        '    // Do not generate fake empty lines when costs could not be loaded.\\n    if (!(await loadApplicableCosts())) return\\n    if (shipmentModeForApi.value',
+      )
+      code = code.includes(guardedNextAnchor)
+        ? replaceOne(code, guardedNextAnchor, guardedNextReplacement, 'LCL guarded line preservation while advancing')
+        : replaceOne(code, nextAnchor, nextReplacement, 'LCL line preservation while advancing')
 
       const resetAnchor = `  availableRates.value = []\n  rateLines.value = []\n  supportEntityId.value = crypto.randomUUID()`
       const resetReplacement = `  availableRates.value = []\n  rateLines.value = []\n  lclSelectedSourceKey.value = ''\n  lclRequestedCbm.value = 1\n  lclSelectedSource.value = null\n  draftCommercialTerms.value = { includes: [], subjectTo: [], excludes: [] }\n  draftCommercialTermsInitialized.value = false\n  supportEntityId.value = crypto.randomUUID()`
