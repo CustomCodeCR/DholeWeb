@@ -26,7 +26,9 @@ test('P6 provider freight is built before first entry to P7, with correct cost/s
 
 test('P6 edits replace stale freight but preserve other P7 price, CostId and inclusion drafts', () => {
   const rebuild = getBetween(wizard, 'function rebuildRateLines()', 'function ensureProviderFreightOnScreenSeven()')
-  assert.match(rebuild, /line\.costDetailType !== 'Freight' \? \(sameContext \|\| line\.manual\) : step\.value !== 6 && sameContext/)
+  assert.match(rebuild, /line\.costDetailType !== 'Freight' \? \(sameContext \|\| line\.manual\) && \(/)
+  assert.match(rebuild, /sameTierInputs \|\| line\.manual \|\| !costs\.value\.some\(cost =>/)
+  assert.match(rebuild, /: step\.value !== 6 && sameContext\)/)
   assert.match(rebuild, /mergeOptionCostLines\(previousOptionLines, lines\)/)
   const loader = getBetween(wizard, 'async function loadCostsForSelectedAlternative(', 'async function reloadCurrentAlternativeCosts()')
   assert.match(loader, /activeCatalogValidatedContexts\.has\(context\)/)
