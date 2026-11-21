@@ -15,8 +15,8 @@ test('DH-385: final Vite cost loader sends each tier dimension to Pricing', () =
 })
 
 test('DH-385: explicitly refreshing a saved quote never resurrects unselected optional rows', () => {
-  assert.match(refresher, /if \(!previous\.some\(\(line\) => line\.costId === cost\.id\)\) continue/)
-  assert.match(refresher, /if \(!original && line\.costDetailType !== 'Freight'\) continue/)
+  assert.match(refresher, /if \(props\.rateId && !previous\.some\(\(line\) => line\.costId === cost\.id\)\) continue/)
+  assert.match(refresher, /if \(props\.rateId && !original && line\.costDetailType !== 'Freight'\) continue/)
   assert.doesNotMatch(refresher, /if \(originalContextUnchanged && !previous\.some/)
 })
 
