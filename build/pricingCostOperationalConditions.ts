@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite'
+import { replaceScopedOptionalCostFunction } from './pricingOptionalCostFunctionScope'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
@@ -17,9 +18,8 @@ function replaceRegexOne(source: string, pattern: RegExp, replacement: string, l
 function patchWizard(source: string) {
   let code = source
 
-  code = replaceRegexOne(
+  code = replaceScopedOptionalCostFunction(
     code,
-    /function shouldIncludeOptionalCost\([\s\S]*?\n\}(?=\n\n(?:const selectableOptionalLines = computed|async function loadApplicableCosts))/,
     `function operationalConditionSelected(condition: string) {
   switch (condition) {
     case 'DangerousCargo':
@@ -90,7 +90,7 @@ function shouldIncludeOptionalCost(line: {
   // las reglas de muellaje configuradas desde Costos y recargos.
   return operationalConditionsSatisfied(line)
 }`,
-    'explicit operational condition matcher',
+    'pricingCostOperationalConditions',
   )
 
   code = replaceRegexOne(

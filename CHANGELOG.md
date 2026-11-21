@@ -1,3 +1,10 @@
+## [1.108.11] - 2026-11-21 (DH-20261121-INCOTERM-RUNTIME-SCOPE-378 · recuperar el wizard y proteger Incoterms)
+
+- PATCH: limita los dos transformadores Vite de shouldIncludeOptionalCost al cuerpo de esa única función y evita que borren los helpers de cotización por Incoterm situados antes de selectableOptionalLines.
+- Aserción obligatoria de todas las funciones Incoterm en el código transformado antes de compilar Vue, regresión con funciones anidadas y nueva comprobación del bundle minificado para applyIncotermAutomaticChargeGuard.
+- Conserva CostId, importes, Inland, líneas históricas, ediciones, contratos REST y SignalR. Versión DholeWeb/DholeSystem 1.108.10 → 1.108.11; servicios backend sin cambios.
+- Candidato develop/staging sujeto a CI y smoke funcional autenticado. Master y producción sin autorización.
+
 ## [1.108.10] - 2026-11-21 (DH-20261121-INCOTERM-AUTO-COST-377 · no precotizar cargos fuera del Incoterm)
 
 - PATCH: la pantalla 7 ya no incluye automáticamente en una cotización nueva líneas de categorías atribuidas normalmente a la otra parte según Incoterm + Import/Export. El coste sigue en catálogo (Pricing /wizard-bundle) pero queda fuera de Totales, PDF y POST salvo contratación explícita.
