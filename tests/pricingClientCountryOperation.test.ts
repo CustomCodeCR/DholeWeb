@@ -187,7 +187,9 @@ test('China to Costa Rica is an import from the Costa Rican client perspective f
 test('the commercial direction has an explicit Import/Export fallback when Config is incomplete', () => {
   const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   const drafts = readFileSync(new URL('../build/pricingWizardDraftAutosave.ts', import.meta.url), 'utf8')
-  assert.match(wizard, /label="Operación comercial \(selección manual disponible\)"/)
+  assert.match(wizard, /label="Importación/)
+  assert.match(wizard, /showCommercialOperationControls/)
+  assert.match(wizard, /Cambiar operación/)
   assert.match(wizard, /value: 'Import', label: 'Importación'/)
   assert.match(wizard, /value: 'Export', label: 'Exportación'/)
   assert.match(wizard, /pricingQuoteOperationOverride\.value = rate\.operationType \|\| ''/)

@@ -382,7 +382,7 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
   code = replaceOne(
     code,
     `  const details: CreateRateDetailRequest[] = ${detailsMapperAnchor}.map((line) => ({`,
-    `  const sourceDetails = isOwnLclMatrixContext()\n    ? ${detailsMapperAnchor}.filter((line) => (!line.costId || (selectedIncotermCode.value === 'EXW' && line.section === 'pickup_origin'\n        && String(line.key ?? '').startsWith('exw-fca-variable-cost:')))\n      && ownLclKeepQuotedLine(line, ${detailsMapperAnchor}))\n    : ${detailsMapperAnchor}\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
+    `  const sourceDetails = !editingRate.value && isOwnLclMatrixContext()\n    ? ${detailsMapperAnchor}.filter((line) => (!line.costId || (selectedIncotermCode.value === 'EXW' && line.section === 'pickup_origin'\n        && String(line.key ?? '').startsWith('exw-fca-variable-cost:')))\n      && ownLclKeepQuotedLine(line, ${detailsMapperAnchor}))\n    : ${detailsMapperAnchor}\n  const details: CreateRateDetailRequest[] = sourceDetails.map((line) => ({`,
     'own LCL persisted detail guard',
   )
 
@@ -415,14 +415,10 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
   }
 
 
-  // Las líneas históricas sin marca del consolidado fueron añadidas por el
-  // catálogo genérico. Quitarlas también del PUT, no solo del resumen visual.
-  code = replaceOne(
-    code,
-    'if (staleFclFreightIds.has(detail.id)) return true',
-    'if (isOwnLclMatrixContext() && !ownLclKeepQuotedLine(detail, editingRate.value!.rateDetails)) return true\n           if (staleFclFreightIds.has(detail.id)) return true',
-    'delete persisted historical LCL generic extras',
-  )
+  // An edit must retain the persisted own-LCL snapshot. Historical generic
+  // lines are never removed because current catalog filtering excludes them.
+  // The user must explicitly remove their RateDetail IDs after reviewing
+  // financial impact; the backend fails closed on incomplete snapshots.
 
   // The ordinary fallback already checks the selected service and destination.
   // Do not suppress its editable zero-price row for own LCL when no Pricing

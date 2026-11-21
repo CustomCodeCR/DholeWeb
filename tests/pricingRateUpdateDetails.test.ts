@@ -211,8 +211,10 @@ test('partial snapshots preserve otherwise unmentioned saved details', () => {
 test('the production wizard reconciles edit/removal IDs after building final update details', () => {
   const plugin = readFileSync(new URL('../build/pricingWizardFixedAutomaticCostEditFix.ts', import.meta.url), 'utf8')
   assert.ok(plugin.includes('reconcileRateUpdateDetailChanges('))
-  assert.ok(plugin.includes('proposedRemovedExtraDetailIds'))
-  assert.ok(plugin.includes('!hasInternationalTransportService.value,'))
+  assert.ok(plugin.includes('[...explicitlyRemovedPersistedDetailIds.value]'))
+  assert.ok(plugin.includes('persisted detail omission guard'))
+  assert.ok(!plugin.includes('proposedRemovedExtraDetailIds'), 'visible rows must not infer financial deletion')
+  assert.ok(!plugin.includes('!hasInternationalTransportService.value,'), 'Incoterm/service must not delete persisted freight')
   assert.ok(!plugin.includes('freightNotRequiredByIncoterm'), 'saving must not reference the obsolete computed value')
 })
 

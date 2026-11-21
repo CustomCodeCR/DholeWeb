@@ -1,3 +1,11 @@
+## [1.108.7] - 2026-11-21 (DH-20261121-INCOTERMS-EDIT-P0-374 · Incoterms y primera protección P0 de modificación)
+
+- PATCH: selección de Incoterms de Dhole: marítimo/multimodal muestran los 11; aéreo/terrestre muestran los 7 de cualquier modalidad; al reabrir una QUO antigua nunca se elimina el valor histórico sin confirmación.
+- Pantalla 3 presenta Importación/Exportación con un indicador compacto y control «Cambiar operación» bajo demanda; conserva prioridad del override manual y regreso a automático.
+- Muestra documentación específica de EXW/FCA/FAS/FOB/CFR/CIF/CPT/CIP/DAP/DPU/DDP y recuerda que responsabilidades no equivalen a filtrado destructivo de costos.
+- P0 modificaciones: ambos wizards rechazan guardados si faltan RateDetail.Id previamente persistidos (visibilidad/carga incompleta). La pantalla de edición no infiere eliminaciones y el wizard legado envía ExpectedRevisionNumber.
+- DholeWeb/DholeSystem 1.108.6 → 1.108.7; DholePricingService 1.26.10 → 1.26.11. Ramas intermedias → develop y staging; master no autorizado. Fases restantes de modificación pendientes.
+
 ## [1.108.6] - 2026-11-21 (DH-20261121-P6-P7-SNAPSHOT-373 · desbloqueo P6→P7 con costos visibles)
 
 - PATCH exclusivo de develop: la transición P6→P7 reconoce el catálogo activo y las líneas aplicables ya verificadas y mostradas en P6, incluso cuando una petición adicional falla o es anulada por un watcher. No inventa cargos ni exige nuevas solicitudes si ya están validados para el mismo contexto.

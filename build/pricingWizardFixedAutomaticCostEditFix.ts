@@ -23,7 +23,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
       code = replaceOne(
         code,
         identityImportAnchor,
-        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails, reconcileRateUpdateDetailChanges, stalePersistedFclFreightDetailIds } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
+        `${identityImportAnchor}\nimport { buildRateUpdateExtraDetails, reconcileRateUpdateDetailChanges } from '@/modules/pricing/utils/pricingRateUpdateDetails'`,
         'rate detail identity normalizer import',
       )
 
@@ -59,103 +59,40 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
         'manual persisted-detail delete button',
       )
 
-      const removalAnchor = `      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
-      const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
-      const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))`
-
-      const removalReplacement = `      const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
-      const existingRateDetails = editingRate.value.rateDetails
-      const currentDetailIds = new Set(
-        includedLines.value
-          .map((line) => line.detailId)
-          .filter((id): id is string => Boolean(id)),
-      )
-      const includedCostIds = new Set(
-        includedLines.value
-          .map((line) => line.costId)
-          .filter((id): id is string => Boolean(id)),
-      )
-      const persistedServiceIds = (editingRate.value.services ?? [])
-        .map((service) => service.id)
-        .filter(Boolean)
-        .sort()
-      const currentServiceIds = [...form.serviceIds].filter(Boolean).sort()
-      const samePersistedPricingContext =
-        String(editingRate.value.polId ?? '') === String(form.originId ?? '')
-        && String(editingRate.value.poeId ?? '') === String(form.destinationId ?? '')
-        && String(editingRate.value.podId ?? '') === String(form.podId ?? '')
-        && String(editingRate.value.carrierId ?? '') === String(form.carrierId ?? '')
-        && String(editingRate.value.agentId ?? '') === String(form.agentId ?? '')
-        && String(editingRate.value.incotermId ?? '') === String(form.incotermId ?? '')
-        && String(editingRate.value.shipmentMode ?? '').toUpperCase() === String(shipmentModeForApi.value ?? '').toUpperCase()
-        && persistedServiceIds.join('|') === currentServiceIds.join('|')
-
-      const persistedLineForDetail = (detail: RateDto['rateDetails'][number]) =>
-        rateLines.value.find((line) =>
-          line.detailId === detail.id
-          || Boolean(detail.costId && line.costId === detail.costId)
-          || (
-            line.costDetailType === detail.costDetailType
-            && normalizeCatalogValue(line.name) === normalizeCatalogValue(detail.name)
-          ),
-        )
-
-      // Keep unrelated saved costs when context is unchanged, but a freight
-      // line no longer included in the current FCL equipment distribution is
-      // obsolete (e.g. replacing 40HC + 40NOR with two 40NOR containers).
-      const staleFclFreightIds = stalePersistedFclFreightDetailIds(
-        shipmentModeForApi.value, existingRateDetails, includedLines.value,
-      )
-      const proposedRemovedExtraDetailIds = existingRateDetails
-        .filter((detail) => {
-          if (staleFclFreightIds.has(detail.id)) return true
-          if (explicitlyRemovedPersistedDetailIds.value.has(detail.id)) return true
-
-          const currentLine = persistedLineForDetail(detail)
-          if (currentLine) return !currentLine.included
-
-          if (samePersistedPricingContext) return false
-          return !currentDetailIds.has(detail.id)
-            && !(detail.costId && includedCostIds.has(detail.costId))
-        })
-        .map((detail) => detail.id)`
-
-      code = replaceOne(code, removalAnchor, removalReplacement, 'persisted detail removal reconciliation')
+      // Keep user-deleted manual lines explicit, but never interpret a missing
+      // or filtered persisted row as a deletion. The backend rejects incomplete
+      // full snapshots with the same policy.
+      const removalAnchor = '      const missingPersistedDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))'
+      const removalReplacement = '      const missingPersistedDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id) && !explicitlyRemovedPersistedDetailIds.value.has(id))'
+      code = replaceOne(code, removalAnchor, removalReplacement, 'persisted detail omission guard')
+      code = replaceOne(code,
+        '      const removedExtraDetailIds: string[] = []',
+        '',
+        'explicit removal IDs in final edit payload')
 
       const updateExtraDetailsAnchor = `      const extraDetails = createPayload.details.map((detail, index) => ({
         ...detail,
         id: includedLines.value[index]?.detailId ?? null,
       }))`
-      const updateExtraDetailsReplacement = `      const persistedDetailIdForLine = (line: RateLine | undefined) => {
-        if (!line) return null
-        if (line.detailId) return line.detailId
-
-        const byCostId = line.costId
-          ? editingRate.value!.rateDetails.find((detail) => detail.costId === line.costId)
+      const updateExtraDetailsReplacement = `      // Only the persisted RateDetail ID is authoritative for updates.
+      // Never attach two homonymous CostIds to the same historical detail.
+      const persistedDetailIdForLine = (line: RateLine | undefined) =>
+        line?.detailId && editingRate.value!.rateDetails.some((detail) => detail.id === line.detailId)
+          ? line.detailId
           : null
-        if (byCostId) return byCostId.id
-
-        return editingRate.value!.rateDetails.find((detail) =>
-          detail.costDetailType === line.costDetailType
-          && normalizeCatalogValue(detail.name) === normalizeCatalogValue(line.name),
-        )?.id ?? null
-      }
-      // A cost/name fallback may point two different rows to the same persisted Id.
-      // Match the existing CostId, insert other distinct charges, and dedupe exact retries.
       const proposedExtraDetails = buildRateUpdateExtraDetails(
         createPayload.details,
         includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) })),
         editingRate.value!.rateDetails,
       )
-      // Reconcile the actual PUT details with inferred removals. Exclude
-      // freight only when International Transport is not selected, never
-      // merely because an import or export uses a particular Incoterm.
+      // Both freight and every other historical line survive unless the
+      // operator explicitly removed its ID. Incoterms only generate proposals.
       const { extraDetails, removedExtraDetailIds } = reconcileRateUpdateDetailChanges(
         proposedExtraDetails,
-        proposedRemovedExtraDetailIds,
+        [...explicitlyRemovedPersistedDetailIds.value],
         editingRate.value!.rateDetails,
-        !hasInternationalTransportService.value,
-        true, // final update snapshot, not transient includedLines,
+        false,
+        false,
       )`
       code = replaceOne(code, updateExtraDetailsAnchor, updateExtraDetailsReplacement, 'persisted detail id reconciliation')
 
