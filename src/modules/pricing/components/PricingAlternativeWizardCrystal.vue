@@ -66,6 +66,7 @@ import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineIncl
 import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { costRelationMatches, costLegacyPortMatches } from '@/modules/pricing/utils/pricingCostMultiRelations'
 import { reconcileActiveCostCatalog } from '@/modules/pricing/utils/pricingScreenSevenCostRecovery'
+import { captureInlandRows, restoreInlandRows, type InlandRowMemory } from '@/modules/pricing/utils/pricingInlandDraftMemory'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -704,8 +705,71 @@ function resolveConfiguredCarrierId(id: string, name: string): string {
   )?.id ?? ''
 }
 
+type InlandRouteMemory = {
+  carrierHaulage: boolean
+  merchantHaulage: boolean
+  lines: InlandRowMemory[]
+}
+// In-memory working copy belongs to the exact route/agent/services/customer,
+// never to the carrier name alone. Keep it while navigating 6 ↔ 7 and POE tabs.
+const inlandDraftMemory = ref<Record<string, InlandRouteMemory>>({})
+let restoringInlandMemory = false
+function rememberCurrentInland() {
+  if (props.rateId || !multiCarrierSelectionMode.value || switchingPoeRoute.value || restoringInlandMemory) return
+  const context = activeCostContextKey()
+  const previous = inlandDraftMemory.value[context]
+  inlandDraftMemory.value = {
+    ...inlandDraftMemory.value,
+    [context]: {
+      carrierHaulage: form.carrierHaulage,
+      merchantHaulage: form.merchantHaulage,
+      lines: captureInlandRows(rateLines.value, line => haulageAssociation(line) !== null, previous?.lines),
+    },
+  }
+}
+
+function restoreCurrentInland() {
+  if (props.rateId || !multiCarrierSelectionMode.value) return
+  const saved = inlandDraftMemory.value[activeCostContextKey()]
+  if (!saved) return
+  restoringInlandMemory = true
+  try {
+    form.carrierHaulage = saved.carrierHaulage
+    form.merchantHaulage = saved.merchantHaulage
+    restoreInlandRows(
+      rateLines.value, saved.lines,
+      line => haulageAssociation(line) !== null,
+      line => {
+        const mode = haulageAssociation(line)
+        return (mode === 'carrier' && form.carrierHaulage)
+          || (mode === 'merchant' && form.merchantHaulage)
+      },
+    )
+  } finally {
+    restoringInlandMemory = false
+  }
+}
+
+// Capture user-entered Inland price, currency, VAT and CostId even when the
+// route tab is not changed immediately. A rebuild restores the saved values
+// synchronously before these post-flush updates run.
+watch(
+  () => [
+    form.carrierHaulage, form.merchantHaulage,
+    rateLines.value
+      .filter(line => haulageAssociation(line) !== null)
+      .map(line => [
+        line.costId ?? line.key, line.costAmount, line.saleAmount, line.included,
+        line.currencyId, line.applyDestinationTax, line.destinationTaxRate, line.billToClient,
+      ].join(':')).join('|'),
+  ] as const,
+  () => rememberCurrentInland(),
+  { flush: 'post' },
+)
+
 function rememberCurrentCarrierDraft() {
   if (!multiCarrierSelectionMode.value) return
+  rememberCurrentInland()
   const poeId = form.destinationId
   const carrierId = activeCarrierByPoe.value[poeId]
   if (!poeId || !carrierId || !(selectedCarriersByPoe.value[poeId] ?? []).includes(carrierId)) return
@@ -773,6 +837,7 @@ async function activateCarrierRoute(poeId: string, carrierId: string) {
     switchingPoeRoute.value = false
   }
   // Switching tabs must hydrate the destination's catalog context, not reuse another POE's costs.
+  restoreCurrentInland()
   await loadCostsForSelectedAlternative()
 }
 
@@ -872,6 +937,7 @@ async function loadCostsForSelectedAlternative(force = false) {
   if (!loaded || key !== carrierRouteKey(form.destinationId, form.carrierId) || context !== activeCostContextKey()) return
   rebuildRateLines()
   syncHaulageOptionalLines()
+  restoreCurrentInland()
   // A missing international freight must not silently pass as a complete P7.
   // In the normal wizard this row is produced from P6's actual cost/sale.
   ensureProviderFreightOnScreenSeven()
@@ -1043,6 +1109,7 @@ async function activatePoeRoute(destinationId: string) {
     restoreFclBundleForOption?.(destinationId, selectedCarrier)
   }
   await nextTickForPoe() // watchers must not recalculate another POE's edited lines
+  restoreCurrentInland()
   switchingPoeRoute.value = false
   if (!cached && destinationId && step.value > 5 && !multiCarrierSelectionMode.value) step.value = 5
   if (!cached && destinationId && step.value === 5) await searchApprovedRates()
@@ -3836,6 +3903,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   }
   lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
+  restoreCurrentInland()
   lastIncotermRateLinesContextKey.value = currentContext
   lastIncotermRateLinesRouteKey.value = routeKey
 }
@@ -4041,6 +4109,7 @@ function toggleMerchantHaulage() {
   form.merchantHaulage = !form.merchantHaulage
   if (form.merchantHaulage) form.carrierHaulage = false
   syncHaulageOptionalLines()
+  rememberCurrentInland()
   if (step.value === 7 && multiCarrierSelectionMode.value) {
     void reloadCurrentAlternativeCosts()
   }
@@ -4050,6 +4119,7 @@ function toggleCarrierHaulage() {
   form.carrierHaulage = !form.carrierHaulage
   if (form.carrierHaulage) form.merchantHaulage = false
   syncHaulageOptionalLines()
+  rememberCurrentInland()
   if (step.value === 7 && multiCarrierSelectionMode.value) {
     void reloadCurrentAlternativeCosts()
   }
