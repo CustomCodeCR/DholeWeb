@@ -1,3 +1,12 @@
+## [1.108.13] - 2026-11-21 (DH-20261121-PRICING-P7-EDIT-380 · costos unificados y edición segura)
+
+- PATCH: Seguro de carga explícitamente solicitado aparece desde la creación; no se oculta según responsabilidad Incoterm.
+- PATCH: elimina cargos variables origen/recolecta monetarios de cero no seleccionados; al fallar GET de catálogo no crea líneas ficticias.
+- PATCH: líneas guardadas conservan los importes del snapshot durante abrir/guardar edición.
+- PATCH: el resumen y la persistencia mantienen el orden de bloques de Pantalla 7.
+- PATCH: port selectivo del wizard-bundle de develop a master, incluidos transforms FCL/LTL/LCL, sin retirar API REST anterior; requiere PricingService 1.26.13.
+- Compilación, regresiones y staging pendientes; NO autorizado despliegue de producción.
+
 ## [1.108.12] - 2026-11-21 (DH-20261121-FOB-FCL-MASTER-379 · promoción selectiva de develop)
 
 - PATCH coordinado DholeWeb/DholeSystem 1.108.10 → 1.108.12 en master; versión idéntica a develop. DholePricingService continúa 1.26.12. Mantiene los cambios exclusivos de master sin incorporar toda la divergencia de develop.

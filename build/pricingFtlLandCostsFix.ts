@@ -349,19 +349,10 @@ async function loadApplicableCosts() {
     }
 
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
-    const [contextResult, fullCatalogResult] = await Promise.allSettled([
-      PricingService.selectCosts(contextualQuery),
-      // The Incoterm-specific API query can omit otherwise contracted charges.
-      // Recover from the active catalogue for every mode, not only maritime FCL.
-      PricingService.selectCosts({ isActive: true }),
-    ])
-
-    if (contextResult.status === 'rejected' && fullCatalogResult.status === 'rejected') {
-      throw contextResult.reason
-    }
-
-    const contextualCosts = contextResult.status === 'fulfilled' ? contextResult.value : []
-    const fullCatalog = fullCatalogResult.status === 'fulfilled' ? fullCatalogResult.value : []
+    // A single consistent response replaces the two legacy select calls.
+    const bundle = await PricingService.selectWizardCosts(contextualQuery)
+    const contextualCosts = bundle.applicable
+    const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
     fullCatalog
@@ -380,6 +371,10 @@ async function loadApplicableCosts() {
       }))
 
     if (activeContext !== activeCostContextKey()) return false
+    if (!fullCatalog.length && !allCosts.value.length) {
+      throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
+    }
+    allCosts.value = fullCatalog
     costs.value = [...mergedCosts.values()]
     return true
   } catch (error) {
