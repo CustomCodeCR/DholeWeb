@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite'
+import { replaceScopedOptionalCostFunction } from './pricingOptionalCostFunctionScope.ts'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
@@ -140,11 +141,10 @@ function patchWizard(source: string) {
     "}",
   ].join('\n')
 
-  code = replaceRegexOnce(
+  code = replaceScopedOptionalCostFunction(
     code,
-    /function shouldIncludeOptionalCost\([\s\S]*?\n\}(?=\n\n(?:const selectableOptionalLines = computed|async function loadApplicableCosts))/,
     shouldIncludeOptional,
-    'automatic optional inclusion',
+    'pricingWizardScreen4CostSelectors',
   )
 
   const preservedRuntimeAnchors = [
