@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const opening = ref({
-  companyId: '', accountId: '', seriesCode: '00000', modalityCode: 'FCL',
+  companyId: '', accountId: '', modalityCode: 'FCL',
   priority: 1, complexityPoints: 1, originCountryCode: '', destinationCountryCode: '',
 })
 const crmSearch = ref('')
@@ -97,7 +97,6 @@ async function submit() {
     const result = await operationsApi.createAperture({
       companyId: opening.value.companyId,
       accountId: opening.value.accountId,
-      seriesCode: opening.value.seriesCode,
       modalityCode: opening.value.modalityCode,
       priority: opening.value.priority,
       complexityPoints: opening.value.complexityPoints,
@@ -134,7 +133,6 @@ async function submit() {
       </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <DhSelect v-model="opening.modalityCode" label="Modalidad" :options="modalityOptions" />
-        <DhInput v-model="opening.seriesCode" label="Serie IDTRA" placeholder="00000" />
         <DhInput :model-value="opening.priority" label="Prioridad (1-5)" type="number" :min="1" :max="5" :step="1" @update:model-value="opening.priority = Number($event)" />
         <DhInput :model-value="opening.complexityPoints" label="Puntos de complejidad" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="opening.complexityPoints = Number($event)" />
         <DhInput v-model="opening.originCountryCode" label="País de origen (ISO, opcional)" placeholder="CR" />
