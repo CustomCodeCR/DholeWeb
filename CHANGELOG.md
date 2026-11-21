@@ -1,3 +1,10 @@
+## [1.109.0] - 2026-11-21 · DH-20261121-BLOBATAR-ACCESSORIES-388
+
+- MINOR: personalización avanzada de Blobatar: selector visual por categorías, tarjetas de accesorios, vista previa ampliada, etiquetas activas y selección múltiple accesible en Apariencia.
+- MINOR: nuevos accesorios SVG (gorrito de bufón, accesorios navideños, Halloween, símbolos del mes patrio de Costa Rica y divertidos), renderizados también en la mascota flotante. Se combinan por ranuras; un accesorio en el mismo lugar reemplaza al anterior sin afectar los demás.
+- Compatibilidad: la configuración de accesorio única existente se migra automáticamente al formato múltiple; persistencia local por usuario, foto opcional, expresiones y preferencias de movimiento conservadas. Traducciones ES/EN y pruebas de regresión actualizadas.
+- Release global DholeSystem 1.109.0; otros componentes mantienen sus versiones registradas. Requiere CI, pruebas en staging y autorización de producción antes del despliegue.
+
 ## [1.108.20] - 2026-11-21 · DH-20261121-QUO-EDIT-DELTA-387
 
 - PATCH: modificación de QUO por delta comparado con snapshot original; servicios adicionales crean solo líneas solicitadas (Servicio de Aduanas, Seguro de Carga) sin alterar costo/venta, CostId, DetailId o moneda de líneas retenidas.

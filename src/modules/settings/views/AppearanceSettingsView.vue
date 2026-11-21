@@ -12,6 +12,7 @@ import {
   Sun,
   Trash2,
   Upload,
+  X,
 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -23,7 +24,8 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { useThemeStore, type ThemeMode } from '@/core/stores/themeStore'
 import { useAuthStore } from '@/core/stores/authStore'
 import { AVATAR_EXPRESSIONS, useAvatarAppearanceStore, type AvatarExpression } from '@/core/stores/avatarAppearanceStore'
-import { useAvatarMascotStore, type MascotMovement, type MascotAccessory } from '@/core/stores/avatarMascotStore'
+import { useAvatarMascotStore, type MascotMovement } from '@/core/stores/avatarMascotStore'
+import { MASCOT_ACCESSORIES, MASCOT_ACCESSORY_CATEGORIES, MASCOT_ACCESSORY_CATEGORY, type MascotAccessory } from '@/shared/components/atoms/mascotAccessoryCatalog'
 import { useLocale, type LocaleCode } from '@/core/stores/locale'
 import { useShortcutStore } from '@/core/stores/shortcutStore'
 import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
@@ -70,13 +72,10 @@ function setMascotMovement(value: string | number) {
   avatarMascot.setMovement(value as MascotMovement)
 }
 
-const mascotAccessoryOptions = computed(() => (
-  ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat'] as const
-).map(kind => ({ value: kind, label: t('appearance.mascotAccessories.' + kind) })))
-
-function setMascotAccessory(value: string | number) {
-  avatarMascot.setAccessory(value as MascotAccessory)
-}
+const mascotCategory = ref<(typeof MASCOT_ACCESSORY_CATEGORIES)[number]>('basic')
+const mascotVisibleAccessories = computed(() => MASCOT_ACCESSORIES.filter(
+  (kind): kind is Exclude<MascotAccessory, 'none'> => kind !== 'none' && MASCOT_ACCESSORY_CATEGORY[kind] === mascotCategory.value,
+))
 
 async function handleProfilePhotoChange(event: Event) {
   const input = event.target as HTMLInputElement
@@ -428,21 +427,31 @@ onMounted(refreshAppearanceSettings)
     </DhCard>
 
     <DhCard :title="t('appearance.mascotTitle')" :subtitle="t('appearance.mascotHelp')" :icon="Smile">
-      <div class="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)]">
-        <div class="flex flex-col items-center gap-3">
-          <div class="relative flex h-28 w-28 items-center justify-center" :aria-label="t('appearance.mascotPreview')">
-            <DhAvatar
-              :id="authStore.userId"
-              :name="avatarMascot.name"
-              size="lg"
-              animate="always"
-              :mood="avatarAppearance.expression ?? 'auto'"
-              :controlled-expressions="true"
-              :transparent-backdrop="true"
-            />
-            <div class="pointer-events-none absolute left-1/2 top-1/2 h-[70px] w-[70px] -translate-x-1/2 -translate-y-1/2">
-              <DhMascotAccessory :kind="avatarMascot.accessory" />
+      <div class="grid min-w-0 gap-6 lg:grid-cols-[minmax(220px,260px)_minmax(0,1fr)]">
+        <div class="flex min-w-0 flex-col items-center gap-3">
+          <div
+            class="relative flex w-full min-h-[240px] items-center justify-center overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-5 shadow-[var(--dh-shadow-sm)]"
+            :aria-label="t('appearance.mascotPreview')"
+            role="img"
+          >
+            <div class="absolute inset-0 opacity-30" style="background:radial-gradient(circle at 50% 65%,var(--dh-primary),transparent 65%)"></div>
+            <div class="relative flex h-48 w-48 items-center justify-center">
+              <DhAvatar
+                :id="authStore.userId"
+                :name="avatarMascot.name"
+                size="xl"
+                animate="always"
+                :mood="avatarAppearance.expression ?? 'auto'"
+                :controlled-expressions="true"
+                :transparent-backdrop="true"
+              />
+              <div class="pointer-events-none absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2">
+                <DhMascotAccessory :kinds="avatarMascot.accessories" />
+              </div>
             </div>
+            <span class="absolute bottom-3 left-3 rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-1 text-xs font-semibold text-[var(--dh-text)]">
+              {{ t('appearance.mascotLivePreview') }}
+            </span>
           </div>
           <div v-if="avatarMascot.photo" class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-[var(--dh-border)]">
             <img :src="avatarMascot.photo" :alt="t('appearance.mascotProfilePhoto')" class="h-full w-full object-cover" />
@@ -467,7 +476,7 @@ onMounted(refreshAppearanceSettings)
             @click="avatarMascot.setPhoto(null)"
           />
         </div>
-        <div class="min-w-0 space-y-4">
+        <div class="min-w-0 space-y-5">
           <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotLocalHelp') }}</p>
           <p v-if="profileUploadError" class="text-sm font-semibold text-red-500" role="alert">{{ profileUploadError }}</p>
           <div class="flex flex-wrap items-end gap-2">
@@ -480,23 +489,107 @@ onMounted(refreshAppearanceSettings)
             </div>
             <DhButton :label="t('appearance.mascotSaveName')" variant="secondary" @click="avatarMascot.setName(mascotNameDraft)" />
           </div>
-          <DhSelect
-            :model-value="avatarMascot.accessory"
-            :label="t('appearance.mascotAccessory')"
-            :options="mascotAccessoryOptions"
-            @update:model-value="setMascotAccessory"
-          />
-          <DhSelect
-            :model-value="avatarMascot.movement"
-            :label="t('appearance.mascotMovement')"
-            :options="mascotMovementOptions"
-            @update:model-value="setMascotMovement"
-          />
-          <DhButton
-            :label="t(avatarMascot.visible ? 'appearance.mascotHide' : 'appearance.mascotShow')"
-            variant="secondary"
-            @click="avatarMascot.setVisible(!avatarMascot.visible)"
-          />
+
+          <div class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 class="text-base font-black text-[var(--dh-text)]">{{ t('appearance.mascotAccessoryTitle') }}</h3>
+                <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotAccessoryCombineHelp') }}</p>
+              </div>
+              <span class="rounded-full border border-[var(--dh-primary)]/40 px-3 py-1 text-xs font-bold text-[var(--dh-primary)]">
+                {{ t('appearance.mascotCombineHint') }}
+              </span>
+            </div>
+            <div class="flex min-h-12 flex-wrap items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+              <span class="mr-1 text-xs font-black text-[var(--dh-text)]">
+                {{ t('appearance.mascotSelectedAccessories', { count: avatarMascot.accessories.length }) }}
+              </span>
+              <span v-if="!avatarMascot.accessories.length" class="text-xs text-[var(--dh-text-muted)]">
+                {{ t('appearance.mascotNoAccessories') }}
+              </span>
+              <button
+                v-for="kind in avatarMascot.accessories"
+                :key="kind"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-full border border-[var(--dh-primary)]/40 bg-[var(--dh-primary)]/10 px-3 py-1 text-xs font-bold text-[var(--dh-text)] hover:bg-[var(--dh-primary)]/20 focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+                :aria-label="t('appearance.mascotRemoveAccessory', { accessory: t('appearance.mascotAccessories.' + kind) })"
+                @click="avatarMascot.toggleAccessory(kind)"
+              >
+                {{ t('appearance.mascotAccessories.' + kind) }}
+                <X :size="13" aria-hidden="true" />
+              </button>
+              <button
+                v-if="avatarMascot.accessories.length"
+                type="button"
+                class="ml-auto text-xs font-semibold text-[var(--dh-text-muted)] underline hover:text-[var(--dh-text)]"
+                @click="avatarMascot.setAccessories([])"
+              >
+                {{ t('appearance.mascotClearAccessories') }}
+              </button>
+            </div>
+
+            <div class="flex min-w-0 gap-2 overflow-x-auto pb-1" role="tablist" :aria-label="t('appearance.mascotAccessoryCategoriesTitle')">
+              <button
+                v-for="category in MASCOT_ACCESSORY_CATEGORIES"
+                :key="category"
+                type="button"
+                role="tab"
+                :aria-selected="mascotCategory === category"
+                :class="mascotCategory === category ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/15 text-[var(--dh-text)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)] text-[var(--dh-text-muted)]'"
+                class="shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-colors hover:border-[var(--dh-primary)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+                @click="mascotCategory = category"
+              >
+                {{ t('appearance.mascotAccessoryCategories.' + category) }}
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              <button
+                v-for="kind in mascotVisibleAccessories"
+                :key="kind"
+                type="button"
+                class="relative flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-[20px] border p-3 transition-all hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]"
+                :class="avatarMascot.accessories.includes(kind) ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)]/10 shadow-[var(--dh-shadow-sm)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)] hover:border-[var(--dh-primary)]/60'"
+                :aria-pressed="avatarMascot.accessories.includes(kind)"
+                :aria-label="t('appearance.mascotAccessories.' + kind)"
+                @click="avatarMascot.toggleAccessory(kind)"
+              >
+                <span
+                  class="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full border"
+                  :class="avatarMascot.accessories.includes(kind) ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white' : 'border-[var(--dh-border)]'"
+                  aria-hidden="true"
+                >
+                  <Check v-if="avatarMascot.accessories.includes(kind)" :size="13" />
+                </span>
+                <span class="relative flex h-[74px] w-[74px] items-center justify-center" aria-hidden="true">
+                  <span class="absolute left-3 top-3 h-[50px] w-[50px] rounded-[42%] bg-slate-200 shadow-sm">
+                    <span class="absolute left-3 top-7 h-1 w-1.5 rounded-full bg-slate-800"></span>
+                    <span class="absolute right-3 top-7 h-1 w-1.5 rounded-full bg-slate-800"></span>
+                  </span>
+                  <DhMascotAccessory :kind="kind" />
+                </span>
+                <span class="text-center text-xs font-bold leading-4 text-[var(--dh-text)]">
+                  {{ t('appearance.mascotAccessories.' + kind) }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-end gap-3 border-t border-[var(--dh-border)] pt-4">
+            <div class="min-w-[180px] flex-1">
+              <DhSelect
+                :model-value="avatarMascot.movement"
+                :label="t('appearance.mascotMovement')"
+                :options="mascotMovementOptions"
+                @update:model-value="setMascotMovement"
+              />
+            </div>
+            <DhButton
+              :label="t(avatarMascot.visible ? 'appearance.mascotHide' : 'appearance.mascotShow')"
+              variant="secondary"
+              @click="avatarMascot.setVisible(!avatarMascot.visible)"
+            />
+          </div>
           <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('appearance.mascotDragHelp') }}</p>
         </div>
       </div>
