@@ -52,6 +52,69 @@ function ownLclCustomsCostApplies(cost: CostSelectDto, serviceId: string) {
   return true
 }
 
+const ownLclCrcMasterCosts391 = ref<CostSelectDto[]>([])
+let ownLclCrcMasterRequest391 = 0
+
+async function loadOwnLclCrcMasterCosts391() {
+  const service = selectedCrcCustomsService.value
+  const request = ++ownLclCrcMasterRequest391
+  // This matrix path normally zeroes costs.value; retrieve the service
+  // independently without replacing ANY consolidation line or its prices.
+  if (props.viewOnly || hydratingExistingRate.value || step.value !== 7
+      || !isOwnLclMatrixContext() || shipmentModeForApi.value !== 'Lcl'
+      || !service || !crcImportContext.value) {
+    ownLclCrcMasterCosts391.value = []
+    return
+  }
+  const snapshot = [
+    form.originId, form.destinationId, form.podId, form.incotermId,
+    costContextAgentId(), service.id, form.cargoWeightKg,
+  ].join('|')
+  try {
+    const bundle = await PricingService.selectWizardCosts({
+      carrierId: undefined,
+      agentId: costContextAgentId() || undefined,
+      polId: form.originId || undefined,
+      poeId: costContextPoeId() || undefined,
+      podId: form.podId || undefined,
+      incotermId: form.incotermId || undefined,
+      shipmentMode: 'Lcl',
+      isActive: true,
+      applicableToContext: true,
+      serviceIds: form.serviceIds.join(',') || service.id,
+      weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : undefined,
+      packages: number(form.cargoPackages) > 0 ? Math.trunc(number(form.cargoPackages)) : undefined,
+      storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : undefined,
+    })
+    if (request !== ownLclCrcMasterRequest391 || snapshot !== [
+      form.originId, form.destinationId, form.podId, form.incotermId,
+      costContextAgentId(), service.id, form.cargoWeightKg,
+    ].join('|')) return
+    // Backend-applicable is authoritative. For legacy own-LCL profiles whose
+    // optional agent differs, only a globally unscoped exact service master
+    // may be considered from the same bundle catalog.
+    const extras = bundle.catalog.filter((cost) =>
+      !cost.agentId && !cost.agents?.length && !cost.carrierId && !cost.carriers?.length
+      && !cost.polId && !cost.pols?.length
+      && !cost.poeId && !cost.poes?.length && !cost.podId && !cost.pods?.length
+      && ownLclCustomsCostApplies(cost, service.id))
+    ownLclCrcMasterCosts391.value = [...bundle.applicable, ...extras]
+      .filter((cost, index, rows) => rows.findIndex((item) => item.id === cost.id) === index)
+    syncOwnLclCrcAgencyLine()
+  } catch (error) {
+    if (request === ownLclCrcMasterRequest391)
+      toastStore.backendError(error, 'No se pudo consultar el servicio aduanal LCL por tramo.')
+  }
+}
+watch(
+  () => [step.value, hydratingExistingRate.value, form.serviceIds.join('|'),
+    form.originId, form.destinationId, form.podId, form.incotermId,
+    form.agentId, form.cargoWeightKg, form.cargoPackages, form.storageDays,
+    lclSelectedSource.value?.kind] as const,
+  () => { void loadOwnLclCrcMasterCosts391() },
+  { flush: 'post', immediate: true },
+)
+
 function syncOwnLclCrcAgencyLine(forceReprice = false) {
   // Preserve the LCL consolidation matrix. The CRC customs service selected
   // by Sales is a separate, explicitly requested destination charge.
@@ -62,7 +125,8 @@ function syncOwnLclCrcAgencyLine(forceReprice = false) {
 
   // Pricing's full active catalog is loaded at wizard initialization. Service
   // association and complete route restrictions are authoritative; names are not.
-  const configured = costs.value
+  const configured = [...ownLclCrcMasterCosts391.value, ...costs.value]
+    .filter((cost, index, rows) => rows.findIndex((row) => row.id === cost.id) === index)
     .filter((cost) => ownLclCustomsCostApplies(cost, service.id))
     .sort((a, b) => costSpecificity(b) - costSpecificity(a))[0]
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
