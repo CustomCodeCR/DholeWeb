@@ -241,9 +241,20 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
   )
 
   // Avoid querying the global Costs catalog for LCL own consolidations.
+  const fullyHydratedCostAnchor = "async function loadApplicableCosts(): Promise<boolean> {\n  const requestContext = activeCostContextKey()\n  const serial = ++applicableCostRequestSerial\n  try {"
   const modernCostAnchor = "async function loadApplicableCosts(): Promise<boolean> {\n  const requestContext = activeCostContextKey()\n  try {"
   const legacyCostAnchor = "async function loadApplicableCosts() {\n  try {"
-  if (code.includes(modernCostAnchor)) {
+  if (code.includes(fullyHydratedCostAnchor)) {
+    code = replaceOne(
+      code,
+      fullyHydratedCostAnchor,
+      fullyHydratedCostAnchor.replace(
+        "\n  try {",
+        "\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return true\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return true\n  }\n\n  try {",
+      ),
+      'own LCL applicable costs guard (full active catalogue)',
+    )
+  } else if (code.includes(modernCostAnchor)) {
     code = replaceOne(
       code,
       modernCostAnchor,
