@@ -194,21 +194,14 @@ function patchWizard(source: string) {
       }
       let scoped = code.slice(start, end)
       const assignmentAt = scoped.indexOf(assignment)
-      const marker = '  // syncResolvedLandLtlTariffLines() after every rebuild'
-      const markerAt = scoped.indexOf(marker, assignmentAt + assignment.length)
-      if (assignmentAt < 0 || markerAt < 0
+      const closeAt = scoped.lastIndexOf('\n}')
+      if (assignmentAt < 0 || closeAt <= assignmentAt
         || scoped.includes('const previousLtlOptionals =')) {
-        throw new Error('[pricingLtlOptionalEditable] Missing scoped LTL assignment/sync anchors' +
-          ' assignment=' + assignmentAt + ' marker=' + markerAt +
-          ' previouslyInjected=' + scoped.includes('const previousLtlOptionals =') +
-          ' context=' + scoped.slice(Math.max(0, scoped.lastIndexOf('rateLines.value', scoped.length - 10) - 260), scoped.length).slice(-1600))
+        throw new Error('[pricingLtlOptionalEditable] Missing safely scoped LTL assignment or closing brace')
       }
-      const restoreAfterSync = restoreOptionals.replace(
-        "    syncResolvedLandLtlTariffLines()\n", '',
-      )
-      scoped = scoped.slice(0, markerAt + marker.length)
-        + '\n' + restoreAfterSync
-        + scoped.slice(markerAt + marker.length)
+      // Retain the original tier recalculation and any other inserted plugin
+      // code; restore LTL optional user values only AFTER all source updates.
+      scoped = scoped.slice(0, closeAt) + '\n' + restoreOptionals + scoped.slice(closeAt)
       scoped = scoped.slice(0, assignmentAt)
         + keepOptionals + '\n' + scoped.slice(assignmentAt)
       code = code.slice(0, start) + scoped + code.slice(end)
