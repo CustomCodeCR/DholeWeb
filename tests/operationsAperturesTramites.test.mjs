@@ -19,7 +19,7 @@ test('trámites and Aperturas use paginated server filters instead of filtering 
 
 test('manual creation uses CRM customer lookup and no placeholder sales executive', () => {
   const api = source('src/modules/operations/services/operationsApi.ts')
-  const view = source('src/modules/operations/components/OperationsManualCreateView.vue')
+  const view = source('src/modules/operations/views/OperationsManualCreateView.vue')
   assert.match(api, /\/api\/crm\/accounts\?/)
   assert.match(api, /\/api\/operations\/apertures\/create-context/)
   assert.match(view, /v-model="accountId"/)
