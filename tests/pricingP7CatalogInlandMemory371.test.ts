@@ -59,8 +59,8 @@ test('P7 obtains catalog and contextual costs from one Pricing HTTP call', () =>
   assert.match(loader, /serial !== applicableCostRequestSerial/)
   assert.match(wizard, /const missingCatalogLines = applicableConfiguredCosts\(\)/)
   assert.match(wizard, /if \(!force && activeCatalogValidatedContexts\.has\(context\)/)
-  assert.match(wizard, /ready = \(activeCatalogValidatedContexts\.has\(activeCostContextKey\(\)\)/)
-  assert.match(wizard, /\|\| await loadApplicableCosts\(\)/)
+  assert.match(wizard, /const verifiedSnapshot = sameRoute && screenSixHasValidCostSnapshot\(screenSixContext\)/)
+  assert.match(wizard, /ready = verifiedSnapshot \|\| await loadApplicableCosts\(\)/)
   assert.match(wizard, /if \(!ready\) \{[\s\S]*?return\s*\}\s*rebuildRateLines\(\)/)
 })
 
