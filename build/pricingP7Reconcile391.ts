@@ -82,7 +82,7 @@ export function patchPricingP7Reconcile391(source: string): string {
   if (code.split('</script>').length !== 2) throw new Error('[DH-391] Script close')
   const runtime394 = runtime.replace(
     '  // Rename only new, generated freight.',
-    '  p7SyncMiamiCommercialItems394()\\n\\n  // Rename only new, generated freight.',
+    '  p7SyncMiamiCommercialItems394()\n\n  // Rename only new, generated freight.',
   ).replace(
     "  form.serviceIds.join('|'), allCosts.value.map",
     "  form.serviceIds.join('|'), form.miamiCommercialPlan, form.miamiIncludeSed, form.miamiSedQty, form.cargoValue, allCosts.value.map",
