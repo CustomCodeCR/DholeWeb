@@ -462,7 +462,7 @@ async function applyScreen7DatabaseCosts() {
   const requestedContext = pricingDraftLineContextKey()
   screen7RefreshBusy.value = true
   screen7RefreshAllowed.value = true
-  allowCatalogRefreshForSavedQuote.value = true
+  if (typeof allowCatalogRefreshForSavedQuote !== 'undefined') allowCatalogRefreshForSavedQuote.value = true
   try {
     if (!selectedCurrency.value && catalogs.currencies.length === 0) {
       throw new Error('No se cargó la moneda de la cotización. Recargue los catálogos antes de actualizar.')
@@ -754,7 +754,7 @@ async function applyScreen7DatabaseCosts() {
     }
   } finally {
     screen7RefreshAllowed.value = false
-    allowCatalogRefreshForSavedQuote.value = false
+    if (typeof allowCatalogRefreshForSavedQuote !== 'undefined') allowCatalogRefreshForSavedQuote.value = false
     screen7RefreshBusy.value = false
   }
 }
