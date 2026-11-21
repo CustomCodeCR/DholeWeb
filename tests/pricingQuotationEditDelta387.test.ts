@@ -7,7 +7,7 @@ import { pricingQuotationEditDelta387Runtime } from '../build/pricingQuotationEd
 function fixture() {
   const freight = { key: 'existing:F', detailId: 'F', costDetailType: 'Freight', costId: null, name: 'Flete internacional',
     costAmount: 5300, saleAmount: 5800, included: true, serviceIds: [] }
-  const destination = { key: 'existing:D', detailId: 'D', costDetailType: 'DestinationCharge', costId: 'OLD',
+  const destination = { key: 'existing:D', id: 'D', detailId: 'D', costDetailType: 'DestinationCharge', costId: 'OLD',
     name: 'Redestino', costAmount: 225, saleAmount: 290, included: true, serviceIds: ['TRANSPORT'] }
   const customs = { id: 'AD', name: 'Servicio de Aduanas', costDetailType: 'CustomsCharge',
     costType: 'Fixed', isActive: true, costAmount: 50, saleAmount: 70,
@@ -27,7 +27,7 @@ function fixture() {
       incotermId: 'FOB', equipmentId: '40HC', selectedImportRateId: 'A',
       serviceIds: ['TRANSPORT'], merchantHaulage: false, carrierHaulage: true,
       dangerousCargo: false, overweight: false, nonStackable: false,
-      storageDays: 0, cargoValue: 0, freightCost: 5300 },
+      storageDays: 0, cargoValue: 0, freightCost: 5300, portHandlingMode: 'Redestino' },
     costs: { value: [] as any[] }, allCosts: { value: [customs, insurance] },
     rateLines: { value: [freight, destination].map(x => ({ ...x })) as any[] },
     explicitlyRemovedPersistedDetailIds: { value: new Set<string>() },
@@ -111,4 +111,32 @@ test('DH-387: a different provider may add associated fixed costs, but not globa
   ]
   assert.deepEqual(Array.from(q.requested(), (c: any) => c.id), ['NEW'])
   assert.deepEqual(q.root.rateLines.value.map((l: any) => l.saleAmount), [5800, 290])
+})
+
+test('DH-390: switching Redestino to Anticipado removes only the original detail and is reversible', async () => {
+  const q = fixture()
+  const anticipated = {
+    id: 'ANT', name: 'Muellaje Anticipado', costDetailType: 'DestinationCharge',
+    costType: 'Optional', isActive: true, costAmount: 75, saleAmount: 95, services: [],
+  }
+  q.root.loadApplicableCosts = async () => {
+    q.root.costs.value = [anticipated]
+    return true
+  }
+  q.root.form.portHandlingMode = 'Anticipado'
+  assert.equal(await q.apply(), true)
+  assert.deepEqual(q.root.rateLines.value.map((line: any) => line.name),
+    ['Flete internacional', 'Muellaje Anticipado'])
+  assert.equal(q.root.explicitlyRemovedPersistedDetailIds.value.has('D'), true)
+  assert.equal(q.root.rateLines.value.find((line: any) => line.costId === 'ANT').saleAmount, 95)
+  assert.equal(q.root.rateLines.value.find((line: any) => line.detailId === 'F').saleAmount, 5800)
+
+  // Undo the change: restore the negotiated historical detail, not a new
+  // catalog price; remove the just-created Anticipado without duplicating.
+  q.root.form.portHandlingMode = 'Redestino'
+  assert.equal(await q.apply(), true)
+  assert.deepEqual(q.root.rateLines.value.map((line: any) => line.name),
+    ['Flete internacional', 'Redestino'])
+  assert.equal(q.root.explicitlyRemovedPersistedDetailIds.value.has('D'), false)
+  assert.equal(q.root.rateLines.value.find((line: any) => line.detailId === 'D').saleAmount, 290)
 })
