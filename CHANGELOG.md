@@ -1,3 +1,12 @@
+## [1.109.3] - 2026-11-21 · DH-20261121-P7-COSTS-391 (candidato master)
+
+- PATCH: en LTL Panamá → Costa Rica, muestra las cuatro líneas del catálogo por POE/POD múltiples y tramos reales WeightKg, incluida Gastos 0/0 cuando el tramo lo determina; respeta FCA y los CostIds.
+- PATCH: LCL propio consulta independientemente el servicio de agencia de aduanas CRC seleccionado y calcula por tramo sin eliminar la matriz ni costos/ventas negociados.
+- PATCH: multimodal FCL mantiene dos fletes separados (marítimo + terrestre) y nombra el flete según modalidad, también en guardado.
+- PATCH: modificación de cotizaciones considera Sobrepeso y peso de la carga como deltas explícitos; conserva identidades de RateDetails y evita recotizar sin autorización.
+- Añade pruebas de regresión DH-391 y validación de compilación. Backend PricingService sigue en 1.26.19; REST/SignalR compatibles.
+- CI de develop aprobado y staging automatizado desplegado. QA autenticada pendiente; master/prod requieren autorización.
+
 ## [1.109.2] - 2026-11-21 · DH-20261121-WIZARD-COSTS-390 (candidato master)
 
 - PATCH: el excedente de FCL multimodal Panamá → Costa Rica sobre 19.000 kg por contenedor se calcula con los cuatro costos LTL maestros presentes en data.catalog del mismo wizard-bundle, no con data.applicable filtrado a FCL.

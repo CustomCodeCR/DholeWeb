@@ -8,7 +8,7 @@ interface QuoteEditContext387 {
   podId: string; agentId: string; carrierId: string; incotermId: string
   equipmentId: string; importRateId: string; services: string[]
   merchant: boolean; carrier: boolean; dangerous: boolean; overweight: boolean
-  nonStackable: boolean; storageDays: number; cargoValue: number; portHandlingMode: string
+  nonStackable: boolean; storageDays: number; cargoValue: number; portHandlingMode: string; cargoWeightKg: number
 }
 const quoteEditOriginalContext387 = ref<QuoteEditContext387 | null>(null)
 const quoteEditAutoRemovedIds387 = new Set<string>()
@@ -26,6 +26,7 @@ function quoteEditContext387(): QuoteEditContext387 {
     dangerous: Boolean(form.dangerousCargo), overweight: Boolean(form.overweight),
     nonStackable: Boolean(form.nonStackable), storageDays: number(form.storageDays),
     cargoValue: number(form.cargoValue), portHandlingMode: String(form.portHandlingMode ?? ''),
+    cargoWeightKg: number(form.cargoWeightKg),
   }
 }
 function quoteEditAddedServices387() {
@@ -85,6 +86,13 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
       && name.includes(normalizeCatalogValue(form.portHandlingMode))
       && !(name.includes('redestino') && name.includes('anticipado'))
     if (newlySelectedPortHandling) return true
+    // A user ticking Sobrepeso on an EXISTING quote is an explicit request.
+    // Do not automatically insert unrelated optional inland/IMO charges.
+    const newOverweight = changed.has('overweight') && form.overweight
+      && (/^(sobrepeso|overweight)/.test(name))
+      && (dholeHaulageOptionalAssociation(cost) !== 'merchant' || form.merchantHaulage)
+      && (dholeHaulageOptionalAssociation(cost) !== 'carrier' || form.carrierHaulage)
+    if (newOverweight) return true
     const newlySelectedInland = contextChanged && selectedHaulage
       && (cost.costDetailType === 'InlandTransport' || /inland|haulage/.test(name))
       && dholeHaulageOptionalAssociation(cost) === selectedHaulage
@@ -118,6 +126,10 @@ function quoteEditRemoveInvalidDetails387() {
         || (label.includes('redestino') && form.portHandlingMode !== 'Redestino')
       if (oldChoice) return true
     }
+    // Only the explicit removal of Sobrepeso may delete its former paid line.
+    // Never delete independent inland, maritime freight or other negotiated lines.
+    if (changed.has('overweight') && !form.overweight
+        && (/^(sobrepeso|overweight)/.test(normalizeCatalogValue(line.name)))) return true
     const master = allCosts.value.find(cost => cost.id === line.costId)
     const services = line.serviceIds?.length ? line.serviceIds
       : master?.services?.map(service => service.id) ?? []
@@ -211,7 +223,8 @@ watch(
   () => [step.value, form.serviceIds.join('|'), form.incotermId,
     form.carrierId, form.agentId, form.originId, form.destinationId, form.podId,
     form.modality, form.shipmentMode, form.merchantHaulage, form.carrierHaulage,
-    form.overweight, form.dangerousCargo, form.equipmentId, form.portHandlingMode] as const,
+    form.overweight, form.dangerousCargo, form.equipmentId, form.portHandlingMode,
+    form.cargoWeightKg] as const,
   () => {
     if (step.value !== 7 || !props.rateId || props.viewOnly || hydratingExistingRate.value) return
     void quoteEditApplyDelta387()
