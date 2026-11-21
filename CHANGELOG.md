@@ -1,3 +1,10 @@
+## [1.109.0] - 2026-11-21 · DH-20261121-BLOBATAR-ACCESSORIES-388
+
+- MINOR: personalización avanzada de Blobatar: selector visual por categorías, tarjetas de accesorios, vista previa ampliada, etiquetas activas y selección múltiple accesible en Apariencia.
+- MINOR: nuevos accesorios SVG (gorrito de bufón, accesorios navideños, Halloween, símbolos del mes patrio de Costa Rica y divertidos), renderizados también en la mascota flotante. Se combinan por ranuras; un accesorio en el mismo lugar reemplaza al anterior sin afectar los demás.
+- Compatibilidad: la configuración de accesorio única existente se migra automáticamente al formato múltiple; persistencia local por usuario, foto opcional, expresiones y preferencias de movimiento conservadas. Traducciones ES/EN y pruebas de regresión actualizadas.
+- Release global DholeSystem 1.109.0; otros componentes mantienen sus versiones registradas. Requiere CI, pruebas en staging y autorización de producción antes del despliegue.
+
 ## [1.108.18] - 2026-11-21 · DH-20261121-PRICING-EDIT-TIERS-LAND-385
 
 - PATCH: el cost loader final de Vite envía contenedor, kg, bultos y días a Pricing; mantiene la clave de contexto alineada para evitar precios obsoletos.
