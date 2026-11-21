@@ -74,7 +74,8 @@ test('route, naviera, agent, mode and services still reject unrelated charges', 
 test('catalog fallback and CRM failure handling load charges without silently changing preferential sale authorization', () => {
   assert.match(loader, /PricingService\.selectWizardCosts\(contextualQuery\)/)
   assert.match(loader, /catalogCostMatchesCurrentContext\(cost\)/)
-  assert.match(loader, /const fullCatalog = bundle\.catalog/)\n  assert.match(loader, /const contextualCosts = bundle\.applicable/)
+  assert.match(loader, /const fullCatalog = bundle\.catalog/)
+  assert.match(loader, /const contextualCosts = bundle\.applicable/)
   assert.match(loader, /await loadCustomerPreferentialRates\(\)[\s\S]*?catch \{/)
   assert.match(wizard, /const customerPreferentialError = ref/)
   assert.match(wizard, /Tarifas preferenciales no disponibles/)
