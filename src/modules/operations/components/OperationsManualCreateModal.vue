@@ -30,7 +30,6 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const isIso = (value: string) => !value.trim() || /^[a-zA-Z]{2}$/.test(value.trim())
 const valid = computed(() =>
   uuid.test(opening.value.companyId) && uuid.test(opening.value.accountId) &&
-  /^\d{5}$/.test(opening.value.seriesCode) &&
   Number.isInteger(opening.value.priority) &&
   opening.value.priority >= 1 && opening.value.priority <= 5 &&
   Number.isFinite(opening.value.complexityPoints) &&
