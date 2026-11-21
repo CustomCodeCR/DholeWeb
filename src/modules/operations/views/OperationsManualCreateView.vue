@@ -25,7 +25,6 @@ const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
-const initializing = ref(false)
 const loading = ref(true)
 const error = ref('')
 const form = ref({
