@@ -22,7 +22,7 @@ test('DH-386: only wizard-bundle may resolve wizard catalog costs', () => {
   assert.equal(patched.split('pricingWizardBundleSelectCosts({').length - 1, 2)
   assert.match(patched, /return bundle\.applicable\.filter/)
   assert.match(patched, /if \(props\.rateId && !allowCatalogRefreshForSavedQuote\.value\) return \[\]/)
-  assert.match(vite, /pricingWizardBundleOnlyFinal\(\),\s*vue\(\)/)
+  assert.match(vite, /pricingWizardBundleOnlyFinal\(\),\s*pricingP7Reconcile391\(\),\s*vue\(\)/)
 })
 
 test('DH-386: globally available catalog never auto-appends costs not in applicable', () => {
