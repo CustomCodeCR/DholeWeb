@@ -391,12 +391,14 @@ function rebuildRateLines`,
   // Pantalla 7 no debe inventar una fila "Recolecta". Si existe Recolecta en Cargos y
   // recargos llegará desde /costs/select y se mostrará en su sección real; si no existe,
   // no se agrega una línea variable con costo/venta en cero.
+  if (code.includes("addVariableSectionFallback(\n  'pickup_origin'")) {
   code = replaceRegexOne(
     code,
     /\naddVariableSectionFallback\(\n\s*'pickup_origin',\n\s*'Recolecta',\n\s*'InlandTransport',\n\s*'Variable: complete costo y venta según la recolección aplicable\.',\n\)\n/,
     '\n',
     'synthetic pickup fallback',
   )
+  }
 
   // Every Optional cost returned for the active Pricing context must be visible in the
   // selector. Haulage/cargo flags may still auto-select or clear their related lines, but
