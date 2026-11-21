@@ -15,7 +15,7 @@ test('unselected optional catalogue charges do not enter wizard candidate costs'
 test('saved quotations are authoritative and tier query follows cargo hydration', () => {
   const source = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   assert.match(source, /if \(props\.rateId \|\| !editingRate\.value \|\| props\.viewOnly\) return 0/)
-  assert.match(source, /costs\.value = reconcileActiveCostCatalog\([\s\S]*?cost => cost\.costType !== 'Optional'/)
+  assert.match(source, /costs\.value = bundle\.applicable/)
   assert.match(source, /PricingService\.selectWizardCosts\(/)
   assert.match(source, /containerTypeId: form\.equipmentId \|\| undefined/)
   assert.match(source, /storageDays: number\(form\.storageDays\) > 0/)
