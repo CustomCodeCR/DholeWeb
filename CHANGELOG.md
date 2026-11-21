@@ -1,3 +1,12 @@
+## [1.108.14] - 2026-11-21 (DH-20261121-PRICING-TIERS-381 · costos condicionados por contenedor, bultos, peso y días extra)
+
+- PATCH: resuelve en P6 los importes de costos de agente desde pricingRulesJson y no desde el 0 de cabecera.
+- PATCH: para tarifas de peso, paquetes o contenedor se aplica la banda real; por kg se multiplica la regla por kg y por días extra solo los días que superan los incluidos. Si no coincide una regla, no se inventa precio cero.
+- PATCH: P7 invalida los cargos automáticos de tramos tras cambiar equipo, cantidad, kg, bultos, pallets o días, preservando los cargos manuales y las demás líneas previamente editadas.
+- PATCH: en el refresco explícito de tarifas existentes compara y usa el monto resuelto, nunca el 0 de la cabecera; no se modifica automáticamente el snapshot guardado.
+- Regresión automatizada: 20DV 670/705, 40HC 740/780, bultos 1–3 y 4–12, 20 y 40 kg por kg, 3 días incluidos y 4/7 días reales.
+- Backport selectivo a master desde develop, sin copiar los demás cambios divergentes. Coordina DholeSystem/DholeWeb 1.108.14; PricingService conserva 1.26.13. No hay cambios REST, base de datos ni SignalR.
+
 ## [1.108.13] - 2026-11-21 (DH-20261121-PRICING-P7-EDIT-380 · costos unificados y edición segura)
 
 - PATCH: Seguro de carga explícitamente solicitado aparece desde la creación; no se oculta según responsabilidad Incoterm.
