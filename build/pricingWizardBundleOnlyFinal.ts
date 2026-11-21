@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite'
+import { patchPricingQuotationEditDelta387 } from './pricingQuotationEditDelta387.ts'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 const LEGACY_COST_CALL = 'PricingService.selectCosts('
@@ -58,7 +59,8 @@ async function pricingWizardBundleSelectCosts(
   if (count > 0 && !result.includes('const bundle = await PricingService.selectWizardCosts(')) {
     throw new Error('[pricingWizardBundleOnlyFinal] Bridge lost backend bundle')
   }
-  return result
+  // Preserve saved RateDetails and apply only user-requested service/context deltas.
+  return patchPricingQuotationEditDelta387(result)
 }
 
 export function pricingWizardBundleOnlyFinal(): Plugin {
