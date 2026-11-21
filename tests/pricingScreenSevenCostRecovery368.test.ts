@@ -19,7 +19,12 @@ test('P7 recovers fixed MAERSK destination and WWL agent charges if contextual A
   assert.deepEqual(new Set(combined.filter(c => c.costType === 'Fixed').map(c => c.id)),
     new Set(['caldera-maersk-dest', 'caldera-maersk-doc', 'wwl-manejos']))
   assert.equal(combined.find(c => c.id === 'caldera-maersk-dest')?.saleAmount, 435)
-  assert.match(wizard, /costs.value = reconcileActiveCostCatalog\(bundle.applicable, allCosts.value\)/)
+  const fallback = reconcileActiveCostCatalog(contextual, active, cost => cost.costType !== 'Optional')
+  assert.equal(fallback.length, 4) // exactly the 1 contracted optional plus 3 fixed.
+  const noOptional = reconcileActiveCostCatalog([], active, cost => cost.costType !== 'Optional')
+  assert.deepEqual(new Set(noOptional.map(cost => cost.id)),
+    new Set(['caldera-maersk-dest', 'caldera-maersk-doc', 'wwl-manejos']))
+  assert.match(wizard, /costs.value = reconcileActiveCostCatalog\([\s\S]*?cost => cost.costType !== 'Optional'/)
   assert.match(wizard, /\.filter\(applicableCost\)/)
 })
 

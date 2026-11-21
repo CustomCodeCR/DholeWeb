@@ -1147,6 +1147,10 @@ export interface BrowseCostsQuery extends Record<string, unknown> {
   shipmentMode?: ShipmentMode | null
   applicableToContext?: boolean | null
   serviceIds?: string | null
+  containerTypeId?: string | null
+  weightKg?: number | null
+  packages?: number | null
+  storageDays?: number | null
 }
 
 export interface BrowseImportRatesQuery extends Record<string, unknown> {
