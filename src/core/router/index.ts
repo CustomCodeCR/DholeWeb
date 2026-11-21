@@ -106,6 +106,20 @@ export const router = createRouter({
             requiredScope: 'operations.case.read' },
         },
         {
+          path: 'operations/cases/new',
+          name: 'operations-case-create',
+          component: () => import('@/modules/operations/views/OperationsManualCreateView.vue'),
+          meta: { tabTitle: 'Nueva apertura manual', closable: true,
+            requiredScope: 'operations.case.create' },
+        },
+        {
+          path: 'operations/cases/:id/edit',
+          name: 'operations-case-edit',
+          component: () => import('@/modules/operations/views/OperationsManualCreateView.vue'),
+          meta: { tabTitle: 'Modificar apertura', closable: true,
+            requiredScope: 'operations.case.update' },
+        },
+        {
           path: 'operations/cases/:id',
           name: 'operations-case-detail',
           component: () => import('@/modules/operations/views/OperationsCaseDetailView.vue'),
