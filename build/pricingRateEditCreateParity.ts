@@ -128,7 +128,7 @@ function patchWizard(source: string) {
     'edit hydration and screen 7 guards',
   )
 
-  const pickupPersistenceAnchor = `  if (editingRate.value && !props.viewOnly) {\n    // Re-query immediately before saving so changes made in Costos y recargos while\n    // this quote was open are applied only to the linked detail that actually changed.`
+  const pickupPersistenceAnchor = `  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {`
   code = replaceOne(
     code,
     pickupPersistenceAnchor,

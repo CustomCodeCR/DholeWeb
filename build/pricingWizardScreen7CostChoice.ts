@@ -44,7 +44,9 @@ const screen7RequiresConfirmation = computed(() => Boolean(props.rateId) && !pro
   // Pantalla 7 dispone del botón explícito "Actualizar desde la base de datos".
   // Si el operador decidió conservar o editar líneas, enviar exactamente esos valores.
   const saveSync = '    await loadApplicableCosts()\\n    syncPersistedLinesWithChangedConfiguredCosts()'.replace('\\n', '\n')
-  code = replaceOnce(code, saveSync,
+  // The source wizard already preserves persisted amounts after the DH-380 patch.
+  // Keep compatibility when this old automatic-sync anchor is no longer present.
+  if (code.includes(saveSync)) code = replaceOnce(code, saveSync,
     '    // Se mantienen los valores editados del snapshot; solo refrescar por acción expresa.',
     'edit save must not overwrite existing charges')
 

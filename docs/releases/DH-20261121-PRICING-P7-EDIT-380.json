@@ -1,0 +1,30 @@
+{
+  "releaseId": "DH-20261121-PRICING-P7-EDIT-380",
+  "date": "2026-11-21",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.108.13",
+  "status": "candidate-ci-staging-pending",
+  "components": {
+    "DholeWeb": {
+      "previous": "1.108.12",
+      "next": "1.108.13"
+    },
+    "DholePricingService": {
+      "previous": "1.26.12",
+      "next": "1.26.13"
+    }
+  },
+  "changes": [
+    "Seguro de carga en creación",
+    "Sin líneas variables monetarias ficticias",
+    "Edición conserva costos y ventas guardados",
+    "Resumen y persistencia en orden de P7",
+    "Costos unificados por wizard-bundle"
+  ],
+  "validation": {
+    "build": "pending",
+    "tests": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  }
+}

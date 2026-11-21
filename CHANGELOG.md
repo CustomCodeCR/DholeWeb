@@ -1,3 +1,11 @@
+## [1.108.13] - 2026-11-21 (DH-20261121-PRICING-P7-EDIT-380 · seguro, edición y resumen de líneas)
+
+- PATCH: respeta Seguro de carga solicitado mediante valor declarado o servicio, desde la creación y no solamente tras modificar.
+- PATCH: elimina fallbacks monetarios de recolecta/origen con costo y venta en cero que no proceden del catálogo ni de una selección manual.
+- PATCH: no revaloriza RateDetails ya guardados al abrir o guardar una modificación; conserva valores y IDs originales.
+- PATCH: presenta y persiste las líneas completas en el mismo orden de grupos de la pantalla 7.
+- Coordinado con DholePricingService 1.26.13 y manifiesto de release 1.108.13; pendiente de pruebas CI/staging.
+
 ## [1.108.12] - 2026-11-21 (DH-20261121-FOB-EXPORT-FREIGHT-379 · cargos por Incoterm del cliente)
 
 - PATCH: corrige FOB + Exportación en P7. La reconciliación FCL marcaba manual=true e included=true a fletes por contenedor creados por el sistema; por eso escapaban la protección y aparecían por USD 5.500 sin acuerdo explícito.
