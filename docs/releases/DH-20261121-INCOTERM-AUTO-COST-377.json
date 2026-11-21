@@ -16,11 +16,10 @@
     },
     "DholePricingService": {
       "from": "1.26.11",
-      "to": "1.26.11",
-      "unchanged": true
+      "to": "1.26.12"
     }
   },
-  "scope": "Auto-inclusive new quote rows are suppressed in red/other-party categories; user may explicitly quote them; manual and historical rows remain intact",
+  "scope": "Auto-inclusive new quote rows are suppressed in red/other-party categories; user may explicitly quote them; manual and historical rows remain intact; backend CreateRate respects explicit Freight selection (no imported freight if none sent)",
   "ci": "pending",
   "staging": "pending"
 }

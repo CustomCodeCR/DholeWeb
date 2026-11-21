@@ -3,8 +3,8 @@
 - PATCH: la pantalla 7 ya no incluye automáticamente en una cotización nueva líneas de categorías atribuidas normalmente a la otra parte según Incoterm + Import/Export. El coste sigue en catálogo (Pricing /wizard-bundle) pero queda fuera de Totales, PDF y POST salvo contratación explícita.
 - Cuando una categoría esté en rojo, «Agregar servicio fuera del Incoterm» permite examinar candidatos y pulsar «Cotizar por acuerdo» por cargo, conservando importes originales sin inventar descuentos. La selección explícita queda limitada al contexto exacto de ruta/cliente/Incoterm y no arrastra aprobaciones entre alternativas.
 - Rubros manuales o RateDetail persistidos NO se ocultan ni se eliminan: se respeta la integridad P0 de modificaciones. Opcionales seleccionados expresamente también se permiten. Categorías mixtas permanecen disponibles y requieren revisión por tramo.
-- El guard de inclusión se aplica tras las transformaciones Vite, en el estado reactivo real: el color rojo ya no es meramente visual. No altera costos maestros, API, backend, SignalR ni base de datos.
-- DholeWeb y DholeSystem 1.108.9 → 1.108.10, DholePricingService se mantiene 1.26.11. Desarrollo/staging tras CI; sin autorización de master/producción.
+- El guard de inclusión se aplica tras las transformaciones Vite, en el estado reactivo real: el color rojo ya no es meramente visual. No altera costos maestros, contratos REST, SignalR ni base de datos; el backend Pricing incluye el guard de flete importado solicitado explícitamente.
+- DholeWeb y DholeSystem 1.108.9 → 1.108.10, DholePricingService 1.26.11 → 1.26.12 (CreateRate no agrega flete importado si P7 no lo incluye). Desarrollo/staging tras CI; sin autorización de master/producción.
 
 ## [1.108.9] - 2026-11-21 (DH-20261121-INCOTERM-RUNTIME-376 · recuperación del wizard Pricing)
 
