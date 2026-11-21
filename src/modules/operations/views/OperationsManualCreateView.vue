@@ -15,6 +15,8 @@ const existingVersion = ref(0)
 const canEdit = ref(false)
 const auth = useAuthStore()
 const companyId = ref('')
+const canInitialize = computed(() => auth.hasScope('operations.team.manage'))
+const initializing = ref(false)
 const accountId = ref('')
 const accountSearch = ref('')
 const accounts = ref<CrmAccountOption[]>([])
@@ -84,6 +86,9 @@ const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
   if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
+  if (!form.value.pol.trim()) result.push('POL / lugar de origen')
+  if (!form.value.pod.trim()) result.push('POD / lugar de destino')
+  if (!form.value.incoterm.trim()) result.push('Incoterm')
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
@@ -109,6 +114,19 @@ async function loadContext() {
     if (!companyId.value) error.value = 'El servicio no pudo resolver la empresa operativa. Configure Operations antes de crear el expediente.'
   } catch (cause) { error.value = cause instanceof Error ? cause.message : 'No fue posible resolver el contexto.' }
   finally { loading.value = false }
+}
+async function initializeWorkspace() {
+  if (!canInitialize.value || initializing.value) return
+  initializing.value = true
+  error.value = ''
+  try {
+    await operationsApi.initializeTeams()
+    companyId.value = (await operationsApi.createContext()).companyId || ''
+    if (!companyId.value)
+      error.value = 'El catálogo se inicializó, pero no se identificó la empresa operativa.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo inicializar Operaciones.'
+  } finally { initializing.value = false }
 }
 async function save() {
   if (!valid.value || saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
@@ -201,6 +219,10 @@ onUnmounted(() => { clearTimeout(accountTimer) })
       </template>
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-500">{{ error }}</div>
+    <DhCard v-if="!companyId && canInitialize && !editingId" title="Configuración inicial de Operaciones" subtitle="Solo para administradores autorizados.">
+      <p class="mb-3 text-sm text-[var(--dh-text-muted)]">No se ha resuelto la empresa operativa. Puede inicializar el catálogo de equipos existente sin crear usuarios ni permisos adicionales.</p>
+      <DhButton variant="secondary" label="Inicializar equipos" :loading="initializing" @click="initializeWorkspace" />
+    </DhCard>
     <DhCard title="Identificación y cliente" subtitle="El consecutivo IDTRA se asigna automáticamente desde PostgreSQL. No se captura ni configura en el navegador.">
       <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div class="space-y-2 lg:col-span-2">
