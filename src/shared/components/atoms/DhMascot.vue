@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
         :controlled-expressions="true"
         :transparent-backdrop="true"
       />
-      <DhMascotAccessory :kind="mascot.accessory" />
+      <DhMascotAccessory :kinds="mascot.accessories" />
     </button>
     <div
       class="pointer-events-none absolute left-1/2 top-[74px] flex w-max max-w-[210px] -translate-x-1/2 flex-col items-center text-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
