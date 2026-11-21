@@ -1,3 +1,12 @@
+## [1.110.0] - 2026-11-21 · DH-20261121-OPERATIONS-OPENING-IDTRA-392 (candidato develop)
+
+- MINOR: creación manual de expedientes desde Trámites usa una pantalla completa (ya no modal), con edición posterior por ruta propia; captura datos de cliente CRM, ruta POL/POE/POD, Incoterm, transporte, mercancía, peso, volumen, carga IMO, recolecta, WHS, proveedores, equipo múltiple, servicios y observaciones.
+- El IDTRA deja de pedir serie manual. El backend genera consecutivo global IDTRA00001, IDTRA12345, IDTRA100000, etc., a partir de contador transaccional PostgreSQL, sin techo de seis cifras.
+- La ficha extendida del expediente presenta datos operativos capturados y distingue borradores incompletos de validaciones. Modificaciones usan control de versión, ACL de la etapa Aperturas y Outbox/SignalR.
+- Web/System 1.109.3 → 1.110.0 y Operations 0.14.0 → 0.15.0. Se preserva el release DH-391 de Pricing y sus costos, sin modificar tarifas existentes.
+- Apertura automática desde aceptación definitiva de Pricing permanece pendiente; igual que los selects integrados con todos los catálogos de CRM/SRM. No se declaran como implementados.
+- CI/staging pendientes. Sin despliegue productivo autorizado.
+
 ## [1.109.3] - 2026-11-21 · DH-20261121-P7-COSTS-391 (candidato develop)
 
 - PATCH: en LTL Panamá → Costa Rica, muestra las cuatro líneas del catálogo por POE/POD múltiples y tramos reales WeightKg, incluida Gastos 0/0 cuando el tramo lo determina; respeta FCA y los CostIds.

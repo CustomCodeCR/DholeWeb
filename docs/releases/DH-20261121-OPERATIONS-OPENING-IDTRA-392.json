@@ -1,0 +1,36 @@
+{
+  "releaseId": "DH-20261121-OPERATIONS-OPENING-IDTRA-392",
+  "date": "2026-11-21",
+  "type": "MINOR",
+  "globalVersion": "1.110.0",
+  "components": [
+    {
+      "component": "DholeWeb",
+      "previous": "1.109.3",
+      "next": "1.110.0"
+    },
+    {
+      "component": "DholeOperationsService",
+      "previous": "0.14.0",
+      "next": "0.15.0"
+    },
+    {
+      "component": "DholeSystem",
+      "previous": "1.109.3",
+      "next": "1.110.0"
+    }
+  ],
+  "changes": [
+    "Remove manual IDTRA series; use PostgreSQL global counter",
+    "Full-screen manual opening and detail/edit routes",
+    "Store cargo, equipment, services and logistics metadata in operations-owned JSONB",
+    "Retain historic case IDs, protect Pricing data and enforce versioned updates"
+  ],
+  "knownGaps": [
+    "Automatic accepted QUO event and snapshot remain unimplemented",
+    "CRM contacts/divisions and SRM provider selectors still require contract integration",
+    "Comprehensive completeness rules and production UAT remain pending"
+  ],
+  "productionAuthorized": false,
+  "stagingVerified": false
+}
