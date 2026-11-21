@@ -2418,6 +2418,68 @@ function haulageAssociation(line: { name: string }) {
   return null
 }
 
+// An Incoterm excludes AUTOMATIC BILLING, not the supplier catalog or a
+// separately contracted service. Approval is scoped to the active POE, carrier,
+// client, services and Incoterm; switching context cannot reuse that approval.
+const explicitlyQuotedOutsideIncoterm = ref(new Set<string>())
+const expandedOutsideIncotermGroups = ref(new Set<string>())
+const outsideIncotermScopeKey = (line: RateLine) =>
+  [activeCostContextKey(), operationType.value, selectedIncotermCode.value, line.key].join('||')
+
+function isAutomaticOutsideIncoterm(line: RateLine) {
+  if (props.rateId || editingRate.value || line.detailId || line.manual) return false
+  const section = line.costDetailType === 'Insurance' ? 'insurance'
+    : line.costDetailType === 'AgentCharge' ? 'agent' : line.section
+  return incotermSectionApplicability(
+    operationType.value, selectedIncotermCode.value, section,
+  ) === 'other-party'
+}
+
+function rememberExplicitOutsideIncoterm(line: RateLine, selected: boolean) {
+  const updated = new Set(explicitlyQuotedOutsideIncoterm.value)
+  const key = outsideIncotermScopeKey(line)
+  if (selected) updated.add(key)
+  else updated.delete(key)
+  explicitlyQuotedOutsideIncoterm.value = updated
+}
+
+function applyIncotermAutomaticChargeGuard() {
+  if (step.value !== 7 || props.rateId || editingRate.value) return
+  for (const line of rateLines.value) {
+    if (!line.included || !isAutomaticOutsideIncoterm(line)) continue
+    if (!explicitlyQuotedOutsideIncoterm.value.has(outsideIncotermScopeKey(line))) {
+      line.included = false
+    }
+  }
+}
+
+function outsideIncotermCandidateLines(groupKey: string) {
+  const categories: Record<string, RateSection | 'insurance'> = {
+    pickup: 'pickup_origin', origin: 'origin_charges',
+    freight: 'international_freight', destination: 'destination_charges',
+    insurance: 'insurance', delivery: 'delivery_destination',
+  }
+  const section = categories[groupKey]
+  if (!section || categoryIncotermApplicability(groupKey) !== 'other-party'
+    || props.rateId || editingRate.value) return [] as RateLine[]
+  return rateLines.value.filter(line =>
+    !line.included && isAutomaticOutsideIncoterm(line)
+    && (line.costDetailType === 'Insurance' ? 'insurance' : line.section) === section)
+}
+
+function toggleOutsideIncotermGroup(groupKey: string) {
+  const updated = new Set(expandedOutsideIncotermGroups.value)
+  if (updated.has(groupKey)) updated.delete(groupKey)
+  else updated.add(groupKey)
+  expandedOutsideIncotermGroups.value = updated
+}
+
+function quoteOutsideIncotermByAgreement(line: RateLine) {
+  if (!isAutomaticOutsideIncoterm(line)) return
+  rememberExplicitOutsideIncoterm(line, true)
+  line.included = true
+}
+
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
     if (line.costDetailType === 'Insurance' && shipmentModeForApi.value !== 'Ltl') return false
@@ -2458,7 +2520,11 @@ const selectedOptionalChargeKeys = computed<string[]>({
     rateLines.value.forEach((line) => {
       if (!line.optional) return
       const selectable = selectableOptionalLines.value.some((candidate) => candidate.key === line.key)
-      line.included = selectable && selected.has(line.key)
+      const manuallyChosen = selectable && selected.has(line.key)
+      if (isAutomaticOutsideIncoterm(line)) {
+        rememberExplicitOutsideIncoterm(line, manuallyChosen)
+      }
+      line.included = manuallyChosen
     })
   },
 })
@@ -6885,6 +6951,16 @@ watch(
   { flush: 'sync' },
 )
 
+// Reconcile *new* automatically generated costs after every Vite-transform or
+// route hydration. Persisted and manually quoted RateDetail rows are exempt.
+// This guard controls inclusion/POST totals, not just red visual categories.
+watch(
+  () => [step.value, operationType.value, selectedIncotermCode.value,
+    rateLines.value.map(line => `${line.key}:${line.included ? 1 : 0}`).join('|')],
+  () => applyIncotermAutomaticChargeGuard(),
+  { flush: 'pre' },
+)
+
 watch(
   () => selectedIncotermCode.value,
   () => {
@@ -8436,6 +8512,14 @@ onMounted(async () => {
                 <p v-else-if="categoryIncotermApplicability(group.key) === 'mixed'" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
                   Responsabilidad según tramo, lugar y acuerdo; confirme cada cargo antes de facturar.
                 </p>
+                <button
+                  v-if="outsideIncotermCandidateLines(group.key).length > 0"
+                  type="button"
+                  class="mt-2 rounded-lg border border-red-500/50 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300"
+                  @click="toggleOutsideIncotermGroup(group.key)"
+                >
+                  {{ expandedOutsideIncotermGroups.has(group.key) ? 'Ocultar disponibles' : 'Agregar servicio fuera del Incoterm' }}
+                </button>
               </div>
               <div v-if="group.lines.length > 0" class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
                 <DhInput
@@ -8452,8 +8536,23 @@ onMounted(async () => {
                 </DhButton>
               </div>
             </div>
-            <p v-if="group.lines.length === 0" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
-              Sin cargos configurados para {{ group.label.toLowerCase() }} en esta ruta. Solo se facturarán servicios que se seleccionen o agreguen expresamente.
+            <div
+              v-if="expandedOutsideIncotermGroups.has(group.key) && outsideIncotermCandidateLines(group.key).length"
+              class="space-y-2 rounded-xl border border-red-500/30 p-3"
+            >
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                Costos disponibles en Pricing; ninguno se incluye hasta que seleccione «Cotizar por acuerdo».
+              </p>
+              <div v-for="candidate in outsideIncotermCandidateLines(group.key)" :key="candidate.key"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+                <span class="font-semibold">{{ candidate.name }} · {{ candidate.currencyCode }} · Costo {{ number(candidate.costAmount) }} / Venta {{ number(candidate.saleAmount) }}</span>
+                <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 font-bold"
+                  @click="quoteOutsideIncotermByAgreement(candidate)">Cotizar por acuerdo</button>
+              </div>
+            </div>
+            <p v-if="group.lines.length === 0 && !outsideIncotermCandidateLines(group.key).length"
+              class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Sin cargos incluidos para {{ group.label.toLowerCase() }} en esta ruta. Puede agregar un rubro manual si fue contratado expresamente.
             </p>
             <div
               v-for="line in group.lines"
