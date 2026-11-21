@@ -3592,8 +3592,8 @@ function currentPreferentialContext(serviceCodes = selectedServices.value.map(it
 
 let applicableCostRequestSerial = 0
 async function loadApplicableCosts(): Promise<boolean> {
-  const requestContext = activeCostContextKey()
   const serial = ++applicableCostRequestSerial
+  const requestContext = activeCostContextKey()
   try {
     const bundle = await PricingService.selectWizardCosts({
       carrierId: form.carrierId || undefined,
