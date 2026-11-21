@@ -147,7 +147,13 @@ function patchWizard(source: string) {
       '  }',
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const before = assignment + '\n' + afterAssignment
+    // DH-381 stores the tier fingerprint immediately after rateLines assignment.
+    // The LTL optional-price transform must keep this marker when rearranging lines.
+    const tierMarker = '  lastTierPricingInputKey.value = tierPricingInputKey'
+    const intermediate = code.includes(assignment + '\n' + tierMarker + '\n' + afterAssignment)
+      ? tierMarker + '\n'
+      : ''
+    const before = assignment + '\n' + intermediate + afterAssignment
     const keepOptionals = [
       "  const previousLtlOptionals = shipmentModeForApi.value === 'Ltl'",
       '    ? rateLines.value.filter((line) => line.optional',
@@ -174,7 +180,7 @@ function patchWizard(source: string) {
       '  }',
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const after = keepOptionals + '\n' + assignment + '\n' + restoreOptionals
+    const after = keepOptionals + '\n' + assignment + '\n' + intermediate + restoreOptionals
     code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
 
   }
