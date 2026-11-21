@@ -1,3 +1,11 @@
+## [1.108.14] - 2026-11-21 (DH-20261121-PRICING-TIERS-381 · cálculo de tramos en cotizaciones)
+
+- PATCH: las tarjetas de costos/ventas de agente en P6 calculan cada importe desde pricingRulesJson para el tipo de contenedor, peso o bultos seleccionado; no presentan los ceros de la cabecera del catálogo.
+- PATCH: la actualización explícita de costos en una cotización existente compara y aplica el tramo resuelto, nunca los ceros base. Continúa respetando las ediciones del snapshot y los CostIds persistidos.
+- PATCH: al cambiar equipo, cantidad, peso, bultos, pallets o días de almacenaje, P7 vuelve a calcular los costos con tramos sin sobrescribir otras líneas ya editadas.
+- Regresión automatizada con bandas 20DV (670/705) y 40HC (740/780). Sin modificación de datos maestros, contratos REST, base de datos o SignalR.
+- Versión global Dhole 1.108.14 y DholeWeb 1.108.14; DholePricingService permanece 1.26.13. Integración solo a develop tras CI y validación de staging; master/producción pendientes de autorización.
+
 ## [1.108.13] - 2026-11-21 (DH-20261121-PRICING-P7-EDIT-380 · seguro, edición y resumen de líneas)
 
 - PATCH: respeta Seguro de carga solicitado mediante valor declarado o servicio, desde la creación y no solamente tras modificar.

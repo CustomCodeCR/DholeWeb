@@ -361,6 +361,9 @@ const pricingQuoteOperationOverride = ref<RateOperationType | ''>('')
 const showCommercialOperationControls = ref(false)
 // Only preserve edited P7 lines when the commercial cost context still matches.
 const lastIncotermRateLinesContextKey = ref('')
+// Tracks the cargo inputs used to price tiered catalog rows. Route-only cache keys
+// must not preserve a previous 20DV/weight/parcel price after these inputs change.
+const lastTierPricingInputKey = ref('')
 const lastIncotermRateLinesRouteKey = ref('')
 const resolvedCountryClientId = ref('')
 const step = ref(1)
@@ -2640,11 +2643,13 @@ const providerAgentCosts = computed(() =>
     cost.costDetailType === 'AgentCharge' && cost.costType !== 'Optional',
   ),
 )
+// A tiered cost deliberately stores zero as the master/header amount. The
+// selected cargo/container determines its effective price in pricingRulesJson.
 const providerAgentCost = computed(() =>
-  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.costAmount), 0),
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(resolvedConditionalCost(cost)?.costAmount), 0),
 )
 const providerAgentSale = computed(() =>
-  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.saleAmount), 0),
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(resolvedConditionalCost(cost)?.saleAmount), 0),
 )
 // Keep both screens synchronized without changing the input signatures
 // that the existing LCL/FCL/LTL/customs Vite plugins patch at build time.
@@ -3692,6 +3697,11 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
 
     const configured = resolveCurrentConfiguredCost(line)
     if (!configured) return
+    // Never compare or copy the zero-valued header of a configured tiered cost.
+    // Resolve the currently selected rule, while the user's edited snapshot
+    // remains protected by persistedRateLineBaselines above.
+    const resolvedConfiguredAmount = resolvedConditionalCost(configured)
+    if (!resolvedConfiguredAmount) return
 
     const persisted = line.detailId
       ? persistedById.get(line.detailId)
@@ -3713,8 +3723,8 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
       persisted.chargeBasis !== configuredChargeBasis ||
       persisted.currencyId !== configured.currencyId ||
       persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase() ||
-      number(persisted.costAmount) !== number(configured.costAmount) ||
-      number(persisted.saleAmount) !== number(configured.saleAmount) ||
+      number(persisted.costAmount) !== number(resolvedConfiguredAmount.costAmount) ||
+      number(persisted.saleAmount) !== number(resolvedConfiguredAmount.saleAmount) ||
       persistedNotes !== configuredNotes
 
     if (!catalogChanged) return
@@ -3731,8 +3741,8 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
     line.currencyName = configured.currencyName
     line.currencyCode = configured.currencyCode
     line.amountCurrencyCode = configured.currencyCode
-    line.costAmount = number(configured.costAmount)
-    line.saleAmount = number(configured.saleAmount)
+    line.costAmount = number(resolvedConfiguredAmount.costAmount)
+    line.saleAmount = number(resolvedConfiguredAmount.saleAmount)
     line.optional = configured.costType === 'Optional'
     line.manual = false
 
@@ -3839,13 +3849,21 @@ function rebuildRateLines() {
   const currentContext = activeCostContextKey()
   const routeKey = currentRateLineRouteKey()
   const sameContext = lastIncotermRateLinesContextKey.value === currentContext
+  const tierPricingInputKey = JSON.stringify([
+    form.equipmentId, form.equipmentQuantity, form.cargoWeightKg,
+    form.cargoPackages, form.cargoPallets, form.storageDays,
+  ])
+  const sameTierInputs = lastTierPricingInputKey.value === tierPricingInputKey
   const previousOptionLines = !props.rateId
     && lastIncotermRateLinesRouteKey.value === routeKey
     // Screen 6 edits the source freight fields. Never let a stale P7 snapshot
     // overwrite the current 40HC cost/sale when returning with Continue.
     // Non-freight P7 edits are retained for the same commercial context.
     ? copyPoeLines(rateLines.value).filter(line =>
-        line.costDetailType !== 'Freight' ? (sameContext || line.manual) : step.value !== 6 && sameContext)
+        line.costDetailType !== 'Freight' ? (sameContext || line.manual) && (
+          sameTierInputs || line.manual || !costs.value.some(cost =>
+            cost.id === line.costId && Boolean(cost.pricingRulesJson))
+        ) : step.value !== 6 && sameContext)
     : []
   // Do not recreate standard-priced lines if a CRM commercial agreement could not be verified.
   if (customerPreferentialError.value && !props.rateId) return
@@ -4087,6 +4105,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   restoreCurrentInland()
   lastIncotermRateLinesContextKey.value = currentContext
   lastIncotermRateLinesRouteKey.value = routeKey
+  lastTierPricingInputKey.value = tierPricingInputKey
 }
 
 function ensureProviderFreightOnScreenSeven() {

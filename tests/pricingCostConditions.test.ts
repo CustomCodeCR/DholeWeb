@@ -204,3 +204,37 @@ test('Active Pricing wizard persists corrected FCL pickup basis and recalculated
   assert.match(source, /chargeBasis: effectiveChargeBasisForLine\(line\)/)
   assert.match(source, /quantity: quantityForRateLine\(line\)/)
 })
+
+
+test('tiered master header zero resolves 20DV and 40HC costs without changing stored rules', () => {
+  const origin = makeCost(json([
+    { dimension: 'ContainerType', minValue: null, maxValue: null, containerTypeId: '20dv', costAmount: 670, saleAmount: 705, calculationMode: 'Flat' },
+    { dimension: 'ContainerType', minValue: null, maxValue: null, containerTypeId: '40hc', costAmount: 740, saleAmount: 780, calculationMode: 'Flat' },
+  ]))
+  origin.costAmount = 0
+  origin.saleAmount = 0
+  assert.deepEqual(resolveCostPricing(origin, { containerTypeId: '20dv' }), { costAmount: 670, saleAmount: 705 })
+  assert.deepEqual(resolveCostPricing(origin, { containerTypeId: '40hc' }), { costAmount: 740, saleAmount: 780 })
+  assert.deepEqual(resolveCostPricing(origin, { containerTypeId: 'unmatched' }), null)
+  assert.equal(origin.costAmount, 0, 'do not mutate the tiered master record')
+})
+
+test('screen 6 summary and persisted refresh resolve cost tiers instead of header zero', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /providerAgentCosts\\.value\\.reduce\\(\\(sum, cost\\) => sum \\+ number\\(resolvedConditionalCost\\(cost\\)\\?\\.costAmount\\)/)
+  assert.match(source, /providerAgentCosts\\.value\\.reduce\\(\\(sum, cost\\) => sum \\+ number\\(resolvedConditionalCost\\(cost\\)\\?\\.saleAmount\\)/)
+  assert.match(source, /const resolvedConfiguredAmount = resolvedConditionalCost\\(configured\\)/)
+  assert.match(source, /line\\.costAmount = number\\(resolvedConfiguredAmount\\.costAmount\\)/)
+  assert.match(source, /line\\.saleAmount = number\\(resolvedConfiguredAmount\\.saleAmount\\)/)
+  assert.doesNotMatch(source, /line\\.costAmount = number\\(configured\\.costAmount\\)/)
+  assert.doesNotMatch(source, /line\\.saleAmount = number\\(configured\\.saleAmount\\)/)
+})
+
+test('screen 7 regenerates tiered rows after equipment and cargo context changes without resetting other edited charges', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /const tierPricingInputKey = JSON\\.stringify\\(\\[/)
+  assert.match(source, /form\\.equipmentId, form\\.equipmentQuantity, form\\.cargoWeightKg/)
+  assert.match(source, /form\\.cargoPackages, form\\.cargoPallets, form\\.storageDays/)
+  assert.match(source, /sameTierInputs \\|\\| line\\.manual \\|\\| !costs\\.value\\.some\\(cost =>/)
+  assert.match(source, /lastTierPricingInputKey\\.value = tierPricingInputKey/)
+})
