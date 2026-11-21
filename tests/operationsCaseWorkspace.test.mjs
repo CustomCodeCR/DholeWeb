@@ -6,9 +6,9 @@ const source = path => readFileSync(new URL('../' + path, import.meta.url), 'utf
 
 test('Trámites is the single entry point for manual creation and searchable cases', () => {
   const cases = source('src/modules/operations/views/OperationsCasesView.vue')
-  const modal = source('src/modules/operations/components/OperationsManualCreateModal.vue')
+  const modal = source('src/modules/operations/components/OperationsManualCreateView.vue')
   const router = source('src/core/router/index.ts')
-  assert.match(cases, /<OperationsManualCreateModal/)
+  assert.match(cases, /name: 'operations-case-create'/)
   assert.match(cases, /<DhDrawer/)
   assert.match(cases, /operationsApi\.cases\(page\.value/)
   assert.match(cases, /Buscar IDTRA, QUO o modalidad/)
