@@ -596,7 +596,7 @@ async function applyScreen7DatabaseCosts() {
       if (line.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const original = previousByKey.get(screen7CostLineKey(line))
       // A catalog rebuild is not consent to insert an extra quote charge.
-    if (!original && line.costDetailType !== 'Freight') continue
+    if (props.rateId && !original && line.costDetailType !== 'Freight') continue
       const configured = line.costId ? catalogById.get(line.costId) : undefined
       const refreshedLine = configured ? screen7CatalogRateLine(configured, original ?? line) : null
       if (refreshedLine) {
@@ -639,7 +639,7 @@ async function applyScreen7DatabaseCosts() {
       // Updating amounts on the same saved quote never adds newly eligible Costs.
       // Even after an Incoterm or route change, only an explicitly added line
       // may create a new CostId in a persisted quotation.
-      if (!previous.some((line) => line.costId === cost.id)) continue
+      if (props.rateId && !previous.some((line) => line.costId === cost.id)) continue
       if (cost.isActive === false || cost.costDetailType === 'Freight') continue
       if (!visibleSections.value.includes(sectionForCost(cost))
           && !previous.some((line) => line.costId === cost.id)) continue
