@@ -1,3 +1,10 @@
+## [1.110.2] - 2026-11-21 · DH-20261121-PRICING-LAST-THREE-FIXES-394 (candidate develop)
+
+- PATCH: El flete internacional terrestre Panamá → Costa Rica se conserva como segunda línea Freight independiente del flete marítimo en FCL multimodal; no se descarta cuando Pantalla 7 reconstruye líneas.
+- PATCH: LTL conecta POL comercial Colón Free Zone con el POE físico del maestro sin exigir el mismo ID entre catálogos; se incluyen Flete, Bunker, Gastos y Custodia + Marchamo según WeightKg y servicio.
+- PATCH: LCL Miami repone conceptos comerciales SED/Manejos/VGM/TICA/Marchamo/Documentación/Forwarding y seguro aplicable, sin duplicar filas presentes del consolidado y sin modificar precios históricos.
+- PricingService 1.26.21, DholeSystem 1.110.2. Pruebas de regresión añadidas; CI y staging por verificar.
+
 ## [1.110.1] - 2026-11-21 · DH-20261121-PRICING-TRANCHE-MIAMI-PANAMA-393 (candidato develop)
 
 - PATCH: Pantalla 7 de FCL Multimodal encuentra el tramo internacional terrestre aunque el maestro esté clasificado InlandTransport/FTL; conserva el flete marítimo y usa la regla oficial USD 2140 para Panamá → GAM únicamente si falta el maestro aplicable.
