@@ -52,6 +52,83 @@ const screen7RequiresConfirmation = computed(() => Boolean(props.rateId) && !pro
 
   const scriptEnd = '\n</script>'
   const script = String.raw`
+
+function restoreInitialRevisionDetails() {
+  if (!editingRate.value || props.viewOnly) return
+  const revision = [...rateRevisions.value].sort((a, b) => a.revisionNumber - b.revisionNumber)
+    .find(item => {
+      const snapshot = revisionSnapshotRecord(item)
+      return snapshot && revisionMatchesCurrentRate(snapshot, editingRate.value!)
+        && Array.isArray(snapshotField<unknown[]>(snapshot, 'Details', 'details'))
+    })
+  const snapshot = revision ? revisionSnapshotRecord(revision) : null
+  const originals = snapshot ? snapshotField<unknown[]>(snapshot, 'Details', 'details') : null
+  if (!revision || !Array.isArray(originals) || originals.length === 0) {
+    toastStore.warning('Sin revisión original compatible', 'No se encontró un historial con detalles para la ruta y proveedores actuales. No se modificó ninguna línea.')
+    return
+  }
+  const types: Record<number, string> = {
+    0: 'Other', 1: 'Freight', 2: 'OriginCharge', 3: 'DestinationCharge', 4: 'PortCharge',
+    5: 'CustomsCharge', 6: 'InlandTransport', 7: 'AgentCharge', 8: 'Documentation', 9: 'Insurance',
+  }
+  const kinds: Record<number, string> = { 0: 'Optional', 1: 'Fixed', 2: 'Variable' }
+  const bases: Record<number, string> = {
+    0: 'PerShipment', 1: 'PerContainer', 2: 'PerTruck', 3: 'PerTeu', 4: 'PerPickup',
+    10: 'PerCbm', 11: 'PerChargeableCbm', 12: 'PerCft', 13: 'PerChargeableCft',
+    20: 'PerKg', 21: 'Per100Kg', 22: 'PerTon', 23: 'PerLb', 30: 'PerPallet',
+    31: 'PerPackage', 40: 'PerDocument', 50: 'PerService',
+  }
+  const enumLabel = (value: unknown, choices: Record<number, string>, fallback: string) =>
+    typeof value === 'number' ? (choices[value] || fallback) : String(value ?? fallback)
+  const persistedIds = new Set(editingRate.value.rateDetails.map(detail => detail.id))
+  const restored: RateLine[] = []
+  for (const [index, entry] of originals.entries()) {
+    if (!entry || typeof entry !== 'object') break
+    const record = entry as Record<string, unknown>
+    const read = (key: string) => record[key] ?? record[key[0]!.toLowerCase() + key.slice(1)]
+    const historicId = String(read('Id') ?? '')
+    const detailId = persistedIds.has(historicId) ? historicId : null
+    const name = String(read('Name') ?? '').trim()
+    const currencyId = String(read('CurrencyId') ?? '')
+    const detailType = enumLabel(read('CostDetailType'), types, 'Other') as CostDetailType
+    const costType = enumLabel(read('CostType'), kinds, 'Variable') as CostType
+    const chargeBasis = enumLabel(read('ChargeBasis'), bases, 'PerShipment') as ChargeBasis
+    if (!name || !currencyId || !Number.isFinite(Number(read('CostAmount'))) || !Number.isFinite(Number(read('SaleAmount')))) break
+    // A deleted detail cannot reuse its historical RateDetail.Id. Reinsert
+    // its exact historical price as a manual snapshot; never take today's master.
+    const costId = detailId ? (String(read('CostId') ?? '') || null) : null
+    const currencyCode = String(read('CurrencyCode') ?? '')
+    restored.push({
+      key: detailId ? 'restored:' + detailId : 'rev:' + revision.revisionNumber + ':' + index,
+      detailId, costId, name, costDetailType: detailType, costType,
+      chargeBasis, section: sectionForDetail(detailType, name),
+      currencyId, currencyName: String(read('CurrencyName') ?? ''),
+      currencyCode, amountCurrencyCode: currencyCode,
+      costAmount: Number(read('CostAmount')), saleAmount: Number(read('SaleAmount')),
+      notes: read('Notes') == null ? null : String(read('Notes')),
+      billToClient: read('BillToClient') == null ? null : String(read('BillToClient')),
+      included: true, optional: costType === 'Optional', manual: !costId,
+      applyDestinationTax: Boolean(read('ApplyDestinationTax')),
+      destinationTaxRate: Number(read('DestinationTaxRate') ?? 0),
+    })
+  }
+  if (restored.length !== originals.length) {
+    toastStore.warning('Historial incompatible', 'Alguna línea original no tiene identidad, moneda o importes válidos. No se aplicó una restauración parcial.')
+    return
+  }
+  // Deletions are explicit, idempotent and carried in removedExtraDetailIds.
+  const keepIds = new Set(restored.map(line => line.detailId).filter((id): id is string => Boolean(id)))
+  explicitlyRemovedPersistedDetailIds.value = new Set(editingRate.value.rateDetails
+    .map(detail => detail.id).filter(id => !keepIds.has(id)))
+  removedScreen7LineKeys.value = []
+  rateLines.value = restored
+  const freight = restored.find(line => line.costDetailType === 'Freight')
+  if (freight) { form.freightCost = freight.costAmount; form.freightSale = freight.saleAmount }
+  screen7RefreshPromptOpen.value = false
+  toastStore.success('Revisión original preparada', restored.length + ' cargos de la revisión ' + revision.revisionNumber +
+    ' cargados. Revise los importes en Pantalla 7 y guarde la modificación para restaurarlos en Pricing.')
+}
+
 function screen7CostLineKey(line: RateLine) {
   // A persisted detail can have a different Vue key to an unsaved catalog row.
   return line.costId
@@ -385,6 +462,7 @@ async function applyScreen7DatabaseCosts() {
   const requestedContext = pricingDraftLineContextKey()
   screen7RefreshBusy.value = true
   screen7RefreshAllowed.value = true
+  if (typeof allowCatalogRefreshForSavedQuote !== 'undefined') allowCatalogRefreshForSavedQuote.value = true
   try {
     if (!selectedCurrency.value && catalogs.currencies.length === 0) {
       throw new Error('No se cargó la moneda de la cotización. Recargue los catálogos antes de actualizar.')
@@ -430,21 +508,14 @@ async function applyScreen7DatabaseCosts() {
       )
       return
     }
-    await loadApplicableCosts()
+    const bundleLoaded = await loadApplicableCosts()
+    if (bundleLoaded === false) throw new Error('Pricing no devolvió cargos aplicables para actualizar esta cotización.')
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
 
-    const isColoader = isLclColoaderAgentCostContext()
-    if (!isColoader) {
-      const optionalCosts = await loadAllApplicableOptionalCosts()
-      const merged = new Map(costs.value.map((cost) => [cost.id, cost]))
-      const contextKey = currentCostContextKey()
-      optionalCosts.forEach((cost) => {
-        merged.set(cost.id, { ...cost, __dholePricingContextKey: contextKey })
-      })
-      costs.value = [...merged.values()]
-    }
+    // Never append optional charges from a broad select on a saved quotation.
+    // The contextual wizard-bundle is the only source for an explicit refresh.
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
@@ -683,6 +754,7 @@ async function applyScreen7DatabaseCosts() {
     }
   } finally {
     screen7RefreshAllowed.value = false
+    if (typeof allowCatalogRefreshForSavedQuote !== 'undefined') allowCatalogRefreshForSavedQuote.value = false
     screen7RefreshBusy.value = false
   }
 }
@@ -741,6 +813,7 @@ watch(
           </div>
 `
   code = replaceOnce(code, stageAnchor, stageAnchor + '\n' + prompt, 'screen 7 confirmation')
+  code = replaceOnce(code, stageAnchor + '\n' + prompt, stageAnchor + '\n' + prompt + '\n' + "\n          <div v-if=\"screen7RequiresConfirmation && rateRevisions.length\"\n            class=\"rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-4 py-3\">\n            <p class=\"text-xs font-bold\">¿La cotización ya contiene líneas o montos incorrectos?</p>\n            <p class=\"mt-1 text-xs text-[var(--dh-text-muted)]\">\n              Cargue los cargos de la primera revisión histórica de la misma ruta. Esto solo prepara los valores;\n              para eliminar los detalles sobrantes y restaurar sus importes deberá guardar la modificación.\n            </p>\n            <DhButton type=\"button\" class=\"mt-3\" variant=\"secondary\" size=\"sm\" @click=\"restoreInitialRevisionDetails\">\n              Recuperar líneas de la revisión original\n            </DhButton>\n          </div>\n", 'restore original revision control')
   return code
 }
 

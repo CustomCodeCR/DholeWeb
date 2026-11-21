@@ -432,6 +432,7 @@ const pageDescription = computed(() => isEditing.value
 const costs = ref<CostSelectDto[]>([])
 const allCosts = ref<CostSelectDto[]>([])
 const rateLines = ref<RateLine[]>([])
+const allowCatalogRefreshForSavedQuote = ref(false)
 // The selected tier depends on cargo characteristics, not only the POE/carrier.
 // Never reuse a 20DV, weight, packages or extra-days value for a changed input.
 const lastTierPricingInputKey = ref('')
@@ -3596,7 +3597,7 @@ async function loadApplicableCosts(): Promise<boolean> {
   const serial = ++applicableCostRequestSerial
   const requestContext = activeCostContextKey()
   try {
-    if (props.rateId) return true // Existing quote: retain persisted RateDetail snapshot.
+    if (props.rateId && !allowCatalogRefreshForSavedQuote.value) return true // Only explicit refresh may fetch catalog
     const bundle = await PricingService.selectWizardCosts({
       carrierId: form.carrierId || undefined,
       agentId: form.agentId || undefined,
@@ -3643,7 +3644,7 @@ function rebuildRateLines() {
     form.cargoPackages, form.cargoPallets, form.storageDays,
   ])
   const sameTierInputs = lastTierPricingInputKey.value === tierPricingInputKey
-  if (props.rateId) return // Explicit edits only; never regenerate the snapshot.
+  if (props.rateId && !allowCatalogRefreshForSavedQuote.value) return // Saved quote rows are authoritative
   const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
     ? copyPoeLines(rateLines.value).filter(line =>
         sameTierInputs || line.manual || !costs.value.some(cost =>
@@ -3882,7 +3883,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
 
 function syncDeclaredCargoInsuranceOnEdit() {
   // Do not reconstruct persisted charge lines: their IDs and edited prices matter.
-  if (props.viewOnly || hydratingExistingRate.value || !editingRate.value) return
+  if (props.rateId || props.viewOnly || hydratingExistingRate.value || !editingRate.value) return
   const declaredValue = Math.max(0, number(form.cargoValue))
   const existing = rateLines.value.find((line) => line.costDetailType === 'Insurance')
   if (declaredValue <= 0) {

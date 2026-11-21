@@ -1,3 +1,9 @@
+## [1.108.17] - 2026-11-21 · DH-20261121-PRICING-P7-RESTORE-384
+
+- PATCH: Pantalla 7 envía la eliminación de líneas persistidas por RateDetailId; evita que reaparezcan.
+- PATCH: recupera los detalles de la primera revisión compatible sin modificar automáticamente la base; guarda nueva revisión solo al confirmar.
+- PATCH: habilita refresh explícito sin incluir opcionales de catálogos ajenos ni seguro automático.
+
 ## [1.108.16] - 2026-11-21 · DH-20261121-PRICING-P7-EDIT-SAFETY-383
 
 - PATCH: Edición de cotizaciones conserva las RateDetails originales sin regeneración de cargos 0/0, deduplicación ni inserción silenciosa de servicios aduanales.
