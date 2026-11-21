@@ -1,0 +1,27 @@
+{
+  "releaseId": "DH-20261121-INCOTERMS-MODIFICATIONS-MASTER-378",
+  "releaseType": "PATCH",
+  "target": "master",
+  "rebaseType": "selective-backport",
+  "versions": {
+    "DholeWeb": "1.108.10",
+    "DholePricingService": "1.26.12",
+    "DholeSystem": "1.108.10"
+  },
+  "scope": [
+    "Incoterms by transport",
+    "Contractual quote auto-inclusion",
+    "P0 persisted edit row safety",
+    "Compiled wizard runtime error regression"
+  ],
+  "previousMasterVersions": {
+    "DholeWeb": "1.107.5",
+    "DholePricingService": "1.26.9",
+    "DholeSystem": "1.107.5"
+  },
+  "productionDeploymentAuthorized": false,
+  "CI": "pending",
+  "authenticatedStaging": "pending",
+  "stagingReference": "develop",
+  "masterDeployment": "not-started"
+}

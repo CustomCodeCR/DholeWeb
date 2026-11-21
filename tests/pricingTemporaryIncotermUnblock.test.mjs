@@ -7,7 +7,7 @@ const wizard = read('../src/modules/pricing/components/PricingAlternativeWizardC
 const landTransform = read('../build/pricingFtlLandCostsFix.ts')
 const sellerTransform = read('../build/pricingSellerMultimodalStep3Fix.ts')
 
-test('all 11 Incoterms can reach the next screen without EXW/FCA-only location gates', () => {
+test('all 11 Incoterms para Marítimo y Multimodal can reach the next screen without EXW/FCA-only location gates', () => {
   assert.match(wizard, /const exwLocationReady = computed\(\(\) => true\)/)
   assert.match(wizard, /const fcaLocationReady = computed\(\(\) => true\)/)
   assert.match(wizard, /const sellerCargoConditionReady = computed\(\(\) => true\)/)
