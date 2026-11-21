@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261121-P7-COST-BUNDLE-372",
+  "version": "1.108.5",
+  "target": "develop",
+  "branch": "fix/DH-20261121-P7-COST-BUNDLE-372-develop",
+  "components": [
+    "DholeWeb",
+    "DholePricingService"
+  ],
+  "componentVersions": {
+    "DholeWeb": "1.108.5",
+    "DholePricingService": "1.26.10"
+  },
+  "productionAuthorized": false,
+  "changes": [
+    "One backend GET returns catalog and applicable costs, replacing multiple Pricing calls",
+    "Retain P6 freight and Inland through navigation",
+    "Report navigation blockers instead of silently doing nothing"
+  ],
+  "tests": [
+    "tests/pricingWizardCostBundle372.test.mjs",
+    "tests/pricingP7CatalogInlandMemory371.test.ts"
+  ],
+  "manualValidationPending": [
+    "Caldera–MAERSK/WWL 40HC first navigation P6 to P7",
+    "Merchant and Carrier choice stays and no costs duplicated",
+    "P8/P9 totals and PDF"
+  ],
+  "rollback": "Revert coordinated Pricing/Web release without touching master"
+}

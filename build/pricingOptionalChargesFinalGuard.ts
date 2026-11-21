@@ -145,15 +145,12 @@ function finalOptionalMatchesCurrentContext(cost: CostSelectDto) {
 }
 
 async function loadAllApplicableOptionalCosts() {
-  const optionalCosts = await PricingService.selectCosts({
-    costType: 'Optional',
-    isActive: true,
-  })
-
-  // Cargar todos los Optional que correspondan al contexto. Las condiciones de
-  // Pantalla 4 controlan la preselección mediante syncHaulageOptionalLines(),
-  // pero no deben impedir que el cargo exista en el selector de Pantalla 7.
-  return optionalCosts.filter(finalOptionalMatchesCurrentContext)
+  // The full active catalog was returned together with applicable costs in the
+  // single /wizard-bundle request. Reuse it instead of a second Optional GET.
+  // Keep P6/P7 selections and CostIds from the same backend snapshot.
+  return allCosts.value
+    .filter(cost => cost.costType === 'Optional' && cost.isActive !== false)
+    .filter(finalOptionalMatchesCurrentContext)
 }
 
 async function ensureAllApplicableOptionalCosts() {

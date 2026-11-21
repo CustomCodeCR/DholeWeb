@@ -329,19 +329,10 @@ async function loadApplicableCosts() {
     }
 
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
-    const [contextResult, fullCatalogResult] = await Promise.allSettled([
-      PricingService.selectCosts(contextualQuery),
-      maritimeFcl
-        ? PricingService.selectCosts({ isActive: true })
-        : Promise.resolve([] as CostSelectDto[]),
-    ])
-
-    if (contextResult.status === 'rejected' && (!maritimeFcl || fullCatalogResult.status === 'rejected')) {
-      throw contextResult.reason
-    }
-
-    const contextualCosts = contextResult.status === 'fulfilled' ? contextResult.value : []
-    const fullCatalog = fullCatalogResult.status === 'fulfilled' ? fullCatalogResult.value : []
+    // One server snapshot replaces separate active/contextual requests.
+    const bundle = await PricingService.selectWizardCosts(contextualQuery)
+    const contextualCosts = bundle.applicable
+    const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
     // The contextual API may reject a valid multi-port entry because PortId/
@@ -362,6 +353,11 @@ async function loadApplicableCosts() {
     }
 
     if (activeContext !== activeCostContextKey()) return false
+    if (!fullCatalog.length && !allCosts.value.length) {
+      throw new Error('Pricing no devolvió el catálogo activo completo de cargos.')
+    }
+    allCosts.value = fullCatalog
+    activeCatalogValidatedContexts.add(activeContext)
     costs.value = [...mergedCosts.values()].map((cost) => ({
       ...cost,
       __dholePricingContextKey: contextKey,

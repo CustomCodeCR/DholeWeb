@@ -46,7 +46,9 @@ function createHarness() {
     catalogs: { currencies: [{ id: 'USD', code: 'USD', label: 'USD' }] },
     selectedCurrency: { value: { id: 'USD', code: 'USD', label: 'USD' } },
     rateLines: { value: [] as Record<string, unknown>[] },
-    PricingService: { selectCosts: async (_query: { applicableToContext?: boolean }) => [] as Record<string, unknown>[] },
+    PricingService: { selectWizardCosts: async (_query: { applicableToContext?: boolean }) => ({
+      catalog: [] as Record<string, unknown>[], applicable: [] as Record<string, unknown>[],
+    }) },
     toastStore: { backendError: (error: unknown) => { throw error } },
     costContextAgentId: () => state.form.agentId,
     costs: { value: [] as Record<string, unknown>[] },
@@ -147,13 +149,13 @@ test('LCL coloader loader supplements contextual response with missing Pier17 or
     pols: [], polId: null, costDetailType: 'DestinationCharge',
   }))
   const requests: Array<{ applicableToContext?: boolean }> = []
-  state.PricingService.selectCosts = async (query) => {
+  state.PricingService.selectWizardCosts = async (query) => {
     requests.push(query)
-    return query.applicableToContext ? destinationCosts : [...originCosts, ...destinationCosts]
+    return { catalog: [...originCosts, ...destinationCosts], applicable: destinationCosts }
   }
   await load()
   rebuild()
-  assert.equal(requests.length, 2, 'Both contextual and complete catalog are read')
+  assert.equal(requests.length, 1, 'One backend cost bundle includes both catalog and applicable costs')
   assert.equal(state.costs.value.length, 8, 'All eight costs are reconciled')
   assert.equal(state.rateLines.value.length, 9, 'Eight fixed charges + one freight line are displayed')
   for (const cost of originCosts) {
@@ -209,7 +211,9 @@ test('real Pier17 contextual response: all 8 costs survive FOB-style display sec
     costDetailType: 'DestinationCharge',
     polId: null, pols: [], incoterms: [], services: [],
   }))
-  state.PricingService.selectCosts = async () => [...originCosts, ...destinationCosts]
+  state.PricingService.selectWizardCosts = async () => ({
+    catalog: [...originCosts, ...destinationCosts], applicable: [...originCosts, ...destinationCosts],
+  })
 
   await load()
   assert.equal(state.costs.value.length, 8, 'API costs must remain intact after eligibility checks')
@@ -276,21 +280,20 @@ test('air coloader performs contextual AirConsol cost lookup instead of skipping
     incotermId?: string
     serviceIds?: string
   }> = []
-  state.PricingService.selectCosts = async (query) => {
+  state.PricingService.selectWizardCosts = async (query) => {
     requests.push(query)
-    return []
+    return { catalog: [], applicable: [] }
   }
   await load()
-  assert.equal(requests.length, 2, 'Air performs both contextual and legacy catalog requests')
+  assert.equal(requests.length, 1, 'Air loads all costs in one Pricing bundle request')
   assert.equal(requests[0]?.shipmentMode, 'AirConsol')
-  assert.equal(requests[0]?.applicableToContext, true)
+  assert.equal(requests[0]?.applicableToContext, undefined)
   assert.equal(requests[0]?.agentId, 'PIER17')
   assert.equal(requests[0]?.polId, 'SAN_JOSE')
   assert.equal(requests[0]?.poeId, 'BARILOCHE')
   assert.equal(requests[0]?.incotermId, 'FOB')
   assert.equal(requests[0]?.serviceIds, 'INTERNATIONAL_TRANSPORT')
-  assert.equal(requests[1]?.applicableToContext, undefined)
-})
+ })
 test('air final guard also refreshes contextual costs when entering screen 7', async () => {
   const guard = await readFile(
     new URL('../build/pricingAirLclCostFinalGuard.ts', import.meta.url), 'utf8',

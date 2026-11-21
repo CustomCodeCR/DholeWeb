@@ -150,6 +150,19 @@ export const PricingService = {
     return unwrapListResponse<CostSelectDto>(response)
   },
 
+  /** One Pricing GET with both the complete active catalog and eligible charges. */
+  async selectWizardCosts(query?: BrowseCostsQuery): Promise<{ catalog: CostSelectDto[]; applicable: CostSelectDto[] }> {
+    const response = await callEndpoint<unknown>({
+      ...Endpoints.selectWizardCosts,
+      path: withQuery(Endpoints.selectWizardCosts.path, query),
+    })
+    const value = unwrapApiResponse<unknown>(response) as { catalog: CostSelectDto[]; applicable: CostSelectDto[] } | null
+    if (!value || !Array.isArray(value.catalog) || !Array.isArray(value.applicable)) {
+      throw new Error('Pricing devolvió un paquete de costos incompleto.')
+    }
+    return value
+  },
+
   async exportActiveCostsExcel(): Promise<void> {
     const blob = await fetchBlobClient(Endpoints.exportActiveCostsExcel.path, {
       method: 'GET',

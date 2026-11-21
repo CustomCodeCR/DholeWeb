@@ -542,7 +542,7 @@ function patchWizard(source: string) {
   code = code.replace(helperAnchor, HELPERS + helperAnchor)
 
   // A slow prior request must never overwrite the naviera currently being priced.
-  const afterFetch = '    const contextualCosts = contextResult.status ==='
+  const afterFetch = '    const contextualCosts = bundle.applicable'
   if (!code.includes(afterFetch)) throw new Error('[haulage screen6] Missing contextual fetch.')
   code = code.replace(afterFetch,
     '    if (contextKey !== currentCostContextKey()) return\n\n' + afterFetch)

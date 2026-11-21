@@ -283,15 +283,15 @@ export function patchFclMultiCarrierCosts(source: string): string {
   code = editFn(code, 'function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto)', (s) =>
     swap(s, 'maritimeFclRelationMatches(cost.carriers, cost.carrierId, form.carrierId)',
       'fclMatchesCarrierSet(cost.carriers, cost.carrierId)'))
-  code = editFn(code, 'async function loadApplicableCosts() {', (s) =>
-    swap(s, 'PricingService.selectCosts(contextualQuery),',
-      `Promise.allSettled(
-        maritimeFcl && fclAllCarrierIds.value.length > 1
-          ? fclAllCarrierIds.value.map((carrierId) =>
-            PricingService.selectCosts({ ...contextualQuery, carrierId }))
-          : [PricingService.selectCosts(contextualQuery)],
-      ).then((results) => results.flatMap((result) =>
-        result.status === 'fulfilled' ? result.value : [])),`))
+  // One backend bundle now contains the complete active multi-carrier catalog.
+  // Carrier-set matching below reconciles all selected carriers without issuing
+  // one independent Pricing HTTP request per naviera.
+  code = editFn(code, 'async function loadApplicableCosts() {', (s) => {
+    if (!s.includes('const bundle = await PricingService.selectWizardCosts(contextualQuery)')) {
+      throw new Error('[multiCarrierCosts] Missing consolidated cost bundle loader')
+    }
+    return s
+  })
   if (code.includes('finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)'))
     code = swap(code, 'finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId)',
       "(shipmentModeForApi.value === 'Fcl' && fclContainerAllocations.value.length > 1 ? fclMatchesCarrierSet(cost.carriers, cost.carrierId) : finalOptionalRelationMatches(cost.carriers, cost.carrierId, form.carrierId))")

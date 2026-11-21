@@ -40,15 +40,7 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'`,
   )
   loader = replaceOnce(loader,
-    "      maritimeFcl\n        ? PricingService.selectCosts({ isActive: true })",
-    "      (maritimeFcl || panamaOwnLtl)\n        ? PricingService.selectCosts({ isActive: true })",
-  )
-  loader = replaceOnce(loader,
-    "(!maritimeFcl || fullCatalogResult.status === 'rejected')",
-    "(!(maritimeFcl || panamaOwnLtl) || fullCatalogResult.status === 'rejected')",
-  )
-  loader = replaceOnce(loader,
-    "    if (activeContext !== activeCostContextKey()) return false\n    costs.value = [...mergedCosts.values()]",
+    "    if (activeContext !== activeCostContextKey()) return false\n    if (!fullCatalog.length",
     `    if (panamaOwnLtl) {
       // The contextual API uses exact POE/POD IDs. CFZ -> San José is an LTL
       // warehouse route; the configured Panama -> Costa Rica charges instead
@@ -61,7 +53,7 @@ export function patchPricingOwnLtlPanamaCosts(source: string): string {
     }
 
     if (activeContext !== activeCostContextKey()) return false
-    costs.value = [...mergedCosts.values()]`,
+    if (!fullCatalog.length`,
   )
   loader = replaceOnce(loader,
     "    return true\n  } catch (error) {",
