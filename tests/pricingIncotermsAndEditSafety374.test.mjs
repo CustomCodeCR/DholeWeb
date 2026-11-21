@@ -9,7 +9,7 @@ test('Incoterms are modal: maritime and multimodal include all, air and land rej
   assert.match(wizard, /isMaritimeOnlyIncoterm\(code\)/)
   assert.match(wizard, /isMaritimeOnlyIncoterm\(selectedIncotermCode\.value\)/)
   assert.match(wizard, /form\.modality === 'Maritime' \|\| form\.modality === 'Multimodal'/)
-  assert.match(wizard, /!maritimeOnlyIncoterms\.has\(code\)/)
+  assert.match(wizard, /!isMaritimeOnlyIncoterm\(code\)/)
   assert.match(wizard, /props\.rateId && form\.incotermId === item\.id/)
 })
 test('Commercial direction is compact but manual override and automatic reset remain available', () => {
