@@ -3845,9 +3845,11 @@ async function loadApplicableCosts(): Promise<boolean> {
     activeCatalogValidatedContexts.add(requestContext)
     await loadCustomerPreferentialRates()
     if (serial !== applicableCostRequestSerial || requestContext !== activeCostContextKey()) return false
-    // The complete catalog is for picking options, NOT automatic application.
-    // Re-merging the full catalog here reintroduced removed extras in P7.
-    costs.value = bundle.applicable
+    // Recover missing fixed/variable candidates after backend filtering,
+    // but NEVER reintroduce unselected optional costs from the full catalog.
+    costs.value = reconcileActiveCostCatalog(
+      bundle.applicable, allCosts.value, cost => cost.costType !== 'Optional',
+    )
     return true
   } catch (error) {
     if (requestContext !== activeCostContextKey()) return false
