@@ -3254,10 +3254,8 @@ function sectionForCost(cost: CostSelectDto): RateSection {
   // A freight leg stays in the international freight block regardless of POE/POD.
   // Multimodal terrestrial freight is not a destination surcharge.
   if (cost.costDetailType === 'Freight') return 'international_freight'
-  if (cost.costDetailType !== 'Freight') {
-    const explicitSection = explicitSectionFromName(cost.name)
-    if (explicitSection) return explicitSection
-  }
+  const explicitSection = explicitSectionFromName(cost.name)
+  if (explicitSection) return explicitSection
 
   const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)
   if (byPortRole) return byPortRole
