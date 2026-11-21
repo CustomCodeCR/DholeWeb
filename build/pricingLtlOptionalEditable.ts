@@ -147,7 +147,13 @@ function patchWizard(source: string) {
       '  }',
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const before = assignment + '\n' + afterAssignment
+    // DH-381 stores the tier fingerprint immediately after rateLines assignment.
+    // The LTL optional-price transform must keep this marker when rearranging lines.
+    const tierMarker = '  lastTierPricingInputKey.value = tierPricingInputKey'
+    const intermediate = code.includes(assignment + '\n' + tierMarker + '\n' + afterAssignment)
+      ? tierMarker + '\n'
+      : ''
+    const before = assignment + '\n' + intermediate + afterAssignment
     const keepOptionals = [
       "  const previousLtlOptionals = shipmentModeForApi.value === 'Ltl'",
       '    ? rateLines.value.filter((line) => line.optional',
@@ -174,8 +180,32 @@ function patchWizard(source: string) {
       '  }',
       '  // syncResolvedLandLtlTariffLines() after every rebuild',
     ].join('\n')
-    const after = keepOptionals + '\n' + assignment + '\n' + restoreOptionals
-    code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+    const after = keepOptionals + '\n' + assignment + '\n' + intermediate + restoreOptionals
+    if (code.includes(before)) {
+      code = replaceRequired(code, before, after, 'preservar cambios al reconstruir Pantalla 7')
+    } else {
+      // Other Vite plugins may put cargo-tier bookkeeping between the quoted
+      // lines and the land tariff sync. Patch inside rebuildRateLines instead
+      // of depending on one exact adjacent snippet.
+      const start = code.indexOf('function rebuildRateLines() {')
+      const end = code.indexOf('\nfunction ', start + 1)
+      if (start < 0 || end <= start) {
+        throw new Error('[pricingLtlOptionalEditable] Missing scoped rebuild function')
+      }
+      let scoped = code.slice(start, end)
+      const assignmentAt = scoped.indexOf(assignment)
+      const closeAt = scoped.lastIndexOf('\n}')
+      if (assignmentAt < 0 || closeAt <= assignmentAt
+        || scoped.includes('const previousLtlOptionals =')) {
+        throw new Error('[pricingLtlOptionalEditable] Missing safely scoped LTL assignment or closing brace')
+      }
+      // Retain the original tier recalculation and any other inserted plugin
+      // code; restore LTL optional user values only AFTER all source updates.
+      scoped = scoped.slice(0, closeAt) + '\n' + restoreOptionals + scoped.slice(closeAt)
+      scoped = scoped.slice(0, assignmentAt)
+        + keepOptionals + '\n' + scoped.slice(assignmentAt)
+      code = code.slice(0, start) + scoped + code.slice(end)
+    }
 
   }
 

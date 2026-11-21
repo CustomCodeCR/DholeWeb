@@ -431,6 +431,9 @@ const pageDescription = computed(() => isEditing.value
 const costs = ref<CostSelectDto[]>([])
 const allCosts = ref<CostSelectDto[]>([])
 const rateLines = ref<RateLine[]>([])
+// The selected tier depends on cargo characteristics, not only the POE/carrier.
+// Never reuse a 20DV, weight, packages or extra-days value for a changed input.
+const lastTierPricingInputKey = ref('')
 const availableRates = ref<ImportRateSelectDto[]>([])
 const importSourceByBatch = ref<Record<string, Awaited<ReturnType<typeof EmailExtractionService.getPricingImportSource>>>>({})
 const cabysResults = ref<CabysItem[]>([])
@@ -2424,10 +2427,10 @@ const providerAgentCosts = computed(() => {
   })
 })
 const providerAgentCost = computed(() =>
-  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.costAmount), 0),
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(resolvedConditionalCost(cost)?.costAmount), 0),
 )
 const providerAgentSale = computed(() =>
-  providerAgentCosts.value.reduce((sum, cost) => sum + number(cost.saleAmount), 0),
+  providerAgentCosts.value.reduce((sum, cost) => sum + number(resolvedConditionalCost(cost)?.saleAmount), 0),
 )
 // Keep both screens synchronized without changing the input signatures
 // that the existing LCL/FCL/LTL/customs Vite plugins patch at build time.
@@ -3474,6 +3477,10 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
 
     const configured = resolveCurrentConfiguredCost(line)
     if (!configured) return
+    // Tiered catalog headers intentionally contain zero: resolve the active
+    // container, package, weight or fiscal extra-day rule before comparing.
+    const resolvedConfiguredAmount = resolvedConditionalCost(configured)
+    if (!resolvedConfiguredAmount) return
 
     const persisted = line.detailId
       ? persistedById.get(line.detailId)
@@ -3495,8 +3502,8 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
       persisted.chargeBasis !== configuredChargeBasis ||
       persisted.currencyId !== configured.currencyId ||
       persisted.currencyCode.trim().toUpperCase() !== configured.currencyCode.trim().toUpperCase() ||
-      number(persisted.costAmount) !== number(configured.costAmount) ||
-      number(persisted.saleAmount) !== number(configured.saleAmount) ||
+      number(persisted.costAmount) !== number(resolvedConfiguredAmount.costAmount) ||
+      number(persisted.saleAmount) !== number(resolvedConfiguredAmount.saleAmount) ||
       persistedNotes !== configuredNotes
 
     if (!catalogChanged) return
@@ -3513,8 +3520,8 @@ function syncPersistedLinesWithChangedConfiguredCosts() {
     line.currencyName = configured.currencyName
     line.currencyCode = configured.currencyCode
     line.amountCurrencyCode = configured.currencyCode
-    line.costAmount = number(configured.costAmount)
-    line.saleAmount = number(configured.saleAmount)
+    line.costAmount = number(resolvedConfiguredAmount.costAmount)
+    line.saleAmount = number(resolvedConfiguredAmount.saleAmount)
     line.optional = configured.costType === 'Optional'
     line.manual = false
 
@@ -3611,8 +3618,17 @@ async function loadApplicableCosts(): Promise<boolean> {
 }
 
 function rebuildRateLines() {
+  const tierPricingInputKey = JSON.stringify([
+    form.equipmentId, form.equipmentQuantity, form.cargoWeightKg,
+    form.cargoPackages, form.cargoPallets, form.storageDays,
+  ])
+  const sameTierInputs = lastTierPricingInputKey.value === tierPricingInputKey
   const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7
-    ? copyPoeLines(rateLines.value) : []
+    ? copyPoeLines(rateLines.value).filter(line =>
+        sameTierInputs || line.manual || !costs.value.some(cost =>
+          cost.id === line.costId && Boolean(cost.pricingRulesJson),
+        ),
+      ) : []
   // Catalog charges remain visible even if CRM preferred rates could not be verified.
   // The existing save/navigation guards still prevent unverified commercial terms.
   const currency = selectedCurrency.value ?? catalogs.currencies[0]
@@ -3840,6 +3856,7 @@ if (insuranceRequested && visible.has('destination_charges')) {
   }
   lines.splice(0, lines.length, ...removeDuplicateFclFreight(lines, shipmentModeForApi.value))
   rateLines.value = lines
+  lastTierPricingInputKey.value = tierPricingInputKey
 }
 
 function syncDeclaredCargoInsuranceOnEdit() {

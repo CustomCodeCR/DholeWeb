@@ -204,3 +204,61 @@ test('Active Pricing wizard persists corrected FCL pickup basis and recalculated
   assert.match(source, /chargeBasis: effectiveChargeBasisForLine\(line\)/)
   assert.match(source, /quantity: quantityForRateLine\(line\)/)
 })
+
+test('zero-valued catalog headers resolve fixed container, package and weight bands', () => {
+  const container = makeCost(json([
+    { dimension: 'ContainerType', minValue: null, maxValue: null, containerTypeId: '20dv', costAmount: 670, saleAmount: 705, calculationMode: 'Flat' },
+    { dimension: 'ContainerType', minValue: null, maxValue: null, containerTypeId: '40hc', costAmount: 740, saleAmount: 780, calculationMode: 'Flat' },
+  ]))
+  container.costAmount = 0
+  container.saleAmount = 0
+  assert.deepEqual(resolveCostPricing(container, { containerTypeId: '20dv' }), { costAmount: 670, saleAmount: 705 })
+  assert.deepEqual(resolveCostPricing(container, { containerTypeId: '40hc' }), { costAmount: 740, saleAmount: 780 })
+  assert.equal(resolveCostPricing(container, { containerTypeId: 'unknown' }), null)
+
+  const packages = makeCost(json([
+    { dimension: 'Packages', minValue: 1, maxValue: 3, containerTypeId: null, costAmount: 15, saleAmount: 25, calculationMode: 'Flat' },
+    { dimension: 'Packages', minValue: 4, maxValue: 12, containerTypeId: null, costAmount: 70, saleAmount: 95, calculationMode: 'Flat' },
+  ]))
+  packages.costAmount = 0
+  packages.saleAmount = 0
+  assert.deepEqual(resolveCostPricing(packages, { packages: 3 }), { costAmount: 15, saleAmount: 25 })
+  assert.deepEqual(resolveCostPricing(packages, { packages: 4 }), { costAmount: 70, saleAmount: 95 })
+  assert.equal(resolveCostPricing(packages, { packages: 13 }), null)
+
+  const weight = makeCost(json([
+    { dimension: 'WeightKg', minValue: 1, maxValue: 20, containerTypeId: null, costAmount: 3, saleAmount: 4, calculationMode: 'PerKg' },
+    { dimension: 'WeightKg', minValue: 20.01, maxValue: 100, containerTypeId: null, costAmount: 1.5, saleAmount: 2.5, calculationMode: 'PerKg' },
+  ]))
+  weight.costAmount = 0
+  weight.saleAmount = 0
+  assert.deepEqual(resolveCostPricing(weight, { weightKg: 20 }), { costAmount: 60, saleAmount: 80 })
+  assert.deepEqual(resolveCostPricing(weight, { weightKg: 40 }), { costAmount: 60, saleAmount: 100 })
+  assert.equal(resolveCostPricing(weight, { weightKg: 0 }), null)
+})
+
+test('extra fiscal storage days calculate charges only above included days, never fall back to zero header', () => {
+  const storage = makeCost(json([
+    { dimension: 'Packages', minValue: 1, maxValue: 20, containerTypeId: null, costAmount: 8, saleAmount: 12, calculationMode: 'PerExtraDay', includedStorageDays: 3 },
+  ]))
+  storage.costAmount = 0
+  storage.saleAmount = 0
+  assert.equal(resolveCostPricing(storage, { packages: 3 }), null)
+  assert.equal(resolveCostPricing(storage, { packages: 3, storageDays: 3 }), null)
+  assert.deepEqual(resolveCostPricing(storage, { packages: 3, storageDays: 4 }), { costAmount: 8, saleAmount: 12 })
+  assert.deepEqual(resolveCostPricing(storage, { packages: 3, storageDays: 7 }), { costAmount: 32, saleAmount: 48 })
+})
+
+test('active wizard resolves every configured tier and invalidates stale rows when cargo characteristics change', async () => {
+  const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(source, /providerAgentCosts\.value\.reduce\(\(sum, cost\) => sum \+ number\(resolvedConditionalCost\(cost\)\?\.costAmount\)/)
+  assert.match(source, /providerAgentCosts\.value\.reduce\(\(sum, cost\) => sum \+ number\(resolvedConditionalCost\(cost\)\?\.saleAmount\)/)
+  assert.match(source, /const resolvedConfiguredAmount = resolvedConditionalCost\(configured\)/)
+  assert.match(source, /line\.costAmount = number\(resolvedConfiguredAmount\.costAmount\)/)
+  assert.match(source, /line\.saleAmount = number\(resolvedConfiguredAmount\.saleAmount\)/)
+  assert.doesNotMatch(source, /line\.costAmount = number\(configured\.costAmount\)/)
+  assert.match(source, /form\.equipmentId, form\.equipmentQuantity, form\.cargoWeightKg/)
+  assert.match(source, /form\.cargoPackages, form\.cargoPallets, form\.storageDays/)
+  assert.match(source, /sameTierInputs \|\| line\.manual \|\| !costs\.value\.some\(cost =>/)
+  assert.match(source, /lastTierPricingInputKey\.value = tierPricingInputKey/)
+})

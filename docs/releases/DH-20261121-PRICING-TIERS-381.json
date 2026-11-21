@@ -1,0 +1,35 @@
+{
+  "releaseId": "DH-20261121-PRICING-TIERS-381",
+  "releaseType": "PATCH",
+  "date": "2026-11-21",
+  "ecosystemVersion": "1.108.14",
+  "status": "candidate-production-ci-pending",
+  "components": {
+    "DholeWeb": {
+      "previous": "1.108.13",
+      "next": "1.108.14"
+    },
+    "DholeSystem": {
+      "previous": "1.108.13",
+      "next": "1.108.14"
+    },
+    "DholePricingService": {
+      "previous": "1.26.13",
+      "next": "1.26.13"
+    }
+  },
+  "scope": [
+    "ContainerType bands",
+    "Packages bands",
+    "WeightKg bands (Flat/PerKg)",
+    "Fiscal storage PerExtraDay rules",
+    "P7 tier cache invalidation",
+    "Preserve RateDetail snapshot"
+  ],
+  "validation": {
+    "build": "pending",
+    "tests": "pending",
+    "staging": "develop-deployed",
+    "production": "not-verified"
+  }
+}
