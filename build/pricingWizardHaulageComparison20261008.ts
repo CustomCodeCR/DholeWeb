@@ -543,9 +543,14 @@ function patchWizard(source: string) {
 
   // A slow prior request must never overwrite the naviera currently being priced.
   const afterFetch = '    const contextualCosts = contextResult.status ==='
-  if (!code.includes(afterFetch)) throw new Error('[haulage screen6] Missing contextual fetch.')
-  code = code.replace(afterFetch,
-    '    if (contextKey !== currentCostContextKey()) return\n\n' + afterFetch)
+  // The unified wizard-bundle loader validates activeContext and never applies
+  // stale responses. Only patch older select loaders that lack that safeguard.
+  if (code.includes(afterFetch)) {
+    code = code.replace(afterFetch,
+      '    if (contextKey !== currentCostContextKey()) return\\n\\n' + afterFetch)
+  } else if (!code.includes('if (activeContext !== activeCostContextKey()) return false')) {
+    throw new Error('[haulage screen6] Missing cost context stale-response protection.')
+  }
 
   const nextAnchor = 'const canNext = computed(() => {'
   if (code.split(nextAnchor).length !== 2) throw new Error('[haulage screen6] Missing wizard canNext.')
