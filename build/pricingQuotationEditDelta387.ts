@@ -2,7 +2,7 @@ import type { Plugin } from 'vite'
 
 const WIZARD = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 
-const EDIT_HELPERS = String.raw`
+export const pricingQuotationEditDelta387Runtime = String.raw`
 interface QuoteEditContext387 {
   modality: string; shipmentMode: string; originId: string; destinationId: string
   podId: string; agentId: string; carrierId: string; incotermId: string
@@ -271,7 +271,7 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     freight + '\n  if (props.rateId && !quoteEditTransportChanged387()) return',
     'unchanged freight preservation')
 
-  s = replaceSingle(s, '\n</script>', '\n' + EDIT_HELPERS + '\n</script>', 'inject delta runtime')
+  s = replaceSingle(s, '\n</script>', '\n' + pricingQuotationEditDelta387Runtime + '\n</script>', 'inject delta runtime')
   return s
 }
 
