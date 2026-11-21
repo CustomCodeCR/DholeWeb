@@ -509,7 +509,7 @@ async function applyScreen7DatabaseCosts() {
       return
     }
     const bundleLoaded = await loadApplicableCosts()
-    if (!bundleLoaded) throw new Error('Pricing no devolvió cargos aplicables para actualizar esta cotización.')
+    if (bundleLoaded === false) throw new Error('Pricing no devolvió cargos aplicables para actualizar esta cotización.')
     if (requestedContext !== pricingDraftLineContextKey()) {
       throw new Error('La ruta o el proveedor cambió durante la consulta. Intente actualizar nuevamente.')
     }
