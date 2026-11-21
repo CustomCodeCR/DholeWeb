@@ -264,8 +264,8 @@ export default defineConfig({
     // Gate the final source after all Vite pricing rewrites; never silently lose CRM sales.
     pricingCrmPreferredRuntimeGuard(),
     // Run after every source rewrite, but before Vue compilation.
+    // Final post-386/387/389 cost reconciliation, before Vue compilation.
     pricingWizardBundleOnlyFinal(),
-    // DH-391: final post-386/387/389 P7 reconciliation, before Vue compilation.
     pricingP7Reconcile391(),
     vue(),
     tailwindcss(),
