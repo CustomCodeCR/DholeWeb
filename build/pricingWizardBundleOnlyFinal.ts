@@ -64,7 +64,6 @@ async function pricingWizardBundleSelectCosts(
 export function pricingWizardBundleOnlyFinal(): Plugin {
   return {
     name: 'dhole-pricing-wizard-bundle-only-final',
-    enforce: 'pre',
     transform(source, id) {
       if (id.includes('?')) return null
       if (!id.replaceAll('\\\\', '/').endsWith(WIZARD_PATH)) return null
