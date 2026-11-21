@@ -1,3 +1,9 @@
+## [1.108.16] - 2026-11-21 · DH-20261121-PRICING-P7-EDIT-SAFETY-383
+
+- PATCH: Edición de cotizaciones conserva las RateDetails originales sin regeneración de cargos 0/0, deduplicación ni inserción silenciosa de servicios aduanales.
+- PATCH: aplicable contextual de Pricing es la única fuente de cargos nuevos; el maestro global no incorpora líneas automáticamente.
+- QUO-00000-000744: verificar 6 cargos y sus costos/ventas; no modifica DB ni revisiones retroactivamente.
+
 ## [1.108.15] - 2026-11-21 · DH-20261121-PRICING-P7-SNAPSHOT-TIERS-382
 
 - PATCH: los costos aplicables se obtienen del conjunto contextual de Pricing sin mezclar los 274 rubros del maestro, evitando resucitar cargos opcionales no seleccionados.
