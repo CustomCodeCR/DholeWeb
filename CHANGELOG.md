@@ -1,3 +1,9 @@
+## [1.108.9] - 2026-11-21 (DH-20261121-INCOTERM-RUNTIME-376 · recuperación del wizard Pricing)
+
+- PATCH urgente: resuelve ReferenceError `maritimeOnlyIncoterms is not defined` introducido en 1.108.7: una computed de incompatibilidad Incoterm podía evaluarse sin la variable, que Vite transforma fuera o evalúa después. Ahora ambos usos llaman a una función pura importada y declarada en `pricingIncotermPerspective.ts`, sin dependencia de orden ni variable local.
+- Endurece comprobación de bundle en `npm run build-only`: al finalizar Vite ejecuta `diagnose-pricing-bundle.mjs` que falla si la salida de producción contiene nombres de bindings Pricing rotos, incluido `maritimeOnlyIncoterms`. Añade regresión específica 11 Incoterms y montaje seguro.
+- Preserva filtros por modalidad, categorías rojas y cargos históricos. Sin cambios backend, costos, edición, contratos REST ni SignalR. DholeWeb/DholeSystem 1.108.8 → 1.108.9, PricingService sigue 1.26.11. Solo develop/staging.
+
 ## [1.108.8] - 2026-11-21 (DH-20261121-INCOTERM-CATEGORY-VISIBILITY-375 · categorías de responsabilidad por Incoterm)
 
 - PATCH: pantalla 7 resalta en rojo las categorías cuyo responsable contractual habitual no es el cliente según operación manual/automática e Incoterm (p. ej. EXPORT + FOB → Flete Internacional en rojo).

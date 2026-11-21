@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261121-INCOTERM-RUNTIME-376",
+  "globalVersion": "1.108.9",
+  "releaseType": "PATCH",
+  "target": "develop",
+  "productionAuthorized": false,
+  "components": {
+    "DholeWeb": {
+      "from": "1.108.8",
+      "to": "1.108.9"
+    },
+    "DholeSystem": {
+      "from": "1.108.8",
+      "to": "1.108.9"
+    },
+    "DholePricingService": {
+      "from": "1.26.11",
+      "to": "1.26.11"
+    }
+  },
+  "fix": "Remove undefined maritimeOnlyIncoterms runtime from Pricing wizard and validate production Vite chunk",
+  "ci": "pending",
+  "staging": "pending",
+  "scope": [
+    "Do not touch stored rates",
+    "Keep multimodal sea Incoterms",
+    "Keep red category presentation"
+  ]
+}
