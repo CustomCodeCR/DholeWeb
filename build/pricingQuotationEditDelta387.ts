@@ -201,6 +201,9 @@ function replaceSingle(source: string, oldText: string, newText: string, label: 
 export function patchPricingQuotationEditDelta387(source: string): string {
   let s = source
   if (!s.includes('function appendConfiguredCostToPersistedEdit(cost: CostSelectDto) {')) {
+    // The DH-386 endpoint-contract unit fixture has no saved-rate workflow.
+    // Real wizard code MUST include the edit reconciliation anchor.
+    if (!s.includes('async function hydrateExistingRate()')) return s
     throw new Error('[pricingQuotationEditDelta387] Edit reconciliation was not installed')
   }
   if (!s.includes('const explicitlyRemovedPersistedDetailIds = ref(')) {
