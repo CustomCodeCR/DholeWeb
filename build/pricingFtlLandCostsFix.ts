@@ -124,6 +124,9 @@ function currentCostContextKey() {
     costContextAgentId(),
     costContextImportRateId(),
     [...form.serviceIds].sort().join(','),
+    // The cargo dimensions are part of the pricing context: stale tiers must not be reused.
+    form.equipmentId, form.equipmentQuantity, form.cargoWeightKg,
+    form.cargoPackages, form.cargoPallets, form.storageDays,
     // Price overrides depend on CRM account identity as well as route.
     form.crmClientKind,
     form.clientId,
@@ -313,6 +316,9 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
 }
 
 async function loadApplicableCosts() {
+  // Existing persisted RateDetails are authoritative. Only an explicit user
+  // refresh may consult the live master and it must not silently add rows.
+  if (props.rateId && !allowCatalogRefreshForSavedQuote.value) return true
   const activeContext = activeCostContextKey()
   try {
     // This Vite transform replaces the source loader: it MUST load CRM agreements
@@ -329,7 +335,7 @@ async function loadApplicableCosts() {
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
 
-    if (automaticOptionalContextKey.value !== contextKey) {
+    if (!props.rateId && automaticOptionalContextKey.value !== contextKey) {
       dismissedAutomaticOptionalCostIds.value.clear()
       automaticOptionalContextKey.value = contextKey
     }
@@ -346,6 +352,12 @@ async function loadApplicableCosts() {
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
       importRateId: importRateId || undefined,
+      containerTypeId: form.equipmentId || selectedEquipment.value?.id || undefined,
+      weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : undefined,
+      packages: number(form.cargoPackages) > 0 ? Math.trunc(number(form.cargoPackages))
+        : consolidatedCargoMode.value && number(form.cargoPallets) > 0
+          ? Math.trunc(number(form.cargoPallets)) : undefined,
+      storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : undefined,
     }
 
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
@@ -355,11 +367,15 @@ async function loadApplicableCosts() {
     const fullCatalog = bundle.catalog
     const mergedCosts = new Map<string, CostSelectDto>()
 
-    fullCatalog
-      .filter((cost) => maritimeFcl
-        ? maritimeFclCostMatchesCurrentContext(cost)
-        : catalogCostMatchesCurrentContext(cost))
-      .forEach((cost) => mergedCosts.set(cost.id, cost))
+    // A saved quote (even during explicit refresh) never draws additional
+    // charges from the global catalog. Only the contextual result is eligible.
+    if (!props.rateId) {
+      fullCatalog
+        .filter((cost) => maritimeFcl
+          ? maritimeFclCostMatchesCurrentContext(cost)
+          : catalogCostMatchesCurrentContext(cost))
+        .forEach((cost) => mergedCosts.set(cost.id, cost))
+    }
 
     // Backend-context costs have already passed Pricing's original checks.
     // Prefer those records for identical CostIds and mark only those authoritative.
@@ -400,6 +416,22 @@ function rebuildRateLines`,
     /(const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{[\s\S]*?\n    const section = sectionForCost\(cost\))\n    if \(!visible\.has\(section\)\) return/,
     '$1',
     'configured cost visual-section filter',
+  )
+
+  // Preserve a separate terrestrial freight leg in Multimodal operations.
+  // Do not use a generic 0/0 freight row in place of a configured land tariff.
+  code = replaceRegexOne(
+    code,
+    /if \(cost\.costDetailType === 'Freight' && lines\.some\(\(line\) => line\.costDetailType === 'Freight'\)\) return/,
+    `if (cost.costDetailType === 'Freight') {
+      const existing = lines.find((line) => line.costDetailType === 'Freight')
+      const isTerrestrial = normalizeCatalogValue(cost.name).includes('terrestre')
+      const emptyGeneric = lines.find((line) => line.key === 'freight'
+        && line.costAmount === 0 && line.saleAmount === 0)
+      if (emptyGeneric) lines.splice(lines.indexOf(emptyGeneric), 1)
+      else if (existing && !(form.modality === 'Multimodal' && isTerrestrial)) return
+    }`,
+    'priced terrestrial freight leg',
   )
 
   // Pantalla 7 no debe inventar una fila "Recolecta". Si existe Recolecta en Cargos y

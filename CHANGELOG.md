@@ -1,3 +1,10 @@
+## [1.108.18] - 2026-11-21 · DH-20261121-PRICING-EDIT-TIERS-LAND-385
+
+- PATCH: el cost loader final de Vite envía contenedor, kg, bultos y días a Pricing; mantiene la clave de contexto alineada para evitar precios obsoletos.
+- PATCH: modificar una QUO no regenera cargos del maestro; refresco explícito solo actualiza CostId previamente contratado, conservando exclusiones, IDs y precios históricos.
+- PATCH: reconoce flete internacional terrestre distinto del marítimo en multimodal y descarta solamente el flete genérico en cero.
+- Pruebas de regresión de 40HC, 28000 kg, paquetes/días y líneas eliminadas; CI y staging pendientes. Release coordinado DholeSystem 1.108.18 y PricingService 1.26.17.
+
 ## [1.108.17] - 2026-11-21 · DH-20261121-PRICING-P7-RESTORE-384
 
 - PATCH: Pantalla 7 envía la eliminación de líneas persistidas por RateDetailId; evita que reaparezcan.
