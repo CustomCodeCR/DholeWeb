@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite'
-import { patchPricingQuotationEditDelta387 } from './pricingQuotationEditDelta387'
+import { patchPricingQuotationEditDelta387 } from './pricingQuotationEditDelta387.ts'
 
 const WIZARD_PATH = '/src/modules/pricing/components/PricingAlternativeWizardCrystal.vue'
 const LEGACY_COST_CALL = 'PricingService.selectCosts('
