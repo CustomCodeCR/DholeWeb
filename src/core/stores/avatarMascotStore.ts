@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { MASCOT_ACCESSORIES, MASCOT_ACCESSORY_SLOT, normalizeMascotAccessories, type MascotAccessory } from '@/shared/components/atoms/mascotAccessoryCatalog'
 
 export type MascotMovement = 'fixed' | 'roam'
-export const MASCOT_ACCESSORIES = ['none', 'cap', 'crown', 'glasses', 'headphones', 'bow', 'hat'] as const
-export type MascotAccessory = (typeof MASCOT_ACCESSORIES)[number]
+export { MASCOT_ACCESSORIES } from '@/shared/components/atoms/mascotAccessoryCatalog'
+export type { MascotAccessory } from '@/shared/components/atoms/mascotAccessoryCatalog'
 export interface MascotPosition { x: number; y: number }
 
 const DEFAULT_POSITION: MascotPosition = { x: 0.88, y: 0.72 }
@@ -27,12 +28,14 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
   const photo = ref<string | null>(null)
   const name = ref(DEFAULT_NAME)
   const movement = ref<MascotMovement>('fixed')
-  const accessory = ref<MascotAccessory>('none')
+  const accessories = ref<Exclude<MascotAccessory, 'none'>[]>([])
+  // Preserve the historical single-accessory API for older consumers.
+  const accessory = computed<MascotAccessory>(() => accessories.value[0] ?? 'none')
   const visible = ref(true)
   const position = ref<MascotPosition>({ ...DEFAULT_POSITION })
   let consumers = 0
 
-  function keyFor(kind: 'photo' | 'name' | 'movement' | 'visible' | 'position' | 'accessory'): string | null {
+  function keyFor(kind: 'photo' | 'name' | 'movement' | 'visible' | 'position' | 'accessory' | 'accessories'): string | null {
     return userId.value ? KEY_PREFIX + encodeURIComponent(userId.value) + ':' + kind : null
   }
 
@@ -56,8 +59,14 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
       ? savedPhoto : null
     name.value = normalizeName(read('name') ?? DEFAULT_NAME)
     movement.value = read('movement') === 'roam' ? 'roam' : 'fixed'
-    const storedAccessory = read('accessory')
-    accessory.value = MASCOT_ACCESSORIES.find(kind => kind === storedAccessory) ?? 'none'
+    // Upgrade existing browser data transparently; only the explicit multi-select key wins.
+    const storedAccessories = read('accessories')
+    try {
+      const parsed: unknown = storedAccessories === null ? null : JSON.parse(storedAccessories)
+      accessories.value = normalizeMascotAccessories(Array.isArray(parsed) ? parsed : [read('accessory')])
+    } catch {
+      accessories.value = normalizeMascotAccessories([read('accessory')])
+    }
     visible.value = read('visible') !== 'false'
     try {
       const saved = JSON.parse(read('position') || 'null')
@@ -93,9 +102,25 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
     write('movement', movement.value)
   }
 
+  function setAccessories(values: readonly MascotAccessory[]) {
+    accessories.value = normalizeMascotAccessories(values)
+    write('accessories', JSON.stringify(accessories.value))
+    write('accessory', accessories.value[0] ?? 'none')
+  }
+
+  function toggleAccessory(value: MascotAccessory) {
+    if (value === 'none') { setAccessories([]); return }
+    if (accessories.value.includes(value)) {
+      setAccessories(accessories.value.filter(kind => kind !== value))
+      return
+    }
+    const slot = MASCOT_ACCESSORY_SLOT[value]
+    setAccessories([...accessories.value.filter(kind => MASCOT_ACCESSORY_SLOT[kind] !== slot), value])
+  }
+
+  /** Backwards-compatible replacement of all accessories by one selected item. */
   function setAccessory(value: MascotAccessory) {
-    accessory.value = MASCOT_ACCESSORIES.includes(value) ? value : 'none'
-    write('accessory', accessory.value)
+    setAccessories(MASCOT_ACCESSORIES.includes(value) ? [value] : [])
   }
 
   function setVisible(value: boolean) {
@@ -125,6 +150,6 @@ export const useAvatarMascotStore = defineStore('avatarMascot', () => {
       window.removeEventListener('storage', handleStorage)
   }
 
-  return { userId, photo, name, movement, accessory, visible, position,
-    selectUser, setPhoto, setName, setMovement, setAccessory, setVisible, setPosition, start, stop }
+  return { userId, photo, name, movement, accessory, accessories, visible, position,
+    selectUser, setPhoto, setName, setMovement, setAccessory, setAccessories, toggleAccessory, setVisible, setPosition, start, stop }
 })
