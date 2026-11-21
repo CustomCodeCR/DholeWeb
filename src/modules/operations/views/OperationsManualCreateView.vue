@@ -56,7 +56,7 @@ const originOptions = [
   { label: 'Agente', value: 'AGENT' }, { label: 'Oficina de origen', value: 'ORIGIN_OFFICE' },
 ]
 const incoterms = ['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP']
-const serviceCatalog = [
+const serviceCatalog: Array<[string, string]> = [
   ['INTERNATIONAL_FREIGHT','Transporte internacional'],
   ['PICKUP','Recolecta'],['ORIGIN_CHARGES','Cargos en origen'],
   ['DESTINATION_CHARGES','Cargos en destino'],
