@@ -6972,7 +6972,7 @@ watch(
 watch(
   () => [form.agentId, form.carrierId] as const,
   async ([agentId]) => {
-    if (hydratingExistingRate.value || switchingPoeRoute.value || step.value < 6 || !agentId) return
+    if (hydratingExistingRate.value || switchingPoeRoute.value || loadingScreenSevenCosts.value || step.value < 6 || !agentId) return
     const loaded = await loadApplicableCosts()
     if (loaded && step.value >= 7) {
       rebuildRateLines()
