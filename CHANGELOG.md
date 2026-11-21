@@ -1,3 +1,12 @@
+## [1.108.15] - 2026-11-21 · DH-20261121-PRICING-P7-SNAPSHOT-TIERS-382
+
+- PATCH: los costos aplicables se obtienen del conjunto contextual de Pricing sin mezclar los 274 rubros del maestro, evitando resucitar cargos opcionales no seleccionados.
+- PATCH: al editar se consultan costos después de recuperar peso, bultos, contenedor y días guardados; el backend devuelve importes efectivos por tramo, no 0 en la cabecera.
+- PATCH: selección de equipo prioriza el ID FCL persistido, incluso durante la hidratación del catálogo.
+- PATCH: las cotizaciones guardadas no se repreciarán automáticamente según cambios del maestro; RateDetail, costo, venta e identificadores de revisión permanecen autoritativos.
+- Pruebas sobre aislamiento de opcionales, snapshots y consulta de contexto completo.
+- Coordinación semver DholeWeb/DholeSystem 1.108.14→1.108.15 y PricingService 1.26.13→1.26.14.
+
 ## [1.108.14] - 2026-11-21 (DH-20261121-PRICING-TIERS-381 · costos condicionados por contenedor, bultos, peso y días extra)
 
 - PATCH: resuelve en P6 los importes de costos de agente desde pricingRulesJson y no desde el 0 de cabecera.

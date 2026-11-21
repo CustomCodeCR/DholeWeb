@@ -234,26 +234,23 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
   )
 
   // Avoid querying the global Costs catalog for LCL own consolidations.
-  const modernCostAnchor = "async function loadApplicableCosts(): Promise<boolean> {\n  const requestContext = activeCostContextKey()\n  try {"
-  const legacyCostAnchor = "async function loadApplicableCosts() {\n  try {"
-  if (code.includes(modernCostAnchor)) {
-    code = replaceOne(
-      code,
-      modernCostAnchor,
-      modernCostAnchor.replace(
-        "\n  try {",
-        "\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return true\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return true\n  }\n\n  try {",
-      ),
-      'own LCL applicable costs guard (context-aware)',
-    )
-  } else {
-    code = replaceOne(
-      code,
-      legacyCostAnchor,
-      "async function loadApplicableCosts() {\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return\n  }\n\n  try {",
-      'own LCL applicable costs guard',
-    )
+  // Runtime can insert request serials and tier context into the method body.
+  // Match the stable function signature, not the fragile first two statements.
+  const modernCostAnchor = "async function loadApplicableCosts(): Promise<boolean> {"
+  const legacyCostAnchor = "async function loadApplicableCosts() {"
+  const isModern = code.includes(modernCostAnchor)
+  const anchor = isModern ? modernCostAnchor : legacyCostAnchor
+  if (!code.includes(anchor)) {
+    throw new Error('[pricingWizardOwnLclLinePersistence] Missing applicable cost loader')
   }
+  code = replaceOne(
+    code,
+    anchor,
+    anchor + (isModern
+      ? "\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return true\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return true\n  }"
+      : "\n  if (shipmentModeForApi.value === 'Lcl' && lclSelectedSource.value?.kind === 'Coloader') {\n    costs.value = []\n    return\n  }\n  if (isOwnLclMatrixContext()) {\n    costs.value = []\n    return\n  }"),
+    isModern ? 'own LCL applicable costs guard (context-aware)' : 'own LCL applicable costs guard',
+  )
 
   const tierRebuildAnchor = "function rebuildRateLines() {\n  const tierPricingInputKey = JSON.stringify(["
   const modernRebuildAnchor = "function rebuildRateLines() {\n  const previousOptionLines = multiCarrierSelectionMode.value && step.value >= 7"
