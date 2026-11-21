@@ -123,6 +123,8 @@ function currentCostContextKey() {
     costContextAgentId(),
     costContextImportRateId(),
     [...form.serviceIds].sort().join(','),
+    form.equipmentId, form.equipmentQuantity, form.cargoWeightKg,
+    form.cargoPackages, form.cargoPallets, form.storageDays,
     // Price overrides depend on CRM account identity as well as route.
     form.crmClientKind,
     form.clientId,
@@ -300,6 +302,8 @@ function maritimeFclCostMatchesCurrentContext(cost: CostSelectDto) {
 }
 
 async function loadApplicableCosts() {
+  // Existing quotation is authoritative; do not load new master costs until explicitly requested.
+  if (props.rateId && !allowCatalogRefreshForSavedQuote.value) return true
   const activeContext = activeCostContextKey()
   try {
     // This Vite transform replaces the source loader: it MUST load CRM agreements
@@ -309,7 +313,7 @@ async function loadApplicableCosts() {
     const contextKey = currentCostContextKey()
     const importRateId = costContextImportRateId()
 
-    if (automaticOptionalContextKey.value !== contextKey) {
+    if (!props.rateId && automaticOptionalContextKey.value !== contextKey) {
       dismissedAutomaticOptionalCostIds.value.clear()
       automaticOptionalContextKey.value = contextKey
     }
@@ -326,6 +330,12 @@ async function loadApplicableCosts() {
       applicableToContext: true,
       serviceIds: form.serviceIds.join(',') || undefined,
       importRateId: importRateId || undefined,
+      containerTypeId: form.equipmentId || selectedEquipment.value?.id || undefined,
+      weightKg: number(form.cargoWeightKg) > 0 ? number(form.cargoWeightKg) : undefined,
+      packages: number(form.cargoPackages) > 0 ? Math.trunc(number(form.cargoPackages))
+        : consolidatedCargoMode.value && number(form.cargoPallets) > 0
+          ? Math.trunc(number(form.cargoPallets)) : undefined,
+      storageDays: number(form.storageDays) > 0 ? Math.trunc(number(form.storageDays)) : undefined,
     }
 
     const maritimeFcl = ['Maritime', 'Multimodal'].includes(String(form.modality)) && costShipmentModeForApi() === 'Fcl'
@@ -338,7 +348,7 @@ async function loadApplicableCosts() {
     // The contextual API may reject a valid multi-port entry because PortId/
     // PoeId/PodId represent only the first historical selection. Reconcile with
     // the active catalog using explicit relation arrays as the source of truth.
-    if (maritimeFcl) {
+    if (maritimeFcl && !props.rateId) {
       fullCatalog
         .filter(maritimeFclCostMatchesCurrentContext)
         .forEach((cost) => mergedCosts.set(cost.id, cost))
@@ -386,6 +396,22 @@ function rebuildRateLines`,
     /(const configuredCosts = applicableConfiguredCosts\(\)\n  configuredCosts\.forEach\(\(cost\) => \{[\s\S]*?\n    const section = sectionForCost\(cost\))\n    if \(!visible\.has\(section\)\) return/,
     '$1',
     'configured cost visual-section filter',
+  )
+
+  // Preserve multimodal terrestrial freight as a distinct charge; do not keep
+  // a generic zero amount freight row in place of a contextual priced line.
+  code = replaceRegexOne(
+    code,
+    /if \(cost\.costDetailType === 'Freight' && lines\.some\(\(line\) => line\.costDetailType === 'Freight'\)\) return/,
+    `if (cost.costDetailType === 'Freight') {
+      const existing = lines.find((line) => line.costDetailType === 'Freight')
+      const isTerrestrial = normalizeCatalogValue(cost.name).includes('terrestre')
+      const emptyGeneric = lines.find((line) => line.key === 'freight'
+        && line.costAmount === 0 && line.saleAmount === 0)
+      if (emptyGeneric) lines.splice(lines.indexOf(emptyGeneric), 1)
+      else if (existing && !(form.modality === 'Multimodal' && isTerrestrial)) return
+    }`,
+    'priced terrestrial freight leg',
   )
 
   // Pantalla 7 no debe inventar una fila "Recolecta". Si existe Recolecta en Cargos y

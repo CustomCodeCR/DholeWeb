@@ -595,7 +595,8 @@ async function applyScreen7DatabaseCosts() {
       if (!originalContextUnchanged && screen7IsFormerProviderCost(line, knownCatalogById)) continue
       if (line.costDetailType === 'Freight' && !hasInternationalTransportService.value) continue
       const original = previousByKey.get(screen7CostLineKey(line))
-      if (originalContextUnchanged && !original) continue
+      // A catalog rebuild is not consent to insert an extra quote charge.
+    if (props.rateId && !original && line.costDetailType !== 'Freight') continue
       const configured = line.costId ? catalogById.get(line.costId) : undefined
       const refreshedLine = configured ? screen7CatalogRateLine(configured, original ?? line) : null
       if (refreshedLine) {
@@ -636,7 +637,9 @@ async function applyScreen7DatabaseCosts() {
     // so materialize those items directly without an unrelated freight row.
     for (const cost of costs.value) {
       // Updating amounts on the same saved quote never adds newly eligible Costs.
-      if (originalContextUnchanged && !previous.some((line) => line.costId === cost.id)) continue
+      // Even after an Incoterm or route change, only an explicitly added line
+      // may create a new CostId in a persisted quotation.
+      if (props.rateId && !previous.some((line) => line.costId === cost.id)) continue
       if (cost.isActive === false || cost.costDetailType === 'Freight') continue
       if (!visibleSections.value.includes(sectionForCost(cost))
           && !previous.some((line) => line.costId === cost.id)) continue
