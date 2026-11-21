@@ -534,7 +534,7 @@ async function applyScreen7DatabaseCosts() {
         Boolean(id) && !catalogById.has(id!)),
     )
     if (missingCostIds.size) {
-      const activeCatalog = await PricingService.selectCosts({ isActive: true })
+      const activeCatalog = allCosts.value // From the same wizard-bundle response; never issue a legacy GET
       activeCatalog.forEach((cost) => {
         if (!missingCostIds.has(cost.id)) return
         knownCatalogById.set(cost.id, cost)
