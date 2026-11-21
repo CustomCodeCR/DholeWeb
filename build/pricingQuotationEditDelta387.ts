@@ -244,10 +244,10 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     'preserve persisted haulage selections')
 
   s = replaceSingle(s,
-    '    // An existing quote is a pricing snapshot; opening it must not overwrite its amounts.',
+    '    persistedRateLineBaselines.clear()',
     '    quoteEditOriginalContext387.value = quoteEditContext387()\n'
       + '    quoteEditAutoRemovedIds387.clear()\n'
-      + '    // An existing quote is a pricing snapshot; opening it must not overwrite its amounts.',
+      + '    persistedRateLineBaselines.clear()',
     'original context snapshot')
 
   const nextStart = s.indexOf('async function next() {')
