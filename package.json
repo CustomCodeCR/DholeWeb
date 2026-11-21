@@ -1,12 +1,12 @@
 {
   "name": "dholeweb",
-  "version": "1.108.15",
+  "version": "1.108.16",
   "private": true,
   "type": "module",
   "scripts": {
     "predev": "node scripts/ensure-pricing-screen09-comments.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node scripts/versioning.mjs check && node scripts/ensure-pricing-screen09-comments.mjs && node --experimental-strip-types --test tests/pricingCrmPreferredRuntimeGuard.test.ts tests/pricingIncotermPluginScope378.test.ts tests/pricingIncotermFclBilling379.test.ts",
+    "prebuild": "node scripts/versioning.mjs check && node scripts/ensure-pricing-screen09-comments.mjs && node --experimental-strip-types --test tests/pricingCrmPreferredRuntimeGuard.test.ts tests/pricingIncotermPluginScope378.test.ts tests/pricingIncotermFclBilling379.test.ts tests/pricingSavedSnapshot383.test.ts",
     "build": "node scripts/check-pricing-origin-sale.mjs && node scripts/normalize-pricing-carrier-newlines.mjs && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build && node scripts/diagnose-pricing-bundle.mjs",

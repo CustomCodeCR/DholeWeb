@@ -24,7 +24,7 @@ test('P7 recovers fixed MAERSK destination and WWL agent charges if contextual A
   const noOptional = reconcileActiveCostCatalog([], active, cost => cost.costType !== 'Optional')
   assert.deepEqual(new Set(noOptional.map(cost => cost.id)),
     new Set(['caldera-maersk-dest', 'caldera-maersk-doc', 'wwl-manejos']))
-  assert.match(wizard, /costs.value = reconcileActiveCostCatalog\([\s\S]*?cost => cost.costType !== 'Optional'/)
+  assert.match(wizard, /costs\.value = bundle\.applicable/)
   assert.match(wizard, /\.filter\(applicableCost\)/)
 })
 

@@ -39,7 +39,7 @@ test('real source P7 CostId guard is compatible with generated transform', () =>
 
 test('P6/P7 freight and route-filter guard remain present on the wizard', () => {
   const source = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
-  assert.match(source, /costs\.value = reconcileActiveCostCatalog\([\s\S]*?cost => cost\.costType !== 'Optional'/)
+  assert.match(source, /costs\.value = bundle\.applicable/)
   assert.match(source, /const freightRequested =/)
   assert.match(source, /if \(cost\.shipmentMode && String\(cost\.shipmentMode\) !== 'Any'/)
 })
