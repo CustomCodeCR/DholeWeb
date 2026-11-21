@@ -89,7 +89,7 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
     // A user ticking Sobrepeso on an EXISTING quote is an explicit request.
     // Do not automatically insert unrelated optional inland/IMO charges.
     const newOverweight = changed.has('overweight') && form.overweight
-      && /^(sobrepeso|overweight)(\\b|\\s|\\()/.test(name)
+      && (/^(sobrepeso|overweight)/.test(name))
       && (dholeHaulageOptionalAssociation(cost) !== 'merchant' || form.merchantHaulage)
       && (dholeHaulageOptionalAssociation(cost) !== 'carrier' || form.carrierHaulage)
     if (newOverweight) return true
@@ -131,7 +131,7 @@ function quoteEditRemoveInvalidDetails387() {
     // Only the explicit removal of Sobrepeso may delete its former paid line.
     // Never delete independent inland, maritime freight or other negotiated lines.
     if (changed.has('overweight') && !form.overweight
-        && /^(sobrepeso|overweight)(\\b|\\s|\\()/.test(normalizeCatalogValue(line.name))) return true
+        && (/^(sobrepeso|overweight)/.test(normalizeCatalogValue(line.name)))) return true
     const master = allCosts.value.find(cost => cost.id === line.costId)
     const services = line.serviceIds?.length ? line.serviceIds
       : master?.services?.map(service => service.id) ?? []
