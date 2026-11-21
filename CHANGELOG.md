@@ -1,3 +1,11 @@
+## [1.108.10] - 2026-11-21 (DH-20261121-INCOTERMS-MODIFICATIONS-MASTER-378 · backport selectivo de correcciones Incoterms y modificación de cotizaciones)
+
+- Solo los cambios solicitados ya integrados en develop, sin integrar miles de commits ajenos: en Marítimo/Multimodal se admiten 11 Incoterms y en Aéreo/Terrestre 7. Operación comercial ahora se muestra compacta con override manual y notas de requisitos de EXW/FCA/CIF/CIP.
+- Pantalla 7 muestra en rojo los bloques que corresponden a la contraparte, sin auto-incluir los cargos nuevos en totales ni POST; permite cotizarlos por acuerdo, conservando los CostId y precios de la ruta y sin borrar líneas persistidas.
+- Edición de cotizaciones: ambos formularios rechazan snapshots incompletos, no infieren borrados de RateDetails por faltar una fila; Vite transform preserva líneas LCL/FCL históricas. El backend asociado solo agrega flete importado cuando el cliente lo seleccionó.
+- Runtime: se usa una función pura compartida para los Incoterms marítimos sin ReferenceError, y diagnóstico del bundle generado.
+- Backport master DholeWeb/DholeSystem 1.107.5 → 1.108.10; PricingService 1.26.9 → 1.26.12. Sin merge masivo de develop. CI y validación autenticada de staging obligatorios antes de considerarlo producción lista.
+
 ## [1.107.5] - 2026-11-20 (DH-20261120-PRICING-WIZARD-RUNTIME-366 · corregir bloqueo de creación de tarifas en producción)
 
 - PATCH urgente coordinado DholeWeb/DholeSystem 1.107.4 → 1.107.5. Elimina la dependencia del símbolo `automaticOperationType`, que desaparecía durante los transforms de Vite y producía `ReferenceError` al abrir o reabrir Pricing.

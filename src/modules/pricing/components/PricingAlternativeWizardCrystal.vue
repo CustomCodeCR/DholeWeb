@@ -63,7 +63,7 @@ import { resolveCostPricing } from '@/modules/pricing/utils/pricingCostRules'
 import { resolvePersistedCargoWeightKg } from '@/modules/pricing/utils/pricingPersistedCargoWeight'
 import { resolvePickupChargeBasis, pickupUsesFlatQuantity } from '@/modules/pricing/utils/pricingPickupChargeBasis'
 import { shouldIncludePricedLine } from '@/modules/pricing/utils/pricingLineInclusion'
-import { incotermClientSections, incotermOperationExplanation, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { incotermClientSections, incotermOperationExplanation, incotermSectionApplicability, isMaritimeOnlyIncoterm, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '@/modules/pricing/utils/pricingFreightUnitSync'
 import { removeDuplicateFclFreight } from '@/modules/pricing/utils/pricingFclFreightDeduplication'
 import { dedupeEquivalentReleaseLines } from '@/modules/pricing/utils/pricingReleaseLineDeduplication'
@@ -256,6 +256,7 @@ let customerPreferentialRequest = 0
 const pricingQuoteCountryOverrideId = ref('')
 // Explicit quote-level choice takes precedence over automatic client-country detection.
 const pricingQuoteOperationOverride = ref<RateOperationType | ''>('')
+const showCommercialOperationControls = ref(false)
 const resolvedCountryClientId = ref('')
 const step = ref(1)
 const loadingCatalogs = ref(false)
@@ -1492,6 +1493,25 @@ const selectedIncotermCode = computed(() => normalizeIncotermCode(
   [displayValue(selectedIncoterm.value), selectedIncoterm.value?.label].filter(Boolean).join(' '),
 ))
 const selectedWarehouse = computed(() => findById(catalogs.warehouses, form.warehouseId))
+const maritimeIncotermIncompatible = computed(() =>
+  (form.modality === 'Air' || form.modality === 'Land')
+  && isMaritimeOnlyIncoterm(selectedIncotermCode.value))
+const incotermDocumentationTip = computed(() => {
+  const requirements: Record<string, string> = {
+    EXW: 'Indique la fábrica o bodega y la dirección exacta de recolecta; el POL no sustituye ese lugar.',
+    FCA: 'Indique la bodega, almacén o terminal pactada y quién realiza la carga o descarga.',
+    FAS: 'Indique puerto y punto exacto al costado del buque.',
+    FOB: 'Indique puerto y punto de entrega a bordo del buque.',
+    CFR: 'Indique puerto de destino pagado y si el THC/descarga está incluido en el flete.',
+    CIF: 'Documente el seguro contratado por el vendedor y el flete hasta el puerto pactado; no duplique la prima.',
+    CPT: 'Indique lugar exacto hasta el que el vendedor paga el transporte y dónde entregó al transportista.',
+    CIP: 'Indique destino pagado y evidencia de seguro del vendedor; no agregue otra prima sin contratación.',
+    DAP: 'Indique dirección final de entrega, sin incluir descarga del vendedor salvo acuerdo.',
+    DPU: 'Indique lugar pactado y cómo el vendedor realizará la descarga.',
+    DDP: 'Indique entrega, aduana e impuestos de importación y confirme viabilidad legal del vendedor.',
+  }
+  return requirements[selectedIncotermCode.value] ?? ''
+})
 
 function normalizedWarehouseContactModes(contact: WarehouseContactDirectoryEntry) {
   return [...new Set([...(contact.shipmentModes ?? []), ...(contact.modalities ?? [])]
@@ -1853,7 +1873,19 @@ function remainingValidityDays(validTo: string) {
 const originOptions = computed(() => catalogs.pol.map((item) => ({ value: item.id, label: displayValue(item) })))
 const destinationOptions = computed(() => catalogs.poe.map((item) => ({ value: item.id, label: displayValue(item) })))
 const podOptions = computed(() => catalogs.pod.map((item) => ({ value: item.id, label: displayValue(item) })))
-const incotermOptions = computed(() => catalogs.incoterms.map((item) => ({ value: item.id, label: displayValue(item) })))
+// Multimodal intentionally includes the maritime rules for its ocean leg.
+// Air/Land cannot select maritime-only terms on new quotations.
+const incotermOptions = computed(() => catalogs.incoterms
+  .filter((item) => {
+    const code = normalizeIncotermCode(item.code,
+      [displayValue(item), item.label].filter(Boolean).join(' '))
+    return form.modality === 'Maritime' || form.modality === 'Multimodal'
+      || !isMaritimeOnlyIncoterm(code)
+      // Preserve a historical persisted selection when viewing/editing:
+      // never rewrite or silently clear an existing quotation's Incoterm.
+      || Boolean(props.rateId && form.incotermId === item.id)
+  })
+  .map((item) => ({ value: item.id, label: displayValue(item) })))
 function countryPhraseContained(text: string, phrase: string) {
   const normalizedText = normalizeCatalogValue(text)
   const normalizedPhrase = normalizeCatalogValue(phrase)
@@ -2170,6 +2202,68 @@ function haulageAssociation(line: { name: string }) {
   return null
 }
 
+// An Incoterm excludes AUTOMATIC BILLING, not the supplier catalog or a
+// separately contracted service. Approval is scoped to the active POE, carrier,
+// client, services and Incoterm; switching context cannot reuse that approval.
+const explicitlyQuotedOutsideIncoterm = ref(new Set<string>())
+const expandedOutsideIncotermGroups = ref(new Set<string>())
+const outsideIncotermScopeKey = (line: RateLine) =>
+  [activeCostContextKey(), operationType.value, selectedIncotermCode.value, line.key].join('||')
+
+function isAutomaticOutsideIncoterm(line: RateLine) {
+  if (props.rateId || editingRate.value || line.detailId || line.manual) return false
+  const section = line.costDetailType === 'Insurance' ? 'insurance'
+    : line.costDetailType === 'AgentCharge' ? 'agent' : line.section
+  return incotermSectionApplicability(
+    operationType.value, selectedIncotermCode.value, section,
+  ) === 'other-party'
+}
+
+function rememberExplicitOutsideIncoterm(line: RateLine, selected: boolean) {
+  const updated = new Set(explicitlyQuotedOutsideIncoterm.value)
+  const key = outsideIncotermScopeKey(line)
+  if (selected) updated.add(key)
+  else updated.delete(key)
+  explicitlyQuotedOutsideIncoterm.value = updated
+}
+
+function applyIncotermAutomaticChargeGuard() {
+  if (step.value !== 7 || props.rateId || editingRate.value) return
+  for (const line of rateLines.value) {
+    if (!line.included || !isAutomaticOutsideIncoterm(line)) continue
+    if (!explicitlyQuotedOutsideIncoterm.value.has(outsideIncotermScopeKey(line))) {
+      line.included = false
+    }
+  }
+}
+
+function outsideIncotermCandidateLines(groupKey: string) {
+  const categories: Record<string, RateSection | 'insurance'> = {
+    pickup: 'pickup_origin', origin: 'origin_charges',
+    freight: 'international_freight', destination: 'destination_charges',
+    insurance: 'insurance', delivery: 'delivery_destination',
+  }
+  const section = categories[groupKey]
+  if (!section || categoryIncotermApplicability(groupKey) !== 'other-party'
+    || props.rateId || editingRate.value) return [] as RateLine[]
+  return rateLines.value.filter(line =>
+    !line.included && isAutomaticOutsideIncoterm(line)
+    && (line.costDetailType === 'Insurance' ? 'insurance' : line.section) === section)
+}
+
+function toggleOutsideIncotermGroup(groupKey: string) {
+  const updated = new Set(expandedOutsideIncotermGroups.value)
+  if (updated.has(groupKey)) updated.delete(groupKey)
+  else updated.add(groupKey)
+  expandedOutsideIncotermGroups.value = updated
+}
+
+function quoteOutsideIncotermByAgreement(line: RateLine) {
+  if (!isAutomaticOutsideIncoterm(line)) return
+  rememberExplicitOutsideIncoterm(line, true)
+  line.included = true
+}
+
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
     if (line.costDetailType === 'Insurance' && shipmentModeForApi.value !== 'Ltl') return false
@@ -2210,7 +2304,11 @@ const selectedOptionalChargeKeys = computed<string[]>({
     rateLines.value.forEach((line) => {
       if (!line.optional) return
       const selectable = selectableOptionalLines.value.some((candidate) => candidate.key === line.key)
-      line.included = selectable && selected.has(line.key)
+      const manuallyChosen = selectable && selected.has(line.key)
+      if (isAutomaticOutsideIncoterm(line)) {
+        rememberExplicitOutsideIncoterm(line, manuallyChosen)
+      }
+      line.included = manuallyChosen
     })
   },
 })
@@ -2257,6 +2355,23 @@ const bottomRateLines = computed(() =>
   ),
 )
 
+
+// Purely visual responsibility signal, never used by cost filtering or saving.
+// Mixed areas (e.g. destination THC + customs) must not be marked "no aplica".
+function categoryIncotermApplicability(groupKey: string) {
+  const sections: Record<string, RateSection | 'agent' | 'insurance'> = {
+    pickup: 'pickup_origin',
+    origin: 'origin_charges',
+    agent: 'agent',
+    freight: 'international_freight',
+    destination: 'destination_charges',
+    insurance: 'insurance',
+    delivery: 'delivery_destination',
+  }
+  const section = sections[groupKey]
+  return section ? incotermSectionApplicability(operationType.value, selectedIncotermCode.value, section) : 'unknown'
+}
+
 const orderedRateGroups = computed(() => [
   { key: 'pickup', label: 'Recolecta', lines: standardSectionLines('pickup_origin') },
   { key: 'origin', label: 'Cargos de origen', lines: standardSectionLines('origin_charges') },
@@ -2265,7 +2380,7 @@ const orderedRateGroups = computed(() => [
   { key: 'destination', label: 'Cargos en destino', lines: standardSectionLines('destination_charges') },
   { key: 'insurance', label: 'Seguro de carga', lines: insuranceLines.value },
   { key: 'delivery', label: 'Entrega', lines: standardSectionLines('delivery_destination') },
-].filter((group) => group.lines.length > 0))
+].filter((group) => group.key !== 'agent' || group.lines.length > 0))
 
 const providerAgentCosts = computed(() => {
   const seen = new Set<string>()
@@ -5815,6 +5930,7 @@ async function saveRate() {
   // One FCL freight per equipment/basis. The generic screen-6 freight cannot
   // coexist with the equipment-specific freight from the selected bundle.
   rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
+  if (!editingRate.value) applyIncotermAutomaticChargeGuard()
   const normalizedIncludedLines = includedLines.value.map((line) => {
     if (line.currencyId) return line
 
@@ -6083,7 +6199,15 @@ async function saveRate() {
     if (editingRate.value) {
       const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
-      const removedExtraDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
+      const missingPersistedDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
+      if (missingPersistedDetailIds.length > 0) {
+        step.value = 7
+        toastStore.warning('Edición incompleta',
+          `Faltan ${missingPersistedDetailIds.length} cargos guardados. No se eliminarán por estar ocultos o por fallar la carga. Revise Pantalla 7 antes de guardar.`)
+        return
+      }
+      // Future explicit RemoveDetail commands will send IDs and reasons separately.
+      const removedExtraDetailIds: string[] = []
       const extraDetails = createPayload.details.map((detail, index) => ({
         ...detail,
         id: includedLines.value[index]?.detailId ?? null,
@@ -6517,6 +6641,15 @@ function resetWizard() {
     manualChargeBasis: '',
   })
 }
+
+// Reconcile every new catalog-rebuilt P7 state, including transformed Vite code.
+// Only affects auto-selected new-quote lines, never persisted or manual RateDetails.
+watch(
+  () => [step.value, operationType.value, selectedIncotermCode.value,
+    rateLines.value.map(line => `${line.key}:${line.included ? 1 : 0}`).join('|')],
+  () => applyIncotermAutomaticChargeGuard(),
+  { flush: 'pre' },
+)
 
 watch(
   () => form.cargoDescription,
@@ -7098,19 +7231,34 @@ onMounted(async () => {
                 :options="catalogs.countries.filter(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries))).map(country => ({ value: country.id, label: displayValue(country) || country.label || country.id }))" />
               <p v-if="!catalogs.countries.some(country => /^[A-Z]{2}$/.test(resolveCrmCountryCode(country.id, catalogs.countries)))" role="alert" class="text-xs font-semibold text-amber-600">El catálogo de países de Config está vacío. Es necesario cargarlo para seleccionar el país del cliente.</p>
             </div>
-            <div class="grid gap-2 md:grid-cols-2">
-              <DhSelect v-model="pricingQuoteOperationOverride"
-                label="Operación comercial (selección manual disponible)"
-                data-required-field="clientCountry"
-                :options="[
-                  { value: '', label: 'Automática según el cliente y la ruta' },
-                  { value: 'Import', label: 'Importación' },
-                  { value: 'Export', label: 'Exportación' },
-                  { value: 'TransitDomestic', label: 'Tránsito / doméstico' },
-                ]" />
-              <p class="self-center text-xs font-semibold text-[var(--dh-text-muted)]">
-                {{ pricingQuoteOperationOverride ? 'Se respetará la operación seleccionada para esta cotización.' : 'La operación se calcula automáticamente si los países están disponibles.' }}
-              </p>
+            <div class="rounded-xl border border-[var(--dh-border)] px-3 py-2">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                  Operación: <strong class="text-[var(--dh-text)]">{{ direction || 'Por determinar' }}</strong>
+                  <span class="ml-2">{{ pricingQuoteOperationOverride ? '(manual)' : '(automática)' }}</span>
+                </p>
+                <button v-if="!props.viewOnly" type="button"
+                  class="text-xs font-bold text-[var(--dh-primary)] hover:underline"
+                  :aria-expanded="showCommercialOperationControls"
+                  @click="showCommercialOperationControls = !showCommercialOperationControls">
+                  {{ showCommercialOperationControls ? 'Ocultar ajuste' : 'Cambiar operación' }}
+                </button>
+              </div>
+              <div v-if="showCommercialOperationControls || (!direction && !props.viewOnly)" class="mt-3">
+                <DhSelect v-model="pricingQuoteOperationOverride"
+                  :disabled="props.viewOnly"
+                  label="Importación / exportación"
+                  data-required-field="clientCountry"
+                  :options="[
+                    { value: '', label: 'Automático según cliente y ruta' },
+                    { value: 'Import', label: 'Importación' },
+                    { value: 'Export', label: 'Exportación' },
+                    { value: 'TransitDomestic', label: 'Tránsito / doméstico' },
+                  ]" />
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                  La selección manual tiene prioridad; «Automático» restaura el cálculo por CRM y ruta.
+                </p>
+              </div>
             </div>
             <p v-if="form.clientId && form.originId && (form.podId || form.destinationId) && !direction"
               data-required-field="clientCountry" role="status" class="text-xs font-semibold text-amber-500">
@@ -7242,9 +7390,20 @@ onMounted(async () => {
               <DhInput v-model="form.validTo" type="date" :label="form.rateType === 'Tariff' ? 'Vigente hasta del tarifario' : 'Vigente hasta'" />
             </div>
 
-            <p v-if="form.incotermId" class="text-xs font-semibold text-[var(--dh-text-muted)]">
-              {{ incotermOperationExplanation(operationType, selectedIncotermCode) }}
-            </p>
+            <div v-if="form.incotermId" class="space-y-2 rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+              <p class="font-semibold text-[var(--dh-text-muted)]">
+                {{ incotermOperationExplanation(operationType, selectedIncotermCode) }}
+              </p>
+              <p v-if="incotermDocumentationTip" class="font-semibold text-[var(--dh-text)]">
+                Requisito de {{ selectedIncotermCode }}: {{ incotermDocumentationTip }}
+              </p>
+              <p v-if="maritimeIncotermIncompatible" role="alert" class="font-bold text-amber-600">
+                Este Incoterm corresponde al tramo marítimo, no a un transporte exclusivamente aéreo o terrestre. Seleccione uno compatible antes de emitir; se conserva el valor histórico sin borrar cargos.
+              </p>
+              <p class="text-[var(--dh-text-muted)]">
+                Los seis bloques de servicios permanecen disponibles. Un Incoterm determina responsabilidades, pero no elimina cargos contratados ni crea seguros o fletes nuevos sin confirmación.
+              </p>
+            </div>
             <PricingCrystalMultiSelect
               v-model="form.serviceIds"
               data-required-field="serviceIds" :error="fieldError('serviceIds')"
@@ -8035,9 +8194,22 @@ onMounted(async () => {
 
           <p v-if="isInvalid('rateLines')" data-required-field="rateLines" role="alert" class="rounded-xl border border-red-500/50 bg-red-500/5 p-3 text-sm font-bold text-red-500">Agregue al menos una línea de costo y venta antes de guardar la tarifa.</p>
           <div v-for="group in orderedRateGroups" :key="group.key" class="space-y-2">
-            <div class="crystal-group-header">
-              <h3 class="text-xs font-black uppercase tracking-[0.15em] text-[var(--dh-text-muted)]">{{ group.label }}</h3>
-              <div class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
+            <div class="crystal-group-header" :class="categoryIncotermApplicability(group.key) === 'other-party' ? 'rounded-xl border border-red-500/50 bg-red-500/5 px-3 py-3' : ''">
+              <div class="min-w-0">
+                <h3 class="text-xs font-black uppercase tracking-[0.15em]" :class="categoryIncotermApplicability(group.key) === 'other-party' ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text-muted)]'">{{ group.label }}</h3>
+                <p v-if="categoryIncotermApplicability(group.key) === 'other-party'" class="mt-1 text-xs font-bold text-red-600 dark:text-red-300">
+                  No corresponde normalmente al cliente para {{ selectedIncotermCode }} · {{ direction }}. Si se contrata por separado, se puede cotizar expresamente.
+                </p>
+                <p v-else-if="categoryIncotermApplicability(group.key) === 'mixed'" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
+                  Responsabilidad según tramo, lugar y acuerdo; confirme cada cargo antes de facturar.
+                </p>
+                <button v-if="outsideIncotermCandidateLines(group.key).length > 0" type="button"
+                  class="mt-2 rounded-lg border border-red-500/50 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300"
+                  @click="toggleOutsideIncotermGroup(group.key)">
+                  {{ expandedOutsideIncotermGroups.has(group.key) ? 'Ocultar disponibles' : 'Agregar servicio fuera del Incoterm' }}
+                </button>
+              </div>
+              <div v-if="group.lines.length > 0" class="flex w-full flex-col gap-2 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card-hover)] p-3 sm:w-auto sm:min-w-[440px] sm:flex-row sm:items-end">
                 <DhInput
                   :model-value="billToBatchByGroup[group.key] ?? ''"
                   class="min-w-[240px]"
@@ -8052,6 +8224,22 @@ onMounted(async () => {
                 </DhButton>
               </div>
             </div>
+            <div v-if="expandedOutsideIncotermGroups.has(group.key) && outsideIncotermCandidateLines(group.key).length"
+              class="space-y-2 rounded-xl border border-red-500/30 p-3">
+              <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                Cargos disponibles de Pricing. Ninguno se incluye hasta pulsar «Cotizar por acuerdo».
+              </p>
+              <div v-for="candidate in outsideIncotermCandidateLines(group.key)" :key="candidate.key"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--dh-border)] p-2 text-xs">
+                <span class="font-semibold">{{ candidate.name }} · {{ candidate.currencyCode }} · Costo {{ number(candidate.costAmount) }} / Venta {{ number(candidate.saleAmount) }}</span>
+                <button type="button" class="rounded-lg border border-[var(--dh-border)] px-3 py-1.5 font-bold"
+                  @click="quoteOutsideIncotermByAgreement(candidate)">Cotizar por acuerdo</button>
+              </div>
+            </div>
+            <p v-if="group.lines.length === 0 && outsideIncotermCandidateLines(group.key).length === 0"
+              class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs font-semibold text-[var(--dh-text-muted)]">
+              Sin cargos incluidos para {{ group.label.toLowerCase() }}. Puede agregar manualmente los servicios contratados.
+            </p>
             <div
               v-for="line in group.lines"
               :key="line.key"
