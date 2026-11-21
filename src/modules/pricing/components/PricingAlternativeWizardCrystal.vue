@@ -3930,7 +3930,14 @@ function rebuildRateLines() {
     if (!resolvedAmount) return
     const section = sectionForCost(cost)
     if (!visible.has(section)) return
-    if (cost.costDetailType === 'Freight' && lines.some((line) => line.costDetailType === 'Freight')) return
+    // FCL multimodal has TWO different freight legs: a maritime source freight
+    // and a Panama -> Costa Rica road master. Do not discard the latter because
+    // the generic maritime freight line was generated first.
+    const isSeparateMultimodalLandFreight = form.modality === 'Multimodal'
+      && /terrestre|land freight/i.test(normalizeCatalogValue(cost.name))
+    if (cost.costDetailType === 'Freight'
+      && lines.some((line) => line.costDetailType === 'Freight')
+      && !isSeparateMultimodalLandFreight) return
     // Two genuinely different CostIds can share a name; do not merge their
     // cost/sale amounts solely by commercial label.
     if (lines.some(line => line.costId === cost.id)) return
