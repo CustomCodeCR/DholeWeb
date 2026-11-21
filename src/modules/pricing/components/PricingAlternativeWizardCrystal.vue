@@ -2427,7 +2427,12 @@ const outsideIncotermScopeKey = (line: RateLine) =>
   [activeCostContextKey(), operationType.value, selectedIncotermCode.value, line.key].join('||')
 
 function isAutomaticOutsideIncoterm(line: RateLine) {
-  if (props.rateId || editingRate.value || line.detailId || line.manual) return false
+  // An equipment freight allocation can be tagged manual by older FCL transforms
+  // only because it lacks a CostId. It is still SYSTEM-GENERATED (not selected).
+  const generatedEquipmentFreight = line.costDetailType === 'Freight'
+    && (line.key === 'freight' || line.key.startsWith('freight:'))
+  if (props.rateId || editingRate.value || line.detailId
+    || (line.manual && !generatedEquipmentFreight)) return false
   const section = line.costDetailType === 'Insurance' ? 'insurance'
     : line.costDetailType === 'AgentCharge' ? 'agent' : line.section
   return incotermSectionApplicability(
@@ -2479,6 +2484,15 @@ function quoteOutsideIncotermByAgreement(line: RateLine) {
   rememberExplicitOutsideIncoterm(line, true)
   line.included = true
 }
+
+// Previously accepted outside-Incoterm charges are never silently restored
+// after switching the route, client, services, operation or Incoterm.
+watch(
+  () => [activeCostContextKey(), operationType.value, selectedIncotermCode.value].join('||'),
+  (current, previous) => {
+    if (previous && current !== previous) explicitlyQuotedOutsideIncoterm.value = new Set()
+  },
+)
 
 const selectableOptionalLines = computed(() =>
   rateLines.value.filter((line) => {
@@ -8507,7 +8521,7 @@ onMounted(async () => {
               <div class="min-w-0">
                 <h3 class="text-xs font-black uppercase tracking-[0.15em]" :class="categoryIncotermApplicability(group.key) === 'other-party' ? 'text-red-600 dark:text-red-300' : 'text-[var(--dh-text-muted)]'">{{ group.label }}</h3>
                 <p v-if="categoryIncotermApplicability(group.key) === 'other-party'" class="mt-1 text-xs font-bold text-red-600 dark:text-red-300">
-                  {{ group.key === 'insurance' ? 'Seguro a documentar por el vendedor, no volver a cobrar.' : 'No corresponde normalmente al cliente para' }} {{ selectedIncotermCode }} · {{ direction }}. Si se contrata por separado, conserve el cargo; no se elimina automáticamente.
+                  {{ group.key === 'insurance' ? 'Seguro a documentar por el vendedor, no volver a cobrar.' : 'No corresponde normalmente al cliente para' }} {{ selectedIncotermCode }} · {{ direction }}. No se incluye automáticamente. Para cotizarlo, use «Agregar servicio fuera del Incoterm».
                 </p>
                 <p v-else-if="categoryIncotermApplicability(group.key) === 'mixed'" class="mt-1 text-[11px] font-semibold text-[var(--dh-text-muted)]">
                   Responsabilidad según tramo, lugar y acuerdo; confirme cada cargo antes de facturar.

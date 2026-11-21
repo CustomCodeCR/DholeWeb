@@ -1,3 +1,11 @@
+## [1.108.12] - 2026-11-21 (DH-20261121-FOB-EXPORT-FREIGHT-379 · cargos por Incoterm del cliente)
+
+- PATCH: corrige FOB + Exportación en P7. La reconciliación FCL marcaba manual=true e included=true a fletes por contenedor creados por el sistema; por eso escapaban la protección y aparecían por USD 5.500 sin acuerdo explícito.
+- Fletes de naviera elegidos en P5/P6 permanecen como inventario con monto, divisa, cantidad y comentarios originales, pero no se incluyen en P7, totales ni POST cuando corresponden a la otra parte según Incoterm/Import-Export. Incorporación mediante «Agregar servicio fuera del Incoterm» y «Cotizar por acuerdo», por contexto comercial actual.
+- Las excepciones no se arrastran al cambiar de ruta, cliente, servicios, operación o Incoterm. Cargos realmente ingresados por el usuario y RateDetails persistidos conservan sus importes. FOB Import y CIF Export mantienen el flete del lado del cliente.
+- Regresión pricingIncotermFclBilling379.test.ts y guard histórico #377 actualizados. DholeWeb/DholeSystem 1.108.11 → 1.108.12; DholePricingService permanece 1.26.12. Sin cambios REST, SignalR ni base de datos.
+- Release coordinado solo a develop/staging sujeto a CI y validación autenticada de FOB Export/Import en P7; master y producción no autorizados.
+
 ## [1.108.11] - 2026-11-21 (DH-20261121-INCOTERM-RUNTIME-SCOPE-378 · recuperar el wizard y proteger Incoterms)
 
 - PATCH: limita los dos transformadores Vite de shouldIncludeOptionalCost al cuerpo de esa única función y evita que borren los helpers de cotización por Incoterm situados antes de selectableOptionalLines.
