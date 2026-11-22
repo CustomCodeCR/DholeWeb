@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Users, Truck, Layers3 } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Ship, Plane, Check, Truck, Layers3 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhSearchInput } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -9,6 +9,7 @@ import { operationsApi, type CrmAccountOption } from '../services/operationsApi'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingWizardStepper from '@/modules/pricing/components/PricingWizardStepper.vue'
+import PricingContainerSelector from '@/modules/pricing/components/PricingContainerSelector.vue'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -32,11 +33,12 @@ const complexity = ref(1)
 const saving = ref(false)
 const activeStep = ref(1)
 const wizardSteps = [
-  { id: 1, label: 'Cliente', hint: 'Cuenta CRM y referencias' },
-  { id: 2, label: 'Ruta', hint: 'Modalidad, Incoterm y terminales' },
-  { id: 3, label: 'Carga', hint: 'Mercancía, pesos y equipos' },
-  { id: 4, label: 'Servicios', hint: 'Recolección, entrega y coordinación' },
-  { id: 5, label: 'Revisión', hint: 'Resumen y guardado del borrador' },
+  { id: 1, label: 'Modalidad', hint: 'Marítimo, aéreo, terrestre o multimodal' },
+  { id: 2, label: 'Embarque', hint: 'FCL, LCL, FTL, LTL y carga aérea' },
+  { id: 3, label: 'Cliente y ruta', hint: 'Cuenta CRM, Incoterm y terminales' },
+  { id: 4, label: 'Carga', hint: 'Mercancía, pesos y equipos' },
+  { id: 5, label: 'Servicios', hint: 'Recolecta, entrega y coordinación' },
+  { id: 6, label: 'Revisión', hint: 'Resumen y guardado del borrador' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
@@ -57,10 +59,6 @@ const podOptions = computed(() => locationChoices('pod'))
 const warehouseOptions = computed(() => locationChoices('warehouses'))
 const agentChoices = computed(() => catalogChoices('agents'))
 const carrierChoices = computed(() => catalogChoices('carriers'))
-const equipmentChoices = computed(() => {
-  const type = modality.value === 'FTL' ? 'land-equipment-sizes' : 'container-types'
-  return [{ label: 'Seleccionar equipo', value: '' }, ...catalogChoices(type)]
-})
 function asChoices(key: string, saved: string) {
   const options = catalogChoices(key)
   return saved && !options.some(x => x.value === saved) ? [{ label: saved, value: saved }, ...options] : options
@@ -117,6 +115,7 @@ const fieldTitle = (label: string, value: unknown) => ({ label, value: value == 
 const summaryFields = computed(() => [
   fieldTitle('Cliente', accounts.value.find(x => x.id === accountId.value)?.displayName || accountId.value),
   fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
+  fieldTitle('Tipo de embarque', form.value.shipmentType),
   fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
   fieldTitle('Salida / POE', form.value.poe), fieldTitle('Destino / POD', form.value.pod),
   fieldTitle('Mercancía', form.value.cargoDescription),
@@ -130,7 +129,7 @@ const loading = ref(true)
 const error = ref('')
 const form = ref({
   provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '',
-  shipmentType: '', transportType: '', incoterm: '',
+  shipmentType: '', cargoNature: '', transportType: '', incoterm: '',
   pol: '', poe: '', pod: '', pickupAddress: '', pickupContact: '',
   pickupWindow: '', requiresPickup: false, whsName: '',
   destinationAddress: '', cargoDescription: '', packageCount: '',
@@ -141,7 +140,7 @@ const form = ref({
   agentReference: '', merchantReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', commercialReviewRequested: false,
-  equipment: [] as Array<{ equipmentType: string; quantity: number }>,
+  equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
   originCountryCode: '', destinationCountryCode: '',
 })
 const modalOptions = [
@@ -149,10 +148,49 @@ const modalOptions = [
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
   { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
 ]
-const transportOptions = [
-  { label: 'Marítimo', value: 'MARITIME' }, { label: 'Terrestre', value: 'ROAD' },
-  { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
+const transportSelectionOptions = [
+  { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL', icon: Ship },
+  { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional', icon: Plane },
+  { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL', icon: Truck },
+  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte', icon: Layers3 },
 ]
+const shipmentOptionsByTransport: Record<string, Array<{ label: string; value: string }>> = {
+  MARITIME: [{ label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Coloading / propio', value: 'LCL' }],
+  AIR: [{ label: 'Carga aérea', value: 'AIR' }],
+  ROAD: [{ label: 'FTL · Furgón completo', value: 'FTL' }, { label: 'LTL · Carga consolidada', value: 'LTL' }],
+  MULTIMODAL: [{ label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Carga consolidada', value: 'LCL' },
+    { label: 'FTL · Furgón completo', value: 'FTL' }, { label: 'LTL · Carga consolidada', value: 'LTL' }],
+}
+const shipmentOptions = computed(() => shipmentOptionsByTransport[form.value.transportType] ?? [])
+const effectiveShipment = computed(() => {
+  const saved = form.value.shipmentType.toUpperCase()
+  return shipmentOptions.value.some(item => item.value === saved) ? saved :
+    shipmentOptions.value.some(item => item.value === modality.value) ? modality.value : ''
+})
+const equipmentCatalogKey = computed(() => effectiveShipment.value === 'FTL' ? 'land-equipment-sizes' : 'container-types')
+function selectTransport(value: string) {
+  if (form.value.transportType === value) return
+  const available = shipmentOptionsByTransport[value] ?? []
+  form.value.transportType = value
+  if (!available.some(item => item.value === effectiveShipment.value)) {
+    form.value.shipmentType = ''
+    modality.value = ''
+  } else {
+    modality.value = value === 'MULTIMODAL' ? 'MULTIMODAL' : effectiveShipment.value
+  }
+  if (!['MARITIME', 'MULTIMODAL'].includes(value) && ['FAS','FOB','CFR','CIF'].includes(form.value.incoterm.toUpperCase())) {
+    form.value.incoterm = ''
+  }
+}
+function selectShipment(value: string) {
+  if (!shipmentOptions.value.some(item => item.value === value)) return
+  form.value.shipmentType = value
+  modality.value = form.value.transportType === 'MULTIMODAL' ? 'MULTIMODAL' : value
+}
+function setEquipmentType(item: { equipmentType: string; equipmentCatalogId?: string }, id: string) {
+  item.equipmentCatalogId = id
+  item.equipmentType = lookupLabel(equipmentCatalogKey.value, id) || id
+}
 const originOptions = [
   { label: 'Cliente', value: 'CLIENT' }, { label: 'Proveedor', value: 'SUPPLIER' },
   { label: 'Agente', value: 'AGENT' }, { label: 'Oficina de origen', value: 'ORIGIN_OFFICE' },
@@ -168,8 +206,8 @@ const serviceCatalog: Array<[string, string]> = [
   ['OTHER','Otros servicios'],
 ]
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
-const needsEquipment = computed(() => modality.value === 'FCL' || modality.value === 'FTL' || modality.value === 'MULTIMODAL')
-const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(modality.value))
+const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
+const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
 const accountOptions = computed(() => [
   { label: 'Seleccionar cuenta CRM', value: '' },
   ...accounts.value.map(a => ({ label: a.displayName || a.legalName || a.id, value: a.id })),
@@ -185,6 +223,8 @@ const valid = computed(() =>
 const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
+  if (!form.value.transportType) result.push('Modalidad de transporte')
+  if (!effectiveShipment.value) result.push('Tipo de embarque')
   if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
   if (!form.value.pol.trim()) result.push('POL / lugar de origen')
   if (!form.value.pod.trim()) result.push('POD / lugar de destino')
@@ -196,7 +236,7 @@ const blockers = computed(() => {
   if (form.value.requiresPickup && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
   return result
 })
-function addEquipment() { form.value.equipment.push({ equipmentType: '40HC', quantity: 1 }) }
+function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
 async function loadAccounts() {
   loadingAccounts.value = true
   try { accounts.value = (await operationsApi.crmAccounts(accountSearch.value)).items }
@@ -235,7 +275,9 @@ async function save() {
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       equipment: form.value.equipment.map(item => ({
-        equipmentType: item.equipmentType, quantity: Number(item.quantity),
+        equipmentType: item.equipmentType,
+        equipmentCatalogId: item.equipmentCatalogId || undefined,
+        quantity: Number(item.quantity),
       })),
       completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_VALIDATION',
       missingFields: blockers.value,
@@ -270,11 +312,6 @@ watch(accountSearch, () => {
   clearTimeout(accountTimer)
   accountTimer = setTimeout(() => { void loadAccounts() }, 250)
 })
-watch(modality, value => {
-  if (restoringOpening) return
-  form.value.transportType = value === 'AIR' ? 'AIR' :
-    ['FTL','LTL'].includes(value) ? 'ROAD' : value === 'MULTIMODAL' ? 'MULTIMODAL' : 'MARITIME'
-})
 watch(selectedPol, id => { const label = lookupLabel('pol', id); if (label) form.value.pol = label })
 watch(selectedPoe, id => { const label = lookupLabel('poe', id); if (label) form.value.poe = label })
 watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form.value.pod = label })
@@ -299,6 +336,12 @@ onMounted(async () => {
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         form.value = { ...form.value, ...parsed } as typeof form.value
       }
+      if (!form.value.transportType) {
+        form.value.transportType = modality.value === 'AIR' ? 'AIR'
+          : ['FTL','LTL'].includes(modality.value) ? 'ROAD'
+            : modality.value === 'MULTIMODAL' ? 'MULTIMODAL' : 'MARITIME'
+      }
+      if (!form.value.shipmentType && modality.value !== 'MULTIMODAL') form.value.shipmentType = modality.value
       form.value.originCountryCode = detail.originCountryCode || ''
       form.value.destinationCountryCode = detail.destinationCountryCode || ''
       reconcileLocations()
@@ -367,10 +410,11 @@ onUnmounted(() => { clearTimeout(accountTimer) })
     <section class="overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
       <header class="flex flex-wrap items-center gap-3 rounded-t-[26px] border-b border-[var(--dh-border)] p-5 sm:p-6">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]">
-          <Users v-if="activeStep === 1" class="h-5 w-5" />
-          <Route v-else-if="activeStep === 2" class="h-5 w-5" />
-          <Package v-else-if="activeStep === 3" class="h-5 w-5" />
-          <Truck v-else-if="activeStep === 4" class="h-5 w-5" />
+          <Ship v-if="activeStep === 1" class="h-5 w-5" />
+          <Layers3 v-else-if="activeStep === 2" class="h-5 w-5" />
+          <Route v-else-if="activeStep === 3" class="h-5 w-5" />
+          <Package v-else-if="activeStep === 4" class="h-5 w-5" />
+          <Truck v-else-if="activeStep === 5" class="h-5 w-5" />
           <ClipboardCheck v-else class="h-5 w-5" />
         </span>
         <div class="min-w-0">
@@ -378,11 +422,52 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           <h3 class="mt-0.5 text-lg font-black tracking-tight">{{ activeStepMeta.label }}</h3>
           <p class="text-xs font-medium text-[var(--dh-text-muted)]">{{ activeStepMeta.hint }}</p>
         </div>
-        <DhBadge v-if="activeStep === 5" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
+        <DhBadge v-if="activeStep === 6" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
       </header>
 
       <div class="p-4 sm:p-6">
-        <div v-show="activeStep === 1" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-6">
+          <div>
+            <h4 class="text-xl font-black">Seleccione la modalidad</h4>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Utiliza las mismas modalidades de Crear tarifas. Los servicios y datos operativos se configuran en los siguientes pasos.</p>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <button v-for="option in transportSelectionOptions" :key="option.value" type="button"
+              class="group relative flex min-h-[158px] flex-col items-start rounded-[22px] border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+              :class="form.transportType === option.value
+                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)] text-[var(--dh-text)]'
+                : 'border-[var(--dh-border)] bg-[var(--dh-input)]/70 hover:border-[var(--dh-primary)]'"
+              :aria-pressed="form.transportType === option.value" @click="selectTransport(option.value)">
+              <span class="grid h-11 w-11 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><component :is="option.icon" class="h-6 w-6" /></span>
+              <span class="mt-5 text-base font-black">{{ option.label }}</span>
+              <span class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ option.caption }}</span>
+              <Check v-if="form.transportType === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
+            </button>
+          </div>
+        </div>
+
+        <div v-show="activeStep === 2" class="space-y-6">
+          <div>
+            <h4 class="text-xl font-black">Tipo de embarque</h4>
+            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Solo aparecen opciones compatibles con el transporte seleccionado. No se solicita una tarifa para abrir el trámite.</p>
+          </div>
+          <p v-if="!form.transportType" role="status" class="rounded-xl border border-amber-500/30 p-4 text-sm text-amber-500">
+            Primero seleccione la modalidad de transporte en el paso anterior.
+          </p>
+          <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <button v-for="option in shipmentOptions" :key="option.value" type="button"
+              class="relative min-h-[125px] rounded-[22px] border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+              :class="effectiveShipment === option.value
+                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]'
+                : 'border-[var(--dh-border)] bg-[var(--dh-input)]/70 hover:border-[var(--dh-primary)]'"
+              :aria-pressed="effectiveShipment === option.value" @click="selectShipment(option.value)">
+              <span class="text-base font-black">{{ option.label }}</span>
+              <Check v-if="effectiveShipment === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
+            </button>
+          </div>
+        </div>
+
+        <div v-show="activeStep === 3" class="space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
               <h4 class="text-sm font-black">Cuenta y responsable comercial</h4>
@@ -407,12 +492,10 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           </div>
         </div>
 
-        <div v-show="activeStep === 2" class="space-y-5">
+        <div v-show="activeStep === 3" class="space-y-5">
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <DhSelect v-model="modality" label="Modalidad" :options="modalOptions" />
-            <DhSelect v-model="form.transportType" label="Tipo de transporte" :options="transportOptions" />
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
-            <DhInput v-model="form.shipmentType" label="Tipo de embarque" placeholder="Carga general, consolidada…" />
+            <DhInput v-model="form.cargoNature" label="Naturaleza de la carga" placeholder="Carga general, perecedera…" />
             <DhInput v-model="form.originCountryCode" label="País de origen (ISO)" placeholder="CN" />
             <DhInput v-model="form.destinationCountryCode" label="País destino (ISO)" placeholder="CR" />
           </div>
@@ -428,9 +511,9 @@ onUnmounted(() => { clearTimeout(accountTimer) })
                 <DhInput v-if="form.pol && !selectedPol && polOptions.length" v-model="form.pol" label="Origen registrado / texto libre" />
               </div>
               <div>
-                <PricingLocationSearchSelect v-if="poeOptions.length" v-model="selectedPoe" label="Salida / POE" placeholder="Buscar punto de salida…" search-placeholder="Nombre, código o país…" :options="poeOptions" terminal-type="CY" />
-                <DhInput v-else v-model="form.poe" label="Salida / POE" placeholder="Terminal de salida" />
-                <DhInput v-if="form.poe && !selectedPoe && poeOptions.length" v-model="form.poe" label="POE registrado / texto libre" />
+                <PricingLocationSearchSelect v-if="poeOptions.length" v-model="selectedPoe" label="Entrada / POE" placeholder="Buscar puerto de entrada…" search-placeholder="Nombre, código o país…" :options="poeOptions" terminal-type="CY" />
+                <DhInput v-else v-model="form.poe" label="Entrada / POE" placeholder="Puerto de entrada" />
+                <DhInput v-if="form.poe && !selectedPoe && poeOptions.length" v-model="form.poe" label="POE registrado / texto libre"  />
               </div>
               <div>
                 <PricingLocationSearchSelect v-if="podOptions.length" v-model="selectedPod" label="Destino final / POD" placeholder="Buscar destino…" search-placeholder="Nombre, código o país…" :options="podOptions" terminal-type="SD" />
@@ -445,7 +528,7 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           </div>
         </div>
 
-        <div v-show="activeStep === 3" class="space-y-5">
+        <div v-show="activeStep === 4" class="space-y-5">
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
@@ -469,7 +552,7 @@ onUnmounted(() => { clearTimeout(accountTimer) })
               <DhInput v-if="form.overweight" v-model="form.overweightNotes" label="Requerimientos por sobrepeso" />
             </div>
           </div>
-          <div v-if="needsEquipment" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+          <div v-if="needsEquipment || form.equipment.length" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h4 class="text-sm font-black">Equipos de transporte</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Selecciona los tipos de equipo del catálogo usado en Crear tarifas.</p></div>
               <DhButton variant="secondary" :icon="Plus" label="Agregar equipo" size="sm" @click="addEquipment" />
@@ -477,8 +560,13 @@ onUnmounted(() => { clearTimeout(accountTimer) })
             <div v-if="!form.equipment.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-center text-sm text-[var(--dh-text-muted)]">Agrega al menos un equipo cuando corresponda.</div>
             <div v-for="(item, index) in form.equipment" :key="index" class="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-3">
               <div class="min-w-[170px] flex-1">
-                <DhSelect v-if="asChoices(modality === 'FTL' ? 'land-equipment-sizes' : 'container-types', item.equipmentType).length" v-model="item.equipmentType" label="Tipo de equipo" :options="asChoices(modality === 'FTL' ? 'land-equipment-sizes' : 'container-types', item.equipmentType)" />
-                <DhInput v-else v-model="item.equipmentType" label="Tipo de equipo" placeholder="40HC, 20GP, 53 FT…" />
+                <PricingContainerSelector
+                  :model-value="item.equipmentCatalogId || selectedForLabel(equipmentCatalogKey, item.equipmentType)"
+                  :transport="effectiveShipment === 'FTL' ? 'land' : 'maritime'"
+                  @update:model-value="setEquipmentType(item, $event)"
+                />
+                <DhInput v-if="item.equipmentType && !item.equipmentCatalogId && !selectedForLabel(equipmentCatalogKey, item.equipmentType)"
+                  v-model="item.equipmentType" label="Equipo histórico / referencia" />
               </div>
               <div class="w-36"><DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1" @update:model-value="item.quantity = Number($event)" /></div>
               <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
@@ -486,7 +574,7 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           </div>
         </div>
 
-        <div v-show="activeStep === 4" class="space-y-5">
+        <div v-show="activeStep === 5" class="space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4"><h4 class="text-sm font-black">Servicios contratados</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Mismo multiselector de servicios utilizado por Pricing. Esto documenta la operación: no crea ni cambia cargos comerciales.</p></div>
             <PricingCrystalMultiSelect v-model="form.services" label="Servicios" placeholder="Seleccionar servicios" search-placeholder="Buscar servicio..." :options="serviceChoices" />
@@ -503,12 +591,12 @@ onUnmounted(() => { clearTimeout(accountTimer) })
             </div>
             <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
               <PricingLocationSearchSelect
-                v-if="warehouseOptions.length && (requiresWarehouse || modality === 'LCL' || modality === 'LTL')"
+                v-if="warehouseOptions.length && (requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment))"
                 v-model="selectedWarehouse" label="WHS"
                 placeholder="Seleccionar WHS" search-placeholder="Buscar bodega o ciudad…"
                 :options="warehouseOptions" terminal-type="WHS"
               />
-              <DhInput v-if="requiresWarehouse || modality === 'LCL' || modality === 'LTL'" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
+              <DhInput v-if="requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment)" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
               <DhSelect v-if="agentChoices.length" v-model="form.agentReference" label="Agente de origen" :options="asChoices('agents', form.agentReference)" />
               <DhInput v-else v-model="form.agentReference" label="Agente / oficina de origen" />
               <DhSelect v-if="isMaritime && carrierChoices.length" v-model="form.carrierReference" label="Naviera" :options="asChoices('carriers', form.carrierReference)" />
@@ -524,7 +612,7 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           <DhCheckbox v-model="form.commercialReviewRequested" label="Solicitar revisión comercial en Pricing (requiere integración)" />
         </div>
 
-        <div v-show="activeStep === 5" class="space-y-5">
+        <div v-show="activeStep === 6" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Verifica los datos antes de guardar. El IDTRA se asignará automáticamente.</p></div>
             <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Borrador incompleto' : 'Listo para validación' }}</DhBadge>
