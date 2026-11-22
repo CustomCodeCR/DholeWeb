@@ -110,6 +110,7 @@ test('DH-391: final wizard transform enforces dynamic P7 and protects saved pric
     '}',
     'function saveRate() {',
     '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()',
     '}',
     'function isAutomaticOutsideIncoterm(line: RateLine) { return true }',
     'function quoteEditApplyDelta387() {}',
