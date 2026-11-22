@@ -50,7 +50,7 @@
     "test:avatar": "node --test tests/dhAvatarBlobatar.test.mjs",
     "test:crm:shared-agenda": "node --test tests/crmSharedAgendaInvitees.test.mjs",
     "test:catalog:agents": "node --experimental-strip-types --test tests/globalAgentCountries.test.ts",
-    "test:pricing-dh393": "node --experimental-strip-types --test tests/pricingTranchesMiamiPanama393.test.ts"
+    "test:pricing-dh393": "node --experimental-strip-types --test tests/pricingTranchesMiamiPanama393.test.ts tests/pricingRequiredLines396.test.ts"
   },
   "dependencies": {
     "@blobatar/vue": "2.7.0",
