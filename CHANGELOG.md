@@ -1,3 +1,10 @@
+## [1.111.1] - 2026-11-21 · DH-20261121-OPERATIONS-STEPPER-400 (UI Pricing/Operations · ancho del stepper)
+
+- PATCH: PricingWizardStepper distribuye dinámicamente las columnas de navegación según los pasos reales (4 en edición de tarifas, 5 en Aperturas) y mantiene el desplazamiento horizontal adaptable en móvil.
+- Prueba de regresión para evitar que el paso quinto de Aperturas se desplace a una segunda fila en escritorio.
+- DholeWeb/DholeSystem 1.111.0 → 1.111.1; backend Operations 0.15.0 y demás servicios sin cambios. Sin cambios REST, SignalR, ni migraciones.
+- Requiere CI/staging y promoción coordinada a master.
+
 ## [1.111.0] - 2026-11-21 · DH-20261121-OPERATIONS-PRICING-UI-399 (Operations · wizard compartido con Pricing)
 
 - MINOR: Apertura manual usa 5 pasos (Cliente, Ruta, Carga, Servicios, Revisión) con resumen de completitud, barra de avance y guardado de borrador sin perder información.
