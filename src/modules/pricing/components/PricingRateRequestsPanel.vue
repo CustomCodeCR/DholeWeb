@@ -704,7 +704,7 @@ onBeforeUnmount(() => {
               <Undo2 class="h-5 w-5 text-amber-500" /> Devolver tarifa
             </h3>
             <p class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
-              Solicitud {{ returnTarget.id }} · {{ returnTarget.clientName || 'Cliente sin definir' }} · {{ returnTarget.originName || 'Origen' }} → {{ returnTarget.destinationName || 'Destino' }}
+              {{ returnTarget.clientName || 'Cliente sin definir' }} · {{ returnTarget.originName || 'Origen' }} → {{ returnTarget.destinationName || 'Destino' }}
             </p>
             <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
               El vendedor recibirá una notificación interna y un correo con el motivo. La solicitud quedará disponible para corregir y reenviar.
