@@ -123,10 +123,28 @@ export function patchPricingP7Reconcile391(source: string): string {
     throw new Error('[DH-396] Missing P7 rebuild completion marker')
   code = code.replace(rebuildComplete,
     '  if (step.value === 7) p7PresentOrReconcile391()\n' + rebuildComplete)
-  const saveAnchor = '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)'
+  // The Incoterm inclusion guard runs after duplicate FCL freight removal.
+  // Reconcile AFTER it, otherwise the guard silently drops VGM and road
+  // Freight from the exact lines the save payload serializes.
+  const saveAnchor = '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()'
   if (code.split(saveAnchor).length !== 2)
-    throw new Error('[DH-396] Missing pre-save details guard')
+    throw new Error('[DH-396] Missing final pre-save inclusion guard')
   code = code.replace(saveAnchor, saveAnchor + '\n  if (!props.rateId) p7PresentOrReconcile391(true)')
+  // A commercial Miami plan explicitly includes VGM. Likewise the
+  // independently contracted multimodal FCL land leg is not optional
+  // Incoterm-derived billing. Exempt only these two exact contexts.
+  const incotermGuard = 'function isAutomaticOutsideIncoterm(line: RateLine) {'
+  if (code.includes(incotermGuard)) {
+    code = code.replace(incotermGuard, incotermGuard + '\n'
+      + '  if (shipmentModeForApi.value === "Lcl" && isMiamiLcl.value\n'
+      + '      && (lclSelectedSource.value?.kind === "Own"\n'
+      + '        || String(lclSelectedSourceKey.value ?? "").startsWith("Own:")\n'
+      + '        || isOwnLclMatrixContext())\n'
+      + '      && normalizeCatalogValue(line.name) === "vgm") return false\n'
+      + '  if (form.modality === "Multimodal" && shipmentModeForApi.value === "Fcl"\n'
+      + '      && (hasInternationalTransportService.value || number(form.freightCost) > 0)\n'
+      + '      && isRealRoadFreight396(line)) return false')
+  }
 
   code = code.replaceAll('{{ line.name }}', '{{ p7FreightTitle391(line) }}')
   const oldName = "name: form.modality === 'Air' && line.costDetailType === 'Freight' ? 'Flete Internacional' : line.name,"
