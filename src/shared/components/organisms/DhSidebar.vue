@@ -178,7 +178,7 @@ watch(
           class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
           :class="compact ? 'justify-center' : ''"
         >
-          <img src="/dhole-mark.svg" alt="DHOLE ERP" class="h-10 w-10 shrink-0" :title="APP_VERSION_DETAIL" />
+          <img src="/dhole-mark.svg" alt="DHOLE ERP" class="h-10 w-10 shrink-0" :title="t('app.meaning') + ' · ' + APP_VERSION_DETAIL" />
 
           <div v-if="!compact" class="min-w-0 flex-1">
             <p class="truncate text-[13px] font-extrabold tracking-tight text-[var(--dh-text)]" :title="t('app.meaning')">
@@ -187,6 +187,7 @@ watch(
             <p class="truncate text-[11px] font-medium text-[var(--dh-text-muted)]">
               {{ t('app.subtitle') }}
             </p>
+            <p class="mt-1 break-words text-[10px] font-medium leading-[1.35] text-[var(--dh-text-muted)]" data-testid="dhole-meaning">{{ t('app.meaning') }}</p>
             <p class="mt-0.5 truncate text-[10px] font-bold text-[var(--dh-text-muted)]" :title="APP_COMMIT || APP_VERSION_DETAIL">
               v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
             </p>

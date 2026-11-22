@@ -1,3 +1,9 @@
+## [1.117.2] - 2026-11-22 · DH-20261122-DHOLE-ERP-412
+
+- PATCH: mostrar de forma permanente y legible el significado corporativo completo «Digital Hub for Operations, Logistics & Ecosystem» debajo de DHOLE ERP en la pantalla de acceso y en el encabezado del menú lateral expandido; también en tooltip del logo compacto.
+- Añadir pruebas que requieren texto renderizado y visible, evitando una traducción que exista solamente como tooltip o metadato. Mantener el nombre DHOLE ERP, sin pronunciación obligatoria, y preservar REST, SignalR, persistencia y rutas técnicas.
+- Versionamiento universal coordinado DholeWeb y DholeSystem 1.117.1 → 1.117.2; los otros 15 componentes permanecen sin cambios. Integración develop, validación staging y posterior promoción a master.
+
 ## [1.117.1] - 2026-11-22 · DH-20261122-DHOLE-ERP-411
 
 - PATCH: DHOLE ERP conserva el nombre corporativo y significado, pero retira por completo las sugerencias de pronunciación del acceso, barra lateral y traducciones en español/inglés.
