@@ -162,10 +162,10 @@ const modalOptions = [
   { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
 ]
 const transportSelectionOptions = [
-  { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL', icon: Ship },
-  { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional', icon: Plane },
-  { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL', icon: Truck },
-  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte', icon: Layers3 },
+  { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL' },
+  { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional' },
+  { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL' },
+  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte' },
 ]
 const shipmentOptionsByTransport: Record<string, Array<{ label: string; value: string }>> = {
   MARITIME: [{ label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Coloading / propio', value: 'LCL' }],
@@ -510,11 +510,8 @@ onMounted(async () => {
     <section class="overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
       <header class="flex flex-wrap items-center gap-3 rounded-t-[26px] border-b border-[var(--dh-border)] p-5 sm:p-6">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]">
-          <Ship v-if="activeStep === 1" class="h-5 w-5" />
-          <Layers3 v-else-if="activeStep === 2" class="h-5 w-5" />
-          <Route v-else-if="activeStep === 3" class="h-5 w-5" />
-          <Package v-else-if="activeStep === 4" class="h-5 w-5" />
-          <Truck v-else-if="activeStep === 5" class="h-5 w-5" />
+          <Route v-if="activeStep === 1" class="h-5 w-5" />
+          <Package v-else-if="activeStep === 2" class="h-5 w-5" />
           <ClipboardCheck v-else class="h-5 w-5" />
         </span>
         <div class="min-w-0">
@@ -522,63 +519,28 @@ onMounted(async () => {
           <h3 class="mt-0.5 text-lg font-black tracking-tight">{{ activeStepMeta.label }}</h3>
           <p class="text-xs font-medium text-[var(--dh-text-muted)]">{{ activeStepMeta.hint }}</p>
         </div>
-        <DhBadge v-if="activeStep === 6" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
+        <DhBadge v-if="activeStep === 3" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
       </header>
 
       <div class="p-4 sm:p-6">
-        <div v-show="activeStep === 1" class="space-y-6">
-          <div>
-            <h4 class="text-xl font-black">Seleccione la modalidad</h4>
-            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Utiliza las mismas modalidades de Crear tarifas. Los servicios y datos operativos se configuran en los siguientes pasos.</p>
-          </div>
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <button v-for="option in transportSelectionOptions" :key="option.value" type="button"
-              class="group relative flex min-h-[158px] flex-col items-start rounded-[22px] border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-              :class="form.transportType === option.value
-                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)] text-[var(--dh-text)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)]/70 hover:border-[var(--dh-primary)]'"
-              :aria-pressed="form.transportType === option.value" @click="selectTransport(option.value)">
-              <span class="grid h-11 w-11 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><component :is="option.icon" class="h-6 w-6" /></span>
-              <span class="mt-5 text-base font-black">{{ option.label }}</span>
-              <span class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ option.caption }}</span>
-              <Check v-if="form.transportType === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
-            </button>
-          </div>
+        <div v-show="activeStep === 1" class="grid gap-4 md:grid-cols-2">
+          <DhSelect :model-value="form.transportType" label="Modalidad de transporte" :options="transportSelectionOptions.map(x => ({label:x.label,value:x.value}))" @update:model-value="selectTransport" />
+          <DhSelect :model-value="effectiveShipment" label="Tipo de embarque" :options="shipmentOptions" :disabled="!form.transportType" @update:model-value="selectShipment" />
         </div>
 
-        <div v-show="activeStep === 2" class="space-y-6">
-          <div>
-            <h4 class="text-xl font-black">Tipo de embarque</h4>
-            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Solo aparecen opciones compatibles con el transporte seleccionado. No se solicita una tarifa para abrir el trámite.</p>
-          </div>
-          <p v-if="!form.transportType" role="status" class="rounded-xl border border-amber-500/30 p-4 text-sm text-amber-500">
-            Primero seleccione la modalidad de transporte en el paso anterior.
-          </p>
-          <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <button v-for="option in shipmentOptions" :key="option.value" type="button"
-              class="relative min-h-[125px] rounded-[22px] border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-              :class="effectiveShipment === option.value
-                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)]/70 hover:border-[var(--dh-primary)]'"
-              :aria-pressed="effectiveShipment === option.value" @click="selectShipment(option.value)">
-              <span class="text-base font-black">{{ option.label }}</span>
-              <Check v-if="effectiveShipment === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
-            </button>
-          </div>
-        </div>
-
-        <div v-show="activeStep === 3" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
               <h4 class="text-sm font-black">Cuenta y responsable comercial</h4>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El cliente y el ejecutivo se obtienen de CRM; nunca debes introducir un UUID o IDTRA.</p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
-              <div class="space-y-2 md:col-span-2">
-                <label class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Buscar cliente en CRM</label>
-                <DhSearchInput v-model="accountSearch" placeholder="Escribe el nombre o la cédula del cliente…" />
-                <DhSelect v-model="accountId" label="Cliente" :options="accountOptions" :disabled="loadingAccounts || Boolean(editingId)" />
-                <p v-if="editingId" class="text-xs text-[var(--dh-text-muted)]">No se cambia el cliente propietario durante la edición de una apertura.</p>
+              <div class="space-y-3 md:col-span-2">
+                <PricingCrmClientSelect v-model="accountId" mode="create" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
+                <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                  <p class="text-xs font-black uppercase">Ejecutivo comercial (asignado en CRM)</p>
+                  <p class="text-sm">{{ executiveName || 'Se obtiene de CRM al seleccionar el cliente' }}</p>
+                </div>
               </div>
               <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <DhInput v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
@@ -586,18 +548,12 @@ onMounted(async () => {
               <DhInput v-model="form.contactReferences" label="Contactos de notificación" placeholder="Referencias de contactos de CRM" />
             </div>
           </div>
-          <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <p class="text-xs font-black text-[var(--dh-text)]">Identificador del trámite</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">PostgreSQL asignará el siguiente consecutivo global al guardar. Formato: IDTRA12345, IDTRA100000 y sucesivos. La serie nunca es editable.</p>
-          </div>
         </div>
 
-        <div v-show="activeStep === 3" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-5">
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
             <DhInput v-model="form.cargoNature" label="Naturaleza de la carga" placeholder="Carga general, perecedera…" />
-            <DhInput v-model="form.originCountryCode" label="País de origen (ISO)" placeholder="CN" />
-            <DhInput v-model="form.destinationCountryCode" label="País destino (ISO)" placeholder="CR" />
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -628,7 +584,40 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 4" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-5">
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
+            <div class="mb-4"><h4 class="text-sm font-black">Servicios contratados</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Mismo multiselector de servicios utilizado por Pricing. Esto documenta la operación: no crea ni cambia cargos comerciales.</p></div>
+            <PricingCrystalMultiSelect v-model="form.services" label="Servicios" placeholder="Seleccionar servicios" search-placeholder="Buscar servicio..." :options="serviceChoices" />
+          </div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
+              <p class="text-xs font-black">Recolecta (según servicios contratados)</p>
+              <template v-if="pickupIncluded">
+                <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
+                <DhInput v-model="form.pickupContact" label="Contacto en origen" />
+                <DhInput v-model="form.pickupWindow" label="Ventana u horario de recolecta" />
+              </template>
+              <DhInput v-if="deliveryIncluded" v-model="form.destinationAddress" label="Dirección de entrega final" />
+            </div>
+            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
+              <PricingLocationSearchSelect
+                v-if="warehouseOptions.length && (requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment))"
+                v-model="selectedWarehouse" label="WHS"
+                placeholder="Seleccionar WHS" search-placeholder="Buscar bodega o ciudad…"
+                :options="warehouseOptions" terminal-type="WHS"
+              />
+              <DhInput v-if="requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment)" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
+              <DhSelect v-if="agentChoices.length" v-model="form.agentReference" label="Agente de origen" :options="asChoices('agents', form.agentReference)" />
+              <DhInput v-else v-model="form.agentReference" label="Agente / oficina de origen" />
+              <DhSelect v-if="isMaritime && carrierChoices.length" v-model="form.carrierReference" label="Naviera" :options="asChoices('carriers', form.carrierReference)" />
+              <DhInput v-else-if="isMaritime" v-model="form.carrierReference" label="Naviera / proveedor" />
+              <DhInput v-if="isMaritime" v-model="form.merchantReference" label="Merchant / referencia" />
+            </div>
+          </div>
+          <DhTextarea v-model="form.observations" label="Observaciones e instrucciones operativas" :rows="4" />
+        </div>
+
+        <div v-show="activeStep === 2" class="space-y-5">
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
@@ -674,45 +663,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 5" class="space-y-5">
-          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
-            <div class="mb-4"><h4 class="text-sm font-black">Servicios contratados</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Mismo multiselector de servicios utilizado por Pricing. Esto documenta la operación: no crea ni cambia cargos comerciales.</p></div>
-            <PricingCrystalMultiSelect v-model="form.services" label="Servicios" placeholder="Seleccionar servicios" search-placeholder="Buscar servicio..." :options="serviceChoices" />
-          </div>
-          <div class="grid gap-4 lg:grid-cols-2">
-            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
-              <DhCheckbox v-model="form.requiresPickup" label="Requiere recolecta" />
-              <template v-if="form.requiresPickup">
-                <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
-                <DhInput v-model="form.pickupContact" label="Contacto en origen" />
-                <DhInput v-model="form.pickupWindow" label="Ventana u horario de recolecta" />
-              </template>
-              <DhInput v-model="form.destinationAddress" label="Dirección de entrega final" />
-            </div>
-            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
-              <PricingLocationSearchSelect
-                v-if="warehouseOptions.length && (requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment))"
-                v-model="selectedWarehouse" label="WHS"
-                placeholder="Seleccionar WHS" search-placeholder="Buscar bodega o ciudad…"
-                :options="warehouseOptions" terminal-type="WHS"
-              />
-              <DhInput v-if="requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment)" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
-              <DhSelect v-if="agentChoices.length" v-model="form.agentReference" label="Agente de origen" :options="asChoices('agents', form.agentReference)" />
-              <DhInput v-else v-model="form.agentReference" label="Agente / oficina de origen" />
-              <DhSelect v-if="isMaritime && carrierChoices.length" v-model="form.carrierReference" label="Naviera" :options="asChoices('carriers', form.carrierReference)" />
-              <DhInput v-else-if="isMaritime" v-model="form.carrierReference" label="Naviera / proveedor" />
-              <DhInput v-if="isMaritime" v-model="form.merchantReference" label="Merchant / referencia" />
-            </div>
-          </div>
-          <div class="grid gap-4 md:grid-cols-2">
-            <DhInput :model-value="priority" label="Prioridad (1–5)" type="number" :min="1" :max="5" :step="1" @update:model-value="priority = Number($event)" />
-            <DhInput :model-value="complexity" label="Puntos de complejidad" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="complexity = Number($event)" />
-          </div>
-          <DhTextarea v-model="form.observations" label="Observaciones e instrucciones operativas" :rows="4" />
-          <DhCheckbox v-model="form.commercialReviewRequested" label="Solicitar revisión comercial en Pricing (requiere integración)" />
-        </div>
-
-        <div v-show="activeStep === 6" class="space-y-5">
+        <div v-show="activeStep === 3" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Verifica los datos antes de guardar. El IDTRA se asignará automáticamente.</p></div>
             <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Borrador incompleto' : 'Listo para validación' }}</DhBadge>
