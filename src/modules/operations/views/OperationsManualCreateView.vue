@@ -37,7 +37,7 @@ const wizardSteps = [
   { id: 3, label: 'Carga', hint: 'Mercancía, pesos y equipos' },
   { id: 4, label: 'Servicios', hint: 'Recolección, entrega y coordinación' },
   { id: 5, label: 'Revisión', hint: 'Resumen y guardado del borrador' },
-] as const
+]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
 const catalogIssue = ref('')
@@ -196,11 +196,6 @@ const blockers = computed(() => {
   if (form.value.requiresPickup && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
   return result
 })
-function toggleService(code: string) {
-  const idx = form.value.services.indexOf(code)
-  if (idx >= 0) form.value.services.splice(idx, 1)
-  else form.value.services.push(code)
-}
 function addEquipment() { form.value.equipment.push({ equipmentType: '40HC', quantity: 1 }) }
 async function loadAccounts() {
   loadingAccounts.value = true
@@ -276,11 +271,16 @@ watch(accountSearch, () => {
   accountTimer = setTimeout(() => { void loadAccounts() }, 250)
 })
 watch(modality, value => {
+  if (restoringOpening) return
   form.value.transportType = value === 'AIR' ? 'AIR' :
     ['FTL','LTL'].includes(value) ? 'ROAD' : value === 'MULTIMODAL' ? 'MULTIMODAL' : 'MARITIME'
 })
+watch(selectedPol, id => { const label = lookupLabel('pol', id); if (label) form.value.pol = label })
+watch(selectedPoe, id => { const label = lookupLabel('poe', id); if (label) form.value.poe = label })
+watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form.value.pod = label })
+watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
-  await Promise.all([loadContext(), loadAccounts()])
+  await Promise.all([loadContext(), loadAccounts(), loadPricingCatalogs()])
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -288,6 +288,7 @@ onMounted(async () => {
       ])
       canEdit.value = tabs.tabs.some(x => x.code === 'RESUMEN' && x.accessLevel === 'EDITABLE')
       if (!canEdit.value) { error.value = 'No tiene permisos para modificar esta apertura.'; return }
+      restoringOpening = true
       existingVersion.value = detail.version
       accountId.value = detail.accountId
       companyId.value = detail.companyId
@@ -300,9 +301,12 @@ onMounted(async () => {
       }
       form.value.originCountryCode = detail.originCountryCode || ''
       form.value.destinationCountryCode = detail.destinationCountryCode || ''
+      reconcileLocations()
+      await nextTick()
+      restoringOpening = false
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : 'No fue posible abrir la captura.'
-    }
+    } finally { restoringOpening = false }
   }
 })
 onUnmounted(() => { clearTimeout(accountTimer) })
