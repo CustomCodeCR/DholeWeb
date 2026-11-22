@@ -21,7 +21,7 @@ test('brand identity is consistent across the shell, login and build metadata', 
   assert.match(source('index.html'), /<title>DHOLE ERP<\/title>/)
   assert.match(source('src/main.ts'), /DHOLE ERP · v/)
   assert.match(source('src/modules/auth/views/LoginView.vue'), /Bienvenido a DHOLE ERP/)
-  assert.match(source('src/shared/components/layouts/AuthLayout.vue'), /app\.pronunciation/)
+  assert.doesNotMatch(source('src/shared/components/layouts/AuthLayout.vue'), /app\.pronunciation/)
   assert.match(source('src/shared/components/organisms/DhSidebar.vue'), /app\.meaning/)
   assert.match(source('public/dhole-mark.svg'), /<title id="dhole-title">DHOLE ERP<\/title>/)
   assert.match(source('Dockerfile'), /VITE_APP_NAME="DHOLE ERP"/)
