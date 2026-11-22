@@ -1,3 +1,11 @@
+## [1.110.5] - 2026-11-21 · DH-20261121-PRICING-VGM-FCL-FINAL-397 (candidate master)
+
+- PATCH: La validación de Incoterm ya no desmarca el VGM del consolidado propio Miami elegido comercialmente ni el flete internacional terrestre de un FCL multimodal con transporte contratado.
+- Se realiza la reconciliación definitiva después de la validación de Incoterm y antes de serializar los detalles; evita omitir VGM y flete terrestre incluso después de reconstrucciones.
+- Continuación de DH-396 ya integrado en develop: helper idempotente, precios VGM por plan Miami y Freight terrestre independiente del marítimo/Bunker. Pruebas del build transformado actualizadas.
+- Global System/Web 1.110.5, Pricing 1.26.24; no repricing de detalles persistidos ni cambios de contrato REST.
+
+
 ## [1.110.4] - 2026-11-21 · DH-20261121-PRICING-MISSING-LINES-396 (candidate master)
 
 - PATCH: LCL propio Miami recupera el VGM desde el plan comercial A/B/C/D/NVOCC/LITTLE en la reconstrucción de pantalla 7 y en pre-guardado. Un VGM 0/excluido del consolidado no oculta la venta comercial; se respetan valores positivos, manuales y RateDetails persistidos.
