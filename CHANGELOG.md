@@ -1,3 +1,10 @@
+## [1.110.2] - 2026-11-21 · DH-20261121-PRICING-LAST-THREE-FIXES-394 (candidate master)
+
+- PATCH: LTL Panamá → Costa Rica muestra Flete, Bunker, Gastos y Custodia + Marchamo con cruces entre POL comercial y POE físico.
+- PATCH: FCL multimodal conserva el flete internacional terrestre independiente del marítimo y prioriza el CostId devuelto por Pricing para la ruta activa.
+- PATCH: LCL Miami recupera líneas SED/Manejos/VGM/TICA/Marchamo/Documentación/Forwarding y seguro cuando aplican, sin duplicar datos del consolidado ni modificar tarifas históricas.
+- Backport selectivo sobre master; System 1.110.2, Pricing 1.26.21; pruebas, CI y staging pendientes.
+
 ## [1.110.1] - 2026-11-21 · DH-20261121-PRICING-TRANCHE-MIAMI-PANAMA-393 (candidato master)
 
 - PATCH: Pantalla 7 FCL Multimodal conserva el tramo marítimo y aplica el flete internacional terrestre Panamá → GAM desde catálogo InlandTransport/FTL o la regla USD 2140 cuando no existe maestro aplicable.
