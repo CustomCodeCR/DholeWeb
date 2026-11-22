@@ -1,3 +1,15 @@
+## [1.113.1] - 2026-11-22 · DH-20261122-OPERATIONS-NO-SERVICES-404 (master selective promotion)
+
+- PATCH sobre 1.113.0: eliminar la antigua pantalla de Servicios de la apertura manual, incluidos selector de servicios, recolecta, entrega, agente, naviera, merchant y campos administrativos o instrucciones de esa etapa.
+- Conservar los tres pasos Cliente y ruta, Carga y documentos, Revisión. Mover el WHS obligatorio para FCA LCL/LTL al paso de ruta sin alterar validación.
+- Conservar borradores, autogeneración de IDTRA desde Operations, CRM de Pricing, CABYS, Storage, REST y realtime existentes; compatibilidad de expedientes históricos.
+- Promoción selectiva: no fusionar la historia divergente de develop ni componentes adicionales. DholeWeb y DholeSystem: 1.112.1 → 1.113.0 → 1.113.1; el resto de componentes conserva su versión.
+
+## [1.113.0] - 2026-11-22 · DH-20261122-OPERATIONS-UX-403 (base incorporada con DH-404)
+
+- MINOR: unificar la apertura manual con componentes de Pricing. Sustituir wizard de seis etapas por tres, recuperar cliente de CRM con PricingCrmClientSelect, buscar CABYS y permitir documentos de respaldo en Storage.
+- Los países se derivan de la ruta, se oculta la leyenda técnica del identificador IDTRA, se mantienen contratos REST, permisos, borradores y SignalR.
+
 ## [1.112.1] - 2026-11-22 · DH-20261122-PRICING-OPERATIONS-STEPPER-402 (Pricing · UI de creación con componente de Operations)
 
 - PATCH: Crear/editar tarifa usa el encabezado operativo con icono, estado y avance, y reutiliza PricingWizardStepper con las 8 etapas existentes (9 en solo lectura), sin modificar el flujo de costos, servicios ni QUO.
