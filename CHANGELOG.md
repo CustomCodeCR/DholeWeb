@@ -1,3 +1,12 @@
+## [1.114.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-UX-405 (DholeWeb)
+
+- MINOR: rediseñar la apertura manual con tarjetas de modalidad y tipo de embarque, excluir Multimodal de nuevas aperturas y conservar la lectura de expedientes históricos multimodales.
+- Corregir la visualización de ejecutivo comercial recuperándolo de la cuenta CRM y, cuando sea necesario, del contrato de etiquetas de responsables existente, sin usar al creador del expediente como ejecutivo.
+- Seleccionar destinatarios operativos activos de CRM por referencias reales, con soporte de múltiples contactos y preservación de borradores históricos. El envío de correos sigue fuera de esta captura.
+- Mejorar la accesibilidad y el estilo de los botones IMO, Estibable, Sobrepeso, Redestino y Anticipado; mantener los dos últimos excluyentes. Actualizar la revisión con datos completables en Origen según especificación v1.2.
+- Conservar contratos REST, documentos Storage, IDTRA, prioridad y complejidad administradas por Operations, SignalR, versiones de expedientes y el flujo de tres pasos. Sin despliegue de producción autorizado en este release.
+- Ecosistema Dhole 1.113.1 → 1.114.0; componentes modificados Web/System, otros 15 sin cambio.
+
 ## [1.113.1] - 2026-11-22 · DH-20261122-OPERATIONS-NO-SERVICES-404 (DholeWeb / DholeSystem · apertura manual)
 
 - PATCH: se retira por completo la antigua pantalla de Servicios en la apertura manual, incluido el multiselector de servicios, recolecta, entrega, agente, naviera, merchant y las instrucciones operativas de esa pantalla.
