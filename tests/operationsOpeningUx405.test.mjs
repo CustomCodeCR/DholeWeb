@@ -50,7 +50,7 @@ test('special conditions are accessible toggles and destination handling is excl
 test('drafts, supported documents and backend completion requirements are preserved', () => {
   for (const fragment of ['operationsApi.createAperture', 'operationsApi.updateCase',
     'missingFields: blockers.value', "commercialStatus: 'SIN_QUO'",
-    'StorageService.uploadFile', 'supportDocuments', 'Guardar borrador',
+    'StorageService.uploadFile', 'supportDocuments', 'Crear y asignar a equipo',
     'requiresWarehouse', 'IMO / Peligrosa', 'Procedimientos específicos de CRM']) {
     assert.ok(opening.includes(fragment), fragment)
   }
