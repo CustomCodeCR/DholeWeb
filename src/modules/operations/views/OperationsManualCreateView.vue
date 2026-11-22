@@ -507,6 +507,81 @@ async function initializeWorkspace() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo inicializar Operaciones.'
   } finally { initializing.value = false }
 }
+// Drafts remain local and scoped to this logged-in user until a case is created.
+const draftStorageKey = computed(() =>
+  'dhole.operations.manual-opening.v2:' + (auth.userId || 'guest') + ':' +
+  (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
+function persistLocalDraft() {
+  if (!autosaveReady.value || editingId.value) return
+  try {
+    window.localStorage.setItem(draftStorageKey.value, JSON.stringify({
+      savedAt: Date.now(), version: 2, form: form.value,
+      accountId: accountId.value, selectedClientName: selectedClientName.value,
+      modality: modality.value, step: activeStep.value,
+      executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+      institutionalExecutive: institutionalExecutive.value,
+      contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
+    }))
+    autosaveState.value = 'saved'
+    lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch { autosaveState.value = 'error' }
+}
+function scheduleLocalDraft() {
+  if (!autosaveReady.value || editingId.value) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveState.value = 'pending'
+  autosaveTimer = setTimeout(persistLocalDraft, 650)
+}
+function restoreLocalDraft() {
+  if (editingId.value) return
+  try {
+    const raw = window.localStorage.getItem(draftStorageKey.value)
+    if (!raw) return
+    const draft = JSON.parse(raw) as Record<string, unknown>
+    if (draft.version !== 2 || !Number.isFinite(Number(draft.savedAt)) ||
+        Date.now() - Number(draft.savedAt) > 7 * 24 * 60 * 60 * 1000) {
+      window.localStorage.removeItem(draftStorageKey.value)
+      return
+    }
+    if (draft.form && typeof draft.form === 'object' && !Array.isArray(draft.form)) {
+      form.value = { ...form.value, ...draft.form } as typeof form.value
+      if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
+      if (!Array.isArray(form.value.equipment)) form.value.equipment = []
+      if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
+    }
+    accountId.value = String(draft.accountId || '')
+    lastSelectedAccountId = accountId.value
+    selectedClientName.value = String(draft.selectedClientName || '')
+    modality.value = String(draft.modality || '')
+    executiveName.value = String(draft.executiveName || '')
+    executiveUserId.value = String(draft.executiveUserId || '')
+    institutionalExecutive.value = draft.institutionalExecutive === true
+    contactsTouched.value = draft.contactsTouched === true
+    assignmentPendingId.value = String(draft.assignmentPendingId || '')
+    const step = Number(draft.step)
+    activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
+    reconcileLocations()
+    lastAutoSaveAt.value = new Date(Number(draft.savedAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (accountId.value && !assignmentPendingId.value) {
+      void resolveCrmOpeningData(accountId.value, {
+        executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+        isCastroFallasExecutive: institutionalExecutive.value,
+      })
+    }
+  } catch { autosaveState.value = 'error' }
+}
+function clearLocalDraft() {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveReady.value = false
+  try { window.localStorage.removeItem(draftStorageKey.value) } catch { /* storage restricted */ }
+}
+watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId],
+  scheduleLocalDraft, { deep: true })
+onBeforeUnmount(() => {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  if (autosaveReady.value && !editingId.value) persistLocalDraft()
+})
+
 async function save() {
   if (!valid.value || saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
   saving.value = true
@@ -558,6 +633,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
+  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
