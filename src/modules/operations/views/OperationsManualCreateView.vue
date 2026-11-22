@@ -252,6 +252,7 @@ async function resolveCrmOpeningData(id: string, client: {
   const generation = ++clientGeneration
   executiveLoading.value = true
   operationalContactsLoading.value = true
+  operationalContacts.value = []
   operationalContactsIssue.value = ''
   executiveName.value = client.executiveName?.trim() || ''
   executiveUserId.value = client.executiveUserId?.trim() || ''
@@ -321,6 +322,9 @@ function onCrmClientSelected(client: {
     executiveUserId.value = ''
     institutionalExecutive.value = false
     operationalContacts.value = []
+    executiveLoading.value = false
+    operationalContactsLoading.value = false
+    operationalContactsIssue.value = ''
     error.value = 'Para aperturar el trámite, convierta primero el prospecto en una cuenta CRM.'
     return
   }
@@ -332,6 +336,9 @@ function onCrmClientSelected(client: {
     executiveUserId.value = ''
     institutionalExecutive.value = false
     operationalContacts.value = []
+    executiveLoading.value = false
+    operationalContactsLoading.value = false
+    operationalContactsIssue.value = ''
     form.value.contactIds = []
     return
   }
@@ -687,7 +694,11 @@ onMounted(async () => {
               </div>
               <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <DhInput v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
-              <DhInput v-model="form.crmDivisionId" label="Referencia de división CRM (opcional)" placeholder="Solo si existe una división configurada" />
+              <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
+                <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">División comercial CRM (opcional)</p>
+                <p class="mt-1 text-xs font-semibold">{{ form.crmDivisionId || 'Sin división vinculada' }}</p>
+                <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La selección de divisiones se habilitará cuando CRM publique su catálogo. No se aceptan referencias inventadas.</p>
+              </div>
               <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
