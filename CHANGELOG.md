@@ -1,3 +1,10 @@
+## [1.114.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-UX-405 (candidate master)
+
+- MINOR: rediseño responsive de la apertura manual, selector de transporte con solo Marítimo, Aéreo y Terrestre, botones IMO/Estibable/Sobrepeso/Redestino/Anticipado con estados accesibles. Multimodal histórico se conserva sin permitir nuevas aperturas de esa modalidad.
+- Ejecutivo real desde CRM/account y etiquetas CRM; pendiente bloqueante cuando no existe asignación. Contactos operativos reales activos seleccionados por ID desde CRM, sin enviar notificaciones automáticamente.
+- Borradores y campos históricos preservados; división CRM read-only hasta catálogo real; auditoría de campos adicionales según especificación v1.2. CABYS, documentos Storage, rutas y pantallas de Pricing sin modificación.
+- DholeWeb / DholeSystem 1.113.1 → 1.114.0; otros 15 componentes sin incremento. CI/staging obligatorios, promoción a master sin autorización de producción en este pedido.
+
 ## [1.113.1] - 2026-11-22 · DH-20261122-OPERATIONS-NO-SERVICES-404 (master selective promotion)
 
 - PATCH sobre 1.113.0: eliminar la antigua pantalla de Servicios de la apertura manual, incluidos selector de servicios, recolecta, entrega, agente, naviera, merchant y campos administrativos o instrucciones de esa etapa.
