@@ -222,10 +222,25 @@ function selectShipment(value: string) {
   form.value.shipmentType = value
   modality.value = form.value.transportType === 'MULTIMODAL' ? 'MULTIMODAL' : value
 }
+function resolvedEquipmentId(item: { equipmentType: string; equipmentCatalogId?: string }) {
+  return item.equipmentCatalogId || selectedForLabel(equipmentCatalogKey.value, item.equipmentType)
+}
 function setEquipmentType(item: { equipmentType: string; equipmentCatalogId?: string }, id: string) {
+  if (id && form.value.equipment.some(other => other !== item && resolvedEquipmentId(other) === id)) {
+    error.value = 'Este tipo de equipo ya está agregado. Aumenta su cantidad en la misma fila.'
+    return
+  }
+  error.value = ''
   item.equipmentCatalogId = id
   item.equipmentType = lookupLabel(equipmentCatalogKey.value, id) || id
 }
+const totalEquipment = computed(() => form.value.equipment.reduce((total, row) => total + (Number(row.quantity) || 0), 0))
+const totalEquipmentWeight = computed(() => form.value.equipment.reduce(
+  (total, row) => total + (Number(row.weightKg) || 0) * (Number(row.quantity) || 0), 0))
+const uniqueEquipment = computed(() => {
+  const ids = form.value.equipment.map(resolvedEquipmentId).filter(Boolean)
+  return ids.length === new Set(ids).size
+})
 const originOptions = [
   { label: 'Cliente', value: 'CLIENT' }, { label: 'Proveedor', value: 'SUPPLIER' },
   { label: 'Agente', value: 'AGENT' }, { label: 'Oficina de origen', value: 'ORIGIN_OFFICE' },
@@ -241,7 +256,8 @@ const valid = computed(() =>
   priority.value >= 1 && priority.value <= 5 && complexity.value > 0 &&
   (!form.value.originCountryCode || /^[A-Za-z]{2}$/.test(form.value.originCountryCode)) &&
   (!form.value.destinationCountryCode || /^[A-Za-z]{2}$/.test(form.value.destinationCountryCode)) &&
-  form.value.equipment.every(x => Number.isInteger(x.quantity) && x.quantity > 0))
+  form.value.equipment.every(x => Number.isInteger(x.quantity) && x.quantity > 0 && (x.weightKg == null || Number(x.weightKg) >= 0)) &&
+  uniqueEquipment.value)
 const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
@@ -253,14 +269,16 @@ const blockers = computed(() => {
   if (!form.value.pod.trim()) result.push('POD / lugar de destino')
   if (!form.value.incoterm.trim()) result.push('Incoterm')
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
+  if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
   return result
 })
-function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
+function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1, weightKg: 0 }) }
 
 function toggleOperationalContact(id: string, selected: boolean) {
+  contactsTouched.value = true
   form.value.contactIds = selected
     ? [...new Set([...form.value.contactIds, id])]
     : form.value.contactIds.filter(x => x !== id)
@@ -320,6 +338,10 @@ async function resolveCrmOpeningData(id: string, client: {
         return active && operations && contactId && name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
           ? [{ id: contactId, name, email }] : []
       })
+      if (!contactsTouched.value && !form.value.contactIds.length) {
+        form.value.contactIds = operationalContacts.value.map(contact => contact.id)
+        form.value.contactReferences = form.value.contactIds.join(',')
+      }
     } else {
       operationalContactsIssue.value = 'No se pudieron consultar los contactos de CRM; puede conservar el borrador.'
     }
@@ -362,11 +384,13 @@ function onCrmClientSelected(client: {
     operationalContactsLoading.value = false
     operationalContactsIssue.value = ''
     form.value.contactIds = []
+    contactsTouched.value = false
     return
   }
   if (lastSelectedAccountId && lastSelectedAccountId !== client.id) {
     form.value.contactIds = []
     form.value.contactReferences = ''
+    contactsTouched.value = false
   }
   lastSelectedAccountId = client.id
   error.value = ''
@@ -498,6 +522,7 @@ async function save() {
         equipmentType: item.equipmentType,
         equipmentCatalogId: item.equipmentCatalogId || undefined,
         quantity: Number(item.quantity),
+        weightKg: Math.max(0, Number(item.weightKg) || 0),
       })),
       completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_VALIDATION',
       missingFields: blockers.value,
