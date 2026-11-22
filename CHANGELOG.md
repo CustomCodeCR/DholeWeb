@@ -1,3 +1,12 @@
+## [1.115.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-POLISH-406 (DholeWeb / DholeSystem)
+
+- MINOR: autoguardado local del formulario de apertura manual con recuperación durante 7 días por usuario/empresa, sin generar IDTRA hasta confirmar. En apertura se reemplaza «Guardar borrador» por «Crear y asignar a equipo» usando asignación de validadores de Operations; si falla la asignación se retiene el ID de la apertura creada y se reintenta sin duplicar.
+- Reutilización del selector de equipos de Pricing en tarjetas FCL/FTL (tamaño, tipo, cantidad y peso por equipo), exclusión de tipos ya elegidos, control de cantidad y resumen agrupado.
+- Selector de naturaleza de carga y tipo de bulto, con valores históricos preservados; iconos de transporte consistentes con Pricing y espaciado corregido de Incoterm.
+- Contactos operativos CRM seleccionados automáticamente por defecto, con posibilidad de desmarcarlos; la decisión se preserva en borradores.
+- Revisión compacta, sin leyenda ni datos de Coordinación Origen; botón final orientado a creación y asignación. Mantiene selección CABYS, Storage, autogeneración IDTRA, tres pantallas y contratos REST/SignalR sin cambios.
+- Ecosistema: DholeWeb y DholeSystem 1.114.0 → 1.115.0; otros quince componentes conservan sus versiones. Release coordinado develop → staging → master según autorización del usuario.
+
 ## [1.114.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-UX-405 (DholeWeb)
 
 - MINOR: rediseñar la apertura manual con tarjetas de modalidad y tipo de embarque, excluir Multimodal de nuevas aperturas y conservar la lectura de expedientes históricos multimodales.

@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test from 'node:test'
+const opening = readFileSync(new URL('../src/modules/operations/views/OperationsManualCreateView.vue', import.meta.url), 'utf8')
+const pricingEquipment = readFileSync(new URL('../src/modules/pricing/components/PricingContainerSelector.vue', import.meta.url), 'utf8')
+const operationsApi = readFileSync(new URL('../src/modules/operations/services/operationsApi.ts', import.meta.url), 'utf8')
+
+test('operations auto-saves local recovery without premature IDTRA creation', () => {
+  for (const fragment of ['draftStorageKey', 'auth.userId', 'auth.clientId', 'window.localStorage.setItem',
+    'restoreLocalDraft()', 'persistLocalDraft()', 'autosaveReady', 'contactsTouched', 'onBeforeUnmount',
+    'lastAutoSaveAt', '650', 'clearLocalDraft()']) {
+    assert.ok(opening.includes(fragment), fragment)
+  }
+  assert.match(opening, /watch\(\[form, accountId, selectedClientName, modality, activeStep/)
+  assert.match(opening, /async function save\(\)/)
+  assert.doesNotMatch(opening, /Guardar borrador/)
+})
+
+test('new manual cases are created and assigned using the existing team validation pool', () => {
+  assert.match(opening, /Crear y asignar a equipo/)
+  assert.match(opening, /operationsApi\.createAperture\(/)
+  assert.match(opening, /operationsApi\.assign\(result\.id\)/)
+  assert.match(opening, /assignmentPendingId\.value = result\.id/)
+  assert.match(opening, /assignmentPendingId\.value\s*\? \{ id: assignmentPendingId\.value \}/)
+  assert.match(operationsApi, /aperture-validations\/assign/)
+  assert.match(opening, /blockers\.value\.length > 0/)
+})
+
+test('container and trailer cards reuse Pricing selections, exclude duplicates and capture per-equipment weight', () => {
+  assert.match(opening, /Distribución de contenedores FCL/)
+  assert.match(opening, /Distribución de furgones FTL/)
+  assert.match(opening, /<PricingContainerSelector/)
+  assert.match(opening, /:excluded-equipment-ids="form\.equipment\.filter/)
+  assert.match(opening, /uniqueEquipment\.value/)
+  assert.match(opening, /Math\.max\(1, Math\.floor\(Number\(\$event\)/)
+  assert.match(opening, /weightKg: Math\.max\(0, Number\(item\.weightKg\)/)
+  assert.match(pricingEquipment, /excludedEquipmentIds/)
+})
+
+test('selection controls and pricing transport icons replace free text', () => {
+  assert.match(opening, /<DhSelect v-model="form\.packageType"/)
+  assert.match(opening, /<DhSelect v-model="form\.cargoNature"/)
+  assert.match(opening, /packageTypeChoiceOptions/)
+  assert.match(opening, /cargoNatureChoiceOptions/)
+  for (const icon of ['Boxes', 'PackageOpen', 'Truck', 'Plane']) assert.ok(opening.includes(icon))
+  assert.match(opening, /mt-6 space-y-5/)
+})
+
+test('active operational contacts are selected by default but can be deselected', () => {
+  assert.match(opening, /if \(!contactsTouched\.value && !form\.value\.contactIds\.length\)/)
+  assert.match(opening, /form\.value\.contactIds = operationalContacts\.value\.map\(contact => contact\.id\)/)
+  assert.match(opening, /contactsTouched\.value = true/)
+  assert.match(opening, /form\.value\.contactIds\.filter\(x => x !== id\)/)
+})
+
+test('opening review excludes later origin coordination legend and uses compact summary', () => {
+  assert.doesNotMatch(opening, /Datos operativos que pueden confirmarse después/)
+  assert.doesNotMatch(opening, /Naviera y booking, si aplica/)
+  assert.match(opening, /filter\(field => field\.value !== 'Pendiente'\)/)
+  assert.match(opening, /Listo para crear y asignar/)
+})
