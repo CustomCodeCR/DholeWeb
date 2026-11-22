@@ -116,11 +116,13 @@ export function patchPricingP7Reconcile391(source: string): string {
   code = code.replace('</script>', runtime394 + '\n' + MIAMI_EXTRA394 + '\n' + MARKER + '\n</script>')
   // DH-396: each rebuild and pre-save serialization has to see the same
   // mandatory lines. A later rebuild cannot silently discard a quotation row.
-  const assignment = '  rateLines.value = lines\n  lastTierPricingInputKey.value = tierPricingInputKey'
-  if (code.split(assignment).length !== 2)
-    throw new Error('[DH-396] Missing P7 rebuild assignment')
-  code = code.replace(assignment,
-    '  rateLines.value = lines\n  if (step.value === 7) p7PresentOrReconcile391()\n  lastTierPricingInputKey.value = tierPricingInputKey')
+  // Earlier Vite transforms can replace the rateLines assignment while
+  // preserving the tier-rebuild completion marker. Hook after that marker.
+  const rebuildComplete = '  lastTierPricingInputKey.value = tierPricingInputKey'
+  if (code.split(rebuildComplete).length !== 2)
+    throw new Error('[DH-396] Missing P7 rebuild completion marker')
+  code = code.replace(rebuildComplete,
+    '  if (step.value === 7) p7PresentOrReconcile391()\n' + rebuildComplete)
   const saveAnchor = '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)'
   if (code.split(saveAnchor).length !== 2)
     throw new Error('[DH-396] Missing pre-save details guard')
