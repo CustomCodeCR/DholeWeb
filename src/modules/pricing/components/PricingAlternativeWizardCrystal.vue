@@ -1029,6 +1029,8 @@ const stepTitles = [
   'Borrador',
 ]
 const visibleStepTitles = computed(() => props.viewOnly ? [...stepTitles, 'Vista completa'] : stepTitles)
+const maxStep = computed(() => visibleStepTitles.value.length)
+const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')
 const pricingStepHints = [
   'Selecciona el transporte',
   'Tipo de carga',
@@ -1045,8 +1047,7 @@ const pricingNavigationSteps = computed(() => visibleStepTitles.value.map((label
   label,
   hint: pricingStepHints[index] ?? '',
 })))
-const maxStep = computed(() => visibleStepTitles.value.length)
-const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')
+
 const currentRateType = computed<RateType>(() =>
   editingRate.value?.rateType === 'Tariff' || form.rateType === 'Tariff' ? 'Tariff' : 'Spot',
 )
