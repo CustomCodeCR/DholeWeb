@@ -15,7 +15,8 @@ test('manual opening and pricing editor share their stepper component', () => {
   assert.match(stepper, /:style="\{ '--wizard-step-columns': steps\.length \}"/)
   assert.match(stepper, /aria-current/)
   assert.match(stepper, /update:activeStep/)
-  assert.match(opening, /activeStep === 5/)
+  assert.match(opening, /activeStep === 3/)
+  assert.doesNotMatch(opening, /activeStep === [456]/)
 })
 
 test('opening reuses live Pricing service and location catalogs', () => {
@@ -28,7 +29,8 @@ test('opening reuses live Pricing service and location catalogs', () => {
   assert.match(opening, /CatalogItemsService.select/)
   for (const catalog of ['pol','poe','pod','container-types','land-equipment-sizes','pricing-services','carriers','agents'])
     assert.ok(opening.includes(catalog), catalog)
-  assert.match(opening, /<DhCheckbox/)
+  assert.match(opening, /@click="form.isImo = !form.isImo"/)
+  assert.match(opening, /toggleHandling/)
   assert.match(opening, /<DhSelect/)
   assert.match(opening, /<DhTextarea/)
 })
