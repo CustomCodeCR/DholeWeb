@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { ImportRateDto, RateDto } from '@/core/interfaces/pricing'
 import PricingRateFormDrawerLegacy from './PricingRateFormDrawerLegacy.vue'
+import PricingWizardStepper from './PricingWizardStepper.vue'
 
 type WizardStep = 1 | 2 | 3 | 4
 
@@ -65,26 +66,13 @@ function nextStep() {
         </div>
       </header>
 
-      <nav v-if="isWizardFlow" class="pricing-edit-stepper" aria-label="Edición de tarifa por pasos">
-        <button
-          v-for="item in steps"
-          :key="item.id"
-          type="button"
-          class="pricing-edit-step"
-          :class="{
-            'pricing-edit-step--current': activeStep === item.id,
-            'pricing-edit-step--completed': activeStep > item.id,
-          }"
-          :aria-current="activeStep === item.id ? 'step' : undefined"
-          @click="goToStep(item.id)"
-        >
-          <span class="pricing-edit-step__number">{{ String(item.id).padStart(2, '0') }}</span>
-          <span class="pricing-edit-step__copy">
-            <strong>{{ item.label }}</strong>
-            <small>{{ item.hint }}</small>
-          </span>
-        </button>
-      </nav>
+      <PricingWizardStepper
+        v-if="isWizardFlow"
+        :steps="steps"
+        :active-step="activeStep"
+        aria-label="Edición de tarifa por pasos"
+        @update:active-step="goToStep($event as WizardStep)"
+      />
 
       <section class="pricing-edit-card">
         <header v-if="isWizardFlow" class="pricing-edit-card__header">
