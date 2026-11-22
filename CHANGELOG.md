@@ -1,3 +1,11 @@
+## [1.112.0] - 2026-11-22 · DH-20261122-OPERATIONS-PARITY-401 (Operations / Pricing: apertura manual)
+
+- MINOR: apertura manual en 6 etapas consistentes con Pricing (modalidad, embarque, cliente/ruta, carga, servicios y revisión); tarjetas de selección reutilizan el patrón visual del wizard comercial.
+- Reutiliza PricingWizardStepper, PricingContainerSelector, PricingLocationSearchSelect y PricingCrystalMultiSelect; conserva borradores, modal FCL/FTL/LCL/LTL y catálogos Config.
+- Corrige compatibilidad de Incoterms al cambiar transporte, captura de naturaleza de carga y POE como puerto de entrada; guarda catálogo y cantidad de cada equipo sin colapsar contenedores múltiples.
+- Backend Operations valida equipo FTL y multimodal FCL/FTL; sin cambios comerciales sobre QUOs ni costos, sin migraciones destructivas. CI y staging obligatorios antes de master.
+- DholeWeb/DholeSystem 1.111.1 → 1.112.0; DholeOperationsService 0.15.0 → 0.15.1; componentes restantes sin cambios.
+
 ## [1.111.1] - 2026-11-21 · DH-20261121-OPERATIONS-STEPPER-400 (UI Pricing/Operations · ancho del stepper)
 
 - PATCH: PricingWizardStepper distribuye dinámicamente las columnas de navegación según los pasos reales (4 en edición de tarifas, 5 en Aperturas) y mantiene el desplazamiento horizontal adaptable en móvil.
