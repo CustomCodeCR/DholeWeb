@@ -242,10 +242,113 @@ const blockers = computed(() => {
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
-  if (form.value.requiresPickup && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
+  if (pickupIncluded.value && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
   return result
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
+
+function onCrmClientSelected(client: { displayName: string; executiveName: string } | null) {
+  selectedClientName.value = client?.displayName || ''
+  executiveName.value = client?.executiveName || ''
+}
+const pickupIncluded = computed(() => form.value.services.some(value =>
+  value === 'PICKUP' || (serviceChoices.value.find(x => x.value === value)?.label || '').toLocaleLowerCase().includes('recolecta')
+))
+const deliveryIncluded = computed(() => form.value.services.some(value =>
+  value === 'DELIVERY' || (serviceChoices.value.find(x => x.value === value)?.label || '').toLocaleLowerCase().includes('entrega')
+))
+watch(pickupIncluded, selected => { form.value.requiresPickup = selected })
+
+function countryFromRoute(group: 'pol' | 'pod', id: string, location: string): string {
+  const item = currentCatalog(group).find(x => x.id === id)
+    || currentCatalog(group).find(x => optionText(x).toLowerCase() === location.toLowerCase())
+  let meta: Record<string, unknown> = {}
+  try { if (item?.metadataJson) meta = JSON.parse(item.metadataJson) as Record<string, unknown> }
+  catch { /* Metadata is optional; fall back to the location label. */ }
+  const nested = meta.location && typeof meta.location === 'object'
+    ? meta.location as Record<string, unknown> : {}
+  for (const code of [meta.countryCode, meta.countryIso2, meta.isoCountryCode, meta.countryIso,
+    nested.countryCode, nested.countryIso2]) {
+    if (typeof code === 'string' && /^[A-Z]{2}$/i.test(code.trim())) return code.trim().toUpperCase()
+  }
+  const country = (location || item?.label || '').split(',').at(-1)?.trim() || ''
+  if (/^[A-Z]{2}$/i.test(country)) return country.toUpperCase()
+  if (!country) return ''
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  for (const locale of ['es','en']) {
+    const display = new Intl.DisplayNames([locale], { type: 'region' })
+    for (let a = 65; a < 91; a++) for (let b = 65; b < 91; b++) {
+      const code = String.fromCharCode(a,b)
+      if (normalize(display.of(code) || '') === normalize(country)) return code
+    }
+  }
+  return ''
+}
+watch(() => [selectedPol.value, form.value.pol, selectedPod.value, form.value.pod], () => {
+  if (restoringOpening) return
+  form.value.originCountryCode = countryFromRoute('pol', selectedPol.value, form.value.pol)
+  form.value.destinationCountryCode = countryFromRoute('pod', selectedPod.value, form.value.pod)
+})
+async function searchCabys() {
+  const query = form.value.cabysSearch.trim()
+  if (query.length < 3) { error.value = 'Escriba al menos 3 caracteres para buscar CABYS.'; return }
+  searchingCabys.value = true
+  error.value = ''
+  try {
+    const payload = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/pricing/cabys?q=' + encodeURIComponent(query) + '&top=20',
+      headers: { Accept: 'application/json' },
+    })
+    const root = payload as Record<string, unknown> | null
+    const entries = Array.isArray(payload) ? payload : Array.isArray(root?.cabys) ? root.cabys
+      : Array.isArray(root?.data) ? root.data : Array.isArray(root?.results) ? root.results
+      : root && (root.codigo || root.code) ? [root] : []
+    cabysResults.value = entries.map((row: unknown) => {
+      const item = row as Record<string, unknown>
+      return { code: String(item.codigo ?? item.code ?? item.cabys ?? ''),
+        description: String(item.descripcion ?? item.description ?? item.detalle ?? '') }
+    }).filter((item: {code:string;description:string}) => Boolean(item.code && item.description))
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo consultar CABYS de Hacienda.'
+  } finally { searchingCabys.value = false }
+}
+function chooseCabys(item: {code:string;description:string}) {
+  form.value.cabysCode = item.code
+  form.value.cargoDescription = item.description
+  cabysResults.value = []
+}
+async function uploadDocument(category: string, categoryLabel: string, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || uploadingSupport.value) return
+  uploadingSupport.value = category
+  error.value = ''
+  try {
+    if (!form.value.supportEntityId) form.value.supportEntityId = crypto.randomUUID()
+    const uploaded = await StorageService.uploadFile({
+      file, sourceService: 'DholeWeb', entityType: 'OperationsOpeningSupport',
+      entityId: form.value.supportEntityId,
+      metadataJson: JSON.stringify({ category, categoryLabel, caseId: editingId.value || null }),
+    })
+    form.value.supportDocuments.push({
+      id: uploaded.id, fileName: uploaded.originalFileName,
+      sizeInBytes: uploaded.sizeInBytes, category, categoryLabel,
+    })
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'No se pudo subir el documento.' }
+  finally { uploadingSupport.value = '' }
+}
+async function removeDocument(id: string) {
+  try {
+    await StorageService.deleteFile(id)
+    form.value.supportDocuments = form.value.supportDocuments.filter(x => x.id !== id)
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'No se pudo eliminar el documento.' }
+}
+function toggleHandling(value: 'Redestino' | 'Anticipado') {
+  form.value.portHandlingMode = form.value.portHandlingMode === value ? '' : value
+}
+
 async function loadContext() {
   try {
     companyId.value = (await operationsApi.createContext()).companyId || ''
