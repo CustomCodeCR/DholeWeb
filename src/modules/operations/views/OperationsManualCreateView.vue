@@ -583,7 +583,11 @@ onBeforeUnmount(() => {
 })
 
 async function save() {
-  if (!valid.value || saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
+  if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
+  if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value) {
+    error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en este navegador.'
+    return
+  }
   saving.value = true
   error.value = ''
   try {
@@ -612,19 +616,30 @@ async function save() {
           destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
           openingData,
         }).then(() => ({ id: editingId.value }))
-      : await operationsApi.createAperture({
-      companyId: companyId.value,
-      accountId: accountId.value,
-      modalityCode: modality.value,
-      priority: Number(priority.value),
-      complexityPoints: Number(complexity.value),
-      originCountryCode: form.value.originCountryCode.toUpperCase() || null,
-      destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
-      openingData,
-    })
+      : assignmentPendingId.value
+        ? { id: assignmentPendingId.value }
+        : await operationsApi.createAperture({
+          companyId: companyId.value,
+          accountId: accountId.value,
+          modalityCode: modality.value,
+          priority: Number(priority.value),
+          complexityPoints: Number(complexity.value),
+          originCountryCode: form.value.originCountryCode.toUpperCase() || null,
+          destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
+          openingData,
+        })
+    // A created IDTRA is retained across assignment retries: never create a duplicate.
+    if (!editingId.value) {
+      assignmentPendingId.value = result.id
+      persistLocalDraft()
+      await operationsApi.assign(result.id)
+    }
+    clearLocalDraft()
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la apertura.'
+    error.value = assignmentPendingId.value
+      ? 'El trámite se creó, pero la asignación al equipo no terminó. Reintenta la asignación sin crear otro IDTRA. Detalle: ' + (cause instanceof Error ? cause.message : 'Error desconocido')
+      : cause instanceof Error ? cause.message : 'No se pudo crear la apertura.'
   } finally { saving.value = false }
 }
 watch(selectedPol, id => { const label = lookupLabel('pol', id); if (label) form.value.pol = label })
