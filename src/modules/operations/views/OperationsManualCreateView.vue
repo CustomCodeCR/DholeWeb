@@ -699,7 +699,16 @@ onMounted(async () => {
       :hide-excel-export="true"
     >
       <template #actions>
-        <DhButton :icon="Save" :label="editingId ? 'Guardar modificaciones' : 'Guardar borrador'" :loading="saving" :disabled="loading || !valid" @click="save" />
+        <div class="flex flex-wrap items-center gap-3">
+          <span v-if="!editingId" role="status" aria-live="polite" class="text-xs font-semibold"
+            :class="autosaveState === 'error' ? 'text-amber-500' : 'text-[var(--dh-text-muted)]'">
+            {{ autosaveState === 'error' ? 'Autoguardado no disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
+          </span>
+          <DhButton :icon="editingId ? Save : FolderPlus"
+            :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
+            :loading="saving" :disabled="loading || saving || ((!valid || blockers.length > 0) && !assignmentPendingId)"
+            @click="save" />
+        </div>
       </template>
     </DhPageHeader>
 
@@ -712,7 +721,7 @@ onMounted(async () => {
           <div class="min-w-0">
             <p class="text-[10px] font-black uppercase tracking-[.18em] text-[var(--dh-primary)]">OPERATIONS · APERTURAS</p>
             <h2 class="text-xl font-black tracking-tight text-[var(--dh-text)] sm:text-2xl">{{ editingId ? 'Actualizar expediente' : 'Crear expediente operativo' }}</h2>
-            <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Completa una etapa a la vez. Puedes guardar un borrador sin completar todos los campos.</p>
+            <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Completa una etapa a la vez. Los cambios se guardan automáticamente; el IDTRA se crea al confirmar.</p>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -727,6 +736,9 @@ onMounted(async () => {
     </div>
 
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-500">{{ error }}</div>
+    <div v-if="assignmentPendingId" role="status" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-semibold text-amber-500">
+      El IDTRA ya fue creado. La asignación sigue pendiente; utiliza «Reintentar asignación» para continuar sin generar otro expediente.
+    </div>
     <div v-if="catalogIssue" role="status" class="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-xs font-semibold text-amber-500">{{ catalogIssue }}</div>
     <DhCard v-if="!companyId && canInitialize && !editingId" title="Inicialización de Operaciones" subtitle="Acción administrativa, necesaria solo cuando la empresa operativa no se ha identificado.">
       <DhButton variant="secondary" label="Inicializar equipos" :loading="initializing" @click="initializeWorkspace" />
@@ -794,7 +806,11 @@ onMounted(async () => {
                   ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)]'
                   : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
                 @click="selectShipment(option.value)">
-                <span class="text-sm font-bold">{{ option.label }}</span>
+                <span class="flex items-center gap-3">
+                  <component :is="option.value === 'FCL' ? Boxes : option.value === 'LCL' ? PackageOpen : option.value === 'FTL' ? Truck : option.value === 'LTL' ? Package : Plane"
+                    class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+                  <span class="text-sm font-bold">{{ option.label }}</span>
+                </span>
                 <CircleCheck v-if="effectiveShipment === option.value" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
               </button>
             </div>
@@ -804,7 +820,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 1" class="space-y-5">
+        <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
               <h4 class="text-base font-black">Cuenta y responsable comercial</h4>
@@ -841,7 +857,7 @@ onMounted(async () => {
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h5 class="flex items-center gap-2 text-sm font-black"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /> Contactos operativos para notificaciones</h5>
-                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo contactos operativos habilitados en CRM. No se enviarán correos al guardar el borrador.</p>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Contactos operativos habilitados en CRM. Se seleccionan por defecto; puedes desmarcar cualquiera. El autoguardado no envía correos.</p>
                   </div>
                   <DhBadge variant="neutral">{{ form.contactIds.length }} seleccionados</DhBadge>
                 </div>
@@ -867,10 +883,11 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 1" class="space-y-5">
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div v-show="activeStep === 1" class="mt-6 space-y-5">
+          <div class="grid gap-4 md:grid-cols-2">
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
-            <DhInput v-model="form.cargoNature" label="Naturaleza de la carga" placeholder="Carga general, perecedera…" />
+            <DhSelect v-model="form.cargoNature" label="Naturaleza de la carga"
+              :options="cargoNatureOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -930,7 +947,7 @@ onMounted(async () => {
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
-            <DhInput v-model="form.packageType" label="Tipo de bulto" />
+            <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeOptions" placeholder="Seleccione tipo de bulto" />
             <DhInput v-model="form.weightValue" label="Peso bruto" type="number" :min="0" />
             <DhSelect v-model="form.weightUnit" label="Unidad peso" :options="[{ label: 'Kilogramos', value: 'KG' }, { label: 'Libras', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
