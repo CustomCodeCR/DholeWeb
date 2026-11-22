@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi } from '../services/operationsApi'
+import { crmGet, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { StorageService } from '@/core/services/storageService'
@@ -28,6 +29,21 @@ const initializing = ref(false)
 const accountId = ref('')
 const selectedClientName = ref('')
 const executiveName = ref('')
+const executiveUserId = ref('')
+const institutionalExecutive = ref(false)
+const executiveLoading = ref(false)
+const operationalContactsLoading = ref(false)
+const operationalContactsIssue = ref('')
+const operationalContacts = ref<Array<{ id: string; name: string; email: string }>>([])
+let clientGeneration = 0
+let lastSelectedAccountId = ''
+const executiveAssigned = computed(() => institutionalExecutive.value || Boolean(executiveUserId.value))
+const executiveLabel = computed(() =>
+  executiveLoading.value ? 'Consultando responsable comercial en CRM…'
+    : executiveName.value || (executiveUserId.value ? 'Ejecutivo asignado; nombre pendiente de consulta'
+      : 'Sin ejecutivo comercial asignado en CRM'))
+const selectedOperationalContacts = computed(() =>
+  operationalContacts.value.filter(contact => form.value.contactIds.includes(contact.id)))
 const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
@@ -97,6 +113,8 @@ function goToStep(target: number) {
 const fieldTitle = (label: string, value: unknown) => ({ label, value: value == null || value === '' ? 'Pendiente' : String(value) })
 const summaryFields = computed(() => [
   fieldTitle('Cliente', selectedClientName.value || accountId.value),
+  fieldTitle('Ejecutivo comercial', executiveLabel.value),
+  fieldTitle('Contactos operativos', selectedOperationalContacts.value.map(x => x.name).join(', ')),
   fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
   fieldTitle('Tipo de embarque', form.value.shipmentType),
   fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
@@ -124,7 +142,7 @@ const form = ref({
   overweight: false, overweightNotes: '', carrierReference: '',
   agentReference: '', merchantReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
-  contactReferences: '', commercialReviewRequested: false,
+  contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
   equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
   originCountryCode: '', destinationCountryCode: '',
   cabysSearch: '', cabysCode: '', portHandlingMode: '',
@@ -142,13 +160,12 @@ const supportAccept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp'
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
-  { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
+  { label: 'Aéreo', value: 'AIR' },
 ]
 const transportSelectionOptions = [
   { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL' },
   { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional' },
   { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL' },
-  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte' },
 ]
 const shipmentOptionsByTransport: Record<string, Array<{ label: string; value: string }>> = {
   MARITIME: [{ label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Coloading / propio', value: 'LCL' }],
@@ -197,7 +214,7 @@ const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.v
 const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
-  modalOptions.some(x => x.value === modality.value) &&
+  (modalOptions.some(x => x.value === modality.value) || (Boolean(editingId.value) && modality.value === 'MULTIMODAL')) &&
   /^[0-9a-f-]{36}$/i.test(accountId.value) &&
   priority.value >= 1 && priority.value <= 5 && complexity.value > 0 &&
   (!form.value.originCountryCode || /^[A-Za-z]{2}$/.test(form.value.originCountryCode)) &&
@@ -206,6 +223,7 @@ const valid = computed(() =>
 const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
+  else if (!executiveLoading.value && !executiveAssigned.value) result.push('Ejecutivo comercial por asignar en CRM')
   if (!form.value.transportType) result.push('Modalidad de transporte')
   if (!effectiveShipment.value) result.push('Tipo de embarque')
   if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
@@ -220,19 +238,118 @@ const blockers = computed(() => {
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
 
-function onCrmClientSelected(client: { kind?: 'account' | 'lead'; displayName: string; executiveName: string } | null) {
-  // Operations resolves the commercial executive using CRM /accounts/{id}, not leads.
-  // The shared Pricing selector lists prospects too; prevent a draft that the backend cannot accept.
+function toggleOperationalContact(id: string, selected: boolean) {
+  form.value.contactIds = selected
+    ? [...new Set([...form.value.contactIds, id])]
+    : form.value.contactIds.filter(x => x !== id)
+  // Keep legacy field for older cases; real IDs live in contactIds.
+  form.value.contactReferences = form.value.contactIds.join(',')
+}
+
+async function resolveCrmOpeningData(id: string, client: {
+  executiveName?: string; executiveUserId?: string; isCastroFallasExecutive?: boolean
+}) {
+  const generation = ++clientGeneration
+  executiveLoading.value = true
+  operationalContactsLoading.value = true
+  operationalContacts.value = []
+  operationalContactsIssue.value = ''
+  executiveName.value = client.executiveName?.trim() || ''
+  executiveUserId.value = client.executiveUserId?.trim() || ''
+  institutionalExecutive.value = client.isCastroFallasExecutive === true
+  try {
+    const [accountResponse, contactsResponse] = await Promise.allSettled([
+      crmGet('accounts', id),
+      crmRequest<unknown>(crmPath('accounts', id, 'contacts')),
+    ])
+    if (generation !== clientGeneration || accountId.value !== id) return
+    if (accountResponse.status === 'fulfilled') {
+      const account = accountResponse.value as Record<string, unknown>
+      institutionalExecutive.value = institutionalExecutive.value || account.isCastroFallasExecutive === true
+      executiveUserId.value = String(account.executiveUserId || executiveUserId.value || '')
+      executiveName.value = String(account.executiveName || executiveName.value || '').trim()
+    }
+    if (institutionalExecutive.value && !executiveName.value) executiveName.value = 'Castro Fallas'
+    if (executiveUserId.value && !executiveName.value) {
+      try {
+        const labels = await crmRequest<{ owners?: Record<string, string> }>(
+          crmPath('calendar/labels') + '?' +
+          new URLSearchParams({ ownerIds: executiveUserId.value }))
+        if (generation !== clientGeneration || accountId.value !== id) return
+        executiveName.value = labels.owners?.[executiveUserId.value]?.trim() || ''
+      } catch { /* The CRM executive ID remains assigned if labels are unavailable. */ }
+    }
+    if (contactsResponse.status === 'fulfilled') {
+      const raw = contactsResponse.value
+      const entries = Array.isArray(raw) ? raw
+        : raw && typeof raw === 'object' && Array.isArray((raw as {items?: unknown}).items)
+          ? (raw as {items: unknown[]}).items : []
+      operationalContacts.value = entries.flatMap((entry: unknown) => {
+        if (!entry || typeof entry !== 'object') return []
+        const relation = entry as Record<string, unknown>
+        const contact = (relation.contact && typeof relation.contact === 'object'
+          ? relation.contact : relation) as Record<string, unknown>
+        const active = relation.isActive !== false && contact.isActive !== false &&
+          !['INACTIVE','DISABLED'].includes(String(contact.status ?? '').toUpperCase())
+        const operations = relation.isOperationsContact === true || contact.isOperationsContact === true
+        const email = String(contact.email || '').trim()
+        const name = String(contact.name || [contact.firstName,contact.lastName].filter(Boolean).join(' ') || '').trim()
+        const contactId = String(contact.id || relation.contactId || '')
+        return active && operations && contactId && name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+          ? [{ id: contactId, name, email }] : []
+      })
+    } else {
+      operationalContactsIssue.value = 'No se pudieron consultar los contactos de CRM; puede conservar el borrador.'
+    }
+  } finally {
+    if (generation === clientGeneration) {
+      executiveLoading.value = false
+      operationalContactsLoading.value = false
+    }
+  }
+}
+
+function onCrmClientSelected(client: {
+  id: string; kind?: 'account' | 'lead'; displayName: string;
+  executiveName: string; executiveUserId?: string; isCastroFallasExecutive?: boolean
+} | null) {
   if (client?.kind === 'lead') {
+    ++clientGeneration
     accountId.value = ''
+    lastSelectedAccountId = ''
     selectedClientName.value = ''
     executiveName.value = ''
+    executiveUserId.value = ''
+    institutionalExecutive.value = false
+    operationalContacts.value = []
+    executiveLoading.value = false
+    operationalContactsLoading.value = false
+    operationalContactsIssue.value = ''
     error.value = 'Para aperturar el trámite, convierta primero el prospecto en una cuenta CRM.'
     return
   }
-  if (client) error.value = ''
-  selectedClientName.value = client?.displayName || ''
-  executiveName.value = client?.executiveName || ''
+  if (!client) {
+    ++clientGeneration
+    lastSelectedAccountId = ''
+    selectedClientName.value = ''
+    executiveName.value = ''
+    executiveUserId.value = ''
+    institutionalExecutive.value = false
+    operationalContacts.value = []
+    executiveLoading.value = false
+    operationalContactsLoading.value = false
+    operationalContactsIssue.value = ''
+    form.value.contactIds = []
+    return
+  }
+  if (lastSelectedAccountId && lastSelectedAccountId !== client.id) {
+    form.value.contactIds = []
+    form.value.contactReferences = ''
+  }
+  lastSelectedAccountId = client.id
+  error.value = ''
+  selectedClientName.value = client.displayName
+  void resolveCrmOpeningData(client.id, client)
 }
 function countryFromRoute(group: 'pol' | 'pod', id: string, location: string): string {
   const item = currentCatalog(group).find(x => x.id === id)
@@ -404,6 +521,7 @@ onMounted(async () => {
       restoringOpening = true
       existingVersion.value = detail.version
       accountId.value = detail.accountId
+      lastSelectedAccountId = detail.accountId
       companyId.value = detail.companyId
       modality.value = detail.modalityCode
       priority.value = detail.priority
@@ -411,6 +529,7 @@ onMounted(async () => {
       const parsed = JSON.parse(detail.openingDataJson || '{}') as Record<string, unknown>
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         form.value = { ...form.value, ...parsed } as typeof form.value
+        if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
       }
       if (!form.value.transportType) {
         form.value.transportType = modality.value === 'AIR' ? 'AIR'
@@ -431,7 +550,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div id="operations-opening-wizard" class="mx-auto w-full max-w-[1540px] space-y-4 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+  <div id="operations-opening-wizard" class="mx-auto w-full max-w-[1440px] space-y-5 px-3 pb-32 pt-4 sm:px-6 sm:pt-6 lg:px-8 scroll-mt-36">
     <RouterLink to="/operations/cases" class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[var(--dh-primary)]">
       <ArrowLeft class="h-4 w-4" /> Trámites
     </RouterLink>
@@ -482,7 +601,7 @@ onMounted(async () => {
       @update:active-step="goToStep"
     />
 
-    <section class="overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
+    <section class="scroll-mt-36 overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
       <header class="flex flex-wrap items-center gap-3 rounded-t-[26px] border-b border-[var(--dh-border)] p-5 sm:p-6">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]">
           <Route v-if="activeStep === 1" class="h-5 w-5" />
@@ -498,29 +617,114 @@ onMounted(async () => {
       </header>
 
       <div class="p-4 sm:p-6">
-        <div v-show="activeStep === 1" class="grid gap-4 md:grid-cols-2">
-          <DhSelect :model-value="form.transportType" label="Modalidad de transporte" :options="transportSelectionOptions.map(x => ({label:x.label,value:x.value}))" @update:model-value="selectTransport(String($event))" />
-          <DhSelect :model-value="effectiveShipment" label="Tipo de embarque" :options="shipmentOptions" :disabled="!form.transportType" @update:model-value="selectShipment(String($event))" />
+        <div v-show="activeStep === 1" class="grid gap-5 lg:grid-cols-2">
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/25 p-4 sm:p-5">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h4 class="text-sm font-black">Modalidad de transporte</h4>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Selecciona el medio principal de la operación.</p>
+              </div>
+              <DhBadge variant="neutral">3 opciones</DhBadge>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-3">
+              <button v-for="option in transportSelectionOptions" :key="option.value" type="button"
+                :aria-pressed="form.transportType === option.value"
+                class="relative flex min-h-[116px] flex-col items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                :class="form.transportType === option.value
+                  ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)] shadow-sm'
+                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
+                @click="selectTransport(option.value)">
+                <component :is="option.value === 'MARITIME' ? Ship : option.value === 'AIR' ? Plane : Truck"
+                  class="h-5 w-5 text-[var(--dh-primary)]" />
+                <span><strong class="block text-sm">{{ option.label }}</strong><span class="mt-1 block text-[11px] font-medium text-[var(--dh-text-muted)]">{{ option.caption }}</span></span>
+                <CircleCheck v-if="form.transportType === option.value" class="absolute right-3 top-3 h-4 w-4 text-[var(--dh-primary)]" />
+              </button>
+            </div>
+            <p v-if="form.transportType === 'MULTIMODAL' && editingId"
+              class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-500">
+              Este expediente histórico es multimodal. Sus datos se conservan; para nuevas aperturas selecciona marítimo, aéreo o terrestre.
+            </p>
+          </div>
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/25 p-4 sm:p-5">
+            <h4 class="text-sm font-black">Tipo de embarque</h4>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones compatibles con la modalidad seleccionada.</p>
+            <div v-if="shipmentOptions.length" class="mt-4 grid gap-2 sm:grid-cols-2">
+              <button v-for="option in shipmentOptions" :key="option.value" type="button"
+                :aria-pressed="effectiveShipment === option.value"
+                class="flex min-h-[92px] items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                :class="effectiveShipment === option.value
+                  ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)]'
+                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
+                @click="selectShipment(option.value)">
+                <span class="text-sm font-bold">{{ option.label }}</span>
+                <CircleCheck v-if="effectiveShipment === option.value" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+              </button>
+            </div>
+            <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-xs text-[var(--dh-text-muted)]">
+              Elige primero la modalidad de transporte.
+            </div>
+          </div>
         </div>
 
         <div v-show="activeStep === 1" class="space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
-              <h4 class="text-sm font-black">Cuenta y responsable comercial</h4>
+              <h4 class="text-base font-black">Cuenta y responsable comercial</h4>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El cliente y el ejecutivo se obtienen de CRM; nunca debes introducir un UUID o IDTRA.</p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="space-y-3 md:col-span-2">
                 <PricingCrmClientSelect v-model="accountId" mode="create" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
-                <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
-                  <p class="text-xs font-black uppercase">Ejecutivo comercial (asignado en CRM)</p>
-                  <p class="text-sm">{{ executiveName || 'Se obtiene de CRM al seleccionar el cliente' }}</p>
+                <div role="status" aria-live="polite"
+                  class="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
+                  :class="executiveAssigned ? 'border-[var(--dh-primary)]/35 bg-[rgb(var(--dh-primary-rgb)/0.09)]' : 'border-amber-500/35 bg-amber-500/5'">
+                  <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--dh-card)]">
+                    <UserRound class="h-5 w-5 text-[var(--dh-primary)]" />
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ejecutivo comercial responsable (CRM)</span>
+                    <span class="mt-1 block text-base font-extrabold">{{ accountId ? executiveLabel : 'Selecciona una cuenta de CRM' }}</span>
+                    <span v-if="accountId && !executiveLoading && !executiveAssigned" class="mt-1 block text-xs text-amber-500">
+                      Pendiente bloqueante para validar; la asignación debe resolverse en CRM.
+                    </span>
+                  </span>
+                  <CircleCheck v-if="executiveAssigned" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+                  <CircleAlert v-else-if="accountId && !executiveLoading" class="h-5 w-5 shrink-0 text-amber-500" />
                 </div>
               </div>
               <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <DhInput v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
-              <DhInput v-model="form.crmDivisionId" label="División CRM (opcional)" placeholder="Referencia de división" />
-              <DhInput v-model="form.contactReferences" label="Contactos de notificación" placeholder="Referencias de contactos de CRM" />
+              <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
+                <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">División comercial CRM (opcional)</p>
+                <p class="mt-1 text-xs font-semibold">{{ form.crmDivisionId || 'Sin división vinculada' }}</p>
+                <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La selección de divisiones se habilitará cuando CRM publique su catálogo. No se aceptan referencias inventadas.</p>
+              </div>
+              <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h5 class="flex items-center gap-2 text-sm font-black"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /> Contactos operativos para notificaciones</h5>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo contactos operativos habilitados en CRM. No se enviarán correos al guardar el borrador.</p>
+                  </div>
+                  <DhBadge variant="neutral">{{ form.contactIds.length }} seleccionados</DhBadge>
+                </div>
+                <p v-if="operationalContactsLoading" class="mt-3 text-xs text-[var(--dh-text-muted)]">Consultando contactos de CRM…</p>
+                <p v-else-if="operationalContactsIssue" role="status" class="mt-3 text-xs text-amber-500">{{ operationalContactsIssue }}</p>
+                <p v-else-if="accountId && !operationalContacts.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">No hay contactos operativos activos con correo válido. Se pueden registrar después en CRM.</p>
+                <p v-else-if="!accountId" class="mt-3 text-xs text-[var(--dh-text-muted)]">Selecciona primero una cuenta CRM.</p>
+                <div v-else class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label v-for="contact in operationalContacts" :key="contact.id"
+                    class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-colors"
+                    :class="form.contactIds.includes(contact.id)
+                      ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]'
+                      : 'border-[var(--dh-border)] bg-[var(--dh-input)]/25 hover:border-[var(--dh-primary)]/50'">
+                    <input type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]"
+                      :checked="form.contactIds.includes(contact.id)"
+                      @change="toggleOperationalContact(contact.id, ($event.target as HTMLInputElement).checked)" />
+                    <span class="min-w-0"><span class="block truncate text-xs font-black">{{ contact.name }}</span>
+                      <span class="mt-0.5 block truncate text-[11px] text-[var(--dh-text-muted)]">{{ contact.email }}</span></span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -532,7 +736,7 @@ onMounted(async () => {
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div><h4 class="text-sm font-black">Ruta de transporte</h4><p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Buscadores de POL, POE y POD compartidos con el wizard de Pricing.</p></div>
+              <div><h4 class="text-base font-black">Ruta de transporte</h4><p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Buscadores de POL, POE y POD compartidos con el wizard de Pricing.</p></div>
               <DhBadge variant="neutral">{{ catalogLoading ? 'Cargando catálogos' : 'Catálogos de Config' }}</DhBadge>
             </div>
             <div class="grid gap-4 md:grid-cols-3">
@@ -569,7 +773,7 @@ onMounted(async () => {
 
         <div v-show="activeStep === 2" class="space-y-5">
           <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
-            <h4 class="text-sm font-black">Descripción de carga y CABYS</h4>
+            <h4 class="text-base font-black">Descripción de carga y CABYS</h4>
             <div class="flex flex-wrap items-end gap-3">
               <div class="min-w-[180px] flex-1">
                 <DhInput v-model="form.cabysSearch" label="Buscar CABYS de Hacienda" placeholder="Ej. repuestos, textiles, maquinaria…" @keyup.enter="searchCabys" />
@@ -599,22 +803,75 @@ onMounted(async () => {
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"><Check v-if="form.isImo" class="mr-1 inline h-4 w-4" />IMO / Peligrosa</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"><Check v-if="form.stackable" class="mr-1 inline h-4 w-4" />Estibable</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"><Check v-if="form.overweight" class="mr-1 inline h-4 w-4" />Sobrepeso</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.portHandlingMode === 'Redestino'" @click="toggleHandling('Redestino')"><Check v-if="form.portHandlingMode === 'Redestino'" class="mr-1 inline h-4 w-4" />Redestino</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.portHandlingMode === 'Anticipado'" @click="toggleHandling('Anticipado')"><Check v-if="form.portHandlingMode === 'Anticipado'" class="mr-1 inline h-4 w-4" />Anticipado</button>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <button type="button" :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">IMO / Peligrosa</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Requiere clase IMO y número UN</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.isImo ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.isImo" class="h-4 w-4" />
+                  </span>
+                </button>
+                <button type="button" :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Carga estibable</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Se permite apilar mercancía</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.stackable ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.stackable" class="h-4 w-4" />
+                  </span>
+                </button>
+                <button type="button" :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Sobrepeso</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Registrar requerimientos especiales</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.overweight ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.overweight" class="h-4 w-4" />
+                  </span>
+                </button>
+            </div>
+            <div class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
+              <div class="mb-3">
+                <h5 class="text-sm font-black">Muellaje en destino</h5>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones excluyentes; selecciona únicamente la que corresponda.</p>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <button type="button" :aria-pressed="form.portHandlingMode === 'Redestino'" @click="toggleHandling('Redestino')"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Redestino</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Retiro o entrega con redestino</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.portHandlingMode === 'Redestino'" class="h-4 w-4" />
+                  </span>
+                </button>
+                <button type="button" :aria-pressed="form.portHandlingMode === 'Anticipado'" @click="toggleHandling('Anticipado')"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Anticipado</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Muellaje anticipado en destino</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.portHandlingMode === 'Anticipado'" class="h-4 w-4" />
+                  </span>
+                </button>
+              </div>
             </div>
             <div class="mt-3 grid gap-3 md:grid-cols-2">
               <DhInput v-if="form.isImo" v-model="form.imoClass" label="Clase IMO" />
@@ -642,11 +899,11 @@ onMounted(async () => {
               <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
             </div>
           </div>
-          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
-            <h4 class="text-sm font-black">Documentos de respaldo</h4>
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
+            <h4 class="text-base font-black">Documentos de respaldo</h4>
             <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <label v-for="category in supportCategories" :key="category.key" class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] p-3 text-xs font-black hover:border-[var(--dh-primary)]">
+              <label v-for="category in supportCategories" :key="category.key" class="flex min-h-[68px] cursor-pointer items-center justify-center gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-4 text-center text-xs font-black transition-all hover:border-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.07)]">
                 <FileUp class="h-4 w-4" />{{ uploadingSupport === category.key ? 'Subiendo…' : category.label }}
                 <input class="hidden" type="file" :accept="supportAccept" :disabled="Boolean(uploadingSupport)" @change="uploadDocument(category.key, category.label, $event)" />
               </label>
@@ -678,6 +935,17 @@ onMounted(async () => {
               <li v-for="field in blockers" :key="field">{{ field }}</li>
             </ul>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Guardar no modifica ninguna QUO ni los costos existentes. Se guarda la ficha operativa, su auditoría y las referencias relacionadas.</p>
+          </div>
+          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
+            <h4 class="text-sm font-black">Datos operativos que pueden confirmarse después</h4>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Según la especificación v1.2, estos datos pueden quedar pendientes durante la captura y completarse en validación o Coordinación Origen, según el tipo de embarque.</p>
+            <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Naviera y booking, si aplica</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Agente / oficina de origen</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Consolidado y WHS según modalidad</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Procedimientos específicos de CRM</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Servicios y recolecta, si corresponde</span>
+            </div>
           </div>
         </div>
       </div>
