@@ -123,12 +123,12 @@ export function patchPricingP7Reconcile391(source: string): string {
     throw new Error('[DH-396] Missing P7 rebuild completion marker')
   code = code.replace(rebuildComplete,
     '  if (step.value === 7) p7PresentOrReconcile391()\n' + rebuildComplete)
-  // The Incoterm inclusion guard runs after duplicate FCL freight removal.
-  // Reconcile AFTER it, otherwise the guard silently drops VGM and road
-  // Freight from the exact lines the save payload serializes.
-  const saveAnchor = '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()'
+  // Other Vite transforms rewrite the Incoterm guard call. The FCL dedup
+  // line remains stable, and the two scoped exemptions below prevent that
+  // guard from dropping VGM/land Freight after reconciliation.
+  const saveAnchor = '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)'
   if (code.split(saveAnchor).length !== 2)
-    throw new Error('[DH-396] Missing final pre-save inclusion guard')
+    throw new Error('[DH-396] Missing final pre-save details anchor')
   code = code.replace(saveAnchor, saveAnchor + '\n  if (!props.rateId) p7PresentOrReconcile391(true)')
   // A commercial Miami plan explicitly includes VGM. Likewise the
   // independently contracted multimodal FCL land leg is not optional
