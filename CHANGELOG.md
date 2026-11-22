@@ -1,3 +1,12 @@
+## [1.116.0] - 2026-11-22 · DH-20261122-OPERATIONS-ASSIGNMENT-SUMMARY-408
+
+- MINOR: selección explícita de equipo de Aperturas antes de crear un IDTRA manual, usando el catálogo propio de Operations; valida mínimo de dos usuarios disponibles, conserva el equipo en autoguardado y permite reintentos idempotentes sin duplicar expedientes.
+- Estibable solo para LCL/LTL, oculto y no aplicable para FCL/FTL/AIR.
+- El peso ya no se captura en Aperturas, ni para la carga ni por equipo FCL/FTL; Coordinación Origen confirma el peso posteriormente. Los valores históricos de expedientes existentes se preservan al editarlos.
+- Rediseño de la pantalla de revisión y drawer de Trámites con cliente/ejecutivo, ruta detallada, mercancía, equipos, condiciones, documentos, estado y asignaciones. Mantiene IDTRA, QUO, catálogos Pricing, CABYS, CRM, Storage y SignalR.
+- Incluye pruebas de regresión de formulario, selección, estados e interfaz, y contratos compatibles con el endpoint de Operations.
+- Versiones: DholeWeb y DholeSystem 1.115.1 → 1.116.0; DholeOperationsService 0.15.1 → 0.16.0; restantes 14 componentes permanecen sin cambio.
+
 ## [1.115.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-407
 
 - PATCH: denominar «Devolver tarifa» la acción de Pricing; mostrar «Devuelta por Pricing» a Ventas, identificador visible y motivo obligatorio; diálogo opaco y accesible en modo oscuro.

@@ -7,6 +7,13 @@ export interface OperationsMember {
   isSupervisor: boolean
   isAvailable: boolean
 }
+export interface OperationsAssignmentTeam {
+  id: string
+  name: string
+  departmentCode: string
+  availableReviewers: number
+  canAssign: boolean
+}
 export interface OperationsTeam {
   id: string
   companyId: string
@@ -190,6 +197,8 @@ export const operationsApi = {
   updateCase: (id: string, body: OperationsOpeningEdit) =>
     request<{ id: string; version: number; updatedAtUtc: string }>(
       `/api/operations/cases/${id}`, 'PATCH', body),
+  assignmentTeams: (companyId: string) => request<OperationsAssignmentTeam[]>(
+    '/api/operations/apertures/assignment-teams?companyId=' + encodeURIComponent(companyId)),
   teams: () => request<OperationsTeam[]>('/api/operations/teams'),
   initializeTeams: () => request<{ created: number; total: number }>('/api/operations/teams/initialize', 'POST'),
   createTeam: (body: { companyId: string; name: string; departmentCode: string }) =>
