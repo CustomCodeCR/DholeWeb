@@ -1,3 +1,10 @@
+## [1.110.6] - 2026-11-21 · DH-20261121-PRICING-TERRESTRIAL-FREIGHT-398 (candidate master)
+
+- PATCH: FCL multimodal Pantalla 7 conserva el flete marítimo por contenedor y agrega el maestro Flete Internacional Terrestre marcado en data.applicable por Pricing sin confundirlo con Bunker.
+- Corrige la reconciliación posterior a la carga asíncrona del catálogo y conserva CostId, valores, relaciones POE/POD y el snapshot persistido sin duplicar líneas.
+- Misma corrección DH-398 integrada en develop, promovida con pruebas de regresión a master mediante rama intermedia.
+- DholeWeb/DholeSystem 1.110.5 → 1.110.6; PricingService conserva 1.26.24. Despliegue de producción pendiente de autorización expresa.
+
 ## [1.110.5] - 2026-11-21 · DH-20261121-PRICING-VGM-FCL-FINAL-397 (candidate master)
 
 - PATCH: La validación de Incoterm ya no desmarca el VGM del consolidado propio Miami elegido comercialmente ni el flete internacional terrestre de un FCL multimodal con transporte contratado.
