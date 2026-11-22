@@ -1113,33 +1113,22 @@ onMounted(async () => {
 
         <div v-show="activeStep === 3" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Verifica los datos antes de guardar. El IDTRA se asignará automáticamente.</p></div>
-            <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Borrador incompleto' : 'Listo para validación' }}</DhBadge>
+            <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Comprueba los datos antes de crear el IDTRA y asignar la validación al equipo.</p></div>
+            <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Faltan datos para crear' : 'Listo para crear y asignar' }}</DhBadge>
           </div>
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div v-for="field in summaryFields" :key="field.label" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)]/50 p-3.5">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div v-for="field in summaryFields" :key="field.label" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">{{ field.label }}</p>
               <p class="mt-1 break-words text-sm font-bold">{{ field.value }}</p>
             </div>
           </div>
           <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
             <h4 class="text-sm font-black">Completitud de la apertura</h4>
-            <p v-if="!blockers.length" class="mt-2 text-sm text-[var(--dh-text-muted)]">Los campos críticos básicos están completos. La validación definitiva continúa en Aperturas.</p>
+            <p v-if="!blockers.length" class="mt-2 text-sm text-[var(--dh-text-muted)]">Los campos básicos están completos. Al crear el expediente, Operaciones asignará los validadores mediante su flujo de equipos.</p>
             <ul v-else class="mt-3 grid list-disc gap-2 pl-5 text-sm font-semibold text-amber-500 sm:grid-cols-2">
               <li v-for="field in blockers" :key="field">{{ field }}</li>
             </ul>
-            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Guardar no modifica ninguna QUO ni los costos existentes. Se guarda la ficha operativa, su auditoría y las referencias relacionadas.</p>
-          </div>
-          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
-            <h4 class="text-sm font-black">Datos operativos que pueden confirmarse después</h4>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Según la especificación v1.2, estos datos pueden quedar pendientes durante la captura y completarse en validación o Coordinación Origen, según el tipo de embarque.</p>
-            <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Naviera y booking, si aplica</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Agente / oficina de origen</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Consolidado y WHS según modalidad</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Procedimientos específicos de CRM</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Servicios y recolecta, si corresponde</span>
-            </div>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">La creación no modifica las cotizaciones existentes. La distribución y la doble validación se gestionan por Operaciones.</p>
           </div>
         </div>
       </div>
@@ -1153,7 +1142,9 @@ onMounted(async () => {
       </div>
       <div class="flex items-center gap-2">
         <DhButton v-if="activeStep < wizardSteps.length" :icon="ChevronRight" label="Siguiente" @click="goToStep(activeStep + 1)" />
-        <DhButton v-else :icon="Save" :label="editingId ? 'Guardar modificaciones' : 'Guardar borrador'" :disabled="loading || !valid" :loading="saving" @click="save" />
+        <DhButton v-else :icon="editingId ? Save : FolderPlus"
+          :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
+          :disabled="loading || saving || ((!valid || blockers.length > 0) && !assignmentPendingId)" :loading="saving" @click="save" />
       </div>
     </footer>
   </div>
