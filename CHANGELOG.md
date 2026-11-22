@@ -1,3 +1,10 @@
+## [1.110.3] - 2026-11-21 · DH-20261121-PRICING-FINAL-POLISH-395 (candidate develop)
+
+- PATCH: LCL propio Miami conserva y factura VGM correspondiente al plan comercial A/B/C/D/NVOCC (si tiene valor); la reconstrucción del consolidado ya no descarta los suplementos p7-394-miami.
+- PATCH: FCL multimodal Panamá → GAM muestra el flete internacional terrestre independiente del marítimo; Bunker Flete Internacional Terrestre no se confunde con Freight. Priorizar maestros aplicables de Pricing, y si no hay maestro válido aplicar la regla interna USD 2.140 por contenedor sin CostId ficticio.
+- PATCH: LTL propio/coloader muestra Días de tránsito editables en pantallas 4 y 7, guarda transitDays/transitTime al crear o modificar la cotización.
+- Pruebas de regresión para las tres correcciones. Versionado universal: PricingService 1.26.22, DholeSystem 1.110.3. CI/staging pendientes.
+
 ## [1.110.2] - 2026-11-21 · DH-20261121-PRICING-LAST-THREE-FIXES-394 (candidate develop)
 
 - PATCH: El flete internacional terrestre Panamá → Costa Rica se conserva como segunda línea Freight independiente del flete marítimo en FCL multimodal; no se descarta cuando Pantalla 7 reconstruye líneas.
