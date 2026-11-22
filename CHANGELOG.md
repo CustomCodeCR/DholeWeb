@@ -1,3 +1,11 @@
+## [1.115.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-POLISH-406 (selective master candidate)
+
+- MINOR: apertura manual autoguarda localmente por usuario/empresa y recupera el borrador; el IDTRA solo se crea al confirmar.
+- Botón «Crear y asignar a equipo» asigna los validadores mediante endpoint Operations; reintentos conservan el IDTRA sin duplicarlo.
+- Tarjetas de equipos FCL/FTL con selector de tamaño/tipo de Pricing y exclusión de duplicados, cantidad y peso por equipo; selectores de naturaleza de la carga y bultos e iconos por tipo de embarque.
+- Contactos operativos activos de CRM preseleccionados y desmarcables; espaciado Incoterm corregido, revisión compacta sin leyenda de Coordinación Origen.
+- Compatibilidad con borradores y expedientes históricos, CABYS, Storage, REST y realtime; Web/System 1.114.0 → 1.115.0 y otros 15 componentes sin cambios.
+
 ## [1.114.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-UX-405 (candidate master)
 
 - MINOR: rediseño responsive de la apertura manual, selector de transporte con solo Marítimo, Aéreo y Terrestre, botones IMO/Estibable/Sobrepeso/Redestino/Anticipado con estados accesibles. Multimodal histórico se conserva sin permitir nuevas aperturas de esa modalidad.

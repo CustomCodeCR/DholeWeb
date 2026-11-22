@@ -14,7 +14,7 @@ test('manual opening is a full route, not an IDTRA series modal', () => {
   assert.match(router, /path: 'operations\/cases\/new'/)
   assert.match(router, /path: 'operations\/cases\/:id\/edit'/)
   assert.match(form, /Nueva apertura manual/)
-  assert.match(form, /Guardar borrador/)
+  assert.match(form, /Crear y asignar a equipo/)
   assert.match(form, /operationsApi\.createAperture/)
   assert.match(form, /operationsApi\.updateCase/)
   assert.doesNotMatch(api, /seriesCode: string/)

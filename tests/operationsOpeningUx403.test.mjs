@@ -43,5 +43,5 @@ test('attachments are saved in Storage and referenced by openingData for drafts'
   assert.match(view, /operationsApi\.createAperture/)
   assert.match(view, /operationsApi\.updateCase/)
   assert.match(view, /completionStatus: blockers\.value/)
-  assert.match(view, /Guardar borrador/)
+  assert.match(view, /Crear y asignar a equipo/)
 })

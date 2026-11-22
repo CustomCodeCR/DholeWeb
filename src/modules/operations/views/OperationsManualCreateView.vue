@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -48,11 +48,17 @@ const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
+const autosaveState = ref<'pending' | 'saved' | 'error'>('saved')
+const lastAutoSaveAt = ref('')
+const contactsTouched = ref(false)
+const assignmentPendingId = ref('')
+const autosaveReady = ref(false)
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
 const wizardSteps = [
   { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
   { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
-  { id: 3, label: 'Revisión', hint: 'Resumen y guardado de la apertura' },
+  { id: 3, label: 'Revisión', hint: 'Confirmar datos y asignar validación al equipo' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
@@ -127,7 +133,7 @@ const summaryFields = computed(() => [
   fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
   fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
   fieldTitle('Equipos', form.value.equipment.map(item => item.quantity + ' × ' + item.equipmentType).join(', ')),
-])
+].filter(field => field.value !== 'Pendiente'))
 const loading = ref(true)
 const error = ref('')
 const form = ref({
@@ -143,7 +149,7 @@ const form = ref({
   agentReference: '', merchantReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
-  equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
+  equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number; weightKg?: number }>,
   originCountryCode: '', destinationCountryCode: '',
   cabysSearch: '', cabysCode: '', portHandlingMode: '',
   supportEntityId: '',
@@ -157,6 +163,30 @@ const supportCategories = [
   {key:'INVOICE',label:'Invoice'}, {key:'MSDS',label:'MSDS / Ficha técnica'},
 ]
 const supportAccept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp'
+const packageTypeOptions = [
+  { label: 'Cajas', value: 'Cajas' }, { label: 'Pallets / tarimas', value: 'Pallets' },
+  { label: 'Bultos', value: 'Bultos' }, { label: 'Sacos', value: 'Sacos' },
+  { label: 'Fardos', value: 'Fardos' }, { label: 'Rollos', value: 'Rollos' },
+  { label: 'Tambores', value: 'Tambores' }, { label: 'Piezas', value: 'Piezas' },
+  { label: 'Granel', value: 'Granel' }, { label: 'Otros', value: 'Otros' },
+]
+const cargoNatureOptions = [
+  { label: 'Carga general', value: 'Carga general' },
+  { label: 'Perecedera', value: 'Perecedera' },
+  { label: 'Refrigerada', value: 'Refrigerada' },
+  { label: 'Peligrosa / IMO', value: 'Peligrosa' },
+  { label: 'Frágil', value: 'Frágil' },
+  { label: 'Sobredimensionada', value: 'Sobredimensionada' },
+  { label: 'Otro', value: 'Otro' },
+]
+const packageTypeChoiceOptions = computed(() => form.value.packageType &&
+  !packageTypeOptions.some(x => x.value === form.value.packageType)
+  ? [...packageTypeOptions, { label: form.value.packageType + ' (registrado)', value: form.value.packageType }]
+  : packageTypeOptions)
+const cargoNatureChoiceOptions = computed(() => form.value.cargoNature &&
+  !cargoNatureOptions.some(x => x.value === form.value.cargoNature)
+  ? [...cargoNatureOptions, { label: form.value.cargoNature + ' (registrado)', value: form.value.cargoNature }]
+  : cargoNatureOptions)
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
@@ -200,10 +230,25 @@ function selectShipment(value: string) {
   form.value.shipmentType = value
   modality.value = form.value.transportType === 'MULTIMODAL' ? 'MULTIMODAL' : value
 }
+function resolvedEquipmentId(item: { equipmentType: string; equipmentCatalogId?: string }) {
+  return item.equipmentCatalogId || selectedForLabel(equipmentCatalogKey.value, item.equipmentType)
+}
 function setEquipmentType(item: { equipmentType: string; equipmentCatalogId?: string }, id: string) {
+  if (id && form.value.equipment.some(other => other !== item && resolvedEquipmentId(other) === id)) {
+    error.value = 'Este tipo de equipo ya está agregado. Aumenta su cantidad en la misma fila.'
+    return
+  }
+  error.value = ''
   item.equipmentCatalogId = id
   item.equipmentType = lookupLabel(equipmentCatalogKey.value, id) || id
 }
+const totalEquipment = computed(() => form.value.equipment.reduce((total, row) => total + (Number(row.quantity) || 0), 0))
+const totalEquipmentWeight = computed(() => form.value.equipment.reduce(
+  (total, row) => total + (Number(row.weightKg) || 0) * (Number(row.quantity) || 0), 0))
+const uniqueEquipment = computed(() => {
+  const ids = form.value.equipment.map(resolvedEquipmentId).filter(Boolean)
+  return ids.length === new Set(ids).size
+})
 const originOptions = [
   { label: 'Cliente', value: 'CLIENT' }, { label: 'Proveedor', value: 'SUPPLIER' },
   { label: 'Agente', value: 'AGENT' }, { label: 'Oficina de origen', value: 'ORIGIN_OFFICE' },
@@ -219,7 +264,8 @@ const valid = computed(() =>
   priority.value >= 1 && priority.value <= 5 && complexity.value > 0 &&
   (!form.value.originCountryCode || /^[A-Za-z]{2}$/.test(form.value.originCountryCode)) &&
   (!form.value.destinationCountryCode || /^[A-Za-z]{2}$/.test(form.value.destinationCountryCode)) &&
-  form.value.equipment.every(x => Number.isInteger(x.quantity) && x.quantity > 0))
+  form.value.equipment.every(x => Number.isInteger(x.quantity) && x.quantity > 0 && (x.weightKg == null || Number(x.weightKg) >= 0)) &&
+  uniqueEquipment.value)
 const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
@@ -231,14 +277,17 @@ const blockers = computed(() => {
   if (!form.value.pod.trim()) result.push('POD / lugar de destino')
   if (!form.value.incoterm.trim()) result.push('Incoterm')
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
+  if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
+  if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
   return result
 })
-function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
+function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1, weightKg: 0 }) }
 
 function toggleOperationalContact(id: string, selected: boolean) {
+  contactsTouched.value = true
   form.value.contactIds = selected
     ? [...new Set([...form.value.contactIds, id])]
     : form.value.contactIds.filter(x => x !== id)
@@ -298,6 +347,10 @@ async function resolveCrmOpeningData(id: string, client: {
         return active && operations && contactId && name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
           ? [{ id: contactId, name, email }] : []
       })
+      if (!contactsTouched.value && !form.value.contactIds.length) {
+        form.value.contactIds = operationalContacts.value.map(contact => contact.id)
+        form.value.contactReferences = form.value.contactIds.join(',')
+      }
     } else {
       operationalContactsIssue.value = 'No se pudieron consultar los contactos de CRM; puede conservar el borrador.'
     }
@@ -340,11 +393,13 @@ function onCrmClientSelected(client: {
     operationalContactsLoading.value = false
     operationalContactsIssue.value = ''
     form.value.contactIds = []
+    contactsTouched.value = false
     return
   }
   if (lastSelectedAccountId && lastSelectedAccountId !== client.id) {
     form.value.contactIds = []
     form.value.contactReferences = ''
+    contactsTouched.value = false
   }
   lastSelectedAccountId = client.id
   error.value = ''
@@ -461,8 +516,87 @@ async function initializeWorkspace() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo inicializar Operaciones.'
   } finally { initializing.value = false }
 }
+// Drafts remain local and scoped to this logged-in user until a case is created.
+const draftStorageKey = computed(() =>
+  'dhole.operations.manual-opening.v2:' + (auth.userId || 'guest') + ':' +
+  (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
+function persistLocalDraft() {
+  if (!autosaveReady.value || editingId.value) return
+  try {
+    window.localStorage.setItem(draftStorageKey.value, JSON.stringify({
+      savedAt: Date.now(), version: 2, form: form.value,
+      accountId: accountId.value, selectedClientName: selectedClientName.value,
+      modality: modality.value, step: activeStep.value,
+      executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+      institutionalExecutive: institutionalExecutive.value,
+      contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
+    }))
+    autosaveState.value = 'saved'
+    lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch { autosaveState.value = 'error' }
+}
+function scheduleLocalDraft() {
+  if (!autosaveReady.value || editingId.value) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveState.value = 'pending'
+  autosaveTimer = setTimeout(persistLocalDraft, 650)
+}
+function restoreLocalDraft() {
+  if (editingId.value) return
+  try {
+    const raw = window.localStorage.getItem(draftStorageKey.value)
+    if (!raw) return
+    const draft = JSON.parse(raw) as Record<string, unknown>
+    if (draft.version !== 2 || !Number.isFinite(Number(draft.savedAt)) ||
+        Date.now() - Number(draft.savedAt) > 7 * 24 * 60 * 60 * 1000) {
+      window.localStorage.removeItem(draftStorageKey.value)
+      return
+    }
+    if (draft.form && typeof draft.form === 'object' && !Array.isArray(draft.form)) {
+      form.value = { ...form.value, ...draft.form } as typeof form.value
+      if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
+      if (!Array.isArray(form.value.equipment)) form.value.equipment = []
+      if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
+    }
+    accountId.value = String(draft.accountId || '')
+    lastSelectedAccountId = accountId.value
+    selectedClientName.value = String(draft.selectedClientName || '')
+    modality.value = String(draft.modality || '')
+    executiveName.value = String(draft.executiveName || '')
+    executiveUserId.value = String(draft.executiveUserId || '')
+    institutionalExecutive.value = draft.institutionalExecutive === true
+    contactsTouched.value = draft.contactsTouched === true
+    assignmentPendingId.value = String(draft.assignmentPendingId || '')
+    const step = Number(draft.step)
+    activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
+    reconcileLocations()
+    lastAutoSaveAt.value = new Date(Number(draft.savedAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (accountId.value && !assignmentPendingId.value) {
+      void resolveCrmOpeningData(accountId.value, {
+        executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+        isCastroFallasExecutive: institutionalExecutive.value,
+      })
+    }
+  } catch { autosaveState.value = 'error' }
+}
+function clearLocalDraft() {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveReady.value = false
+  try { window.localStorage.removeItem(draftStorageKey.value) } catch { /* storage restricted */ }
+}
+watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId],
+  scheduleLocalDraft, { deep: true })
+onBeforeUnmount(() => {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  if (autosaveReady.value && !editingId.value) persistLocalDraft()
+})
+
 async function save() {
-  if (!valid.value || saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
+  if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
+  if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value && !editingId.value) {
+    error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en este navegador.'
+    return
+  }
   saving.value = true
   error.value = ''
   try {
@@ -476,6 +610,7 @@ async function save() {
         equipmentType: item.equipmentType,
         equipmentCatalogId: item.equipmentCatalogId || undefined,
         quantity: Number(item.quantity),
+        weightKg: Math.max(0, Number(item.weightKg) || 0),
       })),
       completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_VALIDATION',
       missingFields: blockers.value,
@@ -490,19 +625,30 @@ async function save() {
           destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
           openingData,
         }).then(() => ({ id: editingId.value }))
-      : await operationsApi.createAperture({
-      companyId: companyId.value,
-      accountId: accountId.value,
-      modalityCode: modality.value,
-      priority: Number(priority.value),
-      complexityPoints: Number(complexity.value),
-      originCountryCode: form.value.originCountryCode.toUpperCase() || null,
-      destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
-      openingData,
-    })
+      : assignmentPendingId.value
+        ? { id: assignmentPendingId.value }
+        : await operationsApi.createAperture({
+          companyId: companyId.value,
+          accountId: accountId.value,
+          modalityCode: modality.value,
+          priority: Number(priority.value),
+          complexityPoints: Number(complexity.value),
+          originCountryCode: form.value.originCountryCode.toUpperCase() || null,
+          destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
+          openingData,
+        })
+    // A created IDTRA is retained across assignment retries: never create a duplicate.
+    if (!editingId.value) {
+      assignmentPendingId.value = result.id
+      persistLocalDraft()
+      await operationsApi.assign(result.id)
+    }
+    clearLocalDraft()
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la apertura.'
+    error.value = assignmentPendingId.value
+      ? 'El trámite se creó, pero la asignación al equipo no terminó. Reintenta la asignación sin crear otro IDTRA. Detalle: ' + (cause instanceof Error ? cause.message : 'Error desconocido')
+      : cause instanceof Error ? cause.message : 'No se pudo crear la apertura.'
   } finally { saving.value = false }
 }
 watch(selectedPol, id => { const label = lookupLabel('pol', id); if (label) form.value.pol = label })
@@ -511,6 +657,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
+  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -561,7 +708,16 @@ onMounted(async () => {
       :hide-excel-export="true"
     >
       <template #actions>
-        <DhButton :icon="Save" :label="editingId ? 'Guardar modificaciones' : 'Guardar borrador'" :loading="saving" :disabled="loading || !valid" @click="save" />
+        <div class="flex flex-wrap items-center gap-3">
+          <span v-if="!editingId" role="status" aria-live="polite" class="text-xs font-semibold"
+            :class="autosaveState === 'error' ? 'text-amber-500' : 'text-[var(--dh-text-muted)]'">
+            {{ autosaveState === 'error' ? 'Autoguardado no disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
+          </span>
+          <DhButton :icon="editingId ? Save : FolderPlus"
+            :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
+            :loading="saving" :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && blockers.length > 0 && !assignmentPendingId)"
+            @click="save" />
+        </div>
       </template>
     </DhPageHeader>
 
@@ -574,7 +730,7 @@ onMounted(async () => {
           <div class="min-w-0">
             <p class="text-[10px] font-black uppercase tracking-[.18em] text-[var(--dh-primary)]">OPERATIONS · APERTURAS</p>
             <h2 class="text-xl font-black tracking-tight text-[var(--dh-text)] sm:text-2xl">{{ editingId ? 'Actualizar expediente' : 'Crear expediente operativo' }}</h2>
-            <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Completa una etapa a la vez. Puedes guardar un borrador sin completar todos los campos.</p>
+            <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Completa una etapa a la vez. Los cambios se guardan automáticamente; el IDTRA se crea al confirmar.</p>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -589,6 +745,9 @@ onMounted(async () => {
     </div>
 
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-500">{{ error }}</div>
+    <div v-if="assignmentPendingId" role="status" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-semibold text-amber-500">
+      El IDTRA ya fue creado. La asignación sigue pendiente; utiliza «Reintentar asignación» para continuar sin generar otro expediente.
+    </div>
     <div v-if="catalogIssue" role="status" class="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-xs font-semibold text-amber-500">{{ catalogIssue }}</div>
     <DhCard v-if="!companyId && canInitialize && !editingId" title="Inicialización de Operaciones" subtitle="Acción administrativa, necesaria solo cuando la empresa operativa no se ha identificado.">
       <DhButton variant="secondary" label="Inicializar equipos" :loading="initializing" @click="initializeWorkspace" />
@@ -656,7 +815,11 @@ onMounted(async () => {
                   ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)]'
                   : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
                 @click="selectShipment(option.value)">
-                <span class="text-sm font-bold">{{ option.label }}</span>
+                <span class="flex items-center gap-3">
+                  <component :is="option.value === 'FCL' ? Boxes : option.value === 'LCL' ? PackageOpen : option.value === 'FTL' ? Truck : option.value === 'LTL' ? Package : Plane"
+                    class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+                  <span class="text-sm font-bold">{{ option.label }}</span>
+                </span>
                 <CircleCheck v-if="effectiveShipment === option.value" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
               </button>
             </div>
@@ -666,7 +829,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 1" class="space-y-5">
+        <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
               <h4 class="text-base font-black">Cuenta y responsable comercial</h4>
@@ -703,7 +866,7 @@ onMounted(async () => {
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h5 class="flex items-center gap-2 text-sm font-black"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /> Contactos operativos para notificaciones</h5>
-                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo contactos operativos habilitados en CRM. No se enviarán correos al guardar el borrador.</p>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Contactos operativos habilitados en CRM. Se seleccionan por defecto; puedes desmarcar cualquiera. El autoguardado no envía correos.</p>
                   </div>
                   <DhBadge variant="neutral">{{ form.contactIds.length }} seleccionados</DhBadge>
                 </div>
@@ -729,10 +892,11 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 1" class="space-y-5">
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div v-show="activeStep === 1" class="mt-6 space-y-5">
+          <div class="grid gap-4 md:grid-cols-2">
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
-            <DhInput v-model="form.cargoNature" label="Naturaleza de la carga" placeholder="Carga general, perecedera…" />
+            <DhSelect v-model="form.cargoNature" label="Naturaleza de la carga"
+              :options="cargoNatureChoiceOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -792,7 +956,7 @@ onMounted(async () => {
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
-            <DhInput v-model="form.packageType" label="Tipo de bulto" />
+            <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
             <DhInput v-model="form.weightValue" label="Peso bruto" type="number" :min="0" />
             <DhSelect v-model="form.weightUnit" label="Unidad peso" :options="[{ label: 'Kilogramos', value: 'KG' }, { label: 'Libras', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
@@ -879,24 +1043,62 @@ onMounted(async () => {
               <DhInput v-if="form.overweight" v-model="form.overweightNotes" label="Requerimientos por sobrepeso" />
             </div>
           </div>
-          <div v-if="needsEquipment || form.equipment.length" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div><h4 class="text-sm font-black">Equipos de transporte</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Selecciona los tipos de equipo del catálogo usado en Crear tarifas.</p></div>
-              <DhButton variant="secondary" :icon="Plus" label="Agregar equipo" size="sm" @click="addEquipment" />
-            </div>
-            <div v-if="!form.equipment.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-center text-sm text-[var(--dh-text-muted)]">Agrega al menos un equipo cuando corresponda.</div>
-            <div v-for="(item, index) in form.equipment" :key="index" class="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-3">
-              <div class="min-w-[170px] flex-1">
-                <PricingContainerSelector
-                  :model-value="item.equipmentCatalogId || selectedForLabel(equipmentCatalogKey, item.equipmentType)"
-                  :transport="effectiveShipment === 'FTL' ? 'land' : 'maritime'"
-                  @update:model-value="setEquipmentType(item, $event)"
-                />
-                <DhInput v-if="item.equipmentType && !item.equipmentCatalogId && !selectedForLabel(equipmentCatalogKey, item.equipmentType)"
-                  v-model="item.equipmentType" label="Equipo histórico / referencia" />
+          <div v-if="needsEquipment || form.equipment.length" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] bg-[rgb(var(--dh-primary-rgb)/0.04)] px-5 py-4">
+              <div>
+                <h4 class="text-base font-black">{{ effectiveShipment === 'FTL' ? 'Distribución de furgones FTL' : 'Distribución de contenedores FCL' }}</h4>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cada tipo se agrega una vez. Utiliza Cantidad para varias unidades iguales.</p>
               </div>
-              <div class="w-36"><DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1" @update:model-value="item.quantity = Number($event)" /></div>
-              <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
+              <DhButton variant="secondary" :icon="Plus" :label="effectiveShipment === 'FTL' ? 'Añadir furgón' : 'Añadir contenedor'" size="sm"
+                :disabled="Boolean(assignmentPendingId)" @click="addEquipment" />
+            </div>
+            <div class="space-y-3 p-4 sm:p-5">
+              <div v-if="!form.equipment.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">
+                Selecciona al menos un tipo de equipo para este embarque.
+              </div>
+              <div v-for="(item, index) in form.equipment" :key="'equipment-' + index"
+                class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 transition-colors"
+                :class="resolvedEquipmentId(item) ? 'border-[var(--dh-primary)]/25' : ''">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <span class="text-[11px] font-black uppercase tracking-widest text-[var(--dh-primary)]">
+                    {{ effectiveShipment === 'FTL' ? 'Furgón' : 'Contenedor' }} {{ index + 1 }}
+                  </span>
+                  <button v-if="form.equipment.length > 1" type="button"
+                    class="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-500/10"
+                    @click="form.equipment.splice(index, 1)"><Trash2 class="h-4 w-4" /> Quitar</button>
+                </div>
+                <div class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_128px_148px]">
+                  <div class="min-w-0">
+                    <PricingContainerSelector
+                      :model-value="resolvedEquipmentId(item)"
+                      :transport="effectiveShipment === 'FTL' ? 'land' : 'maritime'"
+                      :excluded-equipment-ids="form.equipment.filter((_, otherIndex) => otherIndex !== index).map(other => resolvedEquipmentId(other)).filter(Boolean)"
+                      :show-resolved-label="false"
+                      @update:model-value="setEquipmentType(item, $event)"
+                    />
+                  </div>
+                  <DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1"
+                    @update:model-value="item.quantity = Math.max(1, Math.floor(Number($event) || 1))" />
+                  <DhInput :model-value="item.weightKg ?? 0" label="Peso (kg)" type="number" :min="0"
+                    @update:model-value="item.weightKg = Math.max(0, Number($event) || 0)" />
+                </div>
+                <p v-if="item.equipmentType" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                  {{ item.equipmentType }}
+                </p>
+              </div>
+              <div v-if="form.equipment.length"
+                class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-primary)]/20 bg-[rgb(var(--dh-primary-rgb)/0.05)] px-4 py-3">
+                <span class="text-xs font-black text-[var(--dh-primary)]">
+                  Total: {{ totalEquipment }} {{ effectiveShipment === 'FTL' ? 'furgones' : 'contenedores' }}
+                  <span v-if="totalEquipmentWeight > 0" class="text-[var(--dh-text-muted)]"> · {{ totalEquipmentWeight.toLocaleString('es-CR') }} kg</span>
+                </span>
+                <div class="flex flex-wrap gap-1.5">
+                  <span v-for="(row, i) in form.equipment.filter(x => x.equipmentType)" :key="i"
+                    class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-1 text-[10px] font-bold">
+                    {{ row.quantity }} × {{ row.equipmentType }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
@@ -919,33 +1121,22 @@ onMounted(async () => {
 
         <div v-show="activeStep === 3" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Verifica los datos antes de guardar. El IDTRA se asignará automáticamente.</p></div>
-            <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Borrador incompleto' : 'Listo para validación' }}</DhBadge>
+            <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Comprueba los datos antes de crear el IDTRA y asignar la validación al equipo.</p></div>
+            <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Faltan datos para crear' : 'Listo para crear y asignar' }}</DhBadge>
           </div>
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div v-for="field in summaryFields" :key="field.label" class="rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)]/50 p-3.5">
+          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div v-for="field in summaryFields" :key="field.label" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">{{ field.label }}</p>
               <p class="mt-1 break-words text-sm font-bold">{{ field.value }}</p>
             </div>
           </div>
           <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
             <h4 class="text-sm font-black">Completitud de la apertura</h4>
-            <p v-if="!blockers.length" class="mt-2 text-sm text-[var(--dh-text-muted)]">Los campos críticos básicos están completos. La validación definitiva continúa en Aperturas.</p>
+            <p v-if="!blockers.length" class="mt-2 text-sm text-[var(--dh-text-muted)]">Los campos básicos están completos. Al crear el expediente, Operaciones asignará los validadores mediante su flujo de equipos.</p>
             <ul v-else class="mt-3 grid list-disc gap-2 pl-5 text-sm font-semibold text-amber-500 sm:grid-cols-2">
               <li v-for="field in blockers" :key="field">{{ field }}</li>
             </ul>
-            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Guardar no modifica ninguna QUO ni los costos existentes. Se guarda la ficha operativa, su auditoría y las referencias relacionadas.</p>
-          </div>
-          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
-            <h4 class="text-sm font-black">Datos operativos que pueden confirmarse después</h4>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Según la especificación v1.2, estos datos pueden quedar pendientes durante la captura y completarse en validación o Coordinación Origen, según el tipo de embarque.</p>
-            <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Naviera y booking, si aplica</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Agente / oficina de origen</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Consolidado y WHS según modalidad</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Procedimientos específicos de CRM</span>
-              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Servicios y recolecta, si corresponde</span>
-            </div>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">La creación no modifica las cotizaciones existentes. La distribución y la doble validación se gestionan por Operaciones.</p>
           </div>
         </div>
       </div>
@@ -959,7 +1150,9 @@ onMounted(async () => {
       </div>
       <div class="flex items-center gap-2">
         <DhButton v-if="activeStep < wizardSteps.length" :icon="ChevronRight" label="Siguiente" @click="goToStep(activeStep + 1)" />
-        <DhButton v-else :icon="Save" :label="editingId ? 'Guardar modificaciones' : 'Guardar borrador'" :disabled="loading || !valid" :loading="saving" @click="save" />
+        <DhButton v-else :icon="editingId ? Save : FolderPlus"
+          :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
+          :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && blockers.length > 0 && !assignmentPendingId)" :loading="saving" @click="save" />
       </div>
     </footer>
   </div>
