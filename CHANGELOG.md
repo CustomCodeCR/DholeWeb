@@ -1,3 +1,9 @@
+## [1.117.2] - 2026-11-22 · DH-20261122-DHOLE-ERP-412
+
+- PATCH: mostrar el significado «Digital Hub for Operations, Logistics & Ecosystem» directamente en el login, debajo de DHOLE ERP, y en el menú lateral expandido; accesible también con el logo compacto.
+- Tests exigen visualización real de la marca y preservan las traducciones español/inglés sin pronunciación oficial ni cambio de contratos técnicos.
+- DholeWeb y DholeSystem 1.117.1 → 1.117.2; versión global y manifiesto sincronizados. Staging antes de master.
+
 ## [1.117.1] - 2026-11-22 · DH-20261122-DHOLE-ERP-411 (DHOLE ERP pronunciation choice)
 
 - PATCH: se retiran todas las indicaciones de pronunciación de DHOLE ERP. La marca conserva su nombre y significado oficial sin imponer una lectura concreta.
