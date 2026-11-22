@@ -10,6 +10,7 @@ const { t } = useI18n()
         <img src="/dhole-mark.svg" alt="DHOLE ERP" class="mx-auto mb-4 h-14 w-14 sm:h-16 sm:w-16" />
         <h1 class="break-words text-2xl font-black text-[var(--dh-text)] sm:text-3xl">{{ t('app.name') }}</h1>
         <p class="mt-1 break-words text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('app.subtitle') }}</p>
+        <p class="mx-auto mt-3 max-w-[34ch] break-words text-center text-[11px] font-medium leading-relaxed text-[var(--dh-text-muted)]" data-testid="dhole-meaning">{{ t('app.meaning') }}</p>
       </div>
       <RouterView />
     </section>
