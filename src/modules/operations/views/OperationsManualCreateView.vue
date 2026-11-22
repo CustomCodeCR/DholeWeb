@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -48,11 +48,17 @@ const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
+const autosaveState = ref<'pending' | 'saved' | 'error'>('saved')
+const lastAutoSaveAt = ref('')
+const contactsTouched = ref(false)
+const assignmentPendingId = ref('')
+const autosaveReady = ref(false)
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
 const wizardSteps = [
   { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
   { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
-  { id: 3, label: 'Revisión', hint: 'Resumen y guardado de la apertura' },
+  { id: 3, label: 'Revisión', hint: 'Confirmar datos y asignar validación al equipo' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
@@ -127,7 +133,7 @@ const summaryFields = computed(() => [
   fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
   fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
   fieldTitle('Equipos', form.value.equipment.map(item => item.quantity + ' × ' + item.equipmentType).join(', ')),
-])
+].filter(field => field.value !== 'Pendiente'))
 const loading = ref(true)
 const error = ref('')
 const form = ref({
@@ -143,7 +149,7 @@ const form = ref({
   agentReference: '', merchantReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
-  equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
+  equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number; weightKg?: number }>,
   originCountryCode: '', destinationCountryCode: '',
   cabysSearch: '', cabysCode: '', portHandlingMode: '',
   supportEntityId: '',
@@ -157,6 +163,22 @@ const supportCategories = [
   {key:'INVOICE',label:'Invoice'}, {key:'MSDS',label:'MSDS / Ficha técnica'},
 ]
 const supportAccept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp'
+const packageTypeOptions = [
+  { label: 'Cajas', value: 'Cajas' }, { label: 'Pallets / tarimas', value: 'Pallets' },
+  { label: 'Bultos', value: 'Bultos' }, { label: 'Sacos', value: 'Sacos' },
+  { label: 'Fardos', value: 'Fardos' }, { label: 'Rollos', value: 'Rollos' },
+  { label: 'Tambores', value: 'Tambores' }, { label: 'Piezas', value: 'Piezas' },
+  { label: 'Granel', value: 'Granel' }, { label: 'Otros', value: 'Otros' },
+]
+const cargoNatureOptions = [
+  { label: 'Carga general', value: 'Carga general' },
+  { label: 'Perecedera', value: 'Perecedera' },
+  { label: 'Refrigerada', value: 'Refrigerada' },
+  { label: 'Peligrosa / IMO', value: 'Peligrosa' },
+  { label: 'Frágil', value: 'Frágil' },
+  { label: 'Sobredimensionada', value: 'Sobredimensionada' },
+  { label: 'Otro', value: 'Otro' },
+]
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
