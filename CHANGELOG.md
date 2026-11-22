@@ -1,3 +1,11 @@
+## [1.116.0] - 2026-11-22 · DH-20261122-OPERATIONS-ASSIGNMENT-SUMMARY-408
+
+- MINOR: permite escoger equipo de Aperturas con mínimo dos validadores disponibles antes de crear un IDTRA; mantiene autoguardado y recuperación del equipo elegido, con reintentos sin duplicados.
+- Estibable aplica únicamente LCL/LTL; el peso de carga y equipos ya no se ingresa desde Aperturas (Coordinación Origen).
+- Nuevo resumen de la apertura en secciones y drawer de expediente con cliente, ejecutivo, ruta, mercancía, equipos, documentos y validación.
+- Reutiliza los contratos de Operations, catálogos Pricing, CRM, Storage, Outbox/Inbox y SignalR; API Gateway sin cambios.
+- DholeWeb/DholeSystem 1.115.1 → 1.116.0; Operations 0.15.1 → 0.16.0; 14 componentes sin cambios. Candidato de master sujeto a aprobación de producción.
+
 ## [1.115.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-407
 
 - PATCH: denominar «Devolver tarifa» la acción de Pricing; mostrar «Devuelta por Pricing» a Ventas, identificador visible y motivo obligatorio; diálogo opaco y accesible en modo oscuro.
