@@ -17,7 +17,11 @@ const emit = defineEmits<{ 'update:activeStep': [value: number] }>()
 </script>
 
 <template>
-  <nav class="pricing-wizard-stepper" :aria-label="ariaLabel || 'Pasos del asistente'">
+  <nav
+    class="pricing-wizard-stepper"
+    :aria-label="ariaLabel || 'Pasos del asistente'"
+    :style="{ '--wizard-step-columns': steps.length }"
+  >
     <button
       v-for="step in steps"
       :key="step.id"
