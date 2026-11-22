@@ -50,17 +50,19 @@ test('Editing reason and responsive transforms tolerate the new shared stepper',
   assert.match(responsive, /if \(!code\.includes\('<PricingWizardStepper'\)\)/)
 })
 
-test('Web and ecosystem version metadata agree for DH-402', () => {
+test('Web and ecosystem version metadata agree while retaining DH-402 release history', () => {
   const pkg = JSON.parse(source('package.json'))
   const lock = JSON.parse(source('package-lock.json'))
   const version = JSON.parse(source('version.json'))
   const release = JSON.parse(source('docs/releases/DH-20261122-PRICING-OPERATIONS-STEPPER-402.json'))
   const changelog = source('CHANGELOG.md')
-  assert.equal(pkg.version, '1.112.1')
+  assert.equal(release.ecosystemVersion, '1.112.1')
+  assert.ok(pkg.version.localeCompare(release.ecosystemVersion, undefined, {numeric:true}) >= 0, 'Current release must never regress DH-402')
   assert.equal(lock.version, pkg.version)
   assert.equal(lock.packages[''].version, pkg.version)
   assert.equal(version.version, pkg.version)
   assert.equal(version.ecosystemVersion, pkg.version)
-  assert.equal(release.ecosystemVersion, pkg.version)
+  assert.equal(version.releaseId, 'DH-20261122-OPERATIONS-UX-403')
   assert.match(changelog, /## \[1\.112\.1\]/)
+  assert.match(changelog, new RegExp('## \\[' + pkg.version.replaceAll('.', '\\.') + '\\]'))
 })
