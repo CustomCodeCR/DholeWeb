@@ -122,3 +122,35 @@ test('DH-396 Vite patch actually wires P7 rebuild and pre-save, not just a watch
   assert.match(code, /\(hasInternationalTransportService.value \|\| number\(form.freightCost\) > 0\)/)
   assert.equal(patchPricingP7Reconcile391(code), code)
 })
+
+test('DH-398: server-applicable Panama land Freight is reconciled on async P7 arrival', () => {
+  const fixture = [
+    '<script setup lang="ts">',
+    'function rebuildRateLines() {',
+    '  rateLines.value = lines',
+    '  lastTierPricingInputKey.value = tierPricingInputKey',
+    '}',
+    'function saveRate() {',
+    '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()',
+    '}',
+    'function isAutomaticOutsideIncoterm(line: RateLine) { return true }',
+    'function quoteEditApplyDelta387() {}',
+    'function syncPanamaOverweightLines() {}',
+    'function syncOwnLclCrcAgencyLine() {}',
+    '</script>',
+    '<div>{{ line.name }}</div>',
+  ].join('\n')
+  const code = patchPricingP7Reconcile391(fixture)
+  assert.match(code, /costResolvedByBackendContext\(cost\)/,
+    'only the active request-context applicable master may create CostId-backed freight')
+  assert.match(code, /form\.modality === 'Multimodal' \|\| p7IsPanamaCorridor391\(\)/,
+    'Panama road leg is independent from the maritime part of the modality selector')
+  assert.match(code, /form\.serviceIds\.join\('\|'\), costs\.value/,
+    'watch the resolved server-applicable list, not only initial navigation')
+  assert.match(code, /\{ flush: 'post' \}/)
+  assert.match(code, /p7PresentOrReconcile391\(\)/)
+  assert.match(code, /isRealRoadFreight396\(line\)\) return false/,
+    'Incoterm responsibility may not silently remove a contracted land leg')
+  assert.equal(patchPricingP7Reconcile391(code), code)
+})
