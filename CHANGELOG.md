@@ -1,4 +1,11 @@
-## [1.110.3] - 2026-11-21 · DH-20261121-PRICING-FINAL-POLISH-395 (candidate master)
+## [1.110.4] - 2026-11-21 · DH-20261121-PRICING-MISSING-LINES-396 (candidate master)
+
+- PATCH: LCL propio Miami recupera el VGM desde el plan comercial A/B/C/D/NVOCC/LITTLE en la reconstrucción de pantalla 7 y en pre-guardado. Un VGM 0/excluido del consolidado no oculta la venta comercial; se respetan valores positivos, manuales y RateDetails persistidos.
+- PATCH: FCL multimodal Panamá → GAM mantiene el flete internacional terrestre independiente del marítimo y del Bunker, incluso si la reconstrucción de pantalla 7 sustituye la lista o existe un cargo terrestre automático en cero. Se recupera antes de serializar detalles.
+- Se conserva la regla interna USD 2.140/cont. cuando no existe maestro aplicable, sin inventar CostId; importes negociados y datos históricos permanecen intactos.
+- Regresiones dinámicas de los planes Miami, conservación de importes y coexistencia de fletes. Release coordinado System/Web 1.110.4, Pricing 1.26.23; CI y staging antes de master.
+
+\n## [1.110.3] - 2026-11-21 · DH-20261121-PRICING-FINAL-POLISH-395 (candidate master)
 
 - PATCH LCL Miami: conserva VGM del plan propio cuando se restauran líneas del consolidado, sin duplicados ni modificación de revisiones.
 - PATCH FCL Panamá multimodal: la tarifa terrestre USD 2.140 por contenedor se presenta independientemente del marítimo y Bunker no se confunde con Freight; CostId real solo cuando Pricing devuelve costo aplicable.
