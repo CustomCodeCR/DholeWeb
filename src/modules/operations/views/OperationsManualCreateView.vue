@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
@@ -1146,23 +1146,108 @@ onMounted(async () => {
         </div>
 
         <div v-show="activeStep === 3" class="space-y-5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Comprueba los datos antes de crear el IDTRA y asignar la validación al equipo.</p></div>
-            <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Faltan datos para crear' : 'Listo para crear y asignar' }}</DhBadge>
-          </div>
-          <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <div v-for="field in summaryFields" :key="field.label" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 px-4 py-3">
-              <p class="text-[10px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">{{ field.label }}</p>
-              <p class="mt-1 break-words text-sm font-bold">{{ field.value }}</p>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h4 class="text-lg font-black">Revisión de apertura</h4>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Confirma el expediente y selecciona el equipo de Aperturas que realizará la doble validación.</p>
             </div>
+            <DhBadge :variant="blockers.length ? 'warning' : 'success'">
+              {{ blockers.length ? blockers.length + ' datos por completar' : 'Información completa' }}
+            </DhBadge>
           </div>
-          <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <h4 class="text-sm font-black">Completitud de la apertura</h4>
-            <p v-if="!blockers.length" class="mt-2 text-sm text-[var(--dh-text-muted)]">Los campos básicos están completos. Al crear el expediente, Operaciones asignará los validadores mediante su flujo de equipos.</p>
-            <ul v-else class="mt-3 grid list-disc gap-2 pl-5 text-sm font-semibold text-amber-500 sm:grid-cols-2">
-              <li v-for="field in blockers" :key="field">{{ field }}</li>
-            </ul>
-            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">La creación no modifica las cotizaciones existentes. La distribución y la doble validación se gestionan por Operaciones.</p>
+          <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 px-4 py-3">
+            <span class="text-[11px] font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Apertura manual</span>
+            <span class="text-[var(--dh-text-muted)]">·</span>
+            <strong class="text-sm">{{ form.transportType === 'MARITIME' ? 'Marítimo' : form.transportType === 'ROAD' ? 'Terrestre' : form.transportType === 'AIR' ? 'Aéreo' : 'Transporte pendiente' }}</strong>
+            <DhBadge v-if="effectiveShipment" variant="primary">{{ effectiveShipment }}</DhBadge>
+            <span class="ml-auto text-xs text-[var(--dh-text-muted)]">IDTRA consecutivo al confirmar</span>
+          </div>
+          <div class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+            <div class="space-y-4">
+              <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+                <div class="mb-4 flex items-center gap-2"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Cliente y responsable</h5></div>
+                <p class="text-lg font-black">{{ selectedClientName || 'Cliente por seleccionar' }}</p>
+                <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Ejecutivo comercial: <strong class="text-[var(--dh-text)]">{{ executiveLabel }}</strong></p>
+                <div class="mt-4 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
+                  <div><p class="text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">Procedencia</p><p class="mt-1 text-sm font-semibold">{{ originOptions.find(x => x.value === form.provenance)?.label || '—' }}</p></div>
+                  <div><p class="text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">PO / referencia</p><p class="mt-1 break-words text-sm font-semibold">{{ form.clientPoReference || 'Sin referencia' }}</p></div>
+                </div>
+                <div v-if="selectedOperationalContacts.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
+                  <p class="mb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">Contactos de operaciones</p>
+                  <div class="flex flex-wrap gap-2"><span v-for="contact in selectedOperationalContacts" :key="contact.id" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1.5 text-xs font-semibold">{{ contact.name }}</span></div>
+                </div>
+              </section>
+              <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+                <div class="mb-4 flex items-center gap-2"><Route class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Ruta e itinerario</h5></div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                  <div v-for="stop in [{ name: 'Origen · POL', value: form.pol }, { name: 'Entrada · POE', value: form.poe }, { name: 'Destino · POD', value: form.pod }]" :key="stop.name" class="min-w-0 border-l-2 border-[var(--dh-primary)]/35 pl-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">{{ stop.name }}</p>
+                    <p class="mt-1 break-words text-sm font-black">{{ stop.value || 'Pendiente' }}</p>
+                  </div>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-5 border-t border-[var(--dh-border)] pt-3 text-xs">
+                  <span><span class="text-[var(--dh-text-muted)]">Incoterm:</span> <strong>{{ form.incoterm || 'Pendiente' }}</strong></span>
+                  <span><span class="text-[var(--dh-text-muted)]">ETD:</span> <strong>{{ form.etm || 'Por confirmar' }}</strong></span>
+                  <span><span class="text-[var(--dh-text-muted)]">ETA:</span> <strong>{{ form.eta || 'Por confirmar' }}</strong></span>
+                </div>
+              </section>
+              <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+                <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Mercancía y equipos</h5></div>
+                <p class="text-sm font-semibold">{{ form.cargoDescription || 'Descripción pendiente' }}</p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <span v-if="form.cabysCode" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">CABYS {{ form.cabysCode }}</span>
+                  <span v-if="form.packageCount" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.packageCount }} {{ form.packageType || 'bultos' }}</span>
+                  <span v-if="form.volumeValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.volumeValue }} {{ form.volumeUnit }}</span>
+                  <span v-for="(item, i) in form.equipment.filter(x => x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <DhBadge v-if="form.isImo" variant="warning">IMO / peligrosa</DhBadge>
+                  <DhBadge v-if="['LCL','LTL'].includes(effectiveShipment)" variant="neutral">{{ form.stackable ? 'Estibable' : 'No estibable' }}</DhBadge>
+                  <DhBadge v-if="form.overweight" variant="warning">Sobrepeso</DhBadge>
+                  <DhBadge v-if="form.portHandlingMode" variant="neutral">{{ form.portHandlingMode }}</DhBadge>
+                  <DhBadge v-if="form.cargoNature" variant="neutral">{{ form.cargoNature }}</DhBadge>
+                </div>
+                <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
+                  <p class="text-xs font-bold">Documentos: {{ form.supportDocuments.length }}</p>
+                  <p v-if="form.supportDocuments.length" class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ form.supportDocuments.map(x => x.fileName).join(' · ') }}</p>
+                  <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Sin documentos adjuntos.</p>
+                </div>
+              </section>
+            </div>
+            <div class="space-y-4">
+              <section class="rounded-[20px] border border-[var(--dh-primary)]/30 bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:p-5">
+                <div class="flex items-center gap-2"><UsersRound class="h-5 w-5 text-[var(--dh-primary)]" /><h5 class="text-base font-black">Equipo de Aperturas</h5></div>
+                <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Elige el equipo antes de crear el expediente. Dos validadores diferentes revisarán la apertura.</p>
+                <div v-if="editingId" class="mt-4 text-sm font-semibold">La asignación existente se mantiene al editar el trámite.</div>
+                <template v-else>
+                  <DhSelect v-model="assignedTeamId" class="mt-4" label="Asignar al equipo" :options="assignmentTeamOptions"
+                    :disabled="assignmentTeamsLoading" placeholder="Seleccionar equipo de Aperturas" />
+                  <div v-if="selectedOpeningTeam" class="mt-3 rounded-xl border p-3"
+                    :class="selectedOpeningTeam.canAssign ? 'border-[var(--dh-primary)]/30' : 'border-amber-500/40'">
+                    <p class="text-sm font-black">{{ selectedOpeningTeam.name }}</p>
+                    <p class="mt-1 text-xs" :class="selectedOpeningTeam.canAssign ? 'text-[var(--dh-text-muted)]' : 'text-amber-500'">
+                      {{ selectedOpeningTeam.availableReviewers }} colaboradores disponibles · {{ selectedOpeningTeam.canAssign ? 'Cumple el mínimo de 2 validadores configurados (sujeto a validación de Auth)' : 'Se requieren 2 usuarios disponibles y autorizados' }}
+                    </p>
+                  </div>
+                  <p v-else-if="!assignmentTeamsLoading && !availableTeams.length" class="mt-3 text-xs font-semibold text-amber-500">
+                    No hay equipos de Aperturas activos. Configura uno con dos validadores en Operaciones → Equipos.
+                  </p>
+                  <p v-if="assignmentTeamsError" role="alert" class="mt-2 text-xs text-amber-500">{{ assignmentTeamsError }}</p>
+                  <DhButton variant="secondary" :icon="RefreshCw" size="sm" label="Actualizar equipos" class="mt-3"
+                    :loading="assignmentTeamsLoading" @click="loadAssignmentTeams" />
+                </template>
+              </section>
+              <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
+                <div class="flex items-center justify-between gap-2"><h5 class="text-sm font-black">Completitud</h5><DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? blockers.length + ' pendientes' : 'Lista' }}</DhBadge></div>
+                <p v-if="!blockers.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">Información mínima lista. La asignación será confirmada por Operations y registrada en el expediente.</p>
+                <ul v-else class="mt-3 space-y-2">
+                  <li v-for="item in blockers" :key="item" class="flex gap-2 text-xs font-semibold text-amber-500"><CircleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" />{{ item }}</li>
+                </ul>
+                <p class="mt-4 border-t border-[var(--dh-border)] pt-3 text-xs text-[var(--dh-text-muted)]">
+                  {{ assignmentPendingId ? 'Este IDTRA ya existe. Reintentar la asignación no crea otro expediente.' : 'La creación no modifica QUOs ni costos comerciales. El IDTRA se asigna al confirmar.' }}
+                </p>
+              </section>
+            </div>
           </div>
         </div>
       </div>
