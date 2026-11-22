@@ -534,8 +534,8 @@ onMounted(async () => {
 
       <div class="p-4 sm:p-6">
         <div v-show="activeStep === 1" class="grid gap-4 md:grid-cols-2">
-          <DhSelect :model-value="form.transportType" label="Modalidad de transporte" :options="transportSelectionOptions.map(x => ({label:x.label,value:x.value}))" @update:model-value="selectTransport" />
-          <DhSelect :model-value="effectiveShipment" label="Tipo de embarque" :options="shipmentOptions" :disabled="!form.transportType" @update:model-value="selectShipment" />
+          <DhSelect :model-value="form.transportType" label="Modalidad de transporte" :options="transportSelectionOptions.map(x => ({label:x.label,value:x.value}))" @update:model-value="selectTransport(String($event))" />
+          <DhSelect :model-value="effectiveShipment" label="Tipo de embarque" :options="shipmentOptions" :disabled="!form.transportType" @update:model-value="selectShipment(String($event))" />
         </div>
 
         <div v-show="activeStep === 1" class="space-y-5">
