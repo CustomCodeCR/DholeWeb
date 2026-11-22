@@ -247,7 +247,17 @@ const blockers = computed(() => {
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
 
-function onCrmClientSelected(client: { displayName: string; executiveName: string } | null) {
+function onCrmClientSelected(client: { kind?: 'account' | 'lead'; displayName: string; executiveName: string } | null) {
+  // Operations resolves the commercial executive using CRM /accounts/{id}, not leads.
+  // The shared Pricing selector lists prospects too; prevent a draft that the backend cannot accept.
+  if (client?.kind === 'lead') {
+    accountId.value = ''
+    selectedClientName.value = ''
+    executiveName.value = ''
+    error.value = 'Para aperturar el trámite, convierta primero el prospecto en una cuenta CRM.'
+    return
+  }
+  if (client) error.value = ''
   selectedClientName.value = client?.displayName || ''
   executiveName.value = client?.executiveName || ''
 }
