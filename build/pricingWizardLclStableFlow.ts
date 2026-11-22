@@ -17,18 +17,22 @@ function patchWizard(source: string) {
   // UI-only patch. Selection/hydration/navigation intentionally remain owned by
   // pricingWizardEnhancements + pricingWizardLclFclParityFix, matching the stable
   // behavior from commit 5e187615.
-  code = replaceOne(
-    code,
-    `    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
-    `    <div class="crystal-stepbar flex snap-x gap-2 overflow-x-auto p-2 sm:grid sm:grid-cols-4 sm:overflow-visible" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
-    'responsive wizard stepbar',
-  )
-  code = replaceOne(
-    code,
-    `        class="crystal-step"`,
-    `        class="crystal-step min-w-[132px] shrink-0 snap-start sm:min-w-0 sm:shrink"`,
-    'responsive wizard step',
-  )
+  // The shared Operations/Pricing stepper owns its responsive layout.
+  // Keep legacy fallback for older wizard snapshots.
+  if (!code.includes('<PricingWizardStepper')) {
+    code = replaceOne(
+      code,
+      `    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
+      `    <div class="crystal-stepbar flex snap-x gap-2 overflow-x-auto p-2 sm:grid sm:grid-cols-4 sm:overflow-visible" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
+      'responsive wizard stepbar',
+    )
+    code = replaceOne(
+      code,
+      `        class="crystal-step"`,
+      `        class="crystal-step min-w-[132px] shrink-0 snap-start sm:min-w-0 sm:shrink"`,
+      'responsive wizard step',
+    )
+    }
   code = replaceOne(
     code,
     `    <section class="crystal-panel min-h-[470px] p-5 md:p-8"`,
