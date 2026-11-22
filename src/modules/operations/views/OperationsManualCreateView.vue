@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Tr
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { operationsApi } from '../services/operationsApi'
+import { operationsApi, type OperationsAssignmentTeam } from '../services/operationsApi'
 import { crmGet, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -52,6 +52,27 @@ const autosaveState = ref<'pending' | 'saved' | 'error'>('saved')
 const lastAutoSaveAt = ref('')
 const contactsTouched = ref(false)
 const assignmentPendingId = ref('')
+const assignedTeamId = ref('')
+const availableTeams = ref<OperationsAssignmentTeam[]>([])
+const assignmentTeamsLoading = ref(false)
+const assignmentTeamsError = ref('')
+const selectedOpeningTeam = computed(() => availableTeams.value.find(team => team.id === assignedTeamId.value))
+const assignmentTeamOptions = computed(() => availableTeams.value.map(team => ({
+  value: team.id,
+  label: team.name + (team.canAssign
+    ? ' · ' + team.availableReviewers + ' disponibles'
+    : ' · Sin dos validadores disponibles'),
+})))
+async function loadAssignmentTeams() {
+  if (!companyId.value || editingId.value) return
+  assignmentTeamsLoading.value = true
+  assignmentTeamsError.value = ''
+  try {
+    availableTeams.value = await operationsApi.assignmentTeams(companyId.value)
+  } catch (cause) {
+    assignmentTeamsError.value = cause instanceof Error ? cause.message : 'No se pudieron consultar los equipos de Aperturas.'
+  } finally { assignmentTeamsLoading.value = false }
+}
 const autosaveReady = ref(false)
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
@@ -243,8 +264,6 @@ function setEquipmentType(item: { equipmentType: string; equipmentCatalogId?: st
   item.equipmentType = lookupLabel(equipmentCatalogKey.value, id) || id
 }
 const totalEquipment = computed(() => form.value.equipment.reduce((total, row) => total + (Number(row.quantity) || 0), 0))
-const totalEquipmentWeight = computed(() => form.value.equipment.reduce(
-  (total, row) => total + (Number(row.weightKg) || 0) * (Number(row.quantity) || 0), 0))
 const uniqueEquipment = computed(() => {
   const ids = form.value.equipment.map(resolvedEquipmentId).filter(Boolean)
   return ids.length === new Set(ids).size
@@ -279,12 +298,16 @@ const blockers = computed(() => {
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
   if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
+  if (!editingId.value) {
+    if (!assignedTeamId.value) result.push('Equipo de Aperturas por seleccionar')
+    else if (!selectedOpeningTeam.value?.canAssign) result.push('El equipo seleccionado requiere dos validadores habilitados')
+  }
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
   return result
 })
-function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1, weightKg: 0 }) }
+function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
 
 function toggleOperationalContact(id: string, selected: boolean) {
   contactsTouched.value = true
@@ -530,6 +553,7 @@ function persistLocalDraft() {
       executiveName: executiveName.value, executiveUserId: executiveUserId.value,
       institutionalExecutive: institutionalExecutive.value,
       contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
+      assignedTeamId: assignedTeamId.value,
     }))
     autosaveState.value = 'saved'
     lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -567,6 +591,7 @@ function restoreLocalDraft() {
     institutionalExecutive.value = draft.institutionalExecutive === true
     contactsTouched.value = draft.contactsTouched === true
     assignmentPendingId.value = String(draft.assignmentPendingId || '')
+    assignedTeamId.value = String(draft.assignedTeamId || '')
     const step = Number(draft.step)
     activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
     reconcileLocations()
@@ -584,7 +609,7 @@ function clearLocalDraft() {
   autosaveReady.value = false
   try { window.localStorage.removeItem(draftStorageKey.value) } catch { /* storage restricted */ }
 }
-watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId],
+watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, assignedTeamId],
   scheduleLocalDraft, { deep: true })
 onBeforeUnmount(() => {
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -593,6 +618,10 @@ onBeforeUnmount(() => {
 
 async function save() {
   if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
+  if (!editingId.value && !selectedOpeningTeam.value?.canAssign) {
+    error.value = 'Selecciona un equipo de Aperturas con al menos dos validadores disponibles.'
+    return
+  }
   if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value && !editingId.value) {
     error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en este navegador.'
     return
@@ -602,15 +631,17 @@ async function save() {
   try {
     const openingData = {
       ...form.value,
-      weightKg: form.value.weightValue ? Number(form.value.weightValue) *
-        (form.value.weightUnit === 'LB' ? 0.45359237 : 1) : null,
+      // Weight belongs to Coordinación Origen. Preserve historical values only
+      // when editing an existing record; never introduce them in manual creation.
+      ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined } : {}),
+      stackable: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: item.equipmentCatalogId || undefined,
         quantity: Number(item.quantity),
-        weightKg: Math.max(0, Number(item.weightKg) || 0),
+        ...(editingId.value && item.weightKg != null ? { weightKg: item.weightKg } : {}),
       })),
       completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_VALIDATION',
       missingFields: blockers.value,
@@ -641,13 +672,13 @@ async function save() {
     if (!editingId.value) {
       assignmentPendingId.value = result.id
       persistLocalDraft()
-      await operationsApi.assign(result.id)
+      await operationsApi.assign(result.id, assignedTeamId.value)
     }
     clearLocalDraft()
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
     error.value = assignmentPendingId.value
-      ? 'El trámite se creó, pero la asignación al equipo no terminó. Reintenta la asignación sin crear otro IDTRA. Detalle: ' + (cause instanceof Error ? cause.message : 'Error desconocido')
+      ? 'El IDTRA fue creado, pero no se pudo completar la asignación al equipo seleccionado. Comprueba que tenga dos validadores activos con permisos y reintenta; el IDTRA no se duplicará. Detalle: ' + (cause instanceof Error ? cause.message : 'Error desconocido')
       : cause instanceof Error ? cause.message : 'No se pudo crear la apertura.'
   } finally { saving.value = false }
 }
@@ -657,7 +688,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true }
+  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
