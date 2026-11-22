@@ -9,7 +9,6 @@ import { operationsApi } from '../services/operationsApi'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { StorageService } from '@/core/services/storageService'
-import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingWizardStepper from '@/modules/pricing/components/PricingWizardStepper.vue'
 import PricingContainerSelector from '@/modules/pricing/components/PricingContainerSelector.vue'
@@ -35,7 +34,7 @@ const complexity = ref(1)
 const saving = ref(false)
 const activeStep = ref(1)
 const wizardSteps = [
-  { id: 1, label: 'Cliente, ruta y servicios', hint: 'Cliente CRM, transporte, Incoterm y servicios' },
+  { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
   { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
   { id: 3, label: 'Revisión', hint: 'Resumen y guardado de la apertura' },
 ]
@@ -56,25 +55,10 @@ const polOptions = computed(() => locationChoices('pol'))
 const poeOptions = computed(() => locationChoices('poe'))
 const podOptions = computed(() => locationChoices('pod'))
 const warehouseOptions = computed(() => locationChoices('warehouses'))
-const agentChoices = computed(() => catalogChoices('agents'))
-const carrierChoices = computed(() => catalogChoices('carriers'))
-function asChoices(key: string, saved: string) {
-  const options = catalogChoices(key)
-  return saved && !options.some(x => x.value === saved) ? [{ label: saved, value: saved }, ...options] : options
-}
 const incotermChoices = computed(() => {
   const items = catalogChoices('incoterms')
   const values = items.length ? items : incoterms.map(value => ({ label: value, value }))
   return values.filter(item => isMaritime.value || !['FAS','FOB','CFR','CIF'].includes(item.value.toUpperCase()))
-})
-const serviceChoices = computed(() => {
-  const items = currentCatalog('pricing-services').filter(x => x.isActive).map(x => ({value: x.id, label: optionText(x)}))
-  const legacy = serviceCatalog.map(([value, label]) => ({ value, label }))
-  const combined = items.length ? [...items, ...legacy.filter(x => form.value.services.includes(x.value))] : legacy
-  for (const selected of form.value.services) {
-    if (!combined.some(x => x.value === selected)) combined.push({ value: selected, label: selected })
-  }
-  return combined
 })
 function lookupLabel(key: string, id: string) { return optionText(currentCatalog(key).find(x => x.id === id) || { value: '', label: '', code: '' } as CatalogItemSelectDto) }
 function selectedForLabel(key: string, label: string) {
@@ -89,7 +73,7 @@ function reconcileLocations() {
 async function loadPricingCatalogs() {
   catalogLoading.value = true
   try {
-    const names = ['pol','poe','pod','incoterms','container-types','land-equipment-sizes','agents','carriers','pricing-services']
+    const names = ['pol','poe','pod','incoterms','container-types','land-equipment-sizes']
     const result = await Promise.all(names.map(async key => {
       try { return [key, await CatalogItemsService.select({ catalogGroupSlug: key })] as const }
       catch { return [key, [] as CatalogItemSelectDto[]] as const }
@@ -125,7 +109,6 @@ const summaryFields = computed(() => [
   fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
   fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
   fieldTitle('Equipos', form.value.equipment.map(item => item.quantity + ' × ' + item.equipmentType).join(', ')),
-  fieldTitle('Servicios', form.value.services.map(v => serviceChoices.value.find(x => x.value === v)?.label || v).join(', ')),
 ])
 const loading = ref(true)
 const error = ref('')
@@ -209,15 +192,6 @@ const originOptions = [
   { label: 'Agente', value: 'AGENT' }, { label: 'Oficina de origen', value: 'ORIGIN_OFFICE' },
 ]
 const incoterms = ['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP']
-const serviceCatalog: Array<[string, string]> = [
-  ['INTERNATIONAL_FREIGHT','Transporte internacional'],
-  ['PICKUP','Recolecta'],['ORIGIN_CHARGES','Cargos en origen'],
-  ['DESTINATION_CHARGES','Cargos en destino'],
-  ['INLAND','Inland'],['CUSTOMS','Agenciamiento aduanal'],
-  ['CARGO_INSURANCE','Seguro de carga'],['DELIVERY','Entrega'],
-  ['WAREHOUSE','Almacenaje'],['DOCUMENTATION','Documentación'],
-  ['OTHER','Otros servicios'],
-]
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
 const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
 const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
@@ -242,7 +216,6 @@ const blockers = computed(() => {
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
-  if (pickupIncluded.value && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
   return result
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
@@ -261,14 +234,6 @@ function onCrmClientSelected(client: { kind?: 'account' | 'lead'; displayName: s
   selectedClientName.value = client?.displayName || ''
   executiveName.value = client?.executiveName || ''
 }
-const pickupIncluded = computed(() => form.value.services.some(value =>
-  value === 'PICKUP' || (serviceChoices.value.find(x => x.value === value)?.label || '').toLocaleLowerCase().includes('recolecta')
-))
-const deliveryIncluded = computed(() => form.value.services.some(value =>
-  value === 'DELIVERY' || (serviceChoices.value.find(x => x.value === value)?.label || '').toLocaleLowerCase().includes('entrega')
-))
-watch(pickupIncluded, selected => { form.value.requiresPickup = selected })
-
 function countryFromRoute(group: 'pol' | 'pod', id: string, location: string): string {
   const item = currentCatalog(group).find(x => x.id === id)
     || currentCatalog(group).find(x => optionText(x).toLowerCase() === location.toLowerCase())
@@ -592,39 +557,14 @@ onMounted(async () => {
             <DhInput v-model="form.etm" label="Fecha estimada de salida (ETD)" type="date" />
             <DhInput v-model="form.eta" label="Fecha estimada de llegada (ETA)" type="date" />
           </div>
-        </div>
-
-        <div v-show="activeStep === 1" class="space-y-5">
-          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
-            <div class="mb-4"><h4 class="text-sm font-black">Servicios contratados</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Mismo multiselector de servicios utilizado por Pricing. Esto documenta la operación: no crea ni cambia cargos comerciales.</p></div>
-            <PricingCrystalMultiSelect v-model="form.services" label="Servicios" placeholder="Seleccionar servicios" search-placeholder="Buscar servicio..." :options="serviceChoices" />
+          <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
+            <h4 class="mb-1 text-sm font-black">Almacén de origen (WHS)</h4>
+            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Obligatorio para FCA con carga LCL o LTL.</p>
+            <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
+              label="WHS" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
+              :options="warehouseOptions" terminal-type="WHS" />
+            <DhInput v-model="form.whsName" label="Nombre WHS / referencia registrada" />
           </div>
-          <div class="grid gap-4 lg:grid-cols-2">
-            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
-              <p class="text-xs font-black">Recolecta (según servicios contratados)</p>
-              <template v-if="pickupIncluded">
-                <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
-                <DhInput v-model="form.pickupContact" label="Contacto en origen" />
-                <DhInput v-model="form.pickupWindow" label="Ventana u horario de recolecta" />
-              </template>
-              <DhInput v-if="deliveryIncluded" v-model="form.destinationAddress" label="Dirección de entrega final" />
-            </div>
-            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
-              <PricingLocationSearchSelect
-                v-if="warehouseOptions.length && (requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment))"
-                v-model="selectedWarehouse" label="WHS"
-                placeholder="Seleccionar WHS" search-placeholder="Buscar bodega o ciudad…"
-                :options="warehouseOptions" terminal-type="WHS"
-              />
-              <DhInput v-if="requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment)" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
-              <DhSelect v-if="agentChoices.length" v-model="form.agentReference" label="Agente de origen" :options="asChoices('agents', form.agentReference)" />
-              <DhInput v-else v-model="form.agentReference" label="Agente / oficina de origen" />
-              <DhSelect v-if="isMaritime && carrierChoices.length" v-model="form.carrierReference" label="Naviera" :options="asChoices('carriers', form.carrierReference)" />
-              <DhInput v-else-if="isMaritime" v-model="form.carrierReference" label="Naviera / proveedor" />
-              <DhInput v-if="isMaritime" v-model="form.merchantReference" label="Merchant / referencia" />
-            </div>
-          </div>
-          <DhTextarea v-model="form.observations" label="Observaciones e instrucciones operativas" :rows="4" />
         </div>
 
         <div v-show="activeStep === 2" class="space-y-5">
