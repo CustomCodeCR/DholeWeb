@@ -1,3 +1,13 @@
+## [1.117.1] - 2026-11-22 · DH-20261122-DHOLE-ERP-411 (DHOLE ERP pronunciation choice)
+
+- PATCH: se retiran todas las indicaciones de pronunciación de DHOLE ERP. La marca conserva su nombre y significado oficial sin imponer una lectura concreta.
+- Prueba de branding compatible con construcción Docker que excluye .env; CI/staging y versionamiento 1.117.1 coordinados con DholeSystem.
+
+## [1.117.0] - 2026-11-22 · DH-20261122-DHOLE-ERP-410 (integrated branding)
+
+- MINOR: marca corporativa DHOLE ERP (Sistema de Gestión Interna) en login, menú, título de navegador, icono, traducciones, emails de sesión y compilación. Digital Hub for Operations, Logistics & Ecosystem; sin cambios de integraciones.
+- Se reservan DHOLE CLOUD, DHOLE X4 y GIO para releases futuros. DholeWeb y DholeSystem 1.116.1 → 1.117.0.
+
 ## [1.116.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-EMAIL-409 (master selective candidate)
 
 - PATCH selectivo: retirar UUID de la ventana de devolución; conservar identificación comercial por cliente y ruta, con UUID solo en metadatos y URLs.

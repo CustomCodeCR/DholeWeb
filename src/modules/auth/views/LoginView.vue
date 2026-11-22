@@ -40,7 +40,7 @@ async function login() {
   try {
     loading.value = true
     const response = await authStore.login({ email: email.value, password: password.value })
-    toastStore.success('Sesión iniciada', 'Bienvenido a Dhole System.')
+    toastStore.success('Sesión iniciada', 'Bienvenido a DHOLE ERP.')
     await router.push(response.mustChangePassword ? '/change-password' : resolveLandingRoute())
   } catch (error) {
     toastStore.backendError(error, t('auth.loginError'))
