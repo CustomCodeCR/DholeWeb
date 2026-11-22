@@ -59,10 +59,17 @@ export function ensureIndependentRoadFreight396<T extends RequiredPricingLine396
   const existing = lines.find(isRealRoadFreight396)
   if (existing) {
     if (!existing.detailId && !existing.manual) {
-      existing.section = 'international_freight'
-      if (Number(existing.costAmount ?? 0) > 0 || Number(existing.saleAmount ?? 0) > 0) {
-        existing.included = true
+      const alreadyPriced = Number(existing.costAmount ?? 0) > 0
+        || Number(existing.saleAmount ?? 0) > 0
+      // A zero-priced automatic placeholder cannot suppress a priced master/rule.
+      // Keep its key stable when replacing it so row components retain identity.
+      if (!alreadyPriced) {
+        const replacement = create()
+        if (replacement) Object.assign(existing, { ...replacement, key: existing.key })
       }
+      existing.section = 'international_freight'
+      if (Number(existing.costAmount ?? 0) > 0 || Number(existing.saleAmount ?? 0) > 0)
+        existing.included = true
     }
     return lines
   }
