@@ -113,7 +113,37 @@ export function patchPricingP7Reconcile391(source: string): string {
     "  form.serviceIds.join('|'), allCosts.value.map",
     "  form.serviceIds.join('|'), form.miamiCommercialPlan, form.miamiIncludeSed, form.miamiSedQty, form.cargoValue, allCosts.value.map",
   )
-  code = code.replace('</script>', runtime394 + '\n' + MIAMI_EXTRA394 + '\n' + MARKER + '\n</script>')
+  // DH-398: the server's applicable set is authoritative even when the
+  // wizard's modality selector still describes the maritime part of a
+  // multimodal Panama -> Costa Rica quote.
+  const roadCondition398 = "form.modality === 'Multimodal' && shipmentModeForApi.value === 'Fcl'"
+  const roadContext398 = "shipmentModeForApi.value === 'Fcl' && (form.modality === 'Multimodal' || p7IsPanamaCorridor391())"
+  const roadMaster398 = "    const master = costs.value.find(cost =>\n      isTerrestrialFreightRow395(cost.name, cost.costDetailType)"
+  const currentRoadMaster398 = "    const master = costs.value.find(cost =>\n      costResolvedByBackendContext(cost)\n      && isTerrestrialFreightRow395(cost.name, cost.costDetailType)"
+  if (!runtime394.includes(roadCondition398) || !runtime394.includes(roadMaster398))
+    throw new Error('[DH-398] Multimodal land/master reconciliation anchors not found')
+  const runtime398 = runtime394.replace(roadCondition398, roadContext398)
+    .replace(roadMaster398, currentRoadMaster398)
+  const asyncRoadWatch398 = `
+// DH-398: the authoritative /wizard-bundle applicable list is asynchronous.
+// Reconcile when it arrives AFTER the initial screen-7 rebuild, not only on
+// navigation or pre-save. The helper is idempotent and preserves saved details.
+watch(
+  () => [
+    step.value, form.modality, shipmentModeForApi.value,
+    form.originId, form.destinationId, form.podId,
+    number(form.freightCost), number(form.freightSale),
+    form.serviceIds.join('|'), costs.value,
+  ],
+  () => {
+    if (step.value !== 7 || props.viewOnly || hydratingExistingRate.value) return
+    p7PresentOrReconcile391()
+  },
+  { flush: 'post' },
+)
+`;
+  code = code.replace('</script>', runtime398 + '\n' + MIAMI_EXTRA394 + '\n'
+    + asyncRoadWatch398 + '\n' + MARKER + '\n</script>')
   // DH-396: each rebuild and pre-save serialization has to see the same
   // mandatory lines. A later rebuild cannot silently discard a quotation row.
   // Earlier Vite transforms can replace the rateLines assignment while
@@ -141,7 +171,7 @@ export function patchPricingP7Reconcile391(source: string): string {
       + '        || String(lclSelectedSourceKey.value ?? "").startsWith("Own:")\n'
       + '        || isOwnLclMatrixContext())\n'
       + '      && normalizeCatalogValue(line.name) === "vgm") return false\n'
-      + '  if (form.modality === "Multimodal" && shipmentModeForApi.value === "Fcl"\n'
+      + '  if (shipmentModeForApi.value === "Fcl"\n      && (form.modality === "Multimodal" || p7IsPanamaCorridor391())\n'
       + '      && (hasInternationalTransportService.value || number(form.freightCost) > 0)\n'
       + '      && isRealRoadFreight396(line)) return false')
   }
