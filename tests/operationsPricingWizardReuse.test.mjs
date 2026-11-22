@@ -12,6 +12,7 @@ test('manual opening and pricing editor share their stepper component', () => {
   assert.match(pricing, /import PricingWizardStepper from '.\/PricingWizardStepper.vue'/)
   assert.match(opening, /<PricingWizardStepper/)
   assert.match(pricing, /<PricingWizardStepper/)
+  assert.match(stepper, /:style="\{ '--wizard-step-columns': steps\.length \}"/)
   assert.match(stepper, /aria-current/)
   assert.match(stepper, /update:activeStep/)
   assert.match(opening, /activeStep === 5/)
