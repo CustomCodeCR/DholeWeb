@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi } from '../services/operationsApi'
+import { crmGet, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { StorageService } from '@/core/services/storageService'
@@ -28,6 +29,21 @@ const initializing = ref(false)
 const accountId = ref('')
 const selectedClientName = ref('')
 const executiveName = ref('')
+const executiveUserId = ref('')
+const institutionalExecutive = ref(false)
+const executiveLoading = ref(false)
+const operationalContactsLoading = ref(false)
+const operationalContactsIssue = ref('')
+const operationalContacts = ref<Array<{ id: string; name: string; email: string }>>([])
+let clientGeneration = 0
+let lastSelectedAccountId = ''
+const executiveAssigned = computed(() => institutionalExecutive.value || Boolean(executiveUserId.value))
+const executiveLabel = computed(() =>
+  executiveLoading.value ? 'Consultando responsable comercial en CRM…'
+    : executiveName.value || (executiveUserId.value ? 'Ejecutivo asignado; nombre pendiente de consulta'
+      : 'Sin ejecutivo comercial asignado en CRM'))
+const selectedOperationalContacts = computed(() =>
+  operationalContacts.value.filter(contact => form.value.contactIds.includes(contact.id)))
 const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
@@ -97,6 +113,8 @@ function goToStep(target: number) {
 const fieldTitle = (label: string, value: unknown) => ({ label, value: value == null || value === '' ? 'Pendiente' : String(value) })
 const summaryFields = computed(() => [
   fieldTitle('Cliente', selectedClientName.value || accountId.value),
+  fieldTitle('Ejecutivo comercial', executiveLabel.value),
+  fieldTitle('Contactos operativos', selectedOperationalContacts.value.map(x => x.name).join(', ')),
   fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
   fieldTitle('Tipo de embarque', form.value.shipmentType),
   fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
@@ -124,7 +142,7 @@ const form = ref({
   overweight: false, overweightNotes: '', carrierReference: '',
   agentReference: '', merchantReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
-  contactReferences: '', commercialReviewRequested: false,
+  contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
   equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
   originCountryCode: '', destinationCountryCode: '',
   cabysSearch: '', cabysCode: '', portHandlingMode: '',
@@ -142,13 +160,12 @@ const supportAccept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp'
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
-  { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
+  { label: 'Aéreo', value: 'AIR' },
 ]
 const transportSelectionOptions = [
   { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL' },
   { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional' },
   { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL' },
-  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte' },
 ]
 const shipmentOptionsByTransport: Record<string, Array<{ label: string; value: string }>> = {
   MARITIME: [{ label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Coloading / propio', value: 'LCL' }],
@@ -197,7 +214,7 @@ const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.v
 const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
-  modalOptions.some(x => x.value === modality.value) &&
+  (modalOptions.some(x => x.value === modality.value) || (Boolean(editingId.value) && modality.value === 'MULTIMODAL')) &&
   /^[0-9a-f-]{36}$/i.test(accountId.value) &&
   priority.value >= 1 && priority.value <= 5 && complexity.value > 0 &&
   (!form.value.originCountryCode || /^[A-Za-z]{2}$/.test(form.value.originCountryCode)) &&
@@ -206,6 +223,7 @@ const valid = computed(() =>
 const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
+  else if (!executiveLoading.value && !executiveAssigned.value) result.push('Ejecutivo comercial por asignar en CRM')
   if (!form.value.transportType) result.push('Modalidad de transporte')
   if (!effectiveShipment.value) result.push('Tipo de embarque')
   if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
@@ -220,19 +238,111 @@ const blockers = computed(() => {
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
 
-function onCrmClientSelected(client: { kind?: 'account' | 'lead'; displayName: string; executiveName: string } | null) {
-  // Operations resolves the commercial executive using CRM /accounts/{id}, not leads.
-  // The shared Pricing selector lists prospects too; prevent a draft that the backend cannot accept.
+function toggleOperationalContact(id: string, selected: boolean) {
+  form.value.contactIds = selected
+    ? [...new Set([...form.value.contactIds, id])]
+    : form.value.contactIds.filter(x => x !== id)
+  // Keep legacy field for older cases; real IDs live in contactIds.
+  form.value.contactReferences = form.value.contactIds.join(',')
+}
+
+async function resolveCrmOpeningData(id: string, client: {
+  executiveName?: string; executiveUserId?: string; isCastroFallasExecutive?: boolean
+}) {
+  const generation = ++clientGeneration
+  executiveLoading.value = true
+  operationalContactsLoading.value = true
+  operationalContactsIssue.value = ''
+  executiveName.value = client.executiveName?.trim() || ''
+  executiveUserId.value = client.executiveUserId?.trim() || ''
+  institutionalExecutive.value = client.isCastroFallasExecutive === true
+  try {
+    const [accountResponse, contactsResponse] = await Promise.allSettled([
+      crmGet('accounts', id),
+      crmRequest<unknown>(crmPath('accounts', id, 'contacts')),
+    ])
+    if (generation !== clientGeneration || accountId.value !== id) return
+    if (accountResponse.status === 'fulfilled') {
+      const account = accountResponse.value as Record<string, unknown>
+      institutionalExecutive.value = institutionalExecutive.value || account.isCastroFallasExecutive === true
+      executiveUserId.value = String(account.executiveUserId || executiveUserId.value || '')
+      executiveName.value = String(account.executiveName || executiveName.value || '').trim()
+    }
+    if (institutionalExecutive.value && !executiveName.value) executiveName.value = 'Castro Fallas'
+    if (executiveUserId.value && !executiveName.value) {
+      try {
+        const labels = await crmRequest<{ owners?: Record<string, string> }>(
+          crmPath('calendar/labels') + '?' +
+          new URLSearchParams({ ownerIds: executiveUserId.value }))
+        if (generation !== clientGeneration || accountId.value !== id) return
+        executiveName.value = labels.owners?.[executiveUserId.value]?.trim() || ''
+      } catch { /* The CRM executive ID remains assigned if labels are unavailable. */ }
+    }
+    if (contactsResponse.status === 'fulfilled') {
+      const raw = contactsResponse.value
+      const entries = Array.isArray(raw) ? raw
+        : raw && typeof raw === 'object' && Array.isArray((raw as {items?: unknown}).items)
+          ? (raw as {items: unknown[]}).items : []
+      operationalContacts.value = entries.flatMap((entry: unknown) => {
+        if (!entry || typeof entry !== 'object') return []
+        const relation = entry as Record<string, unknown>
+        const contact = (relation.contact && typeof relation.contact === 'object'
+          ? relation.contact : relation) as Record<string, unknown>
+        const active = relation.isActive !== false && contact.isActive !== false &&
+          !['INACTIVE','DISABLED'].includes(String(contact.status ?? '').toUpperCase())
+        const operations = relation.isOperationsContact === true || contact.isOperationsContact === true
+        const email = String(contact.email || '').trim()
+        const name = String(contact.name || [contact.firstName,contact.lastName].filter(Boolean).join(' ') || '').trim()
+        const contactId = String(contact.id || relation.contactId || '')
+        return active && operations && contactId && name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+          ? [{ id: contactId, name, email }] : []
+      })
+    } else {
+      operationalContactsIssue.value = 'No se pudieron consultar los contactos de CRM; puede conservar el borrador.'
+    }
+  } finally {
+    if (generation === clientGeneration) {
+      executiveLoading.value = false
+      operationalContactsLoading.value = false
+    }
+  }
+}
+
+function onCrmClientSelected(client: {
+  id: string; kind?: 'account' | 'lead'; displayName: string;
+  executiveName: string; executiveUserId?: string; isCastroFallasExecutive?: boolean
+} | null) {
   if (client?.kind === 'lead') {
+    ++clientGeneration
     accountId.value = ''
+    lastSelectedAccountId = ''
     selectedClientName.value = ''
     executiveName.value = ''
+    executiveUserId.value = ''
+    institutionalExecutive.value = false
+    operationalContacts.value = []
     error.value = 'Para aperturar el trámite, convierta primero el prospecto en una cuenta CRM.'
     return
   }
-  if (client) error.value = ''
-  selectedClientName.value = client?.displayName || ''
-  executiveName.value = client?.executiveName || ''
+  if (!client) {
+    ++clientGeneration
+    lastSelectedAccountId = ''
+    selectedClientName.value = ''
+    executiveName.value = ''
+    executiveUserId.value = ''
+    institutionalExecutive.value = false
+    operationalContacts.value = []
+    form.value.contactIds = []
+    return
+  }
+  if (lastSelectedAccountId && lastSelectedAccountId !== client.id) {
+    form.value.contactIds = []
+    form.value.contactReferences = ''
+  }
+  lastSelectedAccountId = client.id
+  error.value = ''
+  selectedClientName.value = client.displayName
+  void resolveCrmOpeningData(client.id, client)
 }
 function countryFromRoute(group: 'pol' | 'pod', id: string, location: string): string {
   const item = currentCatalog(group).find(x => x.id === id)
@@ -404,6 +514,7 @@ onMounted(async () => {
       restoringOpening = true
       existingVersion.value = detail.version
       accountId.value = detail.accountId
+      lastSelectedAccountId = detail.accountId
       companyId.value = detail.companyId
       modality.value = detail.modalityCode
       priority.value = detail.priority
@@ -411,6 +522,7 @@ onMounted(async () => {
       const parsed = JSON.parse(detail.openingDataJson || '{}') as Record<string, unknown>
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         form.value = { ...form.value, ...parsed } as typeof form.value
+        if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
       }
       if (!form.value.transportType) {
         form.value.transportType = modality.value === 'AIR' ? 'AIR'
