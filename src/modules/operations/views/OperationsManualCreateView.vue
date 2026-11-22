@@ -137,23 +137,6 @@ function goToStep(target: number) {
   activeStep.value = target
   void nextTick(() => document.getElementById('operations-opening-wizard')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
-const fieldTitle = (label: string, value: unknown) => ({ label, value: value == null || value === '' ? 'Pendiente' : String(value) })
-const summaryFields = computed(() => [
-  fieldTitle('Cliente', selectedClientName.value || accountId.value),
-  fieldTitle('Ejecutivo comercial', executiveLabel.value),
-  fieldTitle('Contactos operativos', selectedOperationalContacts.value.map(x => x.name).join(', ')),
-  fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
-  fieldTitle('Tipo de embarque', form.value.shipmentType),
-  fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
-  fieldTitle('Salida / POE', form.value.poe), fieldTitle('Destino / POD', form.value.pod),
-  fieldTitle('Mercancía', form.value.cargoDescription),
-  fieldTitle('CABYS', form.value.cabysCode),
-  fieldTitle('Muellaje', form.value.portHandlingMode),
-  fieldTitle('Documentos', form.value.supportDocuments.length),
-  fieldTitle('Bultos', form.value.packageCount),
-  fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
-  fieldTitle('Equipos', form.value.equipment.map(item => item.quantity + ' × ' + item.equipmentType).join(', ')),
-].filter(field => field.value !== 'Pendiente'))
 const loading = ref(true)
 const error = ref('')
 const form = ref({
