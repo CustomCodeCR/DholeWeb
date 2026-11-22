@@ -24,7 +24,10 @@ test('manual creation uses CRM customer lookup and no placeholder sales executiv
   assert.match(api, /\/api\/operations\/apertures\/create-context/)
   assert.match(view, /v-model="accountId"/)
   assert.match(view, /operationsApi\.createContext\(\)/)
-  assert.match(view, /operationsApi\.crmAccounts\(accountSearch\.value\)/)
+  assert.match(view, /<PricingCrmClientSelect/)
+  assert.match(view, /@selected="onCrmClientSelected"/)
+  assert.match(view, /executiveName/)
+  assert.match(view, /client\?\.kind === 'lead'/)
   assert.doesNotMatch(view, /blankUser|executiveUserId: blankUser/)
 })
 
