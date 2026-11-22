@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, ref, watch, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, Plus, Trash2, Save, FolderPlus } from 'lucide-vue-next'
-import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Users, Truck, Layers3 } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhSearchInput } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi, type CrmAccountOption } from '../services/operationsApi'
+import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
+import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import PricingWizardStepper from '@/modules/pricing/components/PricingWizardStepper.vue'
+import { CatalogItemsService } from '@/core/services/catalogItemsService'
+import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { useAuthStore } from '@/core/stores/authStore'
 
 const router = useRouter()
@@ -25,6 +30,102 @@ const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
+const activeStep = ref(1)
+const wizardSteps = [
+  { id: 1, label: 'Cliente', hint: 'Cuenta CRM y referencias' },
+  { id: 2, label: 'Ruta', hint: 'Modalidad, Incoterm y terminales' },
+  { id: 3, label: 'Carga', hint: 'Mercancía, pesos y equipos' },
+  { id: 4, label: 'Servicios', hint: 'Recolección, entrega y coordinación' },
+  { id: 5, label: 'Revisión', hint: 'Resumen y guardado del borrador' },
+] as const
+const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
+const catalogLoading = ref(false)
+const catalogIssue = ref('')
+const catalogs = ref<Record<string, CatalogItemSelectDto[]>>({})
+const selectedPol = ref('')
+const selectedPoe = ref('')
+const selectedPod = ref('')
+const selectedWarehouse = ref('')
+let restoringOpening = false
+const currentCatalog = (key: string) => catalogs.value[key] || []
+const optionText = (item: CatalogItemSelectDto) => String(item.value || item.label || item.code).trim()
+const catalogChoices = (key: string) => currentCatalog(key).filter(item => item.isActive).map(item => ({ value: optionText(item), label: optionText(item) }))
+const locationChoices = (key: string) => currentCatalog(key).filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item), searchText: [item.label,item.code,item.slug].join(' ') }))
+const polOptions = computed(() => locationChoices('pol'))
+const poeOptions = computed(() => locationChoices('poe'))
+const podOptions = computed(() => locationChoices('pod'))
+const warehouseOptions = computed(() => locationChoices('warehouses'))
+const agentChoices = computed(() => catalogChoices('agents'))
+const carrierChoices = computed(() => catalogChoices('carriers'))
+const equipmentChoices = computed(() => {
+  const type = modality.value === 'FTL' ? 'land-equipment-sizes' : 'container-types'
+  return [{ label: 'Seleccionar equipo', value: '' }, ...catalogChoices(type)]
+})
+function asChoices(key: string, saved: string) {
+  const options = catalogChoices(key)
+  return saved && !options.some(x => x.value === saved) ? [{ label: saved, value: saved }, ...options] : options
+}
+const incotermChoices = computed(() => {
+  const items = catalogChoices('incoterms')
+  const values = items.length ? items : incoterms.map(value => ({ label: value, value }))
+  return values.filter(item => isMaritime.value || !['FAS','FOB','CFR','CIF'].includes(item.value.toUpperCase()))
+})
+const serviceChoices = computed(() => {
+  const items = currentCatalog('pricing-services').filter(x => x.isActive).map(x => ({value: x.id, label: optionText(x)}))
+  const legacy = serviceCatalog.map(([value, label]) => ({ value, label }))
+  const combined = items.length ? [...items, ...legacy.filter(x => form.value.services.includes(x.value))] : legacy
+  for (const selected of form.value.services) {
+    if (!combined.some(x => x.value === selected)) combined.push({ value: selected, label: selected })
+  }
+  return combined
+})
+function lookupLabel(key: string, id: string) { return optionText(currentCatalog(key).find(x => x.id === id) || { value: '', label: '', code: '' } as CatalogItemSelectDto) }
+function selectedForLabel(key: string, label: string) {
+  return currentCatalog(key).find(item => optionText(item).trim().toLowerCase() === label.trim().toLowerCase())?.id || ''
+}
+function reconcileLocations() {
+  selectedPol.value = selectedForLabel('pol', form.value.pol)
+  selectedPoe.value = selectedForLabel('poe', form.value.poe)
+  selectedPod.value = selectedForLabel('pod', form.value.pod)
+  selectedWarehouse.value = selectedForLabel('warehouses', form.value.whsName)
+}
+async function loadPricingCatalogs() {
+  catalogLoading.value = true
+  try {
+    const names = ['pol','poe','pod','incoterms','container-types','land-equipment-sizes','agents','carriers','pricing-services']
+    const result = await Promise.all(names.map(async key => {
+      try { return [key, await CatalogItemsService.select({ catalogGroupSlug: key })] as const }
+      catch { return [key, [] as CatalogItemSelectDto[]] as const }
+    }))
+    const warehouseGroups = ['pricing-warehouses','warehouses','whs','fca-warehouses']
+    let warehouseItems: CatalogItemSelectDto[] = []
+    for (const key of warehouseGroups) {
+      try { warehouseItems = await CatalogItemsService.select({ catalogGroupSlug: key }); if (warehouseItems.length) break } catch { /* legacy slug */ }
+    }
+    catalogs.value = { ...Object.fromEntries(result), warehouses: warehouseItems }
+    if (!polOptions.value.length || !poeOptions.value.length || !podOptions.value.length)
+      catalogIssue.value = 'No se pudieron consultar todos los catálogos de ubicaciones; puede conservar las referencias manuales.'
+    reconcileLocations()
+  } finally { catalogLoading.value = false }
+}
+function goToStep(target: number) {
+  if (target < 1 || target > wizardSteps.length) return
+  activeStep.value = target
+  void nextTick(() => document.getElementById('operations-opening-wizard')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+const fieldTitle = (label: string, value: unknown) => ({ label, value: value == null || value === '' ? 'Pendiente' : String(value) })
+const summaryFields = computed(() => [
+  fieldTitle('Cliente', accounts.value.find(x => x.id === accountId.value)?.displayName || accountId.value),
+  fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
+  fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
+  fieldTitle('Salida / POE', form.value.poe), fieldTitle('Destino / POD', form.value.pod),
+  fieldTitle('Mercancía', form.value.cargoDescription),
+  fieldTitle('Bultos', form.value.packageCount),
+  fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
+  fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
+  fieldTitle('Equipos', form.value.equipment.map(item => item.quantity + ' × ' + item.equipmentType).join(', ')),
+  fieldTitle('Servicios', form.value.services.map(v => serviceChoices.value.find(x => x.value === v)?.label || v).join(', ')),
+])
 const loading = ref(true)
 const error = ref('')
 const form = ref({
