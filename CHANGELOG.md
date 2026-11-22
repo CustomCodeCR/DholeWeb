@@ -1,3 +1,9 @@
+## [1.112.0] - 2026-11-22 · DH-20261122-OPERATIONS-PARITY-401 (Operations / Pricing: apertura manual)
+
+- MINOR: wizard operativo en 6 etapas congruente con Pricing, con modalidad y embarque seleccionados en tarjetas visuales; integra los selectores compartidos de rutas, equipos y servicios.
+- Conserva expediente y QUO independientes, condiciones por modalidad, Incoterms permitidos y equipos múltiples; cambios backend Ops 0.15.1 para FTL/multimodal.
+- DholeWeb/DholeSystem 1.111.1 → 1.112.0. Release dirigido a master solo tras staging y CI; sin autorización de despliegue de producción.
+
 ## [1.111.1] - 2026-11-21 · DH-20261121-OPERATIONS-STEPPER-400 (UI Pricing/Operations · ancho del stepper)
 
 - PATCH: PricingWizardStepper distribuye dinámicamente las columnas de navegación según los pasos reales (4 en edición de tarifas, 5 en Aperturas) y mantiene el desplazamiento horizontal adaptable en móvil.
