@@ -18,7 +18,10 @@ test('Trámites is the single entry point for manual creation and searchable cas
   assert.match(modal, /@selected="onCrmClientSelected"/)
   assert.match(modal, /operationsApi\.createContext/)
   assert.match(modal, /operationsApi\.createAperture/)
-  assert.doesNotMatch(modal, /executiveUserId:|blankUser/)
+  // The executive ID may be cached in a local draft, but never sent as an
+  // editable/manual assignment in the Operations create request.
+  const submitPayload = modal.slice(modal.indexOf('const openingData ='), modal.indexOf('watch(selectedPol'))
+  assert.doesNotMatch(submitPayload, /executiveUserId:|blankUser/)
   assert.match(router, /path: 'operations\/cases\/:id'/)
   assert.match(router, /redirect: \{ name: 'operations-cases' \}/)
 })
