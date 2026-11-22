@@ -10,7 +10,7 @@ test('DHOLE ERP is the visible bilingual internal product brand', () => {
   for (const locale of [es, en]) {
     assert.equal(locale.app.name, 'DHOLE ERP')
     assert.equal(locale.app.meaning, 'Digital Hub for Operations, Logistics & Ecosystem')
-    assert.ok(locale.app.pronunciation.includes('DHOLE'))
+    assert.equal(locale.app.pronunciation, undefined)
     assert.ok(locale.app.subtitle)
   }
   assert.equal(es.app.subtitle, 'Sistema de gestión interna')
@@ -25,7 +25,7 @@ test('brand identity is consistent across the shell, login and build metadata', 
   assert.match(source('src/shared/components/organisms/DhSidebar.vue'), /app\.meaning/)
   assert.match(source('public/dhole-mark.svg'), /<title id="dhole-title">DHOLE ERP<\/title>/)
   assert.match(source('Dockerfile'), /VITE_APP_NAME="DHOLE ERP"/)
-  assert.match(source('.env'), /VITE_APP_NAME="DHOLE ERP"/)
+  // .env is intentionally absent from Docker build contexts; the Docker ARG is the fallback.
 })
 
 test('branding release updates web version consistently without renaming integrations', () => {

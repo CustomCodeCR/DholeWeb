@@ -1,3 +1,9 @@
+## [1.117.1] - 2026-11-22 · DH-20261122-DHOLE-ERP-411
+
+- PATCH: DHOLE ERP conserva el nombre corporativo y significado, pero retira por completo las sugerencias de pronunciación del acceso, barra lateral y traducciones en español/inglés.
+- Se corrige la prueba de identidad para compilar en Docker sin depender de .env (excluido del contexto de construcción). Se verifica que no existan claves o interfaces de pronunciación y se mantienen REST/SignalR y claves técnicas.
+- DholeWeb y DholeSystem 1.117.0 → 1.117.1; manifiesto global actualizado. Promoción a master posterior a las validaciones de staging.
+
 ## [1.117.0] - 2026-11-22 · DH-20261122-DHOLE-ERP-410
 
 - MINOR: identidad oficial de la plataforma web como DHOLE ERP (Sistema de Gestión Interna / Internal Management System) en acceso, menú lateral, título de navegador, favicon, mensajes, traducciones y configuración de build.
