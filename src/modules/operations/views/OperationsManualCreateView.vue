@@ -269,6 +269,7 @@ const blockers = computed(() => {
   if (!form.value.pod.trim()) result.push('POD / lugar de destino')
   if (!form.value.incoterm.trim()) result.push('Incoterm')
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
+  if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
   if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
@@ -1034,24 +1035,62 @@ onMounted(async () => {
               <DhInput v-if="form.overweight" v-model="form.overweightNotes" label="Requerimientos por sobrepeso" />
             </div>
           </div>
-          <div v-if="needsEquipment || form.equipment.length" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div><h4 class="text-sm font-black">Equipos de transporte</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Selecciona los tipos de equipo del catálogo usado en Crear tarifas.</p></div>
-              <DhButton variant="secondary" :icon="Plus" label="Agregar equipo" size="sm" @click="addEquipment" />
-            </div>
-            <div v-if="!form.equipment.length" class="rounded-xl border border-dashed border-[var(--dh-border)] p-5 text-center text-sm text-[var(--dh-text-muted)]">Agrega al menos un equipo cuando corresponda.</div>
-            <div v-for="(item, index) in form.equipment" :key="index" class="mb-3 flex flex-wrap items-end gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-3">
-              <div class="min-w-[170px] flex-1">
-                <PricingContainerSelector
-                  :model-value="item.equipmentCatalogId || selectedForLabel(equipmentCatalogKey, item.equipmentType)"
-                  :transport="effectiveShipment === 'FTL' ? 'land' : 'maritime'"
-                  @update:model-value="setEquipmentType(item, $event)"
-                />
-                <DhInput v-if="item.equipmentType && !item.equipmentCatalogId && !selectedForLabel(equipmentCatalogKey, item.equipmentType)"
-                  v-model="item.equipmentType" label="Equipo histórico / referencia" />
+          <div v-if="needsEquipment || form.equipment.length" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] bg-[rgb(var(--dh-primary-rgb)/0.04)] px-5 py-4">
+              <div>
+                <h4 class="text-base font-black">{{ effectiveShipment === 'FTL' ? 'Distribución de furgones FTL' : 'Distribución de contenedores FCL' }}</h4>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Cada tipo se agrega una vez. Utiliza Cantidad para varias unidades iguales.</p>
               </div>
-              <div class="w-36"><DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1" @update:model-value="item.quantity = Number($event)" /></div>
-              <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
+              <DhButton variant="secondary" :icon="Plus" :label="effectiveShipment === 'FTL' ? 'Añadir furgón' : 'Añadir contenedor'" size="sm"
+                :disabled="Boolean(assignmentPendingId)" @click="addEquipment" />
+            </div>
+            <div class="space-y-3 p-4 sm:p-5">
+              <div v-if="!form.equipment.length" class="rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-sm text-[var(--dh-text-muted)]">
+                Selecciona al menos un tipo de equipo para este embarque.
+              </div>
+              <div v-for="(item, index) in form.equipment" :key="'equipment-' + index"
+                class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 transition-colors"
+                :class="resolvedEquipmentId(item) ? 'border-[var(--dh-primary)]/25' : ''">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <span class="text-[11px] font-black uppercase tracking-widest text-[var(--dh-primary)]">
+                    {{ effectiveShipment === 'FTL' ? 'Furgón' : 'Contenedor' }} {{ index + 1 }}
+                  </span>
+                  <button v-if="form.equipment.length > 1" type="button"
+                    class="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-500/10"
+                    @click="form.equipment.splice(index, 1)"><Trash2 class="h-4 w-4" /> Quitar</button>
+                </div>
+                <div class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_128px_148px]">
+                  <div class="min-w-0">
+                    <PricingContainerSelector
+                      :model-value="resolvedEquipmentId(item)"
+                      :transport="effectiveShipment === 'FTL' ? 'land' : 'maritime'"
+                      :excluded-equipment-ids="form.equipment.filter((_, otherIndex) => otherIndex !== index).map(other => resolvedEquipmentId(other)).filter(Boolean)"
+                      :show-resolved-label="false"
+                      @update:model-value="setEquipmentType(item, $event)"
+                    />
+                  </div>
+                  <DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1"
+                    @update:model-value="item.quantity = Math.max(1, Math.floor(Number($event) || 1))" />
+                  <DhInput :model-value="item.weightKg ?? 0" label="Peso (kg)" type="number" :min="0"
+                    @update:model-value="item.weightKg = Math.max(0, Number($event) || 0)" />
+                </div>
+                <p v-if="item.equipmentType" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                  {{ item.equipmentType }}
+                </p>
+              </div>
+              <div v-if="form.equipment.length"
+                class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-primary)]/20 bg-[rgb(var(--dh-primary-rgb)/0.05)] px-4 py-3">
+                <span class="text-xs font-black text-[var(--dh-primary)]">
+                  Total: {{ totalEquipment }} {{ effectiveShipment === 'FTL' ? 'furgones' : 'contenedores' }}
+                  <span v-if="totalEquipmentWeight > 0" class="text-[var(--dh-text-muted)]"> · {{ totalEquipmentWeight.toLocaleString('es-CR') }} kg</span>
+                </span>
+                <div class="flex flex-wrap gap-1.5">
+                  <span v-for="(row, i) in form.equipment.filter(x => x.equipmentType)" :key="i"
+                    class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-1 text-[10px] font-bold">
+                    {{ row.quantity }} × {{ row.equipmentType }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
