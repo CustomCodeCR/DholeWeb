@@ -179,6 +179,14 @@ const cargoNatureOptions = [
   { label: 'Sobredimensionada', value: 'Sobredimensionada' },
   { label: 'Otro', value: 'Otro' },
 ]
+const packageTypeChoiceOptions = computed(() => form.value.packageType &&
+  !packageTypeOptions.some(x => x.value === form.value.packageType)
+  ? [...packageTypeOptions, { label: form.value.packageType + ' (registrado)', value: form.value.packageType }]
+  : packageTypeOptions)
+const cargoNatureChoiceOptions = computed(() => form.value.cargoNature &&
+  !cargoNatureOptions.some(x => x.value === form.value.cargoNature)
+  ? [...cargoNatureOptions, { label: form.value.cargoNature + ' (registrado)', value: form.value.cargoNature }]
+  : cargoNatureOptions)
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
@@ -585,7 +593,7 @@ onBeforeUnmount(() => {
 
 async function save() {
   if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
-  if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value) {
+  if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value && !editingId.value) {
     error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en este navegador.'
     return
   }
@@ -707,7 +715,7 @@ onMounted(async () => {
           </span>
           <DhButton :icon="editingId ? Save : FolderPlus"
             :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
-            :loading="saving" :disabled="loading || saving || ((!valid || blockers.length > 0) && !assignmentPendingId)"
+            :loading="saving" :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && blockers.length > 0 && !assignmentPendingId)"
             @click="save" />
         </div>
       </template>
@@ -888,7 +896,7 @@ onMounted(async () => {
           <div class="grid gap-4 md:grid-cols-2">
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
             <DhSelect v-model="form.cargoNature" label="Naturaleza de la carga"
-              :options="cargoNatureOptions" placeholder="Seleccione la naturaleza de la carga" />
+              :options="cargoNatureChoiceOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -948,7 +956,7 @@ onMounted(async () => {
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
-            <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeOptions" placeholder="Seleccione tipo de bulto" />
+            <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
             <DhInput v-model="form.weightValue" label="Peso bruto" type="number" :min="0" />
             <DhSelect v-model="form.weightUnit" label="Unidad peso" :options="[{ label: 'Kilogramos', value: 'KG' }, { label: 'Libras', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
@@ -1144,7 +1152,7 @@ onMounted(async () => {
         <DhButton v-if="activeStep < wizardSteps.length" :icon="ChevronRight" label="Siguiente" @click="goToStep(activeStep + 1)" />
         <DhButton v-else :icon="editingId ? Save : FolderPlus"
           :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
-          :disabled="loading || saving || ((!valid || blockers.length > 0) && !assignmentPendingId)" :loading="saving" @click="save" />
+          :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && blockers.length > 0 && !assignmentPendingId)" :loading="saving" @click="save" />
       </div>
     </footer>
   </div>
