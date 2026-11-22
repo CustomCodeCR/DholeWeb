@@ -478,7 +478,7 @@ async function confirmReturn() {
     await RateRequestLeaseService.returnToSeller(request.id, reason)
     returnTarget.value = null
     returnReason.value = ''
-    toast.success('Solicitud devuelta', 'Se notificó al vendedor por sistema y se programó el correo de corrección.')
+    toast.success('Tarifa devuelta a Ventas', 'La solicitud quedó devuelta por Pricing. Se notificó al vendedor por sistema y se programó el correo.')
     await load()
   } catch (error) {
     toast.backendError(error, 'No fue posible devolver la solicitud. Verifique su reserva y vuelva a intentarlo.')
@@ -659,7 +659,7 @@ onBeforeUnmount(() => {
                 <DhButton v-if="!request.rateId" variant="secondary"
                   :disabled="(isLocked(request) && !isOwnLock(request)) || Boolean(claimingRequestId) || Boolean(returningRequestId) || Boolean(cancellingRequestId)"
                   @click="openReturn(request)">
-                  <Undo2 class="h-4 w-4" /> Devolver solicitud
+                  <Undo2 class="h-4 w-4" /> Devolver tarifa
                 </DhButton>
                 <DhButton v-if="isStaleLock(request)" variant="secondary"
                   :disabled="Boolean(releasingRequestId) || Boolean(claimingRequestId)"
@@ -698,13 +698,13 @@ onBeforeUnmount(() => {
         class="fixed inset-0 z-[150] flex items-center justify-center bg-black/65 p-2 sm:p-4"
         @click.self="closeReturn">
         <div role="dialog" aria-modal="true" aria-labelledby="return-rate-request-title"
-          class="dh-glass dh-liquid flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] shadow-2xl">
+          class="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] border border-[var(--dh-border)] bg-white shadow-2xl dark:bg-[#14211d]">
           <div class="dh-scrollbar min-h-0 overflow-y-auto p-4 sm:p-6">
             <h3 id="return-rate-request-title" class="flex items-center gap-2 text-xl font-black">
-              <Undo2 class="h-5 w-5 text-amber-500" /> Devolver solicitud
+              <Undo2 class="h-5 w-5 text-amber-500" /> Devolver tarifa
             </h3>
             <p class="mt-3 text-sm font-semibold text-[var(--dh-text-muted)]">
-              {{ returnTarget.clientName || 'Cliente sin definir' }} · {{ returnTarget.originName || 'Origen' }} → {{ returnTarget.destinationName || 'Destino' }}
+              Solicitud {{ returnTarget.id }} · {{ returnTarget.clientName || 'Cliente sin definir' }} · {{ returnTarget.originName || 'Origen' }} → {{ returnTarget.destinationName || 'Destino' }}
             </p>
             <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
               El vendedor recibirá una notificación interna y un correo con el motivo. La solicitud quedará disponible para corregir y reenviar.
