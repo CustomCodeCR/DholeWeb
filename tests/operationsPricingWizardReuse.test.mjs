@@ -19,15 +19,14 @@ test('manual opening and pricing editor share their stepper component', () => {
   assert.doesNotMatch(opening, /activeStep === [456]/)
 })
 
-test('opening reuses live Pricing service and location catalogs', () => {
-  assert.match(opening, /PricingCrystalMultiSelect/)
-  assert.match(opening, /<PricingCrystalMultiSelect v-model="form.services"/)
+test('opening reuses Pricing location and cargo selectors without a services screen', () => {
+  assert.doesNotMatch(opening, /PricingCrystalMultiSelect|Servicios contratados/)
   assert.match(opening, /PricingLocationSearchSelect/)
   assert.match(opening, /<PricingLocationSearchSelect v-if="polOptions.length"/)
   assert.match(opening, /<PricingLocationSearchSelect v-if="poeOptions.length"/)
   assert.match(opening, /<PricingLocationSearchSelect v-if="podOptions.length"/)
   assert.match(opening, /CatalogItemsService.select/)
-  for (const catalog of ['pol','poe','pod','container-types','land-equipment-sizes','pricing-services','carriers','agents'])
+  for (const catalog of ['pol','poe','pod','container-types','land-equipment-sizes'])
     assert.ok(opening.includes(catalog), catalog)
   assert.match(opening, /@click="form.isImo = !form.isImo"/)
   assert.match(opening, /toggleHandling/)

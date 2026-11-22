@@ -1,6 +1,6 @@
 {
   "name": "dholeweb",
-  "version": "1.113.0",
+  "version": "1.113.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -51,7 +51,7 @@
     "test:crm:shared-agenda": "node --test tests/crmSharedAgendaInvitees.test.mjs",
     "test:catalog:agents": "node --experimental-strip-types --test tests/globalAgentCountries.test.ts",
     "test:pricing-dh393": "node --experimental-strip-types --test tests/pricingTranchesMiamiPanama393.test.ts tests/pricingRequiredLines396.test.ts",
-    "test:operations:ux": "node --test tests/operationsManualOpening.test.mjs tests/operationsOpeningUx403.test.mjs"
+    "test:operations:ux": "node --test tests/operationsManualOpening.test.mjs tests/operationsOpeningUx403.test.mjs tests/operationsNoServices404.test.mjs"
   },
   "dependencies": {
     "@blobatar/vue": "2.7.0",

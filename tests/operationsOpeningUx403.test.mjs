@@ -6,7 +6,7 @@ const view = readFileSync(new URL('../src/modules/operations/views/OperationsMan
 const picker = readFileSync(new URL('../src/modules/pricing/components/PricingCrmClientSelect.vue', import.meta.url), 'utf8')
 
 test('manual opening has exactly three steps without standalone transport or services pages', () => {
-  assert.match(view, /label: 'Cliente, ruta y servicios'/)
+  assert.match(view, /label: 'Cliente y ruta'/)
   assert.match(view, /label: 'Carga y documentos'/)
   assert.match(view, /label: 'Revisión'/)
   assert.doesNotMatch(view, /v-show="activeStep === [456]"/)
