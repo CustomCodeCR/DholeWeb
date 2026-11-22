@@ -102,6 +102,7 @@ test('DH-396 Vite patch actually wires P7 rebuild and pre-save, not just a watch
     '}',
     'function saveRate() {',
     '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()',
     '}',
     'function isAutomaticOutsideIncoterm(line: RateLine) { return true }',
     'function quoteEditApplyDelta387() {}',
