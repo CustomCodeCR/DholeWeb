@@ -792,22 +792,75 @@ onMounted(async () => {
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"><Check v-if="form.isImo" class="mr-1 inline h-4 w-4" />IMO / Peligrosa</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"><Check v-if="form.stackable" class="mr-1 inline h-4 w-4" />Estibable</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"><Check v-if="form.overweight" class="mr-1 inline h-4 w-4" />Sobrepeso</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.portHandlingMode === 'Redestino'" @click="toggleHandling('Redestino')"><Check v-if="form.portHandlingMode === 'Redestino'" class="mr-1 inline h-4 w-4" />Redestino</button>
-              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
-                :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
-                :aria-pressed="form.portHandlingMode === 'Anticipado'" @click="toggleHandling('Anticipado')"><Check v-if="form.portHandlingMode === 'Anticipado'" class="mr-1 inline h-4 w-4" />Anticipado</button>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <button type="button" :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">IMO / Peligrosa</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Requiere clase IMO y número UN</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.isImo ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.isImo" class="h-4 w-4" />
+                  </span>
+                </button>
+                <button type="button" :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Carga estibable</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Se permite apilar mercancía</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.stackable ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.stackable" class="h-4 w-4" />
+                  </span>
+                </button>
+                <button type="button" :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Sobrepeso</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Registrar requerimientos especiales</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.overweight ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.overweight" class="h-4 w-4" />
+                  </span>
+                </button>
+            </div>
+            <div class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
+              <div class="mb-3">
+                <h5 class="text-sm font-black">Muellaje en destino</h5>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones excluyentes; selecciona únicamente la que corresponda.</p>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2">
+                <button type="button" :aria-pressed="form.portHandlingMode === 'Redestino'" @click="toggleHandling('Redestino')"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Redestino</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Retiro o entrega con redestino</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.portHandlingMode === 'Redestino'" class="h-4 w-4" />
+                  </span>
+                </button>
+                <button type="button" :aria-pressed="form.portHandlingMode === 'Anticipado'" @click="toggleHandling('Anticipado')"
+                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                  :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
+                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
+                  <span><span class="block text-sm font-black">Anticipado</span>
+                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Muellaje anticipado en destino</span></span>
+                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
+                    :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
+                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
+                    <Check v-if="form.portHandlingMode === 'Anticipado'" class="h-4 w-4" />
+                  </span>
+                </button>
+              </div>
             </div>
             <div class="mt-3 grid gap-3 md:grid-cols-2">
               <DhInput v-if="form.isImo" v-model="form.imoClass" label="Clase IMO" />
@@ -835,11 +888,11 @@ onMounted(async () => {
               <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
             </div>
           </div>
-          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
-            <h4 class="text-sm font-black">Documentos de respaldo</h4>
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
+            <h4 class="text-base font-black">Documentos de respaldo</h4>
             <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <label v-for="category in supportCategories" :key="category.key" class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] p-3 text-xs font-black hover:border-[var(--dh-primary)]">
+              <label v-for="category in supportCategories" :key="category.key" class="flex min-h-[68px] cursor-pointer items-center justify-center gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-4 text-center text-xs font-black transition-all hover:border-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.07)]">
                 <FileUp class="h-4 w-4" />{{ uploadingSupport === category.key ? 'Subiendo…' : category.label }}
                 <input class="hidden" type="file" :accept="supportAccept" :disabled="Boolean(uploadingSupport)" @change="uploadDocument(category.key, category.label, $event)" />
               </label>
@@ -871,6 +924,17 @@ onMounted(async () => {
               <li v-for="field in blockers" :key="field">{{ field }}</li>
             </ul>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Guardar no modifica ninguna QUO ni los costos existentes. Se guarda la ficha operativa, su auditoría y las referencias relacionadas.</p>
+          </div>
+          <div class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
+            <h4 class="text-sm font-black">Datos operativos que pueden confirmarse después</h4>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Según la especificación v1.2, estos datos pueden quedar pendientes durante la captura y completarse en validación o Coordinación Origen, según el tipo de embarque.</p>
+            <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--dh-text-muted)]">
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Naviera y booking, si aplica</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Agente / oficina de origen</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Consolidado y WHS según modalidad</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Procedimientos específicos de CRM</span>
+              <span class="rounded-lg border border-[var(--dh-border)] px-3 py-2">Servicios y recolecta, si corresponde</span>
+            </div>
           </div>
         </div>
       </div>
