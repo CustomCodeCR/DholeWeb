@@ -1,8 +1,18 @@
-## [1.117.0] - 2026-11-22 · DH-20261122-DHOLE-ERP-410
+## [1.117.1] - 2026-11-22 · DH-20261122-DHOLE-ERP-411 (DHOLE ERP pronunciation choice)
 
-- MINOR: marca visible DHOLE ERP, Sistema de Gestión Interna, en acceso, menú, título de navegador, favicon, mensajes y configuración de compilación. Se mantienen los contratos técnicos DholeWeb.
-- Indicador bilingüe de pronunciación «dóul» y expansión Digital Hub for Operations, Logistics & Ecosystem. DHOLE CLOUD, DHOLE X4 y GIO diferidos.
-- DholeWeb 1.116.0 → 1.117.0, DholeSystem 1.116.0 → 1.117.0. La integración master requiere validación staging y aprobación explícita de despliegue a producción, pues el push a master lo activa automáticamente.
+- PATCH: se retiran todas las indicaciones de pronunciación de DHOLE ERP. La marca conserva su nombre y significado oficial sin imponer una lectura concreta.
+- Prueba de branding compatible con construcción Docker que excluye .env; CI/staging y versionamiento 1.117.1 coordinados con DholeSystem.
+
+## [1.117.0] - 2026-11-22 · DH-20261122-DHOLE-ERP-410 (integrated branding)
+
+- MINOR: marca corporativa DHOLE ERP (Sistema de Gestión Interna) en login, menú, título de navegador, icono, traducciones, emails de sesión y compilación. Digital Hub for Operations, Logistics & Ecosystem; sin cambios de integraciones.
+- Se reservan DHOLE CLOUD, DHOLE X4 y GIO para releases futuros. DholeWeb y DholeSystem 1.116.1 → 1.117.0.
+
+## [1.116.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-EMAIL-409 (master selective candidate)
+
+- PATCH selectivo: retirar UUID de la ventana de devolución; conservar identificación comercial por cliente y ruta, con UUID solo en metadatos y URLs.
+- PricingService envía email HTML legible y con CTA sin UUID visible, configurado para cada entorno. Release global 1.116.1 (Web/System 1.116.0 → 1.116.1, PricingService 1.26.25 → 1.26.26).
+- Sin cambios de REST, SignalR ni reenvío existente. CI, staging y permiso de producción requeridos.
 
 ## [1.116.0] - 2026-11-22 · DH-20261122-OPERATIONS-ASSIGNMENT-SUMMARY-408
 
