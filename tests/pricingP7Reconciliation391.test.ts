@@ -104,7 +104,13 @@ test('DH-391: freight names distinguish terrestrial, aerial and maritime legs', 
 test('DH-391: final wizard transform enforces dynamic P7 and protects saved prices', () => {
   const source = [
     '<script setup lang="ts">',
-    'function rebuildRateLines() {}',
+    'function rebuildRateLines() {',
+    '  rateLines.value = lines',
+    '  lastTierPricingInputKey.value = tierPricingInputKey',
+    '}',
+    'function saveRate() {',
+    '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '}',
     'function quoteEditApplyDelta387() {}',
     'function syncPanamaOverweightLines() {}',
     'function syncOwnLclCrcAgencyLine() {}',
@@ -119,6 +125,10 @@ test('DH-391: final wizard transform enforces dynamic P7 and protects saved pric
   assert.match(result, /quoteEditOriginalContext387/)
   assert.match(result, /!line\.detailId/)
   assert.match(result, /p7FreightTitle391\(line\)/)
+  assert.match(result, /if \(step.value === 7\) p7PresentOrReconcile391\(\)/)
+  assert.match(result, /if \(!props.rateId\) p7PresentOrReconcile391\(true\)/)
+  assert.match(result, /ensureMiamiPlanVgm396/)
+  assert.match(result, /ensureIndependentRoadFreight396/)
   assert.equal(patchPricingP7Reconcile391(result), result)
 })
 

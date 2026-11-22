@@ -134,7 +134,7 @@ test('DH-394: FCL multimodal retains the second (road) Freight master', () => {
   const p7 = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
   assert.match(p7, /costs.value.find\(cost =>/)
   assert.match(p7, /isTerrestrialFreightRow395\(cost.name, cost.costDetailType\)/)
-  assert.match(p7, /isTerrestrialFreightRow395\(line.name, line.costDetailType\)/)
+  assert.match(p7, /isRealRoadFreight396\(line\)/)
 })
 
 test('DH-394: missing Miami FAK items are restored only for new own-LCL quotes', () => {
