@@ -1,3 +1,9 @@
+## [1.115.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-407
+
+- PATCH: denominar «Devolver tarifa» la acción de Pricing; mostrar «Devuelta por Pricing» a Ventas, identificador visible y motivo obligatorio; diálogo opaco y accesible en modo oscuro.
+- Ventas puede consultar el historial íntegro de devoluciones con operador, fecha/hora y motivo y corregir y reenviar la misma solicitud (sin otra QUO ni ID). El backend conserva estados Returned/Open y el outbox SignalR/Email existente.
+- Release coordinado: DholeWeb/DholeSystem 1.115.0 → 1.115.1, DholePricingService 1.26.24 → 1.26.25; no se altera el contrato REST. CI + staging requeridos antes de promover master.
+
 ## [1.115.0] - 2026-11-22 · DH-20261122-OPERATIONS-OPENING-POLISH-406 (DholeWeb / DholeSystem)
 
 - MINOR: autoguardado local del formulario de apertura manual con recuperación durante 7 días por usuario/empresa, sin generar IDTRA hasta confirmar. En apertura se reemplaza «Guardar borrador» por «Crear y asignar a equipo» usando asignación de validadores de Operations; si falla la asignación se retiene el ID de la apertura creada y se reintenta sin duplicar.

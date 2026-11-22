@@ -49,7 +49,7 @@ interface SellerRateRequestDto {
   completedAtUtc?: string | null
   preparedRevisionNumber?: number | null
   returnReason?: string | null
-  payload?: { modification?: { sourceRevisionNumber?: number | null }; pricingReturn?: { reason?: string } } | null
+  payload?: { modification?: { sourceRevisionNumber?: number | null }; pricingReturn?: { reason?: string }; pricingReturnHistory?: Array<{ reason?: string; returnedAtUtc?: string; returnedByName?: string; revision?: number }> } | null
   rateId?: string | null
   quoNumber?: string | null
   kind?: 'New' | 'Modification'
@@ -483,7 +483,7 @@ function modificationStillPending(request: SellerRateRequestDto): boolean {
       || (request.status === 'Completed' && !modificationActuallyCompleted(request)))
 }
 function requestState(request: SellerRateRequestDto) {
-  if (request.status === 'Returned') return 'Devuelta para corregir'
+  if (request.status === 'Returned') return 'Devuelta por Pricing'
   if (request.status === 'Cancelled') return 'Cancelada'
   if (modificationActuallyCompleted(request)) return 'Modificación atendida'
   if (request.kind === 'Modification' && request.status === 'Completed')
@@ -1076,6 +1076,15 @@ onBeforeUnmount(() => {
                     <strong class="block text-amber-600 dark:text-amber-300">Motivo de Pricing:</strong>
                     {{ request.returnReason || request.payload?.pricingReturn?.reason || 'Revise los datos de la solicitud.' }}
                   </p>
+                  <details v-if="request.payload?.pricingReturnHistory?.length" class="mt-2 max-w-xs rounded-lg border border-[var(--dh-border)] p-2 text-xs text-[var(--dh-text)]">
+                    <summary class="cursor-pointer font-bold">Historial de devoluciones ({{ request.payload.pricingReturnHistory.length }})</summary>
+                    <ol class="mt-2 space-y-2">
+                      <li v-for="(entry, index) in request.payload.pricingReturnHistory" :key="index" class="border-t border-[var(--dh-border)] pt-2">
+                        <p class="font-bold">{{ entry.returnedByName || 'Pricing' }} · {{ entry.returnedAtUtc ? new Date(entry.returnedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) : 'Sin fecha' }}</p>
+                        <p class="mt-1 whitespace-pre-wrap break-words">{{ entry.reason || 'Motivo no disponible' }}</p>
+                      </li>
+                    </ol>
+                  </details>
                   <p v-if="request.status === 'Open' && isRequestClaimed(request)" class="mt-1 text-[10px] font-bold text-amber-500">
                     En proceso por {{ request.lockedByName || 'Pricing' }} · edición bloqueada
                   </p>
