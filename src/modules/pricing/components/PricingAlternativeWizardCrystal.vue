@@ -8059,6 +8059,11 @@ onMounted(async () => {
               </p>
             </div>
             <DhTextarea v-model="form.cargoObservations" label="Observaciones de la carga" :rows="4" class="col-span-full w-full" />
+            <div v-if="shipmentModeForApi === 'Ltl'" class="grid gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 sm:grid-cols-2">
+              <DhInput v-model.number="form.transitDays" type="number" min="0" step="1"
+                label="Tiempo de tránsito LTL (días)" :disabled="viewOnly" />
+              <p class="self-center text-xs font-semibold text-[var(--dh-text-muted)]">Ingrese los días de tránsito estimados. El valor se conserva al avanzar y se guarda en la tarifa.</p>
+            </div>
 
             <p v-if="form.cabysCode" class="text-xs font-bold text-[var(--dh-text-muted)]">CABYS seleccionado: {{ form.cabysCode }}</p>
             <p v-if="form.cargoValue > 0" class="crystal-insurance-hint">
@@ -8106,6 +8111,11 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="step === 7" class="crystal-lines-stage space-y-6">
+          <div v-if="shipmentModeForApi === 'Ltl'" class="crystal-soft grid items-end gap-3 p-4 sm:grid-cols-[minmax(180px,280px)_1fr]" data-testid="pricing-ltl-transit-days">
+            <DhInput v-model.number="form.transitDays" type="number" min="0" step="1"
+              label="Tiempo de tránsito LTL (días)" :disabled="viewOnly" />
+            <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Editable para el LTL propio y coloader. Se guardará como días de tránsito en la cotización.</p>
+          </div>
           <div v-if="customerPreferentialError" role="alert" class="crystal-soft flex flex-wrap items-center justify-between gap-3 border border-amber-600 p-4">
             <p class="text-sm font-bold text-amber-600">{{ customerPreferentialError }}</p>
             <DhButton type="button" variant="secondary" @click="retryCustomerPreferredRates">Reintentar tarifas CRM</DhButton>
