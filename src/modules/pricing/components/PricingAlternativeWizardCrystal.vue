@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Edit3,
   FileUp,
+  FolderPlus,
   Paperclip,
   Plane,
   Plus,
@@ -79,6 +80,7 @@ import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClien
 import PricingInteractiveOsmMap from '@/modules/pricing/components/PricingInteractiveOsmMap.vue'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
+import PricingWizardStepper from '@/modules/pricing/components/PricingWizardStepper.vue'
 import { normalizePoeSelection } from '@/modules/pricing/utils/pricingPoeSelection'
 import { carrierRouteKey, normalizePoeCarrierIds, poeCarrierSelectionComplete, nextPoeInSelection, nextCarrierRoute, mergeOptionCostLines, pricingCostContextKey } from '@/modules/pricing/utils/pricingMultiCarrierOptions'
 import { shouldUseFclPanamaCostaRicaAllIn } from '@/modules/pricing/utils/pricingPanamaCostaRicaAllIn'
@@ -1027,6 +1029,22 @@ const stepTitles = [
   'Borrador',
 ]
 const visibleStepTitles = computed(() => props.viewOnly ? [...stepTitles, 'Vista completa'] : stepTitles)
+const pricingStepHints = [
+  'Selecciona el transporte',
+  'Tipo de carga',
+  'Incoterm, ruta y equipo',
+  'Mercancía y cantidades',
+  'Tarifas disponibles',
+  'Naviera, agente y flete',
+  'Costos y precios',
+  'Resumen de la cotización',
+  'Consulta completa',
+]
+const pricingNavigationSteps = computed(() => visibleStepTitles.value.map((label, index) => ({
+  id: index + 1,
+  label,
+  hint: pricingStepHints[index] ?? '',
+})))
 const maxStep = computed(() => visibleStepTitles.value.length)
 const currentCommercialStatus = computed(() => editingRate.value?.status ?? '')
 const currentRateType = computed<RateType>(() =>
@@ -7122,22 +7140,12 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">
-      <button
-        v-for="(title, index) in visibleStepTitles"
-        :key="title"
-        type="button"
-        class="crystal-step"
-        :class="{
-          'crystal-step--active': index + 1 === step,
-          'crystal-step--done': index + 1 < step,
-        }"
-        @click="goToStep(index + 1)"
-      >
-        <span class="text-[10px] font-black uppercase tracking-[0.16em]">{{ String(index + 1).padStart(2, '0') }}</span>
-        <span class="mt-1 block text-xs font-extrabold">{{ title }}</span>
-      </button>
-    </div>
+    <PricingWizardStepper
+      :steps="pricingNavigationSteps"
+      :active-step="step"
+      aria-label="Etapas de creación y edición de tarifas"
+      @update:active-step="goToStep"
+    />
 
     <section class="crystal-panel min-h-[470px] p-5 md:p-8" :class="{ 'wizard-view-readonly': viewOnly && step !== 9 }">
       <div v-if="loadingCatalogs" class="grid min-h-[390px] place-items-center text-sm font-semibold text-[var(--dh-text-muted)]">
