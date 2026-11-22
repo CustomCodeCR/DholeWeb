@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Ship, Plane, Check, Truck, Layers3 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhCard, DhSearchInput } from '@/shared/components/molecules'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { operationsApi, type CrmAccountOption } from '../services/operationsApi'
+import { operationsApi } from '../services/operationsApi'
+import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { StorageService } from '@/core/services/storageService'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingWizardStepper from '@/modules/pricing/components/PricingWizardStepper.vue'
@@ -24,21 +27,17 @@ const companyId = ref('')
 const canInitialize = computed(() => auth.hasScope('operations.team.manage'))
 const initializing = ref(false)
 const accountId = ref('')
-const accountSearch = ref('')
-const accounts = ref<CrmAccountOption[]>([])
-const loadingAccounts = ref(false)
+const selectedClientName = ref('')
+const executiveName = ref('')
 const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
 const activeStep = ref(1)
 const wizardSteps = [
-  { id: 1, label: 'Modalidad', hint: 'Marítimo, aéreo, terrestre o multimodal' },
-  { id: 2, label: 'Embarque', hint: 'FCL, LCL, FTL, LTL y carga aérea' },
-  { id: 3, label: 'Cliente y ruta', hint: 'Cuenta CRM, Incoterm y terminales' },
-  { id: 4, label: 'Carga', hint: 'Mercancía, pesos y equipos' },
-  { id: 5, label: 'Servicios', hint: 'Recolecta, entrega y coordinación' },
-  { id: 6, label: 'Revisión', hint: 'Resumen y guardado del borrador' },
+  { id: 1, label: 'Cliente, ruta y servicios', hint: 'Cliente CRM, transporte, Incoterm y servicios' },
+  { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
+  { id: 3, label: 'Revisión', hint: 'Resumen y guardado de la apertura' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
@@ -113,12 +112,15 @@ function goToStep(target: number) {
 }
 const fieldTitle = (label: string, value: unknown) => ({ label, value: value == null || value === '' ? 'Pendiente' : String(value) })
 const summaryFields = computed(() => [
-  fieldTitle('Cliente', accounts.value.find(x => x.id === accountId.value)?.displayName || accountId.value),
+  fieldTitle('Cliente', selectedClientName.value || accountId.value),
   fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
   fieldTitle('Tipo de embarque', form.value.shipmentType),
   fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
   fieldTitle('Salida / POE', form.value.poe), fieldTitle('Destino / POD', form.value.pod),
   fieldTitle('Mercancía', form.value.cargoDescription),
+  fieldTitle('CABYS', form.value.cabysCode),
+  fieldTitle('Muellaje', form.value.portHandlingMode),
+  fieldTitle('Documentos', form.value.supportDocuments.length),
   fieldTitle('Bultos', form.value.packageCount),
   fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
   fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
@@ -142,17 +144,28 @@ const form = ref({
   contactReferences: '', commercialReviewRequested: false,
   equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
   originCountryCode: '', destinationCountryCode: '',
+  cabysSearch: '', cabysCode: '', portHandlingMode: '',
+  supportEntityId: '',
+  supportDocuments: [] as Array<{ id: string; fileName: string; category: string; categoryLabel: string; sizeInBytes: number }>,
 })
+const cabysResults = ref<Array<{ code: string; description: string }>>([])
+const searchingCabys = ref(false)
+const uploadingSupport = ref('')
+const supportCategories = [
+  {key:'OC',label:'OC / Detalle de la carga'}, {key:'PL',label:'Packing List (PL)'},
+  {key:'INVOICE',label:'Invoice'}, {key:'MSDS',label:'MSDS / Ficha técnica'},
+]
+const supportAccept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp'
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
   { label: 'Aéreo', value: 'AIR' }, { label: 'Multimodal', value: 'MULTIMODAL' },
 ]
 const transportSelectionOptions = [
-  { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL', icon: Ship },
-  { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional', icon: Plane },
-  { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL', icon: Truck },
-  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte', icon: Layers3 },
+  { label: 'Marítimo', value: 'MARITIME', caption: 'FCL o LCL' },
+  { label: 'Aéreo', value: 'AIR', caption: 'Carga aérea internacional' },
+  { label: 'Terrestre', value: 'ROAD', caption: 'FTL o LTL' },
+  { label: 'Multimodal', value: 'MULTIMODAL', caption: 'Combinación de medios de transporte' },
 ]
 const shipmentOptionsByTransport: Record<string, Array<{ label: string; value: string }>> = {
   MARITIME: [{ label: 'FCL · Contenedor completo', value: 'FCL' }, { label: 'LCL · Coloading / propio', value: 'LCL' }],
@@ -208,10 +221,6 @@ const serviceCatalog: Array<[string, string]> = [
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
 const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
 const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
-const accountOptions = computed(() => [
-  { label: 'Seleccionar cuenta CRM', value: '' },
-  ...accounts.value.map(a => ({ label: a.displayName || a.legalName || a.id, value: a.id })),
-])
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
   modalOptions.some(x => x.value === modality.value) &&
@@ -233,16 +242,123 @@ const blockers = computed(() => {
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
-  if (form.value.requiresPickup && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
+  if (pickupIncluded.value && !form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
   return result
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
-async function loadAccounts() {
-  loadingAccounts.value = true
-  try { accounts.value = (await operationsApi.crmAccounts(accountSearch.value)).items }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : 'No fue posible cargar cuentas CRM.' }
-  finally { loadingAccounts.value = false }
+
+function onCrmClientSelected(client: { kind?: 'account' | 'lead'; displayName: string; executiveName: string } | null) {
+  // Operations resolves the commercial executive using CRM /accounts/{id}, not leads.
+  // The shared Pricing selector lists prospects too; prevent a draft that the backend cannot accept.
+  if (client?.kind === 'lead') {
+    accountId.value = ''
+    selectedClientName.value = ''
+    executiveName.value = ''
+    error.value = 'Para aperturar el trámite, convierta primero el prospecto en una cuenta CRM.'
+    return
+  }
+  if (client) error.value = ''
+  selectedClientName.value = client?.displayName || ''
+  executiveName.value = client?.executiveName || ''
 }
+const pickupIncluded = computed(() => form.value.services.some(value =>
+  value === 'PICKUP' || (serviceChoices.value.find(x => x.value === value)?.label || '').toLocaleLowerCase().includes('recolecta')
+))
+const deliveryIncluded = computed(() => form.value.services.some(value =>
+  value === 'DELIVERY' || (serviceChoices.value.find(x => x.value === value)?.label || '').toLocaleLowerCase().includes('entrega')
+))
+watch(pickupIncluded, selected => { form.value.requiresPickup = selected })
+
+function countryFromRoute(group: 'pol' | 'pod', id: string, location: string): string {
+  const item = currentCatalog(group).find(x => x.id === id)
+    || currentCatalog(group).find(x => optionText(x).toLowerCase() === location.toLowerCase())
+  let meta: Record<string, unknown> = {}
+  try { if (item?.metadataJson) meta = JSON.parse(item.metadataJson) as Record<string, unknown> }
+  catch { /* Metadata is optional; fall back to the location label. */ }
+  const nested = meta.location && typeof meta.location === 'object'
+    ? meta.location as Record<string, unknown> : {}
+  for (const code of [meta.countryCode, meta.countryIso2, meta.isoCountryCode, meta.countryIso,
+    nested.countryCode, nested.countryIso2]) {
+    if (typeof code === 'string' && /^[A-Z]{2}$/i.test(code.trim())) return code.trim().toUpperCase()
+  }
+  const country = (location || item?.label || '').split(',').at(-1)?.trim() || ''
+  if (/^[A-Z]{2}$/i.test(country)) return country.toUpperCase()
+  if (!country) return ''
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  for (const locale of ['es','en']) {
+    const display = new Intl.DisplayNames([locale], { type: 'region' })
+    for (let a = 65; a < 91; a++) for (let b = 65; b < 91; b++) {
+      const code = String.fromCharCode(a,b)
+      if (normalize(display.of(code) || '') === normalize(country)) return code
+    }
+  }
+  return ''
+}
+watch(() => [selectedPol.value, form.value.pol, selectedPod.value, form.value.pod], () => {
+  if (restoringOpening) return
+  form.value.originCountryCode = countryFromRoute('pol', selectedPol.value, form.value.pol)
+  form.value.destinationCountryCode = countryFromRoute('pod', selectedPod.value, form.value.pod)
+})
+async function searchCabys() {
+  const query = form.value.cabysSearch.trim()
+  if (query.length < 3) { error.value = 'Escriba al menos 3 caracteres para buscar CABYS.'; return }
+  searchingCabys.value = true
+  error.value = ''
+  try {
+    const payload = await callEndpoint<unknown>({
+      method: 'GET',
+      path: '/api/pricing/cabys?q=' + encodeURIComponent(query) + '&top=20',
+      headers: { Accept: 'application/json' },
+    })
+    const root = payload as Record<string, unknown> | null
+    const entries = Array.isArray(payload) ? payload : Array.isArray(root?.cabys) ? root.cabys
+      : Array.isArray(root?.data) ? root.data : Array.isArray(root?.results) ? root.results
+      : root && (root.codigo || root.code) ? [root] : []
+    cabysResults.value = entries.map((row: unknown) => {
+      const item = row as Record<string, unknown>
+      return { code: String(item.codigo ?? item.code ?? item.cabys ?? ''),
+        description: String(item.descripcion ?? item.description ?? item.detalle ?? '') }
+    }).filter((item: {code:string;description:string}) => Boolean(item.code && item.description))
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo consultar CABYS de Hacienda.'
+  } finally { searchingCabys.value = false }
+}
+function chooseCabys(item: {code:string;description:string}) {
+  form.value.cabysCode = item.code
+  form.value.cargoDescription = item.description
+  cabysResults.value = []
+}
+async function uploadDocument(category: string, categoryLabel: string, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || uploadingSupport.value) return
+  uploadingSupport.value = category
+  error.value = ''
+  try {
+    if (!form.value.supportEntityId) form.value.supportEntityId = crypto.randomUUID()
+    const uploaded = await StorageService.uploadFile({
+      file, sourceService: 'DholeWeb', entityType: 'OperationsOpeningSupport',
+      entityId: form.value.supportEntityId,
+      metadataJson: JSON.stringify({ category, categoryLabel, caseId: editingId.value || null }),
+    })
+    form.value.supportDocuments.push({
+      id: uploaded.id, fileName: uploaded.originalFileName,
+      sizeInBytes: uploaded.sizeInBytes, category, categoryLabel,
+    })
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'No se pudo subir el documento.' }
+  finally { uploadingSupport.value = '' }
+}
+async function removeDocument(id: string) {
+  try {
+    await StorageService.deleteFile(id)
+    form.value.supportDocuments = form.value.supportDocuments.filter(x => x.id !== id)
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'No se pudo eliminar el documento.' }
+}
+function toggleHandling(value: 'Redestino' | 'Anticipado') {
+  form.value.portHandlingMode = form.value.portHandlingMode === value ? '' : value
+}
+
 async function loadContext() {
   try {
     companyId.value = (await operationsApi.createContext()).companyId || ''
@@ -307,17 +423,12 @@ async function save() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la apertura.'
   } finally { saving.value = false }
 }
-let accountTimer: ReturnType<typeof setTimeout> | undefined
-watch(accountSearch, () => {
-  clearTimeout(accountTimer)
-  accountTimer = setTimeout(() => { void loadAccounts() }, 250)
-})
 watch(selectedPol, id => { const label = lookupLabel('pol', id); if (label) form.value.pol = label })
 watch(selectedPoe, id => { const label = lookupLabel('poe', id); if (label) form.value.poe = label })
 watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form.value.pod = label })
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
-  await Promise.all([loadContext(), loadAccounts(), loadPricingCatalogs()])
+  await Promise.all([loadContext(), loadPricingCatalogs()])
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -352,7 +463,6 @@ onMounted(async () => {
     } finally { restoringOpening = false }
   }
 })
-onUnmounted(() => { clearTimeout(accountTimer) })
 </script>
 
 <template>
@@ -410,11 +520,8 @@ onUnmounted(() => { clearTimeout(accountTimer) })
     <section class="overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
       <header class="flex flex-wrap items-center gap-3 rounded-t-[26px] border-b border-[var(--dh-border)] p-5 sm:p-6">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]">
-          <Ship v-if="activeStep === 1" class="h-5 w-5" />
-          <Layers3 v-else-if="activeStep === 2" class="h-5 w-5" />
-          <Route v-else-if="activeStep === 3" class="h-5 w-5" />
-          <Package v-else-if="activeStep === 4" class="h-5 w-5" />
-          <Truck v-else-if="activeStep === 5" class="h-5 w-5" />
+          <Route v-if="activeStep === 1" class="h-5 w-5" />
+          <Package v-else-if="activeStep === 2" class="h-5 w-5" />
           <ClipboardCheck v-else class="h-5 w-5" />
         </span>
         <div class="min-w-0">
@@ -422,63 +529,28 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           <h3 class="mt-0.5 text-lg font-black tracking-tight">{{ activeStepMeta.label }}</h3>
           <p class="text-xs font-medium text-[var(--dh-text-muted)]">{{ activeStepMeta.hint }}</p>
         </div>
-        <DhBadge v-if="activeStep === 6" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
+        <DhBadge v-if="activeStep === 3" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
       </header>
 
       <div class="p-4 sm:p-6">
-        <div v-show="activeStep === 1" class="space-y-6">
-          <div>
-            <h4 class="text-xl font-black">Seleccione la modalidad</h4>
-            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Utiliza las mismas modalidades de Crear tarifas. Los servicios y datos operativos se configuran en los siguientes pasos.</p>
-          </div>
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <button v-for="option in transportSelectionOptions" :key="option.value" type="button"
-              class="group relative flex min-h-[158px] flex-col items-start rounded-[22px] border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-              :class="form.transportType === option.value
-                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)] text-[var(--dh-text)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)]/70 hover:border-[var(--dh-primary)]'"
-              :aria-pressed="form.transportType === option.value" @click="selectTransport(option.value)">
-              <span class="grid h-11 w-11 place-items-center rounded-xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]"><component :is="option.icon" class="h-6 w-6" /></span>
-              <span class="mt-5 text-base font-black">{{ option.label }}</span>
-              <span class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ option.caption }}</span>
-              <Check v-if="form.transportType === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
-            </button>
-          </div>
+        <div v-show="activeStep === 1" class="grid gap-4 md:grid-cols-2">
+          <DhSelect :model-value="form.transportType" label="Modalidad de transporte" :options="transportSelectionOptions.map(x => ({label:x.label,value:x.value}))" @update:model-value="selectTransport(String($event))" />
+          <DhSelect :model-value="effectiveShipment" label="Tipo de embarque" :options="shipmentOptions" :disabled="!form.transportType" @update:model-value="selectShipment(String($event))" />
         </div>
 
-        <div v-show="activeStep === 2" class="space-y-6">
-          <div>
-            <h4 class="text-xl font-black">Tipo de embarque</h4>
-            <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Solo aparecen opciones compatibles con el transporte seleccionado. No se solicita una tarifa para abrir el trámite.</p>
-          </div>
-          <p v-if="!form.transportType" role="status" class="rounded-xl border border-amber-500/30 p-4 text-sm text-amber-500">
-            Primero seleccione la modalidad de transporte en el paso anterior.
-          </p>
-          <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <button v-for="option in shipmentOptions" :key="option.value" type="button"
-              class="relative min-h-[125px] rounded-[22px] border p-5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-              :class="effectiveShipment === option.value
-                ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]'
-                : 'border-[var(--dh-border)] bg-[var(--dh-input)]/70 hover:border-[var(--dh-primary)]'"
-              :aria-pressed="effectiveShipment === option.value" @click="selectShipment(option.value)">
-              <span class="text-base font-black">{{ option.label }}</span>
-              <Check v-if="effectiveShipment === option.value" class="absolute right-4 top-4 h-4 w-4 text-[var(--dh-primary)]" />
-            </button>
-          </div>
-        </div>
-
-        <div v-show="activeStep === 3" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
               <h4 class="text-sm font-black">Cuenta y responsable comercial</h4>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El cliente y el ejecutivo se obtienen de CRM; nunca debes introducir un UUID o IDTRA.</p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
-              <div class="space-y-2 md:col-span-2">
-                <label class="text-xs font-black uppercase tracking-wide text-[var(--dh-text-muted)]">Buscar cliente en CRM</label>
-                <DhSearchInput v-model="accountSearch" placeholder="Escribe el nombre o la cédula del cliente…" />
-                <DhSelect v-model="accountId" label="Cliente" :options="accountOptions" :disabled="loadingAccounts || Boolean(editingId)" />
-                <p v-if="editingId" class="text-xs text-[var(--dh-text-muted)]">No se cambia el cliente propietario durante la edición de una apertura.</p>
+              <div class="space-y-3 md:col-span-2">
+                <PricingCrmClientSelect v-model="accountId" mode="create" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
+                <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                  <p class="text-xs font-black uppercase">Ejecutivo comercial (asignado en CRM)</p>
+                  <p class="text-sm">{{ executiveName || 'Se obtiene de CRM al seleccionar el cliente' }}</p>
+                </div>
               </div>
               <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <DhInput v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
@@ -486,18 +558,12 @@ onUnmounted(() => { clearTimeout(accountTimer) })
               <DhInput v-model="form.contactReferences" label="Contactos de notificación" placeholder="Referencias de contactos de CRM" />
             </div>
           </div>
-          <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
-            <p class="text-xs font-black text-[var(--dh-text)]">Identificador del trámite</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">PostgreSQL asignará el siguiente consecutivo global al guardar. Formato: IDTRA12345, IDTRA100000 y sucesivos. La serie nunca es editable.</p>
-          </div>
         </div>
 
-        <div v-show="activeStep === 3" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-5">
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
             <DhInput v-model="form.cargoNature" label="Naturaleza de la carga" placeholder="Carga general, perecedera…" />
-            <DhInput v-model="form.originCountryCode" label="País de origen (ISO)" placeholder="CN" />
-            <DhInput v-model="form.destinationCountryCode" label="País destino (ISO)" placeholder="CR" />
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -528,7 +594,57 @@ onUnmounted(() => { clearTimeout(accountTimer) })
           </div>
         </div>
 
-        <div v-show="activeStep === 4" class="space-y-5">
+        <div v-show="activeStep === 1" class="space-y-5">
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
+            <div class="mb-4"><h4 class="text-sm font-black">Servicios contratados</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Mismo multiselector de servicios utilizado por Pricing. Esto documenta la operación: no crea ni cambia cargos comerciales.</p></div>
+            <PricingCrystalMultiSelect v-model="form.services" label="Servicios" placeholder="Seleccionar servicios" search-placeholder="Buscar servicio..." :options="serviceChoices" />
+          </div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
+              <p class="text-xs font-black">Recolecta (según servicios contratados)</p>
+              <template v-if="pickupIncluded">
+                <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
+                <DhInput v-model="form.pickupContact" label="Contacto en origen" />
+                <DhInput v-model="form.pickupWindow" label="Ventana u horario de recolecta" />
+              </template>
+              <DhInput v-if="deliveryIncluded" v-model="form.destinationAddress" label="Dirección de entrega final" />
+            </div>
+            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
+              <PricingLocationSearchSelect
+                v-if="warehouseOptions.length && (requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment))"
+                v-model="selectedWarehouse" label="WHS"
+                placeholder="Seleccionar WHS" search-placeholder="Buscar bodega o ciudad…"
+                :options="warehouseOptions" terminal-type="WHS"
+              />
+              <DhInput v-if="requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment)" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
+              <DhSelect v-if="agentChoices.length" v-model="form.agentReference" label="Agente de origen" :options="asChoices('agents', form.agentReference)" />
+              <DhInput v-else v-model="form.agentReference" label="Agente / oficina de origen" />
+              <DhSelect v-if="isMaritime && carrierChoices.length" v-model="form.carrierReference" label="Naviera" :options="asChoices('carriers', form.carrierReference)" />
+              <DhInput v-else-if="isMaritime" v-model="form.carrierReference" label="Naviera / proveedor" />
+              <DhInput v-if="isMaritime" v-model="form.merchantReference" label="Merchant / referencia" />
+            </div>
+          </div>
+          <DhTextarea v-model="form.observations" label="Observaciones e instrucciones operativas" :rows="4" />
+        </div>
+
+        <div v-show="activeStep === 2" class="space-y-5">
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+            <h4 class="text-sm font-black">Descripción de carga y CABYS</h4>
+            <div class="flex flex-wrap items-end gap-3">
+              <div class="min-w-[180px] flex-1">
+                <DhInput v-model="form.cabysSearch" label="Buscar CABYS de Hacienda" placeholder="Ej. repuestos, textiles, maquinaria…" @keyup.enter="searchCabys" />
+              </div>
+              <DhButton :icon="Search" label="Buscar" :loading="searchingCabys" @click="searchCabys" />
+            </div>
+            <div v-if="cabysResults.length" class="max-h-52 overflow-auto rounded-xl border border-[var(--dh-border)]">
+              <button v-for="item in cabysResults" :key="item.code" type="button"
+                class="flex w-full gap-3 border-b border-[var(--dh-border)] p-3 text-left text-sm hover:bg-[var(--dh-card-hover)]" @click="chooseCabys(item)">
+                <span class="font-mono font-black">{{ item.code }}</span>
+                <span>{{ item.description }}</span>
+              </button>
+            </div>
+            <p v-if="form.cabysCode" class="text-xs font-black">CABYS seleccionado: {{ form.cabysCode }}</p>
+          </div>
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
@@ -543,10 +659,24 @@ onUnmounted(() => { clearTimeout(accountTimer) })
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <DhCheckbox v-model="form.isImo" label="Mercancía peligrosa / IMO" />
-              <DhCheckbox v-model="form.stackable" label="Carga estibable" />
-              <DhCheckbox v-model="form.overweight" label="Requiere gestión de sobrepeso" />
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"><Check v-if="form.isImo" class="mr-1 inline h-4 w-4" />IMO / Peligrosa</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"><Check v-if="form.stackable" class="mr-1 inline h-4 w-4" />Estibable</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"><Check v-if="form.overweight" class="mr-1 inline h-4 w-4" />Sobrepeso</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.portHandlingMode === 'Redestino'" @click="toggleHandling('Redestino')"><Check v-if="form.portHandlingMode === 'Redestino'" class="mr-1 inline h-4 w-4" />Redestino</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.portHandlingMode === 'Anticipado'" @click="toggleHandling('Anticipado')"><Check v-if="form.portHandlingMode === 'Anticipado'" class="mr-1 inline h-4 w-4" />Anticipado</button>
+            </div>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
               <DhInput v-if="form.isImo" v-model="form.imoClass" label="Clase IMO" />
               <DhInput v-if="form.isImo" v-model="form.unNumber" label="Número UN" />
               <DhInput v-if="form.overweight" v-model="form.overweightNotes" label="Requerimientos por sobrepeso" />
@@ -572,47 +702,25 @@ onUnmounted(() => { clearTimeout(accountTimer) })
               <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
             </div>
           </div>
-        </div>
-
-        <div v-show="activeStep === 5" class="space-y-5">
-          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
-            <div class="mb-4"><h4 class="text-sm font-black">Servicios contratados</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Mismo multiselector de servicios utilizado por Pricing. Esto documenta la operación: no crea ni cambia cargos comerciales.</p></div>
-            <PricingCrystalMultiSelect v-model="form.services" label="Servicios" placeholder="Seleccionar servicios" search-placeholder="Buscar servicio..." :options="serviceChoices" />
-          </div>
-          <div class="grid gap-4 lg:grid-cols-2">
-            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
-              <DhCheckbox v-model="form.requiresPickup" label="Requiere recolecta" />
-              <template v-if="form.requiresPickup">
-                <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
-                <DhInput v-model="form.pickupContact" label="Contacto en origen" />
-                <DhInput v-model="form.pickupWindow" label="Ventana u horario de recolecta" />
-              </template>
-              <DhInput v-model="form.destinationAddress" label="Dirección de entrega final" />
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+            <h4 class="text-sm font-black">Documentos de respaldo</h4>
+            <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <label v-for="category in supportCategories" :key="category.key" class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] p-3 text-xs font-black hover:border-[var(--dh-primary)]">
+                <FileUp class="h-4 w-4" />{{ uploadingSupport === category.key ? 'Subiendo…' : category.label }}
+                <input class="hidden" type="file" :accept="supportAccept" :disabled="Boolean(uploadingSupport)" @change="uploadDocument(category.key, category.label, $event)" />
+              </label>
             </div>
-            <div class="space-y-4 rounded-[22px] border border-[var(--dh-border)] p-4 sm:p-5">
-              <PricingLocationSearchSelect
-                v-if="warehouseOptions.length && (requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment))"
-                v-model="selectedWarehouse" label="WHS"
-                placeholder="Seleccionar WHS" search-placeholder="Buscar bodega o ciudad…"
-                :options="warehouseOptions" terminal-type="WHS"
-              />
-              <DhInput v-if="requiresWarehouse || ['LCL','LTL'].includes(effectiveShipment)" v-model="form.whsName" label="Nombre WHS / referencia registrada" />
-              <DhSelect v-if="agentChoices.length" v-model="form.agentReference" label="Agente de origen" :options="asChoices('agents', form.agentReference)" />
-              <DhInput v-else v-model="form.agentReference" label="Agente / oficina de origen" />
-              <DhSelect v-if="isMaritime && carrierChoices.length" v-model="form.carrierReference" label="Naviera" :options="asChoices('carriers', form.carrierReference)" />
-              <DhInput v-else-if="isMaritime" v-model="form.carrierReference" label="Naviera / proveedor" />
-              <DhInput v-if="isMaritime" v-model="form.merchantReference" label="Merchant / referencia" />
+            <div v-if="form.supportDocuments.length" class="grid gap-2 md:grid-cols-2">
+              <div v-for="document in form.supportDocuments" :key="document.id" class="flex items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+                <div class="min-w-0"><p class="font-black">{{ document.categoryLabel }}</p><p class="truncate text-[var(--dh-text-muted)]">{{ document.fileName }}</p></div>
+                <button type="button" class="font-black text-red-500" @click="removeDocument(document.id)">Eliminar</button>
+              </div>
             </div>
           </div>
-          <div class="grid gap-4 md:grid-cols-2">
-            <DhInput :model-value="priority" label="Prioridad (1–5)" type="number" :min="1" :max="5" :step="1" @update:model-value="priority = Number($event)" />
-            <DhInput :model-value="complexity" label="Puntos de complejidad" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="complexity = Number($event)" />
-          </div>
-          <DhTextarea v-model="form.observations" label="Observaciones e instrucciones operativas" :rows="4" />
-          <DhCheckbox v-model="form.commercialReviewRequested" label="Solicitar revisión comercial en Pricing (requiere integración)" />
         </div>
 
-        <div v-show="activeStep === 6" class="space-y-5">
+        <div v-show="activeStep === 3" class="space-y-5">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div><h4 class="text-base font-black">Resumen del expediente</h4><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Verifica los datos antes de guardar. El IDTRA se asignará automáticamente.</p></div>
             <DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? 'Borrador incompleto' : 'Listo para validación' }}</DhBadge>

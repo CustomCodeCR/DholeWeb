@@ -1,3 +1,11 @@
+## [1.113.0] - 2026-11-22 · DH-20261122-OPERATIONS-UX-403 (DholeWeb / DholeSystem · aperturas manuales)
+
+- MINOR: apertura manual de Trámites pasa de 6 a 3 etapas (cliente/ruta/servicios, carga/documentación y revisión) sin perder modalidad ni embarque requeridos por Operations.
+- Reutiliza PricingCrmClientSelect para clientes y ejecutivo CRM, CABYS de Hacienda, botones IMO/estibable/sobrepeso/muellaje Anticipado/Redestino y carga de respaldos en Storage.
+- Países de origen y destino derivan de los metadatos de ruta; se oculta el aviso técnico IDTRA. Se retiran controles de prioridad, complejidad y revisión comercial todavía no integrada del formulario visible.
+- Mantiene IDTRA en el backend, guardado de borradores, compatibilidad REST y SignalR existentes. DholeOperationsService 0.15.1 no cambia su contrato.
+- CI, verificación funcional y staging son obligatorios antes de integrar a master; no se autoriza despliegue a producción.
+
 ## [1.112.1] - 2026-11-22 · DH-20261122-PRICING-OPERATIONS-STEPPER-402 (Pricing · UI de creación con componente de Operations)
 
 - PATCH: Crear/editar tarifa usa el encabezado operativo con icono, estado y avance, y reutiliza PricingWizardStepper con las 8 etapas existentes (9 en solo lectura), sin modificar el flujo de costos, servicios ni QUO.
