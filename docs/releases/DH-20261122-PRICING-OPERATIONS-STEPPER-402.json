@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "component": "DholeWeb",
+  "releaseId": "DH-20261122-PRICING-OPERATIONS-STEPPER-402",
+  "releaseType": "PATCH",
+  "ecosystemVersion": "1.112.1",
+  "targetBranches": [
+    "develop",
+    "master"
+  ],
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.112.0",
+      "version": "1.112.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeOperationsService",
+      "previousVersion": "0.15.1",
+      "version": "0.15.1",
+      "changed": false
+    },
+    {
+      "repository": "CustomCodeCR/DholePricingService",
+      "previousVersion": "1.26.24",
+      "version": "1.26.24",
+      "changed": false
+    }
+  ],
+  "changes": [
+    "Encabezado y avance tipo Aperturas en Crear tarifa",
+    "PricingWizardStepper compartido para 8/9 etapas",
+    "Borradores múltiples, descartar y autoguardado conservados",
+    "Guard de motivo de edición conservado"
+  ],
+  "validation": {
+    "sourceRegression": "included",
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "productionDeploymentAuthorized": false,
+  "branch": "release/DH-402-pricing-opening-ui-master"
+}

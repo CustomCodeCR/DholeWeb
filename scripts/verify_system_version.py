@@ -12,11 +12,11 @@ from urllib.request import Request, urlopen
 
 
 def github_headers():
-    headers = {"Accept": "application/vnd.github+json", "User-Agent": "Dhole-Version-Gate"}
-    token = os.environ.get("GITHUB_TOKEN", "").strip()
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    return headers
+    # The Web workflow token has no cross-repository read permissions.
+    # System is public: query that exact repository without the Web token.
+    # Version, release ID, branch and manifest equality checks stay mandatory.
+    return {"Accept": "application/vnd.github+json", "User-Agent": "Dhole-Version-Gate",
+            "Cache-Control": "no-cache"}
 
 
 def main():
