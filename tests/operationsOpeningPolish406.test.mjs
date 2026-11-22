@@ -19,21 +19,21 @@ test('operations auto-saves local recovery without premature IDTRA creation', ()
 test('new manual cases are created and assigned using the existing team validation pool', () => {
   assert.match(opening, /Crear y asignar a equipo/)
   assert.match(opening, /operationsApi\.createAperture\(/)
-  assert.match(opening, /operationsApi\.assign\(result\.id\)/)
+  assert.match(opening, /operationsApi\.assign\(result\.id, assignedTeamId\.value\)/)
   assert.match(opening, /assignmentPendingId\.value = result\.id/)
   assert.match(opening, /assignmentPendingId\.value\s*\? \{ id: assignmentPendingId\.value \}/)
   assert.match(operationsApi, /aperture-validations\/assign/)
   assert.match(opening, /blockers\.value\.length > 0/)
 })
 
-test('container and trailer cards reuse Pricing selections, exclude duplicates and capture per-equipment weight', () => {
+test('container and trailer cards reuse Pricing selections, exclude duplicates and defer weight to origin', () => {
   assert.match(opening, /Distribución de contenedores FCL/)
   assert.match(opening, /Distribución de furgones FTL/)
   assert.match(opening, /<PricingContainerSelector/)
   assert.match(opening, /:excluded-equipment-ids="form\.equipment\.filter/)
   assert.match(opening, /uniqueEquipment\.value/)
   assert.match(opening, /Math\.max\(1, Math\.floor\(Number\(\$event\)/)
-  assert.match(opening, /weightKg: Math\.max\(0, Number\(item\.weightKg\)/)
+  assert.doesNotMatch(opening, /label="Peso \(kg\)"/)
   assert.match(pricingEquipment, /excludedEquipmentIds/)
 })
 
@@ -56,6 +56,6 @@ test('active operational contacts are selected by default but can be deselected'
 test('opening review excludes later origin coordination legend and uses compact summary', () => {
   assert.doesNotMatch(opening, /Datos operativos que pueden confirmarse después/)
   assert.doesNotMatch(opening, /Naviera y booking, si aplica/)
-  assert.match(opening, /filter\(field => field\.value !== 'Pendiente'\)/)
-  assert.match(opening, /Listo para crear y asignar/)
+  assert.match(opening, /Ruta e itinerario/)
+  assert.match(opening, /Equipo de Aperturas/)
 })
