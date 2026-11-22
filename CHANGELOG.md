@@ -1,3 +1,9 @@
+## [1.116.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-EMAIL-409
+
+- PATCH: la ventana «Devolver tarifa» identifica la solicitud mediante cliente y ruta sin mostrar el UUID. El identificador permanece exclusivamente en URLs internas y metadatos de integración.
+- DholePricingService entrega correo HTML formateado para Outlook, sin UUID visible, con motivo y llamada a la acción para corregir y reenviar la misma solicitud. El backend pasa 1.26.25 → 1.26.26; DholeWeb y DholeSystem 1.116.0 → 1.116.1.
+- Mantiene validación de motivo, bitácora y flujo Return/Open, SignalR, Redis Outbox/Inbox y contratos REST existentes. Gates CI y staging obligatorios antes de producción.
+
 ## [1.116.0] - 2026-11-22 · DH-20261122-OPERATIONS-ASSIGNMENT-SUMMARY-408
 
 - MINOR: selección explícita de equipo de Aperturas antes de crear un IDTRA manual, usando el catálogo propio de Operations; valida mínimo de dos usuarios disponibles, conserva el equipo en autoguardado y permite reintentos idempotentes sin duplicar expedientes.

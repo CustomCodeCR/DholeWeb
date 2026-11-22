@@ -32,3 +32,8 @@ test('Seller can inspect audit history and Pricing dialog uses an opaque surface
   assert.match(seller, /Historial de devoluciones/)
   assert.match(panel, /dark:bg-\[#14211d\]/)
 })
+
+test('Return dialog does not display the internal request UUID', () => {
+  assert.doesNotMatch(panel, /Solicitud \{\{ returnTarget\.id \}\}/)
+  assert.match(panel, /Devolver tarifa/)
+})
