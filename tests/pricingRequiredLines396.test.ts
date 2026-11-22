@@ -102,7 +102,9 @@ test('DH-396 Vite patch actually wires P7 rebuild and pre-save, not just a watch
     '}',
     'function saveRate() {',
     '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()',
     '}',
+    'function isAutomaticOutsideIncoterm(line: RateLine) { return true }',
     'function quoteEditApplyDelta387() {}',
     'function syncPanamaOverweightLines() {}',
     'function syncOwnLclCrcAgencyLine() {}',
@@ -116,5 +118,7 @@ test('DH-396 Vite patch actually wires P7 rebuild and pre-save, not just a watch
   assert.match(code, /ensureMiamiPlanVgm396\(rateLines.value, item.sale/)
   assert.match(code, /ensureIndependentRoadFreight396\(rateLines.value, true/)
   assert.match(code, /isRealRoadFreight396\(line\)/)
+  assert.match(code, /normalizeCatalogValue\(line.name\) === "vgm"\) return false/)
+  assert.match(code, /\(hasInternationalTransportService.value \|\| number\(form.freightCost\) > 0\)/)
   assert.equal(patchPricingP7Reconcile391(code), code)
 })

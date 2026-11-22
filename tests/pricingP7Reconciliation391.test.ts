@@ -110,7 +110,9 @@ test('DH-391: final wizard transform enforces dynamic P7 and protects saved pric
     '}',
     'function saveRate() {',
     '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '  if (!editingRate.value) applyIncotermAutomaticChargeGuard()',
     '}',
+    'function isAutomaticOutsideIncoterm(line: RateLine) { return true }',
     'function quoteEditApplyDelta387() {}',
     'function syncPanamaOverweightLines() {}',
     'function syncOwnLclCrcAgencyLine() {}',
@@ -127,6 +129,7 @@ test('DH-391: final wizard transform enforces dynamic P7 and protects saved pric
   assert.match(result, /p7FreightTitle391\(line\)/)
   assert.match(result, /if \(step.value === 7\) p7PresentOrReconcile391\(\)/)
   assert.match(result, /if \(!props.rateId\) p7PresentOrReconcile391\(true\)/)
+  assert.match(result, /normalizeCatalogValue\(line.name\) === "vgm"\) return false/)
   assert.match(result, /ensureMiamiPlanVgm396/)
   assert.match(result, /ensureIndependentRoadFreight396/)
   assert.equal(patchPricingP7Reconcile391(result), result)
