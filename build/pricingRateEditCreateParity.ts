@@ -77,11 +77,12 @@ function patchWizard(source: string) {
     'edit reason gate UI',
   )
 
-  if (code.includes('    <PricingWizardStepper\\n'.replace('\\n', '\n'))) {
+  const sharedStepperAnchor = `    <PricingWizardStepper\n`
+  if (code.includes(sharedStepperAnchor)) {
     code = replaceOne(
       code,
-      '    <PricingWizardStepper\\n'.replace('\\n', '\n'),
-      '    <PricingWizardStepper\\n      v-if="!isEditing || viewOnly || editReasonConfirmed"\\n'.replaceAll('\\n', '\n'),
+      sharedStepperAnchor,
+      `    <PricingWizardStepper\n      v-if="!isEditing || viewOnly || editReasonConfirmed"\n`,
       'edit reason shared stepper gate',
     )
   } else {
