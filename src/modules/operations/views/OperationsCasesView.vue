@@ -21,6 +21,7 @@ const selected = ref<OperationsCaseDetail | null>(null)
 const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
 const selectedCaseId = computed(() => selected.value?.id || '')
 const clientName = ref('')
+const clientExecutiveName = ref('')
 const opening = computed<Record<string, unknown>>(() => {
   try {
     const value: unknown = JSON.parse(selected.value?.openingDataJson || '{}')
@@ -133,6 +134,7 @@ async function openCase(id: string) {
   loadingDetail.value = true
   detailError.value = ''
   clientName.value = ''
+  clientExecutiveName.value = ''
   selectedWorkspace.value = null
   selected.value = null
   try {
@@ -146,10 +148,21 @@ async function openCase(id: string) {
       const account = await crmRequest<Record<string, unknown>>(crmPath('accounts', detail.accountId))
       if (sequence === detailSequence) {
         clientName.value = String(account.displayName ?? account.name ?? account.legalName ?? '')
+        clientExecutiveName.value = String(account.executiveName ?? '').trim()
         if (clientName.value && !crmOptions.value.some(x => x.id === detail.accountId))
           crmOptions.value.push({ id: detail.accountId, displayName: clientName.value })
       }
     } catch { /* CRM may be outside this user's scopes; never block the IDTRA. */ }
+    if (!clientExecutiveName.value && detail.executiveUserId) {
+      try {
+        const users = await crmRequest<{ owners?: Record<string, string> }>(
+          crmPath('calendar/labels') + '?' +
+          new URLSearchParams({ ownerIds: detail.executiveUserId }))
+        if (sequence === detailSequence) {
+          clientExecutiveName.value = users.owners?.[detail.executiveUserId]?.trim() || ''
+        }
+      } catch { /* CRM labels optional; historical responsibility persists. */ }
+    }
   } catch (cause) {
     if (sequence === detailSequence)
       detailError.value = cause instanceof Error ? cause.message : 'No se pudo cargar el expediente.'
@@ -274,7 +287,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <p class="break-words text-base font-black">{{ clientName || 'Cuenta de CRM' }}</p>
           <RouterLink :to="'/crm/accounts/' + selected.accountId" class="mt-1 inline-block text-xs font-semibold text-[var(--dh-primary)] hover:underline">Consultar cliente</RouterLink>
           <div class="mt-3 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
-            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Ejecutivo comercial</p><p class="mt-1 text-sm font-semibold">{{ openingText('executiveName') || (selected.executiveUserId ? 'Responsable asignado en CRM' : 'Pendiente') }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Ejecutivo comercial</p><p class="mt-1 text-sm font-semibold">{{ clientExecutiveName || openingText('executiveName') || (selected.executiveUserId ? 'Responsable asignado en CRM' : 'Pendiente') }}</p></div>
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Cotización vinculada</p>
               <RouterLink v-if="selected.sourceQuoteId" :to="'/pricing/rates/' + selected.sourceQuoteId + '/wizard?mode=view'" class="mt-1 inline-block text-sm font-bold text-[var(--dh-primary)]">Abrir QUO</RouterLink>
               <p v-else class="mt-1 text-sm font-semibold">SIN_QUO</p></div>
