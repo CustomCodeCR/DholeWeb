@@ -1,3 +1,11 @@
+## [1.113.1] - 2026-11-22 · DH-20261122-OPERATIONS-NO-SERVICES-404 (DholeWeb / DholeSystem · apertura manual)
+
+- PATCH: se retira por completo la antigua pantalla de Servicios en la apertura manual, incluido el multiselector de servicios, recolecta, entrega, agente, naviera, merchant y las instrucciones operativas de esa pantalla.
+- Paso 1 se titula Cliente y ruta; se conservan Carga y documentos y Revisión sin modificar el flujo de borrador, generación IDTRA, CABYS ni Storage.
+- El WHS requerido por FCA LCL/LTL aparece ahora en la ruta para cumplir el contrato vigente del backend sin restaurar la pantalla de servicios.
+- Compatibilidad: la apertura mantiene su contrato REST y propiedades históricas opcionales en edición; prioridad y complejidad permanecen como valores internos requeridos por Operations, no como controles del usuario.
+- DholeWeb y DholeSystem 1.113.0 → 1.113.1; restantes 15 componentes sin cambio. Validar compilación, pruebas y staging antes de promover master. Despliegue de producción no autorizado.
+
 ## [1.113.0] - 2026-11-22 · DH-20261122-OPERATIONS-UX-403 (DholeWeb / DholeSystem · aperturas manuales)
 
 - MINOR: apertura manual de Trámites pasa de 6 a 3 etapas (cliente/ruta/servicios, carga/documentación y revisión) sin perder modalidad ni embarque requeridos por Operations.
