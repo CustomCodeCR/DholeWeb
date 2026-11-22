@@ -10,6 +10,9 @@ import { LTL_PANAMA_REQUIRED_KINDS, ltlPanamaCostKind } from './ltlPanamaOwnCost
 export interface P7CostRoute391 {
   originIds: string[]
   destinationIds: string[]
+  /** Commercial POL / POE names. Config keeps separate IDs for POL and POE groups. */
+  originNames?: string[]
+  destinationNames?: string[]
   incotermId: string | null
   agentId: string | null
   serviceIds: string[]
@@ -25,13 +28,21 @@ export function isPanamaCostaRicaRoute391(origin: unknown, destination: unknown)
   return /\b(panama|balboa|colon|cristobal|cfz|zlc|manzanillo|rodman)\b/.test(a)
     && /\b(costa rica|san jose|caldera|moin|limon|cartago|alajuela|heredia|coyol)\b/.test(b)
 }
-function allowedRelation(cost: CostSelectDto, relation: 'poes' | 'pods', candidates: string[]) {
+function allowedRelation(cost: CostSelectDto, relation: 'poes' | 'pods', candidates: string[], names: string[] = []) {
   const entries = cost[relation] ?? []
   const selected = candidates.map(String).filter(Boolean)
-  if (!selected.length) return false  // no cross-route catalog fallback
+  const portNames = names.map(normal).filter(Boolean)
+  if (!selected.length && !portNames.length) return false
   const ids = entries.length ? entries.map(x => String(x.id)) :
     [relation === 'poes' ? cost.poeId : cost.podId].filter(Boolean).map(String)
-  return !ids.length || ids.some(id => selected.includes(id))
+  if (!ids.length) return true
+  if (ids.some(id => selected.includes(id))) return true
+  // A commercial CFZ POL and its corresponding physical POE have distinct
+  // Config IDs. The exact normalized port name is a safe cross-group match;
+  // never accept an unrelated Panama port just because the country matches.
+  const related = entries.length ? entries.map(x => x.name) :
+    [relation === 'poes' ? cost.poeName : cost.podName]
+  return related.some(name => portNames.includes(normal(name)))
 }
 function relevant(cost: CostSelectDto, route: P7CostRoute391, mode: 'Ltl' | 'Fcl', landLeg = false) {
   if (cost.isActive === false) return false
@@ -47,8 +58,8 @@ function relevant(cost: CostSelectDto, route: P7CostRoute391, mode: 'Ltl' | 'Fcl
   if (cost.services?.length && !cost.services.some(i => route.serviceIds.includes(i.id))) return false
   if ((cost.agentId || cost.agents?.length) &&
     !(cost.agents?.some(i => i.id === route.agentId) || cost.agentId === route.agentId)) return false
-  if (!allowedRelation(cost, 'poes', route.originIds) ||
-      !allowedRelation(cost, 'pods', route.destinationIds)) return false
+  if (!allowedRelation(cost, 'poes', route.originIds, route.originNames) ||
+      !allowedRelation(cost, 'pods', route.destinationIds, route.destinationNames)) return false
   return true
 }
 
