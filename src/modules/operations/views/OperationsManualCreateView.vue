@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch, onUnmounted } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Ship, Plane, Check, Truck, Layers3 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhCard, DhSearchInput } from '@/shared/components/molecules'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { operationsApi, type CrmAccountOption } from '../services/operationsApi'
+import { operationsApi } from '../services/operationsApi'
+import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
+import { callEndpoint } from '@/core/api/callEndpoint'
+import { StorageService } from '@/core/services/storageService'
 import PricingCrystalMultiSelect from '@/modules/pricing/components/PricingCrystalMultiSelect.vue'
 import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLocationSearchSelect.vue'
 import PricingWizardStepper from '@/modules/pricing/components/PricingWizardStepper.vue'
@@ -24,21 +27,17 @@ const companyId = ref('')
 const canInitialize = computed(() => auth.hasScope('operations.team.manage'))
 const initializing = ref(false)
 const accountId = ref('')
-const accountSearch = ref('')
-const accounts = ref<CrmAccountOption[]>([])
-const loadingAccounts = ref(false)
+const selectedClientName = ref('')
+const executiveName = ref('')
 const modality = ref('')
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
 const activeStep = ref(1)
 const wizardSteps = [
-  { id: 1, label: 'Modalidad', hint: 'Marítimo, aéreo, terrestre o multimodal' },
-  { id: 2, label: 'Embarque', hint: 'FCL, LCL, FTL, LTL y carga aérea' },
-  { id: 3, label: 'Cliente y ruta', hint: 'Cuenta CRM, Incoterm y terminales' },
-  { id: 4, label: 'Carga', hint: 'Mercancía, pesos y equipos' },
-  { id: 5, label: 'Servicios', hint: 'Recolecta, entrega y coordinación' },
-  { id: 6, label: 'Revisión', hint: 'Resumen y guardado del borrador' },
+  { id: 1, label: 'Cliente, ruta y servicios', hint: 'Cliente CRM, transporte, Incoterm y servicios' },
+  { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
+  { id: 3, label: 'Revisión', hint: 'Resumen y guardado de la apertura' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
@@ -113,12 +112,15 @@ function goToStep(target: number) {
 }
 const fieldTitle = (label: string, value: unknown) => ({ label, value: value == null || value === '' ? 'Pendiente' : String(value) })
 const summaryFields = computed(() => [
-  fieldTitle('Cliente', accounts.value.find(x => x.id === accountId.value)?.displayName || accountId.value),
+  fieldTitle('Cliente', selectedClientName.value || accountId.value),
   fieldTitle('Modalidad', modality.value), fieldTitle('Transporte', form.value.transportType),
   fieldTitle('Tipo de embarque', form.value.shipmentType),
   fieldTitle('Incoterm', form.value.incoterm), fieldTitle('Origen / POL', form.value.pol),
   fieldTitle('Salida / POE', form.value.poe), fieldTitle('Destino / POD', form.value.pod),
   fieldTitle('Mercancía', form.value.cargoDescription),
+  fieldTitle('CABYS', form.value.cabysCode),
+  fieldTitle('Muellaje', form.value.portHandlingMode),
+  fieldTitle('Documentos', form.value.supportDocuments.length),
   fieldTitle('Bultos', form.value.packageCount),
   fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
   fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
@@ -142,7 +144,18 @@ const form = ref({
   contactReferences: '', commercialReviewRequested: false,
   equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number }>,
   originCountryCode: '', destinationCountryCode: '',
+  cabysSearch: '', cabysCode: '', portHandlingMode: '',
+  supportEntityId: '',
+  supportDocuments: [] as Array<{ id: string; fileName: string; category: string; categoryLabel: string; sizeInBytes: number }>,
 })
+const cabysResults = ref<Array<{ code: string; description: string }>>([])
+const searchingCabys = ref(false)
+const uploadingSupport = ref('')
+const supportCategories = [
+  {key:'OC',label:'OC / Detalle de la carga'}, {key:'PL',label:'Packing List (PL)'},
+  {key:'INVOICE',label:'Invoice'}, {key:'MSDS',label:'MSDS / Ficha técnica'},
+]
+const supportAccept = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp'
 const modalOptions = [
   { label: 'FCL', value: 'FCL' }, { label: 'LCL', value: 'LCL' },
   { label: 'FTL', value: 'FTL' }, { label: 'LTL', value: 'LTL' },
@@ -208,10 +221,6 @@ const serviceCatalog: Array<[string, string]> = [
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
 const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
 const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
-const accountOptions = computed(() => [
-  { label: 'Seleccionar cuenta CRM', value: '' },
-  ...accounts.value.map(a => ({ label: a.displayName || a.legalName || a.id, value: a.id })),
-])
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
   modalOptions.some(x => x.value === modality.value) &&
@@ -237,12 +246,6 @@ const blockers = computed(() => {
   return result
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
-async function loadAccounts() {
-  loadingAccounts.value = true
-  try { accounts.value = (await operationsApi.crmAccounts(accountSearch.value)).items }
-  catch (cause) { error.value = cause instanceof Error ? cause.message : 'No fue posible cargar cuentas CRM.' }
-  finally { loadingAccounts.value = false }
-}
 async function loadContext() {
   try {
     companyId.value = (await operationsApi.createContext()).companyId || ''
@@ -307,17 +310,12 @@ async function save() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la apertura.'
   } finally { saving.value = false }
 }
-let accountTimer: ReturnType<typeof setTimeout> | undefined
-watch(accountSearch, () => {
-  clearTimeout(accountTimer)
-  accountTimer = setTimeout(() => { void loadAccounts() }, 250)
-})
 watch(selectedPol, id => { const label = lookupLabel('pol', id); if (label) form.value.pol = label })
 watch(selectedPoe, id => { const label = lookupLabel('poe', id); if (label) form.value.poe = label })
 watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form.value.pod = label })
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
-  await Promise.all([loadContext(), loadAccounts(), loadPricingCatalogs()])
+  await Promise.all([loadContext(), loadPricingCatalogs()])
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -352,7 +350,6 @@ onMounted(async () => {
     } finally { restoringOpening = false }
   }
 })
-onUnmounted(() => { clearTimeout(accountTimer) })
 </script>
 
 <template>
