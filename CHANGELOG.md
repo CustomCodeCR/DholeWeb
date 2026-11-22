@@ -1,3 +1,9 @@
+## [1.117.0] - 2026-11-22 · DH-20261122-DHOLE-ERP-410
+
+- MINOR: identidad oficial de la plataforma web como DHOLE ERP (Sistema de Gestión Interna / Internal Management System) en acceso, menú lateral, título de navegador, favicon, mensajes, traducciones y configuración de build.
+- Guía visible de pronunciación «dóul» y significado «Digital Hub for Operations, Logistics & Ecosystem» con accesibilidad bilingüe. DHOLE CLOUD, DHOLE X4 y GIO quedan fuera del alcance; no se modifican rutas, API, claves técnicas ni identidad de integraciones.
+- DholeWeb 1.116.1 → 1.117.0 y DholeSystem 1.116.1 → 1.117.0. Requiere validación CI/staging previa a master. La rama master tiene despliegue automático: producción no autorizada.
+
 ## [1.116.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-EMAIL-409
 
 - PATCH: la ventana «Devolver tarifa» identifica la solicitud mediante cliente y ruta sin mostrar el UUID. El identificador permanece exclusivamente en URLs internas y metadatos de integración.

@@ -1,9 +1,11 @@
 {
   "app": {
-    "name": "Dhole System",
-    "subtitle": "Plataforma logística inteligente",
-    "updateRequiredTitle": "Se requiere actualizar Dhole System",
-    "updateRequiredDescription": "Hay una nueva versión de Dhole System disponible (v{version}). Actualiza para utilizar las mejoras recientes.",
+    "name": "DHOLE ERP",
+    "pronunciation": "DHOLE se pronuncia «dóul»",
+    "meaning": "Digital Hub for Operations, Logistics & Ecosystem",
+    "subtitle": "Sistema de gestión interna",
+    "updateRequiredTitle": "Se requiere actualizar DHOLE ERP",
+    "updateRequiredDescription": "Hay una nueva versión de DHOLE ERP disponible (v{version}). Actualiza para utilizar las mejoras recientes.",
     "updateRequiredUnsaved": "Si estás editando un formulario, guarda los cambios antes de actualizar.",
     "updateNow": "Actualizar ahora",
     "updateLater": "Más tarde",
