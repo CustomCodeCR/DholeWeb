@@ -4,14 +4,14 @@ import test from 'node:test'
 
 const opening = readFileSync(new URL('../src/modules/operations/views/OperationsManualCreateView.vue', import.meta.url), 'utf8')
 
-test('Operations follows Pricing modality and shipment selection before route and cargo', () => {
-  for (const label of ['Modalidad', 'Embarque', 'Cliente y ruta', 'Carga', 'Servicios', 'Revisión'])
+test('Operations retains Pricing transport and shipment choices within three steps', () => {
+  for (const label of ['Cliente, ruta y servicios', 'Carga y documentos', 'Revisión'])
     assert.ok(opening.includes(`label: '${label}'`), label)
-  assert.match(opening, /form\.transportType === option\.value/)
-  assert.match(opening, /@click="selectTransport\(option\.value\)"/)
-  assert.match(opening, /@click="selectShipment\(option\.value\)"/)
+  assert.match(opening, /@update:model-value="selectTransport/)
+  assert.match(opening, /@update:model-value="selectShipment/)
   assert.match(opening, /shipmentOptionsByTransport/)
   assert.match(opening, /<PricingWizardStepper/)
+  assert.doesNotMatch(opening, /activeStep === [456]/)
 })
 
 test('Full equipment uses the actual Pricing selector with multiple quantities', () => {
