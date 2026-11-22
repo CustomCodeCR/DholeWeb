@@ -1,3 +1,9 @@
+## [1.112.1] - 2026-11-22 · DH-20261122-PRICING-OPERATIONS-STEPPER-402 (Pricing · UI de creación con componente de Operations)
+
+- PATCH: Crear/editar tarifa usa el encabezado operativo con icono, estado y avance, y reutiliza PricingWizardStepper con las 8 etapas existentes (9 en solo lectura), sin modificar el flujo de costos, servicios ni QUO.
+- Conserva los borradores múltiples, autoguardado, recuperación y descarte de la cotización activa; mantiene el bloqueo de navegación hasta registrar el motivo al editar y el diseño responsive.
+- Versionado global DholeWeb 1.112.0 → 1.112.1. APIs REST/SignalR, DholeOperationsService 0.15.1 y demás microservicios no cambian. CI y staging obligatorios antes de promover a master. No autoriza despliegue a producción.
+
 ## [1.112.0] - 2026-11-22 · DH-20261122-OPERATIONS-PARITY-401 (Operations / Pricing: apertura manual)
 
 - MINOR: apertura manual en 6 etapas consistentes con Pricing (modalidad, embarque, cliente/ruta, carga, servicios y revisión); tarjetas de selección reutilizan el patrón visual del wizard comercial.
