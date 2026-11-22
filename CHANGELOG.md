@@ -1,3 +1,10 @@
+## [1.110.3] - 2026-11-21 · DH-20261121-PRICING-FINAL-POLISH-395 (candidate master)
+
+- PATCH LCL Miami: conserva VGM del plan propio cuando se restauran líneas del consolidado, sin duplicados ni modificación de revisiones.
+- PATCH FCL Panamá multimodal: la tarifa terrestre USD 2.140 por contenedor se presenta independientemente del marítimo y Bunker no se confunde con Freight; CostId real solo cuando Pricing devuelve costo aplicable.
+- PATCH LTL: días de tránsito editables en pantallas 4 y 7 y persistidos en la cotización.
+- Backport selectivo de DH-395, sin reemplazar el wizard de master con la rama develop. Pricing 1.26.22, DholeSystem 1.110.3; validar CI y staging antes de producción.
+
 ## [1.110.2] - 2026-11-21 · DH-20261121-PRICING-LAST-THREE-FIXES-394 (candidate master)
 
 - PATCH: LTL Panamá → Costa Rica muestra Flete, Bunker, Gastos y Custodia + Marchamo con cruces entre POL comercial y POE físico.

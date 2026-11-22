@@ -98,6 +98,21 @@ export function selectMultimodalLandFreight391(catalog: CostSelectDto[], route: 
   return eligible[0] ?? null
 }
 
+/** DH-395: Bunker Flete Internacional Terrestre is NOT the land freight itself.
+ * Check the commercial rubric and the cost classification, not a substring.
+ * Explicitly prevent a bunker/destination charge from suppressing the FCL leg.
+ */
+export function isTerrestrialFreightRow395(
+  name: unknown, costDetailType: unknown,
+): boolean {
+  const rubric = normal(name).trim()
+  const isFreightName =
+    (/^flete\b/.test(rubric) && /\bterrestre\b/.test(rubric))
+    || /^land freight\b/.test(rubric)
+  return isFreightName &&
+    (costDetailType === 'Freight' || costDetailType === 'InlandTransport')
+}
+
 export function freightModeTitle391(name: string, costDetailType: string | null | undefined,
   modality: string) {
   if (costDetailType !== 'Freight') return name

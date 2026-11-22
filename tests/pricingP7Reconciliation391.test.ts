@@ -112,7 +112,9 @@ test('DH-391: final wizard transform enforces dynamic P7 and protects saved pric
     '<div>{{ line.name }}</div>',
   ].join('\n')
   const result = patchPricingP7Reconcile391(source)
-  assert.match(result, /selectMultimodalLandFreight391/)
+  assert.match(result, /isTerrestrialFreightRow395/)
+  assert.match(result, /hasPricedLand/)
+  assert.match(result, /isPanamaToGam/)
   assert.match(result, /selectPanamaLtlCharges391/)
   assert.match(result, /quoteEditOriginalContext387/)
   assert.match(result, /!line\.detailId/)

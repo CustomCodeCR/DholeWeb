@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import type { CostSelectDto } from '../src/core/interfaces/pricing.ts'
 import {
-  selectMultimodalLandFreight391, selectPanamaLtlCharges391,
+  selectMultimodalLandFreight391, selectPanamaLtlCharges391, isTerrestrialFreightRow395,
   type P7CostRoute391,
 } from '../src/modules/pricing/utils/pricingP7Context391.ts'
 
@@ -133,7 +133,8 @@ test('DH-394: FCL multimodal retains the second (road) Freight master', () => {
   assert.match(transform, /form.modality === 'Multimodal' && isTerrestrial/)
   const p7 = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
   assert.match(p7, /costs.value.find\(cost =>/)
-  assert.match(p7, /selectMultimodalLandFreight391\(allCosts.value, route\)/)
+  assert.match(p7, /isTerrestrialFreightRow395\(cost.name, cost.costDetailType\)/)
+  assert.match(p7, /isTerrestrialFreightRow395\(line.name, line.costDetailType\)/)
 })
 
 test('DH-394: missing Miami FAK items are restored only for new own-LCL quotes', () => {
@@ -143,4 +144,39 @@ test('DH-394: missing Miami FAK items are restored only for new own-LCL quotes',
     'props.rateId', "lclSelectedSource.value?.kind !== 'Own'"]) {
     assert.ok(plugin.includes(expected), expected)
   }
+})
+
+test('DH-395: Bunker cannot masquerade as the FCL Panama terrestrial freight', () => {
+  const bunker = 'Bunker Flete Internacional Terrestre Panama a Costa Rica'
+  assert.equal(isTerrestrialFreightRow395(bunker, 'DestinationCharge'), false)
+  assert.equal(isTerrestrialFreightRow395(bunker, 'Freight'), false)
+  assert.equal(isTerrestrialFreightRow395('Gastos Flete Internacional Terrestre', 'InlandTransport'), false)
+  assert.equal(isTerrestrialFreightRow395('Flete internacional terrestre', 'Freight'), true)
+  assert.equal(isTerrestrialFreightRow395('Flete Terrestre Internacional Panamá a Costa Rica', 'InlandTransport'), true)
+  assert.equal(isTerrestrialFreightRow395('Land freight Panama to Costa Rica', 'Freight'), true)
+  assert.equal(isTerrestrialFreightRow395('Flete internacional marítimo', 'Freight'), false)
+  assert.equal(isTerrestrialFreightRow395('Flete internacional terrestre', 'DestinationCharge'), false)
+  const plugin = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
+  assert.match(plugin, /const hasPricedLand/)
+  assert.match(plugin, /!hasPricedLand && !validMaster && isPanamaToGam/)
+  assert.match(plugin, /costAmount: 2140, saleAmount: 2140/)
+})
+
+test('DH-395: VGM from Miami plan survives own-LCL matrix restoration', () => {
+  const p7 = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
+  const persistence = readFileSync(new URL('../build/pricingWizardOwnLclLinePersistence.ts', import.meta.url), 'utf8')
+  assert.match(p7, /name: 'VGM', sale: plan.vgm/)
+  assert.match(p7, /lclSelectedSource.value\?\.kind !== 'Own'/)
+  assert.match(persistence, /line.included && \(!ownLclFromMatrix\(line.notes\)/)
+  assert.equal(persistence.split("startsWith('p7-394-miami:')").length - 1, 2)
+  assert.match(persistence, /ownLclKeepQuotedLine\(line, rateLines.value\)/)
+})
+
+test('DH-395: LTL transit is editable on consolidated screens and saved as transitDays', () => {
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.equal(wizard.split('v-model.number="form.transitDays"').length - 1, 3)
+  assert.match(wizard, /data-testid="pricing-ltl-transit-days"/)
+  assert.match(wizard, /shipmentModeForApi === 'Ltl'/)
+  assert.match(wizard, /transitDays: Math.max\(0, Math.trunc\(number\(form.transitDays\)\)\)/)
+  assert.match(wizard, /transitTime: number\(form.transitDays\) > 0/)
 })
