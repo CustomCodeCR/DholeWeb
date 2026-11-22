@@ -30,7 +30,8 @@ test('manual form captures the approved opening data domains without quoting cos
     'isImo','imoClass','unNumber','stackable','overweight','overweightNotes',
     'carrierReference','agentReference','merchantReference','observations',
   ]) assert.ok(form.includes(key), key)
-  assert.match(form, /0\.45359237/)
+  assert.match(form, /weightValue: undefined, weightUnit: undefined, weightKg: undefined/)
+  assert.doesNotMatch(form, /label="Peso bruto"/)
   assert.match(form, /0\.028316846592/)
   assert.match(form, /missingFields: blockers\.value/)
   assert.match(form, /commercialStatus: 'SIN_QUO'/)
