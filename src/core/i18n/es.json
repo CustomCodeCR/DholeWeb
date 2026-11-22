@@ -1,9 +1,11 @@
 {
   "app": {
-    "name": "Dhole System",
-    "subtitle": "Plataforma logística inteligente",
-    "updateRequiredTitle": "Se requiere actualizar Dhole System",
-    "updateRequiredDescription": "Hay una nueva versión de Dhole System disponible (v{version}). Actualiza para utilizar las mejoras recientes.",
+    "name": "DHOLE ERP",
+    "pronunciation": "DHOLE se pronuncia «dóul»",
+    "meaning": "Digital Hub for Operations, Logistics & Ecosystem",
+    "subtitle": "Sistema de gestión interna",
+    "updateRequiredTitle": "Se requiere actualizar DHOLE ERP",
+    "updateRequiredDescription": "Hay una nueva versión de DHOLE ERP disponible (v{version}). Actualiza para utilizar las mejoras recientes.",
     "updateRequiredUnsaved": "Si estás editando un formulario, guarda los cambios antes de actualizar.",
     "updateNow": "Actualizar ahora",
     "updateLater": "Más tarde",
@@ -176,7 +178,7 @@
     "loginError": "Correo o contraseña incorrectos.",
     "temporaryPassword": {
       "title": "Cambie su contraseña",
-      "subtitle": "Está utilizando una contraseña temporal. Para continuar en Dhole System debe crear una contraseña personal.",
+      "subtitle": "Está utilizando una contraseña temporal. Para continuar en DHOLE ERP debe crear una contraseña personal.",
       "newPassword": "Nueva contraseña",
       "newPasswordPlaceholder": "Digite su nueva contraseña",
       "confirmPassword": "Confirmar contraseña",
@@ -441,7 +443,7 @@
     "environmentRecovery": "Regenerar datos del ambiente",
     "environmentRecoveryDescription": "Volver a crear datos iniciales desde el .env actual de producción o staging.",
     "systemVersion": "Versión del sistema",
-    "systemVersionDescription": "Versión de Dhole System Web instalada y datos de la compilación. El formato sigue MAJOR.MINOR.PATCH.",
+    "systemVersionDescription": "Versión de DHOLE ERP Web instalada y datos de la compilación. El formato sigue MAJOR.MINOR.PATCH.",
     "versionChannel": "Entorno",
     "versionCommit": "Compilación",
     "backToSettings": "Volver a Configuración"
@@ -713,12 +715,12 @@
         "description": "Notificaciones internas, correo, programación, reintentos y plantillas."
       },
       "agent": {
-        "name": "Dhole System Agent Service",
+        "name": "DHOLE ERP Agent Service",
         "description": "Automatización de navieras, sesiones web, programaciones y ejecuciones."
       },
       "hermes": {
         "name": "Hermes Agent",
-        "description": "Motor de automatización web utilizado por Dhole System Agent."
+        "description": "Motor de automatización web utilizado por DHOLE ERP Agent."
       }
     }
   },
@@ -1047,7 +1049,7 @@
     },
     "confirmations": {
       "createComparisonTitle": "Crear tarifa desde comparación",
-      "createComparisonMessage": "Dhole System creará una nueva tarifa usando la tarifa automática de esta comparación. ¿Desea continuar?",
+      "createComparisonMessage": "DHOLE ERP creará una nueva tarifa usando la tarifa automática de esta comparación. ¿Desea continuar?",
       "createComparisonConfirm": "Crear tarifa",
       "dismissComparisonTitle": "Descartar oportunidad",
       "dismissComparisonMessage": "¿Descartar esta oportunidad? No se modificará ninguna tarifa existente.",
@@ -1190,7 +1192,7 @@
         "quantity": "Cantidad",
         "amount": "Monto",
         "companyDate": "Empresa: {company} · Fecha: {date}",
-        "footer": "Documento generado por Dhole System Reports"
+        "footer": "Documento generado por DHOLE ERP Reports"
       },
       "toasts": {
         "permissionTitle": "Permiso requerido",
@@ -1454,7 +1456,7 @@
     "images": "Imágenes",
     "integratedPreview": "Vista previa integrada",
     "pdf": "PDF",
-    "openInsideDhole": "Se abren dentro de Dhole System",
+    "openInsideDhole": "Se abren dentro de DHOLE ERP",
     "providers": "Proveedores",
     "activeConfigured": "Activos / configurados",
     "searchPlaceholder": "Nombre, checksum, servicio o entidad",
@@ -1539,7 +1541,7 @@
       "purgeMongoSuccess": "Historial depurado",
       "purgeMongoSuccessMessage": "Se eliminaron snapshots antiguos de MongoDB.",
       "unidentifiedModel": "Modelo no identificado",
-      "unidentifiedModelMessage": "No hay una ejecución visible que permita relacionar este modelo cargado con su ModelId de Dhole System.",
+      "unidentifiedModelMessage": "No hay una ejecución visible que permita relacionar este modelo cargado con su ModelId de DHOLE ERP.",
       "unloadTitle": "Descargar {model} de memoria",
       "unloadMessage": "Libera el modelo de la RAM/VRAM de Ollama. No elimina el modelo del disco; volverá a cargarse automáticamente cuando una ejecución lo necesite.",
       "unloadConfirm": "Descargar de memoria",
@@ -1712,7 +1714,7 @@
     },
     "providers": {
       "title": "Navieras y sitios",
-      "subtitle": "Defina los portales que Dhole System puede automatizar, por ejemplo Maersk, MSC, PIL, CMA CGM o Hapag-Lloyd.",
+      "subtitle": "Defina los portales que DHOLE ERP puede automatizar, por ejemplo Maersk, MSC, PIL, CMA CGM o Hapag-Lloyd.",
       "empty": "No hay navieras o sitios configurados.",
       "createTitle": "Nueva naviera o sitio",
       "editTitle": "Editar naviera o sitio",
@@ -1724,7 +1726,7 @@
     },
     "definitions": {
       "title": "Acciones automáticas",
-      "subtitle": "Indique qué debe hacer Dhole System en cada naviera, por ejemplo buscar tarifas marítimas usando Hermes.",
+      "subtitle": "Indique qué debe hacer DHOLE ERP en cada naviera, por ejemplo buscar tarifas marítimas usando Hermes.",
       "empty": "No hay acciones automáticas configuradas.",
       "allProviders": "Todas las navieras",
       "createTitle": "Nueva acción automática",
@@ -1746,9 +1748,9 @@
     },
     "browserProfiles": {
       "verifyStart": "Verificar sesión de la generación activa en noVNC",
-      "verifyQueued": "Verificación manual iniciada en el Worker activo. Abrí noVNC desde Dhole System; el acceso estará disponible hasta 7 minutos.",
+      "verifyQueued": "Verificación manual iniciada en el Worker activo. Abrí noVNC desde DHOLE ERP; el acceso estará disponible hasta 7 minutos.",
       "manualSessionTitle": "Verificación manual de Maersk en curso",
-      "manualSessionGuide": "Accedé al navegador persistente de la generación activa desde el visor protegido de Dhole System. noVNC utiliza el puerto interno 6080; en las generaciones nuevas no se publica directamente en el host. Ingresá a /book y comprobá el acceso autorizado dentro de los próximos 7 minutos. No se reinician cookies ni se reintentan búsquedas; si Maersk deniega el acceso, contactá al proveedor.",
+      "manualSessionGuide": "Accedé al navegador persistente de la generación activa desde el visor protegido de DHOLE ERP. noVNC utiliza el puerto interno 6080; en las generaciones nuevas no se publica directamente en el host. Ingresá a /book y comprobá el acceso autorizado dentro de los próximos 7 minutos. No se reinician cookies ni se reintentan búsquedas; si Maersk deniega el acceso, contactá al proveedor.",
       "openLocalNovnc": "Abrir noVNC de la generación activa",
       "verifyFailed": "No fue posible iniciar la verificación de Maersk en la generación activa.",
       "viewVerification": "Ver ejecución de autenticación",
@@ -1832,7 +1834,7 @@
       "unknown": "Desconocido"
     },
     "messages": {
-      "refreshed": "Dhole System Agent actualizado",
+      "refreshed": "DHOLE ERP Agent actualizado",
       "partialRefresh": "Actualización parcial",
       "partialRefreshDescription": "Algunas fuentes no pudieron actualizarse.",
       "executionCreated": "Ejecución creada",
@@ -1908,7 +1910,7 @@
       "schedule": "programación"
     },
     "guide": {
-      "title": "Cómo poner Dhole System Agent a funcionar",
+      "title": "Cómo poner DHOLE ERP Agent a funcionar",
       "subtitle": "Siga estos pasos en orden. Los indicadores se completan automáticamente según la configuración existente.",
       "done": "Listo",
       "pending": "Pendiente",
@@ -1964,7 +1966,7 @@
   },
   "maerskOperations": {
     "verifyOriginalSession": "Verificar sesión activa",
-    "verifyExplanation": "La verificación usa exclusivamente el navegador persistente de la generación activa de Maersk; nunca utiliza prod1 si está retirado. Al iniciar, Dhole System mostrará el puerto interno de noVNC y permitirá abrir el visor protegido. No consulta tarifas ni libera automáticamente el circuito.",
+    "verifyExplanation": "La verificación usa exclusivamente el navegador persistente de la generación activa de Maersk; nunca utiliza prod1 si está retirado. Al iniciar, DHOLE ERP mostrará el puerto interno de noVNC y permitirá abrir el visor protegido. No consulta tarifas ni libera automáticamente el circuito.",
     "verifyCredential": "Credencial de Maersk",
     "verifyStart": "Iniciar verificación",
     "viewVerification": "Ver ejecución de verificación",

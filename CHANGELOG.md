@@ -1,3 +1,9 @@
+## [1.117.0] - 2026-11-22 · DH-20261122-DHOLE-ERP-410
+
+- MINOR: marca visible DHOLE ERP, Sistema de Gestión Interna, en acceso, menú, título de navegador, favicon, mensajes y configuración de compilación. Se mantienen los contratos técnicos DholeWeb.
+- Indicador bilingüe de pronunciación «dóul» y expansión Digital Hub for Operations, Logistics & Ecosystem. DHOLE CLOUD, DHOLE X4 y GIO diferidos.
+- DholeWeb 1.116.0 → 1.117.0, DholeSystem 1.116.0 → 1.117.0. La integración master requiere validación staging y aprobación explícita de despliegue a producción, pues el push a master lo activa automáticamente.
+
 ## [1.116.0] - 2026-11-22 · DH-20261122-OPERATIONS-ASSIGNMENT-SUMMARY-408
 
 - MINOR: permite escoger equipo de Aperturas con mínimo dos validadores disponibles antes de crear un IDTRA; mantiene autoguardado y recuperación del equipo elegido, con reintentos sin duplicados.
