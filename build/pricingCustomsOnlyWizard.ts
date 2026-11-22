@@ -152,36 +152,56 @@ function patchWizard(source: string): string {
   ].join('\n')
   code = code.slice(0, titlesStart) + titlesBlock + code.slice(titlesEnd)
 
-  code = replaceRequired(
-    code,
-    "'crystal-step--active': index + 1 === step,",
-    "'crystal-step--active': visibleWizardSteps[index] === step,",
-    'step bar active',
-  )
-  code = replaceRequired(
-    code,
-    "'crystal-step--done': index + 1 < step,",
-    "'crystal-step--done': visibleWizardSteps[index] < step,",
-    'step bar completed',
-  )
-  code = replaceRequired(
-    code,
-    '@click="goToStep(index + 1)"',
-    '@click="goToStep(visibleWizardSteps[index])"',
-    'step bar navigation',
-  )
+  if (code.includes('<PricingWizardStepper')) {
+    // Use real screen IDs: the customs-only flow may skip Step 5,
+    // and seller requests expose only the first four screens.
+    code = replaceRequired(
+      code,
+      '  id: index + 1,',
+      '  id: visibleWizardSteps.value[index],',
+      'shared wizard step id',
+    )
+    code = replaceRequired(
+      code,
+      '  hint: pricingStepHints[index] ?? \'\',',
+      '  hint: pricingStepHints[(visibleWizardSteps.value[index] ?? index + 1) - 1] ?? \'\',',
+      'shared wizard step hint',
+    )
+  } else {
+    code = replaceRequired(
+      code,
+      "'crystal-step--active': index + 1 === step,",
+      "'crystal-step--active': visibleWizardSteps[index] === step,",
+      'step bar active',
+    )
+    code = replaceRequired(
+      code,
+      "'crystal-step--done': index + 1 < step,",
+      "'crystal-step--done': visibleWizardSteps[index] < step,",
+      'step bar completed',
+    )
+    code = replaceRequired(
+      code,
+      '@click="goToStep(index + 1)"',
+      '@click="goToStep(visibleWizardSteps[index])"',
+      'step bar navigation',
+    )
+    }
+
   code = replaceRequired(
     code,
     '{{ step }} / {{ maxStep }}',
     '{{ visibleWizardSteps.indexOf(step) + 1 }} / {{ visibleWizardSteps.length }}',
     'visible step counter',
   )
-  code = replaceRequired(
-    code,
-    ':class="viewOnly ? \'xl:grid-cols-9\' : \'xl:grid-cols-8\'"',
-    ':class="hasInternationalTransportService ? (viewOnly ? \'xl:grid-cols-9\' : \'xl:grid-cols-8\') : (viewOnly ? \'xl:grid-cols-8\' : \'xl:grid-cols-7\')"',
-    'step bar columns',
-  )
+  if (!code.includes('<PricingWizardStepper')) {
+    code = replaceRequired(
+      code,
+      ':class="viewOnly ? \'xl:grid-cols-9\' : \'xl:grid-cols-8\'"',
+      ':class="hasInternationalTransportService ? (viewOnly ? \'xl:grid-cols-9\' : \'xl:grid-cols-8\') : (viewOnly ? \'xl:grid-cols-8\' : \'xl:grid-cols-7\')"',
+      'step bar columns',
+    )
+  }
 
   code = replaceRequired(
     code,
