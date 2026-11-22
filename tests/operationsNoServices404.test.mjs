@@ -16,6 +16,8 @@ test('Manual aperture no longer has any dedicated services or coordination scree
   assert.doesNotMatch(opening, /label="Agente de origen"|label="Naviera"|label="Merchant \/ referencia"/)
   assert.doesNotMatch(opening, /label="Prioridad"|label="Puntos de complejidad"|Solicitar revisión comercial en Pricing/)
   assert.doesNotMatch(opening, /fieldTitle\('Servicios'/)
+  assert.doesNotMatch(opening, /pickupIncluded|deliveryIncluded|serviceChoices/)
+  assert.doesNotMatch(opening, /if \(pickupIncluded\.value/)
   assert.doesNotMatch(opening, /v-show="activeStep === [456]"/)
 })
 
