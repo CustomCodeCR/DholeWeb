@@ -151,7 +151,6 @@ const summaryFields = computed(() => [
   fieldTitle('Muellaje', form.value.portHandlingMode),
   fieldTitle('Documentos', form.value.supportDocuments.length),
   fieldTitle('Bultos', form.value.packageCount),
-  fieldTitle('Peso', form.value.weightValue ? form.value.weightValue + ' ' + form.value.weightUnit : ''),
   fieldTitle('Volumen', form.value.volumeValue ? form.value.volumeValue + ' ' + form.value.volumeUnit : ''),
   fieldTitle('Equipos', form.value.equipment.map(item => item.quantity + ' × ' + item.equipmentType).join(', ')),
 ].filter(field => field.value !== 'Pendiente'))
@@ -988,8 +987,6 @@ onMounted(async () => {
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
-            <DhInput v-model="form.weightValue" label="Peso bruto" type="number" :min="0" />
-            <DhSelect v-model="form.weightUnit" label="Unidad peso" :options="[{ label: 'Kilogramos', value: 'KG' }, { label: 'Libras', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
             <DhSelect v-model="form.volumeUnit" label="Unidad volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
             <DhInput v-model="form.consolidationReference" label="Referencia de consolidado" />
@@ -1011,7 +1008,7 @@ onMounted(async () => {
                     <Check v-if="form.isImo" class="h-4 w-4" />
                   </span>
                 </button>
-                <button type="button" :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"
+                <button v-if="['LCL', 'LTL'].includes(effectiveShipment)" type="button" :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"
                   class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
                   :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
                     : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
@@ -1098,7 +1095,7 @@ onMounted(async () => {
                     class="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-500/10"
                     @click="form.equipment.splice(index, 1)"><Trash2 class="h-4 w-4" /> Quitar</button>
                 </div>
-                <div class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_128px_148px]">
+                <div class="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_160px]">
                   <div class="min-w-0">
                     <PricingContainerSelector
                       :model-value="resolvedEquipmentId(item)"
@@ -1110,8 +1107,6 @@ onMounted(async () => {
                   </div>
                   <DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1"
                     @update:model-value="item.quantity = Math.max(1, Math.floor(Number($event) || 1))" />
-                  <DhInput :model-value="item.weightKg ?? 0" label="Peso (kg)" type="number" :min="0"
-                    @update:model-value="item.weightKg = Math.max(0, Number($event) || 0)" />
                 </div>
                 <p v-if="item.equipmentType" class="mt-2 text-xs text-[var(--dh-text-muted)]">
                   {{ item.equipmentType }}
@@ -1121,7 +1116,7 @@ onMounted(async () => {
                 class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-primary)]/20 bg-[rgb(var(--dh-primary-rgb)/0.05)] px-4 py-3">
                 <span class="text-xs font-black text-[var(--dh-primary)]">
                   Total: {{ totalEquipment }} {{ effectiveShipment === 'FTL' ? 'furgones' : 'contenedores' }}
-                  <span v-if="totalEquipmentWeight > 0" class="text-[var(--dh-text-muted)]"> · {{ totalEquipmentWeight.toLocaleString('es-CR') }} kg</span>
+
                 </span>
                 <div class="flex flex-wrap gap-1.5">
                   <span v-for="(row, i) in form.equipment.filter(x => x.equipmentType)" :key="i"
