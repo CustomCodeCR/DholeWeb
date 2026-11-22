@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpen, RefreshCw, Plus, ArrowUpRight } from 'lucide-vue-next'
+import { FolderOpen, RefreshCw, Plus, ArrowUpRight, Route, Package, UsersRound, FileText, CheckCircle2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
@@ -21,6 +21,45 @@ const selected = ref<OperationsCaseDetail | null>(null)
 const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
 const selectedCaseId = computed(() => selected.value?.id || '')
 const clientName = ref('')
+const opening = computed<Record<string, unknown>>(() => {
+  try {
+    const value: unknown = JSON.parse(selected.value?.openingDataJson || '{}')
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown> : {}
+  } catch { return {} }
+})
+function openingText(key: string) {
+  const value = opening.value[key]
+  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
+}
+const openingEquipment = computed(() => {
+  const values = opening.value.equipment
+  if (!Array.isArray(values)) return [] as Array<{ label: string; quantity: number }>
+  return values.flatMap(item => {
+    if (!item || typeof item !== 'object') return []
+    const equipment = item as Record<string, unknown>
+    const label = String(equipment.equipmentType || '').trim()
+    return label ? [{ label, quantity: Math.max(0, Number(equipment.quantity) || 0) }] : []
+  })
+})
+const openingDocuments = computed(() => {
+  const values = opening.value.supportDocuments
+  if (!Array.isArray(values)) return [] as Array<{ id: string; label: string; fileName: string }>
+  return values.flatMap(item => {
+    if (!item || typeof item !== 'object') return []
+    const document = item as Record<string, unknown>
+    const fileName = String(document.fileName || '').trim()
+    return fileName ? [{ id: String(document.id || fileName), label: String(document.categoryLabel || 'Documento'), fileName }] : []
+  })
+})
+const openingFlags = computed(() => [
+  opening.value.isImo === true ? 'IMO / peligrosa' : '',
+  opening.value.overweight === true ? 'Sobrepeso' : '',
+  ['LCL','LTL'].includes(openingText('shipmentType').toUpperCase()) ?
+    opening.value.stackable === true ? 'Estibable' : 'No estibable' : '',
+  openingText('portHandlingMode'),
+].filter(Boolean))
+
 const search = ref('')
 const status = ref('')
 const apertureType = ref('')
