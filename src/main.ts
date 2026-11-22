@@ -179,6 +179,6 @@ watch(() => localeStore.getLocale(), async (newLocale) => {
 
 app.use(i18n)
 document.documentElement.lang = localeStore.getLocale()
-document.title = `Dhole System · v${APP_VERSION}`
+document.title = `DHOLE ERP · v${APP_VERSION}`
 app.mount('#app')
 uiTextBridge.start()

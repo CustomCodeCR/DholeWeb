@@ -58,10 +58,10 @@ test('mobile data tables use cards and desktop tables are hidden below 640px', (
 
 test('Dhole bilingual logistics branding remains consistent', () => {
   const bridge = source('src/core/i18n/uiTextBridge.ts')
-  assert.equal(es.app.name, 'Dhole System')
-  assert.equal(en.app.name, 'Dhole System')
-  assert.equal(es.app.subtitle, 'Plataforma logística inteligente')
-  assert.equal(en.app.subtitle, 'Intelligent Logistics Platform')
+  assert.equal(es.app.name, 'DHOLE ERP')
+  assert.equal(en.app.name, 'DHOLE ERP')
+  assert.equal(es.app.subtitle, 'Sistema de gestión interna')
+  assert.equal(en.app.subtitle, 'Internal Management System')
   assert.ok(bridge.includes("'Plataforma logística inteligente'"))
   assert.ok(bridge.includes("'Intelligent Logistics Platform'"))
 })
@@ -75,7 +75,7 @@ test('Dhole mark appears in login, sidebar and browser without the legacy brand'
   assert.ok(auth.includes('dhole-mark.svg'))
   assert.ok(sidebar.includes('dhole-mark.svg'))
   assert.ok(index.includes('dhole-mark.svg'))
-  assert.ok(index.includes('<title>Dhole System</title>'))
+  assert.ok(index.includes('<title>DHOLE ERP</title>'))
   assert.ok(logo.includes('dhole-route'))
   assert.ok(!logo.includes('<rect'))
   assert.ok(!logo.includes('Orvelum'))
