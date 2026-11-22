@@ -255,48 +255,81 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
     <DhDrawer :open="Boolean(selected) || loadingDetail || Boolean(detailError)" :title="selected ? 'Resumen · ' + selected.idtra : 'Resumen de trámite'" size="lg" @close="closeDrawer">
       <div v-if="loadingDetail" class="py-16 text-center text-sm text-[var(--dh-text-muted)]">Cargando expediente…</div>
       <div v-else-if="detailError" role="alert" class="rounded-xl bg-red-500/10 p-4 text-sm text-red-500">{{ detailError }}</div>
-      <div v-else-if="selected" class="space-y-5">
-        <div class="flex flex-wrap gap-2">
-          <DhBadge :variant="selected.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ selected.apertureType === 'AUTOMATIC' ? 'Desde Pricing' : 'Apertura manual' }}</DhBadge>
-          <DhBadge variant="primary">{{ formatStatus(selected.status) }}</DhBadge>
-          <DhBadge variant="neutral">{{ selected.modalityCode }}</DhBadge>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-xl bg-[var(--dh-input)] p-4">
-            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Cliente</p>
-            <p class="break-words font-bold">{{ clientName || 'Cuenta de CRM' }}</p>
-            <RouterLink :to="`/crm/accounts/${selected.accountId}`" class="mt-1 block text-xs text-[var(--dh-primary)] hover:underline">Consultar en CRM</RouterLink>
+      <div v-else-if="selected" class="space-y-4 pb-2">
+        <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div><p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Expediente operativo</p>
+              <p class="mt-1 text-lg font-black text-[var(--dh-primary)]">{{ selected.idtra }}</p></div>
+            <DhBadge :variant="selected.status === 'DRAFT' ? 'warning' : selected.status === 'COMPLETED' ? 'success' : 'primary'">{{ formatStatus(selected.status) }}</DhBadge>
           </div>
-          <div class="rounded-xl bg-[var(--dh-input)] p-4">
-            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">QUO vinculada</p>
-            <RouterLink v-if="selected.sourceQuoteId" :to="`/pricing/rates/${selected.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir cotización</RouterLink>
-            <p v-else class="font-bold">Sin QUO</p>
-          </div>
-          <div class="rounded-xl bg-[var(--dh-input)] p-4">
-            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Ruta · países</p>
-            <p class="font-bold">{{ selected.originCountryCode || 'Pendiente' }} → {{ selected.destinationCountryCode || 'Pendiente' }}</p>
-          </div>
-          <div class="rounded-xl bg-[var(--dh-input)] p-4">
-            <p class="mb-1 text-xs font-semibold text-[var(--dh-text-muted)]">Actualizado</p>
-            <p class="font-bold">{{ formatDate(selected.updatedAtUtc) }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <DhBadge variant="neutral">{{ selected.apertureType === 'MANUAL' ? 'Manual' : 'Desde Pricing' }}</DhBadge>
+            <DhBadge variant="primary">{{ openingText('shipmentType') || selected.modalityCode }}</DhBadge>
+            <DhBadge v-if="openingText('incoterm')" variant="neutral">{{ openingText('incoterm') }}</DhBadge>
           </div>
         </div>
-        <section>
-          <h3 class="mb-3 text-sm font-black">Equipos y etapas</h3>
-          <div v-if="selectedWorkspace?.stages.length" class="space-y-2">
-            <div v-for="stage in selectedWorkspace.stages" :key="stage.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3">
-              <div>
-                <p class="text-sm font-bold">{{ formatStatus(stage.departmentCode) }}</p>
-                <p class="text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo por asignar' }}</p>
-              </div>
-              <DhBadge variant="neutral">{{ formatStatus(stage.status) }}</DhBadge>
+
+        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+          <div class="mb-3 flex items-center gap-2"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Cliente y comercial</h3></div>
+          <p class="break-words text-base font-black">{{ clientName || 'Cuenta de CRM' }}</p>
+          <RouterLink :to="'/crm/accounts/' + selected.accountId" class="mt-1 inline-block text-xs font-semibold text-[var(--dh-primary)] hover:underline">Consultar cliente</RouterLink>
+          <div class="mt-3 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
+            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Ejecutivo comercial</p><p class="mt-1 text-sm font-semibold">{{ openingText('executiveName') || (selected.executiveUserId ? 'Responsable asignado en CRM' : 'Pendiente') }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Cotización vinculada</p>
+              <RouterLink v-if="selected.sourceQuoteId" :to="'/pricing/rates/' + selected.sourceQuoteId + '/wizard?mode=view'" class="mt-1 inline-block text-sm font-bold text-[var(--dh-primary)]">Abrir QUO</RouterLink>
+              <p v-else class="mt-1 text-sm font-semibold">SIN_QUO</p></div>
+            <div v-if="openingText('clientPoReference')"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">PO / referencia</p><p class="mt-1 break-words text-sm font-semibold">{{ openingText('clientPoReference') }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Fecha de apertura</p><p class="mt-1 text-sm font-semibold">{{ formatDate(selected.createdAtUtc) }}</p></div>
+          </div>
+        </section>
+
+        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+          <div class="mb-3 flex items-center gap-2"><Route class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Ruta del embarque</h3></div>
+          <div class="space-y-0">
+            <div v-for="(stop, i) in [{ label: 'Origen / POL', place: openingText('pol') }, { label: 'Entrada / POE', place: openingText('poe') }, { label: 'Destino / POD', place: openingText('pod') }]" :key="stop.label" class="flex gap-3">
+              <div class="flex w-3 flex-col items-center"><span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full border-2 border-[var(--dh-primary)]"></span><span v-if="i !== 2" class="min-h-8 w-px grow bg-[var(--dh-border)]"></span></div>
+              <div class="min-w-0 pb-3"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">{{ stop.label }}</p><p class="mt-0.5 break-words text-sm font-black">{{ stop.place || 'Por definir' }}</p></div>
             </div>
           </div>
-          <p v-else class="text-sm text-[var(--dh-text-muted)]">El expediente todavía no tiene etapas asignadas.</p>
+          <div class="flex flex-wrap gap-4 border-t border-[var(--dh-border)] pt-3 text-xs">
+            <span>ETD <strong>{{ openingText('etm') || 'Por confirmar' }}</strong></span>
+            <span>ETA <strong>{{ openingText('eta') || 'Por confirmar' }}</strong></span>
+          </div>
         </section>
-        <section v-if="selectedWorkspace?.tasks.length">
-          <h3 class="mb-2 text-sm font-black">Pendientes</h3>
-          <p v-for="task in selectedWorkspace.tasks.slice(0, 5)" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm">{{ task.title }} · {{ formatStatus(task.status) }}</p>
+
+        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+          <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Mercancía y equipos</h3></div>
+          <p class="break-words text-sm font-semibold">{{ openingText('cargoDescription') || 'Mercancía pendiente' }}</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <span v-if="openingText('cabysCode')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">CABYS {{ openingText('cabysCode') }}</span>
+            <span v-if="openingText('packageCount')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">{{ openingText('packageCount') }} {{ openingText('packageType') || 'bultos' }}</span>
+            <span v-if="openingText('volumeValue')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">{{ openingText('volumeValue') }} {{ openingText('volumeUnit') }}</span>
+            <span v-for="(item, i) in openingEquipment" :key="i" class="rounded-lg border border-[var(--dh-primary)]/25 px-2.5 py-1 text-xs font-bold">{{ item.quantity }} × {{ item.label }}</span>
+          </div>
+          <div v-if="openingFlags.length" class="mt-3 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3"><DhBadge v-for="flag in openingFlags" :key="flag" variant="neutral">{{ flag }}</DhBadge></div>
+          <div class="mt-3 border-t border-[var(--dh-border)] pt-3">
+            <div class="flex items-center gap-2"><FileText class="h-4 w-4 text-[var(--dh-primary)]" /><p class="text-xs font-black">Documentos ({{ openingDocuments.length }})</p></div>
+            <p v-if="!openingDocuments.length" class="mt-1 text-xs text-[var(--dh-text-muted)]">Sin documentos registrados.</p>
+            <div v-else class="mt-2 space-y-1.5">
+              <p v-for="doc in openingDocuments" :key="doc.id" class="break-words rounded-lg bg-[var(--dh-input)] p-2 text-xs"><strong>{{ doc.label }}</strong> · {{ doc.fileName }}</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+          <div class="mb-3 flex items-center gap-2"><CheckCircle2 class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Responsables y validación</h3></div>
+          <div v-if="selectedWorkspace?.stages.length" class="space-y-2">
+            <div v-for="stage in selectedWorkspace.stages" :key="stage.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--dh-input)]/45 p-3">
+              <div class="min-w-0"><p class="text-xs font-bold">{{ formatStatus(stage.departmentCode) }}</p><p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo por asignar' }}</p></div>
+              <DhBadge :variant="stage.status === 'PENDING_VALIDATION' ? 'warning' : 'neutral'">{{ formatStatus(stage.status) }}</DhBadge>
+            </div>
+          </div>
+          <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin etapas activas.</p>
+          <div v-if="selectedWorkspace?.tasks.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
+            <p class="mb-2 text-xs font-black">Tareas pendientes</p>
+            <p v-for="task in selectedWorkspace.tasks.slice(0, 4)" :key="task.id" class="mb-1 text-xs text-[var(--dh-text-muted)]">{{ task.title }}</p>
+          </div>
+          <p class="mt-3 text-[11px] text-[var(--dh-text-muted)]">Actualizado: {{ formatDate(selected.updatedAtUtc) }}</p>
         </section>
       </div>
       <template #footer>
