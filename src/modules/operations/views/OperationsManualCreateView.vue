@@ -618,6 +618,23 @@ onMounted(async () => {
         </div>
 
         <div v-show="activeStep === 2" class="space-y-5">
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+            <h4 class="text-sm font-black">Descripción de carga y CABYS</h4>
+            <div class="flex flex-wrap items-end gap-3">
+              <div class="min-w-[180px] flex-1">
+                <DhInput v-model="form.cabysSearch" label="Buscar CABYS de Hacienda" placeholder="Ej. repuestos, textiles, maquinaria…" @keyup.enter="searchCabys" />
+              </div>
+              <DhButton :icon="Search" label="Buscar" :loading="searchingCabys" @click="searchCabys" />
+            </div>
+            <div v-if="cabysResults.length" class="max-h-52 overflow-auto rounded-xl border border-[var(--dh-border)]">
+              <button v-for="item in cabysResults" :key="item.code" type="button"
+                class="flex w-full gap-3 border-b border-[var(--dh-border)] p-3 text-left text-sm hover:bg-[var(--dh-card-hover)]" @click="chooseCabys(item)">
+                <span class="font-mono font-black">{{ item.code }}</span>
+                <span>{{ item.description }}</span>
+              </button>
+            </div>
+            <p v-if="form.cabysCode" class="text-xs font-black">CABYS seleccionado: {{ form.cabysCode }}</p>
+          </div>
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
@@ -632,10 +649,24 @@ onMounted(async () => {
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <DhCheckbox v-model="form.isImo" label="Mercancía peligrosa / IMO" />
-              <DhCheckbox v-model="form.stackable" label="Carga estibable" />
-              <DhCheckbox v-model="form.overweight" label="Requiere gestión de sobrepeso" />
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"><Check v-if="form.isImo" class="mr-1 inline h-4 w-4" />IMO / Peligrosa</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"><Check v-if="form.stackable" class="mr-1 inline h-4 w-4" />Estibable</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"><Check v-if="form.overweight" class="mr-1 inline h-4 w-4" />Sobrepeso</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.portHandlingMode === 'Redestino' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.portHandlingMode === 'Redestino'" @click="toggleHandling('Redestino')"><Check v-if="form.portHandlingMode === 'Redestino'" class="mr-1 inline h-4 w-4" />Redestino</button>
+              <button type="button" class="rounded-xl border p-3 text-xs font-black transition-colors"
+                :class="form.portHandlingMode === 'Anticipado' ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.13)]' : 'border-[var(--dh-border)] bg-[var(--dh-input)]'"
+                :aria-pressed="form.portHandlingMode === 'Anticipado'" @click="toggleHandling('Anticipado')"><Check v-if="form.portHandlingMode === 'Anticipado'" class="mr-1 inline h-4 w-4" />Anticipado</button>
+            </div>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
               <DhInput v-if="form.isImo" v-model="form.imoClass" label="Clase IMO" />
               <DhInput v-if="form.isImo" v-model="form.unNumber" label="Número UN" />
               <DhInput v-if="form.overweight" v-model="form.overweightNotes" label="Requerimientos por sobrepeso" />
@@ -659,6 +690,22 @@ onMounted(async () => {
               </div>
               <div class="w-36"><DhInput :model-value="item.quantity" label="Cantidad" type="number" :min="1" :step="1" @update:model-value="item.quantity = Number($event)" /></div>
               <DhButton variant="secondary" :icon="Trash2" label="Quitar" size="sm" @click="form.equipment.splice(index, 1)" />
+            </div>
+          </div>
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+            <h4 class="text-sm font-black">Documentos de respaldo</h4>
+            <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <label v-for="category in supportCategories" :key="category.key" class="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--dh-border)] p-3 text-xs font-black hover:border-[var(--dh-primary)]">
+                <FileUp class="h-4 w-4" />{{ uploadingSupport === category.key ? 'Subiendo…' : category.label }}
+                <input class="hidden" type="file" :accept="supportAccept" :disabled="Boolean(uploadingSupport)" @change="uploadDocument(category.key, category.label, $event)" />
+              </label>
+            </div>
+            <div v-if="form.supportDocuments.length" class="grid gap-2 md:grid-cols-2">
+              <div v-for="document in form.supportDocuments" :key="document.id" class="flex items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3 text-xs">
+                <div class="min-w-0"><p class="font-black">{{ document.categoryLabel }}</p><p class="truncate text-[var(--dh-text-muted)]">{{ document.fileName }}</p></div>
+                <button type="button" class="font-black text-red-500" @click="removeDocument(document.id)">Eliminar</button>
+              </div>
             </div>
           </div>
         </div>
