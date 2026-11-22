@@ -1,0 +1,22 @@
+{
+  "releaseId": "DH-20261121-OPERATIONS-PRICING-UI-399",
+  "globalVersion": "1.111.0",
+  "componentVersions": {
+    "DholeWeb": "1.111.0",
+    "DholeSystem": "1.111.0",
+    "DholeOperationsService": "0.15.0"
+  },
+  "type": "MINOR",
+  "changes": [
+    "Shared PricingWizardStepper used by Pricing and Operations",
+    "Operations guided 5-step opening",
+    "Pricing catalogs and search controls reused",
+    "Borrador and historic references preserved"
+  ],
+  "knownGaps": [
+    "Pricing QUO automatic opening remains pending",
+    "Authenticated staging UAT pending"
+  ],
+  "productionAuthorizedByUser": "requested merge to master and develop",
+  "stagingValidated": false
+}
