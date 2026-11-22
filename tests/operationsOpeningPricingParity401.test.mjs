@@ -18,7 +18,7 @@ test('Full equipment uses the actual Pricing selector with multiple quantities',
   assert.match(opening, /import PricingContainerSelector from/)
   assert.match(opening, /<PricingContainerSelector/)
   assert.match(opening, /equipmentCatalogId/)
-  assert.match(opening, /form\.equipment\.push/)
+  assert.match(opening, /form\.value\.equipment\.push/)
   assert.match(opening, /equipment: form\.value\.equipment\.map/)
   assert.match(opening, /\['FCL','FTL'\]\.includes\(effectiveShipment\.value\)/)
 })
