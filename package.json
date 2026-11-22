@@ -1,12 +1,12 @@
 {
   "name": "dholeweb",
-  "version": "1.112.0",
+  "version": "1.112.1",
   "private": true,
   "type": "module",
   "scripts": {
     "predev": "node scripts/ensure-pricing-screen09-comments.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node scripts/versioning.mjs check && node scripts/ensure-pricing-screen09-comments.mjs && node --experimental-strip-types --test tests/pricingCrmPreferredRuntimeGuard.test.ts tests/pricingIncotermPluginScope378.test.ts tests/pricingIncotermFclBilling379.test.ts tests/pricingSavedSnapshot383.test.ts tests/pricingPersistedDeleteRestore384.test.ts && node --experimental-strip-types --test tests/pricingEditTierLand385.test.ts && node --experimental-strip-types --test tests/pricingWizardBundleOnly386.test.ts && node --experimental-strip-types --test tests/pricingQuotationEditDelta387.test.ts && node --experimental-strip-types --test tests/pricingWizardEditBundle389.test.ts && npm run test:pricing-dh393",
+    "prebuild": "node scripts/versioning.mjs check && node scripts/ensure-pricing-screen09-comments.mjs && node --experimental-strip-types --test tests/pricingCrmPreferredRuntimeGuard.test.ts tests/pricingIncotermPluginScope378.test.ts tests/pricingIncotermFclBilling379.test.ts tests/pricingSavedSnapshot383.test.ts tests/pricingPersistedDeleteRestore384.test.ts && node --experimental-strip-types --test tests/pricingEditTierLand385.test.ts && node --experimental-strip-types --test tests/pricingWizardBundleOnly386.test.ts && node --experimental-strip-types --test tests/pricingQuotationEditDelta387.test.ts && node --experimental-strip-types --test tests/pricingWizardEditBundle389.test.ts && npm run test:pricing-dh393 && node --test tests/pricingOperationsStepper402.test.mjs",
     "build": "node scripts/check-pricing-origin-sale.mjs && node scripts/normalize-pricing-carrier-newlines.mjs && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build && node scripts/diagnose-pricing-bundle.mjs",

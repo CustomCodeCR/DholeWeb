@@ -7,6 +7,7 @@ from pathlib import Path
 from base64 import b64decode
 from time import time_ns
 from urllib.parse import quote
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -23,8 +24,19 @@ def contents_json(path: str, ref: str) -> dict:
     token = os.environ.get("GITHUB_TOKEN", "").strip()
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    with urlopen(Request(api_url, headers=headers), timeout=20) as response:
-        payload = json.load(response)
+    try:
+        with urlopen(Request(api_url, headers=headers), timeout=20) as response:
+            payload = json.load(response)
+    except HTTPError as error:
+        # The Web-only GITHUB_TOKEN cannot read a different repository, even when
+        # it is public. Retry the very same fixed public GitHub URL anonymously.
+        # Preserve all release/version/manifest comparisons; do not bypass CI.
+        if error.code != 404 or not token:
+            raise
+        public_headers = {key: value for key, value in headers.items()
+                          if key != "Authorization"}
+        with urlopen(Request(api_url, headers=public_headers), timeout=20) as response:
+            payload = json.load(response)
     return json.loads(b64decode(payload["content"]).decode("utf-8"))
 
 

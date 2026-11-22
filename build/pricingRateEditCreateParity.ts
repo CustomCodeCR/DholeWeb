@@ -77,12 +77,22 @@ function patchWizard(source: string) {
     'edit reason gate UI',
   )
 
-  code = replaceOne(
-    code,
-    `    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
-    `    <div v-if="!isEditing || viewOnly || editReasonConfirmed" class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
-    'edit reason stepbar gate',
-  )
+  const sharedStepperAnchor = `    <PricingWizardStepper\n`
+  if (code.includes(sharedStepperAnchor)) {
+    code = replaceOne(
+      code,
+      sharedStepperAnchor,
+      `    <PricingWizardStepper\n      v-if="!isEditing || viewOnly || editReasonConfirmed"\n`,
+      'edit reason shared stepper gate',
+    )
+  } else {
+    code = replaceOne(
+      code,
+      `    <div class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
+      `    <div v-if="!isEditing || viewOnly || editReasonConfirmed" class="crystal-stepbar grid grid-cols-2 gap-2 p-2 sm:grid-cols-4" :class="viewOnly ? 'xl:grid-cols-9' : 'xl:grid-cols-8'">`,
+      'edit reason stepbar gate',
+    )
+  }
 
   const rawFooterAnchor = `    <div class="crystal-footer flex items-center justify-between gap-3 p-3">`
   const screenZeroFooterAnchor = `    <div v-if="isEditing || entryLogisticsService || step !== 1" class="crystal-footer flex items-center justify-between gap-3 p-3">`
