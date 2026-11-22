@@ -11,7 +11,7 @@ test('manual opening offers only maritime, air and road selection; historical ca
   assert.doesNotMatch(selection, /Multimodal|MULTIMODAL/)
   assert.match(opening, /@click="selectTransport\(option\.value\)"/)
   assert.match(opening, /@click="selectShipment\(option\.value\)"/)
-  assert.match(opening, /editingId\.value && modality\.value === 'MULTIMODAL'/)
+  assert.match(opening, /Boolean\(editingId\.value\) && modality\.value === 'MULTIMODAL'/)
 })
 
 test('executive name is sourced from CRM account and owner labels rather than creator', () => {
