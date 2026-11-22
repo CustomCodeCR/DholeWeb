@@ -1,3 +1,10 @@
+## [1.110.6] - 2026-11-21 · DH-20261121-PRICING-TERRESTRIAL-FREIGHT-398 (candidate develop)
+
+- PATCH DholeWeb: Pantalla 7 FCL multimodal vuelve a mostrar el flete internacional terrestre que Pricing entrega en data.applicable, independientemente del flete marítimo y del Bunker.
+- La reconciliación se ejecuta después de la respuesta asíncrona y respeta el CostId del maestro, su costo/venta, la ruta POE/POD y las modificaciones persistidas; protege contra cargos de otra ruta y contra duplicados.
+- La selección contextual del backend tiene prioridad sobre shipmentMode=Any y los campos legacy poeId/podId cuando existen relaciones múltiples; no se alteran APIs REST ni datos históricos.
+- Versiones: DholeWeb 1.110.5 → 1.110.6; el servicio Pricing permanece en 1.26.24 (sin modificaciones en este cambio). Integrar por CI y staging antes de master.
+
 ## [1.110.5] - 2026-11-21 · DH-20261121-PRICING-VGM-FCL-FINAL-397 (candidate develop)
 
 - PATCH: La validación de Incoterm ya no desmarca el VGM del consolidado propio Miami elegido comercialmente ni el flete internacional terrestre de un FCL multimodal con transporte contratado.
