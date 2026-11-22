@@ -543,7 +543,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div id="operations-opening-wizard" class="mx-auto w-full max-w-[1540px] space-y-4 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+  <div id="operations-opening-wizard" class="mx-auto w-full max-w-[1440px] space-y-5 px-3 pb-32 pt-4 sm:px-6 sm:pt-6 lg:px-8 scroll-mt-36">
     <RouterLink to="/operations/cases" class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[var(--dh-primary)]">
       <ArrowLeft class="h-4 w-4" /> Trámites
     </RouterLink>
@@ -594,7 +594,7 @@ onMounted(async () => {
       @update:active-step="goToStep"
     />
 
-    <section class="overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
+    <section class="scroll-mt-36 overflow-visible rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow-sm)]">
       <header class="flex flex-wrap items-center gap-3 rounded-t-[26px] border-b border-[var(--dh-border)] p-5 sm:p-6">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[rgb(var(--dh-primary-rgb)/0.10)] text-[var(--dh-primary)]">
           <Route v-if="activeStep === 1" class="h-5 w-5" />
@@ -610,29 +610,110 @@ onMounted(async () => {
       </header>
 
       <div class="p-4 sm:p-6">
-        <div v-show="activeStep === 1" class="grid gap-4 md:grid-cols-2">
-          <DhSelect :model-value="form.transportType" label="Modalidad de transporte" :options="transportSelectionOptions.map(x => ({label:x.label,value:x.value}))" @update:model-value="selectTransport(String($event))" />
-          <DhSelect :model-value="effectiveShipment" label="Tipo de embarque" :options="shipmentOptions" :disabled="!form.transportType" @update:model-value="selectShipment(String($event))" />
+        <div v-show="activeStep === 1" class="grid gap-5 lg:grid-cols-2">
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/25 p-4 sm:p-5">
+            <div class="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h4 class="text-sm font-black">Modalidad de transporte</h4>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Selecciona el medio principal de la operación.</p>
+              </div>
+              <DhBadge variant="neutral">3 opciones</DhBadge>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-3">
+              <button v-for="option in transportSelectionOptions" :key="option.value" type="button"
+                :aria-pressed="form.transportType === option.value"
+                class="relative flex min-h-[116px] flex-col items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                :class="form.transportType === option.value
+                  ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)] shadow-sm'
+                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
+                @click="selectTransport(option.value)">
+                <component :is="option.value === 'MARITIME' ? Ship : option.value === 'AIR' ? Plane : Truck"
+                  class="h-5 w-5 text-[var(--dh-primary)]" />
+                <span><strong class="block text-sm">{{ option.label }}</strong><span class="mt-1 block text-[11px] font-medium text-[var(--dh-text-muted)]">{{ option.caption }}</span></span>
+                <CircleCheck v-if="form.transportType === option.value" class="absolute right-3 top-3 h-4 w-4 text-[var(--dh-primary)]" />
+              </button>
+            </div>
+            <p v-if="form.transportType === 'MULTIMODAL' && editingId"
+              class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-500">
+              Este expediente histórico es multimodal. Sus datos se conservan; para nuevas aperturas selecciona marítimo, aéreo o terrestre.
+            </p>
+          </div>
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/25 p-4 sm:p-5">
+            <h4 class="text-sm font-black">Tipo de embarque</h4>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones compatibles con la modalidad seleccionada.</p>
+            <div v-if="shipmentOptions.length" class="mt-4 grid gap-2 sm:grid-cols-2">
+              <button v-for="option in shipmentOptions" :key="option.value" type="button"
+                :aria-pressed="effectiveShipment === option.value"
+                class="flex min-h-[92px] items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
+                :class="effectiveShipment === option.value
+                  ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)]'
+                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
+                @click="selectShipment(option.value)">
+                <span class="text-sm font-bold">{{ option.label }}</span>
+                <CircleCheck v-if="effectiveShipment === option.value" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+              </button>
+            </div>
+            <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-xs text-[var(--dh-text-muted)]">
+              Elige primero la modalidad de transporte.
+            </div>
+          </div>
         </div>
 
         <div v-show="activeStep === 1" class="space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
-              <h4 class="text-sm font-black">Cuenta y responsable comercial</h4>
+              <h4 class="text-base font-black">Cuenta y responsable comercial</h4>
               <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El cliente y el ejecutivo se obtienen de CRM; nunca debes introducir un UUID o IDTRA.</p>
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="space-y-3 md:col-span-2">
                 <PricingCrmClientSelect v-model="accountId" mode="create" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
-                <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
-                  <p class="text-xs font-black uppercase">Ejecutivo comercial (asignado en CRM)</p>
-                  <p class="text-sm">{{ executiveName || 'Se obtiene de CRM al seleccionar el cliente' }}</p>
+                <div role="status" aria-live="polite"
+                  class="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
+                  :class="executiveAssigned ? 'border-[var(--dh-primary)]/35 bg-[rgb(var(--dh-primary-rgb)/0.09)]' : 'border-amber-500/35 bg-amber-500/5'">
+                  <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--dh-card)]">
+                    <UserRound class="h-5 w-5 text-[var(--dh-primary)]" />
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">Ejecutivo comercial responsable (CRM)</span>
+                    <span class="mt-1 block text-base font-extrabold">{{ accountId ? executiveLabel : 'Selecciona una cuenta de CRM' }}</span>
+                    <span v-if="accountId && !executiveLoading && !executiveAssigned" class="mt-1 block text-xs text-amber-500">
+                      Pendiente bloqueante para validar; la asignación debe resolverse en CRM.
+                    </span>
+                  </span>
+                  <CircleCheck v-if="executiveAssigned" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
+                  <CircleAlert v-else-if="accountId && !executiveLoading" class="h-5 w-5 shrink-0 text-amber-500" />
                 </div>
               </div>
               <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <DhInput v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
-              <DhInput v-model="form.crmDivisionId" label="División CRM (opcional)" placeholder="Referencia de división" />
-              <DhInput v-model="form.contactReferences" label="Contactos de notificación" placeholder="Referencias de contactos de CRM" />
+              <DhInput v-model="form.crmDivisionId" label="Referencia de división CRM (opcional)" placeholder="Solo si existe una división configurada" />
+              <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h5 class="flex items-center gap-2 text-sm font-black"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /> Contactos operativos para notificaciones</h5>
+                    <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Solo contactos operativos habilitados en CRM. No se enviarán correos al guardar el borrador.</p>
+                  </div>
+                  <DhBadge variant="neutral">{{ form.contactIds.length }} seleccionados</DhBadge>
+                </div>
+                <p v-if="operationalContactsLoading" class="mt-3 text-xs text-[var(--dh-text-muted)]">Consultando contactos de CRM…</p>
+                <p v-else-if="operationalContactsIssue" role="status" class="mt-3 text-xs text-amber-500">{{ operationalContactsIssue }}</p>
+                <p v-else-if="accountId && !operationalContacts.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">No hay contactos operativos activos con correo válido. Se pueden registrar después en CRM.</p>
+                <p v-else-if="!accountId" class="mt-3 text-xs text-[var(--dh-text-muted)]">Selecciona primero una cuenta CRM.</p>
+                <div v-else class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <label v-for="contact in operationalContacts" :key="contact.id"
+                    class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-colors"
+                    :class="form.contactIds.includes(contact.id)
+                      ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]'
+                      : 'border-[var(--dh-border)] bg-[var(--dh-input)]/25 hover:border-[var(--dh-primary)]/50'">
+                    <input type="checkbox" class="h-4 w-4 accent-[var(--dh-primary)]"
+                      :checked="form.contactIds.includes(contact.id)"
+                      @change="toggleOperationalContact(contact.id, ($event.target as HTMLInputElement).checked)" />
+                    <span class="min-w-0"><span class="block truncate text-xs font-black">{{ contact.name }}</span>
+                      <span class="mt-0.5 block truncate text-[11px] text-[var(--dh-text-muted)]">{{ contact.email }}</span></span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -644,7 +725,7 @@ onMounted(async () => {
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div><h4 class="text-sm font-black">Ruta de transporte</h4><p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Buscadores de POL, POE y POD compartidos con el wizard de Pricing.</p></div>
+              <div><h4 class="text-base font-black">Ruta de transporte</h4><p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Buscadores de POL, POE y POD compartidos con el wizard de Pricing.</p></div>
               <DhBadge variant="neutral">{{ catalogLoading ? 'Cargando catálogos' : 'Catálogos de Config' }}</DhBadge>
             </div>
             <div class="grid gap-4 md:grid-cols-3">
@@ -681,7 +762,7 @@ onMounted(async () => {
 
         <div v-show="activeStep === 2" class="space-y-5">
           <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
-            <h4 class="text-sm font-black">Descripción de carga y CABYS</h4>
+            <h4 class="text-base font-black">Descripción de carga y CABYS</h4>
             <div class="flex flex-wrap items-end gap-3">
               <div class="min-w-[180px] flex-1">
                 <DhInput v-model="form.cabysSearch" label="Buscar CABYS de Hacienda" placeholder="Ej. repuestos, textiles, maquinaria…" @keyup.enter="searchCabys" />
