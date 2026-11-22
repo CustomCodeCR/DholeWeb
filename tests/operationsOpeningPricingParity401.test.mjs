@@ -7,8 +7,8 @@ const opening = readFileSync(new URL('../src/modules/operations/views/Operations
 test('Operations retains Pricing transport and shipment choices within three steps', () => {
   for (const label of ['Cliente y ruta', 'Carga y documentos', 'Revisión'])
     assert.ok(opening.includes(`label: '${label}'`), label)
-  assert.match(opening, /@update:model-value="selectTransport/)
-  assert.match(opening, /@update:model-value="selectShipment/)
+  assert.match(opening, /@click="selectTransport\(option\.value\)"/)
+  assert.match(opening, /@click="selectShipment\(option\.value\)"/)
   assert.match(opening, /shipmentOptionsByTransport/)
   assert.match(opening, /<PricingWizardStepper/)
   assert.doesNotMatch(opening, /activeStep === [456]/)
