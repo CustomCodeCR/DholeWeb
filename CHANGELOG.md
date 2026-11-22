@@ -1,3 +1,9 @@
+## [1.116.1] - 2026-11-22 · DH-20261122-PRICING-RETURN-EMAIL-409 (master selective candidate)
+
+- PATCH selectivo: retirar UUID de la ventana de devolución; conservar identificación comercial por cliente y ruta, con UUID solo en metadatos y URLs.
+- PricingService envía email HTML legible y con CTA sin UUID visible, configurado para cada entorno. Release global 1.116.1 (Web/System 1.116.0 → 1.116.1, PricingService 1.26.25 → 1.26.26).
+- Sin cambios de REST, SignalR ni reenvío existente. CI, staging y permiso de producción requeridos.
+
 ## [1.116.0] - 2026-11-22 · DH-20261122-OPERATIONS-ASSIGNMENT-SUMMARY-408
 
 - MINOR: permite escoger equipo de Aperturas con mínimo dos validadores disponibles antes de crear un IDTRA; mantiene autoguardado y recuperación del equipo elegido, con reintentos sin duplicados.
