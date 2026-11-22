@@ -1,3 +1,12 @@
+## [1.111.0] - 2026-11-21 · DH-20261121-OPERATIONS-PRICING-UI-399 (Operations · wizard compartido con Pricing)
+
+- MINOR: Apertura manual usa 5 pasos (Cliente, Ruta, Carga, Servicios, Revisión) con resumen de completitud, barra de avance y guardado de borrador sin perder información.
+- Se extrajo PricingWizardStepper del editor de tarifas y ahora lo usan Pricing y Operations: un único componente de navegación, semántica accesible y diseño adaptable para móvil.
+- Operations reutiliza PricingLocationSearchSelect para POL, POE, POD y WHS, PricingCrystalMultiSelect para servicios, DhCheckbox/DhSelect/DhInput/DhTextarea/DhButton y catálogos reales de Config usados por Crear tarifas (ubicaciones, contenedores, equipos terrestres, agentes y navieras).
+- La edición reconcilia nombres históricos de lugares con el catálogo sin borrar valores no encontrados; conserva el contador global IDTRA del backend Operations 0.15.0 y las APIs REST/SignalR existentes.
+- DholeWeb/DholeSystem 1.110.6 → 1.111.0; Operations 0.15.0 sin cambio de backend; servicios restantes conservan versiones; correcciones Pricing DH-398 intactas.
+- La aceptación de QUO automática hacia Operations y UAT funcional autenticado son trabajos pendientes, no parte de este ajuste visual. CI y staging por validar.
+
 ## [1.110.6] - 2026-11-21 · DH-20261121-PRICING-TERRESTRIAL-FREIGHT-398 (candidate master)
 
 - PATCH: FCL multimodal Pantalla 7 conserva el flete marítimo por contenedor y agrega el maestro Flete Internacional Terrestre marcado en data.applicable por Pricing sin confundirlo con Bunker.
