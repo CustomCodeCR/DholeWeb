@@ -24,7 +24,7 @@ Fuente: `DholeOperations_Especificacion_v1.2_Aperturas_Origen_Multinaviera(6).md
 
 ## Brechas que siguen abiertas (no declarar como implementadas)
 
-1. **Divisiones CRM.** La especificación exige referencia real a una división configurada, no texto libre. El formulario heredado conserva `crmDivisionId` por compatibilidad, pero debe validarse el contrato real de divisiones antes de convertirlo en selector.
+1. **Divisiones CRM.** La especificación exige referencia real a una división configurada, no texto libre. El formulario conserva `crmDivisionId` histórico en modo lectura, sin permitir capturar valores arbitrarios; debe validarse el contrato real de divisiones antes de construir un selector.
 2. **Procedimientos específicos por cuenta.** Deben consultarse/mostrarse desde CRM en el Resumen. No hay contrato inspeccionado que confirme esta consulta; no fabricar endpoint.
 3. **Contactos y notificaciones.** La selección y persistencia como referencias en `openingData` NO equivale a registrar preferencias/destinatarios formales en Operations ni envíos por Notifications. El backend debe verificar vigencia al enviar.
 4. **Servicios/recolecta, naviera/agente/merchant.** La pantalla Servicios se retiró por decisión posterior del usuario. La especificación los requiere cuando aplican; deben poder completarse en validación/Coordinación Origen con referencias SRM/Pricing y revisión comercial separada. No reintroducir una pantalla de servicios durante la apertura.
