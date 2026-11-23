@@ -1,3 +1,11 @@
+## [1.120.2] - 2026-11-23 · DH-20261123-PRICING-LTL-NUMERIC-418
+
+- PATCH: corregir el error silencioso al guardar consolidados LTL cuando Vue convierte campos number a valores numéricos y la validación intenta ejecutar .trim() sobre ellos antes del POST.
+- Normalizar costo, venta, mínimo y cargos variables (string/number) de manera segura, informar errores de validación por campo y capturar fallos inesperados antes de crear la ruta.
+- Agregar prueba ejecutable de regresión al prebuild que cubre entradas numéricas nativas, cargos variables y flujo de creación.
+- DholeWeb y DholeSystem 1.120.1 → 1.120.2; otros 15 componentes sin cambio. Reutiliza componentes DH; sin cambio de contratos REST/SignalR/Redis ni migraciones.
+- Integración primero a develop y staging; promoción posterior del parche validado a master con autorización expresa. CI/staging pendientes.
+
 ## [1.120.1] - 2026-11-23 · DH-20261123-PRICING-LTL-ROUTES-417
 
 - PATCH: permitir crear un consolidado LTL independiente al modificar el origen o destino de una tarifa existente; la ruta original no se sobrescribe.
