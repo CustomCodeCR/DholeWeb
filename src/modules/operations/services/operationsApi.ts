@@ -178,7 +178,7 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
@@ -250,6 +250,16 @@ export const operationsApi = {
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
+  openingDrafts: () => request<Array<{ id: string; companyId: string | null; updatedAtUtc: string }>>(
+    '/api/operations/apertures/drafts'),
+  getOpeningDraft: (id: string) => request<{ id: string; companyId: string | null; updatedAtUtc: string; data: Record<string, unknown> }>(
+    '/api/operations/apertures/drafts/' + encodeURIComponent(id)),
+  saveOpeningDraft: (id: string, data: Record<string, unknown>, companyId?: string) =>
+    request<{ id: string; updatedAtUtc: string }>(
+      '/api/operations/apertures/drafts/' + encodeURIComponent(id), 'PUT',
+      { data, companyId: companyId || null }),
+  deleteOpeningDraft: (id: string) => request<void>(
+    '/api/operations/apertures/drafts/' + encodeURIComponent(id), 'DELETE'),
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
