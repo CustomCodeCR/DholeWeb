@@ -37,3 +37,16 @@ test('Return dialog does not display the internal request UUID', () => {
   assert.doesNotMatch(panel, /Solicitud \{\{ returnTarget\.id \}\}/)
   assert.match(panel, /Devolver tarifa/)
 })
+
+test('Returned request details use the existing DhModal instead of expanding table rows', () => {
+  assert.match(seller, /import \{ DhModal \} from '@\/shared\/components\/organisms'/)
+  assert.match(seller, /label="Ver devolución"/)
+  assert.match(seller, /@click="selectedReturnRequest = request"/)
+  assert.match(seller, /<DhModal[\s\S]*?:open="selectedReturnRequest !== null"/)
+  assert.match(seller, /surface="solid"/)
+  assert.match(seller, /selectedReturnHistory\.length/)
+  assert.match(seller, /entry\.returnedByName/)
+  assert.match(seller, /entry\.returnedAtUtc/)
+  assert.match(seller, /entry\.reason/)
+  assert.doesNotMatch(seller, /<details v-if="request\.payload\?\.pricingReturnHistory/)
+})
