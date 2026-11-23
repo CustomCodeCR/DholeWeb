@@ -521,7 +521,88 @@ async function initializeWorkspace() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo inicializar Operaciones.'
   } finally { initializing.value = false }
 }
-// Drafts remain local and scoped to this logged-in user until a case is created.
+// Local fallback is scoped to this user; PostgreSQL is authoritative once staging is reachable.
+const serverDraftId = ref('')
+const serverDraftVersion = ref(0)
+let serverDraftSaving = false
+let serverDraftDirty = false
+let draftBootstrapping = false
+const serverDraftError = ref('')
+function wizardDraftPayload(): Record<string, unknown> {
+  return {
+    form: form.value, accountId: accountId.value,
+    selectedClientName: selectedClientName.value, modality: modality.value,
+    step: activeStep.value, executiveName: executiveName.value,
+    executiveUserId: executiveUserId.value,
+    institutionalExecutive: institutionalExecutive.value,
+    contactsTouched: contactsTouched.value,
+    assignmentPendingId: assignmentPendingId.value,
+    assignedTeamId: assignedTeamId.value,
+  }
+}
+async function persistServerDraft() {
+  if (!autosaveReady.value || editingId.value || !companyId.value || draftBootstrapping) return
+  if (saving.value) return
+  if (serverDraftSaving) { serverDraftDirty = true; return }
+  serverDraftSaving = true
+  do {
+    serverDraftDirty = false
+    const snapshot = wizardDraftPayload()
+    try {
+      const result = serverDraftId.value
+        ? await operationsApi.updateApertureDraft(serverDraftId.value, snapshot, serverDraftVersion.value)
+        : await operationsApi.createApertureDraft(snapshot)
+      serverDraftId.value = result.id
+      serverDraftVersion.value = result.version
+      serverDraftError.value = ''
+      autosaveState.value = 'saved'
+      lastAutoSaveAt.value = new Date(result.updatedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } catch (cause) {
+      serverDraftError.value = cause instanceof Error ? cause.message : 'No se pudo guardar en PostgreSQL'
+      autosaveState.value = 'error'
+      break
+    }
+  } while (serverDraftDirty && autosaveReady.value && !saving.value)
+  serverDraftSaving = false
+}
+async function restoreServerDraft() {
+  if (editingId.value || !companyId.value) return
+  draftBootstrapping = true
+  try {
+    const saved = await operationsApi.latestApertureDraft()
+    if (!saved?.id) return
+    const state = JSON.parse(saved.payloadJson) as Record<string, unknown>
+    if (!state || typeof state !== 'object' || Array.isArray(state)) return
+    serverDraftId.value = saved.id
+    serverDraftVersion.value = saved.version
+    if (state.form && typeof state.form === 'object' && !Array.isArray(state.form)) {
+      form.value = { ...form.value, ...state.form } as typeof form.value
+      if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
+      if (!Array.isArray(form.value.equipment)) form.value.equipment = []
+      if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
+    }
+    accountId.value = String(state.accountId || '')
+    lastSelectedAccountId = accountId.value
+    selectedClientName.value = String(state.selectedClientName || '')
+    modality.value = String(state.modality || '')
+    executiveName.value = String(state.executiveName || '')
+    executiveUserId.value = String(state.executiveUserId || '')
+    institutionalExecutive.value = state.institutionalExecutive === true
+    contactsTouched.value = state.contactsTouched === true
+    assignmentPendingId.value = String(state.assignmentPendingId || '')
+    assignedTeamId.value = String(state.assignedTeamId || '')
+    const step = Number(state.step)
+    activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
+    lastAutoSaveAt.value = new Date(saved.updatedAtUtc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    reconcileLocations()
+    if (accountId.value && !assignmentPendingId.value)
+      await resolveCrmOpeningData(accountId.value, { executiveName: executiveName.value,
+        executiveUserId: executiveUserId.value, isCastroFallasExecutive: institutionalExecutive.value })
+  } catch (cause) {
+    serverDraftError.value = cause instanceof Error ? cause.message : 'No se pudo recuperar el borrador de PostgreSQL'
+  } finally { draftBootstrapping = false }
+}
+
 const draftStorageKey = computed(() =>
   'dhole.operations.manual-opening.v2:' + (auth.userId || 'guest') + ':' +
   (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
@@ -537,12 +618,15 @@ function persistLocalDraft() {
       contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
       assignedTeamId: assignedTeamId.value,
     }))
-    autosaveState.value = 'saved'
-    lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (!companyId.value) {
+      autosaveState.value = 'saved'
+      lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
   } catch { autosaveState.value = 'error' }
+  void persistServerDraft()
 }
 function scheduleLocalDraft() {
-  if (!autosaveReady.value || editingId.value) return
+  if (!autosaveReady.value || editingId.value || draftBootstrapping) return
   if (autosaveTimer) clearTimeout(autosaveTimer)
   autosaveState.value = 'pending'
   autosaveTimer = setTimeout(persistLocalDraft, 650)
@@ -657,6 +741,11 @@ async function save() {
       await operationsApi.assign(result.id, assignedTeamId.value)
     }
     clearLocalDraft()
+    if (serverDraftId.value) {
+      try { await operationsApi.discardApertureDraft(serverDraftId.value) }
+      catch { /* Already-created IDTRA is authoritative; cleanup can be retried. */ }
+      serverDraftId.value = ''
+    }
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
     error.value = assignmentPendingId.value
@@ -670,7 +759,12 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
+  if (!editingId.value) {
+    restoreLocalDraft()
+    await restoreServerDraft()
+    autosaveReady.value = true
+    await loadAssignmentTeams()
+  }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -724,7 +818,7 @@ onMounted(async () => {
         <div class="flex flex-wrap items-center gap-3">
           <span v-if="!editingId" role="status" aria-live="polite" class="text-xs font-semibold"
             :class="autosaveState === 'error' ? 'text-amber-500' : 'text-[var(--dh-text-muted)]'">
-            {{ autosaveState === 'error' ? 'Autoguardado no disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
+            {{ autosaveState === 'error' ? 'Autoguardado remoto no disponible · copia local conservada' : autosaveState === 'pending' ? 'Guardando en PostgreSQL…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
           </span>
           <DhButton :icon="editingId ? Save : FolderPlus"
             :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
@@ -743,7 +837,7 @@ onMounted(async () => {
           <div class="min-w-0">
             <p class="text-[10px] font-black uppercase tracking-[.18em] text-[var(--dh-primary)]">OPERATIONS · APERTURAS</p>
             <h2 class="text-xl font-black tracking-tight text-[var(--dh-text)] sm:text-2xl">{{ editingId ? 'Actualizar expediente' : 'Crear expediente operativo' }}</h2>
-            <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Completa una etapa a la vez. Los cambios se guardan automáticamente; el IDTRA se crea al confirmar.</p>
+            <p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Completa una etapa a la vez. Los borradores se guardan en PostgreSQL; el IDTRA se crea al confirmar.</p>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
