@@ -1,3 +1,8 @@
+## [1.121.0] - 2026-11-23
+
+- Autoguardado de Aperturas incompletas a PostgreSQL, con recuperación por usuario y respaldo local.
+- Contrato de borradores y sincronización con backend Operations; sin crear componentes visuales alternativos.
+
 ## [1.120.6] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421
 
 - PATCH: al editar una cotización ya guardada, Pantalla 6 (flete terrestre LTL/FTL) permite avanzar a Pantalla 7 sin los controles de completitud exclusivos de creación; conserva las líneas persistidas, su agente, moneda y montos.

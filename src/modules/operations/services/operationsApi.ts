@@ -178,7 +178,7 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
@@ -192,6 +192,10 @@ export const operationsApi = {
     `/api/operations/cases/${id}/tabs`),
   caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
     `/api/operations/cases/${id}/workspace`),
+  requestPricingReview: (id: string, requestId: string, reason: string) =>
+    request<{ taskId: string; requested: boolean }>(
+      `/api/operations/cases/${id}/pricing/review-requests`,
+      'POST', { requestId, reason }),
   caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[] }>(
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
@@ -250,6 +254,16 @@ export const operationsApi = {
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
+  openingDrafts: () => request<{ items: Array<{ id: string; updatedAtUtc: string }> }>(
+    '/api/operations/apertures/drafts'),
+  openingDraft: (id: string) =>
+    request<{ id: string; payloadJson: string; updatedAtUtc: string }>(
+      '/api/operations/apertures/drafts/' + id),
+  saveOpeningDraft: (id: string, payload: Record<string, unknown>) =>
+    request<{ id: string; updatedAtUtc: string }>(
+      '/api/operations/apertures/drafts/' + id, 'PUT', { payload }),
+  discardOpeningDraft: (id: string) =>
+    request<unknown>('/api/operations/apertures/drafts/' + id, 'DELETE'),
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
