@@ -5156,7 +5156,7 @@ onMounted(async () => {
               />
               <div class="crystal-line-vat">
                 <DhCheckbox
-                  :model-value="Boolean(line.applyDestinationTax)"
+                  :model-value="Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)"
                   :label="lineVatLabel(line)"
                   :disabled="!canApplyDestinationTax(line)"
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
@@ -5225,7 +5225,7 @@ onMounted(async () => {
               />
                 <div class="crystal-line-vat">
                   <DhCheckbox
-                    :model-value="Boolean(line.applyDestinationTax)"
+                    :model-value="Boolean(line.applyDestinationTax) && canApplyDestinationTax(line)"
                     :label="lineVatLabel(line)"
                     :disabled="!canApplyDestinationTax(line)"
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
