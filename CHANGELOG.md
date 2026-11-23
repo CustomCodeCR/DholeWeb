@@ -1,3 +1,9 @@
+## [1.120.8] - 2026-11-23
+
+- PATCH DH-20261123-PRICING-VAT-RESTORE-422: corregir IVA por rubro de Pricing. Los cargos de recolecta y origen usan POL; los cargos de destino y entrega usan POE, y el flete internacional aplica la jurisdicción según la operación de importación/exportación.
+- Restaurar la sección de cargos existentes desde su relación configurada de puerto (POL/POE/POD), evitando clasificar por el nombre cuando existe la relación; preservar alternativas multi-POE, parámetros REST, componentes DH y notas de IVA.
+- Pruebas de regresión de clasificación, tasa configurada/cero, edición, exportación/importación, compilación y verificación de bundle. Sin modificaciones de base de datos ni de contratos SignalR.
+
 ## [1.120.6] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421
 
 - PATCH: al editar una cotización ya guardada, Pantalla 6 (flete terrestre LTL/FTL) permite avanzar a Pantalla 7 sin los controles de completitud exclusivos de creación; conserva las líneas persistidas, su agente, moneda y montos.
