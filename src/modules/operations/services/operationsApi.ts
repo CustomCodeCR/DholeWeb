@@ -192,6 +192,10 @@ export const operationsApi = {
     `/api/operations/cases/${id}/tabs`),
   caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
     `/api/operations/cases/${id}/workspace`),
+  requestPricingReview: (id: string, requestId: string, reason: string) =>
+    request<{ taskId: string; requested: boolean }>(
+      `/api/operations/cases/${id}/pricing/review-requests`,
+      'POST', { requestId, reason }),
   caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[] }>(
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
