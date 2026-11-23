@@ -1,3 +1,12 @@
+## [1.119.0] - 2026-11-22 · DH-20261122-OPS-CASE-OVERVIEW-414
+
+- MINOR: listado de Trámites muestra nombre CRM con resolución por cuenta, equipo, operativo y estado específico departamental, sin exponer UUID ni destacar DRAFT como estado operativo.
+- Cliente por lote desde CRM 1.43.0 bajo permisos de cuenta, sin N+1 en ruta principal.
+- Drawer de resumen con componentes DH, dos validadores de Aperturas, ejecutivo comercial real de CRM, ruta, mercancía, equipos, servicios, pendientes, historial y responsable.
+- Expediente completo reorganizado por identificación, ruta, carga, servicios, estados de etapa y responsables; superusuario puede consultar todos los tabs según permisos calculados por backend.
+- Pruebas de regresión agregadas al gate de build; mantiene realtime, contratos REST existentes y sin duplicar componentes visuales.
+
+
 ## [1.117.1] - 2026-11-22 · DH-20261122-DHOLE-ERP-411 (DHOLE ERP pronunciation choice)
 
 - PATCH: se retiran todas las indicaciones de pronunciación de DHOLE ERP. La marca conserva su nombre y significado oficial sin imponer una lectura concreta.
