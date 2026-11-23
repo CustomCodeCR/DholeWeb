@@ -75,6 +75,8 @@ async function loadAssignmentTeams() {
 }
 const autosaveReady = ref(false)
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+let serverDraftSaveChain: Promise<unknown> = Promise.resolve()
+const serverDraftId = ref('')
 const activeStep = ref(1)
 const wizardSteps = [
   { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
@@ -525,10 +527,37 @@ async function initializeWorkspace() {
 const draftStorageKey = computed(() =>
   'dhole.operations.manual-opening.v2:' + (auth.userId || 'guest') + ':' +
   (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
+function ensureServerDraftId() {
+  if (serverDraftId.value) return serverDraftId.value
+  const storageKey = draftStorageKey.value + ':postgres-id'
+  const existing = window.localStorage.getItem(storageKey)
+  const id = existing && /^[0-9a-f-]{36}$/i.test(existing)
+    ? existing : window.crypto.randomUUID()
+  window.localStorage.setItem(storageKey, id)
+  serverDraftId.value = id
+  return id
+}
+async function restoreServerDraft() {
+  const id = ensureServerDraftId()
+  try {
+    const remote = await operationsApi.getOpeningDraft(id)
+    const savedAt = Date.parse(remote.updatedAtUtc)
+    const current = window.localStorage.getItem(draftStorageKey.value)
+    let localTimestamp = 0
+    try { localTimestamp = Number(JSON.parse(current || '{}').savedAt) || 0 } catch { /* older local value */ }
+    if (Number.isFinite(savedAt) && savedAt > localTimestamp && remote.data) {
+      window.localStorage.setItem(draftStorageKey.value, JSON.stringify(remote.data))
+      restoreLocalDraft()
+    }
+  } catch {
+    // A draft may not exist on the server yet, or the network may be offline.
+    // Preserve the local recovery copy; the next edit will retry PostgreSQL.
+  }
+}
 function persistLocalDraft() {
   if (!autosaveReady.value || editingId.value) return
   try {
-    window.localStorage.setItem(draftStorageKey.value, JSON.stringify({
+    const snapshot = {
       savedAt: Date.now(), version: 2, form: form.value,
       accountId: accountId.value, selectedClientName: selectedClientName.value,
       modality: modality.value, step: activeStep.value,
@@ -536,9 +565,15 @@ function persistLocalDraft() {
       institutionalExecutive: institutionalExecutive.value,
       contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
       assignedTeamId: assignedTeamId.value,
-    }))
-    autosaveState.value = 'saved'
-    lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    window.localStorage.setItem(draftStorageKey.value, JSON.stringify(snapshot))
+    const id = ensureServerDraftId()
+    serverDraftSaveChain = serverDraftSaveChain.catch(() => undefined).then(() =>
+      operationsApi.saveOpeningDraft(id, snapshot, companyId.value || undefined)
+    ).then(() => {
+      autosaveState.value = 'saved'
+      lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }).catch(() => { autosaveState.value = 'error' })
   } catch { autosaveState.value = 'error' }
 }
 function scheduleLocalDraft() {
@@ -605,7 +640,7 @@ async function save() {
     return
   }
   if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value && !editingId.value) {
-    error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en este navegador.'
+    error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en PostgreSQL y se conservan también en este navegador.'
     return
   }
   saving.value = true
@@ -656,7 +691,11 @@ async function save() {
       persistLocalDraft()
       await operationsApi.assign(result.id, assignedTeamId.value)
     }
+    // Flush the serialized writes before deleting the persisted browser draft.
+    await serverDraftSaveChain.catch(() => undefined)
+    if (serverDraftId.value) await operationsApi.deleteOpeningDraft(serverDraftId.value).catch(() => undefined)
     clearLocalDraft()
+    try { window.localStorage.removeItem(draftStorageKey.value + ':postgres-id') } catch { /* offline */ }
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
     error.value = assignmentPendingId.value
@@ -670,7 +709,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
+  if (!editingId.value) { restoreLocalDraft(); await restoreServerDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -724,7 +763,7 @@ onMounted(async () => {
         <div class="flex flex-wrap items-center gap-3">
           <span v-if="!editingId" role="status" aria-live="polite" class="text-xs font-semibold"
             :class="autosaveState === 'error' ? 'text-amber-500' : 'text-[var(--dh-text-muted)]'">
-            {{ autosaveState === 'error' ? 'Autoguardado no disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
+            {{ autosaveState === 'error' ? 'Sin conexión con PostgreSQL · respaldo local disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
           </span>
           <DhButton :icon="editingId ? Save : FolderPlus"
             :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
