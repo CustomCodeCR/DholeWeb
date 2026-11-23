@@ -1,9 +1,9 @@
-## [1.120.7] - 2026-11-23 · DH-20261123-PRICING-MODIFICATION-422
+## [1.120.9] - 2026-11-23 · DH-20261123-PRICING-MODIFICATION-422
 
 - PATCH: las modificaciones solicitadas por Ventas muestran cambios de modalidad y tipo de embarque cuando la revisión original puede verificarse; no se infieren valores de cotizaciones ya revisadas.
 - En Pantalla 7 se mantienen todos los RateDetails/CostIds persistidos aunque cambie ruta, condición de carga o catálogo; los cargos excluidos se identifican por nombre y no se eliminan sin instrucción expresa. Se corrige la asociación del detalle guardado con su índice en el payload ordenado.
 - Regresiones DH-422 integradas en prebuild y test de Pricing. Conserva componentes DH, REST, borradores y contratos realtime. No hay cambios en PricingService ni migraciones.
-- DholeWeb y DholeSystem 1.120.6 → 1.120.7, otros 15 componentes sin cambios. Pendiente CI y staging; producción no autorizada.
+- DholeWeb y DholeSystem: candidato 1.120.9 (1.120.7 y 1.120.8 reservadas por otros releases), otros 15 componentes sin cambios. Pendiente CI y staging; producción no autorizada.
 
 ## [1.120.6] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421
 
