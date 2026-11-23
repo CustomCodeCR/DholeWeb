@@ -1,3 +1,11 @@
+## [1.120.3] - 2026-11-23 · DH-20261123-CORS-PREFLIGHT-419
+
+- PATCH: enrutar llamadas API de dominios oficiales production/staging bajo el mismo origen Web usando el proxy nginx existente hacia DholeApiGateway; conserva orígenes personalizados, REST, JWT y rutas SignalR existentes.
+- Reutilizar catálogos por sesión e impersonación, con deduplicación de GET simultáneos, TTL de 60 segundos, invalidación por modificaciones locales de catálogos y cambios de sesión.
+- Actualizar clientes de JSON, descargas y Storage, manteniendo el tratamiento especializado del endpoint Hacienda y límites de carga controlados.
+- DholeWeb/ecosistema 1.120.2 → 1.120.3; DholeApiGateway 1.11.0 → 1.11.1 en release coordinado; demás microservicios sin cambios. Sin nuevas librerías ni componentes DH.
+- Validación requerida: nginx -t, type-check, compilación, tests de regresión, CI y pruebas staging; no despliegue de producción sin autorización.
+
 ## [1.120.2] - 2026-11-23 · DH-20261123-PRICING-LTL-NUMERIC-418
 
 - PATCH: corregir el error silencioso al guardar consolidados LTL cuando Vue convierte campos number a valores numéricos y la validación intenta ejecutar .trim() sobre ellos antes del POST.
