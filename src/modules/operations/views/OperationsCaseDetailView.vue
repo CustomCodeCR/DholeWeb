@@ -248,6 +248,7 @@ async function load() {
     optional.push(loadResponsibleNames([
       detail.createdBy, detail.executiveUserId,
       ...work.stages.map(s => s.assignedUserId),
+      ...work.stages.flatMap(s => s.supervisorUserIds || []),
       ...(work.validators || []).map(v => v.userId),
       ...work.tasks.map(t => t.assignedUserId),
     ], current))
@@ -445,9 +446,14 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 <p class="text-sm font-bold">{{ statusLabel(stage.departmentCode) }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">Equipo: {{ stage.teamName || 'Por asignar' }}</p>
                 <p class="mt-1 text-xs font-semibold">Operativo: {{ responsibleName(stage.assignedUserId) }}</p>
+                <p v-if="stage.supervisorUserIds?.length" class="mt-1 text-xs text-[var(--dh-text-soft)]">
+                  Supervisión: {{ stage.supervisorUserIds.map(id => responsibleName(id)).join(', ') }}
+                </p>
+                <p v-if="stage.assignedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">Asignación: {{ dateLabel(stage.assignedAtUtc) }}</p>
                 <p v-for="reviewer in (workspace.validators || []).filter(v => v.caseStageId === stage.id)"
                   :key="reviewer.userId" class="mt-1 text-xs text-[var(--dh-text-soft)]">
                   Validador {{ reviewer.slot }}: {{ responsibleName(reviewer.userId) }} · {{ statusLabel(reviewer.status) }}
+                  <span v-if="reviewer.reviewedAtUtc">· {{ dateLabel(reviewer.reviewedAtUtc) }}</span>
                 </p>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Inicio: {{ dateLabel(stage.startedAtUtc) }} · Finalización: {{ dateLabel(stage.completedAtUtc) }}</p>
               </div>
