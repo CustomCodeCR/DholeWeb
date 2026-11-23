@@ -1,3 +1,9 @@
+## [1.120.3] - 2026-11-23 · DH-20261123-CORS-PREFLIGHT-419
+
+- PATCH: deduplicar llamadas concurrentes idénticas a CatalogItemsService.select(), sin almacenar resultados persistentes que puedan quedar obsoletos o filtrarse entre sesiones; las solicitudes fallidas se pueden reintentar.
+- Optimización coordinada con DholeApiGateway 1.11.1 para cache CORS preflight, sin alterar JWT, REST, SignalR, Redis ni componentes DH.
+- DholeWeb/DholeSystem 1.120.2 → 1.120.3; otros componentes sin cambio en este repositorio. CI y staging pendientes antes de master.
+
 ## [1.120.2] - 2026-11-23 · DH-20261123-PRICING-LTL-NUMERIC-418
 
 - PATCH: corregir el error silencioso al guardar consolidados LTL cuando Vue convierte campos number a valores numéricos y la validación intenta ejecutar .trim() sobre ellos antes del POST.
