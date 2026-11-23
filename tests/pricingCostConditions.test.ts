@@ -256,5 +256,5 @@ test('wizard sends tier context and hydrates persisted cargo before requesting p
   assert.match(source, /containerTypeId: form\.equipmentId \|\| selectedEquipment\.value\?\.id \|\| null/)
   const hydration = source.slice(source.indexOf('async function hydrateExistingRate()'), source.indexOf('function editCurrentRate()'))
   assert.ok(hydration.indexOf('form.storageDays = Math.max') < hydration.indexOf('await loadApplicableCosts()'))
-  assert.ok(hydration.indexOf('await loadApplicableCosts()') < hydration.indexOf('rateLines.value = rate.rateDetails.filter'))
+  assert.ok(hydration.indexOf('await loadApplicableCosts()') < hydration.indexOf('rateLines.value = rate.rateDetails.map'))
 })
