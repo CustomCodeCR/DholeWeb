@@ -1,4 +1,4 @@
-## [1.120.7] - 2026-11-23
+## [1.120.8] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-VAT-RESTORE-422: corregir IVA por rubro de Pricing. Los cargos de recolecta y origen usan POL; los cargos de destino y entrega usan POE, y el flete internacional aplica la jurisdicción según la operación de importación/exportación.
 - Restaurar la sección de cargos existentes desde su relación configurada de puerto (POL/POE/POD), evitando clasificar por el nombre cuando existe la relación; preservar alternativas multi-POE, parámetros REST, componentes DH y notas de IVA.
