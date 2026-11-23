@@ -395,7 +395,7 @@ function patchWizard(source: string) {
       ") {",
       "  return resolvePricingLineVatContext(line.section, operation, selectedOrigin.value, poe, catalogs.countries)",
       "}",
-    ].join('\\n'),
+    ].join('\n'),
     missingRuntimeDefinitions,
   )
 
@@ -410,7 +410,7 @@ function patchWizard(source: string) {
       ") {",
       "  return lineVatContext(line, poe, operation).rate",
       "}",
-    ].join('\\n'),
+    ].join('\n'),
     missingRuntimeDefinitions,
   )
 
@@ -421,7 +421,7 @@ function patchWizard(source: string) {
       "function canApplyDestinationTax(line: RateLine) {",
       "  return lineDestinationTaxRate(line) > 0",
       "}",
-    ].join('\\n'),
+    ].join('\n'),
     missingRuntimeDefinitions,
   )
 
@@ -436,7 +436,7 @@ function patchWizard(source: string) {
       "    ? \`IVA \${source} · \${context.countryCode} (\${context.rate}%)\`",
       "    : \`IVA \${source} (sin IVA configurado)\`",
       "}",
-    ].join('\\n'),
+    ].join('\n'),
     missingRuntimeDefinitions,
   )
 
