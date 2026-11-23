@@ -603,10 +603,15 @@ async function startFreshOpeningDraft() {
   assignedTeamId.value = ''
   assignmentPendingId.value = ''
   modality.value = ''
+  selectedPol.value = ''
+  selectedPoe.value = ''
+  selectedPod.value = ''
+  selectedWarehouse.value = ''
   activeStep.value = 1
   error.value = ''
   autosaveReady.value = true
   persistLocalDraft()
+  await remoteDraftChain.catch(() => undefined)
   await refreshSavedOpeningDrafts()
 }
 async function restoreServerDraft() {
