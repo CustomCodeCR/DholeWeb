@@ -838,6 +838,10 @@ onMounted(async () => {
       :hide-excel-export="authStore.hasScope('pricing.rate-request.view-all')"
     >
       <template #actions>
+        <DhButton v-if="authStore.hasScope('pricing.rate.view')"
+          label="Revisiones de Operaciones"
+          variant="secondary"
+          @click="router.push({ name: 'pricing-operations-service-reviews' })" />
         <DhButton
           v-if="isExpiredApprovalSupervisor"
           label="Autorizar tarifas vencidas"
