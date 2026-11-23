@@ -51,17 +51,50 @@ const toast = useToastStore()
 const workRequest = ref<WorkRequest | null>(null)
 const workStatusSaving = ref(false)
 const savedRevisionAvailable = ref<number | null>(null)
+// Only compare with the persisted source revision, never an already-updated QUO.
+const originalRateHeader = ref<{ modality: string; shipmentMode: string } | null>(null)
 const recoveringSavedRevision = ref(false)
 const isModification = computed(() =>
   workRequest.value?.kind === 'Modification' || workRequest.value?.payload?.kind === 'Modification'
 )
-const modificationChanges = computed(() => {
+function normalizedHeader(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function headerLabel(key: 'modality' | 'shipmentMode', value: string): string {
+  if (key === 'shipmentMode') return value.toUpperCase()
+  return ({
+    maritime: 'Marítimo', air: 'Aéreo', land: 'Terrestre', multimodal: 'Multimodal',
+  } as Record<string, string>)[normalizedHeader(value)] ?? value
+}
+
+const modificationChanges = computed<ModificationChange[]>(() => {
   const changes = workRequest.value?.payload?.modification?.changes ?? []
-  // Historical Sales LCL requests sometimes sent empty non-editable header
-  // fields. They are unchanged, not instructions to delete the quote's identity.
+  // Blank historical LCL header fields are not valid deletion instructions.
   const mandatoryHeaders = new Set(['modalidad', 'tipo de embarque', 'tipo de equipo', 'vigencia'])
-  return changes.filter(change => !(String(change.action).toLowerCase() === 'eliminar'
-    && mandatoryHeaders.has(String(change.field).toLowerCase())))
+  const visible = changes.filter(change => !(normalizedHeader(change.action) === 'eliminar'
+    && mandatoryHeaders.has(normalizedHeader(change.field))))
+
+  // Older requests may omit transport-header differences from the comparison.
+  // Backfill ONLY when the original persisted revision can be verified.
+  const original = originalRateHeader.value
+  const requested = workRequest.value?.payload?.form
+  if (!original || !requested) return visible
+  const headerFields = [
+    { field: 'Modalidad', key: 'modality' as const },
+    { field: 'Tipo de embarque', key: 'shipmentMode' as const },
+  ]
+  const missing = headerFields.flatMap(({ field, key }) => {
+    const before = original[key]
+    const after = String(requested[key] ?? '').trim()
+    if (!before || !after || normalizedHeader(before) === normalizedHeader(after)
+      || visible.some(change => normalizedHeader(change.field) === normalizedHeader(field))) return []
+    return [{
+      field, action: 'Modificar',
+      original: headerLabel(key, before), requested: headerLabel(key, after),
+    }]
+  })
+  return [...missing, ...visible]
 })
 const modificationSnapshot = computed(() => {
   const request = workRequest.value
@@ -185,6 +218,14 @@ async function inspectSavedRevision(id: string, version: number) {
     if (version !== generation || id !== currentId) return
     const original = Number(request.payload?.modification?.sourceRevisionNumber || 0)
     savedRevisionAvailable.value = rate.revisionNumber > original ? rate.revisionNumber : null
+    const explicitModality = String(rate['transportModality'] ?? rate['modality'] ?? '').trim()
+    // Shipment alone cannot distinguish Maritime/Multimodal or Air LCL.
+    // Only derive Land for FTL/LTL; otherwise rely on stored metadata.
+    const verifiedModality = explicitModality ||
+      (['Ftl', 'Ltl'].includes(rate.shipmentMode) ? 'Land' : '')
+    originalRateHeader.value = rate.revisionNumber === original
+      ? { modality: verifiedModality, shipmentMode: String(rate.shipmentMode) }
+      : null
   } catch {
     if (version === generation) savedRevisionAvailable.value = null
   }
@@ -285,6 +326,7 @@ async function stop() {
   ready.value = false
   workRequest.value = null
   savedRevisionAvailable.value = null
+  originalRateHeader.value = null
   const id = currentId || pendingRequestId
   currentId = ''
   // Wait for any in-flight claim/heartbeat before releasing. Releasing first
