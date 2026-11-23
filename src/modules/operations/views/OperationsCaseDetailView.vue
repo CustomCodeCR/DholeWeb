@@ -12,7 +12,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
   operationsApi, type OperationsCaseDetail, type OperationsCaseWorkspace,
-  type OperationsCaseCost, type OperationsCaseTab, type OperationsTabCode,
+  type OperationsCaseCost, type OperationsAdditionalService, type OperationsCaseTab, type OperationsTabCode,
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
   type OperationsOpeningEdit, type OperationsOriginMeasurement,
@@ -87,6 +87,11 @@ const openingSections = computed(() => {
 const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
+const additionalServices = ref<OperationsAdditionalService[]>([])
+const newServiceCode = ref('')
+const newServiceName = ref('')
+const newServiceReason = ref('')
+const sendingServiceReview = ref(false)
 const origin = ref<OperationsOriginProgress | null>(null)
 const originMeasurement = ref<OperationsOriginMeasurement | null>(null)
 const measuredWeight = ref('')
@@ -244,6 +249,7 @@ async function load() {
     // prevent opening the whole expediente.
     const optional: Promise<unknown>[] = []
     costs.value = []
+    additionalServices.value = []
     origin.value = null
     originMeasurement.value = null
     notes.value = []
@@ -259,6 +265,8 @@ async function load() {
       ...(work.validators || []).map(v => v.userId),
       ...work.tasks.map(t => t.assignedUserId),
     ], current))
+    optional.push(operationsApi.additionalServices(caseId.value)
+      .then(x => { if (current === sequence) additionalServices.value = x }).catch(() => {}))
     if (auth.hasScope('operations.cost.read')) optional.push(
       operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) costs.value = x.items }).catch(() => {}))
     if (auth.hasScope('operations.origin.read') &&
@@ -329,6 +337,29 @@ async function saveOriginStatus() {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar el estado de Origen.'
   } finally { savingOrigin.value = false }
+}
+async function requestAdditionalService() {
+  if (!record.value || sendingServiceReview.value ||
+      !(auth.hasScope('operations.case.create') || auth.hasScope('operations.origin.update')) ||
+      !newServiceCode.value.trim() || !newServiceName.value.trim() || !newServiceReason.value.trim())
+    return
+  sendingServiceReview.value = true
+  error.value = ''
+  try {
+    await operationsApi.addAdditionalService(record.value.id, {
+      requestId: window.crypto.randomUUID(),
+      serviceCode: newServiceCode.value.trim().toUpperCase(),
+      serviceName: newServiceName.value.trim(),
+      reason: newServiceReason.value.trim(),
+    })
+    additionalServices.value = await operationsApi.additionalServices(record.value.id)
+    newServiceCode.value = ''
+    newServiceName.value = ''
+    newServiceReason.value = ''
+    message.value = 'Servicio adicional registrado. La revisión de Pricing queda pendiente.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudo solicitar la revisión comercial.'
+  } finally { sendingServiceReview.value = false }
 }
 async function saveOriginMeasurements() {
   if (!record.value || level('COORDINACION_ORIGEN') !== 'EDITABLE' ||
@@ -584,6 +615,32 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
             {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'SIN_QUO · La apertura fue creada sin cotización.' }}
           </p>
+        </DhCard>
+        <DhCard title="Servicios adicionales y revisión de Pricing" subtitle="Los servicios agregados por Operaciones no alteran la QUO aceptada ni generan cobros por sí mismos.">
+          <div v-for="item in additionalServices" :key="item.id" class="mb-3 rounded-xl border border-[var(--dh-border)] p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-sm font-bold">{{ item.serviceCode }} · {{ item.serviceName }}</span>
+              <DhBadge :variant="item.reviewStatus === 'PENDING_PRICING_REVIEW' ? 'warning' : item.reviewStatus === 'APPROVED' ? 'success' : 'neutral'">
+                {{ item.reviewStatus === 'PENDING_PRICING_REVIEW' ? 'Revisión comercial pendiente' : item.reviewStatus === 'APPROVED' ? 'Pricing aprobó' : 'Pricing rechazó' }}
+              </DhBadge>
+            </div>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ item.reason }}</p>
+            <p v-if="item.pricingResolutionNotes" class="mt-2 text-xs">{{ item.pricingResolutionNotes }}</p>
+          </div>
+          <p v-if="!additionalServices.length" class="mb-3 text-sm text-[var(--dh-text-muted)]">
+            No se han agregado servicios fuera de cotización.
+          </p>
+          <div v-if="auth.hasScope('operations.case.create') || auth.hasScope('operations.origin.update')" class="space-y-3">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <DhInput v-model="newServiceCode" label="Código de servicio" placeholder="Código de catálogo" />
+              <DhInput v-model="newServiceName" label="Servicio adicional" placeholder="Descripción del servicio" />
+            </div>
+            <DhTextarea v-model="newServiceReason" label="Motivo obligatorio de la revisión comercial" :rows="2" />
+            <DhButton :icon="Plus" label="Solicitar revisión a Pricing"
+              :loading="sendingServiceReview"
+              :disabled="!newServiceCode.trim() || !newServiceName.trim() || !newServiceReason.trim()"
+              @click="requestAdditionalService" />
+          </div>
         </DhCard>
         <DhCard v-if="auth.hasScope('operations.cost.read')" title="Rubros y proveedores registrados" subtitle="Información histórica disponible; no se generan cargos ficticios.">
           <div v-for="cost in costs" :key="cost.id" class="mb-2 flex flex-wrap justify-between gap-3 rounded-xl bg-[var(--dh-input)] p-3 last:mb-0">
