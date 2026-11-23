@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useLocale } from '@/core/stores/locale'
 import { CheckCircle2, Clock3, RefreshCcw, Send, UsersRound, XCircle, FileText, TrendingUp, TimerOff, Wallet, Search, CalendarClock, FileSpreadsheet } from 'lucide-vue-next'
 import { DhBadge, DhButton } from '@/shared/components/atoms'
+import { DhModal } from '@/shared/components/organisms'
 import { callEndpoint } from '@/core/api/callEndpoint'
 import { unwrapListResponse } from '@/core/api/apiResponse'
 import type { SystemNotificationPush } from '@/core/realtime/notificationRealtime'
@@ -107,6 +108,14 @@ const ownRatesById = computed(() => new Map(ownRates.value.map(rate => [rate.id,
 const visibleRatesById = computed(() => new Map([...rates.value, ...ownRates.value].map(rate => [rate.id, rate])))
 const ownRequestIds = computed(() => new Set(ownRequests.value.map(request => request.id)))
 const receivingIds = ref<string[]>([])
+const selectedReturnRequest = ref<SellerRateRequestDto | null>(null)
+const selectedReturnHistory = computed(() => selectedReturnRequest.value?.payload?.pricingReturnHistory ?? [])
+
+function requestReturnReason(request: SellerRateRequestDto): string {
+  return request.returnReason || request.payload?.pricingReturn?.reason
+    || request.payload?.pricingReturnHistory?.at(-1)?.reason
+    || 'Revise los datos de la solicitud.'
+}
 
 function canActOnRate(rate: RateDto): boolean {
   return !props.adminPreview || (props.enableSellerActions && ownRatesById.value.has(rate.id))
@@ -1073,19 +1082,14 @@ onBeforeUnmount(() => {
                 <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ new Date(request.requestedAtUtc).toLocaleDateString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) }}</td>
                 <td class="px-4 py-3">
                   <DhBadge :label="requestState(request)" :variant="requestStateVariant(request)" />
-                  <p v-if="request.status === 'Returned'" class="mt-2 max-w-xs whitespace-normal rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 text-[11px] font-semibold leading-4 text-[var(--dh-text)]">
-                    <strong class="block text-amber-600 dark:text-amber-300">Motivo de Pricing:</strong>
-                    {{ request.returnReason || request.payload?.pricingReturn?.reason || 'Revise los datos de la solicitud.' }}
-                  </p>
-                  <details v-if="request.payload?.pricingReturnHistory?.length" class="mt-2 max-w-xs rounded-lg border border-[var(--dh-border)] p-2 text-xs text-[var(--dh-text)]">
-                    <summary class="cursor-pointer font-bold">Historial de devoluciones ({{ request.payload.pricingReturnHistory.length }})</summary>
-                    <ol class="mt-2 space-y-2">
-                      <li v-for="(entry, index) in request.payload.pricingReturnHistory" :key="index" class="border-t border-[var(--dh-border)] pt-2">
-                        <p class="font-bold">{{ entry.returnedByName || 'Pricing' }} · {{ entry.returnedAtUtc ? new Date(entry.returnedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) : 'Sin fecha' }}</p>
-                        <p class="mt-1 whitespace-pre-wrap break-words">{{ entry.reason || 'Motivo no disponible' }}</p>
-                      </li>
-                    </ol>
-                  </details>
+                  <DhButton
+                    v-if="request.status === 'Returned' || request.payload?.pricingReturnHistory?.length"
+                    label="Ver devolución"
+                    size="sm"
+                    variant="secondary"
+                    class="mt-2"
+                    @click="selectedReturnRequest = request"
+                  />
                   <p v-if="request.status === 'Open' && isRequestClaimed(request)" class="mt-1 text-[10px] font-bold text-amber-500">
                     En proceso por {{ request.lockedByName || 'Pricing' }} · edición bloqueada
                   </p>
@@ -1118,5 +1122,58 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </template>
+    <DhModal
+      :open="selectedReturnRequest !== null"
+      title="Detalle de la devolución"
+      size="lg"
+      surface="solid"
+      @close="selectedReturnRequest = null"
+    >
+      <div v-if="selectedReturnRequest" class="space-y-5 text-[var(--dh-text)]">
+        <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
+          <p class="text-xs font-bold uppercase tracking-wide text-[var(--dh-text-muted)]">Solicitud a Pricing</p>
+          <p class="mt-1 text-base font-bold">{{ selectedReturnRequest.clientName || 'Cliente sin definir' }}</p>
+          <p class="mt-2 text-sm text-[var(--dh-text-muted)]">
+            {{ selectedReturnRequest.originName || 'Origen' }} → {{ selectedReturnRequest.destinationName || 'Destino' }}
+          </p>
+        </div>
+
+        <section v-if="selectedReturnRequest.status === 'Returned'" class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <h3 class="text-sm font-bold text-amber-600 dark:text-amber-300">Motivo de la devolución actual</h3>
+          <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{{ requestReturnReason(selectedReturnRequest) }}</p>
+        </section>
+
+        <section>
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-sm font-bold">Historial de devoluciones</h3>
+            <DhBadge :label="String(selectedReturnHistory.length)" variant="neutral" />
+          </div>
+          <ol v-if="selectedReturnHistory.length" class="mt-3 space-y-3">
+            <li
+              v-for="(entry, index) in selectedReturnHistory"
+              :key="`${entry.returnedAtUtc || index}-${index}`"
+              class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-bold text-[var(--dh-text-muted)]">Devolución {{ index + 1 }}</span>
+                <time class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                  {{ entry.returnedAtUtc ? new Date(entry.returnedAtUtc).toLocaleString((localeStore.locale === 'en' ? 'en-US' : 'es-CR')) : 'Fecha no registrada' }}
+                </time>
+              </div>
+              <p class="mt-2 text-sm font-bold">Devuelta por {{ entry.returnedByName || 'Pricing' }}</p>
+              <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6">{{ entry.reason || 'Motivo no disponible' }}</p>
+            </li>
+          </ol>
+          <p v-else class="mt-3 rounded-xl border border-dashed border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]">
+            No hay un historial adicional registrado para esta solicitud.
+          </p>
+        </section>
+      </div>
+      <template #footer>
+        <div class="flex justify-end">
+          <DhButton label="Cerrar" variant="secondary" @click="selectedReturnRequest = null" />
+        </div>
+      </template>
+    </DhModal>
   </section>
 </template>
