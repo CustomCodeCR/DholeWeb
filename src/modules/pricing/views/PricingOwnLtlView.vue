@@ -22,6 +22,7 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import { PricingService } from '@/core/services/pricingService'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
 import { readCostPricingRules } from '@/modules/pricing/utils/pricingCostRules'
+import { hasLtlNumericValue, ltlNumberOrNull } from '@/modules/pricing/utils/ltlFormNumbers'
 import { isCfzToSanJoseOwnLtl, LTL_PANAMA_REQUIRED_KINDS, selectLtlPanamaCosts } from '@/modules/pricing/utils/ltlPanamaOwnCosts'
 
 type OwnLtlTableRow = FtlTariffDto & Record<string, unknown>
@@ -45,11 +46,13 @@ const rows = ref<OwnLtlTableRow[]>([])
 const panamaCatalogCosts = ref<CostSelectDto[]>([])
 const loading = ref(false)
 const saving = ref(false)
+const validationMessage = ref('')
 const selectedOriginCountry = ref('')
 const selectedDestinationCountry = ref('')
 const selectedId = ref('')
 const editorOpen = ref(false)
 const readOnly = ref(false)
+const duplicateMode = ref(false)
 const editorSection = ref<HTMLElement | null>(null)
 
 const LEGACY_ORIGIN = '__legacy_origin__'
@@ -438,6 +441,15 @@ function isPanamaOrigin(row: FtlTariffDto) {
 
 const formOrigin = computed(() => routeSnapshot(form.originId, 'origin'))
 const formDestination = computed(() => routeSnapshot(form.destinationId, 'destination'))
+// Changing either endpoint must never silently rewrite the existing tariff.
+const selectedRouteChanged = computed(() => {
+  if (!selected.value || !formOrigin.value || !formDestination.value) return false
+  return normalize(formOrigin.value.name) !== normalize(selected.value.originName)
+    || normalize(formDestination.value.name) !== normalize(selected.value.destinationName)
+})
+const willCreateNewRoute = computed(() =>
+  !selectedId.value || duplicateMode.value || selectedRouteChanged.value,
+)
 const usesPanamaLtlCosts = computed(() => isCfzToSanJoseOwnLtl(
   formOrigin.value?.name || selected.value?.originName,
   formDestination.value?.name || selected.value?.destinationName,
@@ -515,7 +527,9 @@ function selectDestinationCountry(code: string) {
 }
 
 function resetForm() {
+  validationMessage.value = ''
   selectedId.value = ''
+  duplicateMode.value = false
   readOnly.value = false
   Object.assign(form, {
     commercialProfile: 'FinalClient' as LandCommercialProfile,
@@ -570,6 +584,7 @@ async function newRouteForPair() {
 }
 
 function hydrateForm(row: FtlTariffDto) {
+  validationMessage.value = ''
   Object.assign(form, {
     commercialProfile: row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient',
     originId: row.originId || LEGACY_ORIGIN,
@@ -603,44 +618,49 @@ async function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
   selectedOriginCountry.value = rowCountryCode(row, 'origin')
   selectedDestinationCountry.value = rowCountryCode(row, 'destination')
   selectedId.value = row.id
+  duplicateMode.value = false
   readOnly.value = mode === 'view'
   hydrateForm(row)
   editorOpen.value = true
   await scrollToEditor()
 }
 
+async function duplicateSelectedRoute() {
+  if (!selected.value || !canCreate.value) return
+  // Keep selectedId only to resolve legacy locations while using POST on save.
+  duplicateMode.value = true
+  readOnly.value = false
+  await scrollToEditor()
+}
+
 function closeEditor() {
   editorOpen.value = false
   selectedId.value = ''
+  duplicateMode.value = false
   readOnly.value = false
-}
-
-function numberOrNull(value: string) {
-  if (!value.trim()) return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : Number.NaN
 }
 
 function buildPayload(): CreateLandTariffItem | null {
   form.submitted = true
+  validationMessage.value = ''
 
   const origin = routeSnapshot(form.originId, 'origin')
   const destination = routeSnapshot(form.destinationId, 'destination')
   const currency = catalogs.currencies.value.find((item) => item.id === form.currencyId)
 
-  const priceAmount = numberOrNull(form.priceAmount)
-  const minimumAmount = numberOrNull(form.minimumAmount)
-  const costPerCbm = numberOrNull(form.costPerCbm)
-  const weightKgPerCbm = numberOrNull(form.weightKgPerCbm)
-  const duaCost = numberOrNull(form.duaCost)
-  const ducaTCost = numberOrNull(form.ducaTCost)
-  const stuffingCostPerCbm = numberOrNull(form.stuffingCostPerCbm)
-  const stuffingSalePerCbm = numberOrNull(form.stuffingSalePerCbm)
-  const panamaCostSurchargePerCbm = numberOrNull(form.panamaCostSurchargePerCbm)
-  const transitDays = numberOrNull(form.transitDays)
+  const priceAmount = ltlNumberOrNull(form.priceAmount)
+  const minimumAmount = ltlNumberOrNull(form.minimumAmount)
+  const costPerCbm = ltlNumberOrNull(form.costPerCbm)
+  const weightKgPerCbm = ltlNumberOrNull(form.weightKgPerCbm)
+  const duaCost = ltlNumberOrNull(form.duaCost)
+  const ducaTCost = ltlNumberOrNull(form.ducaTCost)
+  const stuffingCostPerCbm = ltlNumberOrNull(form.stuffingCostPerCbm)
+  const stuffingSalePerCbm = ltlNumberOrNull(form.stuffingSalePerCbm)
+  const panamaCostSurchargePerCbm = ltlNumberOrNull(form.panamaCostSurchargePerCbm)
+  const transitDays = ltlNumberOrNull(form.transitDays)
   const ltlChargeItems = form.ltlCharges.map((charge) => {
-    const costAmount = numberOrNull(charge.costAmount)
-    const saleAmount = numberOrNull(charge.saleAmount)
+    const costAmount = ltlNumberOrNull(charge.costAmount)
+    const saleAmount = ltlNumberOrNull(charge.saleAmount)
     return {
       key: charge.key,
       name: charge.name,
@@ -655,8 +675,8 @@ function buildPayload(): CreateLandTariffItem | null {
   const invalidVariableCharge = form.ltlCharges.some((charge, index) => {
     if (charge.isFlat) return false
     const value = ltlChargeItems[index]!
-    return (charge.costAmount.trim() && (value.costAmount == null || !Number.isFinite(value.costAmount) || value.costAmount < 0))
-      || (charge.saleAmount.trim() && (value.saleAmount == null || !Number.isFinite(value.saleAmount) || value.saleAmount < 0))
+    return (hasLtlNumericValue(charge.costAmount) && (value.costAmount == null || !Number.isFinite(value.costAmount) || value.costAmount < 0))
+      || (hasLtlNumericValue(charge.saleAmount) && (value.saleAmount == null || !Number.isFinite(value.saleAmount) || value.saleAmount < 0))
   })
 
   if (
@@ -679,6 +699,17 @@ function buildPayload(): CreateLandTariffItem | null {
     || (transitDays != null && (!Number.isInteger(transitDays) || transitDays < 0))
     || (form.validFrom && form.validTo && form.validFrom > form.validTo)
   ) {
+    validationMessage.value = !origin ? 'Seleccione el punto de origen.'
+      : !destination ? 'Seleccione el punto de destino.'
+      : !currency ? 'Seleccione una moneda válida.'
+      : priceAmount == null || !Number.isFinite(priceAmount) || priceAmount < 0
+        ? 'Ingrese una venta por CBM válida.'
+      : costPerCbm == null || !Number.isFinite(costPerCbm) || costPerCbm < 0
+        ? 'Ingrese un costo por CBM válido.'
+      : weightKgPerCbm == null || !Number.isFinite(weightKgPerCbm) || weightKgPerCbm <= 0
+        ? 'Ingrese un factor de peso por CBM mayor que cero.'
+      : invalidVariableCharge ? 'Revise los cargos variables: costo y venta no pueden ser negativos o inválidos.'
+      : 'Revise los montos, cargos, tránsito y fechas de vigencia de la ruta.'
     return null
   }
 
@@ -739,7 +770,7 @@ async function load() {
 async function save() {
   if (readOnly.value) return
 
-  const editing = Boolean(selectedId.value)
+  const editing = !willCreateNewRoute.value
   if (editing && !canUpdate.value) {
     toastStore.warning('Permiso requerido', 'Necesita el scope pricing.cost.update para editar una tarifa LTL.')
     return
@@ -749,25 +780,45 @@ async function save() {
     return
   }
 
-  const payload = buildPayload()
-  if (!payload) {
-    toastStore.error(
-      'Revise la ruta',
-      'Seleccione los puntos de origen y destino y complete costo/venta por CBM, factor de peso y cargos LTL.',
-    )
+  let payload: CreateLandTariffItem | null
+  try {
+    payload = buildPayload()
+  } catch (error) {
+    toastStore.error('No se pudo validar la ruta', 'Ocurrió un error al procesar el formulario LTL. Revise los valores e intente nuevamente.')
+    console.error('[PricingOwnLtlView] Validation failed', error)
     return
+  }
+  if (!payload) {
+    toastStore.error('Revise la ruta', validationMessage.value || 'Complete los campos obligatorios de la ruta LTL.')
+    return
+  }
+
+  if (!editing) {
+    const sameRoute = rows.value.find((row) =>
+      normalize(row.originName) === normalize(payload.originName)
+      && normalize(row.destinationName) === normalize(payload.destinationName)
+      && (row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient') === payload.commercialProfile,
+    )
+    if (sameRoute) {
+      toastStore.warning(
+        'Ruta LTL existente',
+        'Ya existe una tarifa para estos puntos y este perfil comercial. Edite la ruta existente o seleccione otro destino.',
+      )
+      return
+    }
   }
 
   try {
     saving.value = true
     let targetId = selectedId.value
 
-    if (targetId) {
+    if (editing) {
       await FtlTariffService.update(targetId, payload)
     } else {
       const created = await FtlTariffService.create(payload)
       targetId = created.id
       selectedId.value = created.id
+      duplicateMode.value = false
     }
 
     toastStore.success(
@@ -976,6 +1027,10 @@ onMounted(load)
         </div>
         <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
       </header>
+
+      <div v-if="selectedId && willCreateNewRoute" class="mx-5 mt-5 rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 p-3 text-sm font-semibold text-[var(--dh-text)]">
+        Se creará una ruta LTL independiente con estos valores. La tarifa original permanecerá sin cambios. Seleccione un destino diferente antes de guardar.
+      </div>
 
       <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
         <div class="space-y-5">
@@ -1196,12 +1251,15 @@ onMounted(load)
             <div class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Venta mínima</p><p class="mt-1 text-2xl font-black">USD {{ money(form.minimumAmount) }}</p></div>
           </section>
 
+          <p v-if="validationMessage && !readOnly" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm font-semibold text-red-500">{{ validationMessage }}</p>
+
           <div v-if="!readOnly" class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" @click="closeEditor" />
-            <DhButton :label="selectedId ? 'Guardar ruta' : 'Crear ruta'" :loading="saving" @click="save" />
+            <DhButton :label="willCreateNewRoute ? 'Crear ruta' : 'Guardar cambios'" :loading="saving" @click="save" />
           </div>
 
-          <div v-else class="flex justify-end">
+          <div v-else class="flex flex-wrap justify-end gap-2">
+            <DhButton v-if="canCreate" label="Crear otra ruta con estos valores" :icon="Plus" variant="secondary" @click="duplicateSelectedRoute" />
             <DhButton v-if="canUpdate" label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false" />
           </div>
         </aside>
