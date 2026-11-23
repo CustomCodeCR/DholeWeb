@@ -73,7 +73,7 @@ test('DH-422: final Vite transform rewrites navigation after legacy checks', () 
   assert.equal((result.match(/async function next\(\) \{/g) ?? []).length, 1)
   // Existing P7 micro-fixtures have no navigation; the real wizard does.
   assert.equal(patchPersistedLandLtlEditNavigation422('cost fixture'), 'cost fixture')
-  assert.throws(() => patchPersistedLandLtlEditNavigation422('const step = ref(1)'), /next\\(\\)/)
+  assert.throws(() => patchPersistedLandLtlEditNavigation422('const step = ref(1)'), /Expected one wizard next/)
   const actualWizard = readFileSync(
     new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
     'utf8',
