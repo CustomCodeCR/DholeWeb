@@ -22,6 +22,7 @@ import PricingLocationSearchSelect from '@/modules/pricing/components/PricingLoc
 import { PricingService } from '@/core/services/pricingService'
 import type { CostSelectDto } from '@/core/interfaces/pricing'
 import { readCostPricingRules } from '@/modules/pricing/utils/pricingCostRules'
+import { hasLtlNumericValue, ltlNumberOrNull } from '@/modules/pricing/utils/ltlFormNumbers'
 import { isCfzToSanJoseOwnLtl, LTL_PANAMA_REQUIRED_KINDS, selectLtlPanamaCosts } from '@/modules/pricing/utils/ltlPanamaOwnCosts'
 
 type OwnLtlTableRow = FtlTariffDto & Record<string, unknown>
@@ -45,6 +46,7 @@ const rows = ref<OwnLtlTableRow[]>([])
 const panamaCatalogCosts = ref<CostSelectDto[]>([])
 const loading = ref(false)
 const saving = ref(false)
+const validationMessage = ref('')
 const selectedOriginCountry = ref('')
 const selectedDestinationCountry = ref('')
 const selectedId = ref('')
@@ -525,6 +527,7 @@ function selectDestinationCountry(code: string) {
 }
 
 function resetForm() {
+  validationMessage.value = ''
   selectedId.value = ''
   duplicateMode.value = false
   readOnly.value = false
@@ -581,6 +584,7 @@ async function newRouteForPair() {
 }
 
 function hydrateForm(row: FtlTariffDto) {
+  validationMessage.value = ''
   Object.assign(form, {
     commercialProfile: row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient',
     originId: row.originId || LEGACY_ORIGIN,
@@ -636,32 +640,27 @@ function closeEditor() {
   readOnly.value = false
 }
 
-function numberOrNull(value: string) {
-  if (!value.trim()) return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : Number.NaN
-}
-
 function buildPayload(): CreateLandTariffItem | null {
   form.submitted = true
+  validationMessage.value = ''
 
   const origin = routeSnapshot(form.originId, 'origin')
   const destination = routeSnapshot(form.destinationId, 'destination')
   const currency = catalogs.currencies.value.find((item) => item.id === form.currencyId)
 
-  const priceAmount = numberOrNull(form.priceAmount)
-  const minimumAmount = numberOrNull(form.minimumAmount)
-  const costPerCbm = numberOrNull(form.costPerCbm)
-  const weightKgPerCbm = numberOrNull(form.weightKgPerCbm)
-  const duaCost = numberOrNull(form.duaCost)
-  const ducaTCost = numberOrNull(form.ducaTCost)
-  const stuffingCostPerCbm = numberOrNull(form.stuffingCostPerCbm)
-  const stuffingSalePerCbm = numberOrNull(form.stuffingSalePerCbm)
-  const panamaCostSurchargePerCbm = numberOrNull(form.panamaCostSurchargePerCbm)
-  const transitDays = numberOrNull(form.transitDays)
+  const priceAmount = ltlNumberOrNull(form.priceAmount)
+  const minimumAmount = ltlNumberOrNull(form.minimumAmount)
+  const costPerCbm = ltlNumberOrNull(form.costPerCbm)
+  const weightKgPerCbm = ltlNumberOrNull(form.weightKgPerCbm)
+  const duaCost = ltlNumberOrNull(form.duaCost)
+  const ducaTCost = ltlNumberOrNull(form.ducaTCost)
+  const stuffingCostPerCbm = ltlNumberOrNull(form.stuffingCostPerCbm)
+  const stuffingSalePerCbm = ltlNumberOrNull(form.stuffingSalePerCbm)
+  const panamaCostSurchargePerCbm = ltlNumberOrNull(form.panamaCostSurchargePerCbm)
+  const transitDays = ltlNumberOrNull(form.transitDays)
   const ltlChargeItems = form.ltlCharges.map((charge) => {
-    const costAmount = numberOrNull(charge.costAmount)
-    const saleAmount = numberOrNull(charge.saleAmount)
+    const costAmount = ltlNumberOrNull(charge.costAmount)
+    const saleAmount = ltlNumberOrNull(charge.saleAmount)
     return {
       key: charge.key,
       name: charge.name,
@@ -676,8 +675,8 @@ function buildPayload(): CreateLandTariffItem | null {
   const invalidVariableCharge = form.ltlCharges.some((charge, index) => {
     if (charge.isFlat) return false
     const value = ltlChargeItems[index]!
-    return (charge.costAmount.trim() && (value.costAmount == null || !Number.isFinite(value.costAmount) || value.costAmount < 0))
-      || (charge.saleAmount.trim() && (value.saleAmount == null || !Number.isFinite(value.saleAmount) || value.saleAmount < 0))
+    return (hasLtlNumericValue(charge.costAmount) && (value.costAmount == null || !Number.isFinite(value.costAmount) || value.costAmount < 0))
+      || (hasLtlNumericValue(charge.saleAmount) && (value.saleAmount == null || !Number.isFinite(value.saleAmount) || value.saleAmount < 0))
   })
 
   if (
@@ -700,6 +699,17 @@ function buildPayload(): CreateLandTariffItem | null {
     || (transitDays != null && (!Number.isInteger(transitDays) || transitDays < 0))
     || (form.validFrom && form.validTo && form.validFrom > form.validTo)
   ) {
+    validationMessage.value = !origin ? 'Seleccione el punto de origen.'
+      : !destination ? 'Seleccione el punto de destino.'
+      : !currency ? 'Seleccione una moneda válida.'
+      : priceAmount == null || !Number.isFinite(priceAmount) || priceAmount < 0
+        ? 'Ingrese una venta por CBM válida.'
+      : costPerCbm == null || !Number.isFinite(costPerCbm) || costPerCbm < 0
+        ? 'Ingrese un costo por CBM válido.'
+      : weightKgPerCbm == null || !Number.isFinite(weightKgPerCbm) || weightKgPerCbm <= 0
+        ? 'Ingrese un factor de peso por CBM mayor que cero.'
+      : invalidVariableCharge ? 'Revise los cargos variables: costo y venta no pueden ser negativos o inválidos.'
+      : 'Revise los montos, cargos, tránsito y fechas de vigencia de la ruta.'
     return null
   }
 
@@ -770,12 +780,16 @@ async function save() {
     return
   }
 
-  const payload = buildPayload()
+  let payload: CreateLandTariffItem | null
+  try {
+    payload = buildPayload()
+  } catch (error) {
+    toastStore.error('No se pudo validar la ruta', 'Ocurrió un error al procesar el formulario LTL. Revise los valores e intente nuevamente.')
+    console.error('[PricingOwnLtlView] Validation failed', error)
+    return
+  }
   if (!payload) {
-    toastStore.error(
-      'Revise la ruta',
-      'Seleccione los puntos de origen y destino y complete costo/venta por CBM, factor de peso y cargos LTL.',
-    )
+    toastStore.error('Revise la ruta', validationMessage.value || 'Complete los campos obligatorios de la ruta LTL.')
     return
   }
 
@@ -1236,6 +1250,8 @@ onMounted(load)
             <div class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo variable proyectado</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(variableCostPerCbm) }} / CBM</p></div>
             <div class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Venta mínima</p><p class="mt-1 text-2xl font-black">USD {{ money(form.minimumAmount) }}</p></div>
           </section>
+
+          <p v-if="validationMessage && !readOnly" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm font-semibold text-red-500">{{ validationMessage }}</p>
 
           <div v-if="!readOnly" class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" @click="closeEditor" />
