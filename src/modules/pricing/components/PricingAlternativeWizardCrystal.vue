@@ -6543,9 +6543,10 @@ async function saveRate() {
     if (editingRate.value) {
       const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
+      const missingPersistedDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
       const missingPersistedDetails = editingRate.value.rateDetails.filter((detail) =>
-        originalDetailIds.has(detail.id) && !currentDetailIds.has(detail.id))
-      if (missingPersistedDetails.length > 0) {
+        missingPersistedDetailIds.includes(detail.id))
+      if (missingPersistedDetailIds.length > 0) {
         step.value = 7
         toastStore.warning('Revise cargos excluidos',
           'Estos cargos guardados no están incluidos: ' + missingPersistedDetails
