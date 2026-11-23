@@ -178,11 +178,18 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
 export const operationsApi = {
+  latestManualDraft: () => request<{ id: string; payloadJson: string; updatedAtUtc: string } | null>(
+    '/api/operations/apertures/drafts/latest'),
+  saveManualDraft: (id: string, state: Record<string, unknown>) =>
+    request<{ id: string; updatedAtUtc: string }>(
+      '/api/operations/apertures/drafts/' + id, 'PUT', { state }),
+  deleteManualDraft: (id: string) =>
+    request<void>('/api/operations/apertures/drafts/' + id, 'DELETE'),
   dashboard: (teamId?: string) => request<OperationsDashboard>(
     '/api/operations/dashboard' + (teamId ? '?teamId=' + encodeURIComponent(teamId) : '')),
   cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow>>(
