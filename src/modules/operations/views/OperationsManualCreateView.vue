@@ -76,6 +76,7 @@ async function loadAssignmentTeams() {
 const autosaveReady = ref(false)
 const remoteDraftId = ref('')
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+let remoteDraftWrite: Promise<unknown> = Promise.resolve()
 const activeStep = ref(1)
 const wizardSteps = [
   { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
@@ -541,7 +542,9 @@ function persistLocalDraft() {
   try { window.localStorage.setItem(draftStorageKey.value, JSON.stringify(state)) }
   catch { /* Some browsers disable localStorage; server autosave still works. */ }
   if (!remoteDraftId.value) { autosaveState.value = 'error'; return }
-  void operationsApi.saveManualDraft(remoteDraftId.value, state)
+  const id = remoteDraftId.value
+  remoteDraftWrite = remoteDraftWrite.catch(() => {}).then(() =>
+    operationsApi.saveManualDraft(id, state))
     .then(() => {
       autosaveState.value = 'saved'
       lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -707,7 +710,10 @@ async function save() {
     }
     const completedDraftId = remoteDraftId.value
     clearLocalDraft()
-    if (completedDraftId) void operationsApi.deleteManualDraft(completedDraftId).catch(() => {})
+    if (completedDraftId) {
+      await remoteDraftWrite.catch(() => {})
+      await operationsApi.deleteManualDraft(completedDraftId).catch(() => {})
+    }
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
     error.value = assignmentPendingId.value
