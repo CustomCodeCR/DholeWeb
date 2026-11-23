@@ -1,3 +1,7 @@
+## [1.120.5] - 2026-11-23
+
+- PATCH DH-20261123-PRICING-POL-POE-VAT-420: sincroniza el número de versión del release de IVA POL/POE entre DholeWeb y DholeSystem tras la integración simultánea de otro release 1.120.4 en System. Se conserva sin modificar la funcionalidad de IVA ya integrada.
+
 ## [1.120.4] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-POL-POE-VAT-420: IVA en Pantalla 7 por jurisdicción física (POL en origen y recolecta, POE en destino y entrega); flete internacional con sentido comercial importación/exportación, sin tasa automática para tránsito indeterminado.
