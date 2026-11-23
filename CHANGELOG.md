@@ -1,3 +1,9 @@
+## [1.120.9] - 2026-11-23 · DH-20261123-PRICING-MODIFICATION-422
+
+- PATCH: el comparador de solicitudes de cambio de Ventas incluye modalidad y tipo de embarque verificables; la edición de P7 retiene RateDetails/CostIds originales, expone cargos excluidos y alinea los IDs con sus importes.
+- Promoción aislada desde la base master 1.120.8, conserva los comportamientos de producción (incluido el desbloqueo temporal de Incoterms) sin integrar el resto de develop.
+- DholeWeb/DholeSystem 1.120.8→1.120.9 y otros 15 componentes sin cambio. Pruebas staging antes de producción.
+
 ## [1.120.8] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-VAT-RELEASE-430: Se corrige el IVA fiscal por POL y POE para cargos de origen, recolecta, destino y entrega; flete según importación/exportación y alternativas multi-POE.
