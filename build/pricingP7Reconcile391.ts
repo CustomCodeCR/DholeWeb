@@ -191,6 +191,9 @@ watch(
 export function patchPersistedLandLtlEditNavigation422(source: string): string {
   const anchor = 'async function next() {'
   const count = source.split(anchor).length - 1
+  // Unit fixtures for P7 intentionally omit navigation; only full wizards
+  // require this edit-only guard. Never silently ignore a malformed full wizard.
+  if (count === 0 && !source.includes('const step = ref(1)')) return source
   if (count !== 1) {
     throw new Error('[DH-422] Expected one wizard next() function, found ' + count)
   }
