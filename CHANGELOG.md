@@ -1,3 +1,10 @@
+## [1.120.9] - 2026-11-23 · DH-20261123-PRICING-MODIFICATION-422
+
+- PATCH: la comparación de modificaciones de Ventas muestra la modalidad y el tipo de embarque cuando el valor original puede verificarse.
+- Al modificar una QUO guardada, Pantalla 7 conserva las líneas persistidas, CostIds y RateDetailIds aunque cambien condiciones o catálogo; identifica cargos excluidos y alinea los IDs con el orden financiero del payload. Protege la eliminación explícita de cargos y la edición aduanal, terrestre y LCL propio.
+- Reconciliado sobre la base 1.120.8 de IVA POL/POE para no revertir ese release; pruebas DH-422 en CI. DholeSystem y DholeWeb 1.120.8→1.120.9, otros 15 componentes sin cambios.
+- CI y staging pendientes; deploy de producción sólo tras validaciones.
+
 ## [1.120.8] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-VAT-RELEASE-430: IVA de los rubros por jurisdicción del POL para origen/recolecta y del POE para destino/entrega; flete según importación/exportación y alternativa multi-POE. Se aplica la tasa configurada por país sin usar el POD global.
