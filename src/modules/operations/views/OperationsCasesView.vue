@@ -344,7 +344,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div><p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Expediente operativo</p>
               <p class="mt-1 text-lg font-black text-[var(--dh-primary)]">{{ selected.idtra }}</p></div>
-            <DhBadge :variant="selectedWorkspace?.stages.some(s => s.status === 'COMPLETED') ? 'success' : 'warning'">{{ selectedStatusLabel }}</DhBadge>
+            <DhBadge :variant="selectedStage?.status === 'COMPLETED' ? 'success' : selectedStage?.status === 'PENDING' ? 'warning' : 'primary'">{{ selectedStatusLabel }}</DhBadge>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
             <DhBadge variant="neutral">{{ selected.apertureType === 'MANUAL' ? 'Manual' : 'Desde Pricing' }}</DhBadge>
