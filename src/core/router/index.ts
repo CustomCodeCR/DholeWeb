@@ -89,6 +89,12 @@ export const router = createRouter({
           meta: { tabTitle: 'Dynamics 365', closable: true, requiredAnyScopes: ['dynamics.admin', 'dynamics.security.admin'] },
         },
         {
+          path: 'lab/animaciones',
+          name: 'ui-motion-lab',
+          component: () => import('@/modules/dashboard/views/UiMotionLabView.vue'),
+          meta: { tabTitle: 'Laboratorio de animaciones', closable: true },
+        },
+        {
           path: 'home',
           name: 'dashboard',
           component: () => import('@/modules/dashboard/views/DashboardView.vue'),

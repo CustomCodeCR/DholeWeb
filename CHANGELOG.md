@@ -1,3 +1,9 @@
+## [1.118.0] - 2026-11-22 · DH-20261122-UI-MOTION-LAB-413
+
+- MINOR: laboratorio visual aislado en /lab/animaciones para usuarios autenticados, con tarjetas spotlight, alternativas de cotización animadas, timeline de trámites y feedback de notificaciones; únicamente datos de demostración.
+- Vue 3 y CSS nativos, sin dependencias de React, llamadas a APIs, escrituras, migraciones ni modificaciones de REST/SignalR/Redis. Respetar prefers-reduced-motion y permitir desactivar efectos manualmente.
+- Versionamiento coordinado DholeWeb y DholeSystem 1.117.2 → 1.118.0; los otros 15 componentes permanecen sin cambios. Solo develop para evaluación y staging; master pendiente de aprobación expresa.
+
 ## [1.117.2] - 2026-11-22 · DH-20261122-DHOLE-ERP-412
 
 - PATCH: mostrar de forma permanente y legible el significado corporativo completo «Digital Hub for Operations, Logistics & Ecosystem» debajo de DHOLE ERP en la pantalla de acceso y en el encabezado del menú lateral expandido; también en tooltip del logo compacto.
