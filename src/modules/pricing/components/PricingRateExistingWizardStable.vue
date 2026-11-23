@@ -64,7 +64,7 @@ import { downloadExcelWorkbook } from '@/core/utils/excel'
 import { formatDate, formatMoney, rateDisplayName } from '@/modules/pricing/utils/pricingFormat'
 import { linkedAcceptedQuoteNumber } from '@/modules/pricing/utils/pricingLinkedAcceptedQuote'
 import { computePricingRevisionTotals } from '@/modules/pricing/utils/pricingRevisionTotals'
-import { resolveDestinationVatRate, resolvePodCountryCode, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
+import { resolvePodCountryCode, resolvePricingLineVatContext, stripGeneratedPodVatNotes } from '@/modules/pricing/utils/pricingPodVat'
 import { incotermClientSections, incotermSectionApplicability, normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { sourceTitle } from '@/modules/pricing/utils/pricingSourceTrace'
 import {
@@ -1024,9 +1024,7 @@ const effectiveServices = computed(() => {
 const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))
 const selectedCarrier = computed(() => findById(catalogs.carriers, form.carrierId))
 const selectedCurrency = computed(() => findById(catalogs.currencies, form.currencyId))
-// POD determines VAT whenever it exists; POE is the fallback only if POD is absent.
-const destinationTaxRate = computed(() => resolveDestinationVatRate(resolvePodForDestination(), selectedDestination.value, catalogs.countries))
-const destinationTaxOrigin = computed(() => resolvePodForDestination() ? 'POD' : 'POE')
+// IVA follows each charge's physical POL/POE, not a global POD-based rate.
 const selectedImportRate = computed(() => availableRates.value.find((rate) => rate.id === form.selectedImportRateId) ?? null)
 
 function resolvedImportSource(rate: ImportRateSelectDto) {
@@ -1408,13 +1406,29 @@ const providerUtility = computed(() => providerSale.value - providerCost.value)
 const providerMarginPercentage = computed(() =>
   providerSale.value > 0 ? (providerUtility.value / providerSale.value) * 100 : 0,
 )
-function canApplyDestinationTax(_line: RateLine) {
-  // The VAT option is available for every rate item; use the selected destination jurisdiction.
-  return true
+function lineVatContext(
+  line: RateLine,
+  poe: CatalogItemSelectDto | null | undefined = selectedDestination.value,
+  operation: RateOperationType = operationType.value,
+) {
+  return resolvePricingLineVatContext(line.section, operation, selectedOrigin.value, poe, catalogs.countries)
 }
-function lineDestinationTaxRate(_line: RateLine) {
-  // Recalculate using the current POD, or POE only when there is no POD.
-  return destinationTaxRate.value
+function lineDestinationTaxRate(
+  line: RateLine,
+  poe: CatalogItemSelectDto | null | undefined = selectedDestination.value,
+  operation: RateOperationType = operationType.value,
+) {
+  return lineVatContext(line, poe, operation).rate
+}
+function canApplyDestinationTax(line: RateLine) {
+  return lineDestinationTaxRate(line) > 0
+}
+function lineVatLabel(line: RateLine) {
+  const context = lineVatContext(line)
+  const source = context.source ?? 'POL/POE'
+  return context.rate > 0
+    ? `IVA ${source} · ${context.countryCode} (${context.rate}%)`
+    : `IVA ${source} (sin IVA configurado)`
 }
 function lineTaxAmount(line: RateLine) {
   const taxRate = lineDestinationTaxRate(line)
@@ -1463,9 +1477,10 @@ function lineSaleWithTax(line: RateLine) {
   return number(line.saleAmount) + lineTaxAmount(line)
 }
 function setLineDestinationTax(line: RateLine, enabled: boolean) {
-  const active = Boolean(enabled) && destinationTaxRate.value > 0
+  const rate = lineDestinationTaxRate(line)
+  const active = Boolean(enabled) && rate > 0
   line.applyDestinationTax = active
-  line.destinationTaxRate = active ? destinationTaxRate.value : 0
+  line.destinationTaxRate = active ? rate : 0
 }
 function canonicalCurrencyCode(line: Pick<RateLine, 'currencyId' | 'currencyCode' | 'currencyName'>) {
   const catalogCurrency = findById(catalogs.currencies, line.currencyId)
@@ -3066,7 +3081,7 @@ async function hydrateExistingRate() {
       return {
         key: `existing:${detail.id}`,
         detailId: detail.id,
-        section: sectionForDetail(detail.costDetailType, detail.name),
+        section: configuredCost ? sectionForCost(configuredCost) : sectionForDetail(detail.costDetailType, detail.name),
         name: detail.name,
         costDetailType: detail.costDetailType,
         costType: detail.costType,
@@ -5142,8 +5157,8 @@ onMounted(async () => {
               <div class="crystal-line-vat">
                 <DhCheckbox
                   :model-value="Boolean(line.applyDestinationTax)"
-                  :label="destinationTaxRate > 0 ? `IVA ${destinationTaxOrigin} (${destinationTaxRate}%)` : `IVA ${destinationTaxOrigin} (sin IVA configurado)`"
-                  :disabled="destinationTaxRate <= 0"
+                  :label="lineVatLabel(line)"
+                  :disabled="!canApplyDestinationTax(line)"
                   @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                 />
               </div>
@@ -5211,8 +5226,8 @@ onMounted(async () => {
                 <div class="crystal-line-vat">
                   <DhCheckbox
                     :model-value="Boolean(line.applyDestinationTax)"
-                    :label="destinationTaxRate > 0 ? `IVA ${destinationTaxOrigin} (${destinationTaxRate}%)` : `IVA ${destinationTaxOrigin} (sin IVA configurado)`"
-                    :disabled="destinationTaxRate <= 0"
+                    :label="lineVatLabel(line)"
+                    :disabled="!canApplyDestinationTax(line)"
                     @update:model-value="(enabled) => setLineDestinationTax(line, enabled)"
                   />
                 </div>
@@ -5350,7 +5365,7 @@ onMounted(async () => {
                   <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">El IVA no forma parte de los totales de Pantalla 7. Aquí se presenta separado del subtotal.</p>
                 </div>
                 <DhBadge :variant="totalTaxUsd > 0 ? 'primary' : 'neutral'">
-                  {{ totalTaxUsd > 0 ? `IVA aplicado ${destinationTaxRate}%` : 'Sin IVA aplicado' }}
+                  {{ totalTaxUsd > 0 ? 'IVA aplicado según POL/POE' : 'Sin IVA aplicado' }}
                 </DhBadge>
               </div>
 
