@@ -242,7 +242,7 @@ test('existing quotation rate details never inherit new catalog amounts or unreq
   const source = await readFile(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
   assert.match(source, /function syncPersistedLinesWithChangedConfiguredCosts\(\) \{[^]*?if \(props\.rateId \|\| !editingRate\.value \|\| props\.viewOnly\) return 0/)
   assert.match(source, /function mergeConfiguredOptionalCostsIntoRateLines\(includeFixed = false\) \{[^]*?if \(props\.rateId\) return/)
-  assert.match(source, /rateLines\.value = rate\.rateDetails\.filter/)
+  assert.match(source, /rateLines\.value = rate\.rateDetails\.map/)
   assert.match(source, /costs\.value = bundle\.applicable/)
   assert.doesNotMatch(source, /costs\.value = reconcileActiveCostCatalog\(bundle\.applicable, allCosts\.value\)/)
 })
