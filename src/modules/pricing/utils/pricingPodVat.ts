@@ -74,6 +74,50 @@ export function resolveDestinationVatRate(
   return resolvePodVatRate(pod ?? poe, countries)
 }
 
+export type PricingVatSection =
+  | 'pickup_origin'
+  | 'origin_charges'
+  | 'international_freight'
+  | 'destination_charges'
+  | 'delivery_destination'
+
+export type PricingVatOperation = 'Import' | 'Export' | 'TransitDomestic'
+
+export interface PricingLineVatContext {
+  source: 'POL' | 'POE' | null
+  countryCode: string
+  rate: number
+}
+
+/**
+ * A tax-enabled charge uses the jurisdiction of the service, not the POD
+ * of the whole quotation. Origin/pickup use POL; destination/delivery use
+ * the selected POE. International freight follows the import/export
+ * perspective; third-country transit requires an explicit fiscal decision.
+ * Rates come from Config, with the existing country fallback, and are never
+ * inferred from a location's city name.
+ */
+export function resolvePricingLineVatContext(
+  section: PricingVatSection,
+  operation: PricingVatOperation,
+  pol: CatalogItemSelectDto | null | undefined,
+  poe: CatalogItemSelectDto | null | undefined,
+  countries: CatalogItemSelectDto[],
+): PricingLineVatContext {
+  const source = section === 'pickup_origin' || section === 'origin_charges'
+    ? 'POL'
+    : section === 'destination_charges' || section === 'delivery_destination'
+      ? 'POE'
+      : operation === 'Import' ? 'POE' : operation === 'Export' ? 'POL' : null
+
+  const location = source === 'POL' ? pol : source === 'POE' ? poe : null
+  return {
+    source,
+    countryCode: resolvePodCountryCode(location, countries),
+    rate: resolvePodVatRate(location, countries),
+  }
+}
+
 /** Remove generated VAT notes before persisting the current destination tax. */
 export function stripGeneratedPodVatNotes(notes?: string | null): string {
   return String(notes ?? '')
