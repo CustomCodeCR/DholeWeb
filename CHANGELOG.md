@@ -1,3 +1,10 @@
+## [1.120.5] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421
+
+- PATCH: la edición de cotizaciones guardadas permite ir de Pantalla 6 (flete terrestre LTL/FTL) a Pantalla 7 sin exigir nuevamente campos de creación ni origen tarifario; se conservan los cargos de la QUO y la validación al guardar.
+- Prueba DH-421 de la transformación Vite final incorporada a prebuild y tests de Pricing.
+- Se preserva íntegro el release anterior 1.120.4 de IVA por POL/POE.
+- DholeWeb y DholeSystem 1.120.4 → 1.120.5; otros servicios sin cambios REST, SignalR ni migraciones. CI/staging pendientes; producción no autorizada.
+
 ## [1.120.4] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-POL-POE-VAT-420: IVA en Pantalla 7 por jurisdicción física (POL en origen y recolecta, POE en destino y entrega); flete internacional con sentido comercial importación/exportación, sin tasa automática para tránsito indeterminado.
