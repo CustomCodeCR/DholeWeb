@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "DH-20261123-PRICING-RETURN-MODAL-415",
+  "date": "2026-11-23",
+  "releaseType": "PATCH",
+  "component": "DholeWeb",
+  "previousVersion": "1.119.0",
+  "version": "1.119.1",
+  "ecosystemVersion": "1.119.1",
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "component": "DholeWeb",
+      "previousVersion": "1.119.0",
+      "version": "1.119.1"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "component": "DholeSystem",
+      "previousVersion": "1.119.0",
+      "version": "1.119.1"
+    }
+  ],
+  "otherComponentsUnchanged": 15,
+  "globalManifest": "CustomCodeCR/DholeSystem/release-manifest.json",
+  "branch": "feature/DH-20261123-PRICING-RETURN-MODAL-415",
+  "releaseStatus": "candidate-develop-ci-pending",
+  "status": "intermediate-only",
+  "changes": [
+    "Solicitud a Pricing muestra botón Ver devolución en lugar de motivos/historial inline",
+    "DhModal compartido presenta contexto, último motivo y trazabilidad de devoluciones",
+    "Se preservan acciones comerciales, API REST y realtime"
+  ],
+  "validation": {
+    "staticAssertions": "included-in-prebuild",
+    "vueTypeCheck": "pending",
+    "ci": "pending",
+    "staging": "pending"
+  },
+  "productionDeploymentAuthorized": false
+}

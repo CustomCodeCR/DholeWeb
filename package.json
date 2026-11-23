@@ -1,12 +1,12 @@
 {
   "name": "dholeweb",
-  "version": "1.119.0",
+  "version": "1.119.1",
   "private": true,
   "type": "module",
   "scripts": {
     "predev": "node scripts/ensure-pricing-screen09-comments.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "node scripts/versioning.mjs check && npm run test:branding && node scripts/ensure-pricing-screen09-comments.mjs && node --experimental-strip-types --test tests/pricingCrmPreferredRuntimeGuard.test.ts tests/pricingIncotermPluginScope378.test.ts tests/pricingIncotermFclBilling379.test.ts tests/pricingSavedSnapshot383.test.ts tests/pricingPersistedDeleteRestore384.test.ts && node --experimental-strip-types --test tests/pricingEditTierLand385.test.ts && node --experimental-strip-types --test tests/pricingWizardBundleOnly386.test.ts && node --experimental-strip-types --test tests/pricingQuotationEditDelta387.test.ts && node --experimental-strip-types --test tests/pricingWizardEditBundle389.test.ts && npm run test:pricing-dh393 && node --test tests/pricingOperationsStepper402.test.mjs && npm run test:operations:ux && node --test tests/operationsOpeningUx405.test.mjs && node --test tests/operationsOpeningPolish406.test.mjs && node --test tests/operationsOpeningAssignment408.test.mjs && npm run test:motion-lab && node --experimental-strip-types --test tests/operationsCaseOverview414.test.mjs",
+    "prebuild": "node scripts/versioning.mjs check && npm run test:branding && node scripts/ensure-pricing-screen09-comments.mjs && node --experimental-strip-types --test tests/pricingCrmPreferredRuntimeGuard.test.ts tests/pricingIncotermPluginScope378.test.ts tests/pricingIncotermFclBilling379.test.ts tests/pricingSavedSnapshot383.test.ts tests/pricingPersistedDeleteRestore384.test.ts && node --experimental-strip-types --test tests/pricingEditTierLand385.test.ts && node --experimental-strip-types --test tests/pricingWizardBundleOnly386.test.ts && node --experimental-strip-types --test tests/pricingQuotationEditDelta387.test.ts && node --experimental-strip-types --test tests/pricingWizardEditBundle389.test.ts && npm run test:pricing-dh393 && node --test tests/pricingOperationsStepper402.test.mjs && npm run test:operations:ux && node --test tests/operationsOpeningUx405.test.mjs && node --test tests/operationsOpeningPolish406.test.mjs && node --test tests/operationsOpeningAssignment408.test.mjs && npm run test:motion-lab && node --experimental-strip-types --test tests/operationsCaseOverview414.test.mjs && npm run test:pricing-return",
     "build": "node scripts/check-pricing-origin-sale.mjs && node scripts/normalize-pricing-carrier-newlines.mjs && run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:branding": "node --test tests/erpBranding.test.mjs",
@@ -53,7 +53,8 @@
     "test:catalog:agents": "node --experimental-strip-types --test tests/globalAgentCountries.test.ts",
     "test:pricing-dh393": "node --experimental-strip-types --test tests/pricingTranchesMiamiPanama393.test.ts tests/pricingRequiredLines396.test.ts",
     "test:operations:ux": "node --test tests/operationsManualOpening.test.mjs tests/operationsOpeningUx403.test.mjs tests/operationsNoServices404.test.mjs",
-    "test:motion-lab": "node --test tests/uiMotionLab.test.mjs"
+    "test:motion-lab": "node --test tests/uiMotionLab.test.mjs",
+    "test:pricing-return": "node --test tests/pricingRateRequestReturn.test.mjs"
   },
   "dependencies": {
     "@blobatar/vue": "2.7.0",
