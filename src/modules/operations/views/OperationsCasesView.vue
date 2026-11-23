@@ -10,6 +10,7 @@ import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace, type CrmAccountOption } from '../services/operationsApi'
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
+import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
 const { locale } = useI18n()
 const auth = useAuthStore()
@@ -20,8 +21,58 @@ const rows = ref<OperationsCaseRow[]>([])
 const selected = ref<OperationsCaseDetail | null>(null)
 const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
 const selectedCaseId = computed(() => selected.value?.id || '')
+const selectedStage = computed(() => selectedWorkspace.value?.stages.find(s => s.status === 'IN_PROGRESS')
+  || selectedWorkspace.value?.stages.find(s => s.status === 'READY')
+  || selectedWorkspace.value?.stages[0])
+const selectedStatusLabel = computed(() => departmentStatusLabel(
+  selectedStage.value?.departmentCode, selectedStage.value?.status, selected.value?.status,
+  rows.value.find(x => x.id === selected.value?.id)?.originStatusCode,
+))
 const clientName = ref('')
 const clientExecutiveName = ref('')
+const resolvedAccounts = ref<Record<string, string>>({})
+const resolvedPeople = ref<Record<string, string>>({})
+const accountsChecked = new Set<string>()
+function personName(id: string | null | undefined) {
+  return id ? resolvedPeople.value[id] || 'Nombre pendiente de consulta' : 'Sin operativo asignado'
+}
+async function resolvePeople(ids: Array<string | null | undefined>) {
+  const needed = [...new Set(ids.filter((id): id is string => Boolean(id && !resolvedPeople.value[id])))]
+  if (!needed.length || !auth.hasScope('operations.audit.read')) return
+  try {
+    const result = await operationsApi.auditActors(needed)
+    resolvedPeople.value = { ...resolvedPeople.value,
+      ...Object.fromEntries(result.items.map(p => [p.id, p.displayName || p.userName])) }
+  } catch { /* Case remains readable even if Auth names are temporarily unavailable. */ }
+}
+async function resolveAccountNames(ids: string[]) {
+  const missing = [...new Set(ids)].filter(id => id && !resolvedAccounts.value[id] && !accountsChecked.has(id))
+  if (!missing.length) return
+  try {
+    // CRM applies the caller's account ACL in one SQL query: no per-row account requests.
+    const result = await crmRequest<{ items: Array<{
+      id: string; displayName?: string; legalName?: string
+    }> }>(crmPath('accounts', 'labels') + '?' + new URLSearchParams({ ids: missing.join(',') }))
+    for (const item of result.items) {
+      const name = String(item.displayName || item.legalName || '').trim()
+      if (name) resolvedAccounts.value = { ...resolvedAccounts.value, [item.id]: name }
+    }
+    missing.forEach(id => accountsChecked.add(id))
+  } catch {
+    // During coordinated staging rollout, older CRM versions can still serve individual
+    // authorized reads. Remove this compatibility fallback only after UAT confirms bulk.
+    for (let i = 0; i < missing.length; i += 4) {
+      await Promise.all(missing.slice(i, i + 4).map(async id => {
+        accountsChecked.add(id)
+        try {
+          const account = await crmRequest<{ displayName?: string; legalName?: string; name?: string }>(crmPath('accounts', id))
+          const name = String(account.displayName || account.legalName || account.name || '').trim()
+          if (name) resolvedAccounts.value = { ...resolvedAccounts.value, [id]: name }
+        } catch { /* Never display an unverified UUID as a customer name. */ }
+      }))
+    }
+  }
+}
 const opening = computed<Record<string, unknown>>(() => {
   try {
     const value: unknown = JSON.parse(selected.value?.openingDataJson || '{}')
@@ -53,6 +104,18 @@ const openingDocuments = computed(() => {
     return fileName ? [{ id: String(document.id || fileName), label: String(document.categoryLabel || 'Documento'), fileName }] : []
   })
 })
+const openingMissing = computed(() => {
+  const items = opening.value.missingFields
+  return Array.isArray(items) ? items.filter((v): v is string => typeof v === 'string') : []
+})
+const openingServices = computed(() => {
+  const values = opening.value.services
+  if (!Array.isArray(values)) return []
+  return values.map(value => typeof value === 'string' ? value :
+    value && typeof value === 'object' ? String((value as Record<string, unknown>).name ||
+      (value as Record<string, unknown>).label ||
+      (value as Record<string, unknown>).serviceCode || '') : '').filter(Boolean)
+})
 const openingFlags = computed(() => [
   opening.value.isImo === true ? 'IMO / peligrosa' : '',
   opening.value.overweight === true ? 'Sobrepeso' : '',
@@ -72,10 +135,15 @@ const clientChoices = computed(() => [
   { label: 'Todos los clientes', value: '' },
   ...crmOptions.value.map(x => ({ label: x.displayName || x.legalName || x.id, value: x.id })),
 ])
-function accountLabel(id: string) { return crmOptions.value.find(x => x.id === id)?.displayName || 'Cuenta CRM · ' + short(id) }
+function accountLabel(id: string) { return resolvedAccounts.value[id] ||
+  crmOptions.value.find(x => x.id === id)?.displayName || 'Cliente pendiente de consulta' }
 async function loadClients() {
   fetchingClients.value = true
-  try { crmOptions.value = (await operationsApi.crmAccounts(clientSearch.value)).items }
+  try {
+    crmOptions.value = (await operationsApi.crmAccounts(clientSearch.value)).items
+    resolvedAccounts.value = { ...resolvedAccounts.value,
+      ...Object.fromEntries(crmOptions.value.filter(x => x.displayName).map(x => [x.id, x.displayName])) }
+  }
   catch { /* CRM account lookup may not be authorized; IDTRA search remains available. */ }
   finally { fetchingClients.value = false }
 }
@@ -90,7 +158,9 @@ const columns = computed<DhTableColumn<OperationsCaseRow>[]>(() => [
   { key: 'sourceQuoteId', label: 'Cotización' },
   { key: 'modalityCode', label: 'Modalidad' },
   { key: 'departmentCode', label: 'Departamento' },
-  { key: 'status', label: 'Estado' },
+  { key: 'teamName', label: 'Equipo' },
+  { key: 'assignedUserId', label: 'Operativo' },
+  { key: 'departmentStatus', label: 'Estado de etapa' },
   { key: 'updatedAtUtc', label: 'Actualizado' },
   { key: 'actions', label: '', align: 'right' },
 ])
@@ -102,7 +172,7 @@ const typeOptions = [
 const statusOptions = [
   { label: 'Todos los estados', value: '' },
   ...['DRAFT','PENDING_VALIDATION','APERTURA_VALIDADA','APERTURA_REQUIERE_CAMBIOS','ACTIVE','ON_HOLD','COMPLETED','CANCELLED']
-    .map(value => ({ label: formatStatus(value), value })),
+    .map(value => ({ label: operationsLabel(value), value })),
 ]
 function formatStatus(value: string | null | undefined) {
   return value ? value.replaceAll('_', ' ') : 'Sin asignar'
@@ -124,6 +194,8 @@ async function load() {
     })
     rows.value = result.items
     total.value = result.total
+    void resolveAccountNames(result.items.map(x => x.accountId))
+    void resolvePeople(result.items.map(x => x.assignedUserId))
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudieron consultar los trámites.'
   } finally { loading.value = false }
@@ -144,24 +216,31 @@ async function openCase(id: string) {
     if (sequence !== detailSequence) return
     selected.value = detail
     selectedWorkspace.value = workspace
+    clientName.value = accountLabel(detail.accountId)
+    void resolvePeople([
+      detail.createdBy, detail.executiveUserId,
+      ...workspace.stages.map(s => s.assignedUserId),
+      ...workspace.stages.flatMap(s => s.supervisorUserIds || []),
+      ...(workspace.validators || []).map(v => v.userId),
+    ])
     try {
       const account = await crmRequest<Record<string, unknown>>(crmPath('accounts', detail.accountId))
       if (sequence === detailSequence) {
-        clientName.value = String(account.displayName ?? account.name ?? account.legalName ?? '')
-        clientExecutiveName.value = String(account.executiveName ?? '').trim()
+        clientName.value = String(account.displayName || account.legalName || account.name || '').trim()
+        clientExecutiveName.value = String(account.executiveName || '').trim()
+        if (clientName.value) resolvedAccounts.value = { ...resolvedAccounts.value,
+          [detail.accountId]: clientName.value }
         if (clientName.value && !crmOptions.value.some(x => x.id === detail.accountId))
           crmOptions.value.push({ id: detail.accountId, displayName: clientName.value })
       }
     } catch { /* CRM may be outside this user's scopes; never block the IDTRA. */ }
-    if (!clientExecutiveName.value && detail.executiveUserId) {
+    if (!clientExecutiveName.value && detail.accountId) {
       try {
-        const users = await crmRequest<{ owners?: Record<string, string> }>(
-          crmPath('calendar/labels') + '?' +
-          new URLSearchParams({ ownerIds: detail.executiveUserId }))
-        if (sequence === detailSequence) {
-          clientExecutiveName.value = users.owners?.[detail.executiveUserId]?.trim() || ''
-        }
-      } catch { /* CRM labels optional; historical responsibility persists. */ }
+        const executive = await crmRequest<{ displayName?: string | null }>(
+          crmPath('accounts', detail.accountId, 'assigned-executive'))
+        if (sequence === detailSequence)
+          clientExecutiveName.value = executive.displayName?.trim() || ''
+      } catch { /* CRM is authoritative; the opening snapshot is the fallback. */ }
     }
   } catch (cause) {
     if (sequence === detailSequence)
@@ -178,6 +257,12 @@ async function refreshSelected() {
     if (selectedCaseId.value === id) {
       selected.value = detail
       selectedWorkspace.value = work
+      void resolvePeople([
+        detail.createdBy, detail.executiveUserId,
+        ...work.stages.map(s => s.assignedUserId),
+        ...work.stages.flatMap(s => s.supervisorUserIds || []),
+        ...(work.validators || []).map(v => v.userId),
+      ])
     }
   } catch { /* Keep the current drawer visible; the next manual refresh can retry. */ }
 }
@@ -226,14 +311,14 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
 
     <DhCard :icon="FolderOpen" title="Todos los trámites" subtitle="Consulta los IDTRA creados manualmente y los provenientes de Pricing. Selecciona una fila para ver el resumen.">
-      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px_210px]">
+      <div class="mb-3 grid gap-3 sm:grid-cols-2">
         <DhSearchInput v-model="search" placeholder="Buscar IDTRA, QUO o modalidad…" />
+        <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
+      </div>
+      <div class="mb-4 grid gap-3 sm:grid-cols-3">
+        <DhSelect v-model="accountId" :options="clientChoices" :disabled="fetchingClients" />
         <DhSelect v-model="apertureType" :options="typeOptions" />
         <DhSelect v-model="status" :options="statusOptions" />
-      </div>
-      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(190px,250px)]">
-        <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
-        <DhSelect v-model="accountId" :options="clientChoices" :disabled="fetchingClients" />
       </div>
       <DhDataTable :columns="columns" :rows="rows" :loading="loading" empty-text="No hay trámites para los filtros seleccionados." @row-click="openCase($event.id)">
         <template #cell-idtra="{ row }">
@@ -247,9 +332,11 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <DhBadge v-else variant="neutral">Sin QUO</DhBadge>
         </template>
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
-        <template #cell-departmentCode="{ row }">{{ formatStatus(row.departmentCode) }}</template>
-        <template #cell-status="{ row }">
-          <DhBadge :variant="row.status === 'COMPLETED' ? 'success' : row.status.includes('PENDING') ? 'warning' : 'primary'">{{ formatStatus(row.status) }}</DhBadge>
+        <template #cell-departmentCode="{ row }">{{ operationsLabel(row.departmentCode) }}</template>
+        <template #cell-teamName="{ row }">{{ row.teamName || 'Sin equipo' }}</template>
+        <template #cell-assignedUserId="{ row }">{{ personName(row.assignedUserId) }}</template>
+        <template #cell-departmentStatus="{ row }">
+          <DhBadge :variant="row.departmentStatus === 'COMPLETED' ? 'success' : row.departmentStatus === 'PENDING' ? 'warning' : 'primary'">{{ departmentStatusLabel(row.departmentCode, row.departmentStatus, row.status, row.originStatusCode) }}</DhBadge>
         </template>
         <template #cell-updatedAtUtc="{ row }">{{ formatDate(row.updatedAtUtc) }}</template>
         <template #cell-actions="{ row }">
@@ -273,7 +360,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div><p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Expediente operativo</p>
               <p class="mt-1 text-lg font-black text-[var(--dh-primary)]">{{ selected.idtra }}</p></div>
-            <DhBadge :variant="selected.status === 'DRAFT' ? 'warning' : selected.status === 'COMPLETED' ? 'success' : 'primary'">{{ formatStatus(selected.status) }}</DhBadge>
+            <DhBadge :variant="selectedStage?.status === 'COMPLETED' ? 'success' : selectedStage?.status === 'PENDING' ? 'warning' : 'primary'">{{ selectedStatusLabel }}</DhBadge>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
             <DhBadge variant="neutral">{{ selected.apertureType === 'MANUAL' ? 'Manual' : 'Desde Pricing' }}</DhBadge>
@@ -282,21 +369,21 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           </div>
         </div>
 
-        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+        <DhCard padding="sm">
           <div class="mb-3 flex items-center gap-2"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Cliente y comercial</h3></div>
-          <p class="break-words text-base font-black">{{ clientName || 'Cuenta de CRM' }}</p>
+          <p class="break-words text-base font-black">{{ clientName || accountLabel(selected.accountId) }}</p>
           <RouterLink :to="'/crm/accounts/' + selected.accountId" class="mt-1 inline-block text-xs font-semibold text-[var(--dh-primary)] hover:underline">Consultar cliente</RouterLink>
           <div class="mt-3 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
-            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Ejecutivo comercial</p><p class="mt-1 text-sm font-semibold">{{ clientExecutiveName || openingText('executiveName') || (selected.executiveUserId ? 'Responsable asignado en CRM' : 'Pendiente') }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Ejecutivo comercial</p><p class="mt-1 text-sm font-semibold">{{ clientExecutiveName || openingText('executiveName') || personName(selected.executiveUserId) }}</p></div>
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Cotización vinculada</p>
               <RouterLink v-if="selected.sourceQuoteId" :to="'/pricing/rates/' + selected.sourceQuoteId + '/wizard?mode=view'" class="mt-1 inline-block text-sm font-bold text-[var(--dh-primary)]">Abrir QUO</RouterLink>
               <p v-else class="mt-1 text-sm font-semibold">SIN_QUO</p></div>
             <div v-if="openingText('clientPoReference')"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">PO / referencia</p><p class="mt-1 break-words text-sm font-semibold">{{ openingText('clientPoReference') }}</p></div>
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Fecha de apertura</p><p class="mt-1 text-sm font-semibold">{{ formatDate(selected.createdAtUtc) }}</p></div>
           </div>
-        </section>
+        </DhCard>
 
-        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+        <DhCard padding="sm">
           <div class="mb-3 flex items-center gap-2"><Route class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Ruta del embarque</h3></div>
           <div class="space-y-0">
             <div v-for="(stop, i) in [{ label: 'Origen / POL', place: openingText('pol') }, { label: 'Entrada / POE', place: openingText('poe') }, { label: 'Destino / POD', place: openingText('pod') }]" :key="stop.label" class="flex gap-3">
@@ -308,9 +395,9 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             <span>ETD <strong>{{ openingText('etm') || 'Por confirmar' }}</strong></span>
             <span>ETA <strong>{{ openingText('eta') || 'Por confirmar' }}</strong></span>
           </div>
-        </section>
+        </DhCard>
 
-        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+        <DhCard padding="sm">
           <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Mercancía y equipos</h3></div>
           <p class="break-words text-sm font-semibold">{{ openingText('cargoDescription') || 'Mercancía pendiente' }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
@@ -327,14 +414,24 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
               <p v-for="doc in openingDocuments" :key="doc.id" class="break-words rounded-lg bg-[var(--dh-input)] p-2 text-xs"><strong>{{ doc.label }}</strong> · {{ doc.fileName }}</p>
             </div>
           </div>
-        </section>
+        </DhCard>
 
-        <section class="rounded-[20px] border border-[var(--dh-border)] p-4">
+        <DhCard padding="sm">
           <div class="mb-3 flex items-center gap-2"><CheckCircle2 class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Responsables y validación</h3></div>
           <div v-if="selectedWorkspace?.stages.length" class="space-y-2">
             <div v-for="stage in selectedWorkspace.stages" :key="stage.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--dh-input)]/45 p-3">
-              <div class="min-w-0"><p class="text-xs font-bold">{{ formatStatus(stage.departmentCode) }}</p><p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo por asignar' }}</p></div>
-              <DhBadge :variant="stage.status === 'PENDING_VALIDATION' ? 'warning' : 'neutral'">{{ formatStatus(stage.status) }}</DhBadge>
+              <div class="min-w-0"><p class="text-xs font-bold">{{ formatStatus(stage.departmentCode) }}</p><p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo por asignar' }}</p>
+                <p class="mt-1 text-xs font-semibold">Operativo: {{ personName(stage.assignedUserId) }}</p>
+                <p v-if="stage.supervisorUserIds?.length" class="mt-1 text-xs text-[var(--dh-text-soft)]">
+                  Supervisión: {{ stage.supervisorUserIds.map(id => personName(id)).join(', ') }}
+                </p>
+                <p v-if="stage.assignedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">Asignación: {{ formatDate(stage.assignedAtUtc) }}</p>
+                <p v-for="validator in (selectedWorkspace.validators || []).filter(v => v.caseStageId === stage.id)" :key="validator.userId" class="mt-1 text-xs text-[var(--dh-text-soft)]">
+                  Validador {{ validator.slot }}: {{ personName(validator.userId) }} · {{ operationsLabel(validator.status) }}
+                  <span v-if="validator.reviewedAtUtc">· {{ formatDate(validator.reviewedAtUtc) }}</span>
+                </p>
+                </div>
+              <DhBadge :variant="stage.status === 'PENDING' ? 'warning' : 'neutral'">{{ departmentStatusLabel(stage.departmentCode, stage.status, selected.status, stage.departmentCode === 'COORDINACION_ORIGEN' ? rows.find(x => x.id === selected?.id)?.originStatusCode : null) }}</DhBadge>
             </div>
           </div>
           <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin etapas activas.</p>
@@ -342,8 +439,41 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             <p class="mb-2 text-xs font-black">Tareas pendientes</p>
             <p v-for="task in selectedWorkspace.tasks.slice(0, 4)" :key="task.id" class="mb-1 text-xs text-[var(--dh-text-muted)]">{{ task.title }}</p>
           </div>
+          <div class="mt-3 grid gap-2 border-t border-[var(--dh-border)] pt-3 text-xs sm:grid-cols-2">
+            <p>Creado por: <strong>{{ personName(selected.createdBy) }}</strong></p>
+            <p>Fecha: <strong>{{ formatDate(selected.createdAtUtc) }}</strong></p>
+          </div>
           <p class="mt-3 text-[11px] text-[var(--dh-text-muted)]">Actualizado: {{ formatDate(selected.updatedAtUtc) }}</p>
-        </section>
+        </DhCard>
+        <DhCard padding="sm">
+          <div class="flex items-center gap-2"><FileText class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-bold">Condiciones y datos complementarios</h3></div>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <div v-for="item in [
+              { label: 'Procedencia', value: openingText('provenance') },
+              { label: 'Tipo de transporte', value: openingText('transportType') },
+              { label: 'Tipo de embarque', value: openingText('shipmentType') },
+              { label: 'Recolecta', value: openingText('pickupAddress') },
+              { label: 'WHS', value: openingText('whsName') },
+              { label: 'Entrega', value: openingText('destinationAddress') },
+              { label: 'Naviera', value: openingText('carrierReference') },
+              { label: 'Agente', value: openingText('agentReference') },
+              { label: 'Merchant', value: openingText('merchantReference') },
+              { label: 'Consolidado', value: openingText('consolidationReference') },
+              { label: 'Observaciones', value: openingText('observations') },
+            ]" :key="item.label" class="min-w-0">
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ item.label }}</p>
+              <p class="mt-0.5 break-words text-sm font-semibold">{{ item.value || 'Pendiente / no aplica' }}</p>
+            </div>
+          </div>
+          <div v-if="openingServices.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
+            <p class="text-xs font-bold">Servicios</p>
+            <div class="mt-2 flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge></div>
+          </div>
+          <div v-if="openingMissing.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
+            <p class="mb-2 text-xs font-bold">Campos por completar ({{ openingMissing.length }})</p>
+            <p v-for="field in openingMissing" :key="field" class="text-xs text-[var(--dh-text-muted)]">{{ operationsLabel(field) }}</p>
+          </div>
+        </DhCard>
       </div>
       <template #footer>
         <div v-if="selected" class="flex justify-end gap-2">
