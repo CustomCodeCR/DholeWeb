@@ -13,9 +13,9 @@ import type {
   StorageSummaryDto,
 } from '@/core/interfaces/storage'
 import type { Endpoint } from '@/core/composables/endpoints'
+import { resolveGatewayBaseUrl } from '@/core/api/sameOriginGateway'
 
-const gatewayBaseUrl =
-  ((import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '') ?? '')
+const gatewayBaseUrl = resolveGatewayBaseUrl(import.meta.env.VITE_API_URL as string | undefined)
 const storageGatewayPath =
   ((import.meta.env.VITE_STORAGE_GATEWAY_PATH as string | undefined)?.trim() || '/api/storage')
     .replace(/^\/?/, '/')

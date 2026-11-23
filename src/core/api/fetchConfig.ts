@@ -12,7 +12,9 @@ import {
   safeJsonParse,
 } from '@/core/api/apiErrorHandler'
 
-const BASE_URL = import.meta.env.VITE_API_URL as string
+import { resolveGatewayBaseUrl } from '@/core/api/sameOriginGateway'
+
+const BASE_URL = resolveGatewayBaseUrl(import.meta.env.VITE_API_URL as string | undefined)
 
 const STORAGE_KEYS = {
   accessToken: 'auth.accessToken',
