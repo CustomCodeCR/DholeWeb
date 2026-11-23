@@ -21,9 +21,9 @@ test('Manual aperture no longer has any dedicated services or coordination scree
   assert.doesNotMatch(opening, /v-show="activeStep === [456]"/)
 })
 
-test('Mandatory FCA LCL/LTL WHS is relocated to the route, not silently lost', () => {
+test('Mandatory FCA WHS applies to all shipments on the route', () => {
   assert.match(opening, /const requiresWarehouse = computed/)
-  assert.match(opening, /form\.value\.incoterm === 'FCA'/)
+  assert.match(opening, /form\.value\.incoterm\?\.trim\(\)\.toUpperCase\(\) === 'FCA'/)
   assert.match(opening, /if \(requiresWarehouse\.value && !form\.value\.whsName\.trim\(\)\)/)
   assert.match(opening, /<div v-if="requiresWarehouse"/)
   assert.match(opening, /label="Nombre WHS \/ referencia registrada"/)
