@@ -1,3 +1,9 @@
+## [1.120.8] - 2026-11-23
+
+- PATCH DH-20261123-PRICING-VAT-RELEASE-430: Se corrige el IVA fiscal por POL y POE para cargos de origen, recolecta, destino y entrega; flete según importación/exportación y alternativas multi-POE.
+- Se conserva IVA actualizado en la pantalla 7 y el checkbox refleja la tasa disponible. Incluye pruebas para creación, edición y transformación de Vite.
+- Release coordinado DholeSystem/DholeWeb; no se modifican contratos REST, servicios ni componentes DH compartidos.
+
 ## [1.120.7] - 2026-11-23 · DH-20261123-PRICING-LTL-EDIT-NAV-422
 
 - PATCH: en edición de QUO LTL terrestre existente, Pantalla 6 permite avanzar a Pantalla 7 sin depender de la validación de tarifa nueva `canNext`. Se usa el snapshot persistido para revisar cargos sin reimportar ni recalcular los fletes al navegar.
