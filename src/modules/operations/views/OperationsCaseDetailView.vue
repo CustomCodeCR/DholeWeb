@@ -37,28 +37,51 @@ const openingData = computed<Record<string, unknown>>(() => {
       ? value as Record<string, unknown> : {}
   } catch { return {} }
 })
-const openingRows = computed(() => {
+const openingSections = computed(() => {
   const data = openingData.value
-  const pairs = [
-    ['Referencia / PO del cliente', 'clientPoReference'],
-    ['Origen de solicitud', 'provenance'],
-    ['Tipo de embarque', 'shipmentType'],
-    ['Tipo de transporte', 'transportType'],
-    ['Incoterm', 'incoterm'],
-    ['POL', 'pol'], ['POE', 'poe'], ['POD', 'pod'],
-    ['Descripción de carga', 'cargoDescription'],
-    ['Bultos', 'packageCount'], ['Tipo de bulto', 'packageType'],
-    ['Peso original', 'weightValue'], ['Unidad peso', 'weightUnit'],
-    ['Volumen original', 'volumeValue'], ['Unidad volumen', 'volumeUnit'],
-    ['Peso kg', 'weightKg'], ['Volumen CBM', 'volumeCbm'],
-    ['Consolidado', 'consolidationReference'],
-    ['Recolecta', 'pickupAddress'], ['WHS', 'whsName'],
-    ['Entrega', 'destinationAddress'], ['Naviera', 'carrierReference'],
-    ['Agente', 'agentReference'], ['Merchant', 'merchantReference'],
-    ['ETD', 'etm'], ['ETA', 'eta'], ['Observaciones', 'observations'],
-  ] as const
-  return pairs.map(([label, key]) => ({ label, value: data[key] }))
-    .filter(entry => entry.value !== null && entry.value !== undefined && entry.value !== '')
+  const sections: Array<{ title: string; rows: Array<{ label: string; key: string }> }> = [
+    { title: 'Ruta y transporte', rows: [
+      { label: 'Tipo de embarque', key: 'shipmentType' },
+      { label: 'Transporte', key: 'transportType' },
+      { label: 'Incoterm', key: 'incoterm' },
+      { label: 'POL · Salida', key: 'pol' },
+      { label: 'POE · Entrada', key: 'poe' },
+      { label: 'POD · Destino', key: 'pod' },
+      { label: 'ETD', key: 'etm' }, { label: 'ETA', key: 'eta' },
+    ] },
+    { title: 'Mercancía', rows: [
+      { label: 'Descripción', key: 'cargoDescription' },
+      { label: 'CABYS', key: 'cabysCode' },
+      { label: 'Naturaleza de carga', key: 'cargoNature' },
+      { label: 'Bultos', key: 'packageCount' },
+      { label: 'Tipo de bulto', key: 'packageType' },
+      { label: 'Peso', key: 'weightValue' },
+      { label: 'Unidad de peso', key: 'weightUnit' },
+      { label: 'Volumen', key: 'volumeValue' },
+      { label: 'Unidad de volumen', key: 'volumeUnit' },
+    ] },
+    { title: 'Coordinación y proveedores', rows: [
+      { label: 'Consolidado', key: 'consolidationReference' },
+      { label: 'Dirección de recolecta', key: 'pickupAddress' },
+      { label: 'WHS', key: 'whsName' },
+      { label: 'Dirección de entrega', key: 'destinationAddress' },
+      { label: 'Naviera', key: 'carrierReference' },
+      { label: 'Agente', key: 'agentReference' },
+      { label: 'Merchant', key: 'merchantReference' },
+      { label: 'Observaciones', key: 'observations' },
+    ] },
+  ]
+  return sections.map(section => ({
+    title: section.title,
+    rows: section.rows.map(row => {
+      const raw = data[row.key]
+      const value = typeof raw === 'string' || typeof raw === 'number'
+        ? String(raw).trim() : ''
+      return { label: row.label, value: value || (
+        row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar / no aplica'
+      ) }
+    }),
+  }))
 })
 
 const workspace = ref<OperationsCaseWorkspace | null>(null)
@@ -433,11 +456,16 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
           </DhCard>
           <DhCard title="Ruta, mercancía y servicios" subtitle="Información capturada en Aperturas; los datos pendientes se completan por departamento según la modalidad.">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div v-for="field in openingRows" :key="field.label" class="min-w-0 rounded-xl bg-[var(--dh-input)] p-3">
-                <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
-                <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
-              </div>
+            <div class="space-y-5">
+              <section v-for="section in openingSections" :key="section.title">
+                <h4 class="mb-2 text-sm font-bold">{{ section.title }}</h4>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <div v-for="field in section.rows" :key="field.label" class="min-w-0 rounded-xl bg-[var(--dh-input)] p-3">
+                    <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
+                    <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
+                  </div>
+                </div>
+              </section>
             </div>
             <div v-if="Array.isArray(openingData.equipment) && openingData.equipment.length" class="mt-4">
               <h4 class="mb-2 text-sm font-semibold">Equipos</h4>
