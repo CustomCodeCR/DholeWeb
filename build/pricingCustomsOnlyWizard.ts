@@ -250,11 +250,16 @@ function patchWizard(source: string): string {
   code = replaceRequired(
     code,
     `const includedLines = computed(() => rateLines.value.filter((line) =>
-  shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+  props.rateId && line.detailId
+    ? line.included
+    : shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
 ))`,
     `const includedLines = computed(() => rateLines.value.filter((line) =>
-  (hasInternationalTransportService.value || line.costDetailType !== 'Freight')
-  && shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+  // A saved RateDetail is authoritative, even when the new request is customs-only.
+  ((props.rateId && line.detailId) || (hasInternationalTransportService.value || line.costDetailType !== 'Freight'))
+  && (props.rateId && line.detailId
+    ? line.included
+    : shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))),
 ))`,
     'exclude freight from customs rate payload',
   )
