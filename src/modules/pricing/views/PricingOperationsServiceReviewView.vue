@@ -57,8 +57,7 @@ async function decide(review: Review, decision: 'APPROVED' | 'REJECTED') {
     await callEndpoint({
       method: 'POST',
       path: '/api/pricing/operations-service-reviews/' + encodeURIComponent(review.id) + '/decision',
-      data: { decision, notes: noteById[review.id].trim() },
-    })
+    }, { body: { decision, notes: noteById[review.id].trim() } })
     toast.success('Decisión registrada. Operations recibirá el resultado mediante Redis.')
     await load()
   } catch (cause) {
