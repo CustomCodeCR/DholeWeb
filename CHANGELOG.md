@@ -1,3 +1,11 @@
+## [1.120.1] - 2026-11-23 · DH-20261123-PRICING-LTL-ROUTES-417
+
+- PATCH: permitir crear un consolidado LTL independiente al modificar el origen o destino de una tarifa existente; la ruta original no se sobrescribe.
+- Acción explícita «Crear otra ruta con estos valores» que conserva importes, cargos y condiciones, exige seleccionar una combinación diferente y evita duplicados locales por origen/destino/perfil comercial.
+- Reutiliza DhButton y estilos/tokens DH existentes; sin nuevos endpoints ni cambios de contratos REST, SignalR, Redis, base de datos o migraciones.
+- DholeWeb y DholeSystem 1.120.0 → 1.120.1; los otros 15 componentes del ecosistema permanecen en la misma versión.
+- Release candidato en ramas intermedias. CI, pruebas de integración y validación staging pendientes; master y producción no autorizados.
+
 ## [1.120.0] - 2026-11-23 · DH-20261123-OPS-APERTURES-P1-416
 
 - MINOR coordinado con Operations: WHS obligatorio para FCA en cualquier modalidad de Aperturas; uso de los componentes DH existentes, sin nuevo sistema visual.
