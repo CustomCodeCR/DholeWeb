@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { resolveDestinationVatRate, resolvePodCountryCode, resolvePodVatRate, stripGeneratedPodVatNotes } from '../src/modules/pricing/utils/pricingPodVat.ts'
+import { resolveDestinationVatRate, resolvePodCountryCode, resolvePodVatRate, resolvePricingLineVatContext, stripGeneratedPodVatNotes } from '../src/modules/pricing/utils/pricingPodVat.ts'
 import type { CatalogItemSelectDto } from '../src/core/interfaces/catalogs'
 
 function item(code: string, value: string, metadata: Record<string, unknown> = {}): CatalogItemSelectDto {
@@ -85,18 +85,24 @@ test('Old POE VAT notes are replaced without losing legitimate charge comments',
   assert.equal(stripGeneratedPodVatNotes('Comentario original'), 'Comentario original')
 })
 
-test('Both pricing wizards offer the IVA checkbox on every rate line and recalculate it from POD', () => {
+test('Both pricing wizards calculate line IVA from POL or POE, never from global POD', () => {
   for (const path of [
     '../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
     '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
   ]) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8')
-    assert.match(source, /resolveDestinationVatRate\(resolvePodForDestination\(\), selectedDestination\.value, catalogs\.countries\)/)
-    assert.match(source, /function lineDestinationTaxRate\(_line: RateLine\) \{\s*\/\/[^\n]*\n\s*return destinationTaxRate\.value/)
-    assert.match(source, /IVA \$\{destinationTaxOrigin\}/)
+    assert.match(source, /resolvePricingLineVatContext\(line\.section, operation, selectedOrigin\.value, poe, catalogs\.countries\)/)
+    assert.match(source, /function lineDestinationTaxRate\(/)
+    assert.match(source, /lineVatLabel\(line\)/)
     assert.equal((source.match(/class="crystal-line-vat"/g) ?? []).length, 2)
-    assert.doesNotMatch(source, /v-if="canApplyDestinationTax\(line\)" class="crystal-line-vat"/)
+    assert.equal((source.match(/:disabled="!canApplyDestinationTax\(line\)"/g) ?? []).length, 2)
+    assert.equal((source.match(/:model-value="Boolean\(line\.applyDestinationTax\) && canApplyDestinationTax\(line\)"/g) ?? []).length, 2)
+    assert.doesNotMatch(source, /const destinationTaxRate = computed/)
+    assert.match(source, /IVA aplicado según POL\/POE/)
   }
+  const wizard = readFileSync(new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url), 'utf8')
+  assert.match(wizard, /const routeVatOperation = pricingQuoteOperationOverride\.value \|\| operationForClientCountry\(/)
+  assert.match(wizard, /lineDestinationTaxRate\(line, targetPoe, routeVatOperation\)/)
 })
 
 test('China origin with an opaque Config port ID resolves ISO CN for import direction', () => {
@@ -120,4 +126,48 @@ test('El Salvador country is resolved from an explicit POD country label without
   assert.equal(resolvePodCountryCode(destination, [item('CAT-SV', 'El Salvador', { countryCode: 'SLV' })]), 'SV')
   assert.equal(resolvePodCountryCode(item('POD-UNKNOWN', 'San Salvador'), []), '')
   assert.equal(resolvePodCountryCode(item('POE-2026-001', 'Acajutla, El Salvador'), []), 'SV')
+})
+
+
+test('Origin and pickup always use POL; destination and delivery always use POE', () => {
+  const pol = item('CRSJO', 'San José', { countryCode: 'CR' })
+  const poe = item('PABLB', 'Balboa', { countryCode: 'PA' })
+  for (const operation of ['Import', 'Export', 'TransitDomestic'] as const) {
+    for (const section of ['pickup_origin', 'origin_charges'] as const) {
+      assert.deepEqual(resolvePricingLineVatContext(section, operation, pol, poe, countries), {
+        source: 'POL', countryCode: 'CR', rate: 13,
+      })
+    }
+    for (const section of ['destination_charges', 'delivery_destination'] as const) {
+      assert.deepEqual(resolvePricingLineVatContext(section, operation, pol, poe, countries), {
+        source: 'POE', countryCode: 'PA', rate: 7,
+      })
+    }
+  }
+})
+
+test('Freight respects import/export perspective and avoids assuming transit VAT', () => {
+  const pol = item('CRSJO', 'San José', { countryCode: 'CR' })
+  const poe = item('PABLB', 'Balboa', { countryCode: 'PA' })
+  assert.equal(resolvePricingLineVatContext('international_freight', 'Export', pol, poe, countries).rate, 13)
+  assert.equal(resolvePricingLineVatContext('international_freight', 'Import', pol, poe, countries).rate, 7)
+  assert.deepEqual(resolvePricingLineVatContext('international_freight', 'TransitDomestic', pol, poe, countries), {
+    source: null, countryCode: '', rate: 0,
+  })
+})
+
+test('Multi-POE alternatives resolve different rates independently of POD', () => {
+  const pol = item('CNSHA', 'Shanghai', { countryCode: 'CN' })
+  const panama = item('PABLB', 'Balboa', { countryCode: 'PA' })
+  const costaRica = item('CRCAL', 'Caldera', { countryCode: 'CR' })
+  assert.equal(resolvePricingLineVatContext('destination_charges', 'Import', pol, panama, countries).rate, 7)
+  assert.equal(resolvePricingLineVatContext('destination_charges', 'Import', pol, costaRica, countries).rate, 13)
+  assert.equal(resolvePricingLineVatContext('origin_charges', 'Import', pol, costaRica, countries).rate, 0)
+})
+
+test('Explicit zero and unknown ports never create an invented tax', () => {
+  const pol = item('CRLIM', 'Limón', { countryCode: 'CR', vatRate: 0 })
+  const poe = item('POE-UNKNOWN', 'Puerto sin país')
+  assert.equal(resolvePricingLineVatContext('pickup_origin', 'Export', pol, poe, countries).rate, 0)
+  assert.equal(resolvePricingLineVatContext('destination_charges', 'Import', pol, poe, countries).rate, 0)
 })

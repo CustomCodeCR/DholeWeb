@@ -90,7 +90,8 @@ test('wizard has no unbound country perspective helper after Vite transforms', (
   assert.doesNotMatch(wizard, /\b(?:resolveClientRouteOperation|routeOperation|clientCountryCode)\b/)
   // Catch the exact missing runtime reference that blanked Pricing in v1.107.4.
   assert.doesNotMatch(wizard, /automaticOperationType/)
-  assert.equal((wizard.match(/pricingQuoteOperationOverride\.value \|\| operationForClientCountry\(/g) ?? []).length, 2)
+  // The third call resolves the commercial direction for each multi-POE alternative.
+  assert.equal((wizard.match(/pricingQuoteOperationOverride\.value \|\| operationForClientCountry\(/g) ?? []).length, 3)
   assert.match(wizard, /const direction = computed\(\(\) => \{/)
   assert.match(diagnostic, /'automaticOperationType'/)
   assert.match(wizard, /const operationType = computed<RateOperationType>\(/)
