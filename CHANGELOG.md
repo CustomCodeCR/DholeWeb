@@ -1,4 +1,4 @@
-## [1.120.4] - 2026-11-23
+## [1.120.5] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-POL-POE-VAT-420: IVA en Pantalla 7 por jurisdicción física (POL en origen y recolecta, POE en destino y entrega); flete internacional con sentido comercial importación/exportación, sin tasa automática para tránsito indeterminado.
 - Las alternativas multi-POE calculan el IVA desde su propio POE y todos los rubros conservan su selección de IVA, su moneda y los contratos REST existentes.
