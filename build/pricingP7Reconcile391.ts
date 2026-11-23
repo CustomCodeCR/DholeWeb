@@ -181,7 +181,34 @@ watch(
   if (code.includes(oldName))
     code = code.replace(oldName,
       "name: line.costDetailType === 'Freight' ? p7FreightTitle391(line) : line.name,")
-  return code
+  return patchPersistedLandLtlEditNavigation422(code)
+}
+
+/**
+ * DH-422: historical LTL RateDetails must remain accessible on P7 even if
+ * the current P6 tariff catalog validation is incomplete. No implicit repricing.
+ */
+export function patchPersistedLandLtlEditNavigation422(source: string): string {
+  const anchor = 'async function next() {'
+  const count = source.split(anchor).length - 1
+  if (count !== 1) {
+    throw new Error('[DH-422] Expected one wizard next() function, found ' + count)
+  }
+  const nextStart = source.indexOf(anchor)
+  if (source.indexOf('function previous() {', nextStart) < 0) {
+    throw new Error('[DH-422] Missing wizard navigation boundary')
+  }
+  return source.replace(anchor, [
+    anchor,
+    '  // Existing LTL quotations use persisted lines, not a fresh P6 tariff check.',
+    "  if (step.value === 6 && props.rateId && editingRate.value",
+    "      && !props.viewOnly && !props.sellerRequestMode",
+    "      && shipmentModeForApi.value === 'Ltl') {",
+    '    if (hydratingExistingRate.value) return',
+    '    step.value = 7',
+    '    return',
+    '  }',
+  ].join('\n'))
 }
 
 export function pricingP7Reconcile391(): Plugin {
