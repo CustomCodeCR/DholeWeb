@@ -71,5 +71,18 @@ test('DH-422: final Vite transform rewrites navigation after legacy checks', () 
     result.indexOf('if (!canNext.value)'),
     'saved quotation exception must precede the old canNext guard')
   assert.equal((result.match(/async function next\(\) \{/g) ?? []).length, 1)
-  assert.throws(() => patchPersistedLandLtlEditNavigation422('not a wizard'), /next\(\)/)
+  // Existing P7 micro-fixtures have no navigation; the real wizard does.
+  assert.equal(patchPersistedLandLtlEditNavigation422('cost fixture'), 'cost fixture')
+  assert.throws(() => patchPersistedLandLtlEditNavigation422('const step = ref(1)'), /next\\(\\)/)
+  const actualWizard = readFileSync(
+    new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
+    'utf8',
+  )
+  const productionNext = patchPersistedLandLtlEditNavigation422(actualWizard)
+  const realNext = productionNext.slice(
+    productionNext.indexOf('async function next() {'),
+    productionNext.indexOf('function previous() {', productionNext.indexOf('async function next() {')),
+  )
+  assert.ok(realNext.includes("shipmentModeForApi.value === 'Ltl'"))
+  assert.ok(realNext.indexOf("shipmentModeForApi.value === 'Ltl'") < realNext.indexOf('if (!canNext.value)'))
 })
