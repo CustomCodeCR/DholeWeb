@@ -183,3 +183,35 @@ test('Editing a persisted quote uses the configured cost port role, not its name
     assert.match(source, /destinationTaxRate:[\s\S]{0,160}\? lineDestinationTaxRate\(line\)/)
   }
 })
+
+
+test('Configured cost port role wins over misleading origin/destination names while pickup remains physical origin', async () => {
+  const vm = await import('node:vm')
+  for (const path of [
+    '../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
+    '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
+  ]) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8')
+    const match = source.match(/function sectionForCost\(cost: CostSelectDto\): RateSection \{([\s\S]*?)\n\}\n\nfunction sectionForManual\(/)
+    assert.ok(match, 'Pricing must expose a consistent physical cost-section resolver')
+    const implementation = 'function sectionForCost(cost) {' + match[1] + '\n}\nsectionForCost'
+    const context = {
+      explicitSectionFromName: (name: string) =>
+        /recole/i.test(name) ? 'pickup_origin' : /destino/i.test(name) ? 'destination_charges' : null,
+      sectionFromPortRole: (role: string, type: string) => role === 'Pol'
+        ? (type === 'InlandTransport' ? 'pickup_origin' : 'origin_charges')
+        : role === 'Poe' ? 'destination_charges' : null,
+      sectionForDetail: () => 'destination_charges',
+    }
+    const resolve = vm.runInNewContext(implementation, context) as (cost: Record<string, unknown>) => string
+    assert.equal(resolve({
+      name: 'Cargo de destino', costDetailType: 'OriginCharge', portRole: 'Pol', polId: 'CRSJO',
+    }), 'origin_charges')
+    assert.equal(resolve({
+      name: 'Recolecta', costDetailType: 'InlandTransport', portRole: 'Poe', poeId: 'PABLB',
+    }), 'pickup_origin')
+    assert.equal(resolve({
+      name: 'Cargo manual', costDetailType: 'DestinationCharge', portRole: 'Poe',
+    }), 'destination_charges')
+  }
+})
