@@ -3081,7 +3081,7 @@ async function hydrateExistingRate() {
       return {
         key: `existing:${detail.id}`,
         detailId: detail.id,
-        section: sectionForDetail(detail.costDetailType, detail.name),
+        section: configuredCost ? sectionForCost(configuredCost) : sectionForDetail(detail.costDetailType, detail.name),
         name: detail.name,
         costDetailType: detail.costDetailType,
         costType: detail.costType,
