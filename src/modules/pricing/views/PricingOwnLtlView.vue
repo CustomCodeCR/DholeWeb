@@ -50,6 +50,7 @@ const selectedDestinationCountry = ref('')
 const selectedId = ref('')
 const editorOpen = ref(false)
 const readOnly = ref(false)
+const duplicateMode = ref(false)
 const editorSection = ref<HTMLElement | null>(null)
 
 const LEGACY_ORIGIN = '__legacy_origin__'
@@ -438,6 +439,15 @@ function isPanamaOrigin(row: FtlTariffDto) {
 
 const formOrigin = computed(() => routeSnapshot(form.originId, 'origin'))
 const formDestination = computed(() => routeSnapshot(form.destinationId, 'destination'))
+// Changing either endpoint must never silently rewrite the existing tariff.
+const selectedRouteChanged = computed(() => {
+  if (!selected.value || !formOrigin.value || !formDestination.value) return false
+  return normalize(formOrigin.value.name) !== normalize(selected.value.originName)
+    || normalize(formDestination.value.name) !== normalize(selected.value.destinationName)
+})
+const willCreateNewRoute = computed(() =>
+  !selectedId.value || duplicateMode.value || selectedRouteChanged.value,
+)
 const usesPanamaLtlCosts = computed(() => isCfzToSanJoseOwnLtl(
   formOrigin.value?.name || selected.value?.originName,
   formDestination.value?.name || selected.value?.destinationName,
@@ -516,6 +526,7 @@ function selectDestinationCountry(code: string) {
 
 function resetForm() {
   selectedId.value = ''
+  duplicateMode.value = false
   readOnly.value = false
   Object.assign(form, {
     commercialProfile: 'FinalClient' as LandCommercialProfile,
@@ -603,15 +614,25 @@ async function openRow(row: OwnLtlTableRow, mode: 'view' | 'edit') {
   selectedOriginCountry.value = rowCountryCode(row, 'origin')
   selectedDestinationCountry.value = rowCountryCode(row, 'destination')
   selectedId.value = row.id
+  duplicateMode.value = false
   readOnly.value = mode === 'view'
   hydrateForm(row)
   editorOpen.value = true
   await scrollToEditor()
 }
 
+async function duplicateSelectedRoute() {
+  if (!selected.value || !canCreate.value) return
+  // Keep selectedId only to resolve legacy locations while using POST on save.
+  duplicateMode.value = true
+  readOnly.value = false
+  await scrollToEditor()
+}
+
 function closeEditor() {
   editorOpen.value = false
   selectedId.value = ''
+  duplicateMode.value = false
   readOnly.value = false
 }
 
@@ -739,7 +760,7 @@ async function load() {
 async function save() {
   if (readOnly.value) return
 
-  const editing = Boolean(selectedId.value)
+  const editing = !willCreateNewRoute.value
   if (editing && !canUpdate.value) {
     toastStore.warning('Permiso requerido', 'Necesita el scope pricing.cost.update para editar una tarifa LTL.')
     return
@@ -758,16 +779,32 @@ async function save() {
     return
   }
 
+  if (!editing) {
+    const sameRoute = rows.value.find((row) =>
+      normalize(row.originName) === normalize(payload.originName)
+      && normalize(row.destinationName) === normalize(payload.destinationName)
+      && (row.commercialProfile === 'Nvocc' ? 'Nvocc' : 'FinalClient') === payload.commercialProfile,
+    )
+    if (sameRoute) {
+      toastStore.warning(
+        'Ruta LTL existente',
+        'Ya existe una tarifa para estos puntos y este perfil comercial. Edite la ruta existente o seleccione otro destino.',
+      )
+      return
+    }
+  }
+
   try {
     saving.value = true
     let targetId = selectedId.value
 
-    if (targetId) {
+    if (editing) {
       await FtlTariffService.update(targetId, payload)
     } else {
       const created = await FtlTariffService.create(payload)
       targetId = created.id
       selectedId.value = created.id
+      duplicateMode.value = false
     }
 
     toastStore.success(
@@ -976,6 +1013,10 @@ onMounted(load)
         </div>
         <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
       </header>
+
+      <div v-if="selectedId && willCreateNewRoute" class="mx-5 mt-5 rounded-2xl border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 p-3 text-sm font-semibold text-[var(--dh-text)]">
+        Se creará una ruta LTL independiente con estos valores. La tarifa original permanecerá sin cambios. Seleccione un destino diferente antes de guardar.
+      </div>
 
       <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
         <div class="space-y-5">
@@ -1198,10 +1239,11 @@ onMounted(load)
 
           <div v-if="!readOnly" class="flex justify-end gap-2">
             <DhButton label="Cancelar" variant="secondary" @click="closeEditor" />
-            <DhButton :label="selectedId ? 'Guardar ruta' : 'Crear ruta'" :loading="saving" @click="save" />
+            <DhButton :label="willCreateNewRoute ? 'Crear ruta' : 'Guardar cambios'" :loading="saving" @click="save" />
           </div>
 
-          <div v-else class="flex justify-end">
+          <div v-else class="flex flex-wrap justify-end gap-2">
+            <DhButton v-if="canCreate" label="Crear otra ruta con estos valores" :icon="Plus" variant="secondary" @click="duplicateSelectedRoute" />
             <DhButton v-if="canUpdate" label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false" />
           </div>
         </aside>
