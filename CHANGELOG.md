@@ -1,3 +1,9 @@
+## [1.119.1] - 2026-11-23 · DH-20261123-PRICING-RETURN-MODAL-415
+
+- PATCH: mostrar «Ver devolución» y su historial en el DhModal compartido sin expandir las filas del Dashboard comercial; incluir cliente, ruta, motivo, usuario, fecha e historial.
+- Promoción selectiva desde develop: preservar código de master, contratos REST/realtime y acciones «Corregir y reenviar» y «Duplicar».
+- DholeWeb/DholeSystem 1.119.0 → 1.119.1, otros 15 componentes sin cambio; CI y staging obligatorios antes del merge a master.
+
 ## [1.119.0] - 2026-11-22 · DH-20261122-OPS-CASE-OVERVIEW-414
 
 - MINOR: listado de Trámites muestra nombre CRM con resolución por cuenta, equipo, operativo y estado específico departamental, sin exponer UUID ni destacar DRAFT como estado operativo.
