@@ -172,7 +172,7 @@ const typeOptions = [
 const statusOptions = [
   { label: 'Todos los estados', value: '' },
   ...['DRAFT','PENDING_VALIDATION','APERTURA_VALIDADA','APERTURA_REQUIERE_CAMBIOS','ACTIVE','ON_HOLD','COMPLETED','CANCELLED']
-    .map(value => ({ label: formatStatus(value), value })),
+    .map(value => ({ label: operationsLabel(value), value })),
 ]
 function formatStatus(value: string | null | undefined) {
   return value ? value.replaceAll('_', ' ') : 'Sin asignar'
