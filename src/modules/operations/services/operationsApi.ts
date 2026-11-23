@@ -119,6 +119,7 @@ export interface OperationsCaseWorkspace {
   stages: Array<{
     id: string; departmentCode: string; status: string; teamId: string | null
     teamName: string | null; assignedUserId: string | null
+    assignedAtUtc?: string | null; supervisorUserIds?: string[]
     startedAtUtc: string | null; completedAtUtc: string | null
   }>
   validators: Array<{
