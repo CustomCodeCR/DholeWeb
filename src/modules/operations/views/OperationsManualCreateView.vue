@@ -630,7 +630,13 @@ function clearLocalDraft() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
   autosaveReady.value = false
   try { window.localStorage.removeItem(draftStorageKey.value) } catch { /* storage restricted */ }
-  if (remoteDraftId.value) void operationsApi.discardOpeningDraft(remoteDraftId.value).catch(() => undefined)
+  if (remoteDraftId.value) {
+    const completedDraftId = remoteDraftId.value
+    remoteDraftId.value = ''
+    void remoteDraftChain.catch(() => undefined)
+      .then(() => operationsApi.discardOpeningDraft(completedDraftId))
+      .catch(() => undefined)
+  }
 }
 watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, assignedTeamId],
   scheduleLocalDraft, { deep: true })
