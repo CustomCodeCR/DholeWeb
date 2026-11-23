@@ -455,7 +455,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             </div>
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
           </DhCard>
-          <DhCard title="Ruta, mercancía y servicios" subtitle="Información capturada en Aperturas; los datos pendientes se completan por departamento según la modalidad.">
+          <DhCard title="Ficha de apertura y mercancía" subtitle="Ruta, mercancía, servicios y pendientes agrupados por departamento.">
             <div class="space-y-5">
               <section v-for="section in openingSections" :key="section.title">
                 <h4 class="mb-2 text-sm font-bold">{{ section.title }}</h4>
