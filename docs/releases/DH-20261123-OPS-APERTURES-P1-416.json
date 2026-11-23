@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "ecosystem": "Dhole",
+  "releaseId": "DH-20261123-OPS-APERTURES-P1-416",
+  "releaseType": "MINOR",
+  "ecosystemVersion": "1.120.0",
+  "targetBranches": [
+    "develop"
+  ],
+  "status": "candidate-develop-ci-pending",
+  "productionDeploymentAuthorized": false,
+  "components": [
+    {
+      "repository": "CustomCodeCR/DholeWeb",
+      "previousVersion": "1.119.1",
+      "version": "1.120.0",
+      "candidateBranch": "feature/DH-20261123-OPS-APERTURES-P1-416"
+    },
+    {
+      "repository": "CustomCodeCR/DholeSystem",
+      "previousVersion": "1.119.1",
+      "version": "1.120.0"
+    },
+    {
+      "repository": "CustomCodeCR/DholeOperationsService",
+      "previousVersion": "0.17.0",
+      "version": "0.18.0"
+    }
+  ],
+  "changes": [
+    "FCA opening WHS visible and required in all shipment types",
+    "Existing DH components and visual system retained",
+    "Mandatory version synchronization"
+  ],
+  "checks": {
+    "ci": "pending",
+    "staging": "pending",
+    "production": "not-authorized"
+  },
+  "deferred": [
+    "Pricing Outbox acceptance integration",
+    "Server-side first draft autosave",
+    "Pricing service review and Origin automatic transition"
+  ]
+}
