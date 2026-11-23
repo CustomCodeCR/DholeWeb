@@ -32,8 +32,10 @@ test('international freight selection depends on the contracted service across I
     'Tarifas (step 5) is skipped only for customs-only quotes')
   assert.ok(plugin.includes("(hasInternationalTransportService.value || line.costDetailType !== 'Freight')"),
     'preserve freight when the quoted service is selected')
-  assert.ok(plugin.includes("&& shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))"),
-    'other charges still follow their selection and pickup conditions')
+  assert.ok(plugin.includes(": shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))"),
+    'newly selected charges still follow their selection and pickup conditions')
+  assert.ok(plugin.includes("props.rateId && line.detailId"),
+    'historical RateDetail lines cannot disappear due to changing customs-only catalog context')
   assert.ok(plugin.includes("rateLines.value = rateLines.value.filter((line) => line.costDetailType !== 'Freight')"),
     'only quotes without transport service drop freight when leaving step 7')
   assert.ok(plugin.includes("if (lines[i]?.costDetailType === 'Freight') lines.splice(i, 1)"),
