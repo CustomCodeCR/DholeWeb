@@ -158,6 +158,7 @@ const form = ref({
   supportEntityId: '',
   supportDocuments: [] as Array<{ id: string; fileName: string; category: string; categoryLabel: string; sizeInBytes: number }>,
 })
+const pristineOpeningForm = JSON.parse(JSON.stringify(form.value)) as typeof form.value
 const cabysResults = ref<Array<{ code: string; description: string }>>([])
 const searchingCabys = ref(false)
 const uploadingSupport = ref('')
@@ -527,6 +528,7 @@ const draftStorageKey = computed(() =>
   'dhole.operations.manual-opening.v2:' + (auth.userId || 'guest') + ':' +
   (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
 const remoteDraftId = ref('')
+const savedOpeningDrafts = ref<Array<{ id: string; updatedAtUtc: string }>>([])
 let remoteDraftChain = Promise.resolve()
 function draftPayload() {
   return {
@@ -557,6 +559,55 @@ function persistLocalDraft() {
       autosaveState.value = 'error'
     }
   })
+}
+async function refreshSavedOpeningDrafts() {
+  try {
+    savedOpeningDrafts.value = (await operationsApi.openingDrafts()).items
+  } catch {
+    // The active offline draft is still available when PostgreSQL is unreachable.
+  }
+}
+async function selectSavedOpeningDraft(id: string) {
+  if (editingId.value || id === remoteDraftId.value) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  if (autosaveReady.value) persistLocalDraft()
+  await remoteDraftChain.catch(() => undefined)
+  autosaveReady.value = false
+  try {
+    const remote = await operationsApi.openingDraft(id)
+    const parsed = JSON.parse(remote.payloadJson) as Record<string, unknown>
+    if (parsed.version !== 2) throw new Error('Versión de borrador desconocida')
+    remoteDraftId.value = id
+    window.localStorage.setItem(draftStorageKey.value,
+      JSON.stringify({ ...parsed, backendDraftId: id }))
+    restoreLocalDraft()
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No fue posible recuperar el borrador.'
+  } finally { autosaveReady.value = true }
+}
+async function startFreshOpeningDraft() {
+  if (editingId.value) return
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  if (autosaveReady.value) persistLocalDraft()
+  await remoteDraftChain.catch(() => undefined)
+  autosaveReady.value = false
+  remoteDraftId.value = crypto.randomUUID()
+  form.value = JSON.parse(JSON.stringify(pristineOpeningForm)) as typeof form.value
+  accountId.value = ''
+  selectedClientName.value = ''
+  lastSelectedAccountId = ''
+  executiveName.value = ''
+  executiveUserId.value = ''
+  institutionalExecutive.value = false
+  contactsTouched.value = false
+  assignedTeamId.value = ''
+  assignmentPendingId.value = ''
+  modality.value = ''
+  activeStep.value = 1
+  error.value = ''
+  autosaveReady.value = true
+  persistLocalDraft()
+  await refreshSavedOpeningDrafts()
 }
 async function restoreServerDraft() {
   if (editingId.value) return
@@ -717,7 +768,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { restoreLocalDraft(); await restoreServerDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
+  if (!editingId.value) { restoreLocalDraft(); await restoreServerDraft(); autosaveReady.value = true; await Promise.all([loadAssignmentTeams(), refreshSavedOpeningDrafts()]) }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -780,6 +831,17 @@ onMounted(async () => {
         </div>
       </template>
     </DhPageHeader>
+
+    <DhCard v-if="!editingId" title="Borradores de Aperturas"
+      subtitle="Cada borrador se conserva por separado en PostgreSQL y se recupera desde cualquier navegador con tu usuario.">
+      <div class="flex flex-wrap items-center gap-2">
+        <DhButton :icon="Plus" label="Nuevo borrador" @click="startFreshOpeningDraft" />
+        <DhButton v-for="draft in savedOpeningDrafts.slice(0, 6)" :key="draft.id"
+          :label="'Borrador · ' + new Date(draft.updatedAtUtc).toLocaleString('es-CR')"
+          :disabled="draft.id === remoteDraftId"
+          @click="selectSavedOpeningDraft(draft.id)" />
+      </div>
+    </DhCard>
 
     <div class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 shadow-[var(--dh-shadow-sm)] sm:p-6">
       <div class="flex flex-wrap items-center justify-between gap-4">
