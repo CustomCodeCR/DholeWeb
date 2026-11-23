@@ -1648,11 +1648,18 @@ function sectionForDetail(type: CostDetailType, name = ''): RateSection {
 }
 
 function sectionForCost(cost: CostSelectDto): RateSection {
-  if (cost.costDetailType !== 'Freight') {
-    const explicitSection = explicitSectionFromName(cost.name)
-    if (explicitSection) return explicitSection
+  // International freight is never a local origin/destination surcharge.
+  if (cost.costDetailType === 'Freight') return 'international_freight'
+
+  // Physical pickup/delivery must remain in their own side, even for legacy
+  // catalogs with misplaced POE/POL relations.
+  const explicitSection = explicitSectionFromName(cost.name)
+  if (explicitSection === 'pickup_origin' || explicitSection === 'delivery_destination') {
+    return explicitSection
   }
 
+  // For other charges, authoritative port relationships take precedence
+  // over ambiguous names. The same rule applies when restoring a saved QUO.
   const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)
   if (byPortRole) return byPortRole
 
@@ -1665,7 +1672,7 @@ function sectionForCost(cost: CostSelectDto): RateSection {
       : 'destination_charges'
   }
 
-  return sectionForDetail(cost.costDetailType, cost.name)
+  return explicitSection || sectionForDetail(cost.costDetailType, cost.name)
 }
 
 function sectionForManual(section: RateSection): CostDetailType {
