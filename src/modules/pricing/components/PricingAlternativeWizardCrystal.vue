@@ -2420,8 +2420,17 @@ const visibleSections = computed<RateSection[]>(() => {
   return sectionOrder.filter((section) => allowed.has(section))
 })
 
+// Saved quote details must not disappear from the edition when a new route,
+ // stackability or pickup condition no longer matches the original catalog.
+ // Only explicit line inclusion/exclusion changes are respected.
+function quotedConditionMatches(line: RateLine) {
+  return Boolean(props.rateId && line.detailId) || lineMatchesPickupCargoCondition(line)
+}
+
 const includedLines = computed(() => rateLines.value.filter((line) =>
-  shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
+  props.rateId && line.detailId
+    ? line.included
+    : shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line)),
 ))
 function isOwnLclMatrixContext() {
   const currentNotes = includedLines.value.map((line) => String(line.notes ?? ''))
@@ -2576,7 +2585,7 @@ function standardSectionLines(section: RateSection) {
     (line) =>
       line.section === section
       && line.included
-      && lineMatchesPickupCargoCondition(line)
+      && quotedConditionMatches(line)
       && (!line.manual || line.costDetailType === 'Freight')
       && line.costDetailType !== 'AgentCharge'
       && line.costDetailType !== 'Insurance',
@@ -2587,7 +2596,7 @@ const agentLines = computed(() =>
   rateLines.value.filter(
     (line) =>
       line.included
-      && lineMatchesPickupCargoCondition(line)
+      && quotedConditionMatches(line)
       && line.costDetailType === 'AgentCharge'
       && !line.manual,
   ),
@@ -2603,7 +2612,7 @@ const bottomRateLines = computed(() =>
   rateLines.value.filter(
     (line) =>
       line.included
-      && lineMatchesPickupCargoCondition(line)
+      && quotedConditionMatches(line)
       && line.manual
       && line.costDetailType !== 'Insurance'
       && line.costDetailType !== 'Freight',
@@ -5218,24 +5227,10 @@ async function hydrateExistingRate() {
     // the only saved coloader charges merely because their charge basis,
     // provider association or historical notes look like a container charge.
     // Switching sources replaces these lines in applyLclRateSource instead.
-    rateLines.value = rate.rateDetails.filter((detail) => {
-      if (props.viewOnly) return true
-      if (!isColoaderRate) return true
-      const notes = String(detail.notes ?? '')
-      const hasExplicitColoader = rate.rateDetails.some((row) =>
-        /Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(String(row.notes ?? '')),
-      )
-      if (!hasExplicitColoader) return true
-      if (/Fuente LCL:\s*Coloader|LCL\s+COLOADER/i.test(notes)) return true
-      if (/Fuente LCL:\s*Propio|LCL\s*PROPIO|ConsolidadoId:/i.test(notes)) return false
-      // Only exclude verifiably inherited carrier costs; manual and agent
-      // charges without source markers must stay visible.
-      const catalogCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
-      if (catalogCost && isOwnLclCarrierCatalogCost(catalogCost)) return false
-      return !/\bmaersk\b|\bmerchant\b|\bpase vac[ií]o\b/i.test(
-        String(detail.name ?? '') + ' ' + notes,
-      )
-    }).map((detail) => {
+    // Load every persisted detail. A change of coloader, route or cost catalog
+    // cannot silently discard historical CostIds before Pricing saves a revision.
+    // Any obsolete charge stays visible for the operator to review explicitly.
+    rateLines.value = rate.rateDetails.map((detail) => {
       const configuredCost = detail.costId ? costs.value.find((cost) => cost.id === detail.costId) : null
       return {
         key: `existing:${detail.id}`,
@@ -6277,7 +6272,9 @@ async function saveRate() {
   // en ese caso heredan la moneda válida del encabezado. Costo/venta en cero son válidos.
   // One FCL freight per equipment/basis. The generic screen-6 freight cannot
   // coexist with the equipment-specific freight from the selected bundle.
-  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
+  // Existing rate IDs take precedence over generated-freight deduplication.
+  // Removing a persisted detail requires an explicit API delete operation.
+  if (!editingRate.value) rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)
   const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {
     if (line.currencyId) return line
 
@@ -6546,18 +6543,21 @@ async function saveRate() {
     if (editingRate.value) {
       const originalDetailIds = new Set(editingRate.value.rateDetails.map((detail) => detail.id))
       const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))
-      const missingPersistedDetailIds = [...originalDetailIds].filter((id) => !currentDetailIds.has(id))
-      if (missingPersistedDetailIds.length > 0) {
+      const missingPersistedDetails = editingRate.value.rateDetails.filter((detail) =>
+        originalDetailIds.has(detail.id) && !currentDetailIds.has(detail.id))
+      if (missingPersistedDetails.length > 0) {
         step.value = 7
-        toastStore.warning('Edición incompleta',
-          `Faltan ${missingPersistedDetailIds.length} cargos guardados. No se eliminarán por estar ocultos o por fallar la carga. Revise Pantalla 7 antes de guardar.`)
+        toastStore.warning('Revise cargos excluidos',
+          'Estos cargos guardados no están incluidos: ' + missingPersistedDetails
+            .map((detail) => detail.name).join(' · ') +
+          '. Active sus líneas en Pantalla 7; no se eliminarán sin una acción explícita.')
         return
       }
       // Future explicit RemoveDetail commands will send IDs and reasons separately.
       const removedExtraDetailIds: string[] = []
       const extraDetails = createPayload.details.map((detail, index) => ({
         ...detail,
-        id: includedLines.value[index]?.detailId ?? null,
+        id: orderedCompleteRateLines.value[index]?.detailId ?? null,
       }))
       const { sourceImportFclRateId: _sourceImportFclRateId, details: _details, ...baseUpdate } = createPayload
       const updatePayload = {
