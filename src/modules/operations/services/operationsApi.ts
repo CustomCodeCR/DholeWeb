@@ -148,6 +148,18 @@ export interface OperationsInternalNote {
   id: string; body: string; createdBy: string
   createdAtUtc: string; updatedAtUtc: string; version: number
 }
+export interface OperationsOriginMeasurement {
+  caseId: string
+  captured: boolean
+  version?: number
+  originalWeight?: number | null
+  weightUnit?: 'KG' | 'LB' | null
+  weightKg?: number | null
+  originalVolume?: number | null
+  volumeUnit?: 'CBM' | 'CFT' | null
+  volumeCbm?: number | null
+  confirmedAtUtc?: string | null
+}
 export interface OperationsOriginProgress {
   caseId: string
   stage: { id: string; status: string; version: number }
@@ -178,7 +190,7 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
@@ -196,6 +208,16 @@ export const operationsApi = {
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),
+  originMeasurements: (id: string) => request<OperationsOriginMeasurement>(
+    `/api/operations/cases/${id}/origin/measurements`),
+  saveOriginMeasurements: (id: string, body: {
+    expectedVersion: number
+    weightValue: number | null
+    weightUnit: 'KG' | 'LB' | null
+    volumeValue: number | null
+    volumeUnit: 'CBM' | 'CFT' | null
+  }) => request<OperationsOriginMeasurement>(
+    `/api/operations/cases/${id}/origin/measurements`, 'PUT', body),
   updateOriginStatus: (id: string, statusCode: string, expectedVersion: number) =>
     request<{ statusCode: string; version: number }>(
       `/api/operations/cases/${id}/origin/progress`,
@@ -250,6 +272,16 @@ export const operationsApi = {
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
+  openingDrafts: () => request<Array<{ id: string; companyId: string | null; updatedAtUtc: string }>>(
+    '/api/operations/apertures/drafts'),
+  getOpeningDraft: (id: string) => request<{ id: string; companyId: string | null; updatedAtUtc: string; data: Record<string, unknown> }>(
+    '/api/operations/apertures/drafts/' + encodeURIComponent(id)),
+  saveOpeningDraft: (id: string, data: Record<string, unknown>, companyId?: string) =>
+    request<{ id: string; updatedAtUtc: string }>(
+      '/api/operations/apertures/drafts/' + encodeURIComponent(id), 'PUT',
+      { data, companyId: companyId || null }),
+  deleteOpeningDraft: (id: string) => request<void>(
+    '/api/operations/apertures/drafts/' + encodeURIComponent(id), 'DELETE'),
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
