@@ -1,3 +1,10 @@
+## [1.119.1] - 2026-11-23 · DH-20261123-PRICING-RETURN-MODAL-415
+
+- PATCH: en Dashboard → Solicitudes a Pricing, sustituir el motivo y el historial de devoluciones incrustados en cada fila por el botón «Ver devolución», que abre el DhModal compartido.
+- El modal muestra cliente, ruta, motivo actual, fecha, operador e historial completo; conserva «Corregir y reenviar» y «Duplicar», y es compatible con responsive y los temas existentes.
+- DholeWeb y DholeSystem 1.119.0 → 1.119.1; los otros 15 componentes no cambian. Sin modificaciones REST, SignalR, Redis, permisos ni migraciones.
+- Release candidato solo en ramas intermedias; CI, pruebas, validación visual en staging y autorización expresa antes de master/producción.
+
 ## [1.119.0] - 2026-11-22 · DH-20261122-OPS-CASE-OVERVIEW-414
 
 - MINOR: listado de Trámites muestra nombre CRM con resolución por cuenta, equipo, operativo y estado específico departamental, sin exponer UUID ni destacar DRAFT como estado operativo.
