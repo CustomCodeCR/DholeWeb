@@ -74,6 +74,7 @@ async function loadAssignmentTeams() {
   } finally { assignmentTeamsLoading.value = false }
 }
 const autosaveReady = ref(false)
+const remoteDraftId = ref('')
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
 const wizardSteps = [
@@ -527,20 +528,66 @@ const draftStorageKey = computed(() =>
   (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
 function persistLocalDraft() {
   if (!autosaveReady.value || editingId.value) return
-  try {
-    window.localStorage.setItem(draftStorageKey.value, JSON.stringify({
-      savedAt: Date.now(), version: 2, form: form.value,
-      accountId: accountId.value, selectedClientName: selectedClientName.value,
-      modality: modality.value, step: activeStep.value,
-      executiveName: executiveName.value, executiveUserId: executiveUserId.value,
-      institutionalExecutive: institutionalExecutive.value,
-      contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
-      assignedTeamId: assignedTeamId.value,
-    }))
-    autosaveState.value = 'saved'
-    lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } catch { autosaveState.value = 'error' }
+  const state = {
+    savedAt: Date.now(), version: 2, form: form.value,
+    accountId: accountId.value, selectedClientName: selectedClientName.value,
+    modality: modality.value, step: activeStep.value,
+    executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+    institutionalExecutive: institutionalExecutive.value,
+    contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
+    assignedTeamId: assignedTeamId.value, remoteDraftId: remoteDraftId.value,
+  }
+  // LocalStorage is only an offline safety copy. PostgreSQL is authoritative.
+  try { window.localStorage.setItem(draftStorageKey.value, JSON.stringify(state)) }
+  catch { /* Some browsers disable localStorage; server autosave still works. */ }
+  if (!remoteDraftId.value) { autosaveState.value = 'error'; return }
+  void operationsApi.saveManualDraft(remoteDraftId.value, state)
+    .then(() => {
+      autosaveState.value = 'saved'
+      lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    })
+    .catch(() => { autosaveState.value = 'error' })
 }
+async function restoreServerDraft() {
+  if (editingId.value) return
+  try {
+    const latest = await operationsApi.latestManualDraft()
+    if (latest?.id && latest.payloadJson) {
+      remoteDraftId.value = latest.id
+      const saved = JSON.parse(latest.payloadJson) as Record<string, unknown>
+      const local = window.localStorage.getItem(draftStorageKey.value)
+      const localSavedAt = local ? Number((JSON.parse(local) as Record<string, unknown>).savedAt || 0) : 0
+      if (Number(saved.savedAt || 0) > localSavedAt && saved.form &&
+          typeof saved.form === 'object' && !Array.isArray(saved.form)) {
+        form.value = { ...form.value, ...saved.form } as typeof form.value
+        if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
+        if (!Array.isArray(form.value.equipment)) form.value.equipment = []
+        if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
+        accountId.value = String(saved.accountId || '')
+        lastSelectedAccountId = accountId.value
+        selectedClientName.value = String(saved.selectedClientName || '')
+        modality.value = String(saved.modality || '')
+        executiveName.value = String(saved.executiveName || '')
+        executiveUserId.value = String(saved.executiveUserId || '')
+        institutionalExecutive.value = saved.institutionalExecutive === true
+        contactsTouched.value = saved.contactsTouched === true
+        assignedTeamId.value = String(saved.assignedTeamId || '')
+        assignmentPendingId.value = String(saved.assignmentPendingId || '')
+        const step = Number(saved.step)
+        activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
+        reconcileLocations()
+        if (accountId.value && !assignmentPendingId.value) {
+          void resolveCrmOpeningData(accountId.value, {
+            executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+            isCastroFallasExecutive: institutionalExecutive.value,
+          })
+        }
+      }
+    }
+  } catch { /* Cached local version remains available during server downtime. */ }
+  if (!remoteDraftId.value) remoteDraftId.value = crypto.randomUUID()
+}
+
 function scheduleLocalDraft() {
   if (!autosaveReady.value || editingId.value) return
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -564,6 +611,7 @@ function restoreLocalDraft() {
       if (!Array.isArray(form.value.equipment)) form.value.equipment = []
       if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
     }
+    remoteDraftId.value = String(draft.remoteDraftId || '')
     accountId.value = String(draft.accountId || '')
     lastSelectedAccountId = accountId.value
     selectedClientName.value = String(draft.selectedClientName || '')
@@ -589,6 +637,7 @@ function restoreLocalDraft() {
 function clearLocalDraft() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
   autosaveReady.value = false
+  remoteDraftId.value = ''
   try { window.localStorage.removeItem(draftStorageKey.value) } catch { /* storage restricted */ }
 }
 watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, assignedTeamId],
@@ -605,7 +654,7 @@ async function save() {
     return
   }
   if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value && !editingId.value) {
-    error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en este navegador.'
+    error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en PostgreSQL.'
     return
   }
   saving.value = true
@@ -656,7 +705,9 @@ async function save() {
       persistLocalDraft()
       await operationsApi.assign(result.id, assignedTeamId.value)
     }
+    const completedDraftId = remoteDraftId.value
     clearLocalDraft()
+    if (completedDraftId) void operationsApi.deleteManualDraft(completedDraftId).catch(() => {})
     await router.push({ name: 'operations-case-detail', params: { id: result.id } })
   } catch (cause) {
     error.value = assignmentPendingId.value
@@ -670,7 +721,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
+  if (!editingId.value) { restoreLocalDraft(); await restoreServerDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
