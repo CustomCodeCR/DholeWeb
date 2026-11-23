@@ -1,3 +1,10 @@
+## [1.120.6] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421
+
+- PATCH: al editar una cotización ya guardada, Pantalla 6 (flete terrestre LTL/FTL) permite avanzar a Pantalla 7 sin los controles de completitud exclusivos de creación; conserva las líneas persistidas, su agente, moneda y montos.
+- La validación de cotizaciones nuevas y la validación al guardar siguen activas. Incluye regresión Vite DH-421 en CI. Sin cambios REST, BD, realtime ni componentes visuales DH.
+- Preserva la corrección independiente de IVA por POL/POE de DholeWeb 1.120.5 y reserva 1.120.6 para DholeWeb/DholeSystem; otros 15 componentes sin cambios.
+- CI/staging pendientes; producción no autorizada.
+
 ## [1.120.5] - 2026-11-23
 
 - PATCH DH-20261123-PRICING-POL-POE-VAT-420: sincroniza el número de versión del release de IVA POL/POE entre DholeWeb y DholeSystem tras la integración simultánea de otro release 1.120.4 en System. Se conserva sin modificar la funcionalidad de IVA ya integrada.
