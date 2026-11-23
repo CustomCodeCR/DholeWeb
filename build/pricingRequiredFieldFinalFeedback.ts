@@ -57,12 +57,14 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
         'land provider required-field parity',
       )
 
+      // Existing persisted quotes use the original non-destructive edit navigation.
+      // Creation-only completeness guards must not block P6 -> P7 during edits.
       replaceOnce(
         'async function next() {',
         [
           'async function next() {',
-          '  if (!props.viewOnly && !validateRequiredFields()) return',
-          '  if (!props.viewOnly && !requirements20260908Ready.value) {',
+          '  if (!props.rateId && !props.viewOnly && !validateRequiredFields()) return',
+          '  if (!props.rateId && !props.viewOnly && !requirements20260908Ready.value) {',
           '    toastStore.warning(',
           "      'No se puede continuar',",
           "      step.value === 4 && form.dangerousCargo && !hasDangerousTechSheet.value",
@@ -71,7 +73,7 @@ export function pricingRequiredFieldFinalFeedback(): Plugin {
           '    )',
           '    return',
           '  }',
-          '  if (!props.viewOnly && !canNext.value) {',
+          '  if (!props.rateId && !props.viewOnly && !canNext.value) {',
           "    toastStore.warning('Faltan datos para continuar',",
           '      requiredStepIssues.value.length',
           "        ? 'Complete: ' + requiredStepIssues.value.map(issue => issue.label).join(' · ')",
