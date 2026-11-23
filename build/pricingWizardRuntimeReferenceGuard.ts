@@ -236,10 +236,9 @@ function patchWizard(source: string) {
     'sectionForCost',
     [
       "function sectionForCost(cost: CostSelectDto): RateSection {",
-      "  if (cost.costDetailType !== 'Freight') {",
-      "    const explicitSection = explicitSectionFromName(cost.name)",
-      "    if (explicitSection) return explicitSection",
-      "  }",
+      "  if (cost.costDetailType === 'Freight') return 'international_freight'",
+      "  const explicitSection = explicitSectionFromName(cost.name)",
+      "  if (explicitSection === 'pickup_origin' || explicitSection === 'delivery_destination') return explicitSection",
       "  const byPortRole = sectionFromPortRole(cost.portRole, cost.costDetailType)",
       "  if (byPortRole) return byPortRole",
       "  if (cost.polId && !cost.poeId && !cost.podId) {",
@@ -248,7 +247,7 @@ function patchWizard(source: string) {
       "  if ((cost.poeId || cost.podId) && !cost.polId) {",
       "    return cost.costDetailType === 'InlandTransport' ? 'delivery_destination' : 'destination_charges'",
       "  }",
-      "  return sectionForDetail(cost.costDetailType, cost.name)",
+      "  return explicitSection || sectionForDetail(cost.costDetailType, cost.name)",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -386,10 +385,14 @@ function patchWizard(source: string) {
 
   ensureRuntimeFunction(
     code,
-    'canApplyDestinationTax',
+    'lineVatContext',
     [
-      "function canApplyDestinationTax(_line: RateLine) {",
-      "  return true",
+      "function lineVatContext(",
+      "  line: RateLine,",
+      "  poe: CatalogItemSelectDto | null | undefined = selectedDestination.value,",
+      "  operation: RateOperationType = operationType.value,",
+      ") {",
+      "  return resolvePricingLineVatContext(line.section, operation, selectedOrigin.value, poe, catalogs.countries)",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -399,8 +402,38 @@ function patchWizard(source: string) {
     code,
     'lineDestinationTaxRate',
     [
-      "function lineDestinationTaxRate(_line: RateLine) {",
-      "  return destinationTaxRate.value",
+      "function lineDestinationTaxRate(",
+      "  line: RateLine,",
+      "  poe: CatalogItemSelectDto | null | undefined = selectedDestination.value,",
+      "  operation: RateOperationType = operationType.value,",
+      ") {",
+      "  return lineVatContext(line, poe, operation).rate",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'canApplyDestinationTax',
+    [
+      "function canApplyDestinationTax(line: RateLine) {",
+      "  return lineDestinationTaxRate(line) > 0",
+      "}",
+    ].join('\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'lineVatLabel',
+    [
+      "function lineVatLabel(line: RateLine) {",
+      "  const context = lineVatContext(line)",
+      "  const source = context.source ?? 'POL/POE'",
+      "  return context.rate > 0",
+      "    ? \`IVA \${source} · \${context.countryCode} (\${context.rate}%)\`",
+      "    : \`IVA \${source} (sin IVA configurado)\`",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -447,9 +480,10 @@ function patchWizard(source: string) {
     'setLineDestinationTax',
     [
       "function setLineDestinationTax(line: RateLine, enabled: boolean) {",
-      "  const active = Boolean(enabled) && destinationTaxRate.value > 0",
+      "  const rate = lineDestinationTaxRate(line)",
+      "  const active = Boolean(enabled) && rate > 0",
       "  line.applyDestinationTax = active",
-      "  line.destinationTaxRate = active ? destinationTaxRate.value : 0",
+      "  line.destinationTaxRate = active ? rate : 0",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -882,6 +916,8 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
     'costContextLabel',
     'applicableConfiguredCosts',
     'isCargoConditionLine',
+    'lineVatContext',
+    'lineVatLabel',
     'canApplyDestinationTax',
     'lineDestinationTaxRate',
     'lineTaxAmount',
