@@ -33,7 +33,12 @@ test('full expediente shows responsible actors, origin stage and grouped opening
   assert.doesNotMatch(detail, /statusLabel\(record\.status\)/)
 })
 
-test('backend owns access and never grants writes to unopened stages', () => {
-  const backend = source('tests/operationsCaseOverview414.test.mjs')
-  assert.ok(backend.includes('backend owns access'))
+test('case client contract includes real stage status, assignee and validation actors', () => {
+  const api = source('src/modules/operations/services/operationsApi.ts')
+  assert.match(api, /departmentStatus\?: string \| null/)
+  assert.match(api, /assignedUserId\?: string \| null/)
+  assert.match(api, /originStatusCode\?: string \| null/)
+  assert.match(api, /validators: Array</)
+  assert.match(api, /caseTabs: \(id: string\)/)
+  assert.match(api, /auditActors: \(ids: string\[\]\)/)
 })
