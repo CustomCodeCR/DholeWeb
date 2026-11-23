@@ -1,3 +1,9 @@
+## [1.120.10] - 2026-11-23 · DH-20261123-OPS-P1-COMPLETE-431
+
+- PATCH: el asistente manual conserva el formulario incompleto en PostgreSQL por usuario, recupera el último borrador en otro navegador y conserva localStorage como respaldo de conexión; borra el borrador al finalizar la apertura.
+- Reutiliza los componentes DH existentes; no introduce un sistema visual paralelo.
+- Coordinación con Pricing 1.27.0 y Operations 0.19.0; CI/staging pendientes, producción no autorizada.
+
 ## [1.120.9] - 2026-11-23 · DH-20261123-PRICING-MODIFICATION-422
 
 - PATCH: la comparación de modificaciones de Ventas muestra la modalidad y el tipo de embarque cuando el valor original puede verificarse.

@@ -536,7 +536,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
               </div>
               <RouterLink :to="`/pricing/rates/${quote.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Ver en Pricing</RouterLink>
             </div>
-            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción comercial aceptada: {{ quote.quoteOptionId }}</p>
+            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción comercial aceptada: {{ String(openingData.acceptedQuoteNumber || quote.quoteNumber || 'Seleccionada') }}</p>
           </div>
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
             {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'SIN_QUO · La apertura fue creada sin cotización.' }}
