@@ -1,3 +1,9 @@
+## [1.120.4] - 2026-11-23
+
+- PATCH DH-20261123-PRICING-POL-POE-VAT-420: IVA en Pantalla 7 por jurisdicción física (POL en origen y recolecta, POE en destino y entrega); flete internacional con sentido comercial importación/exportación, sin tasa automática para tránsito indeterminado.
+- Las alternativas multi-POE calculan el IVA desde su propio POE y todos los rubros conservan su selección de IVA, su moneda y los contratos REST existentes.
+- Pruebas de tasas configuradas, tasa cero, rutas desconocidas y verificación de runtime Vite; sin componentes visuales nuevos.
+
 ## [1.120.3] - 2026-11-23 · DH-20261123-CORS-PREFLIGHT-419
 
 - PATCH: enrutar llamadas API de dominios oficiales production/staging bajo el mismo origen Web usando el proxy nginx existente hacia DholeApiGateway; conserva orígenes personalizados, REST, JWT y rutas SignalR existentes.
