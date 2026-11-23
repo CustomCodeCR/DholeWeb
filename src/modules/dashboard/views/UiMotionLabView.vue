@@ -11,6 +11,7 @@ type RateOption = 'A' | 'B'
 
 const activeTab = ref<DemoTab>('pricing')
 const selectedRate = ref<RateOption>('A')
+const rateOptions: RateOption[] = ['A', 'B']
 const currentStep = ref(1)
 const showNotification = ref(false)
 const motionEnabled = ref(true)
@@ -129,7 +130,7 @@ function resetDemo() {
               <h3>Alternativas de cotización</h3>
               <p>Al cambiar una opción, el resumen, el precio y el tránsito se actualizan con una transición suave, sin parpadeos ni recargas.</p>
               <div class="lab-choice-group" aria-label="Elegir alternativa">
-                <button v-for="option in (['A', 'B'] as RateOption[])" :key="option" type="button"
+                <button v-for="option in rateOptions" :key="option" type="button"
                   :class="{ selected: selectedRate === option }" :aria-pressed="selectedRate === option"
                   @click="selectedRate = option">
                   <span>Alternativa {{ option }}</span><CheckCircle2 v-if="selectedRate === option" :size="17" />
