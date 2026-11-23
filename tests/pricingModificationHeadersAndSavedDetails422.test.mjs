@@ -34,3 +34,11 @@ test('Update payload pairs each cost with the exact persisted ID in its sorted o
   assert.match(wizard, /const removedExtraDetailIds: string\[\] = \[\]/)
   assert.match(wizard, /expectedRevisionNumber: editingRate\.value\.revisionNumber/)
 })
+
+test('Customs-only build transform retains persisted freight while excluding uncontracted new freight', () => {
+  const customs = source('build/pricingCustomsOnlyWizard.ts')
+  assert.match(customs, /A saved RateDetail is authoritative, even when the new request is customs-only/)
+  assert.match(customs, /props\.rateId && line\.detailId/)
+  assert.match(customs, /hasInternationalTransportService\.value \|\| line\.costDetailType !== 'Freight'/)
+  assert.match(customs, /shouldIncludePricedLine\(line, lineMatchesPickupCargoCondition\(line\)\)/)
+})
