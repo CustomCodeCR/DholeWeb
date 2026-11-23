@@ -170,3 +170,16 @@ test('Explicit zero and unknown ports never create an invented tax', () => {
   assert.equal(resolvePricingLineVatContext('pickup_origin', 'Export', pol, poe, countries).rate, 0)
   assert.equal(resolvePricingLineVatContext('destination_charges', 'Import', pol, poe, countries).rate, 0)
 })
+
+test('Editing a persisted quote uses the configured cost port role, not its name, before IVA calculation', () => {
+  for (const path of [
+    '../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue',
+    '../src/modules/pricing/components/PricingRateExistingWizardStable.vue',
+  ]) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8')
+    assert.match(source, /const configuredCost = detail\.costId \? costs\.value\.find/)
+    assert.match(source, /section: configuredCost \? sectionForCost\(configuredCost\) : sectionForDetail\(detail\.costDetailType, detail\.name\)/)
+    assert.match(source, /return lineVatContext\(line, poe, operation\)\.rate/)
+    assert.match(source, /destinationTaxRate:[\s\S]{0,160}\? lineDestinationTaxRate\(line\)/)
+  }
+})
