@@ -1,3 +1,7 @@
+## [1.121.0] - 2026-11-23
+
+- Autoguardado/restauración de borradores de Aperturas en PostgreSQL mediante componentes DH existentes.
+
 ## [1.120.0] - 2026-11-23 · DH-20261123-OPS-APERTURES-P1-416
 
 - MINOR coordinado con Operations: WHS obligatorio para FCA en cualquier modalidad de Aperturas; uso de los componentes DH existentes, sin nuevo sistema visual.
