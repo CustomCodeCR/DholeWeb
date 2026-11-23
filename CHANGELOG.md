@@ -1,5 +1,9 @@
 ## [1.121.0] - 2026-11-23
 
+- Autoguardado de Aperturas en PostgreSQL y recuperación del borrador incompleto, conservando copia local de contingencia.
+
+## [1.121.0] - 2026-11-23
+
 - Autoguardado/restauración de borradores de Aperturas en PostgreSQL mediante componentes DH existentes.
 
 ## [1.120.0] - 2026-11-23 · DH-20261123-OPS-APERTURES-P1-416
