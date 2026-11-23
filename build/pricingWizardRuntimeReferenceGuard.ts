@@ -386,12 +386,16 @@ function patchWizard(source: string) {
 
   ensureRuntimeFunction(
     code,
-    'canApplyDestinationTax',
+    'lineVatContext',
     [
-      "function canApplyDestinationTax(_line: RateLine) {",
-      "  return true",
+      "function lineVatContext(",
+      "  line: RateLine,",
+      "  poe: CatalogItemSelectDto | null | undefined = selectedDestination.value,",
+      "  operation: RateOperationType = operationType.value,",
+      ") {",
+      "  return resolvePricingLineVatContext(line.section, operation, selectedOrigin.value, poe, catalogs.countries)",
       "}",
-    ].join('\n'),
+    ].join('\\n'),
     missingRuntimeDefinitions,
   )
 
@@ -399,10 +403,40 @@ function patchWizard(source: string) {
     code,
     'lineDestinationTaxRate',
     [
-      "function lineDestinationTaxRate(_line: RateLine) {",
-      "  return destinationTaxRate.value",
+      "function lineDestinationTaxRate(",
+      "  line: RateLine,",
+      "  poe: CatalogItemSelectDto | null | undefined = selectedDestination.value,",
+      "  operation: RateOperationType = operationType.value,",
+      ") {",
+      "  return lineVatContext(line, poe, operation).rate",
       "}",
-    ].join('\n'),
+    ].join('\\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'canApplyDestinationTax',
+    [
+      "function canApplyDestinationTax(line: RateLine) {",
+      "  return lineDestinationTaxRate(line) > 0",
+      "}",
+    ].join('\\n'),
+    missingRuntimeDefinitions,
+  )
+
+  ensureRuntimeFunction(
+    code,
+    'lineVatLabel',
+    [
+      "function lineVatLabel(line: RateLine) {",
+      "  const context = lineVatContext(line)",
+      "  const source = context.source ?? 'POL/POE'",
+      "  return context.rate > 0",
+      "    ? \`IVA \${source} · \${context.countryCode} (\${context.rate}%)\`",
+      "    : \`IVA \${source} (sin IVA configurado)\`",
+      "}",
+    ].join('\\n'),
     missingRuntimeDefinitions,
   )
 
@@ -447,9 +481,10 @@ function patchWizard(source: string) {
     'setLineDestinationTax',
     [
       "function setLineDestinationTax(line: RateLine, enabled: boolean) {",
-      "  const active = Boolean(enabled) && destinationTaxRate.value > 0",
+      "  const rate = lineDestinationTaxRate(line)",
+      "  const active = Boolean(enabled) && rate > 0",
       "  line.applyDestinationTax = active",
-      "  line.destinationTaxRate = active ? destinationTaxRate.value : 0",
+      "  line.destinationTaxRate = active ? rate : 0",
       "}",
     ].join('\n'),
     missingRuntimeDefinitions,
@@ -882,6 +917,8 @@ function dholeRuntimeRestorePersistedFclDistribution(rate: RateDto) {
     'costContextLabel',
     'applicableConfiguredCosts',
     'isCargoConditionLine',
+    'lineVatContext',
+    'lineVatLabel',
     'canApplyDestinationTax',
     'lineDestinationTaxRate',
     'lineTaxAmount',
