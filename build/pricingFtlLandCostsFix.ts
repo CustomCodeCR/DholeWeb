@@ -20,7 +20,7 @@ function patchWizard(source: string) {
   // does not contain that stage. Land charges can be origin, freight or destination charges.
   code = replaceRegexOne(
     code,
-    /const visibleSections = computed<RateSection\[]>\(\(\) => \{[\s\S]*?\n\}\)(?=\n\n\/\/ Saved quote details must not disappear)/,
+    /const visibleSections = computed<RateSection\[]>\(\(\) => \{[\s\S]*?\n\}\)(?=\n\n\/\/ Saved quotation details remain authoritative)/,
     `const visibleSections = computed<RateSection[]>(() => {
   if (form.modality === 'Land' || shipmentModeForApi.value === 'Ftl' || shipmentModeForApi.value === 'Ltl') {
     return [...sectionOrder]
