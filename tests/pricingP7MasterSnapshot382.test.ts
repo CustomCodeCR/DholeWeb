@@ -21,5 +21,5 @@ test('saved quotations are authoritative and tier query follows cargo hydration'
   assert.match(source, /storageDays: number\(form\.storageDays\) > 0/)
   const hydration = source.slice(source.indexOf('async function hydrateExistingRate()'), source.indexOf('function editCurrentRate()'))
   assert.ok(hydration.indexOf('form.storageDays = Math.max') < hydration.indexOf('await loadApplicableCosts()'))
-  assert.ok(hydration.indexOf('await loadApplicableCosts()') < hydration.indexOf('rateLines.value = rate.rateDetails.filter'))
+  assert.ok(hydration.indexOf('await loadApplicableCosts()') < hydration.indexOf('rateLines.value = rate.rateDetails.map'))
 })

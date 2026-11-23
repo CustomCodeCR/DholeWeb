@@ -428,7 +428,7 @@ function restoreOwnLclMatrixLines() {\n  // Own LCL keeps the consolidation matr
   // that generated createPayload.details. Otherwise skipped own-LCL matrix
   // rows shift the indexes and attach an unrelated persisted RateDetail ID.
   const reconciledDetailIdAnchor =
-    'includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) }))'
+    'orderedCompleteRateLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) }))'
   const legacyDetailIdAnchor = 'id: includedLines.value[index]?.detailId ?? null,'
   if (code.includes(reconciledDetailIdAnchor)) {
     code = replaceOne(

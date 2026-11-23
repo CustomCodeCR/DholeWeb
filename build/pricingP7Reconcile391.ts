@@ -156,8 +156,14 @@ watch(
   // Other Vite transforms rewrite the Incoterm guard call. The FCL dedup
   // line remains stable, and the two scoped exemptions below prevent that
   // guard from dropping VGM/land Freight after reconciliation.
-  const saveAnchor = '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)'
-  if (code.split(saveAnchor).length !== 2)
+  // Existing quote edits must retain their persisted freight. Both wizard
+  // revisions expose the same pre-save point, with or without edit guard.
+  const saveAnchors = [
+    '  if (!editingRate.value) rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+    '  rateLines.value = removeDuplicateFclFreight(rateLines.value, shipmentModeForApi.value)',
+  ]
+  const saveAnchor = saveAnchors.find(anchor => code.split(anchor).length === 2)
+  if (!saveAnchor)
     throw new Error('[DH-396] Missing final pre-save details anchor')
   code = code.replace(saveAnchor, saveAnchor + '\n  if (!props.rateId) p7PresentOrReconcile391(true)')
   // A commercial Miami plan explicitly includes VGM. Likewise the
