@@ -15,7 +15,7 @@ import {
   type OperationsCaseCost, type OperationsCaseTab, type OperationsTabCode,
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
-  type OperationsOpeningEdit,
+  type OperationsOpeningEdit, type OperationsOriginMeasurement,
 } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
@@ -88,6 +88,12 @@ const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
 const origin = ref<OperationsOriginProgress | null>(null)
+const originMeasurement = ref<OperationsOriginMeasurement | null>(null)
+const measuredWeight = ref('')
+const measuredWeightUnit = ref<'KG' | 'LB'>('KG')
+const measuredVolume = ref('')
+const measuredVolumeUnit = ref<'CBM' | 'CFT'>('CBM')
+const savingMeasurements = ref(false)
 const notes = ref<OperationsInternalNote[]>([])
 const noteText = ref('')
 const originStatus = ref('ORIGIN_COORDINATION')
@@ -239,6 +245,7 @@ async function load() {
     const optional: Promise<unknown>[] = []
     costs.value = []
     origin.value = null
+    originMeasurement.value = null
     notes.value = []
     audit.value = []
     actors.value = []
@@ -257,6 +264,17 @@ async function load() {
     if (auth.hasScope('operations.origin.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
       operationsApi.caseOriginProgress(caseId.value).then(x => { if (current === sequence) { origin.value = x; originStatus.value = x.progress?.statusCode || 'ORIGIN_COORDINATION' } }).catch(() => {}))
+    if (auth.hasScope('operations.origin.read') &&
+        work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
+      operationsApi.originMeasurements(caseId.value).then(x => {
+        if (current === sequence) {
+          originMeasurement.value = x
+          measuredWeight.value = x.originalWeight == null ? '' : String(x.originalWeight)
+          measuredWeightUnit.value = x.weightUnit || 'KG'
+          measuredVolume.value = x.originalVolume == null ? '' : String(x.originalVolume)
+          measuredVolumeUnit.value = x.volumeUnit || 'CBM'
+        }
+      }).catch(() => {}))
     if (auth.hasScope('operations.internal-note.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
       operationsApi.caseInternalNotes(caseId.value).then(x => { if (current === sequence) notes.value = x }).catch(() => {}))
@@ -311,6 +329,31 @@ async function saveOriginStatus() {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar el estado de Origen.'
   } finally { savingOrigin.value = false }
+}
+async function saveOriginMeasurements() {
+  if (!record.value || level('COORDINACION_ORIGEN') !== 'EDITABLE' ||
+      !auth.hasScope('operations.origin.update') || savingMeasurements.value) return
+  const weightValue = measuredWeight.value.trim() === '' ? null : Number(measuredWeight.value)
+  const volumeValue = measuredVolume.value.trim() === '' ? null : Number(measuredVolume.value)
+  if ((weightValue === null && volumeValue === null) ||
+      (weightValue !== null && (!Number.isFinite(weightValue) || weightValue < 0)) ||
+      (volumeValue !== null && (!Number.isFinite(volumeValue) || volumeValue < 0))) {
+    error.value = 'Indique peso o volumen real válido; no se permite un valor negativo.'
+    return
+  }
+  savingMeasurements.value = true
+  error.value = ''
+  try {
+    const result = await operationsApi.saveOriginMeasurements(record.value.id, {
+      expectedVersion: originMeasurement.value?.version ?? 0,
+      weightValue, weightUnit: weightValue === null ? null : measuredWeightUnit.value,
+      volumeValue, volumeUnit: volumeValue === null ? null : measuredVolumeUnit.value,
+    })
+    originMeasurement.value = result
+    message.value = 'Mediciones reales registradas y auditadas en Coordinación Origen.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No se pudieron guardar las mediciones reales.'
+  } finally { savingMeasurements.value = false }
 }
 async function addNote() {
   if (!record.value || !canWriteNote.value || !noteText.value.trim() || postingNote.value) return
@@ -563,6 +606,22 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-xs text-[var(--dh-text-muted)]">Equipo</p><p class="font-bold">{{ currentStage.teamName || 'Pendiente' }}</p></div>
                 <div class="rounded-xl bg-[var(--dh-input)] p-3"><p class="text-xs text-[var(--dh-text-muted)]">Inicio</p><p class="font-bold">{{ dateLabel(currentStage.startedAtUtc) }}</p></div>
               </div>
+              <DhCard v-if="selectedTab === 'COORDINACION_ORIGEN' && origin"
+                title="Mediciones reales de la carga" subtitle="Captura exclusiva de Coordinación Origen; los valores cotizados no se modifican.">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <DhInput v-model="measuredWeight" type="number" label="Peso real" placeholder="Pendiente" :min="0" />
+                  <DhSelect v-model="measuredWeightUnit" label="Unidad de peso" :options="[{label:'Kilogramos (kg)',value:'KG'},{label:'Libras (lb)',value:'LB'}]" />
+                  <DhInput v-model="measuredVolume" type="number" label="Volumen real" placeholder="Pendiente" :min="0" />
+                  <DhSelect v-model="measuredVolumeUnit" label="Unidad de volumen" :options="[{label:'CBM',value:'CBM'},{label:'CFT',value:'CFT'}]" />
+                </div>
+                <p v-if="originMeasurement?.captured" class="mt-2 text-xs text-[var(--dh-text-muted)]">
+                  Normalizado: {{ originMeasurement.weightKg ?? '—' }} kg · {{ originMeasurement.volumeCbm ?? '—' }} CBM.
+                  Originales y autor conservados en PostgreSQL.
+                </p>
+                <DhButton v-if="level('COORDINACION_ORIGEN') === 'EDITABLE' && auth.hasScope('operations.origin.update')"
+                  :icon="Save" label="Guardar mediciones reales" :loading="savingMeasurements"
+                  @click="saveOriginMeasurements" />
+              </DhCard>
               <div v-if="selectedTab === 'COORDINACION_ORIGEN' && origin" class="rounded-xl border border-[var(--dh-border)] p-4">
                 <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado específico de Origen</p>
                 <p class="mt-2 font-black">{{ statusLabel(origin.progress?.statusCode || origin.stage.status) }}</p>
