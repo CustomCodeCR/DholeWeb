@@ -1,3 +1,9 @@
+## [1.120.6] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421 (candidato master)
+
+- PATCH: corregir navegación P6→P7 para edición de flete terrestre en cotizaciones guardadas. Evita validar como creación; conserva costos y ventas históricas y valida guardar.
+- Candidate selectivo basado en master 1.120.3, sin traer funcionalidad incompleta de develop. Se mantiene versión 1.120.6 coordinada con el release develop; versiones 1.120.4 y 1.120.5 existen en develop y no deben reutilizarse.
+- Producción bloqueada hasta validar CI/staging y autorizar expresamente el despliegue automático de master. Otros 15 servicios sin cambios.
+
 ## [1.120.3] - 2026-11-23 · DH-20261123-CORS-PREFLIGHT-419
 
 - PATCH: enrutar llamadas API de dominios oficiales production/staging bajo el mismo origen Web usando el proxy nginx existente hacia DholeApiGateway; conserva orígenes personalizados, REST, JWT y rutas SignalR existentes.
