@@ -1,3 +1,8 @@
+## [1.121.0] - 2026-11-23 · DH-20261123-OPS-AUTO-419
+
+- MINOR: Opening wizard autosaves incomplete drafts in PostgreSQL with local offline recovery and DH components preserved.
+- Global 1.121.0, Pricing 1.26.26 → 1.27.0, Operations 0.18.0 → 0.19.0, Web/System 1.120.2 → 1.121.0; master/production not authorized, CI and staging validation required.
+
 ## [1.120.2] - 2026-11-23 · DH-20261123-PRICING-LTL-NUMERIC-418
 
 - PATCH: corregir el error silencioso al guardar consolidados LTL cuando Vue convierte campos number a valores numéricos y la validación intenta ejecutar .trim() sobre ellos antes del POST.
