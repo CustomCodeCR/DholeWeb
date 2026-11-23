@@ -148,6 +148,18 @@ export interface OperationsInternalNote {
   id: string; body: string; createdBy: string
   createdAtUtc: string; updatedAtUtc: string; version: number
 }
+export interface OperationsOriginMeasurement {
+  caseId: string
+  captured: boolean
+  version?: number
+  originalWeight?: number | null
+  weightUnit?: 'KG' | 'LB' | null
+  weightKg?: number | null
+  originalVolume?: number | null
+  volumeUnit?: 'CBM' | 'CFT' | null
+  volumeCbm?: number | null
+  confirmedAtUtc?: string | null
+}
 export interface OperationsOriginProgress {
   caseId: string
   stage: { id: string; status: string; version: number }
@@ -196,6 +208,16 @@ export const operationsApi = {
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),
+  originMeasurements: (id: string) => request<OperationsOriginMeasurement>(
+    `/api/operations/cases/${id}/origin/measurements`),
+  saveOriginMeasurements: (id: string, body: {
+    expectedVersion: number
+    weightValue: number | null
+    weightUnit: 'KG' | 'LB' | null
+    volumeValue: number | null
+    volumeUnit: 'CBM' | 'CFT' | null
+  }) => request<OperationsOriginMeasurement>(
+    `/api/operations/cases/${id}/origin/measurements`, 'PUT', body),
   updateOriginStatus: (id: string, statusCode: string, expectedVersion: number) =>
     request<{ statusCode: string; version: number }>(
       `/api/operations/cases/${id}/origin/progress`,
