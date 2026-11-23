@@ -206,6 +206,7 @@ async function openCase(id: string) {
     void resolvePeople([
       detail.createdBy, detail.executiveUserId,
       ...workspace.stages.map(s => s.assignedUserId),
+      ...workspace.stages.flatMap(s => s.supervisorUserIds || []),
       ...(workspace.validators || []).map(v => v.userId),
     ])
     try {
@@ -245,6 +246,7 @@ async function refreshSelected() {
       void resolvePeople([
         detail.createdBy, detail.executiveUserId,
         ...work.stages.map(s => s.assignedUserId),
+        ...work.stages.flatMap(s => s.supervisorUserIds || []),
         ...(work.validators || []).map(v => v.userId),
       ])
     }
@@ -406,8 +408,13 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             <div v-for="stage in selectedWorkspace.stages" :key="stage.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--dh-input)]/45 p-3">
               <div class="min-w-0"><p class="text-xs font-bold">{{ formatStatus(stage.departmentCode) }}</p><p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo por asignar' }}</p>
                 <p class="mt-1 text-xs font-semibold">Operativo: {{ personName(stage.assignedUserId) }}</p>
+                <p v-if="stage.supervisorUserIds?.length" class="mt-1 text-xs text-[var(--dh-text-soft)]">
+                  Supervisión: {{ stage.supervisorUserIds.map(id => personName(id)).join(', ') }}
+                </p>
+                <p v-if="stage.assignedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">Asignación: {{ formatDate(stage.assignedAtUtc) }}</p>
                 <p v-for="validator in (selectedWorkspace.validators || []).filter(v => v.caseStageId === stage.id)" :key="validator.userId" class="mt-1 text-xs text-[var(--dh-text-soft)]">
                   Validador {{ validator.slot }}: {{ personName(validator.userId) }} · {{ operationsLabel(validator.status) }}
+                  <span v-if="validator.reviewedAtUtc">· {{ formatDate(validator.reviewedAtUtc) }}</span>
                 </p>
                 </div>
               <DhBadge :variant="stage.status === 'PENDING' ? 'warning' : 'neutral'">{{ departmentStatusLabel(stage.departmentCode, stage.status, selected.status, stage.departmentCode === 'COORDINACION_ORIGEN' ? rows.find(x => x.id === selected?.id)?.originStatusCode : null) }}</DhBadge>
