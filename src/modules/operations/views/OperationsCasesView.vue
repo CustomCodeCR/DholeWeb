@@ -21,6 +21,13 @@ const rows = ref<OperationsCaseRow[]>([])
 const selected = ref<OperationsCaseDetail | null>(null)
 const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
 const selectedCaseId = computed(() => selected.value?.id || '')
+const selectedStage = computed(() => selectedWorkspace.value?.stages.find(s => s.status === 'IN_PROGRESS')
+  || selectedWorkspace.value?.stages.find(s => s.status === 'READY')
+  || selectedWorkspace.value?.stages[0])
+const selectedStatusLabel = computed(() => departmentStatusLabel(
+  selectedStage.value?.departmentCode, selectedStage.value?.status, selected.value?.status,
+  rows.value.find(x => x.id === selected.value?.id)?.originStatusCode,
+))
 const clientName = ref('')
 const clientExecutiveName = ref('')
 const resolvedAccounts = ref<Record<string, string>>({})
@@ -337,7 +344,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div><p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Expediente operativo</p>
               <p class="mt-1 text-lg font-black text-[var(--dh-primary)]">{{ selected.idtra }}</p></div>
-            <DhBadge :variant="selectedWorkspace?.stages.some(s => s.status === 'COMPLETED') ? 'success' : 'warning'">{{ departmentStatusLabel(selectedWorkspace?.stages[0]?.departmentCode, selectedWorkspace?.stages[0]?.status, selected.status) }}</DhBadge>
+            <DhBadge :variant="selectedWorkspace?.stages.some(s => s.status === 'COMPLETED') ? 'success' : 'warning'">{{ selectedStatusLabel }}</DhBadge>
           </div>
           <div class="mt-3 flex flex-wrap gap-2">
             <DhBadge variant="neutral">{{ selected.apertureType === 'MANUAL' ? 'Manual' : 'Desde Pricing' }}</DhBadge>
@@ -403,7 +410,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
                   Validador {{ validator.slot }}: {{ personName(validator.userId) }} · {{ operationsLabel(validator.status) }}
                 </p>
                 </div>
-              <DhBadge :variant="stage.status === 'PENDING_VALIDATION' ? 'warning' : 'neutral'">{{ departmentStatusLabel(stage.departmentCode, stage.status, selected.status) }}</DhBadge>
+              <DhBadge :variant="stage.status === 'PENDING' ? 'warning' : 'neutral'">{{ departmentStatusLabel(stage.departmentCode, stage.status, selected.status, stage.departmentCode === 'COORDINACION_ORIGEN' ? rows.find(x => x.id === selected?.id)?.originStatusCode : null) }}</DhBadge>
             </div>
           </div>
           <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin etapas activas.</p>
