@@ -256,7 +256,7 @@ function patchWizard(source: string): string {
 ))`,
     `const includedLines = computed(() => rateLines.value.filter((line) =>
   // A saved RateDetail is authoritative, even when the new request is customs-only.
-  (props.rateId && line.detailId || hasInternationalTransportService.value || line.costDetailType !== 'Freight')
+  ((props.rateId && line.detailId) || (hasInternationalTransportService.value || line.costDetailType !== 'Freight'))
   && (props.rateId && line.detailId
     ? line.included
     : shouldIncludePricedLine(line, lineMatchesPickupCargoCondition(line))),
