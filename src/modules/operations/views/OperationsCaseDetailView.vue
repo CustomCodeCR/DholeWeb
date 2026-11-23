@@ -20,6 +20,7 @@ import {
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
+import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -36,28 +37,51 @@ const openingData = computed<Record<string, unknown>>(() => {
       ? value as Record<string, unknown> : {}
   } catch { return {} }
 })
-const openingRows = computed(() => {
+const openingSections = computed(() => {
   const data = openingData.value
-  const pairs = [
-    ['Referencia / PO del cliente', 'clientPoReference'],
-    ['Origen de solicitud', 'provenance'],
-    ['Tipo de embarque', 'shipmentType'],
-    ['Tipo de transporte', 'transportType'],
-    ['Incoterm', 'incoterm'],
-    ['POL', 'pol'], ['POE', 'poe'], ['POD', 'pod'],
-    ['Descripción de carga', 'cargoDescription'],
-    ['Bultos', 'packageCount'], ['Tipo de bulto', 'packageType'],
-    ['Peso original', 'weightValue'], ['Unidad peso', 'weightUnit'],
-    ['Volumen original', 'volumeValue'], ['Unidad volumen', 'volumeUnit'],
-    ['Peso kg', 'weightKg'], ['Volumen CBM', 'volumeCbm'],
-    ['Consolidado', 'consolidationReference'],
-    ['Recolecta', 'pickupAddress'], ['WHS', 'whsName'],
-    ['Entrega', 'destinationAddress'], ['Naviera', 'carrierReference'],
-    ['Agente', 'agentReference'], ['Merchant', 'merchantReference'],
-    ['ETD', 'etm'], ['ETA', 'eta'], ['Observaciones', 'observations'],
-  ] as const
-  return pairs.map(([label, key]) => ({ label, value: data[key] }))
-    .filter(entry => entry.value !== null && entry.value !== undefined && entry.value !== '')
+  const sections: Array<{ title: string; rows: Array<{ label: string; key: string }> }> = [
+    { title: 'Ruta y transporte', rows: [
+      { label: 'Tipo de embarque', key: 'shipmentType' },
+      { label: 'Transporte', key: 'transportType' },
+      { label: 'Incoterm', key: 'incoterm' },
+      { label: 'POL · Salida', key: 'pol' },
+      { label: 'POE · Entrada', key: 'poe' },
+      { label: 'POD · Destino', key: 'pod' },
+      { label: 'ETD', key: 'etm' }, { label: 'ETA', key: 'eta' },
+    ] },
+    { title: 'Mercancía', rows: [
+      { label: 'Descripción', key: 'cargoDescription' },
+      { label: 'CABYS', key: 'cabysCode' },
+      { label: 'Naturaleza de carga', key: 'cargoNature' },
+      { label: 'Bultos', key: 'packageCount' },
+      { label: 'Tipo de bulto', key: 'packageType' },
+      { label: 'Peso', key: 'weightValue' },
+      { label: 'Unidad de peso', key: 'weightUnit' },
+      { label: 'Volumen', key: 'volumeValue' },
+      { label: 'Unidad de volumen', key: 'volumeUnit' },
+    ] },
+    { title: 'Coordinación y proveedores', rows: [
+      { label: 'Consolidado', key: 'consolidationReference' },
+      { label: 'Dirección de recolecta', key: 'pickupAddress' },
+      { label: 'WHS', key: 'whsName' },
+      { label: 'Dirección de entrega', key: 'destinationAddress' },
+      { label: 'Naviera', key: 'carrierReference' },
+      { label: 'Agente', key: 'agentReference' },
+      { label: 'Merchant', key: 'merchantReference' },
+      { label: 'Observaciones', key: 'observations' },
+    ] },
+  ]
+  return sections.map(section => ({
+    title: section.title,
+    rows: section.rows.map(row => {
+      const raw = data[row.key]
+      const value = typeof raw === 'string' || typeof raw === 'number'
+        ? String(raw).trim() : ''
+      return { label: row.label, value: value || (
+        row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar / no aplica'
+      ) }
+    }),
+  }))
 })
 
 const workspace = ref<OperationsCaseWorkspace | null>(null)
@@ -96,6 +120,39 @@ const postingNote = ref(false)
 const audit = ref<OperationsAudit[]>([])
 const actors = ref<OperationsUser[]>([])
 const accountName = ref('')
+const clientExecutiveName = ref('')
+const responsibleNames = ref<Record<string, string>>({})
+const currentResponsibility = computed(() => workspace.value?.stages.find(s =>
+  s.status === 'IN_PROGRESS') || workspace.value?.stages.find(s =>
+  s.status === 'READY') || workspace.value?.stages[0])
+const currentDepartmentStatus = computed(() => departmentStatusLabel(
+  currentResponsibility.value?.departmentCode, currentResponsibility.value?.status,
+  record.value?.status,
+  currentResponsibility.value?.departmentCode === 'COORDINACION_ORIGEN'
+    ? origin.value?.progress?.statusCode : null,
+))
+function responsibleName(id: string | null | undefined): string {
+  return id ? responsibleNames.value[id] || 'Nombre pendiente de consulta' : 'Sin operativo asignado'
+}
+const openingDocuments = computed(() => Array.isArray(openingData.value.supportDocuments)
+  ? (openingData.value.supportDocuments as Array<Record<string, unknown>>) : [])
+const pendingFields = computed(() => Array.isArray(openingData.value.missingFields)
+  ? (openingData.value.missingFields as unknown[]).filter((x): x is string => typeof x === 'string') : [])
+const openingServices = computed(() => Array.isArray(openingData.value.services)
+  ? (openingData.value.services as unknown[]).map(x => typeof x === 'string' ? x :
+      x && typeof x === 'object' ? String((x as Record<string, unknown>).name ||
+        (x as Record<string, unknown>).label || (x as Record<string, unknown>).serviceCode || '') : '').filter(Boolean) : [])
+async function loadResponsibleNames(ids: Array<string | null | undefined>, current: number) {
+  const uniques = [...new Set(ids.filter((x): x is string => Boolean(x)))]
+  if (!uniques.length || !auth.hasScope('operations.audit.read')) return
+  try {
+    const found = await operationsApi.auditActors(uniques)
+    if (current === sequence) responsibleNames.value = {
+      ...responsibleNames.value,
+      ...Object.fromEntries(found.items.map(p => [p.id, p.displayName || p.userName])),
+    }
+  } catch { /* A missing Auth display name must not hide the expediente. */ }
+}
 const selectedTab = ref<OperationsTabCode>('RESUMEN')
 const editing = ref(false)
 const serverChangedWhileEditing = ref(false)
@@ -139,7 +196,7 @@ const validEdit = computed(() => (
   isoValid(edit.value.originCountryCode) && isoValid(edit.value.destinationCountryCode)
 ))
 function statusLabel(value: string | null | undefined) {
-  return value ? value.replaceAll('_', ' ') : 'Pendiente'
+  return operationsLabel(value)
 }
 function dateLabel(value: string | null | undefined) {
   if (!value) return '—'
@@ -186,6 +243,15 @@ async function load() {
     audit.value = []
     actors.value = []
     accountName.value = ''
+    clientExecutiveName.value = ''
+    responsibleNames.value = {}
+    optional.push(loadResponsibleNames([
+      detail.createdBy, detail.executiveUserId,
+      ...work.stages.map(s => s.assignedUserId),
+      ...work.stages.flatMap(s => s.supervisorUserIds || []),
+      ...(work.validators || []).map(v => v.userId),
+      ...work.tasks.map(t => t.assignedUserId),
+    ], current))
     if (auth.hasScope('operations.cost.read')) optional.push(
       operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) costs.value = x.items }).catch(() => {}))
     if (auth.hasScope('operations.origin.read') &&
@@ -202,8 +268,15 @@ async function load() {
         if (current === sequence) actors.value = people.items
       }).catch(() => {}))
     optional.push(crmRequest<Record<string, unknown>>(crmPath('accounts', detail.accountId))
-      .then(x => { if (current === sequence) accountName.value = String(x.displayName ?? x.name ?? x.legalName ?? '') })
-      .catch(() => {}))
+      .then(x => { if (current === sequence) {
+        accountName.value = String(x.displayName || x.legalName || x.name || '').trim()
+        clientExecutiveName.value = String(x.executiveName || '').trim()
+      } }).catch(() => {}))
+    optional.push(crmRequest<{ displayName?: string | null }>(
+      crmPath('accounts', detail.accountId, 'assigned-executive'))
+      .then(x => { if (current === sequence && x.displayName)
+        clientExecutiveName.value = x.displayName.trim()
+      }).catch(() => {}))
     await Promise.all(optional)
   } catch (cause) {
     if (current === sequence) error.value = cause instanceof Error ? cause.message : 'No se pudo abrir el expediente.'
@@ -271,7 +344,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
     </div>
     <DhPageHeader :title="record?.idtra || 'Expediente operativo'" subtitle="Expediente IDTRA único · Gestión por departamentos y equipos" :icon="FolderOpen" :hide-excel-export="true">
       <template #actions>
-        <DhBadge v-if="record" variant="primary">{{ statusLabel(record.status) }}</DhBadge>
+        <DhBadge v-if="record" variant="primary">{{ currentDepartmentStatus }}</DhBadge>
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
         <RouterLink v-if="record && canEditSummary && selectedTab === 'RESUMEN'" :to="{ name: 'operations-case-edit', params: { id: record.id } }">
           <DhButton :icon="Pencil" label="Completar o modificar apertura" />
@@ -290,7 +363,8 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <DhCard padding="sm">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Cliente</p>
-          <p class="mt-2 truncate font-black">{{ accountName || 'Cuenta CRM' }}</p>
+          <p class="mt-2 truncate font-black">{{ accountName || String(openingData.clientName || '') || 'Nombre pendiente de CRM' }}</p>
+          <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">Ejecutivo: {{ clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) }}</p>
           <RouterLink :to="`/crm/accounts/${record.accountId}`" class="text-xs text-[var(--dh-primary)] hover:underline">Consultar cuenta CRM</RouterLink>
         </DhCard>
         <DhCard padding="sm">
@@ -299,12 +373,15 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
           <p class="text-xs text-[var(--dh-text-muted)]">{{ record.modalityCode }} · {{ record.originCountryCode || '—' }} → {{ record.destinationCountryCode || '—' }}</p>
         </DhCard>
         <DhCard padding="sm">
-          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Equipo actual</p>
-          <p class="mt-2 font-black">{{ workspace.stages.find(s => s.status === 'IN_PROGRESS')?.teamName || workspace.stages.find(s => s.teamName)?.teamName || 'Pendiente de asignación' }}</p>
+          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Departamento y responsable</p>
+          <p class="mt-2 font-black">{{ statusLabel(currentResponsibility?.departmentCode) }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ currentResponsibility?.teamName || 'Equipo por asignar' }}</p>
+          <p class="mt-1 text-xs font-semibold">{{ responsibleName(currentResponsibility?.assignedUserId) }}</p>
         </DhCard>
         <DhCard padding="sm">
-          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Última actualización</p>
-          <p class="mt-2 font-black">{{ dateLabel(record.updatedAtUtc) }}</p>
+          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado departamental</p>
+          <p class="mt-2 font-black">{{ currentDepartmentStatus }}</p>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Actualizado: {{ dateLabel(record.updatedAtUtc) }}</p>
           <p class="text-xs text-[var(--dh-text-muted)]">Versión {{ record.version }}</p>
         </DhCard>
       </div>
@@ -323,9 +400,9 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
         </button>
       </div>
 
-      <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,1fr)]">
+      <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
         <div class="space-y-4">
-          <DhCard :icon="ClipboardList" title="Resumen y apertura" subtitle="La información comercial permanece bajo el control de Pricing.">
+          <DhCard :icon="ClipboardList" title="Identificación y apertura" subtitle="Datos generales del expediente. Las condiciones comerciales de una QUO siguen bajo control de Pricing.">
             <div v-if="editing && canEditSummary" class="space-y-4">
               <div class="grid gap-4 sm:grid-cols-2">
                 <DhSelect v-model="edit.modalityCode" label="Modalidad" :options="modalityOptions" />
@@ -345,35 +422,56 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 { key: 'IDTRA', value: record.idtra },
                 { key: 'Modalidad', value: record.modalityCode },
                 { key: 'Tipo de apertura', value: record.apertureType },
-                { key: 'Estado operativo', value: statusLabel(record.status) },
+                { key: 'Estado del departamento', value: currentDepartmentStatus },
+                { key: 'Cliente', value: accountName || String(openingData.clientName || '') || 'Pendiente de CRM' },
+                { key: 'Ejecutivo comercial', value: clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) },
+                { key: 'PO / referencia cliente', value: openingData.clientPoReference || 'Sin referencia' },
+                { key: 'División CRM', value: openingData.crmDivisionName || 'No registrada' },
                 { key: 'País de origen', value: record.originCountryCode || 'Pendiente' },
                 { key: 'País de destino', value: record.destinationCountryCode || 'Pendiente' },
                 { key: 'Prioridad', value: record.priority },
                 { key: 'Complejidad', value: record.complexityPoints },
                 { key: 'Creado', value: dateLabel(record.createdAtUtc) },
                 { key: 'Actualizado', value: dateLabel(record.updatedAtUtc) },
+                { key: 'Creado por', value: responsibleName(record.createdBy) },
               ]" :key="item.key" class="rounded-xl bg-[var(--dh-input)] p-3">
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ item.key }}</p>
                 <p class="mt-1 break-words text-sm font-bold">{{ item.value }}</p>
               </div>
             </div>
           </DhCard>
-          <DhCard title="Departamentos y equipos" subtitle="Un único expediente compartido por las áreas autorizadas.">
+          <DhCard title="Departamentos y responsables" subtitle="Etapas, equipos, operativos y validadores del expediente.">
             <div v-for="stage in workspace.stages" :key="stage.id" class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3 last:mb-0">
               <div>
                 <p class="text-sm font-bold">{{ statusLabel(stage.departmentCode) }}</p>
-                <p class="text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo sin asignar' }}</p>
+                <p class="text-xs text-[var(--dh-text-muted)]">Equipo: {{ stage.teamName || 'Por asignar' }}</p>
+                <p class="mt-1 text-xs font-semibold">Operativo: {{ responsibleName(stage.assignedUserId) }}</p>
+                <p v-if="stage.supervisorUserIds?.length" class="mt-1 text-xs text-[var(--dh-text-soft)]">
+                  Supervisión: {{ stage.supervisorUserIds.map(id => responsibleName(id)).join(', ') }}
+                </p>
+                <p v-if="stage.assignedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">Asignación: {{ dateLabel(stage.assignedAtUtc) }}</p>
+                <p v-for="reviewer in (workspace.validators || []).filter(v => v.caseStageId === stage.id)"
+                  :key="reviewer.userId" class="mt-1 text-xs text-[var(--dh-text-soft)]">
+                  Validador {{ reviewer.slot }}: {{ responsibleName(reviewer.userId) }} · {{ statusLabel(reviewer.status) }}
+                  <span v-if="reviewer.reviewedAtUtc">· {{ dateLabel(reviewer.reviewedAtUtc) }}</span>
+                </p>
+                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Inicio: {{ dateLabel(stage.startedAtUtc) }} · Finalización: {{ dateLabel(stage.completedAtUtc) }}</p>
               </div>
-              <DhBadge variant="neutral">{{ statusLabel(stage.status) }}</DhBadge>
+              <DhBadge variant="neutral">{{ departmentStatusLabel(stage.departmentCode, stage.status, record.status, stage.departmentCode === 'COORDINACION_ORIGEN' ? origin?.progress?.statusCode : null) }}</DhBadge>
             </div>
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
           </DhCard>
-          <DhCard v-if="Object.keys(openingData).length" title="Ficha de apertura y mercancía" subtitle="Información operativa capturada. No sustituye los datos ni los costos de la QUO aceptada.">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <div v-for="field in openingRows" :key="field.label" class="rounded-xl bg-[var(--dh-input)] p-3">
-                <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
-                <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
-              </div>
+          <DhCard title="Ficha de apertura y mercancía" subtitle="Ruta, mercancía, servicios y pendientes agrupados por departamento.">
+            <div class="space-y-5">
+              <section v-for="section in openingSections" :key="section.title">
+                <h4 class="mb-2 text-sm font-bold">{{ section.title }}</h4>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <div v-for="field in section.rows" :key="field.label" class="min-w-0 rounded-xl bg-[var(--dh-input)] p-3">
+                    <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
+                    <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
+                  </div>
+                </div>
+              </section>
             </div>
             <div v-if="Array.isArray(openingData.equipment) && openingData.equipment.length" class="mt-4">
               <h4 class="mb-2 text-sm font-semibold">Equipos</h4>
@@ -381,9 +479,22 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 {{ (item as { quantity: number; equipmentType: string }).quantity }} × {{ (item as { equipmentType: string }).equipmentType }}
               </div>
             </div>
-            <p v-if="openingData.completionStatus === 'DRAFT_INCOMPLETE'" class="mt-3 text-xs text-amber-400">
-              Borrador con campos pendientes; requiere completar la captura antes de validar.
-            </p>
+            <div v-if="openingServices.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+              <h4 class="mb-2 text-sm font-semibold">Servicios contratados y operativos</h4>
+              <div class="flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge></div>
+            </div>
+            <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
+              <h4 class="mb-2 text-sm font-semibold">Documentación ({{ openingDocuments.length }})</h4>
+              <p v-if="!openingDocuments.length" class="text-xs text-[var(--dh-text-muted)]">Sin adjuntos de apertura.</p>
+              <p v-for="(document, index) in openingDocuments" :key="index" class="mb-1 break-words text-xs">
+                {{ String(document.label || 'Documento') }} · {{ String(document.fileName || 'Archivo registrado') }}
+              </p>
+            </div>
+            <div v-if="pendingFields.length || openingData.completionStatus === 'DRAFT_INCOMPLETE'" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+              <h4 class="mb-2 text-sm font-semibold">Información por completar</h4>
+              <p v-for="field in pendingFields" :key="field" class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(field) }}</p>
+              <p v-if="!pendingFields.length" class="text-xs text-[var(--dh-text-muted)]">Hay campos sin confirmar antes de validar.</p>
+            </div>
           </DhCard>
           <OperationsApertureValidationPanel
             v-if="record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS'"
@@ -392,21 +503,25 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
           />
           <DhCard title="Pendientes del expediente">
             <div v-for="task in workspace.tasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
-              <p class="font-bold">{{ task.title }}</p><p class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(task.status) }} · {{ dateLabel(task.dueAtUtc) }}</p>
+              <p class="font-bold">{{ task.title }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(task.status) }} · {{ dateLabel(task.dueAtUtc) }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">Responsable: {{ responsibleName(task.assignedUserId) }}</p>
             </div>
             <p v-if="!workspace.tasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas registradas.</p>
           </DhCard>
         </div>
         <div class="space-y-4">
-          <DhCard title="Cotización vinculada">
+          <DhCard title="Cotización y seguimiento comercial">
             <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir QUO en Pricing</RouterLink>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">SIN_QUO · Apertura manual sin costos ni ventas simuladas.</p>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Estado comercial y estado del cliente: consultar Pricing/CRM; no se derivan del estado operativo.</p>
           </DhCard>
           <DhCard v-if="auth.hasScope('operations.audit.read')" title="Historial y trazabilidad">
             <OperationsAuditTimeline :events="audit" :users="actors" empty-title="Sin movimientos" empty-description="Todavía no hay eventos registrados." />
           </DhCard>
-          <DhCard title="Permisos del expediente">
-            <p class="text-sm text-[var(--dh-text-soft)]">{{ canEditSummary ? 'Puedes editar los datos de Aperturas mientras esté pendiente de validación.' : 'Esta sección es de consulta para tu perfil o ya fue validada.' }}</p>
+          <DhCard title="Acceso del expediente">
+            <p class="text-sm text-[var(--dh-text-soft)]">{{ canEditSummary ? 'Aperturas editable mientras esté pendiente de validación; el backend comprueba cada cambio.' : 'Consulta habilitada. La edición depende de la etapa, su estado y el permiso específico.' }}</p>
+            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Un superusuario puede consultar todos los departamentos, incluso los que aún no han iniciado, sin generar etapas ficticias.</p>
           </DhCard>
         </div>
       </div>

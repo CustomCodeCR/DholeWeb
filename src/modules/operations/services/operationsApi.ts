@@ -51,6 +51,10 @@ export type OperationsCaseRow = {
   originCountryCode?: string | null
   destinationCountryCode?: string | null
   departmentCode?: string | null
+  departmentStatus?: string | null
+  originStatusCode?: string | null
+  teamName?: string | null
+  assignedUserId?: string | null
   status: string
   priority: number
   createdAtUtc: string
@@ -73,6 +77,7 @@ export interface OperationsCaseDetail {
   complexityPoints: number
   status: string
   priority: number
+  createdBy?: string
   createdAtUtc: string
   updatedAtUtc: string
   stages: Array<{ id: string; departmentCode: string; status: string; teamId: string | null; version: number }>
@@ -114,7 +119,12 @@ export interface OperationsCaseWorkspace {
   stages: Array<{
     id: string; departmentCode: string; status: string; teamId: string | null
     teamName: string | null; assignedUserId: string | null
+    assignedAtUtc?: string | null; supervisorUserIds?: string[]
     startedAtUtc: string | null; completedAtUtc: string | null
+  }>
+  validators: Array<{
+    caseStageId: string; userId: string; slot: number; status: string
+    assignedAtUtc: string; reviewedAtUtc: string | null
   }>
   quotes: Array<{
     id: string; quoteId: string; quoteOptionId: string | null; quoteNumber: string | null
