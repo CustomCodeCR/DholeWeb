@@ -257,7 +257,7 @@ const originOptions = [
 const incoterms = ['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP']
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
 const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
-const requiresWarehouse = computed(() => form.value.incoterm === 'FCA' && ['LCL','LTL'].includes(effectiveShipment.value))
+const requiresWarehouse = computed(() => form.value.incoterm?.trim().toUpperCase() === 'FCA')
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
   (modalOptions.some(x => x.value === modality.value) || (Boolean(editingId.value) && modality.value === 'MULTIMODAL')) &&
@@ -284,7 +284,7 @@ const blockers = computed(() => {
     if (!assignedTeamId.value) result.push('Equipo de Aperturas por seleccionar')
     else if (!selectedOpeningTeam.value?.canAssign) result.push('El equipo seleccionado requiere dos validadores habilitados')
   }
-  if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA + LCL/LTL)')
+  if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
   return result
