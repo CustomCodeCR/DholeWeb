@@ -1,3 +1,11 @@
+## [1.120.4] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-420
+
+- PATCH: en la edición de una cotización guardada, la navegación de Pantalla 6 (flete terrestre LTL/FTL) a Pantalla 7 ya no se bloquea con validaciones destinadas únicamente a nuevas cotizaciones.
+- Preserva costo, venta, moneda, proveedor/agente y líneas persistidas; mantiene la validación de nuevas cotizaciones y las comprobaciones de guardado.
+- Agrega prueba de regresión del plugin final del wizard y la integra al build/CI.
+- DholeWeb y versión del ecosistema: 1.120.3 → 1.120.4; los demás componentes conservan su versión. Sin cambios REST, SignalR, base de datos ni componentes visuales DH.
+- Pendiente ejecutar compilación, pruebas CI y validación en staging; no desplegar producción sin autorización expresa.
+
 ## [1.120.3] - 2026-11-23 · DH-20261123-CORS-PREFLIGHT-419
 
 - PATCH: enrutar llamadas API de dominios oficiales production/staging bajo el mismo origen Web usando el proxy nginx existente hacia DholeApiGateway; conserva orígenes personalizados, REST, JWT y rutas SignalR existentes.
