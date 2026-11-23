@@ -47,16 +47,30 @@ async function resolvePeople(ids: Array<string | null | undefined>) {
 }
 async function resolveAccountNames(ids: string[]) {
   const missing = [...new Set(ids)].filter(id => id && !resolvedAccounts.value[id] && !accountsChecked.has(id))
-  // CRM has no verified bulk-by-ID endpoint. Bound the fallback to four reads at once.
-  for (let i = 0; i < missing.length; i += 4) {
-    await Promise.all(missing.slice(i, i + 4).map(async id => {
-      accountsChecked.add(id)
-      try {
-        const account = await crmRequest<{ displayName?: string; legalName?: string; name?: string }>(crmPath('accounts', id))
-        const name = String(account.displayName || account.legalName || account.name || '').trim()
-        if (name) resolvedAccounts.value = { ...resolvedAccounts.value, [id]: name }
-      } catch { /* Do not expose UUID or invent a customer identity. */ }
-    }))
+  if (!missing.length) return
+  try {
+    // CRM applies the caller's account ACL in one SQL query: no per-row account requests.
+    const result = await crmRequest<{ items: Array<{
+      id: string; displayName?: string; legalName?: string
+    }> }>(crmPath('accounts', 'labels') + '?' + new URLSearchParams({ ids: missing.join(',') }))
+    for (const item of result.items) {
+      const name = String(item.displayName || item.legalName || '').trim()
+      if (name) resolvedAccounts.value = { ...resolvedAccounts.value, [item.id]: name }
+    }
+    missing.forEach(id => accountsChecked.add(id))
+  } catch {
+    // During coordinated staging rollout, older CRM versions can still serve individual
+    // authorized reads. Remove this compatibility fallback only after UAT confirms bulk.
+    for (let i = 0; i < missing.length; i += 4) {
+      await Promise.all(missing.slice(i, i + 4).map(async id => {
+        accountsChecked.add(id)
+        try {
+          const account = await crmRequest<{ displayName?: string; legalName?: string; name?: string }>(crmPath('accounts', id))
+          const name = String(account.displayName || account.legalName || account.name || '').trim()
+          if (name) resolvedAccounts.value = { ...resolvedAccounts.value, [id]: name }
+        } catch { /* Never display an unverified UUID as a customer name. */ }
+      }))
+    }
   }
 }
 const opening = computed<Record<string, unknown>>(() => {
