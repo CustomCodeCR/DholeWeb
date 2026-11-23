@@ -140,6 +140,28 @@ export interface OperationsCaseWorkspace {
     dueAtUtc: string | null; completedAtUtc: string | null
   }>
 }
+export interface OperationsAdditionalService {
+  id: string
+  serviceCode: string
+  serviceName: string
+  reason: string
+  source: 'OPERATIONS_ADDED' | 'QUOTED'
+  reviewStatus: 'PENDING_PRICING_REVIEW' | 'APPROVED' | 'REJECTED'
+  addedAtUtc: string
+  pricingResolutionNotes?: string | null
+}
+export interface PricingOperationsServiceReview {
+  id: string
+  quoteId: string
+  caseId: string
+  idtra: string
+  serviceCode: string
+  serviceName: string
+  reason: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  requestedAtUtc: string
+  resolutionNotes?: string | null
+}
 export interface OperationsCaseCost {
   id: string; costCode: string; description: string; supplierName: string | null
   currencyCode: string; costAmount: number; saleAmount: number | null; capturedAtUtc: string
@@ -206,6 +228,12 @@ export const operationsApi = {
     `/api/operations/cases/${id}/workspace`),
   caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[] }>(
     `/api/operations/cases/${id}/commercial/costs`),
+  additionalServices: (id: string) => request<OperationsAdditionalService[]>(
+    `/api/operations/cases/${id}/additional-services`),
+  addAdditionalService: (id: string, body: {
+    requestId: string; serviceCode: string; serviceName: string; reason: string
+  }) => request<{ id: string; reviewStatus: string; duplicate: boolean }>(
+    `/api/operations/cases/${id}/additional-services`, 'POST', body),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),
   originMeasurements: (id: string) => request<OperationsOriginMeasurement>(
