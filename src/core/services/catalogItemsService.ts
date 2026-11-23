@@ -20,6 +20,9 @@ import type {
 
 type NoContent = Record<string, never>
 
+// Share concurrent catalog lookups without keeping stale results between requests.
+const pendingSelectRequests = new Map<string, Promise<CatalogItemSelectDto[]>>()
+
 export const CatalogItemsService = {
   async create(payload: CreateCatalogItemRequest): Promise<string> {
     const response = await callEndpoint<string, CreateCatalogItemRequest>(
@@ -68,14 +71,28 @@ export const CatalogItemsService = {
       Endpoints.selectCatalogItems.path +
       (query ? toQueryString(query as Record<string, unknown>) : '')
 
-    const response = await callEndpoint<unknown>({
-      ...Endpoints.selectCatalogItems,
-      path: endpointWithQuery,
-    })
+    const existing = pendingSelectRequests.get(endpointWithQuery)
+    if (existing) return existing
 
-    // Keep catalog metadata intact. Consumers such as Pricing resolve
-    // contactDirectory according to the active shipment mode (FCL/LCL) and route.
-    return unwrapListResponse<CatalogItemSelectDto>(response)
+    const request = (async () => {
+      const response = await callEndpoint<unknown>({
+        ...Endpoints.selectCatalogItems,
+        path: endpointWithQuery,
+      })
+
+      // Preserve complete metadata for Pricing and other consumers.
+      return unwrapListResponse<CatalogItemSelectDto>(response)
+    })()
+
+    pendingSelectRequests.set(endpointWithQuery, request)
+    try {
+      return await request
+    } finally {
+      // Failed requests are never cached; subsequent calls can retry.
+      if (pendingSelectRequests.get(endpointWithQuery) === request) {
+        pendingSelectRequests.delete(endpointWithQuery)
+      }
+    }
   },
 
   async getByGroupSlug(catalogGroupSlug: string): Promise<CatalogItemDto[]> {
