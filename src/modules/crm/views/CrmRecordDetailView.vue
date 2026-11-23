@@ -271,7 +271,7 @@ const leadAuditLabels: Record<string, string> = {
   ExecutiveUserId: 'Vendedor asignado', IsCastroFallasExecutive: 'Vendedor institucional',
   ContactEmail: 'Correo', Phone: 'Teléfono', ConvertedAt: 'Fecha de conversión',
   ConvertedAccountId: 'Cuenta vinculada', ArchivedAt: 'Fecha de archivo',
-  ContactName: 'Contacto', ContactEmail: 'Correo del contacto',
+  ContactName: 'Contacto',
   ContactPhone: 'Teléfono del contacto', JobTitle: 'Cargo',
   IsPrimary: 'Contacto principal', IsOperationsContact: 'Contacto operativo',
   AddressType: 'Tipo de ubicación', AddressText: 'Dirección',
