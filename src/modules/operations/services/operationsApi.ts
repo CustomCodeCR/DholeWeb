@@ -166,6 +166,14 @@ export interface OperationsOpeningEdit {
   destinationCountryCode: string | null
 }
 
+export interface OperationsApertureDraft {
+  id: string
+  companyId: string
+  ownerUserId: string
+  payloadJson: string
+  version: number
+  updatedAtUtc: string
+}
 export interface CrmAccountOption { id: string; displayName: string; legalName?: string }
 export interface OperationsCaseFilters { q?: string; status?: string; apertureType?: string; accountId?: string }
 function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilters = {}) {
@@ -249,6 +257,15 @@ export const operationsApi = {
     : Promise.resolve({ items: [] as OperationsUser[] }),
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
+  latestApertureDraft: () => request<OperationsApertureDraft | null>(
+    '/api/operations/aperture-drafts/latest'),
+  createApertureDraft: (payload: Record<string, unknown>) =>
+    request<OperationsApertureDraft>('/api/operations/aperture-drafts/', 'POST', { payload }),
+  updateApertureDraft: (id: string, payload: Record<string, unknown>, expectedVersion: number) =>
+    request<OperationsApertureDraft>('/api/operations/aperture-drafts/' + id,
+      'PATCH', { payload, expectedVersion }),
+  discardApertureDraft: (id: string) =>
+    request<unknown>('/api/operations/aperture-drafts/' + id, 'DELETE'),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
