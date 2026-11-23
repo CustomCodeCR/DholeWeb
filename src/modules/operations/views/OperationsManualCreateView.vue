@@ -521,25 +521,64 @@ async function initializeWorkspace() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo inicializar Operaciones.'
   } finally { initializing.value = false }
 }
-// Drafts remain local and scoped to this logged-in user until a case is created.
+// PostgreSQL is authoritative; localStorage only retains the draft UUID and an
+// offline recovery copy. A draft can be saved without account, team or validation.
 const draftStorageKey = computed(() =>
   'dhole.operations.manual-opening.v2:' + (auth.userId || 'guest') + ':' +
   (auth.clientId || 'company') + ':' + (editingId.value || 'new'))
+const remoteDraftId = ref('')
+let remoteDraftChain = Promise.resolve()
+function draftPayload() {
+  return {
+    savedAt: Date.now(), version: 2, form: form.value,
+    accountId: accountId.value, selectedClientName: selectedClientName.value,
+    modality: modality.value, step: activeStep.value,
+    executiveName: executiveName.value, executiveUserId: executiveUserId.value,
+    institutionalExecutive: institutionalExecutive.value,
+    contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
+    assignedTeamId: assignedTeamId.value,
+  }
+}
 function persistLocalDraft() {
   if (!autosaveReady.value || editingId.value) return
+  if (!remoteDraftId.value) remoteDraftId.value = crypto.randomUUID()
+  const draft = draftPayload()
   try {
-    window.localStorage.setItem(draftStorageKey.value, JSON.stringify({
-      savedAt: Date.now(), version: 2, form: form.value,
-      accountId: accountId.value, selectedClientName: selectedClientName.value,
-      modality: modality.value, step: activeStep.value,
-      executiveName: executiveName.value, executiveUserId: executiveUserId.value,
-      institutionalExecutive: institutionalExecutive.value,
-      contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
-      assignedTeamId: assignedTeamId.value,
-    }))
-    autosaveState.value = 'saved'
-    lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } catch { autosaveState.value = 'error' }
+    window.localStorage.setItem(draftStorageKey.value,
+      JSON.stringify({ ...draft, backendDraftId: remoteDraftId.value }))
+  } catch { /* Browser storage is only an offline fallback. */ }
+  const id = remoteDraftId.value
+  remoteDraftChain = remoteDraftChain.catch(() => undefined).then(async () => {
+    try {
+      await operationsApi.saveOpeningDraft(id, JSON.parse(JSON.stringify(draft)) as Record<string, unknown>)
+      autosaveState.value = 'saved'
+      lastAutoSaveAt.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    } catch {
+      autosaveState.value = 'error'
+    }
+  })
+}
+async function restoreServerDraft() {
+  if (editingId.value) return
+  try {
+    const ids = remoteDraftId.value
+      ? [{ id: remoteDraftId.value }]
+      : (await operationsApi.openingDrafts()).items.slice(0, 1)
+    if (!ids.length) return
+    const remote = await operationsApi.openingDraft(ids[0]!.id)
+    const parsed = JSON.parse(remote.payloadJson) as Record<string, unknown>
+    if (!parsed || parsed.version !== 2) return
+    const local = window.localStorage.getItem(draftStorageKey.value)
+    const localTime = local ? Number((JSON.parse(local) as Record<string, unknown>).savedAt) : 0
+    if (Number(parsed.savedAt) >= localTime) {
+      remoteDraftId.value = remote.id
+      window.localStorage.setItem(draftStorageKey.value,
+        JSON.stringify({ ...parsed, backendDraftId: remote.id }))
+      restoreLocalDraft()
+    }
+  } catch {
+    // Persisted draft remains recoverable when API connectivity returns.
+  }
 }
 function scheduleLocalDraft() {
   if (!autosaveReady.value || editingId.value) return
@@ -553,6 +592,7 @@ function restoreLocalDraft() {
     const raw = window.localStorage.getItem(draftStorageKey.value)
     if (!raw) return
     const draft = JSON.parse(raw) as Record<string, unknown>
+    remoteDraftId.value = String(draft.backendDraftId || remoteDraftId.value)
     if (draft.version !== 2 || !Number.isFinite(Number(draft.savedAt)) ||
         Date.now() - Number(draft.savedAt) > 7 * 24 * 60 * 60 * 1000) {
       window.localStorage.removeItem(draftStorageKey.value)
@@ -590,6 +630,7 @@ function clearLocalDraft() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
   autosaveReady.value = false
   try { window.localStorage.removeItem(draftStorageKey.value) } catch { /* storage restricted */ }
+  if (remoteDraftId.value) void operationsApi.discardOpeningDraft(remoteDraftId.value).catch(() => undefined)
 }
 watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, assignedTeamId],
   scheduleLocalDraft, { deep: true })
@@ -670,7 +711,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { restoreLocalDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
+  if (!editingId.value) { restoreLocalDraft(); await restoreServerDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
