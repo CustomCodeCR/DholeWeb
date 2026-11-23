@@ -90,6 +90,9 @@ const costs = ref<OperationsCaseCost[]>([])
 const origin = ref<OperationsOriginProgress | null>(null)
 const notes = ref<OperationsInternalNote[]>([])
 const noteText = ref('')
+const pricingReviewReason = ref('')
+const requestingPricingReview = ref(false)
+const pricingReviewRequestId = ref('')
 const originStatus = ref('ORIGIN_COORDINATION')
 const savingOrigin = ref(false)
 const originStatusChoices = computed(() => {
@@ -311,6 +314,23 @@ async function saveOriginStatus() {
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar el estado de Origen.'
   } finally { savingOrigin.value = false }
+}
+async function requestPricingReview() {
+  if (!record.value || !auth.hasScope('operations.case.update') ||
+      pricingReviewReason.value.trim().length < 10 || requestingPricingReview.value) return
+  requestingPricingReview.value = true
+  error.value = ''
+  try {
+    if (!pricingReviewRequestId.value) pricingReviewRequestId.value = crypto.randomUUID()
+    await operationsApi.requestPricingReview(
+      record.value.id, pricingReviewRequestId.value, pricingReviewReason.value.trim())
+    pricingReviewReason.value = ''
+    pricingReviewRequestId.value = ''
+    await load()
+    message.value = 'Solicitud de revisión enviada a Pricing y registrada en el expediente.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : 'No fue posible solicitar revisión a Pricing.'
+  } finally { requestingPricingReview.value = false }
 }
 async function addNote() {
   if (!record.value || !canWriteNote.value || !noteText.value.trim() || postingNote.value) return
@@ -536,7 +556,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
               </div>
               <RouterLink :to="`/pricing/rates/${quote.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Ver en Pricing</RouterLink>
             </div>
-            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción comercial aceptada: {{ quote.quoteOptionId }}</p>
+            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Alternativa comercial aceptada · consultar detalle en Pricing</p>
           </div>
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
             {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'SIN_QUO · La apertura fue creada sin cotización.' }}
@@ -551,6 +571,17 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             <strong class="text-sm">{{ cost.currencyCode }} {{ cost.costAmount.toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</strong>
           </div>
           <p v-if="!costs.length" class="text-sm text-[var(--dh-text-muted)]">Sin rubros persistidos para esta cotización.</p>
+        </DhCard>
+        <DhCard v-if="workspace.quotes.some(q => q.status === 'ACCEPTED') && auth.hasScope('operations.case.update')"
+          title="Solicitar revisión a Pricing"
+          subtitle="Se conserva intacta la QUO aceptada. La solicitud queda auditada y notifica al departamento de Pricing.">
+          <div class="space-y-3">
+            <DhTextarea v-model="pricingReviewReason" label="Motivo obligatorio"
+              :rows="3" placeholder="Indique qué servicio, proveedor o condición requiere revisión…" />
+            <DhButton :icon="MessageSquareText" label="Enviar solicitud de revisión"
+              :disabled="requestingPricingReview || pricingReviewReason.trim().length < 10"
+              :loading="requestingPricingReview" @click="requestPricingReview" />
+          </div>
         </DhCard>
       </div>
 
