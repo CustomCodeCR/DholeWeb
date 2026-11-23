@@ -72,7 +72,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
 
       const updateExtraDetailsAnchor = `      const extraDetails = createPayload.details.map((detail, index) => ({
         ...detail,
-        id: includedLines.value[index]?.detailId ?? null,
+        id: orderedCompleteRateLines.value[index]?.detailId ?? null,
       }))`
       const updateExtraDetailsReplacement = `      // Only the persisted RateDetail ID is authoritative for updates.
       // Never attach two homonymous CostIds to the same historical detail.
@@ -82,7 +82,7 @@ export function pricingWizardFixedAutomaticCostEditFix(): Plugin {
           : null
       const proposedExtraDetails = buildRateUpdateExtraDetails(
         createPayload.details,
-        includedLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) })),
+        orderedCompleteRateLines.value.map((line) => ({ detailId: persistedDetailIdForLine(line) })),
         editingRate.value!.rateDetails,
       )
       // Both freight and every other historical line survive unless the
