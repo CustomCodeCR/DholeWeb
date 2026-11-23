@@ -1,7 +1,9 @@
 import type { RequestOptions } from '@/core/api/interfaces/requestOptions'
 import { ApiError, NetworkError, handleApiResponse } from '@/core/api/apiErrorHandler'
 
-const BASE_URL = import.meta.env.VITE_API_URL as string
+import { resolveGatewayBaseUrl } from '@/core/api/sameOriginGateway'
+
+const BASE_URL = resolveGatewayBaseUrl(import.meta.env.VITE_API_URL as string | undefined)
 
 interface PricingRateApprovalSnapshot {
   requiredApproval?: boolean
