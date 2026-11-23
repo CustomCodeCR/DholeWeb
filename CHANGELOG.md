@@ -1,3 +1,9 @@
+## [1.120.8] - 2026-11-23
+
+- PATCH DH-20261123-PRICING-VAT-RELEASE-430: IVA de los rubros por jurisdicción del POL para origen/recolecta y del POE para destino/entrega; flete según importación/exportación y alternativa multi-POE. Se aplica la tasa configurada por país sin usar el POD global.
+- Corrección del estado del checkbox IVA al cambiar puertos y ajuste de las validaciones del wizard para evitar regresiones en creación y edición.
+- Reutilización de componentes DH y contrato REST de Pricing sin cambios; pruebas de integración, versión y staging obligatorias antes de producción.
+
 ## [1.120.7] - 2026-11-23 · DH-20261123-PRICING-LTL-EDIT-NAV-422
 
 - PATCH: en edición de QUO LTL terrestre existente, Pantalla 6 permite avanzar a Pantalla 7 sin depender de la validación de tarifa nueva `canNext`. Se usa el snapshot persistido para revisar cargos sin reimportar ni recalcular los fletes al navegar.

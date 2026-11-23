@@ -96,6 +96,7 @@ test('Both pricing wizards calculate line IVA from POL or POE, never from global
     assert.match(source, /lineVatLabel\(line\)/)
     assert.equal((source.match(/class="crystal-line-vat"/g) ?? []).length, 2)
     assert.equal((source.match(/:disabled="!canApplyDestinationTax\(line\)"/g) ?? []).length, 2)
+    assert.equal((source.match(/:model-value="Boolean\(line\.applyDestinationTax\) && canApplyDestinationTax\(line\)"/g) ?? []).length, 2)
     assert.doesNotMatch(source, /const destinationTaxRate = computed/)
     assert.match(source, /IVA aplicado según POL\/POE/)
   }
