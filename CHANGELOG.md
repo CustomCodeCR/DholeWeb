@@ -1,3 +1,9 @@
+## [1.120.10] - 2026-11-23 · DH-20261123-CRM-LEAD-AUDIT-431
+
+- PATCH: Prospectos incorpora Historial de cambios independiente del Historial de rutas, con la misma línea de tiempo de Cuentas, usuario, fecha, cambios antes/después, actualización y paginación DhPagination. Reutiliza los tokens y componentes DH existentes en ambos temas.
+- Consume GET /api/crm/leads/{id}/change-history del servicio CRM autorizado; maneja errores y navegación entre prospectos sin mezclar resultados. Versiones coordinadas CRM 1.43.1 y Web/ecosistema 1.120.10; otros componentes sin cambios.
+- CI y staging pendientes; promoción a master solo después de validación. Despliegue de producción no autorizado.
+
 ## [1.120.9] - 2026-11-23 · DH-20261123-PRICING-MODIFICATION-422
 
 - PATCH: la comparación de modificaciones de Ventas muestra la modalidad y el tipo de embarque cuando el valor original puede verificarse.

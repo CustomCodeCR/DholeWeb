@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useResourceRealtime } from '@/core/realtime/useResourceRealtime'
 import { ArrowLeft, BriefcaseBusiness, Plus, ChevronDown, UsersRound, MapPin,
-  Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone } from 'lucide-vue-next'
+  Activity, Route, Wallet, FileText, CalendarClock, Settings2, Mail, Phone, History, RefreshCw, ArrowRight, UserRound } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhPagination } from '@/shared/components/molecules'
 import { DhDrawer, DhModal, DhPageHeader } from '@/shared/components/organisms'
@@ -223,7 +223,7 @@ const addressFormVersion = ref(0)
 const stages = ref<CrmRow[]>([])
 const can = (scope: string) => auth.hasScope(scope)
 
-type LeadTab = 'summary' | 'profile' | 'contacts' | 'analysis' | 'quotes' | 'history' | 'agenda' | 'followups' | 'log' | 'conversion' | 'documents' | 'locations'
+type LeadTab = 'summary' | 'profile' | 'contacts' | 'analysis' | 'quotes' | 'history' | 'changes' | 'agenda' | 'followups' | 'log' | 'conversion' | 'documents' | 'locations'
 const leadTab = ref<LeadTab>('summary')
 const leadCalendarRef = ref<InstanceType<typeof CrmSalesCalendar> | null>(null)
 const leadTabs = computed(() => [
@@ -234,6 +234,7 @@ const leadTabs = computed(() => [
   ...(can('crm.quote.read')
     ? [{ key: 'quotes' as const, label: 'Cotizaciones', icon: FileText }] : []),
   ...(can('crm.analysis.read') ? [{ key: 'history' as const, label: 'Historial de rutas', icon: Route }] : []),
+  { key: 'changes' as const, label: 'Historial de cambios', icon: History },
   { key: 'documents' as const, label: 'Documentos', icon: FileText },
   { key: 'locations' as const, label: 'Ubicaciones', icon: MapPin },
   ...(can('crm.activity.read') || can('crm.activity.read-all') || can('crm.task.manage') || can('crm.followup.manage')
@@ -245,9 +246,130 @@ const leadTabs = computed(() => [
   ...(can('crm.lead.convert') && can('crm.account.create')
     ? [{ key: 'conversion' as const, label: 'Convertir a cuenta', icon: UsersRound }] : []),
 ])
+type LeadAuditChange = { field: string; before: string | null; after: string | null }
+type LeadAuditEntry = {
+  id: string
+  actionCode: string
+  areaCode: string
+  actorDisplayName: string | null
+  changesJson: string
+  createdAt: string
+}
+type LeadAuditPage = { items: LeadAuditEntry[]; total: number; page: number; pageSize: number }
+const leadChanges = ref<LeadAuditEntry[]>([])
+const leadChangesTotal = ref(0)
+const leadChangesPage = ref(1)
+const leadChangesPageSize = ref(25)
+const leadChangesLoading = ref(false)
+const leadChangesError = ref('')
+let leadChangesGeneration = 0
+const leadAuditLabels: Record<string, string> = {
+  Name: 'Prospecto', CompanyName: 'Empresa', CountryId: 'País',
+  TaxId: 'Identificación fiscal', SourceCode: 'Origen',
+  SourceDetail: 'Detalle de captación', InitialNotes: 'Observaciones iniciales',
+  RelationshipTypeCode: 'Relación comercial', QualificationStatus: 'Estado',
+  ExecutiveUserId: 'Vendedor asignado', IsCastroFallasExecutive: 'Vendedor institucional',
+  ContactEmail: 'Correo', Phone: 'Teléfono', ConvertedAt: 'Fecha de conversión',
+  ConvertedAccountId: 'Cuenta vinculada', ArchivedAt: 'Fecha de archivo',
+  ContactName: 'Contacto', ContactEmail: 'Correo del contacto',
+  ContactPhone: 'Teléfono del contacto', JobTitle: 'Cargo',
+  IsPrimary: 'Contacto principal', IsOperationsContact: 'Contacto operativo',
+  AddressType: 'Tipo de ubicación', AddressText: 'Dirección',
+  Location: 'Ubicación', CountryCode: 'País', Admin1Name: 'Provincia',
+  Admin2Name: 'Cantón', Admin3Name: 'Distrito', PostalCode: 'Código postal',
+}
+function leadAuditFields(entry: LeadAuditEntry): LeadAuditChange[] {
+  try {
+    const parsed: unknown = JSON.parse(entry.changesJson)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is LeadAuditChange =>
+      item !== null && typeof item === 'object' &&
+      typeof item.field === 'string' &&
+      (item.before === null || typeof item.before === 'string') &&
+      (item.after === null || typeof item.after === 'string'))
+  } catch { return [] }
+}
+function leadAuditAction(code: string): string {
+  const actions: Record<string, string> = {
+    CREATED: 'Prospecto creado', UPDATED: 'Prospecto modificado',
+    ASSIGNED: 'Vendedor reasignado', CONVERTED: 'Prospecto convertido en cuenta',
+    ARCHIVED: 'Prospecto archivado', LOCATION_CREATED: 'Ubicación agregada',
+    LOCATION_UPDATED: 'Ubicación modificada', CONTACT_CREATED: 'Contacto agregado',
+    CONTACT_UPDATED: 'Contacto modificado', CONTACT_REMOVED: 'Contacto desvinculado',
+  }
+  return actions[code] || 'Cambio registrado'
+}
+function leadAuditValue(value: string | null, field: string): string {
+  if (!value) return 'Sin dato'
+  if (['IsCastroFallasExecutive', 'IsPrimary', 'IsOperationsContact'].includes(field))
+    return value === 'true' ? 'Sí' : value === 'false' ? 'No' : value
+  if (field === 'QualificationStatus') {
+    const states: Record<string, string> = {
+      New: 'Nueva', Qualified: 'Calificada', Disqualified: 'Descalificada',
+      Converted: 'Convertida', Contacted: 'Contactada', InProgress: 'En proceso',
+    }
+    return states[value] || value
+  }
+  if (field === 'ExecutiveUserId') {
+    if (value === String(record.value?.executiveUserId ?? '')) return leadExecutiveName.value
+    return 'Ejecutivo anterior'
+  }
+  if (field === 'CountryId' || field === 'ConvertedAccountId')
+    return 'Referencia vinculada'
+  if (['ArchivedAt', 'ConvertedAt'].includes(field)) return agendaDate(value)
+  return value
+}
+function leadAuditPreview(entry: LeadAuditEntry): string {
+  const first = leadAuditFields(entry)[0]
+  return first
+    ? (leadAuditLabels[first.field] || first.field) + ': ' +
+      leadAuditValue(first.before, first.field) + ' → ' + leadAuditValue(first.after, first.field)
+    : 'Registro de creación recuperado'
+}
+function resetLeadChanges() {
+  ++leadChangesGeneration
+  leadChanges.value = []
+  leadChangesTotal.value = 0
+  leadChangesPage.value = 1
+  leadChangesLoading.value = false
+  leadChangesError.value = ''
+}
+async function loadLeadChanges() {
+  if (section.value !== 'leads' || !id.value) return
+  const generation = ++leadChangesGeneration
+  const leadId = id.value
+  leadChangesLoading.value = true
+  leadChangesError.value = ''
+  try {
+    const result = await crmRequest<LeadAuditPage>(
+      crmPath('leads', leadId, 'change-history') +
+      '?page=' + leadChangesPage.value + '&pageSize=' + leadChangesPageSize.value)
+    if (generation !== leadChangesGeneration || id.value !== leadId || section.value !== 'leads') return
+    leadChanges.value = result.items || []
+    leadChangesTotal.value = result.total || 0
+  } catch (cause) {
+    if (generation !== leadChangesGeneration) return
+    leadChanges.value = []
+    leadChangesTotal.value = 0
+    leadChangesError.value = crmError(cause)
+  } finally {
+    if (generation === leadChangesGeneration) leadChangesLoading.value = false
+  }
+}
+function changeLeadChangesPage(page: number) {
+  leadChangesPage.value = page
+  void loadLeadChanges()
+}
+function changeLeadChangesPageSize(size: number) {
+  leadChangesPageSize.value = size
+  leadChangesPage.value = 1
+  void loadLeadChanges()
+}
+
 function showLeadTab(tab: LeadTab) {
   if (section.value !== 'leads' || !leadTabs.value.some(item => item.key === tab)) return
   leadTab.value = tab
+  if (tab === 'changes') void loadLeadChanges()
   const hash = tab === 'conversion' ? '#crm-lead-conversion' : ''
   if (route.hash === '#crm-lead-conversion' || hash) {
     if (route.hash !== hash) void router.replace({ path: route.path, query: route.query, hash })
@@ -1168,6 +1290,7 @@ onBeforeRouteLeave(() => {
   return new Promise<boolean>(resolve => { navigationDecision = resolve })
 })
 watch([id, section], () => {
+  resetLeadChanges()
   leadTab.value = section.value === 'leads' && route.hash === '#crm-lead-conversion' ? 'conversion' : 'summary'
   void load()
 })
@@ -1387,6 +1510,101 @@ onBeforeUnmount(() => window.removeEventListener('focus', syncActivityOnFocus))
         id="crm-lead-panel-history" role="tabpanel" class="min-w-0">
         <CrmLeadCommercialPanel :lead="record" :seller-name="leadExecutiveName" view="history" />
       </div>
+      <section v-if="section === 'leads' && leadTab === 'changes'"
+        id="crm-lead-panel-changes" role="tabpanel"
+        class="crm-panel space-y-4 p-4 sm:p-5">
+        <header class="flex flex-wrap items-start justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--dh-border)] bg-[var(--dh-shell)] text-[var(--dh-primary)]">
+              <History class="h-5 w-5" />
+            </div>
+            <div>
+              <h2 class="text-base font-extrabold">Historial de cambios</h2>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">
+                Modificaciones del prospecto, ordenadas desde la más reciente.
+              </p>
+            </div>
+          </div>
+          <DhButton variant="secondary" label="Actualizar" :loading="leadChangesLoading"
+            :disabled="leadChangesLoading" @click="loadLeadChanges()" />
+        </header>
+        <div class="flex flex-wrap items-center gap-2 border-y border-[var(--dh-border)] py-3 text-xs">
+          <span class="inline-flex items-center gap-2 rounded-full bg-[var(--dh-shell)] px-3 py-1.5 font-bold">
+            <History class="h-3.5 w-3.5 text-[var(--dh-primary)]" />
+            {{ leadChangesTotal }} movimientos
+          </span>
+          <span v-if="leadChanges.length" class="text-[var(--dh-text-muted)]">
+            Última actividad: {{ agendaDate(leadChanges[0]?.createdAt) }}
+          </span>
+        </div>
+        <p v-if="leadChangesLoading" role="status" class="text-xs text-[var(--dh-text-muted)]">Consultando historial de cambios…</p>
+        <p v-if="leadChangesError" role="alert" class="rounded-xl border border-red-500/40 p-3 text-xs text-red-500">
+          {{ leadChangesError }}
+        </p>
+        <p v-if="!leadChangesLoading && !leadChangesError && !leadChanges.length"
+          class="rounded-xl border border-dashed border-[var(--dh-border)] p-8 text-center text-sm text-[var(--dh-text-muted)]">
+          Aún no hay movimientos registrados para este prospecto.
+        </p>
+        <ol v-if="leadChanges.length" class="relative ml-4 border-l border-[var(--dh-border)] pl-7">
+          <li v-for="(entry, index) in leadChanges" :key="entry.id" class="relative pb-3 last:pb-0">
+            <span class="absolute -left-[45px] top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-primary)] shadow-sm">
+              <History class="h-4 w-4" />
+            </span>
+            <details class="group overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] open:shadow-sm"
+              :open="index === 0">
+              <summary class="flex cursor-pointer list-none flex-wrap items-center gap-3 px-4 py-3.5 hover:bg-[var(--dh-shell)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] [&::-webkit-details-marker]:hidden">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h3 class="text-sm font-extrabold">{{ leadAuditAction(entry.actionCode) }}</h3>
+                    <span class="rounded-md border border-[var(--dh-border)] bg-[var(--dh-shell)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dh-text-muted)]">
+                      {{ entry.areaCode === 'LOCATION' ? 'Ubicación' : entry.areaCode === 'CONTACT' ? 'Contacto' : 'Prospecto' }}
+                    </span>
+                  </div>
+                  <p class="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[var(--dh-text-muted)]">
+                    <UserRound class="h-3 w-3" />
+                    {{ entry.actorDisplayName || 'Usuario no disponible' }}
+                    <span aria-hidden="true">·</span>
+                    <time :datetime="entry.createdAt">{{ agendaDate(entry.createdAt) }}</time>
+                  </p>
+                  <p class="mt-2 truncate text-xs text-[var(--dh-text-muted)]">{{ leadAuditPreview(entry) }}</p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <span v-if="leadAuditFields(entry).length" class="hidden rounded-full bg-[var(--dh-shell)] px-2.5 py-1 text-[11px] font-semibold sm:inline">
+                    {{ leadAuditFields(entry).length }} campos
+                  </span>
+                  <ChevronDown class="h-4 w-4 text-[var(--dh-text-muted)] transition-transform group-open:rotate-180" />
+                </div>
+              </summary>
+              <div class="border-t border-[var(--dh-border)] bg-[var(--dh-shell)]/40 p-3">
+                <div v-if="leadAuditFields(entry).length" class="overflow-hidden rounded-lg border border-[var(--dh-border)] bg-[var(--dh-card)]">
+                  <div class="hidden grid-cols-[minmax(140px,.8fr)_minmax(0,1fr)_16px_minmax(0,1fr)] gap-3 border-b border-[var(--dh-border)] bg-[var(--dh-shell)] px-3 py-2 text-[10px] font-bold uppercase text-[var(--dh-text-muted)] sm:grid">
+                    <span>Campo modificado</span><span>Antes</span><span></span><span>Después</span>
+                  </div>
+                  <div v-for="(change, changeIndex) in leadAuditFields(entry)" :key="entry.id + '-' + changeIndex"
+                    class="grid gap-2 border-b border-[var(--dh-border)] px-3 py-3 text-xs last:border-0 sm:grid-cols-[minmax(140px,.8fr)_minmax(0,1fr)_16px_minmax(0,1fr)] sm:items-start sm:gap-3">
+                    <span class="font-bold">{{ leadAuditLabels[change.field] || change.field }}</span>
+                    <div class="min-w-0">
+                      <span class="mb-1 block text-[10px] text-[var(--dh-text-muted)] sm:hidden">Antes</span>
+                      <span class="block whitespace-pre-wrap break-words text-[var(--dh-text-muted)]">{{ leadAuditValue(change.before, change.field) }}</span>
+                    </div>
+                    <ArrowRight class="hidden h-3.5 w-3.5 text-[var(--dh-text-muted)] sm:block" />
+                    <div class="min-w-0">
+                      <span class="mb-1 block text-[10px] text-[var(--dh-text-muted)] sm:hidden">Después</span>
+                      <span class="block whitespace-pre-wrap break-words font-semibold">{{ leadAuditValue(change.after, change.field) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <p v-else class="text-xs text-[var(--dh-text-muted)]">
+                  Registro histórico de creación. Los cambios anteriores a la activación de la auditoría no pueden reconstruirse.
+                </p>
+              </div>
+            </details>
+          </li>
+        </ol>
+        <DhPagination v-if="leadChangesTotal > 0" :page="leadChangesPage" :page-size="leadChangesPageSize"
+          :total="leadChangesTotal" :class="leadChangesLoading ? 'pointer-events-none opacity-60' : ''"
+          @update:page="changeLeadChangesPage" @update:page-size="changeLeadChangesPageSize" />
+      </section>
       <div v-if="section === 'leads' && leadTab === 'documents'" id="crm-lead-panel-documents" role="tabpanel">
         <CrmDocumentsPanel kind="lead" :record-id="id" />
       </div>
