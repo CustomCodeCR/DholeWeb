@@ -14,6 +14,7 @@ test('visible operative status comes from its department rather than raw DRAFT',
 
 test('list and drawer expose CRM identity, team, operative and dual validators', () => {
   const view = source('src/modules/operations/views/OperationsCasesView.vue')
+  assert.match(view, /crmPath\('accounts', 'labels'\)/)
   assert.match(view, /crmPath\('accounts', id\)/)
   assert.match(view, /cell-teamName/)
   assert.match(view, /cell-assignedUserId/)
