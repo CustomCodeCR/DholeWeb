@@ -1,3 +1,9 @@
+## [1.120.0] - 2026-11-23 · DH-20261123-OPS-APERTURES-P1-416
+
+- MINOR coordinado con Operations: WHS obligatorio para FCA en cualquier modalidad de Aperturas; uso de los componentes DH existentes, sin nuevo sistema visual.
+- Sincronización universal DholeWeb/DholeSystem 1.119.1 → 1.120.0; DholeOperationsService 0.17.0 → 0.18.0. Los otros 14 servicios se mantienen sin cambios.
+- Entrega de primera parte de prioridad 1, sin aceptación automática Pricing ni autoguardado inicial servidor. Pruebas/CI y staging pendientes; master y producción no autorizados.
+
 ## [1.119.1] - 2026-11-23 · DH-20261123-PRICING-RETURN-MODAL-415
 
 - PATCH: en Dashboard → Solicitudes a Pricing, sustituir el motivo y el historial de devoluciones incrustados en cada fila por el botón «Ver devolución», que abre el DhModal compartido.
