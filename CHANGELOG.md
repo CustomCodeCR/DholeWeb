@@ -1,3 +1,10 @@
+## [1.120.7] - 2026-11-23 · DH-20261123-PRICING-LTL-EDIT-NAV-422
+
+- PATCH: en edición de QUO LTL terrestre existente, Pantalla 6 permite avanzar a Pantalla 7 sin depender de la validación de tarifa nueva `canNext`. Se usa el snapshot persistido para revisar cargos sin reimportar ni recalcular los fletes al navegar.
+- La ruta sigue exigiendo una tarifa persistida hidratada, no habilita la navegación comercial ni las cotizaciones nuevas; conserva las validaciones al guardar y el procesamiento de cambios por Outbox/Inbox existentes.
+- Regresión DH-422 ejecuta el manejador `next()` generado con `canNext=false`, comprueba no mutación de detalles y casos negativos; incluida en prebuild y tests Pricing.
+- DholeWeb y DholeSystem: 1.120.6 → 1.120.7; otros servicios sin cambios. CI y pruebas de staging pendientes; producción no autorizada para este nuevo release.
+
 ## [1.120.6] - 2026-11-23 · DH-20261123-PRICING-EDIT-STEP6-421
 
 - PATCH: al editar una cotización ya guardada, Pantalla 6 (flete terrestre LTL/FTL) permite avanzar a Pantalla 7 sin los controles de completitud exclusivos de creación; conserva las líneas persistidas, su agente, moneda y montos.
