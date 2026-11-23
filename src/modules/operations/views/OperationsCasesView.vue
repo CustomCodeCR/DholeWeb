@@ -311,14 +311,14 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
 
     <DhCard :icon="FolderOpen" title="Todos los trámites" subtitle="Consulta los IDTRA creados manualmente y los provenientes de Pricing. Selecciona una fila para ver el resumen.">
-      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_190px_210px]">
+      <div class="mb-3 grid gap-3 sm:grid-cols-2">
         <DhSearchInput v-model="search" placeholder="Buscar IDTRA, QUO o modalidad…" />
+        <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
+      </div>
+      <div class="mb-4 grid gap-3 sm:grid-cols-3">
+        <DhSelect v-model="accountId" :options="clientChoices" :disabled="fetchingClients" />
         <DhSelect v-model="apertureType" :options="typeOptions" />
         <DhSelect v-model="status" :options="statusOptions" />
-      </div>
-      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(190px,250px)]">
-        <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
-        <DhSelect v-model="accountId" :options="clientChoices" :disabled="fetchingClients" />
       </div>
       <DhDataTable :columns="columns" :rows="rows" :loading="loading" empty-text="No hay trámites para los filtros seleccionados." @row-click="openCase($event.id)">
         <template #cell-idtra="{ row }">
