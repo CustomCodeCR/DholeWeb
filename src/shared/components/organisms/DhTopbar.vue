@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router'
 import { APP_VERSION, APP_CHANNEL, APP_VERSION_DETAIL } from '@/core/version'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
+import DhCard from '@/shared/components/molecules/DhCard.vue'
 import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
 import { useAvatarMascotStore } from '@/core/stores/avatarMascotStore'
 import { useThemeStore } from '@/core/stores/themeStore'
@@ -215,13 +216,6 @@ onBeforeUnmount(() => {
       </kbd>
     </button>
 
-    <span
-      data-testid="topbar-version"
-      class="hidden min-w-0 truncate whitespace-nowrap text-[10px] font-medium text-[var(--dh-text-muted)] xl:block"
-      :title="APP_VERSION_DETAIL"
-    >
-      v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
-    </span>
 
     <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
       <div
@@ -352,6 +346,17 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </Teleport>
+
+      <DhCard
+        as="div"
+        padding="compact"
+        data-testid="topbar-version"
+        class="hidden h-11 shrink-0 flex-col items-center justify-center whitespace-nowrap text-center lg:flex"
+        :title="APP_VERSION_DETAIL"
+      >
+        <span class="text-xs font-bold leading-tight text-[var(--dh-text)]">v{{ APP_VERSION }}</span>
+        <span v-if="APP_CHANNEL !== 'production'" class="text-[10px] font-medium leading-tight text-[var(--dh-text-muted)]">{{ APP_CHANNEL }}</span>
+      </DhCard>
 
       <div class="flex items-center gap-1 rounded-[20px] border p-1 transition-colors duration-200 sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2"
         :class="themeStore.resolvedTheme === 'dark'
