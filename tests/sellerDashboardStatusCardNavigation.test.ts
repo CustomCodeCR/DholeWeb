@@ -40,9 +40,9 @@ test('Pricing rates page handles status query changes when the view is reused', 
   assert.match(ratesView, /selectedFilters\.statuses = updated\s+applyFilters\(\)/)
 })
 
-test('supervision allows own seller actions without allowing actions on other sellers quotations', () => {
+test('supervision distinguishes ownership-only receipt from authorized global commercial actions', () => {
   assert.match(dashboardView, /:enable-seller-actions="authStore\.hasScope\('pricing\.rate-request\.create'\)"/)
-  assert.match(sellerDashboard, /props\.adminPreview && selectedSellerId\.value/)
+  assert.match(sellerDashboard, /sellerDashboardRatesPath\(props\.adminPreview, props\.filterSeller\)/)
   assert.match(sellerDashboard, /\/api\/pricing\/seller-rates\/dashboard/)
   assert.match(sellerDashboard, /\/api\/pricing\/seller-rates'/)
   assert.match(sellerDashboard, /ownRatesById\.value\.has\(rate\.id\)/)
@@ -66,7 +66,7 @@ test('Pricing + Vendedor roles expose both dashboard views, not only SuperUsuari
 test('dual-role seller dashboard uses personal API, while supervisors retain global overview', () => {
   assert.match(dashboardView, /:admin-preview="isSuperUser\(\) \|\| \(canViewAllCommercialRates && !canSelectDashboard\)"/)
   assert.match(sellerDashboard, /path: props\.adminPreview \? '\/api\/pricing\/rate-requests\/dashboard' : '\/api\/pricing\/rate-requests\/mine'/)
-  assert.match(sellerDashboard, /path: props\.adminPreview \? '\/api\/pricing\/seller-rates\/dashboard' : '\/api\/pricing\/seller-rates'/)
+  assert.match(sellerDashboard, /sellerDashboardRatesPath\(props\.adminPreview, props\.filterSeller\)/)
   assert.match(dashboardView, /v-else-if="canUsePricing"/)
 })
 
