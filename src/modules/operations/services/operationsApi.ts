@@ -156,6 +156,21 @@ export interface OperationsOriginProgress {
     departureSource: string | null; version: number
   } | null
 }
+export interface OperationsServiceReviewDashboard {
+  services: Array<{
+    id: string; serviceCode: string; serviceName: string; source: 'QUOTED' | 'OPERATIONS_ADDED'
+    requiresPricingReview: boolean; reviewStatus: string
+  }>
+  alerts: Array<{
+    id: string; serviceLineId: string; code: string; severity: 'YELLOW' | 'RED' | 'GREEN'
+    status: string; createdAtUtc: string; resolvedAtUtc: string | null
+  }>
+  reviews: Array<{
+    id: string; serviceLineId: string; quoteId: string | null; acceptedOptionId: string | null
+    reason: string; status: string; requestedAtUtc: string; resolvedAtUtc: string | null
+  }>
+}
+
 export interface OperationsManualDraftSnapshot {
   id: string
   version: number
@@ -196,6 +211,13 @@ export const operationsApi = {
   cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow>>(
     '/api/operations/cases?' + caseQuery(page, 25, filters)),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
+  caseServicesAndReviews: (id: string) =>
+    request<OperationsServiceReviewDashboard>(`/api/operations/cases/${id}/services-and-reviews`),
+  addCaseService: (id: string, input: { idempotencyKey: string; serviceCode: string;
+    serviceName: string; reason: string }) =>
+    request<{ serviceId: string; reviewId: string; alertId: string;
+      severity: string; reviewStatus: string; duplicate: boolean }>(
+        `/api/operations/cases/${id}/services`, 'POST', input),
   caseTabs: (id: string) => request<{ caseId: string; tabs: OperationsCaseTab[] }>(
     `/api/operations/cases/${id}/tabs`),
   caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
