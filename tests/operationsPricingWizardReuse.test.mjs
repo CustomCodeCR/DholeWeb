@@ -42,6 +42,6 @@ test('wizard continues to save the existing Operations opening contract and draf
   assert.match(opening, /await router.push/)
   assert.match(opening, /restoringOpening = true/)
   assert.match(opening, /reconcileLocations/)
-  assert.match(opening, /Crear y asignar a equipo/)
+  assert.match(opening, /Crear y enviar a Coordinación Origen/)
   assert.doesNotMatch(opening, /seriesCode/)
 })

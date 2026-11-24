@@ -110,6 +110,7 @@ export interface OperationsDashboard {
     id: string; idtra: string; modalityCode: string; status: string; priority: number
     apertureType: 'MANUAL' | 'AUTOMATIC'; sourceQuoteId: string | null
     createdAtUtc: string; teamId: string | null; approvedReviews: number; pendingReviews: number
+    departmentCode?: string | null; canReview?: boolean
   }>
 }
 

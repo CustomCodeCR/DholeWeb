@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Plus } from 'lucide-vue-next'
 import { DhButton, DhInput, DhSelect } from '@/shared/components/atoms'
 import { DhSearchInput } from '@/shared/components/molecules'
@@ -9,6 +10,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 
 const props = defineProps<{ open: boolean }>()
 const auth = useAuthStore()
+const router = useRouter()
 const canInitialize = computed(() => auth.hasScope('operations.team.manage'))
 const initializing = ref(false)
 const emit = defineEmits<{
@@ -89,26 +91,8 @@ async function initializeWorkspace() {
   } finally { initializing.value = false }
 }
 async function submit() {
-  if (!valid.value || busy.value) return
-  busy.value = true
-  error.value = ''
-  try {
-    const result = await operationsApi.createAperture({
-      companyId: opening.value.companyId,
-      accountId: opening.value.accountId,
-      modalityCode: opening.value.modalityCode,
-      priority: opening.value.priority,
-      complexityPoints: opening.value.complexityPoints,
-      originCountryCode: opening.value.originCountryCode.trim().toUpperCase() || null,
-      destinationCountryCode: opening.value.destinationCountryCode.trim().toUpperCase() || null,
-    })
-    opening.value.accountId = ''
-    crmSearch.value = ''
-    emit('created', result)
-    emit('close')
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'No se pudo crear el trámite.'
-  } finally { busy.value = false }
+  emit('close')
+  await router.push({ name: 'operations-case-create' })
 }
 </script>
 
@@ -117,7 +101,7 @@ async function submit() {
     <form class="space-y-5" @submit.prevent="submit">
       <p class="text-sm text-[var(--dh-text-muted)]">
         Registre una asignación directa de un cliente. La QUO es opcional; el ejecutivo se obtiene de CRM.
-        El trámite quedará pendiente de validación y no se inventarán costos comerciales.
+        Completa el formulario de apertura para enviar el trámite a Coordinación Origen. No se inventarán costos comerciales.
       </p>
       <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
       <div v-if="!opening.companyId && canInitialize" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-4">
@@ -132,16 +116,18 @@ async function submit() {
       </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <DhSelect v-model="opening.modalityCode" label="Modalidad" :options="modalityOptions" />
+        <DhInput :model-value="opening.priority" label="Prioridad (1-5)" type="number" :min="1" :max="5" :step="1" @update:model-value="opening.priority = Number($event)" />
+        <DhInput :model-value="opening.complexityPoints" label="Puntos de complejidad" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="opening.complexityPoints = Number($event)" />
         <DhInput v-model="opening.originCountryCode" label="País de origen (ISO, opcional)" placeholder="CR" />
         <DhInput v-model="opening.destinationCountryCode" label="País de destino (ISO, opcional)" placeholder="HN" />
       </div>
       <p class="rounded-xl bg-[var(--dh-input)] p-3 text-xs text-[var(--dh-text-muted)]">
-        Podrá completar y modificar los datos de Aperturas antes de validar el expediente.
+        El formulario completo verifica los datos antes del envío directo a Coordinación Origen.
         El IDTRA lo genera PostgreSQL; no se introduce manualmente.
       </p>
       <div class="flex flex-wrap justify-end gap-2">
         <DhButton variant="secondary" label="Cancelar" @click="emit('close')" />
-        <DhButton type="submit" :icon="Plus" label="Crear trámite" :loading="busy || loadingContext" :disabled="!valid || loadingContext" />
+        <DhButton type="submit" :icon="Plus" label="Continuar al formulario" :loading="busy || loadingContext" :disabled="!valid || loadingContext" />
       </div>
     </form>
   </DhModal>

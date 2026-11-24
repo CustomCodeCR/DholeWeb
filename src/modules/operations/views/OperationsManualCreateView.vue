@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Tr
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { operationsApi, type OperationsAssignmentTeam } from '../services/operationsApi'
+import { operationsApi } from '../services/operationsApi'
 import { crmGet, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -52,34 +52,13 @@ const autosaveState = ref<'pending' | 'saved' | 'error'>('saved')
 const lastAutoSaveAt = ref('')
 const contactsTouched = ref(false)
 const assignmentPendingId = ref('')
-const assignedTeamId = ref('')
-const availableTeams = ref<OperationsAssignmentTeam[]>([])
-const assignmentTeamsLoading = ref(false)
-const assignmentTeamsError = ref('')
-const selectedOpeningTeam = computed(() => availableTeams.value.find(team => team.id === assignedTeamId.value))
-const assignmentTeamOptions = computed(() => availableTeams.value.map(team => ({
-  value: team.id,
-  label: team.name + (team.canAssign
-    ? ' · ' + team.availableReviewers + ' disponibles'
-    : ' · Sin dos validadores disponibles'),
-})))
-async function loadAssignmentTeams() {
-  if (!companyId.value || editingId.value) return
-  assignmentTeamsLoading.value = true
-  assignmentTeamsError.value = ''
-  try {
-    availableTeams.value = await operationsApi.assignmentTeams(companyId.value)
-  } catch (cause) {
-    assignmentTeamsError.value = cause instanceof Error ? cause.message : 'No se pudieron consultar los equipos de Aperturas.'
-  } finally { assignmentTeamsLoading.value = false }
-}
 const autosaveReady = ref(false)
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
 const wizardSteps = [
   { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
   { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
-  { id: 3, label: 'Revisión', hint: 'Confirmar datos y asignar validación al equipo' },
+  { id: 3, label: 'Revisión', hint: 'Confirmar datos y enviar a Coordinación Origen' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
 const catalogLoading = ref(false)
@@ -280,10 +259,6 @@ const blockers = computed(() => {
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
   if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
-  if (!editingId.value) {
-    if (!assignedTeamId.value) result.push('Equipo de Aperturas por seleccionar')
-    else if (!selectedOpeningTeam.value?.canAssign) result.push('El equipo seleccionado requiere dos validadores habilitados')
-  }
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
@@ -537,7 +512,6 @@ function draftSnapshot(): Record<string, unknown> {
     executiveName: executiveName.value, executiveUserId: executiveUserId.value,
     institutionalExecutive: institutionalExecutive.value,
     contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
-    assignedTeamId: assignedTeamId.value,
   }
 }
 function persistLocalDraft(draft = draftSnapshot()) {
@@ -600,7 +574,6 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
     institutionalExecutive.value = draft.institutionalExecutive === true
     contactsTouched.value = draft.contactsTouched === true
     assignmentPendingId.value = String(draft.assignmentPendingId || '')
-    assignedTeamId.value = String(draft.assignedTeamId || '')
     const step = Number(draft.step)
     activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
     reconcileLocations()
@@ -649,7 +622,7 @@ async function clearLocalDraft() {
   try { await operationsApi.clearManualOpeningDraft() }
   catch { /* Successful IDTRA creation is never reverted by failed cleanup. */ }
 }
-watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, assignedTeamId],
+watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId],
   scheduleLocalDraft, { deep: true })
 onBeforeUnmount(() => {
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -661,10 +634,6 @@ onBeforeUnmount(() => {
 
 async function save() {
   if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
-  if (!editingId.value && !selectedOpeningTeam.value?.canAssign) {
-    error.value = 'Selecciona un equipo de Aperturas con al menos dos validadores disponibles.'
-    return
-  }
   if ((!valid.value || blockers.value.length > 0) && !assignmentPendingId.value && !editingId.value) {
     error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en PostgreSQL (con copia local de respaldo).'
     return
@@ -686,7 +655,7 @@ async function save() {
         quantity: Number(item.quantity),
         ...(editingId.value && item.weightKg != null ? { weightKg: item.weightKg } : {}),
       })),
-      completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_VALIDATION',
+      completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_ORIGIN',
       missingFields: blockers.value,
       ...(!editingId.value ? { commercialStatus: 'SIN_QUO' } : {}),
     }
@@ -711,17 +680,18 @@ async function save() {
           destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
           openingData,
         })
-    // A created IDTRA is retained across assignment retries: never create a duplicate.
+    // Operations atomically creates the Origin stage. The worker handles assignment retries.
+    // Do not open a case that is now owned by another department.
     if (!editingId.value) {
       assignmentPendingId.value = result.id
       persistLocalDraft()
-      await operationsApi.assign(result.id, assignedTeamId.value)
     }
     await clearLocalDraft()
-    await router.push({ name: 'operations-case-detail', params: { id: result.id } })
+    if (editingId.value) await router.push({ name: 'operations-case-detail', params: { id: result.id } })
+    else await router.push({ name: 'operations-cases', query: { manualSubmitted: '1' } })
   } catch (cause) {
     error.value = assignmentPendingId.value
-      ? 'El IDTRA fue creado, pero no se pudo completar la asignación al equipo seleccionado. Comprueba que tenga dos validadores activos con permisos y reintenta; el IDTRA no se duplicará. Detalle: ' + (cause instanceof Error ? cause.message : 'Error desconocido')
+      ? 'El IDTRA existente no se duplicará. Consulta su estado con el supervisor de Coordinación Origen. Detalle: ' + (cause instanceof Error ? cause.message : 'Error desconocido')
       : cause instanceof Error ? cause.message : 'No se pudo crear la apertura.'
   } finally { saving.value = false }
 }
@@ -731,7 +701,7 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) form.value.whsName = label })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { await restoreDraft(); autosaveReady.value = true; await loadAssignmentTeams() }
+  if (!editingId.value) { await restoreDraft(); autosaveReady.value = true }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -788,7 +758,7 @@ onMounted(async () => {
             {{ autosaveState === 'error' ? 'Autoguardado no disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
           </span>
           <DhButton :icon="editingId ? Save : FolderPlus"
-            :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
+            :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Confirmar trámite existente' : 'Crear y enviar a Coordinación Origen'"
             :loading="saving" :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && blockers.length > 0 && !assignmentPendingId)"
             @click="save" />
         </div>
@@ -820,7 +790,7 @@ onMounted(async () => {
 
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-500">{{ error }}</div>
     <div v-if="assignmentPendingId" role="status" class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm font-semibold text-amber-500">
-      El IDTRA ya fue creado. La asignación sigue pendiente; utiliza «Reintentar asignación» para continuar sin generar otro expediente.
+      El IDTRA ya existe. Confirma para continuar sin generar otro expediente. Operations recuperará las asignaciones pendientes.
     </div>
     <div v-if="catalogIssue" role="status" class="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 text-xs font-semibold text-amber-500">{{ catalogIssue }}</div>
     <DhCard v-if="!companyId && canInitialize && !editingId" title="Inicialización de Operaciones" subtitle="Acción administrativa, necesaria solo cuando la empresa operativa no se ha identificado.">
@@ -1193,7 +1163,7 @@ onMounted(async () => {
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h4 class="text-lg font-black">Revisión de apertura</h4>
-              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Confirma el expediente y selecciona el equipo de Aperturas que realizará la doble validación.</p>
+              <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Confirma la información del expediente. La apertura manual pasa directamente a Coordinación Origen sin doble validación.</p>
             </div>
             <DhBadge :variant="blockers.length ? 'warning' : 'success'">
               {{ blockers.length ? blockers.length + ' datos por completar' : 'Información completa' }}
@@ -1259,31 +1229,14 @@ onMounted(async () => {
               </section>
             </div>
             <div class="space-y-4">
-              <section class="rounded-[20px] border border-[var(--dh-primary)]/30 bg-[rgb(var(--dh-primary-rgb)/0.04)] p-4 sm:p-5">
-                <div class="flex items-center gap-2"><UsersRound class="h-5 w-5 text-[var(--dh-primary)]" /><h5 class="text-base font-black">Equipo de Aperturas</h5></div>
-                <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Elige el equipo antes de crear el expediente. Dos validadores diferentes revisarán la apertura.</p>
-                <div v-if="editingId" class="mt-4 text-sm font-semibold">La asignación existente se mantiene al editar el trámite.</div>
-                <template v-else>
-                  <DhSelect v-model="assignedTeamId" class="mt-4" label="Asignar al equipo" :options="assignmentTeamOptions"
-                    :disabled="assignmentTeamsLoading" placeholder="Seleccionar equipo de Aperturas" />
-                  <div v-if="selectedOpeningTeam" class="mt-3 rounded-xl border p-3"
-                    :class="selectedOpeningTeam.canAssign ? 'border-[var(--dh-primary)]/30' : 'border-amber-500/40'">
-                    <p class="text-sm font-black">{{ selectedOpeningTeam.name }}</p>
-                    <p class="mt-1 text-xs" :class="selectedOpeningTeam.canAssign ? 'text-[var(--dh-text-muted)]' : 'text-amber-500'">
-                      {{ selectedOpeningTeam.availableReviewers }} colaboradores disponibles · {{ selectedOpeningTeam.canAssign ? 'Cumple el mínimo de 2 validadores configurados (sujeto a validación de Auth)' : 'Se requieren 2 usuarios disponibles y autorizados' }}
-                    </p>
-                  </div>
-                  <p v-else-if="!assignmentTeamsLoading && !availableTeams.length" class="mt-3 text-xs font-semibold text-amber-500">
-                    No hay equipos de Aperturas activos. Configura uno con dos validadores en Operaciones → Equipos.
-                  </p>
-                  <p v-if="assignmentTeamsError" role="alert" class="mt-2 text-xs text-amber-500">{{ assignmentTeamsError }}</p>
-                  <DhButton variant="secondary" :icon="RefreshCw" size="sm" label="Actualizar equipos" class="mt-3"
-                    :loading="assignmentTeamsLoading" @click="loadAssignmentTeams" />
-                </template>
-              </section>
+              <DhCard title="Coordinación Origen" :icon="UsersRound" padding="sm">
+                <p class="text-sm text-[var(--dh-text-muted)]">
+                  {{ editingId ? 'La asignación existente se mantiene al editar el trámite.' : 'El pool operativo asignará el equipo y el operativo de Origen según las reglas de ruta, modalidad y disponibilidad. No requiere validadores de Aperturas.' }}
+                </p>
+              </DhCard>
               <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
                 <div class="flex items-center justify-between gap-2"><h5 class="text-sm font-black">Completitud</h5><DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? blockers.length + ' pendientes' : 'Lista' }}</DhBadge></div>
-                <p v-if="!blockers.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">Información mínima lista. La asignación será confirmada por Operations y registrada en el expediente.</p>
+                <p v-if="!blockers.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">Información mínima lista. Operations registra el envío a Coordinación Origen y recupera la asignación si el pool no está disponible.</p>
                 <ul v-else class="mt-3 space-y-2">
                   <li v-for="item in blockers" :key="item" class="flex gap-2 text-xs font-semibold text-amber-500"><CircleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" />{{ item }}</li>
                 </ul>
@@ -1306,7 +1259,7 @@ onMounted(async () => {
       <div class="flex items-center gap-2">
         <DhButton v-if="activeStep < wizardSteps.length" :icon="ChevronRight" label="Siguiente" @click="goToStep(activeStep + 1)" />
         <DhButton v-else :icon="editingId ? Save : FolderPlus"
-          :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Reintentar asignación' : 'Crear y asignar a equipo'"
+          :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Confirmar trámite existente' : 'Crear y enviar a Coordinación Origen'"
           :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && blockers.length > 0 && !assignmentPendingId)" :loading="saving" @click="save" />
       </div>
     </footer>

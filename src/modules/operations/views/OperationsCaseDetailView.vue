@@ -233,7 +233,7 @@ const clientExecutiveName = ref('')
 const responsibleNames = ref<Record<string, string>>({})
 const currentResponsibility = computed(() => workspace.value?.stages.find(s =>
   s.status === 'IN_PROGRESS') || workspace.value?.stages.find(s =>
-  s.status === 'READY') || workspace.value?.stages[0])
+  s.status === 'READY') || workspace.value?.stages.find(s => !['COMPLETED', 'SKIPPED'].includes(s.status)) || workspace.value?.stages[0])
 const currentDepartmentStatus = computed(() => departmentStatusLabel(
   currentResponsibility.value?.departmentCode, currentResponsibility.value?.status,
   record.value?.status,
@@ -421,7 +421,13 @@ async function load() {
       }).catch(() => {}))
     await Promise.all(optional)
   } catch (cause) {
-    if (current === sequence) error.value = cause instanceof Error ? cause.message : 'No se pudo abrir el expediente.'
+    if (current === sequence) {
+      record.value = null
+      workspace.value = null
+      access.value = []
+      commercialReviews.value = null
+      error.value = cause instanceof Error ? cause.message : 'No se pudo abrir el expediente.'
+    }
   } finally { if (current === sequence) loading.value = false }
 }
 async function saveEdit() {
@@ -497,7 +503,7 @@ useOperationsCaseRealtime(caseId, () => {
   }
   void load()
 })
-watch(caseId, () => { selectedTab.value = 'RESUMEN'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
+watch([caseId, () => auth.userId], () => { record.value = null; workspace.value = null; selectedTab.value = 'RESUMEN'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
 </script>
 
 <template>
@@ -556,6 +562,11 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; reviewComment.value = ''; r
         </div>
       </div></DhCard>
 
+      <OperationsApertureValidationPanel
+        v-if="record.apertureType === 'AUTOMATIC' && (record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS')"
+        :case-id="record.id"
+        @updated="load"
+      />
       <DhTabs :model-value="selectedTab" :items="caseTabItems" aria-label="Departamentos del expediente" @update:model-value="selectCaseTab">
         <template #label="{ item }">
           <span class="inline-flex items-center gap-2">
@@ -677,11 +688,6 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; reviewComment.value = ''; r
           </DhCard>
         </div>
         <div class="space-y-4">
-          <OperationsApertureValidationPanel
-            v-if="record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS'"
-            :case-id="record.id"
-            @updated="load"
-          />
           <DhCard title="Pendientes del expediente">
             <div v-for="task in workspace.tasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
               <p class="font-bold">{{ task.title }}</p>

@@ -8,6 +8,7 @@ import {
 import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { useAuthStore } from '@/core/stores/authStore'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { operationsApi, type OperationsDashboard } from '@/modules/operations/services/operationsApi'
 
 const { t, locale } = useI18n()
@@ -29,10 +30,13 @@ const options = computed(() => [
   })),
 ])
 const roleLabel = computed(() =>
-  auth.hasScope('operations.case.read-all') ||
+  ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)) ||
   accessibleTeams.value.some(team => team.isSupervisor)
     ? t('operations.dashboard.supervisor')
     : t('operations.dashboard.operator'))
+const isAperturas = computed(() => selectedTeamId.value
+  ? accessibleTeams.value.some(team => team.id === selectedTeamId.value && team.departmentCode === 'APERTURAS')
+  : accessibleTeams.value.some(team => team.departmentCode === 'APERTURAS'))
 const cards = computed(() => [
   {
     key: 'total',
@@ -43,8 +47,8 @@ const cards = computed(() => [
   },
   {
     key: 'manual',
-    label: 'Aperturas manuales',
-    hint: 'Asignaciones directas registradas por Operaciones.',
+    label: 'Trámites manuales',
+    hint: 'Expedientes manuales registrados por Operaciones.',
     value: data.value?.stats.manual,
     icon: ClipboardList,
   },
@@ -57,7 +61,7 @@ const cards = computed(() => [
   },
   {
     key: 'awaiting',
-    label: t('operations.dashboard.awaiting'),
+    label: 'Sin operativo asignado',
     hint: t('operations.dashboard.awaitingHint'),
     value: data.value?.stats.awaitingAssignment,
     icon: UsersRound,
@@ -76,14 +80,16 @@ const cards = computed(() => [
     value: data.value?.stats.approved,
     icon: ShieldCheck,
   },
-])
+].filter(card => isAperturas.value || !['review', 'approved'].includes(card.key)))
 
 const recentRows = computed(() => data.value?.items ?? [])
 const recentColumns = computed<DhTableColumn<OperationsDashboard['items'][number]>[]>(() => [
   { key: 'idtra', label: t('operations.validation.record') },
   { key: 'modalityCode', label: t('operations.validation.modality') },
+  { key: 'departmentCode', label: 'Departamento' },
   { key: 'status', label: t('operations.validation.status') },
-  { key: 'approvedReviews', label: t('operations.validation.reviews'), align: 'center' },
+  ...(isAperturas.value ? [{ key: 'approvedReviews', label: t('operations.validation.reviews'), align: 'center' as const }] : []),
+  { key: 'actions', label: '' },
   { key: 'createdAtUtc', label: t('operations.validation.created') },
 ])
 function statusLabel(status: string): string {
@@ -119,6 +125,8 @@ async function load() {
   }
 }
 watch(selectedTeamId, load)
+watch(() => auth.userId, () => { selectedTeamId.value = ''; accessibleTeams.value = []; void load() })
+useRealtimeListRefresh({ prefixes: ['/api/operations'], refresh: load })
 onMounted(load)
 </script>
 
@@ -137,7 +145,7 @@ onMounted(load)
             <span class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ roleLabel }}</span>
           </div>
           <h1 class="mt-1 text-xl font-black tracking-tight text-[var(--dh-text)] sm:text-2xl">
-            {{ t('operations.dashboard.heading') }}
+            {{ isAperturas ? t('operations.dashboard.heading') : 'Mis trámites operativos' }}
           </h1>
           <p class="mt-1 max-w-3xl text-sm leading-5 text-[var(--dh-text-muted)]">
             {{ t('operations.dashboard.subtitle') }}
@@ -190,7 +198,7 @@ onMounted(load)
     <DhCard v-if="!error" padding="md">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
-          <h2 class="text-base font-black text-[var(--dh-text)]">{{ t('operations.dashboard.recent') }}</h2>
+          <h2 class="text-base font-black text-[var(--dh-text)]">{{ isAperturas ? t('operations.dashboard.recent') : 'Trámites recientes' }}</h2>
           <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">{{ t('operations.dashboard.recentHint') }}</p>
         </div>
         <RouterLink to="/operations/cases" class="inline-flex min-h-9 items-center gap-1.5 rounded-xl px-2 text-sm font-bold text-[var(--dh-primary)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)]">
@@ -219,7 +227,9 @@ onMounted(load)
           </RouterLink>
         </template>
         <template #cell-status="{ row }"><DhBadge :variant="row.approvedReviews >= 2 ? 'success' : row.pendingReviews ? 'warning' : 'neutral'">{{ statusLabel(row.status) }}</DhBadge></template>
-        <template #cell-approvedReviews="{ row }"><span class="tabular-nums">{{ row.approvedReviews }} / 2</span></template>
+        <template #cell-departmentCode="{ row }">{{ row.departmentCode ? t('operations.departments.' + row.departmentCode) : 'Pendiente' }}</template>
+        <template #cell-approvedReviews="{ row }"><span class="tabular-nums">{{ row.apertureType === 'MANUAL' ? 'No aplica' : row.approvedReviews + ' / 2' }}</span></template>
+        <template #cell-actions="{ row }"><RouterLink :to="{ name: 'operations-case-detail', params: { id: row.id } }"><DhButton size="sm" variant="secondary" :label="row.canReview && auth.hasScope('operations.aperture.validation.review') ? 'Revisar apertura' : 'Abrir expediente'" /></RouterLink></template>
         <template #cell-createdAtUtc="{ row }">{{ dateLabel(row.createdAtUtc) }}</template>
       </DhDataTable>
       <p v-if="data && data.stats.total > data.items.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">
