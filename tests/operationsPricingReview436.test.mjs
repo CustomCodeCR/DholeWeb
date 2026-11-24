@@ -1,29 +1,26 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-
 const detail = readFileSync(new URL('../src/modules/operations/views/OperationsCaseDetailView.vue', import.meta.url), 'utf8')
 const api = readFileSync(new URL('../src/modules/operations/services/operationsApi.ts', import.meta.url), 'utf8')
-
-test('Operations distinguishes quoted and added services and preserves commercial quotation', () => {
-  assert.match(detail, /service\.source === 'QUOTED'/)
-  assert.match(detail, /QUO original permanece sin modificaciones/)
-  assert.match(detail, /pendingCommercialAlerts\.length/)
-  assert.match(detail, /role="alert"/)
-  assert.match(detail, /<DhCard title="Servicios del expediente/)
-  assert.match(detail, /<DhInput v-model="newService\.serviceCode"/)
-  assert.match(detail, /<DhTextarea v-model="newService\.reason"/)
-  assert.match(detail, /!validNewService/)
-  assert.match(detail, /operationsApi\.addCaseService/)
+const pricing = readFileSync(new URL('../src/modules/pricing/views/PricingOperationsReviewsView.vue', import.meta.url), 'utf8')
+test('Accepted QUO summary and discrepancy workflow are separate from service creation', () => {
+  assert.match(detail, /Resumen de la QUO aceptada/)
+  assert.match(detail, /Semáforo comercial/)
+  assert.match(detail, /comparisonColumns/)
+  assert.match(detail, /La QUO original permanece sin modificaciones/)
+  assert.doesNotMatch(detail, /Servicios del expediente y revisiones comerciales/)
+  assert.doesNotMatch(detail, /newService\.serviceCode/)
+  assert.doesNotMatch(detail, /label="Prioridad"|label="Complejidad"/)
+  assert.match(detail, /operationsApi\.requestQuoteReview/)
+  assert.match(detail, /expectedVersion: selected\.version, fingerprint: selected\.fingerprint/)
+  assert.match(detail, /operationsApi\.caseContacts/)
+  assert.match(detail, /Contactos del cliente/)
+  assert.match(api, /commercial\/comparison\/review/)
+  assert.match(api, /operations-contacts/)
+  assert.match(pricing, /QUOTE_DISCREPANCY/)
 })
-
-test('Added service retries reuse idempotency key until confirmed', () => {
-  const create = detail.slice(detail.indexOf('async function addOperationalService()'),
-    detail.indexOf('async function addNote()'))
-  assert.match(create, /idempotencyKey: addServiceKey\.value/)
-  assert.match(create, /addServiceKey\.value = crypto\.randomUUID\(\)/)
-  assert.match(create, /Se generó una alerta amarilla/)
-  assert.match(create, /El motivo y los datos se conservaron/)
+test('Legacy service request API is retained for compatible callers', () => {
   assert.match(api, /caseServicesAndReviews: \(id: string\)/)
   assert.match(api, /addCaseService: \(id: string, input:/)
   assert.match(api, /OPERATIONS_ADDED/)

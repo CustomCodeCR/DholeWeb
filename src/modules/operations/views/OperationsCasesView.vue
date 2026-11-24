@@ -81,6 +81,19 @@ const selectedStatusLabel = computed(() => departmentStatusLabel(
   rows.value.find(x => x.id === selected.value?.id)?.originStatusCode,
 ))
 const clientName = ref('')
+const clientContacts = ref<import('../services/operationsApi').OperationsContact[]>([])
+const contactsUnavailable = ref(false)
+const contactsLoading = ref(false)
+const drawerComparison = ref<import('../services/operationsApi').OperationsQuoteComparison | null>(null)
+async function loadCaseCommercialAndContacts(id: string, sequence: number) {
+  contactsLoading.value = true
+  const [contacts, comparison] = await Promise.allSettled([operationsApi.caseContacts(id), operationsApi.caseQuoteComparison(id)])
+  if (sequence !== detailSequence || selectedCaseId.value !== id) return
+  clientContacts.value = contacts.status === 'fulfilled' && Array.isArray(contacts.value) ? contacts.value : []
+  contactsUnavailable.value = contacts.status === 'rejected'
+  drawerComparison.value = comparison.status === 'fulfilled' ? comparison.value : null
+  contactsLoading.value = false
+}
 const clientExecutiveName = ref('')
 const resolvedAccounts = ref<Record<string, string>>({})
 const caseClientNames = ref<Record<string, string | null>>({})
@@ -266,6 +279,9 @@ async function openCase(id: string) {
   clientName.value = ''
   clientExecutiveName.value = ''
   selectedWorkspace.value = null
+  clientContacts.value = []
+  contactsUnavailable.value = false
+  drawerComparison.value = null
   supplemental.value = {}
   selected.value = null
   try {
@@ -275,6 +291,7 @@ async function openCase(id: string) {
     if (sequence !== detailSequence) return
     selected.value = detail
     selectedWorkspace.value = workspace
+    void loadCaseCommercialAndContacts(id, sequence)
     resolvedPeople.value = { ...resolvedPeople.value, ...(workspace.people || {}) }
     void sameRevisionCommercialData(workspace).then(x => { if (sequence === detailSequence) supplemental.value = x })
     clientName.value = resolvedAccounts.value[detail.accountId] || readable(workspace.commercialData?.clientName) || readable(caseClientNames.value[detail.id])
@@ -318,6 +335,7 @@ async function refreshSelected() {
     if (selectedCaseId.value === id) {
       selected.value = detail
       selectedWorkspace.value = work
+      void loadCaseCommercialAndContacts(id, detailSequence)
       resolvedPeople.value = { ...resolvedPeople.value, ...(work.people || {}) }
       void resolvePeople([
         detail.createdBy, detail.executiveUserId,
@@ -510,6 +528,19 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           </div>
         </DhCard>
 
+        <DhCard padding="sm" title="Contactos del cliente">
+          <p v-if="contactsLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando CRM…</p>
+          <p v-else-if="contactsUnavailable" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los contactos de CRM.</p>
+          <p v-else-if="!clientContacts.length" class="text-xs text-[var(--dh-text-muted)]">Sin contactos operativos activos registrados.</p>
+          <div v-for="contact in clientContacts" :key="contact.id" class="border-b border-[var(--dh-border)] py-2">
+            <p class="text-sm font-semibold">{{ contact.name || 'Nombre no registrado' }}</p>
+            <p class="break-all text-xs">{{ contact.email || 'Correo no registrado' }}</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
+          </div>
+          <div v-if="drawerComparison?.hasSnapshot" class="mt-3">
+            <DhBadge :variant="drawerComparison.severity === 'RED' ? 'danger' : drawerComparison.severity === 'YELLOW' ? 'warning' : drawerComparison.severity === 'GREEN' ? 'success' : 'neutral'">{{ drawerComparison.rows.filter(x => x.status === 'CHANGED').length }} diferencias con QUO</DhBadge>
+          </div>
+        </DhCard>
         <DhCard padding="sm">
           <div class="mb-3 flex items-center gap-2"><CheckCircle2 class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Responsables y validación</h3></div>
           <div v-if="selectedWorkspace?.stages.length" class="space-y-2">

@@ -1,8 +1,10 @@
-## [1.123.4] - 2026-11-24
+## [1.124.1] - 2026-11-24
 
-- Operations: assigned-case lists and team-aware dashboard; prominent review actions for automatic openings.
-- Manual openings: direct Origin handoff; remove selection of dual Aperturas validators. Preserve existing draft ID on retry.
-- Candidate: CI and staging pending.
+- Scope operational views by assignment, expose automatic opening review, and send manual openings directly to origin.
+
+## [1.124.0] - 2026-11-24
+
+- MINOR: resumen de QUO original, semáforo comparativo, historial y solicitud de recotización, contactos CRM del expediente y drawer. Se elimina el formulario de servicios adicionales y la prioridad/complejidad visibles (se conservan métricas del pool). Reutiliza componentes DH. Sin alteración de la QUO original.
 
 ## [1.123.3] - 2026-11-24
 

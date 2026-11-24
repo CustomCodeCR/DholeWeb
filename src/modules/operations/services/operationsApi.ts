@@ -181,6 +181,26 @@ export interface OperationsServiceReviewDashboard {
   }>
 }
 
+export type OperationsContact = {
+  id: string; accountId: string; name: string; firstName?: string | null; lastName?: string | null
+  jobTitle?: string | null; email?: string | null; phone?: string | null
+  isPrimary: boolean; isOperationsContact: boolean
+}
+export type OperationsQuoteComparisonRow = {
+  field: string; label: string; quoted: string | null; current: string | null
+  status: 'MATCH' | 'CHANGED' | 'UNCONFIRMED'
+}
+export type OperationsQuoteDiscrepancyReview = {
+  id: string; fingerprint: string; status: string; reason: string
+  requestedAtUtc: string; resolvedAtUtc: string | null; decisionReason: string | null
+  commercialRevision: number; differencesJson: string
+}
+export interface OperationsQuoteComparison {
+  hasSnapshot: boolean; fingerprint: string; rows: OperationsQuoteComparisonRow[]
+  version: number; severity: 'UNKNOWN' | 'GREEN' | 'YELLOW' | 'RED'
+  currentReview: OperationsQuoteDiscrepancyReview | null
+  history: OperationsQuoteDiscrepancyReview[]; canRequest: boolean
+}
 export interface OperationsManualDraftSnapshot {
   id: string
   version: number
@@ -224,6 +244,10 @@ export const operationsApi = {
   cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow> & { clientNames?: Record<string, string | null>; people?: Record<string, string> }>(
     '/api/operations/cases?' + caseQuery(page, 25, filters)),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
+  caseContacts: (id: string) => request<OperationsContact[]>(`/api/operations/cases/${id}/operations-contacts`),
+  caseQuoteComparison: (id: string) => request<OperationsQuoteComparison>(`/api/operations/cases/${id}/commercial/comparison`),
+  requestQuoteReview: (id: string, input: { expectedVersion: number; fingerprint: string; comment?: string }) =>
+    request<{ reviewId: string; status: string; duplicate: boolean }>(`/api/operations/cases/${id}/commercial/comparison/review`, 'POST', input),
   caseServicesAndReviews: (id: string) =>
     request<OperationsServiceReviewDashboard>(`/api/operations/cases/${id}/services-and-reviews`),
   addCaseService: (id: string, input: { idempotencyKey: string; serviceCode: string;

@@ -657,7 +657,7 @@ async function save() {
       })),
       completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_ORIGIN',
       missingFields: blockers.value,
-      commercialStatus: 'SIN_QUO',
+      ...(!editingId.value ? { commercialStatus: 'SIN_QUO' } : {}),
     }
     const result = editingId.value
       ? await operationsApi.updateCase(editingId.value, {
