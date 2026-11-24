@@ -1,3 +1,7 @@
+## [1.124.8] - 2026-11-24 · DH-20261124-GLOBAL-COMMERCIAL-ACTIONS
+
+- PATCH: supervisión con permisos globales y de creación de solicitudes puede solicitar modificaciones y renovaciones, aceptar y rechazar cotizaciones ajenas desde el dashboard responsive. No habilita recepción ajena ni edición directa de costos; se mantienen los estados, aprobaciones y componentes DH existentes. CI y staging pendientes.
+
 ## [1.124.7] - 2026-11-24 · DH-20261124-PRICING-PANAMA-EXCESS-EDIT
 
 - PATCH: conserva los cuatro cargos del excedente Panamá en FCL al editar, separa el flete del excedente de Merchant/Naviera y recupera detalles históricos por ID sin duplicarlos ni ignorar eliminaciones explícitas. No recalcula por la hidratación del indicador de sobrepeso.
