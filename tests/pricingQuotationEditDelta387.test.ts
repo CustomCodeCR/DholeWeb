@@ -141,3 +141,37 @@ test('DH-390: switching Redestino to Anticipado removes only the original detail
   assert.equal(q.root.explicitlyRemovedPersistedDetailIds.value.has('D'), false)
   assert.equal(q.root.rateLines.value.find((line: any) => line.detailId === 'D').saleAmount, 290)
 })
+
+test('saved variable Merchant Inland with null CostId survives edit and repeated P6/P7 navigation', async () => {
+  const q = fixture()
+  const inland = { id: 'INLAND', detailId: 'INLAND', key: 'existing:INLAND',
+    name: 'INLAND DE BALBOA A COLON FREE ZONE (MERCHANT)',
+    costDetailType: 'DestinationCharge', costType: 'Variable', costId: null,
+    chargeBasis: 'PerContainer', manual: true, included: true, costAmount: 400, saleAmount: 430 }
+  const road = { id: 'ROAD', detailId: 'ROAD', key: 'existing:ROAD',
+    name: 'Flete terrestre internacional CFZ / Zona Libre Colón, Panamá → San Jose, Costa Rica',
+    costDetailType: 'DestinationCharge', costId: null, manual: true,
+    included: true, costAmount: 2140, saleAmount: 2140 }
+  q.root.editingRate.value.rateDetails.push(inland, road)
+  q.root.rateLines.value.push({ ...inland, included: false }, { ...road })
+  q.root.form.merchantHaulage = true
+  q.root.form.carrierHaulage = false
+  q.original.value = q.snapshot()
+  assert.equal(await q.apply(), true)
+  assert.equal(q.root.rateLines.value.find((l: any) => l.detailId === 'INLAND').included, true)
+  q.root.rateLines.value = q.root.rateLines.value.filter((l: any) => l.detailId !== 'INLAND')
+  await q.apply()
+  await q.apply()
+  const rows = q.root.rateLines.value.filter((l: any) => l.detailId === 'INLAND')
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].costAmount, 400)
+  assert.equal(rows[0].saleAmount, 430)
+  assert.equal(q.root.rateLines.value.find((l: any) => l.detailId === 'ROAD').saleAmount, 2140)
+  rows[0].saleAmount = 450
+  await q.apply()
+  assert.equal(rows[0].saleAmount, 450)
+  q.root.explicitlyRemovedPersistedDetailIds.value.add('INLAND')
+  q.root.rateLines.value = q.root.rateLines.value.filter((l: any) => l.detailId !== 'INLAND')
+  await q.apply()
+  assert.equal(q.root.rateLines.value.some((l: any) => l.detailId === 'INLAND'), false)
+})

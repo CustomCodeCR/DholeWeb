@@ -26,16 +26,11 @@ function patchWizard(source: string) {
   const detailLines = details
     .map((detail) => normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`))
     .filter(Boolean)
-  const optionalDetailLines = details
-    .filter((detail) => normalizeCatalogValue(String(detail.costType ?? '')) === 'optional')
-    .map((detail) => normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`))
-    .filter(Boolean)
   const serviceLines = services
     .map((service) => normalizeCatalogValue(\`\${service.code ?? ''} \${service.name ?? ''}\`))
     .filter(Boolean)
 
   const hasDetail = (...terms: string[]) => persistedEditTermContains(detailLines, ...terms)
-  const hasOptionalDetail = (...terms: string[]) => persistedEditTermContains(optionalDetailLines, ...terms)
   const hasService = (...terms: string[]) => persistedEditTermContains(serviceLines, ...terms)
 
   // No inferir Carga peligrosa/Sobrepeso desde Subject To cuando la tarifa ya tiene
@@ -57,20 +52,16 @@ function patchWizard(source: string) {
     || hasDetail('carga no estibable', 'non stackable', 'nonstackable')
     || persistedEditTermContains(subjectLines, 'carga no estibable', 'non stackable', 'nonstackable')
 
-  // Merchant/Naviera solo se infieren de detalles OPCIONALES persistidos.
-  // Un cargo fijo llamado "Cargos en Destino Naviera" no significa Carrier Haulage.
-  const merchantFromDetails = hasOptionalDetail(
-    'merchant haulage',
-    'inland gam merchant',
-    'gate + inland gam merchant',
-    'merchant',
-  )
-  const carrierFromDetails = hasOptionalDetail(
-    'carrier haulage',
-    'inland gam naviera',
-    'retiro vacio gam naviera',
-    'naviera',
-  )
+  // A saved Inland can be Variable, Fixed or Optional, including a manual
+  // DestinationCharge with no CostId. Shared destination fees are not haulage.
+  const savedHaulageNames = details.map(detail => normalizeCatalogValue(detail.name))
+  const merchantFromDetails = savedHaulageNames.some(name =>
+    name.includes('merchant haulage') || name === 'gate'
+    || (name.includes('inland') && name.includes('merchant')))
+  const carrierFromDetails = savedHaulageNames.some(name =>
+    name.includes('carrier haulage')
+    || (name.includes('inland') && (name.includes('naviera') || name.includes('carrier')))
+    || name.includes('retiro vacio gam naviera'))
   const merchantFromIncludes = persistedEditTermContains(
     includeLines,
     'merchant haulage',
