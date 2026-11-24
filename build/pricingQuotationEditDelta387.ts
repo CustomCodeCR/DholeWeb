@@ -281,8 +281,9 @@ function quoteEditEnsureRequestedServices387() {
 async function quoteEditApplyDelta387(): Promise<boolean> {
   if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value) return true
   if (!quoteEditOriginalContext387.value) return false
-  const signature = JSON.stringify(quoteEditContext387())
+  const signature = JSON.stringify([props.rateId, quoteEditContext387()])
   if (quoteEditPending387?.signature === signature) return quoteEditPending387.promise
+  quoteEditPending387 = null
   const sequence = ++quoteEditRequest387
   if (!quoteEditChangedKeys387().size) {
     quoteEditRemoveInvalidDetails387()
@@ -293,7 +294,7 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
   const promise = (async () => {
     const loaded = await loadApplicableCosts(true)
     if (!loaded || sequence !== quoteEditRequest387
-        || signature !== JSON.stringify(quoteEditContext387())) return false
+        || signature !== JSON.stringify([props.rateId, quoteEditContext387()])) return false
     quoteEditRemoveInvalidDetails387()
     quoteEditRestorePersistedInland()
     quoteEditRequestedCosts387().forEach(cost => {
