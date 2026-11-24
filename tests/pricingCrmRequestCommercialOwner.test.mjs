@@ -95,10 +95,8 @@ test('Prospecto TARIFARIO se crea como maestro incluso desde un borrador SPOT', 
 })
 
 
-test('Direct edit of a historical unlinked QUO preserves its original commercial identity', () => {
-  const guard = identity.slice(identity.indexOf('const historicUnlinkedModification ='), identity.indexOf('if (!historicUnlinkedModification'))
-  assert.match(guard, /props\.rateId && !props\.viewOnly && editingRate\.value/)
-  assert.match(guard, /!editingRate\.value\.clientAccountId && !editingRate\.value\.clientLeadId && !form\.clientId/)
-  assert.match(guard, /form\.clientName\.trim\(\) === String\(editingRate\.value\.clientName/)
-  assert.match(guard, /form\.executiveName\.trim\(\) === String\(editingRate\.value\.executiveName/)
+test('An editable duplicate lacking CRM IDs asks for an explicit link instead of bypassing validation', () => {
+  assert.match(identity, /!historicUnlinkedModification && props\.rateId && !form\.clientId/)
+  assert.match(identity, /Cotización sin vínculo CRM/)
+  assert.match(identity, /Seleccione la cuenta o prospecto real/)
 })
