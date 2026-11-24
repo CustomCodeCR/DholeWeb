@@ -1,3 +1,11 @@
+## [1.122.2] - 2026-11-23 · DH-20261124-PRICING-ACTIVE-WIZARD-IDTRA-439
+
+- PATCH: corrige el wizard realmente utilizado por /pricing/rates/:rateId/wizard (PricingOverviewView → PricingAlternativeWizardCrystal). El parche 1.122.1 había cambiado solo el wizard alternativo no montado.
+- Pantalla 9 ya no solicita ni envía manualmente IDTRA al aceptar la QUO; mantiene selección de alternativa A/B y referencias externas opcionales. Operations genera el IDTRA desde la aceptación definitiva usando Outbox/Inbox.
+- Pantalla 8 solo exhibe IDTRA históricos sin edición. Pantalla 9 informa que el IDTRA se genera en Operations y enlaza al listado de Trámites para el usuario autorizado.
+- Regresión automatizada verifica ruta Vue real, componente montado, payload de aceptación y ausencia de campo IDTRA manual. Reutiliza exclusivamente componentes DH.
+- Web/System 1.122.1 → 1.122.2, Pricing 1.28.0, Operations 0.19.0, CRM 1.44.0 sin cambios. Configuración real CRM/Redis y creación IDTRA en staging deben verificarse; master y producción no autorizados.
+
 ## [1.122.1] - 2026-11-23 · DH-20261123-PRICING-AUTO-IDTRA-438
 
 - PATCH: elimina la solicitud de IDTRA manual en pantalla 9 (aceptación comercial) y del resumen previo. Operations es el responsable único de generar el consecutivo del trámite al consumir el evento de aceptación definitiva de Pricing.
