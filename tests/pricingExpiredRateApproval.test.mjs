@@ -47,3 +47,15 @@ test('seller dashboard and quote detail open the shared authorization modal for 
   const wizard = read('../build/pricingSellerModificationWizard.ts')
   assert.match(wizard, /!source\.expiryRenewal && !sellerModificationPreview\.value\.length/)
 })
+
+
+test('expired renewal always offers the reason field or an explicit pending/approved state', () => {
+  assert.match(modal, /<template v-else>\s*<div\s*v-if="submittedReason \|\| current\?\.currentApproval/)
+  assert.match(modal, /<DhTextarea[\s\S]*?label="¿Por qué se dejó vencer la tarifa\? \*"/)
+  assert.match(modal, /v-if="loadError"/)
+  assert.match(modal, /label="Reintentar consulta"/)
+  assert.match(modal, /v-if="submitError"/)
+  assert.doesNotMatch(modal, /Roy|José Pablo/)
+  assert.match(service, /requireApprovalStatus\(response, rateId\)/)
+  assert.match(service, /result\.status !== 'Pending'/)
+})
