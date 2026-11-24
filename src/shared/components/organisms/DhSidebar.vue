@@ -178,7 +178,7 @@ watch(
           class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
           :class="compact ? 'justify-center' : ''"
         >
-          <img src="/dhole-mark.svg" alt="DHOLE ERP" class="h-10 w-10 shrink-0" :title="APP_VERSION_DETAIL" />
+          <span role="img" aria-label="DHOLE ERP" class="dhole-brand-mark h-10 w-10 shrink-0" :title="APP_VERSION_DETAIL" />
 
           <div v-if="!compact" class="min-w-0 flex-1">
             <p class="truncate text-[13px] font-extrabold tracking-tight text-[var(--dh-text)]" :title="t('app.meaning')">

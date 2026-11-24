@@ -1,3 +1,7 @@
+## [1.124.19] - 2026-11-24
+
+- DH-20261124-THEME-LOGO: nuevo logotipo SVG sin fondo, color primario y texto del tema, favicon ICO rojo original; regresiones de identidad visual. CI y staging pendientes.
+
 ## [1.124.18] - 2026-11-24
 
 - DH-20261124-LCL-DIRECT-STEP6-COST: habilitar el costo de flete coloader LCL en edición de una cotización existente al ingresar directamente a pantalla 6. Conserva restricciones de creación, solo lectura y ventas. Prueba obligatoria en prebuild; CI y staging pendientes.
