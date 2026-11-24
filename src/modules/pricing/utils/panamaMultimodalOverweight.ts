@@ -79,8 +79,8 @@ export function isPanamaOverweightSupplement(line: {
 
 /** Restore only the persisted supplement; keep current edits and explicit deletions. */
 export function preservePersistedPanamaOverweightLines<
-  T extends { detailId?: string | null; costId?: string | null; included: boolean },
-  D extends { id: string; name: string; notes?: string | null },
+  T extends { detailId?: string | null; costId?: string | null; included: boolean; key?: string | null; name?: string | null; notes?: string | null },
+  D extends { id: string; name: string; notes?: string | null; costId?: string | null },
 >(lines: T[], details: readonly D[], restore: (detail: D) => T,
   wasRemoved: (line: T) => boolean): T[] {
   let next = lines
@@ -88,10 +88,63 @@ export function preservePersistedPanamaOverweightLines<
     if (!isPanamaOverweightSupplement(detail)) continue
     const index = next.findIndex(line => line.detailId === detail.id)
     const line = index >= 0 ? next[index]! : restore(detail)
-    if (wasRemoved(line) || (index >= 0 && line.included)) continue
+    if (wasRemoved(line)) continue
+    // Same CostId plus excess provenance is an unlinked generated replacement,
+    // never the independent road leg or a different negotiated historical row.
+    const aliasIndex = detail.costId && details.filter(d => d.costId === detail.costId).length === 1
+      ? next.findIndex(item => !item.detailId && item.costId === detail.costId
+          && isPanamaOverweightSupplement(item))
+      : -1
+    if (index >= 0 && line.included && aliasIndex < 0) continue
     if (next === lines) next = [...lines]
-    if (index >= 0) next[index] = { ...line, included: true }
+    if (index >= 0) {
+      next[index] = { ...line, included: true }
+      if (aliasIndex >= 0) next.splice(aliasIndex, 1)
+    } else if (aliasIndex >= 0) next[aliasIndex] = line
     else next.push(line)
   }
+  return next
+}
+
+// The historical CFZ → GAM base land leg is NOT the excess LTL charge.
+// It has no CostId: its own RateDetail ID and the original rule marker are authoritative.
+interface PanamaSavedLine {
+  key?: string | null; name?: string | null; notes?: string | null
+  costId?: string | null; costDetailType?: string | null; chargeBasis?: string | null
+}
+export function isPanamaHistoricalRoad(line: PanamaSavedLine): boolean {
+  return !line.costId && !isPanamaOverweightSupplement(line)
+    && /\[PANAMA_PRODUCTION_NO_SEARCH\]/i.test(String(line.notes ?? ''))
+    && /^(InlandTransport|Freight)$/.test(String(line.costDetailType ?? ''))
+}
+function isGeneratedPanamaRoad(line: PanamaSavedLine): boolean {
+  if (line.costId || isPanamaOverweightSupplement(line)) return false
+  const key = String(line.key ?? '')
+  return isPanamaHistoricalRoad(line)
+    || key === 'panama-production:cfz-san-jose-2140'
+    || key === 'p7-393-panama-gam-fcl-land'
+}
+export function preservePersistedPanamaRoad<
+  T extends PanamaSavedLine & { detailId?: string | null; included: boolean; manual?: boolean; section?: string },
+  D extends PanamaSavedLine & { id: string },
+>(lines: T[], details: readonly D[], restore: (detail: D) => T, wasRemoved: (line: T) => boolean): T[] {
+  const historical = details.filter(isPanamaHistoricalRoad)
+  // Never collapse distinct, legitimately saved land legs.
+  if (historical.length !== 1) return lines
+  const detail = historical[0]!
+  const savedIndex = lines.findIndex(line => line.detailId === detail.id)
+  const original = restore(detail)
+  const current = savedIndex >= 0 ? lines[savedIndex]! : original
+  if (wasRemoved(current)) return lines
+  // Generated aliases are the same rule, not an additional billable row.
+  const aliases = lines.filter(line => !line.detailId && isGeneratedPanamaRoad(line))
+  if (savedIndex >= 0 && current.included && !current.manual
+      && current.section === 'international_freight' && aliases.length === 0) return lines
+  const preserved = { ...current, included: true, manual: false, section: 'international_freight' }
+  // A generated alias has no authoritative edited values: restore the historical
+  // snapshot (including sale/notes/ID), rather than treating the alias as a new charge.
+  const next = lines.filter(line => line.detailId !== detail.id && !aliases.includes(line))
+  const insertAt = savedIndex >= 0 ? savedIndex : aliases.length ? lines.indexOf(aliases[0]!) : next.length
+  next.splice(Math.min(insertAt, next.length), 0, preserved)
   return next
 }

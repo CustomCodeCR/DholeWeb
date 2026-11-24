@@ -308,13 +308,14 @@ export function patchPricingQuotationEditDelta387(source: string): string {
       + before, 'edit navigation')
   s = s.slice(0, nextStart) + next + s.slice(nextEnd)
 
-  // Some downstream plugins already replace the legacy pre-save refresh.
-  // The final invariant is inserted directly at the detail serialization point.
-  s = replaceSingle(s,
-    '  const details: CreateRateDetailRequest[] =',
-    '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) return\n\n'
-      + '  const details: CreateRateDetailRequest[] =',
-    'save-side request delta')
+  // Reconcile BEFORE reading orderedCompleteRateLines. The old await after
+  // normalizedIncludedLines captured stale values and misaligned RateDetail IDs.
+  const snapshotAnchor = '  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {'
+  s = replaceSingle(s, snapshotAnchor,
+    '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) return\n'
+      + (s.includes('function syncPanamaOverweightLines() {') ? '  syncPanamaOverweightLines()\n' : '')
+      + '\n' + snapshotAnchor,
+    'save-side request delta before immutable snapshot')
 
   const freight = 'function syncPersistedFreightLineForEdit() {'
   s = replaceSingle(s, freight,

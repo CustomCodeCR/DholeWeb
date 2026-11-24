@@ -1,3 +1,7 @@
+## [1.124.8] - 2026-11-24 · DH-20261124-PRICING-PANAMA-PERSISTED-SAVE
+
+- PATCH: conserva el RateDetailId del tramo terrestre CFZ → GAM de USD 2.140 al editar; evita aliases duplicados, mantiene venta negociada del excedente y concilia antes de serializar. La edición manual no dispara Auto Pricing automáticamente; se conserva el cálculo explícito. Pruebas de regresión agregadas. Sin cambio REST, realtime ni base de datos. CI/staging pendientes.
+
 ## [1.124.7] - 2026-11-24 · DH-20261124-PRICING-PANAMA-EXCESS-EDIT
 
 - PATCH: conserva los cuatro cargos del excedente Panamá en FCL al editar, separa el flete del excedente de Merchant/Naviera y recupera detalles históricos por ID sin duplicarlos ni ignorar eliminaciones explícitas. No recalcula por la hidratación del indicador de sobrepeso.
