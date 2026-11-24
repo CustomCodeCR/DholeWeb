@@ -207,7 +207,7 @@ export function patchPersistedLandLtlEditNavigation422(source: string): string {
   if (source.indexOf('function previous() {', nextStart) < 0) {
     throw new Error('[DH-422] Missing wizard navigation boundary')
   }
-  return source.replace(anchor, [
+  const withLtlNavigation = source.replace(anchor, [
     anchor,
     '  // Existing LTL quotations use persisted lines, not a fresh P6 tariff check.',
     "  if (step.value === 6 && props.rateId && editingRate.value",
@@ -215,6 +215,40 @@ export function patchPersistedLandLtlEditNavigation422(source: string): string {
     "      && shipmentModeForApi.value === 'Ltl') {",
     '    if (hydratingExistingRate.value) return',
     '    step.value = 7',
+    '    return',
+    '  }',
+  ].join('\n'))
+  return patchPersistedLclEditNavigation(withLtlNavigation)
+}
+
+/** A hydrated LCL edit has no naviera or new-tariff selection requirement. */
+export function patchPersistedLclEditNavigation(source: string): string {
+  // The full final Vite pipeline installs DH-387 before this transform.
+  // Raw SFC / standalone reconciliation fixtures do not have that runtime.
+  if (!source.includes('async function quoteEditApplyDelta387()')) return source
+  const anchor = 'async function next() {'
+  if (source.split(anchor).length !== 2) {
+    throw new Error('[LCL edit navigation] Missing unique next()')
+  }
+  return source.replace(anchor, [
+    anchor,
+    "  if (step.value === 6 && props.rateId && editingRate.value",
+    "      && !props.viewOnly && !props.sellerRequestMode",
+    "      && shipmentModeForApi.value === 'Lcl') {",
+    '    if (hydratingExistingRate.value) return',
+    '    // Require the fields shown on P6; LCL has no carrier/free-days gate.',
+    '    if (!form.agentId || !form.currencyId',
+    '        || !Number.isFinite(Number(form.freightCost)) || Number(form.freightCost) < 0',
+    '        || !Number.isFinite(Number(form.freightSale)) || Number(form.freightSale) < 0) {',
+    "      toastStore.warning('Proveedor incompleto', 'Revise agente, moneda, costo y venta del flete.')",
+    '      return',
+    '    }',
+    '    // Reconcile only requested changes; never reconstruct saved lines.',
+    '    if (!(await quoteEditApplyDelta387())) {',
+    "      toastStore.warning('No se pudo continuar', 'No se pudieron verificar los cambios de costos. Intente nuevamente.')",
+    '      return',
+    '    }',
+    '    if (step.value === 6) step.value = 7',
     '    return',
     '  }',
   ].join('\n'))

@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.124.4",
-  "ecosystemVersion": "1.124.4",
-  "releaseId": "DH-20261124-OPENINGS-IDTRA-GUARD",
+  "version": "1.124.6",
+  "ecosystemVersion": "1.124.6",
+  "releaseId": "DH-20261124-PRICING-LCL-EDIT-NAV",
   "releaseStatus": "candidate-ci-staging-pending",
-  "businessReleaseId": "DH-20261124-OPENINGS-IDTRA-GUARD"
+  "businessReleaseId": "DH-20261124-PRICING-LCL-EDIT-NAV"
 }
