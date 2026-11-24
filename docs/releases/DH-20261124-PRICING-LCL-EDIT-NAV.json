@@ -1,7 +1,7 @@
 {
   "releaseId": "DH-20261124-PRICING-LCL-EDIT-NAV",
   "component": "DholeWeb",
-  "previousVersion": "1.124.4",
+  "previousVersion": "1.124.5",
   "version": "1.124.6",
   "ecosystemVersion": "1.124.6",
   "status": "candidate-ci-staging-pending",
@@ -11,7 +11,7 @@
   ],
   "developCandidate": "2d8dabe2203aa15e1d72b2f00eb8e7a20ecf429a",
   "validation": [
-    "Same source and regression tests as develop candidate; CI and staging pending"
+    "CI and staging pending"
   ],
   "restContractChanged": false,
   "realtimeContractChanged": false

@@ -1,9 +1,17 @@
 ## [1.124.6] - 2026-11-24 · DH-20261124-PRICING-LCL-EDIT-NAV
 
 - PATCH: permite P6 → P7 en cotizaciones LCL persistidas y editables (incluidas duplicadas), sin exigir naviera ni selección de tarifa nueva; valida agente, moneda e importes y ejecuta conciliación DH-387 antes de avanzar. Conserva detalles y precisión decimal. Los errores de conciliación se notifican; las nuevas cotizaciones mantienen las validaciones existentes.
-- DholeWeb/DholeSystem 1.124.4 → 1.124.6; promoción selectiva del mismo código de develop; no incluye cambios ajenos. Sin cambio REST, realtime ni base de datos. CI y staging pendientes.
+- DholeWeb/DholeSystem 1.124.5 → 1.124.6; promoción selectiva del mismo código de develop; conserva release concurrente 1.124.5. Sin cambio REST, realtime ni base de datos. CI y staging pendientes.
 
 ## [1.124.4] - 2026-11-24 · DH-20261124-OPENINGS-IDTRA-GUARD
+
+## [1.124.5] - 2026-11-24
+
+- DH-20261124-SELLER-EXPIRED-RENEWAL: conectar dashboard móvil/escritorio y detalle de ventas con la autorización existente de jefatura; permitir continuar con actualización sin cambiar carga tras aprobación; refrescar decisiones por notificaciones realtime.
+- Candidato pendiente de CI y staging.
+
+- PATCH: distingue la omisión de un correo de Aperturas por IDTRA asignado de una notificación realmente encolada. Reutiliza DhModal, DhSelect, DhButton y el toast existente. Conserva el reenvío comercial. CI y staging pendientes.
+
 
 - PATCH: distingue la omisión de un correo de Aperturas por IDTRA asignado de una notificación realmente encolada. Reutiliza DhModal, DhSelect, DhButton y el toast existente. Conserva el reenvío comercial. CI y staging pendientes.
 

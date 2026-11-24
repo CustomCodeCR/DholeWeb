@@ -12,7 +12,8 @@ import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import { sellerRateCurrencyValue, type SellerRateCurrency } from '@/modules/pricing/utils/sellerRateCurrency'
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
-import { canSellerRequestRateModification } from '@/modules/pricing/utils/sellerRateModificationPolicy'
+import { canSellerRequestRateModification, isSellerRateExpired } from '@/modules/pricing/utils/sellerRateModificationPolicy'
+import PricingExpiredRateApprovalModal from '@/modules/pricing/components/PricingExpiredRateApprovalModal.vue'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import SellerRateDecisionModal from '@/modules/dashboard/components/SellerRateDecisionModal.vue'
@@ -48,10 +49,20 @@ const canRequestModification = computed(() => Boolean(rate.value && canSellerReq
 
 function requestModification() {
   if (!rate.value || !canRequestModification.value || pendingModification.value) return
-  void router.push({
-    name: 'pricing-seller-rate-request',
-    query: { modifyRateId: rate.value.id },
-  })
+  const selectedRate = rate.value
+  const continueToWizard = () => { void router.push({
+    name: 'pricing-seller-rate-request', query: { modifyRateId: selectedRate.id },
+  }) }
+  if (isSellerRateExpired(selectedRate)) {
+    modal.open({
+      title: 'Autorización para actualizar tarifa vencida',
+      component: PricingExpiredRateApprovalModal,
+      size: 'lg', surface: 'solid',
+      props: { rate: selectedRate, mode: 'request', onContinue: continueToWizard, onSaved: load },
+    })
+    return
+  }
+  continueToWizard()
 }
 
 const statusText = computed(() => {
@@ -182,13 +193,19 @@ watch(rateId, () => { activeStep.value = 9; rate.value = null; void load() })
 function refreshSellerRateOnFocus() {
   if (!document.hidden && !loading.value) void load()
 }
+function refreshExpiryDecision(event: Event) {
+  const detail = (event as CustomEvent<{ notificationType?: string }>).detail
+  if (detail?.notificationType?.startsWith('pricing.rate.expired-update.')) void load()
+}
 onMounted(() => {
+  window.addEventListener('dhole:notification:received', refreshExpiryDecision)
   void load()
   void loadCurrencies()
   window.addEventListener('focus', refreshSellerRateOnFocus)
   document.addEventListener('visibilitychange', refreshSellerRateOnFocus)
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('dhole:notification:received', refreshExpiryDecision)
   window.removeEventListener('focus', refreshSellerRateOnFocus)
   document.removeEventListener('visibilitychange', refreshSellerRateOnFocus)
 })
@@ -229,7 +246,7 @@ onBeforeUnmount(() => {
         </p>
         <div data-seller-guide="detail-modify" class="mt-4 flex flex-wrap gap-2">
           <DhButton variant="secondary" label="Descargar cotización PDF" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
-          <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
+          <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : isSellerRateExpired(rate) ? 'Solicitar actualización' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
         </div>
         <div v-if="revisionPending || pendingModification" class="mt-3 space-y-1 text-xs font-semibold text-amber-500">
           <p v-if="revisionPending">{{ revisionWorkActive
