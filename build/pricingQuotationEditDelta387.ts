@@ -292,7 +292,14 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
     return true
   }
   const promise = (async () => {
-    const loaded = await loadApplicableCosts(true)
+    let loaded = await loadApplicableCosts(true)
+    // A transient lookup may be superseded by a context watcher. Retry once
+    // only while this exact edit still owns the reconciliation; never bypass
+    // validation for genuinely changed transport/services.
+    if (!loaded && sequence === quoteEditRequest387
+        && signature === JSON.stringify([props.rateId, quoteEditContext387()])) {
+      loaded = await loadApplicableCosts(true)
+    }
     if (!loaded || sequence !== quoteEditRequest387
         || signature !== JSON.stringify([props.rateId, quoteEditContext387()])) return false
     quoteEditRemoveInvalidDetails387()
@@ -383,15 +390,15 @@ export function patchPricingQuotationEditDelta387(source: string): string {
       + '    persistedRateLineBaselines.clear()',
     'original context snapshot')
 
-  // Capture the LCL baseline AFTER source hydration and its normalized provider,
-  // not before the late coloader/own-source compatibility transforms run.
+  // Capture every modality's baseline after hydration and its normalized provider.
+  // Air, land and maritime snapshots must not be mistaken for operator changes.
   const hydrateStart = s.indexOf('async function hydrateExistingRate() {')
   if (hydrateStart >= 0) {
     const finish = '    hydratingExistingRate.value = false'
     const finishIndex = s.indexOf(finish, hydrateStart)
     if (finishIndex < 0) throw new Error('[DH-LCL-EDIT] Hydration completion anchor missing')
     s = s.slice(0, finishIndex)
-      + '    if (shipmentModeForApi.value === "Lcl" && quoteEditOriginalContext387.value && editingRate.value) {\n'
+      + '    if (quoteEditOriginalContext387.value && editingRate.value) {\n'
       + '      quoteEditOriginalContext387.value = quoteEditContext387()\n'
       + '      quoteEditRequest387++\n'
       + '      quoteEditPending387 = null\n'
