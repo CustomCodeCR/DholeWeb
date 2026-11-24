@@ -1,3 +1,7 @@
+## [1.123.2] - 2026-11-24
+
+- Alineación del release de orden numérico descendente de Trámites; sin cambios visuales ni contratos.
+
 ## [1.123.1] - 2026-11-24
 
 - Alineación de metadatos del frontend con el release coordinado de corrección del importador histórico IDTRA; sin cambios de interfaz ni contratos.
