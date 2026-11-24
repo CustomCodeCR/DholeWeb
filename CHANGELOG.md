@@ -1,6 +1,6 @@
 ## [1.124.27] - 2026-11-24
 
-- DH-20261124-PRICING-HISTORICAL-EDIT: conservar identidad comercial histórica sin vínculo CRM al editar directamente la QUO sin cambiar cliente ni ejecutivo; capturar contexto de todas las modalidades al finalizar hidratación, reintentar una consulta de costos transitoria sin omitir validación de cambios reales. Pruebas de regresión añadidas; CI, manifiesto central y staging pendientes.
+- DH-20261124-PRICING-HISTORICAL-EDIT: mostrar el error específico y solicitar el vínculo CRM explícito en duplicados afectados; capturar contexto de todas las modalidades al finalizar hidratación, reintentar una consulta de costos transitoria sin omitir validación de cambios reales. Pruebas de regresión añadidas; CI, manifiesto central y staging pendientes.
 
 ## [1.124.26] - 2026-11-24
 
