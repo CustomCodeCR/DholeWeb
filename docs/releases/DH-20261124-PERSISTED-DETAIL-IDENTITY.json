@@ -1,0 +1,13 @@
+{
+  "releaseId": "DH-20261124-PERSISTED-DETAIL-IDENTITY",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.15",
+  "version": "1.124.16",
+  "ecosystemVersion": "1.124.16",
+  "target": "master",
+  "developMergeSha": "0bfdace5a3e6dbe63801a48e58f0ef33b2f554f0",
+  "changes": [
+    "Preserve historical detail identities and independent road freight; validate serialized snapshot."
+  ],
+  "validation": "Develop PR CI passed; live staging and master CI pending"
+}
