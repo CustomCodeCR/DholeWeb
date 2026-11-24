@@ -1,0 +1,14 @@
+{
+  "releaseId": "DH-20261124-SELLER-EXPIRED-RENEWAL",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.4",
+  "version": "1.124.5",
+  "ecosystemVersion": "1.124.5",
+  "status": "candidate-ci-staging-pending",
+  "validation": [
+    "Shared existing approval modal",
+    "Seller dashboard and detail",
+    "Realtime notification refresh",
+    "CI and staging pending"
+  ]
+}

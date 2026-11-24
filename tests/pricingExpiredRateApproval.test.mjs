@@ -33,3 +33,17 @@ test('Pricing and Superadmin skip seller-only expired rate approval', () => {
   assert.match(rates, /if \(isSellerUser\.value && isExpiredRate\(rate\)\)/)
   assert.doesNotMatch(rates, /canUpdate\.value \|\| isSellerUser\.value/)
 })
+
+
+test('seller dashboard and quote detail open the shared authorization modal for expired quotes', () => {
+  for (const file of ['../src/modules/dashboard/components/SellerRoleDashboard.vue', '../src/modules/pricing/views/PricingSellerRateDetailView.vue']) {
+    const view = read(file)
+    assert.match(view, /isSellerRateExpired\(/)
+    assert.match(view, /component: PricingExpiredRateApprovalModal/)
+    assert.match(view, /onContinue: continueToWizard/)
+    assert.match(view, /pricing\.rate\.expired-update\./)
+  }
+  assert.match(modal, /Continuar con actualización/)
+  const wizard = read('../build/pricingSellerModificationWizard.ts')
+  assert.match(wizard, /!source\.expiryRenewal && !sellerModificationPreview\.value\.length/)
+})

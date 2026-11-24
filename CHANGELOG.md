@@ -1,5 +1,10 @@
 ## [1.124.4] - 2026-11-24 · DH-20261124-OPENINGS-IDTRA-GUARD
 
+## [1.124.5] - 2026-11-24
+
+- DH-20261124-SELLER-EXPIRED-RENEWAL: conectar dashboard móvil/escritorio y detalle de ventas con la autorización existente de jefatura; permitir continuar con actualización sin cambiar carga tras aprobación; refrescar decisiones por notificaciones realtime.
+- Candidato pendiente de CI y staging.
+
 - PATCH: distingue la omisión de un correo de Aperturas por IDTRA asignado de una notificación realmente encolada. Reutiliza DhModal, DhSelect, DhButton y el toast existente. Conserva el reenvío comercial. CI y staging pendientes.
 
 ## [1.124.3] - 2026-11-24 · DH-20261124-PRICING-SENT-CRM-FIX
