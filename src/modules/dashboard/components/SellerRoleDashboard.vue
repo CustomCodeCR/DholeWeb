@@ -23,8 +23,8 @@ import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWor
 import { canSellerRequestRateModification, isSellerRateExpired } from '@/modules/pricing/utils/sellerRateModificationPolicy'
 import PricingExpiredRateApprovalModal from '@/modules/pricing/components/PricingExpiredRateApprovalModal.vue'
 
-// La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
-// Los endpoints personales y la autorización de Pricing determinan las acciones propias.
+// Supervisión global con permiso de crear solicitudes puede gestionar decisiones y modificaciones.
+// La recepción y la edición de solicitudes originales mantienen la autorización personal.
 const props = withDefaults(defineProps<{
   adminPreview?: boolean
   enableSellerActions?: boolean
@@ -122,6 +122,11 @@ function canActOnRate(rate: RateDto): boolean {
   return !props.adminPreview || (props.enableSellerActions && ownRatesById.value.has(rate.id))
 }
 
+function canManageRate(rate: RateDto): boolean {
+  return canActOnRate(rate) || (props.adminPreview && props.enableSellerActions
+    && authStore.hasScope('pricing.rate-request.view-all'))
+}
+
 // La propiedad técnica (createdByUserId) puede diferir del vendedor comercial.
 // Solo un SuperUsuario con permiso de actualización abre el editor estándar de Pricing;
 // este mantiene validaciones de estado, bloqueo y autorización en la API.
@@ -187,7 +192,7 @@ function hasOpenPricingModification(rate: RateDto): boolean {
   // Older API deployments do not yet return pricingModificationActive.
   // For them, use the same open work items that Pricing shows in its queue.
   if (typeof rate.pricingModificationActive === 'boolean') return rate.pricingModificationActive
-  return requests.value.some((request) =>
+  return allRequests.value.some((request) =>
     request.rateId === rate.id && request.kind === 'Modification' && request.status === 'Open')
 }
 
@@ -525,16 +530,18 @@ function routeLabel(rate: RateDto) {
 }
 
 function canRespondToRate(rate: RateDto) {
-  return canActOnRate(rate) && canDecideSellerQuote(rate, hasOpenPricingModification(rate))
+  return canManageRate(rate)
+    && (canActOnRate(rate) || rate.status !== 'Open' || Boolean(rate.revisionPending))
+    && canDecideSellerQuote(rate, hasOpenPricingModification(rate))
 }
 
 function pendingModification(rate: RateDto): boolean {
-  return requests.value.some(request => request.rateId === rate.id
+  return allRequests.value.some(request => request.rateId === rate.id
     && modificationStillPending(request))
 }
 
 function canRequestModification(rate: RateDto): boolean {
-  return canActOnRate(rate) && canSellerRequestRateModification(rate)
+  return canManageRate(rate) && canSellerRequestRateModification(rate)
 }
 
 function openModification(rate: RateDto) {
@@ -785,7 +792,7 @@ onBeforeUnmount(() => {
       <div>
         <p class="text-sm font-black text-[var(--dh-text)]">Vista de supervisión comercial</p>
         <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-          Los indicadores obedecen el filtro general de fechas, vendedor y modalidad. Solo lectura; no modifica su identidad ni permite aceptar o rechazar tarifas ajenas.
+          Los indicadores obedecen el filtro general de fechas, vendedor y modalidad. Los permisos de gestión comercial determinan las acciones disponibles; no se modifica la identidad del vendedor.
         </p>
       </div>
 
@@ -977,8 +984,8 @@ onBeforeUnmount(() => {
                 <span class="text-xs text-[var(--dh-text-muted)]">Vigencia hasta {{ formatDate(rate.validTo) }}</span>
                 <strong class="text-sm text-[var(--dh-text)]">{{ money(rate.totalSaleAmount, currencyOf(rate)) }}</strong>
               </div>
-              <div v-if="canActOnRate(rate)" class="mt-3 flex flex-wrap gap-2">
-                <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+              <div v-if="canActOnRate(rate) || canRequestModification(rate) || canRespondToRate(rate)" class="mt-3 flex flex-wrap gap-2">
+                <DhButton v-if="canActOnRate(rate)" label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
                 <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : isSellerRateExpired(rate) ? 'Solicitar actualización' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                 <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
                   :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
@@ -1016,9 +1023,9 @@ onBeforeUnmount(() => {
                   <td class="px-4 py-3 whitespace-nowrap text-[var(--dh-text)]">{{ formatDate(rate.validTo) }}</td>
                   <td class="px-4 py-3"><DhBadge :label="sellerStatusLabel(rate)" :variant="statusVariant(rate)" /></td>
                   <td class="px-4 py-3">
-                    <div v-if="canActOnRate(rate) || canEditCreatedPricingRate(rate)" class="flex flex-wrap gap-1.5">
-                      <template v-if="canActOnRate(rate)">
-                        <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
+                    <div v-if="canActOnRate(rate) || canRequestModification(rate) || canRespondToRate(rate) || canEditCreatedPricingRate(rate)" class="flex flex-wrap gap-1.5">
+                      <template v-if="canManageRate(rate)">
+                        <DhButton v-if="canActOnRate(rate)" label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
                         <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : isSellerRateExpired(rate) ? 'Solicitar actualización' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                         <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
                           :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
