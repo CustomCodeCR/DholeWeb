@@ -1,9 +1,10 @@
 ## [1.122.0] - 2026-11-23 · DH-20261123-OPS-AUTOSAVE-434
 
-- MINOR candidato: formulario de Aperturas manuales con autoguardado PostgreSQL por usuario/empresa, recuperación tras desconexión, copia local y control de conflictos entre pestañas.
-- Sin captura de peso real en borradores manuales; se limpia el borrador remoto al crear y asignar exitosamente el expediente. Reutiliza componentes DH y lenguaje visual actual.
-- Pruebas de regresión de autoguardado añadidas al prebuild; compilación, CI y staging aún pendientes. No se integra ni despliega en producción.
-- DholeWeb/DholeSystem 1.120.11 → 1.122.0, OperationsService 0.18.0 → 0.19.0 y PricingService 1.27.1 → 1.28.0; otros 13 componentes sin cambios.
+- MINOR candidato: Aperturas manuales autoguarda borradores incompletos en PostgreSQL por usuario/empresa, con recuperación remota, copia local y control de conflictos.
+- Expediente Operations distingue servicios QUOTED y OPERATIONS_ADDED, muestra alertas amarillas y permite solicitar revisión comercial; Pricing muestra bandeja paginada y modal DH para resolución controlada.
+- Reutiliza exclusivamente componentes compartidos DH. Regresiones de autosave, alertas y bandeja Pricing integradas en prebuild; CI Web completado correctamente.
+- DholeWeb/DholeSystem 1.120.11 → 1.122.0, Operations 0.18.0 → 0.19.0, Pricing 1.27.1 → 1.28.0 y CRM 1.43.1 → 1.44.0; 12 componentes sin cambios.
+- PR borrador hacia develop, sin merge; CI Pricing de snapshot EF fallido y UAT/staging pendiente; sin cambios en master/producción.
 
 ## [1.120.11] - 2026-11-23 · DH-20261123-PRICING-LCL-INCH-PERSISTENCE-432
 
