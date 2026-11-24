@@ -1,3 +1,7 @@
+## [1.124.26] - 2026-11-24
+
+- DH-20261124-VERSION-CARD-FIX: corregir encabezado duplicado de DhCard causado por la prop title; tooltip nativo en contenido interno, ancho ajustado al texto, altura alineada con controles y dos líneas compactas. Sin cambios en otros consumidores de DhCard. CI/staging pendientes.
+
 ## [1.124.25] - 2026-11-24
 
 - DH-20261124-TOPBAR-VERSION-CARD: reutilizar DhCard con padding compacto compatible para mostrar versión entre notificaciones y usuario; canal en segunda línea fuera de producción y tooltip existente en pantallas estrechas. Centrar el logo del sidebar en el card completo con espacio simétrico para los controles y conservar su transición. CI/staging pendientes.
