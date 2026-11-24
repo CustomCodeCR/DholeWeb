@@ -56,6 +56,7 @@ export type OperationsCaseRow = {
   originStatusCode?: string | null
   teamName?: string | null
   assignedUserId?: string | null
+  pendingValidatorIds?: string[]
   status: string
   priority: number
   createdAtUtc: string
@@ -118,6 +119,7 @@ export interface OperationsCaseTab { code: OperationsTabCode; accessLevel: Opera
 export interface OperationsCaseWorkspace {
   caseId: string
   commercialData?: Record<string, unknown> | null
+  people?: Record<string, string>
   stages: Array<{
     id: string; departmentCode: string; status: string; teamId: string | null
     teamName: string | null; assignedUserId: string | null
@@ -218,7 +220,7 @@ export const operationsApi = {
     request<{ nextNumber: number }>('/api/operations/idtra-sequence', 'PUT', { nextNumber, expectedNextNumber, reason }),
   dashboard: (teamId?: string) => request<OperationsDashboard>(
     '/api/operations/dashboard' + (teamId ? '?teamId=' + encodeURIComponent(teamId) : '')),
-  cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow>>(
+  cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow> & { clientNames?: Record<string, string | null>; people?: Record<string, string> }>(
     '/api/operations/cases?' + caseQuery(page, 25, filters)),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   caseServicesAndReviews: (id: string) =>

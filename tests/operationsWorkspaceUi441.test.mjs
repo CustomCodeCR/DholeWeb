@@ -37,3 +37,14 @@ test('accepted commercial data uses actual quote number, scoped snapshot and rea
   assert.match(helper, /normalizeIncotermCode/)
   assert.match(audit, /'quoteid', 'acceptedoptionid', 'sourceeventid'/)
 })
+
+test('automatic Aperturas pool displays every pending reviewer with authorized labels', () => {
+  const cases = read('src/modules/operations/views/OperationsCasesView.vue')
+  const detail = read('src/modules/operations/views/OperationsCaseDetailView.vue')
+  const api = read('src/modules/operations/services/operationsApi.ts')
+  assert.match(cases, /v-for="id in row.pendingValidatorIds"/)
+  assert.match(cases, /result\.people/)
+  assert.match(cases, /caseClientNames\[row.id\]/)
+  assert.match(detail, /work\.people/)
+  assert.match(api, /pendingValidatorIds\?: string\[\]/)
+})
