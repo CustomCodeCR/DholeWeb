@@ -1,3 +1,7 @@
+## [1.124.1] - 2026-11-24 · DH-20261124-SELLER-ACCEPTANCE-FIX
+
+- PATCH coordinado: sincronización Web/System para la corrección de registro de aceptación de QUO en DholePricingService. Sin cambios visuales, componentes DH ni payload REST. CI y staging pendientes.
+
 ## [1.124.0] - 2026-11-24
 
 - MINOR: resumen de QUO original, semáforo comparativo, historial y solicitud de recotización, contactos CRM del expediente y drawer. Se elimina el formulario de servicios adicionales y la prioridad/complejidad visibles (se conservan métricas del pool). Reutiliza componentes DH. Sin alteración de la QUO original.
