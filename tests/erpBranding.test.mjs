@@ -55,8 +55,8 @@ test('supplied SVG geometry remains intact and follows the theme', () => {
   assert.ok(favicon.includes(Buffer.from([169, 14, 25])))
   assert.match(source('index.html'), /href="\/favicon\.ico\?v=/)
   const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
-  assert.match(sidebar, /v-if="compact" role="img"[^>]+dhole-brand-mark/)
-  assert.match(sidebar, /v-if="!compact"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo\.replace/)
+  assert.match(sidebar, /v-if="compact" key="compact" role="img"[^>]+dhole-brand-mark/)
+  assert.match(sidebar, /v-else key="expanded"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo\.replace/)
 })
 
 test('brand description is only shown in the logo tooltip', () => {
@@ -66,4 +66,15 @@ test('brand description is only shown in the logo tooltip', () => {
     assert.ok(!view.includes("{{ t('app.subtitle') }}"))
     assert.ok(!view.includes("{{ t('app.meaning') }}"))
   }
+})
+
+test('sidebar logo is 15 percent smaller and animates compact and expanded states', () => {
+  const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
+  assert.match(sidebar, /<Transition name="sidebar-brand" mode="out-in">/)
+  assert.match(sidebar, /\.sidebar-brand-lockup \{ width: 85%; \}/)
+  assert.match(sidebar, /\.sidebar-brand-mark \{ width: 2\.125rem; height: 2\.125rem; \}/)
+  assert.match(sidebar, /transition: opacity 180ms ease-out, transform 180ms ease-out/)
+  assert.match(sidebar, /transition: opacity 120ms ease-in, transform 120ms ease-in/)
+  assert.match(sidebar, /prefers-reduced-motion: reduce/)
+  assert.match(sidebar, /transition-\[width,transform\] duration-300 ease-in-out/)
 })
