@@ -1,3 +1,7 @@
+## [1.124.2] - 2026-11-24 · DH-20261124-SELLER-ACCEPTANCE-FIX
+
+- PATCH coordinado: sincronización Web/System para la corrección de registro de aceptación de QUO en DholePricingService. Sin cambios visuales, componentes DH ni payload REST. CI y staging pendientes.
+
 ## [1.120.11] - 2026-11-23 · DH-20261123-PRICING-LCL-INCH-PERSISTENCE-432
 
 - PATCH: corrige la persistencia de dimensiones LCL/LTL en Pricing. Las líneas conservan su unidad interna durante el guardado aunque POL/catálogos se rehidraten; únicamente una transición explícita de origen transforma la representación interna.
