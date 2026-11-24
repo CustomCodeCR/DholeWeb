@@ -28,7 +28,8 @@ test('DH-389: saved quote P6 and edit delta consult wizard-bundle, not legacy se
   assert.match(result, /!allowCatalogRefreshForSavedQuote\.value && !forQuoteEditContext/)
   assert.match(result, /pricesLoaded = await loadApplicableCosts\(Boolean\(props\.rateId\)\)/)
   assert.match(result, /if \(!pricesLoaded\) return/)
-  assert.match(result, /if \(!validCurrent && !props\.rateId\)/)
+  assert.match(result, /if \(!validCurrent && !props\.viewOnly\)/)
+  assert.doesNotMatch(result, /if \(!validCurrent && !props\.rateId\)/)
   assert.match(result, /PricingService\.selectWizardCosts\(contextualQuery\)/)
   assert.doesNotMatch(result, /PricingService\.selectCosts\(/)
   assert.match(pricingQuotationEditDelta387Runtime, /const loaded = await loadApplicableCosts\(true\)/)
@@ -50,4 +51,33 @@ test('DH-389: guard incompatible Vite rewrites and avoid synthetic pricing lines
     /Required wizard-bundle endpoint missing/,
   )
   assert.equal(patchPricingWizardEditBundle389('test fixture without a quotation edit'), 'test fixture without a quotation edit')
+})
+
+
+test('P6: editable saved quote selects available or lowest-cost inland, without switching a valid saved choice', () => {
+  const comparison = readFileSync(new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8')
+  const start = comparison.indexOf('      const merchant = dholeMerchantAvailable.value')
+  const end = comparison.indexOf('      syncHaulageOptionalLines()', start)
+  assert.ok(start >= 0 && end > start)
+  const selection = comparison.slice(start, end)
+  const transformed = patchPricingWizardEditBundle389(testSource.replace('      if (!validCurrent) {', selection))
+  const from = transformed.indexOf('      const merchant = dholeMerchantAvailable.value')
+  const to = transformed.indexOf('async function loadApplicableCosts(', from)
+  assert.ok(from >= 0 && to > from)
+  const run = new Function('props', 'form', 'dholeMerchantAvailable', 'dholeCarrierAvailable', 'dholeHaulageRecommended', transformed.slice(from, to))
+  const scenarios = [
+    { merchant: true, carrier: false, recommended: 'merchant', initial: [false, false], expected: [true, false] },
+    { merchant: false, carrier: true, recommended: 'carrier', initial: [false, false], expected: [false, true] },
+    { merchant: true, carrier: true, recommended: 'merchant', initial: [false, false], expected: [true, false] },
+    { merchant: true, carrier: true, recommended: 'carrier', initial: [false, false], expected: [false, true] },
+    { merchant: true, carrier: true, recommended: 'merchant', initial: [false, true], expected: [false, true] },
+    { merchant: true, carrier: false, recommended: 'merchant', initial: [false, true], expected: [true, false] },
+    { merchant: true, carrier: false, recommended: 'merchant', initial: [false, false], expected: [false, false], viewOnly: true },
+    { merchant: false, carrier: false, recommended: null, initial: [false, false], expected: [false, false] },
+  ]
+  for (const scenario of scenarios) {
+    const form = { merchantHaulage: scenario.initial[0], carrierHaulage: scenario.initial[1] }
+    run({ rateId: 'existing-quote', viewOnly: scenario.viewOnly ?? false }, form, { value: scenario.merchant }, { value: scenario.carrier }, { value: scenario.recommended })
+    assert.deepEqual([form.merchantHaulage, form.carrierHaulage], scenario.expected)
+  }
 })
