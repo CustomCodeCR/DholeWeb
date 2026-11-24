@@ -351,11 +351,12 @@ onBeforeUnmount(() => {
         as="div"
         padding="compact"
         data-testid="topbar-version"
-        class="hidden h-11 shrink-0 flex-col items-center justify-center whitespace-nowrap text-center lg:flex"
-        :title="APP_VERSION_DETAIL"
+        class="hidden h-11 w-fit shrink-0 items-center justify-center lg:flex"
       >
-        <span class="text-xs font-bold leading-tight text-[var(--dh-text)]">v{{ APP_VERSION }}</span>
-        <span v-if="APP_CHANNEL !== 'production'" class="text-[10px] font-medium leading-tight text-[var(--dh-text-muted)]">{{ APP_CHANNEL }}</span>
+        <div class="flex flex-col items-center justify-center whitespace-nowrap text-center" :title="APP_VERSION_DETAIL" :aria-label="APP_VERSION_DETAIL">
+          <span class="text-xs font-bold leading-none text-[var(--dh-text)]">v{{ APP_VERSION }}</span>
+          <span v-if="APP_CHANNEL !== 'production'" class="mt-1 text-[10px] font-medium leading-none text-[var(--dh-text-muted)]">{{ APP_CHANNEL }}</span>
+        </div>
       </DhCard>
 
       <div class="flex items-center gap-1 rounded-[20px] border p-1 transition-colors duration-200 sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2"

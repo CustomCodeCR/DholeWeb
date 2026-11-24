@@ -1,3 +1,7 @@
+## [1.124.26] - 2026-11-24
+
+- DH-20261124-VERSION-CARD-FIX: evitar encabezado duplicado de DhCard, tooltip interno y versión centrada en tarjeta compacta de ancho ajustado. CI/staging pendientes.
+
 ## [1.124.25] - 2026-11-24
 
 - DH-20261124-TOPBAR-VERSION-CARD: reutilizar DhCard con padding compacto compatible para mostrar versión entre notificaciones y usuario; canal fuera de producción. Centrar el logo del sidebar en el card completo con espacio simétrico para los controles y conservar su transición. CI/staging pendientes.

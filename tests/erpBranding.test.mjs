@@ -89,6 +89,13 @@ test('system version uses a shared compact card between notifications and user',
   assert.match(version, /APP_VERSION/)
   assert.match(version, /APP_CHANNEL !== 'production'/)
   assert.match(version, /lg:flex/)
+  assert.match(version, /h-11 w-fit shrink-0/)
+  const opening = version.split('>')[0]
+  assert.doesNotMatch(opening, /(?:^|\s):?title=/, 'DhCard title is a visible header, not a tooltip')
+  assert.match(version, /<div[^>]*:title="APP_VERSION_DETAIL"/)
+  assert.match(version, /leading-none/)
+  assert.equal((version.match(/v\{\{ APP_VERSION \}\}/g) || []).length, 1)
+  assert.doesNotMatch(version, /\{\{ APP_VERSION_DETAIL \}\}/)
   assert.match(topbar, /<DhCard\s+as="div"\s+padding="compact"\s+data-testid="topbar-version"/)
   assert.match(card, /padding === 'compact' && 'px-3 py-2'/)
   const position = topbar.indexOf('data-testid="topbar-version"')
