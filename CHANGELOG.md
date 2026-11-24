@@ -1,3 +1,7 @@
+## [1.124.24] - 2026-11-24
+
+- DH-20261124-TOPBAR-VERSION: retirar versión del sidebar y mostrarla discretamente en la barra superior, entre búsqueda y acciones; en pantallas estrechas consultar detalle mediante tooltip de configuración. Logo y animación sin cambios. CI/staging pendientes.
+
 ## [1.124.23] - 2026-11-24
 
 - DH-20261124-SIDEBAR-VERSION-FOOTER: trasladar versión y canal al pie fijo del sidebar; modo compacto con icono informativo y tooltip de versión/commit. Logo, animación, login y contratos sin cambios. CI/staging pendientes.

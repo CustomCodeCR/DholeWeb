@@ -3,8 +3,7 @@ import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import dholeLogo from '../../../assets/dhole-logo.svg?raw'
-import { APP_VERSION, APP_VERSION_DETAIL, APP_CHANNEL, APP_COMMIT } from '@/core/version'
-import { ChevronDown, Info, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-vue-next'
+import { ChevronDown, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
   label: string
@@ -331,14 +330,6 @@ watch(
           </RouterLink>
         </template>
       </nav>
-      <footer class="shrink-0 border-t border-[var(--dh-border)] px-3 py-2.5 text-[var(--dh-text-muted)]" data-testid="sidebar-version">
-        <div class="flex min-w-0 items-center justify-center gap-1.5" :title="[APP_VERSION_DETAIL, APP_COMMIT].filter(Boolean).join(' · ')">
-          <Info class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span :class="compact ? 'sr-only' : 'truncate text-[10px] font-medium'">
-            v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
-          </span>
-        </div>
-      </footer>
     </div>
   </aside>
 </template>
