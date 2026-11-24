@@ -12,7 +12,8 @@ import {
 
 const props = defineProps<{
   rate?: RateDto
-  mode?: 'request' | 'review'
+  rateId?: string
+  mode?: 'request' | 'review' | 'history'
   onSaved?: () => void | Promise<void>
   onContinue?: () => void
 }>()
@@ -38,8 +39,8 @@ async function refresh() {
     if (props.mode === 'review') {
       const rows = await expiredRateApprovalService.pending()
       if (sequence === refreshSequence) pending.value = rows
-    } else if (props.rate) {
-      const status = await expiredRateApprovalService.forRate(props.rate.id)
+    } else if (props.rate?.id || props.rateId) {
+      const status = await expiredRateApprovalService.forRate(props.rate?.id || props.rateId!)
       if (sequence === refreshSequence) {
         current.value = status
         submittedReason.value = ''
@@ -125,6 +126,9 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
       <template v-if="mode === 'review'">
         Solicitudes de tarifas vencidas pendientes de aprobación de jefatura.
       </template>
+      <template v-else-if="mode === 'history'">
+        Consulte los motivos de vencimiento y las decisiones de jefatura de todas las revisiones de esta cotización.
+      </template>
       <template v-else>
         La tarifa {{ rate?.quoNumber || rate?.rateCode }} venció.
         Para actualizarla, indique por qué no se renovó antes del vencimiento.
@@ -182,6 +186,11 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
       </article>
     </template>
 
+    <template v-else-if="mode === 'history'">
+      <p v-if="!loading && !loadError && current && !current.history.length" class="text-sm text-[var(--dh-text-muted)]">
+        No hay solicitudes de actualización por vencimiento registradas.
+      </p>
+    </template>
     <template v-else>
       <div
         v-if="submittedReason || current?.currentApproval?.status === 'Pending'"
@@ -225,7 +234,9 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
         />
       </template>
 
-      <div v-if="current && current.history.length" class="space-y-2 border-t border-[var(--dh-border)] pt-4">
+    </template>
+
+      <div v-if="mode !== 'review' && current && current.history.length" class="space-y-2 border-t border-[var(--dh-border)] pt-4">
         <h3 class="text-sm font-bold">Historial de vencimientos y autorizaciones</h3>
         <div v-for="entry in current.history" :key="entry.id" class="rounded-lg border border-[var(--dh-border)] p-3 text-xs">
           <strong>{{ entry.status === 'Pending' ? 'Pendiente' : entry.status === 'Approved' ? 'Aprobada' : 'Rechazada' }}</strong>
@@ -234,7 +245,6 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
           <p v-if="entry.decisionReason" class="mt-1 whitespace-pre-wrap break-words">Jefatura: {{ entry.decisionReason }}</p>
         </div>
       </div>
-    </template>
 
     <div class="flex justify-end pt-2">
       <button type="button" class="rounded-lg border border-[var(--dh-border)] px-4 py-2 text-sm" @click="modal.close()">
