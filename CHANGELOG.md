@@ -1,3 +1,7 @@
+## [1.124.9] - 2026-11-24 · DH-20261124-GLOBAL-COMMERCIAL-ACTIONS
+
+- PATCH: usuarios comerciales con view-all y create pueden solicitar modificaciones y renovaciones y aceptar/rechazar cotizaciones ajenas, conservando titularidad, estados, aprobación y componentes DH. CI y staging pendientes.
+
 ## [1.124.8] - 2026-11-24 · DH-20261124-PRICING-PANAMA-PERSISTED-SAVE
 
 - PATCH: conserva el RateDetailId del tramo terrestre CFZ → GAM de USD 2.140 al editar; evita aliases duplicados, mantiene venta negociada del excedente y concilia antes de serializar. La edición manual no dispara Auto Pricing automáticamente; se conserva el cálculo explícito. Pruebas de regresión agregadas. Sin cambio REST, realtime ni base de datos. CI/staging pendientes.
