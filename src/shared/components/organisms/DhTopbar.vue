@@ -3,8 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun, UserRoundX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { APP_VERSION, APP_CHANNEL, APP_VERSION_DETAIL } from '@/core/version'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
+import DhCard from '@/shared/components/molecules/DhCard.vue'
 import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
 import { useAvatarMascotStore } from '@/core/stores/avatarMascotStore'
 import { useThemeStore } from '@/core/stores/themeStore'
@@ -214,6 +216,7 @@ onBeforeUnmount(() => {
       </kbd>
     </button>
 
+
     <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
       <div
         v-if="authStore.isImpersonating"
@@ -237,7 +240,7 @@ onBeforeUnmount(() => {
 
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" class="dh-topbar-optional-mobile" @click="themeStore.toggleTheme()" />
-      <DhIconButton :icon="Settings" :label="t('topbar.settings')" variant="secondary" class="dh-topbar-settings-mobile" @click="openSettings" />
+      <DhIconButton :icon="Settings" :label="t('topbar.settings')" :title="`${t('topbar.settings')} · ${APP_VERSION_DETAIL}`" variant="secondary" class="dh-topbar-settings-mobile" @click="openSettings" />
 
       <div ref="inboxRoot" class="relative">
         <div class="relative">
@@ -343,6 +346,18 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </Teleport>
+
+      <DhCard
+        as="div"
+        padding="compact"
+        data-testid="topbar-version"
+        class="hidden h-11 w-fit shrink-0 items-center justify-center lg:flex"
+      >
+        <div class="flex flex-col items-center justify-center whitespace-nowrap text-center" :title="APP_VERSION_DETAIL" :aria-label="APP_VERSION_DETAIL">
+          <span class="text-xs font-bold leading-none text-[var(--dh-text)]">v{{ APP_VERSION }}</span>
+          <span v-if="APP_CHANNEL !== 'production'" class="mt-1 text-[10px] font-medium leading-none text-[var(--dh-text-muted)]">{{ APP_CHANNEL }}</span>
+        </div>
+      </DhCard>
 
       <div class="flex items-center gap-1 rounded-[20px] border p-1 transition-colors duration-200 sm:ml-1 sm:gap-3 sm:rounded-[24px] sm:px-3 sm:py-2"
         :class="themeStore.resolvedTheme === 'dark'

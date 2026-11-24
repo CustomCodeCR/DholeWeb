@@ -2,7 +2,7 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { APP_VERSION, APP_VERSION_DETAIL, APP_CHANNEL, APP_COMMIT } from '@/core/version'
+import dholeLogo from '../../../assets/dhole-logo.svg?raw'
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-vue-next'
 
 export interface SidebarItem {
@@ -166,7 +166,7 @@ watch(
   </Transition>
 
   <aside
-    class="fixed bottom-2 left-2 top-2 z-40 flex w-[min(18rem,calc(100vw-1rem))] overflow-hidden rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl transition-[width,transform] duration-300 sm:bottom-4 sm:left-4 sm:top-4 lg:translate-x-0"
+    class="fixed bottom-2 left-2 top-2 z-40 flex w-[min(18rem,calc(100vw-1rem))] overflow-hidden rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl transition-[width,transform] duration-300 ease-in-out sm:bottom-4 sm:left-4 sm:top-4 lg:translate-x-0"
     :class="[
       collapsed ? 'lg:w-20' : 'lg:w-72',
       mobileOpen ? 'translate-x-0' : '-translate-x-[120%] lg:translate-x-0',
@@ -175,27 +175,23 @@ watch(
     <div class="flex min-h-0 w-full flex-col">
       <div class="shrink-0 border-b border-[var(--dh-border)] px-3 pb-3 pt-3">
         <div
-          class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
-          :class="compact ? 'justify-center' : ''"
+          class="relative flex min-h-16 items-center justify-center rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
         >
-          <img src="/dhole-mark.svg" alt="DHOLE ERP" class="h-10 w-10 shrink-0" :title="APP_VERSION_DETAIL" />
+          <Transition name="sidebar-brand" mode="out-in">
+            <span v-if="compact" key="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark sidebar-brand-mark shrink-0" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" />
 
-          <div v-if="!compact" class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-extrabold tracking-tight text-[var(--dh-text)]" :title="t('app.meaning')">
-              {{ t('app.name') }}
-            </p>
-            <p class="truncate text-[11px] font-medium text-[var(--dh-text-muted)]">
-              {{ t('app.subtitle') }}
-            </p>
-            <p class="mt-0.5 truncate text-[10px] font-bold text-[var(--dh-text-muted)]" :title="APP_COMMIT || APP_VERSION_DETAIL">
-              v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
-            </p>
-          </div>
+            <div v-else key="expanded" class="sidebar-brand-expanded flex min-w-0 flex-1 justify-center">
+              <div class="dhole-brand-lockup sidebar-brand-lockup" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />
+              <p class="sr-only" :title="t('app.meaning')">
+                {{ t('app.name') }}
+              </p>
+            </div>
+          </Transition>
 
           <button
             v-if="!compact && !mobileOpen"
             type="button"
-            class="hidden h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] lg:inline-flex"
+            class="absolute right-2.5 top-1/2 hidden h-9 w-9 -translate-y-1/2 shrink-0 touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] lg:inline-flex"
             :title="t('sidebar.collapse')"
             :aria-label="t('sidebar.collapse')"
             @click="emit('toggle-collapse')"
@@ -206,7 +202,7 @@ watch(
           <button
             v-if="mobileOpen"
             type="button"
-            class="inline-flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
+            class="absolute right-2.5 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 shrink-0 touch-manipulation items-center justify-center rounded-xl text-[var(--dh-text-muted)] transition hover:bg-[var(--dh-card-hover)] hover:text-[var(--dh-text)] lg:hidden"
             :aria-label="t('common.close')"
             @click="emit('close')"
           >
@@ -338,6 +334,29 @@ watch(
 </template>
 
 <style scoped>
+/* Keep the 300ms sidebar resize and the logo swap synchronized. */
+.sidebar-brand-lockup { width: 85%; }
+/* Symmetric clearance keeps the wordmark centered on the whole card, independent of controls. */
+.sidebar-brand-expanded .sidebar-brand-lockup { max-width: calc(100% - 5rem); }
+.sidebar-brand-mark { width: 2.125rem; height: 2.125rem; }
+.sidebar-brand-enter-active {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+}
+.sidebar-brand-leave-active {
+  transition: opacity 120ms ease-in, transform 120ms ease-in;
+}
+.sidebar-brand-enter-from,
+.sidebar-brand-leave-to {
+  opacity: 0;
+  transform: translateX(-3px) scale(.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-brand-enter-active,
+  .sidebar-brand-leave-active { transition: none; }
+  .sidebar-brand-enter-from,
+  .sidebar-brand-leave-to { opacity: 1; transform: none; }
+}
+
 .sidebar-overlay-enter-active,
 .sidebar-overlay-leave-active {
   transition: opacity 180ms ease;

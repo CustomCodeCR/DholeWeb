@@ -1,3 +1,35 @@
+## [1.124.26] - 2026-11-24
+
+- DH-20261124-VERSION-CARD-FIX: evitar encabezado duplicado de DhCard, tooltip interno y versión centrada en tarjeta compacta de ancho ajustado. CI/staging pendientes.
+
+## [1.124.25] - 2026-11-24
+
+- DH-20261124-TOPBAR-VERSION-CARD: reutilizar DhCard con padding compacto compatible para mostrar versión entre notificaciones y usuario; canal fuera de producción. Centrar el logo del sidebar en el card completo con espacio simétrico para los controles y conservar su transición. CI/staging pendientes.
+
+## [1.124.24] - 2026-11-24
+
+- DH-20261124-TOPBAR-VERSION: retirar versión del sidebar y mostrarla en la barra superior, entre búsqueda y acciones; en pantallas estrechas consultar detalle en tooltip de configuración. CI/staging pendientes.
+
+## [1.124.23] - 2026-11-24
+
+- DH-20261124-SIDEBAR-VERSION-FOOTER: trasladar versión y canal al pie fijo del sidebar; modo compacto con icono informativo y tooltip de versión/commit. Logo, animación, login y contratos sin cambios. CI/staging pendientes.
+
+## [1.124.22] - 2026-11-24
+
+- DH-20261124-SIDEBAR-BRAND-MOTION: reducir 15% el logotipo del sidebar en ambos estados y animar su transición con el ancho del menú, respetando movimiento reducido. SVG, favicon, login y tooltip sin cambios. CI/staging pendientes.
+
+## [1.124.21] - 2026-11-24
+
+- DH-20261124-EXACT-SVG-LOGO: usar exactamente dhole-erp(1).svg entregado por el usuario; colores dinámicos mediante CSS, favicon transparente con rojo original #A90E19. Descripciones de marca solo en tooltip sobre logo; se conserva versión visible. CI/staging pendientes.
+
+## [1.124.20] - 2026-11-24
+
+- DH-20261124-OFFICIAL-SQUARE-LOGO: geometría rectangular del logo oficial, O cuadrada, logotipo completo en menú expandido e inicio de sesión, símbolo compacto y favicon rojo original transparente. CI/staging pendientes.
+
+## [1.124.19] - 2026-11-24
+
+- DH-20261124-THEME-LOGO: nuevo logotipo SVG sin fondo, color primario y texto del tema, favicon ICO rojo original; regresiones de identidad visual. CI y staging pendientes.
+
 ## [1.124.18] - 2026-11-24
 
 - DH-20261124-LCL-DIRECT-STEP6-COST: habilitar el costo de flete coloader LCL en edición de una cotización existente al ingresar directamente a pantalla 6. Conserva restricciones de creación, solo lectura y ventas. Prueba obligatoria en prebuild; CI y staging pendientes.

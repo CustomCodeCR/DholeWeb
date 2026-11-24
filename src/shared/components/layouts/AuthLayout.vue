@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import dholeLogo from '../../../assets/dhole-logo.svg?raw'
 const { t } = useI18n()
 </script>
 
@@ -7,9 +8,9 @@ const { t } = useI18n()
   <main class="grid min-h-screen place-items-center p-3 sm:p-6">
     <section class="dh-glass dh-liquid w-full max-w-md rounded-[30px] p-5 sm:rounded-[38px] sm:p-8 shadow-[var(--dh-shadow-lg)]">
       <div class="mb-8 text-center">
-        <img src="/dhole-mark.svg" alt="DHOLE ERP" class="mx-auto mb-4 h-16 w-16" />
-        <h1 class="text-3xl font-black text-[var(--dh-text)]">{{ t('app.name') }}</h1>
-        <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('app.subtitle') }}</p>
+        <!-- Static, bundled SVG. Never insert runtime user HTML here. -->
+        <div class="dhole-brand-lockup mx-auto mb-4 w-full max-w-[280px]" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />
+        <h1 class="sr-only">{{ t('app.name') }}</h1>
       </div>
       <RouterView />
     </section>
