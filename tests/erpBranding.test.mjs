@@ -97,3 +97,12 @@ test('system version uses a shared compact card between notifications and user',
   assert.equal((topbar.match(/data-testid="topbar-version"/g) || []).length, 1)
   assert.ok(topbar.includes("${APP_VERSION_DETAIL}"))
 })
+
+test('sidebar logo is centered in the entire card independently of its controls', () => {
+  const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
+  assert.match(sidebar, /relative flex min-h-16 items-center justify-center/)
+  assert.match(sidebar, /sidebar-brand-expanded flex min-w-0 flex-1 justify-center/)
+  assert.match(sidebar, /\.sidebar-brand-expanded \.sidebar-brand-lockup \{ max-width: calc\(100% - 5rem\); \}/)
+  assert.equal((sidebar.match(/absolute right-2\.5 top-1\/2/g) || []).length, 2)
+  assert.match(sidebar, /\.sidebar-brand-lockup \{ width: 85%; \}/)
+})
