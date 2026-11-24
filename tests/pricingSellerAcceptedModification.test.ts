@@ -42,7 +42,7 @@ test('both dashboard and quote detail use the same eligibility policy', () => {
   const read = (file: string) => readFileSync(new URL('../' + file, import.meta.url), 'utf8')
   const dashboard = read('src/modules/dashboard/components/SellerRoleDashboard.vue')
   const detail = read('src/modules/pricing/views/PricingSellerRateDetailView.vue')
-  assert.match(dashboard, /canActOnRate\(rate\) && canSellerRequestRateModification\(rate\)/)
+  assert.match(dashboard, /canManageRate\(rate\) && canSellerRequestRateModification\(rate\)/)
   assert.match(detail, /rate\.value && canSellerRequestRateModification\(rate\.value\)/)
   assert.equal((dashboard.match(/v-if="canRequestModification\(rate\)"/g) || []).length, 2)
   assert.match(detail, /v-if="canRequestModification"/)
