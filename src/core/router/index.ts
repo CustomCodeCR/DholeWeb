@@ -496,6 +496,16 @@ export const router = createRouter({
           },
         },
         {
+          path: 'pricing/operations-reviews',
+          name: 'pricing-operations-reviews',
+          component: () => import('@/modules/pricing/views/PricingOperationsReviewsView.vue'),
+          meta: {
+            tabTitle: 'Revisiones de Operations',
+            closable: true,
+            requiredScope: 'pricing.rate.update',
+          },
+        },
+        {
           path: 'pricing/linked-seller-requests',
           name: 'pricing-linked-seller-requests',
           component: () => import('@/modules/pricing/views/PricingLinkedSellerRequestsView.vue'),

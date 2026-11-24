@@ -156,6 +156,29 @@ export interface OperationsOriginProgress {
     departureSource: string | null; version: number
   } | null
 }
+export interface OperationsServiceReviewDashboard {
+  services: Array<{
+    id: string; serviceCode: string; serviceName: string; source: 'QUOTED' | 'OPERATIONS_ADDED'
+    requiresPricingReview: boolean; reviewStatus: string
+  }>
+  alerts: Array<{
+    id: string; serviceLineId: string; code: string; severity: 'YELLOW' | 'RED' | 'GREEN'
+    status: string; createdAtUtc: string; resolvedAtUtc: string | null
+  }>
+  reviews: Array<{
+    id: string; serviceLineId: string; quoteId: string | null; acceptedOptionId: string | null
+    reason: string; status: string; requestedAtUtc: string; resolvedAtUtc: string | null
+  }>
+}
+
+export interface OperationsManualDraftSnapshot {
+  id: string
+  version: number
+  createdAtUtc: string
+  updatedAtUtc: string
+  draft: Record<string, unknown>
+}
+
 export interface OperationsOpeningEdit {
   openingData?: Record<string, unknown>
   expectedVersion: number
@@ -178,7 +201,7 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
@@ -188,6 +211,13 @@ export const operationsApi = {
   cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow>>(
     '/api/operations/cases?' + caseQuery(page, 25, filters)),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
+  caseServicesAndReviews: (id: string) =>
+    request<OperationsServiceReviewDashboard>(`/api/operations/cases/${id}/services-and-reviews`),
+  addCaseService: (id: string, input: { idempotencyKey: string; serviceCode: string;
+    serviceName: string; reason: string }) =>
+    request<{ serviceId: string; reviewId: string; alertId: string;
+      severity: string; reviewStatus: string; duplicate: boolean }>(
+        `/api/operations/cases/${id}/services`, 'POST', input),
   caseTabs: (id: string) => request<{ caseId: string; tabs: OperationsCaseTab[] }>(
     `/api/operations/cases/${id}/tabs`),
   caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
@@ -250,6 +280,14 @@ export const operationsApi = {
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
+  getManualOpeningDraft: () =>
+    request<OperationsManualDraftSnapshot | Record<string, never>>(
+      '/api/operations/apertures/drafts/current'),
+  saveManualOpeningDraft: (expectedVersion: number, draft: Record<string, unknown>) =>
+    request<Pick<OperationsManualDraftSnapshot, 'id' | 'version' | 'updatedAtUtc'>>(
+      '/api/operations/apertures/drafts/current', 'PUT', { expectedVersion, draft }),
+  clearManualOpeningDraft: () =>
+    request<unknown>('/api/operations/apertures/drafts/current', 'DELETE'),
   crmAccounts: (q: string) => request<Paged<CrmAccountOption>>(
     '/api/crm/accounts?' + new URLSearchParams({ page: '1', pageSize: '50', q: q.trim() }).toString()),
   createAperture: (body: {
