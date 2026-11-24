@@ -37,7 +37,7 @@ const teamNameKeys: Record<string, string> = {
 
 const technicalKeys = new Set([
   'id', 'companyid', 'teamid', 'userid', 'caseid', 'stageid',
-  'validationid', 'eventid', 'actoruserid',
+  'validationid', 'eventid', 'actoruserid', 'quoteid', 'acceptedoptionid', 'sourceeventid', 'sourcequoteid', 'sourcequoteoptionid',
 ])
 
 const fieldKeys: Record<string, string> = {
@@ -80,7 +80,7 @@ function normalized(snapshot: Snapshot): Map<string, { field: string; value: unk
   const fields = new Map<string, { field: string; value: unknown }>()
   for (const [field, value] of Object.entries(snapshot)) {
     const key = field.toLowerCase()
-    if (!technicalKeys.has(key)) fields.set(key, { field, value })
+    if (!technicalKeys.has(key) && !/(?:id|ids|uuid|uuids)$/.test(key)) fields.set(key, { field, value })
   }
   return fields
 }
@@ -101,6 +101,8 @@ export function auditChanges(event: OperationsAudit): AuditChange[] {
 export function auditFieldLabel(field: string, translate: Translate): string {
   const key = fieldKeys[field.toLowerCase()]
   if (key) return translate('operations.auditTimeline.fields.' + key)
+  const readableLabels: Record<string,string> = { idtra: 'IDTRA', costs: 'Rubros cotizados', projectedcosts: 'Rubros registrados', costspendingreconciliation: 'Rubros por conciliar', services: 'Servicios', equipment: 'Equipos', commercialrevision: 'Revisión comercial' }
+  if (readableLabels[field.toLowerCase()]) return readableLabels[field.toLowerCase()]!
   return field.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ')
 }
 
@@ -129,6 +131,7 @@ export function auditValue(value: unknown, field: string, translate: Translate):
   }
   if (typeof value === 'object') return translate('operations.auditTimeline.structuredValue')
   const text = String(value)
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text) || /^[A-Z][A-Z0-9]+-\d{4}-\d+$/i.test(text)) return 'Referencia interna'
   if (key === 'name') return namedTeam(text, translate)
   if (key === 'departmentcode' || key === 'department') {
     if (departmentKeys.has(text)) return translate('operations.departments.' + text)

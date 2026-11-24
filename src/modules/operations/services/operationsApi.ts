@@ -47,6 +47,7 @@ export type OperationsCaseRow = {
   apertureType: 'MANUAL' | 'AUTOMATIC'
   sourceQuoteId: string | null
   sourceQuoteOptionId: string | null
+  quoteNumber?: string | null
   executiveUserId: string
   originCountryCode?: string | null
   destinationCountryCode?: string | null
@@ -116,6 +117,7 @@ export type OperationsTabLevel = 'EDITABLE' | 'READ_ONLY' | 'LOCKED' | 'NOT_APPL
 export interface OperationsCaseTab { code: OperationsTabCode; accessLevel: OperationsTabLevel }
 export interface OperationsCaseWorkspace {
   caseId: string
+  commercialData?: Record<string, unknown> | null
   stages: Array<{
     id: string; departmentCode: string; status: string; teamId: string | null
     teamName: string | null; assignedUserId: string | null
@@ -143,6 +145,11 @@ export interface OperationsCaseWorkspace {
 export interface OperationsCaseCost {
   id: string; costCode: string; description: string; supplierName: string | null
   currencyCode: string; costAmount: number; saleAmount: number | null; capturedAtUtc: string
+}
+export interface OperationsSnapshotCost {
+  id: string; description: string | null; costCode: string | null; supplierName: string | null
+  currencyCode: string | null; currencyName: string | null; quantity: number | null
+  unitCost: number | null; costAmount: number | null; saleAmount: number | null
 }
 export interface OperationsInternalNote {
   id: string; body: string; createdBy: string
@@ -225,7 +232,7 @@ export const operationsApi = {
     `/api/operations/cases/${id}/tabs`),
   caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
     `/api/operations/cases/${id}/workspace`),
-  caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[] }>(
+  caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[]; snapshotItems?: OperationsSnapshotCost[] }>(
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),

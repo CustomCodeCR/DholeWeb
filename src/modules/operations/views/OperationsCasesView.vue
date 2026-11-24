@@ -12,7 +12,11 @@ import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealt
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
+import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable } from '../utils/commercialPresentation'
+
 const { locale } = useI18n()
+const { openingField } = useCommercialLabels()
+const supplemental = ref<Record<string, unknown>>({})
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
 const canConfigureIdtra = computed(() => ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)))
@@ -122,13 +126,10 @@ const opening = computed<Record<string, unknown>>(() => {
   try {
     const value: unknown = JSON.parse(selected.value?.openingDataJson || '{}')
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? value as Record<string, unknown> : {}
+      ? mergeCommercialOpening(value as Record<string, unknown>, selectedWorkspace.value?.commercialData, supplemental.value) : {}
   } catch { return {} }
 })
-function openingText(key: string) {
-  const value = opening.value[key]
-  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
-}
+function openingText(key: string) { return openingField(key, opening.value) }
 const openingEquipment = computed(() => {
   const values = opening.value.equipment
   if (!Array.isArray(values)) return [] as Array<{ label: string; quantity: number }>
@@ -159,13 +160,13 @@ const openingServices = computed(() => {
   return values.map(value => typeof value === 'string' ? value :
     value && typeof value === 'object' ? String((value as Record<string, unknown>).name ||
       (value as Record<string, unknown>).label ||
-      (value as Record<string, unknown>).serviceCode || '') : '').filter(Boolean)
+      '') : '').filter(Boolean)
 })
 const openingFlags = computed(() => [
   opening.value.isImo === true ? 'IMO / peligrosa' : '',
   opening.value.overweight === true ? 'Sobrepeso' : '',
   ['LCL','LTL'].includes(openingText('shipmentType').toUpperCase()) ?
-    opening.value.stackable === true ? 'Estibable' : 'No estibable' : '',
+    opening.value.stackable === true ? 'Estibable' : opening.value.stackable === false ? 'No estibable' : '' : '',
   openingText('portHandlingMode'),
 ].filter(Boolean))
 
@@ -178,7 +179,7 @@ const crmOptions = ref<CrmAccountOption[]>([])
 const fetchingClients = ref(false)
 const clientChoices = computed(() => [
   { label: 'Todos los clientes', value: '' },
-  ...crmOptions.value.map(x => ({ label: x.displayName || x.legalName || x.id, value: x.id })),
+  ...crmOptions.value.map(x => ({ label: x.displayName || x.legalName || 'Nombre pendiente de CRM', value: x.id })),
 ])
 function accountLabel(id: string) { return resolvedAccounts.value[id] ||
   crmOptions.value.find(x => x.id === id)?.displayName || 'Cliente pendiente de consulta' }
@@ -253,6 +254,7 @@ async function openCase(id: string) {
   clientName.value = ''
   clientExecutiveName.value = ''
   selectedWorkspace.value = null
+  supplemental.value = {}
   selected.value = null
   try {
     const [detail, workspace] = await Promise.all([
@@ -261,6 +263,7 @@ async function openCase(id: string) {
     if (sequence !== detailSequence) return
     selected.value = detail
     selectedWorkspace.value = workspace
+    void sameRevisionCommercialData(workspace).then(x => { if (sequence === detailSequence) supplemental.value = x })
     clientName.value = accountLabel(detail.accountId)
     void resolvePeople([
       detail.createdBy, detail.executiveUserId,
@@ -396,7 +399,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <span class="break-words text-sm font-semibold">{{ accountLabel(row.accountId) }}</span>
         </template>
         <template #cell-sourceQuoteId="{ row }">
-          <RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>Ver QUO</RouterLink>
+          <RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteOptionId || row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>{{ row.quoteNumber || 'Número pendiente de consulta' }}</RouterLink>
           <DhBadge v-else variant="neutral">Sin QUO</DhBadge>
         </template>
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
@@ -439,13 +442,13 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
 
         <DhCard padding="sm">
           <div class="mb-3 flex items-center gap-2"><UsersRound class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Cliente y comercial</h3></div>
-          <p class="break-words text-base font-black">{{ clientName || accountLabel(selected.accountId) }}</p>
+          <p class="break-words text-base font-black">{{ clientName || readable(opening.clientName) || accountLabel(selected.accountId) }}</p>
           <RouterLink :to="'/crm/accounts/' + selected.accountId" class="mt-1 inline-block text-xs font-semibold text-[var(--dh-primary)] hover:underline">Consultar cliente</RouterLink>
           <div class="mt-3 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Ejecutivo comercial</p><p class="mt-1 text-sm font-semibold">{{ clientExecutiveName || openingText('executiveName') || personName(selected.executiveUserId) }}</p></div>
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Cotización vinculada</p>
-              <RouterLink v-if="selected.sourceQuoteId" :to="'/pricing/rates/' + selected.sourceQuoteId + '/wizard?mode=view'" class="mt-1 inline-block text-sm font-bold text-[var(--dh-primary)]">Abrir QUO</RouterLink>
-              <p v-else class="mt-1 text-sm font-semibold">SIN_QUO</p></div>
+              <RouterLink v-if="selected.sourceQuoteId" :to="'/pricing/rates/' + (selected.sourceQuoteOptionId || selected.sourceQuoteId) + '/wizard?mode=view'" class="mt-1 inline-block text-sm font-bold text-[var(--dh-primary)]" >{{ selectedWorkspace?.quotes.find(q => q.isPrimary)?.quoteNumber || selectedWorkspace?.quotes[0]?.quoteNumber || 'Número pendiente de consulta' }}</RouterLink>
+              <p v-else class="mt-1 text-sm font-semibold">Sin cotización</p></div>
             <div v-if="openingText('clientPoReference')"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">PO / referencia</p><p class="mt-1 break-words text-sm font-semibold">{{ openingText('clientPoReference') }}</p></div>
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Fecha de apertura</p><p class="mt-1 text-sm font-semibold">{{ formatDate(selected.createdAtUtc) }}</p></div>
           </div>

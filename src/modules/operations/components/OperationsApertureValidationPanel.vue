@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { operationsLabel } from '../utils/caseOverview'
 import { computed, ref, watch } from 'vue'
 import { ShieldCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhTextarea } from '@/shared/components/atoms'
@@ -56,7 +57,7 @@ async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
     error.value = cause instanceof Error ? cause.message : 'No se pudo registrar la decisión.'
   } finally { busy.value = false }
 }
-function label(status: string) { return status.replaceAll('_', ' ') }
+function label(status: string) { return operationsLabel(status) }
 </script>
 
 <template>
