@@ -5,6 +5,7 @@ import {
   pricePanamaMultimodalOverweight,
   isPanamaOverweightSupplement,
   preservePersistedPanamaOverweightLines,
+  preservePersistedPanamaRoad,
 } from '../src/modules/pricing/utils/panamaMultimodalOverweight.ts'
 import type { CostSelectDto } from '../src/core/interfaces/pricing.ts'
 import { readFileSync } from 'node:fs'
@@ -106,4 +107,46 @@ test('haulage reconciliation skips generated and historical excess lines before 
   const transform = readFileSync(new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8')
   assert.match(transform, /if \(isPanamaOverweightSupplement\(line\)\) return/)
   assert.match(transform, /if \(isPanamaOverweightSupplement\(cost\)\) return null/)
+})
+
+test('QUO-677 retains the original CFZ road ID instead of submitting a generated replacement', () => {
+  const road = { id: '20df23ab-deba-4ac6-ba9a-166a1ce415cb', costId: null,
+    name: 'Flete terrestre internacional CFZ / Zona Libre Colón, Panamá → San Jose, Costa Rica',
+    costDetailType: 'InlandTransport', chargeBasis: 'PerContainer',
+    notes: '[PANAMA_PRODUCTION_NO_SEARCH] Regla GCF multimodal',
+    costAmount: 2140, saleAmount: 2140 }
+  const restore = (detail: typeof road) => ({ ...detail, detailId: detail.id, key: 'existing:' + detail.id,
+    included: true, manual: true, section: 'international_freight' })
+  const generated = { ...restore(road), detailId: null as string | null, key: 'p7-393-panama-gam-fcl-land',
+    name: 'Flete Internacional Terrestre', costDetailType: 'Freight', notes: 'Referencia: regla interna', manual: false }
+  const excess = { ...generated, detailId: 'excess-id', key: 'panama-overweight:freight',
+    name: 'Excedente Panamá · Flete Terrestre Internacional Panama a Costa Rica', costAmount: 400, saleAmount: 560 }
+  const before = [generated, excess]
+  const result = preservePersistedPanamaRoad(before, [road], restore, () => false)
+  assert.equal(result.length, 2)
+  assert.equal(result[0]?.detailId, road.id)
+  assert.equal(result[0]?.costDetailType, 'InlandTransport')
+  assert.equal(result[0]?.costAmount, 2140)
+  assert.equal(result[0]?.saleAmount, 2140)
+  assert.equal(result[1], excess)
+  assert.equal(result.reduce((sum, line) => sum + line.saleAmount, 0), 2700)
+  assert.equal(preservePersistedPanamaRoad(result, [road], restore, () => false), result)
+  assert.equal(preservePersistedPanamaRoad(before, [road], restore, line => line.detailId === road.id), before)
+  const edited = [{ ...result[0]!, saleAmount: 2250 }, excess]
+  assert.equal(preservePersistedPanamaRoad(edited, [road], restore, () => false), edited)
+})
+test('historical excess replaces an unlinked alias instead of losing negotiated sale or duplicating cost', () => {
+  const detail = { id: 'excess', costId: 'ltl-freight', name: 'Excedente Panamá · Flete Terrestre Internacional Panama a Costa Rica',
+    costAmount: 400, saleAmount: 560 }
+  const restore = (d: typeof detail) => ({ ...d, detailId: d.id as string | null, included: true })
+  const alias = { ...restore(detail), detailId: null, saleAmount: 400 }
+  const result = preservePersistedPanamaOverweightLines([alias], [detail], restore, () => false)
+  assert.equal(result.length, 1)
+  assert.equal(result[0]?.detailId, 'excess')
+  assert.equal(result[0]?.saleAmount, 560)
+})
+test('save reconciles historical lines before capturing the serialization snapshot', () => {
+  const source = readFileSync(new URL('../build/pricingQuotationEditDelta387.ts', import.meta.url), 'utf8')
+  assert.match(source, /save-side request delta before immutable snapshot/)
+  assert.match(source, /syncPanamaOverweightLines\(\)/)
 })
