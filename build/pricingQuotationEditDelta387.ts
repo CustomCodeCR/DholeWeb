@@ -13,6 +13,7 @@ interface QuoteEditContext387 {
 const quoteEditOriginalContext387 = ref<QuoteEditContext387 | null>(null)
 const quoteEditAutoRemovedIds387 = new Set<string>()
 let quoteEditRequest387 = 0
+let quoteEditPending387: { signature: string; promise: Promise<boolean> } | null = null
 
 function quoteEditContext387(): QuoteEditContext387 {
   return {
@@ -276,24 +277,34 @@ function quoteEditEnsureRequestedServices387() {
 async function quoteEditApplyDelta387(): Promise<boolean> {
   if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value) return true
   if (!quoteEditOriginalContext387.value) return false
+  const signature = JSON.stringify([props.rateId, quoteEditContext387()])
+  if (quoteEditPending387?.signature === signature) return quoteEditPending387.promise
+  quoteEditPending387 = null
   const sequence = ++quoteEditRequest387
-  const signature = JSON.stringify(quoteEditContext387())
   if (!quoteEditChangedKeys387().size) {
     quoteEditRemoveInvalidDetails387()
     quoteEditRestorePersistedInland()
     quoteEditRestoreUnchangedRequiredDetails()
     return true
   }
-  const loaded = await loadApplicableCosts(true)
-  if (!loaded || sequence !== quoteEditRequest387
-      || signature !== JSON.stringify(quoteEditContext387())) return false
-  quoteEditRemoveInvalidDetails387()
-  quoteEditRestorePersistedInland()
-  quoteEditRequestedCosts387().forEach(cost => {
-    appendConfiguredCostToPersistedEdit(cost)
-  })
-  quoteEditEnsureRequestedServices387()
-  return true
+  const promise = (async () => {
+    const loaded = await loadApplicableCosts(true)
+    if (!loaded || sequence !== quoteEditRequest387
+        || signature !== JSON.stringify([props.rateId, quoteEditContext387()])) return false
+    quoteEditRemoveInvalidDetails387()
+    quoteEditRestorePersistedInland()
+    quoteEditRequestedCosts387().forEach(cost => {
+      appendConfiguredCostToPersistedEdit(cost)
+    })
+    quoteEditEnsureRequestedServices387()
+    return true
+  })()
+  quoteEditPending387 = { signature, promise }
+  try {
+    return await promise
+  } finally {
+    if (quoteEditPending387?.promise === promise) quoteEditPending387 = null
+  }
 }
 watch(
   () => [step.value, form.serviceIds.join('|'), form.incotermId,
@@ -368,6 +379,22 @@ export function patchPricingQuotationEditDelta387(source: string): string {
       + '    persistedRateLineBaselines.clear()',
     'original context snapshot')
 
+  // Capture the LCL baseline AFTER source hydration and its normalized provider,
+  // not before the late coloader/own-source compatibility transforms run.
+  const hydrateStart = s.indexOf('async function hydrateExistingRate() {')
+  if (hydrateStart >= 0) {
+    const finish = '    hydratingExistingRate.value = false'
+    const finishIndex = s.indexOf(finish, hydrateStart)
+    if (finishIndex < 0) throw new Error('[DH-LCL-EDIT] Hydration completion anchor missing')
+    s = s.slice(0, finishIndex)
+      + '    if (shipmentModeForApi.value === "Lcl" && quoteEditOriginalContext387.value && editingRate.value) {\n'
+      + '      quoteEditOriginalContext387.value = quoteEditContext387()\n'
+      + '      quoteEditRequest387++\n'
+      + '      quoteEditPending387 = null\n'
+      + '    }\n'
+      + s.slice(finishIndex)
+  }
+
   const nextStart = s.indexOf('async function next() {')
   const nextEnd = s.indexOf('\nfunction previous() {', nextStart)
   if (nextStart < 0 || nextEnd < 0) throw new Error('[pricingQuotationEditDelta387] Navigation block')
@@ -384,7 +411,9 @@ export function patchPricingQuotationEditDelta387(source: string): string {
   // normalizedIncludedLines captured stale values and misaligned RateDetail IDs.
   const snapshotAnchor = '  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {'
   s = replaceSingle(s, snapshotAnchor,
-    '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) return\n'
+    '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) {\n'
+      + '    toastStore.warning("Costos pendientes", "No se pudieron verificar los cambios de contexto. Intente guardar nuevamente.")\n'
+      + '    return\n  }\n'
       + (s.includes('function syncPanamaOverweightLines() {') ? '  syncPanamaOverweightLines()\n' : '')
       + '\n' + snapshotAnchor,
     'save-side request delta before immutable snapshot')

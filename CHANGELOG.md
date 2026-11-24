@@ -1,3 +1,7 @@
+## [1.124.17] - 2026-11-24
+
+- DH-20261124-LCL-EDIT-COST: promoción aislada de la corrección LCL integrada en develop. Normalizar contexto tras hidratación, compartir reconciliaciones, permitir revisar costos ante falla transitoria y conservar validación antes de guardar. CI de develop superado; staging y CI de master pendientes.
+
 ## [1.124.16] - 2026-11-24
 
 - DH-20261124-PERSISTED-DETAIL-IDENTITY: conservar identidad y precios de cargos históricos, reconocer flete terrestre CFZ–GAM sin marcador, separar Inland y validar snapshot de guardado. Promoción aislada del release integrado en develop; CI de master y staging pendientes.
