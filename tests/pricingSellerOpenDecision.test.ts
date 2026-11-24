@@ -32,7 +32,7 @@ test('existing Sent and RequestedByClient decisions remain supported', () => {
 test('both seller screens honor the shared eligibility and expose decision buttons', () => {
   const dashboard = read('src/modules/dashboard/components/SellerRoleDashboard.vue')
   const detail = read('src/modules/pricing/views/PricingSellerRateDetailView.vue')
-  assert.match(dashboard, /canActOnRate\(rate\) && canDecideSellerQuote\(rate, hasOpenPricingModification\(rate\)\)/)
+  assert.match(dashboard, /return canManageRate\(rate\)[\s\S]*?&& canDecideSellerQuote\(rate, hasOpenPricingModification\(rate\)\)/)
   assert.match(dashboard, /<template v-if="canRespondToRate\(rate\)">/)
   assert.match(detail, /canDecideSellerQuote\(rate\.value, revisionWorkActive\.value\)/)
   assert.match(detail, /<template v-if="canRespondToRate">/)
