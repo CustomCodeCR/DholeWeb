@@ -1,3 +1,8 @@
+## [1.122.5] - 2026-11-24 · DH-20261124-OPS-IDTRA-STATUS
+
+- PATCH: Pricing P9 consulta Operations mediante QUO padre y opción aceptada, con permiso de lectura, reintentos acotados y refresco SignalR. Muestra IDTRA real y acceso directo; distingue ausencia de expediente, falta de permiso y error de consulta. Conserva referencias históricas y no crea ni duplica IDTRA desde Web.
+- CI y staging pendientes. No altera contratos REST ni producción.
+
 ## [1.122.4] - 2026-11-24 · DH-20261124-OPS-WORKSPACE-UI
 
 - PATCH: compacta resumen del IDTRA, prioriza validaciones y pendientes, muestra ruta y cliente sin truncar, cambia rubros y dashboard a DhDataTable y corrige transparencia de DhDrawer mediante token de tema. No altera snapshots ni permisos.
