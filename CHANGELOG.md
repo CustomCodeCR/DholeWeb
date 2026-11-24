@@ -1,3 +1,8 @@
+## [1.122.4] - 2026-11-24 · DH-20261124-OPS-WORKSPACE-UI
+
+- PATCH: compacta resumen del IDTRA, prioriza validaciones y pendientes, muestra ruta y cliente sin truncar, cambia rubros y dashboard a DhDataTable y corrige transparencia de DhDrawer mediante token de tema. No altera snapshots ni permisos.
+- Candidato visual para develop; CI, pruebas de temas y staging pendientes; producción no autorizada.
+
 ## [1.122.3] - 2026-11-24 · DH-20261124-OPS-QUOTE-ACCEPTANCE-440
 
 - PATCH crítico de aceptación comercial → Aperturas: la QUO se aceptaba correctamente, pero Operations no creaba IDTRA por falta de configuración explícita de su worker, ausencia de lector CRM y cliente no vinculado en tarifas históricas. Se añade resolución CRM estricta y reutilización de Inbox pendiente, con validación de escenario en staging.
