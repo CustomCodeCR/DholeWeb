@@ -1,3 +1,7 @@
+## [1.124.17] - 2026-11-24
+
+- DH-20261124-LCL-EDIT-COST: normalizar el contexto LCL al terminar la hidratación, compartir reconciliaciones simultáneas y permitir revisar líneas de una cotización persistida ante fallas transitorias del catálogo; conservar validación previa al guardado y agregar regresiones. CI y staging pendientes.
+
 ## [1.124.16] - 2026-11-24
 
 - DH-20261124-PERSISTED-DETAIL-IDENTITY: recuperar identidad original de cargos históricos obligatorios en revisiones sin cambio de contexto; reconocer flete CFZ–GAM sin marcador histórico y separarlo de Merchant/Naviera. Validar el mismo snapshot que se serializa, respetar eliminaciones explícitas y evitar duplicados. Pruebas de regresión añadidas; CI/staging pendientes.

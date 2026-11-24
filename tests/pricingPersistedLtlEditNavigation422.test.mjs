@@ -142,10 +142,12 @@ test('LCL edit: missing provider/currency or invalid freight does not bypass val
   }
 })
 
-test('LCL edit: unsuccessful cost reconciliation is visible and does not advance', async () => {
-  const model = makeLclNext({ deltaReady: false })
+test('LCL edit: unsuccessful catalog reconciliation warns but permits review before save', async () => {
+  const model = makeLclNext({ deltaReady: false, freightCost: 4.4533376924, freightSale: 3.15 })
   await model.next()
-  assert.equal(model.step.value, 6)
+  assert.equal(model.step.value, 7)
+  assert.equal(model.form.freightCost, 4.4533376924)
+  assert.equal(model.form.freightSale, 3.15)
   assert.equal(model.deltaCalls(), 1)
   assert.equal(model.warnings.length, 1)
 })
