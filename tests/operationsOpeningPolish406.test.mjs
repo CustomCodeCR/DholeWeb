@@ -16,10 +16,12 @@ test('operations auto-saves local recovery without premature IDTRA creation', ()
   assert.doesNotMatch(opening, /Guardar borrador/)
 })
 
-test('new manual cases are created and assigned using the existing team validation pool', () => {
-  assert.match(opening, /Crear y asignar a equipo/)
+test('new manual cases delegate direct origin assignment to Operations', () => {
+  assert.match(opening, /Crear y enviar a Coordinación Origen/)
   assert.match(opening, /operationsApi\.createAperture\(/)
-  assert.match(opening, /operationsApi\.assign\(result\.id, assignedTeamId\.value\)/)
+  assert.doesNotMatch(opening, /operationsApi\.assign\(result\.id/)
+  assert.match(opening, /manualSubmitted: '1'/)
+  assert.doesNotMatch(opening, /<DhSelect v-model="assignedTeamId"/)
   assert.match(opening, /assignmentPendingId\.value = result\.id/)
   assert.match(opening, /assignmentPendingId\.value\s*\? \{ id: assignmentPendingId\.value \}/)
   assert.match(operationsApi, /aperture-validations\/assign/)
@@ -57,5 +59,5 @@ test('opening review excludes later origin coordination legend and uses compact 
   assert.doesNotMatch(opening, /Datos operativos que pueden confirmarse después/)
   assert.doesNotMatch(opening, /Naviera y booking, si aplica/)
   assert.match(opening, /Ruta e itinerario/)
-  assert.match(opening, /Equipo de Aperturas/)
+  assert.match(opening, /Coordinación Origen/)
 })
