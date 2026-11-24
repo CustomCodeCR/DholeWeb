@@ -32,6 +32,7 @@ interface SellerModificationSource {
   rateId: string
   reference: string
   revisionNumber: number
+  expiryRenewal?: boolean
   form: Record<string, unknown>
   pickupLocations?: RatePickupLocationDto[]
   names?: Record<string, unknown>
@@ -266,7 +267,7 @@ async function submitSellerModification() {
   const originalDocumentIds = (source.supportDocuments ?? []).map(document => document.id).sort().join('|')
   const requestedDocumentIds = supportDocuments.value.map(document => document.id).sort().join('|')
   const changedHandling = sellerPortHandlingMode.value !== (source.sellerContext?.portHandlingMode || '')
-  if (!sellerModificationPreview.value.length
+  if (!source.expiryRenewal && !sellerModificationPreview.value.length
     && originalDocumentIds === requestedDocumentIds && !changedHandling
     && JSON.stringify(pickupLocationsPayload()) === JSON.stringify(source.pickupLocations ?? [])) {
     toastStore.warning('Sin cambios', 'Modifique algún dato de las pantallas 1 a 4 antes de solicitar una revisión.')

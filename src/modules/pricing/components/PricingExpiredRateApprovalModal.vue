@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import type { RateDto } from '@/core/interfaces/pricing'
+import { DhButton } from '@/shared/components/atoms'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import {
@@ -13,6 +14,7 @@ const props = defineProps<{
   rate?: RateDto
   mode?: 'request' | 'review'
   onSaved?: () => void | Promise<void>
+  onContinue?: () => void
 }>()
 
 const toast = useToastStore()
@@ -75,6 +77,12 @@ async function decide(item: ExpiredRateApproval, approve: boolean) {
   } finally {
     busy.value = false
   }
+}
+
+function continueApprovedRenewal() {
+  if (!current.value?.canUpdate || !props.onContinue) return
+  modal.close()
+  props.onContinue()
 }
 
 function realtimeRefresh(event: Event) {
@@ -161,7 +169,12 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
         v-else-if="current.canUpdate"
         class="rounded-xl border border-[var(--dh-border)] p-4 text-sm"
       >
-        La actualización está autorizada. Regrese a la tarifa y seleccione Editar.
+        La actualización está autorizada.
+        <template v-if="onContinue">
+          <p class="mt-1">Puede solicitar a Pricing la renovación sin modificar los datos de carga.</p>
+          <DhButton class="mt-3" label="Continuar con actualización" @click="continueApprovedRenewal" />
+        </template>
+        <template v-else> Regrese a la tarifa y seleccione Editar.</template>
       </div>
       <template v-else>
         <label class="block space-y-1 text-sm font-semibold">

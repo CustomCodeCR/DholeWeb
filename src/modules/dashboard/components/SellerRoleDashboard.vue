@@ -20,7 +20,8 @@ import { filterSellerRatesByClient, sellerClientOptions } from '../utils/sellerC
 
 import { formatDate, formatMoney } from '@/modules/pricing/utils/pricingFormat'
 import { canDecideSellerQuote, currentSellerWorkflowStatus, unpublishedSellerWorkflowLabel } from '@/modules/pricing/utils/sellerRateWorkflowStatus'
-import { canSellerRequestRateModification } from '@/modules/pricing/utils/sellerRateModificationPolicy'
+import { canSellerRequestRateModification, isSellerRateExpired } from '@/modules/pricing/utils/sellerRateModificationPolicy'
+import PricingExpiredRateApprovalModal from '@/modules/pricing/components/PricingExpiredRateApprovalModal.vue'
 
 // La supervisión global permanece de solo lectura para operaciones comerciales ajenas.
 // Los endpoints personales y la autorización de Pricing determinan las acciones propias.
@@ -538,10 +539,19 @@ function canRequestModification(rate: RateDto): boolean {
 
 function openModification(rate: RateDto) {
   if (!canRequestModification(rate) || pendingModification(rate)) return
-  void router.push({
-    name: 'pricing-seller-rate-request',
-    query: { modifyRateId: rate.id },
-  })
+  const continueToWizard = () => { void router.push({
+    name: 'pricing-seller-rate-request', query: { modifyRateId: rate.id },
+  }) }
+  if (isSellerRateExpired(rate)) {
+    modalStore.open({
+      title: 'Autorización para actualizar tarifa vencida',
+      component: PricingExpiredRateApprovalModal,
+      size: 'lg', surface: 'solid',
+      props: { rate, mode: 'request', onContinue: continueToWizard, onSaved: load },
+    })
+    return
+  }
+  continueToWizard()
 }
 
 function canMarkReceived(rate: RateDto) {
@@ -723,6 +733,10 @@ function refreshWhenVisible() {
 }
 function handleWorkStatusNotification(event: Event) {
   const notification = (event as CustomEvent<SystemNotificationPush>).detail
+  if (notification?.notificationType?.startsWith('pricing.rate.expired-update.')) {
+    void load()
+    return
+  }
   if (notification?.notificationType === 'pricing.rate-request.work-status.changed'
     || notification?.notificationType === 'pricing.rate-request.returned'
     || notification?.notificationType === 'pricing.requested-rate.completed')
@@ -965,7 +979,7 @@ onBeforeUnmount(() => {
               </div>
               <div v-if="canActOnRate(rate)" class="mt-3 flex flex-wrap gap-2">
                 <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
-                <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
+                <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : isSellerRateExpired(rate) ? 'Solicitar actualización' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                 <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
                   :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
                 <template v-if="canRespondToRate(rate)">
@@ -1005,7 +1019,7 @@ onBeforeUnmount(() => {
                     <div v-if="canActOnRate(rate) || canEditCreatedPricingRate(rate)" class="flex flex-wrap gap-1.5">
                       <template v-if="canActOnRate(rate)">
                         <DhButton label="Ver tarifa" size="sm" variant="secondary" @click="openSellerRate(rate)" />
-                        <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
+                        <DhButton v-if="canRequestModification(rate)" :label="pendingModification(rate) ? 'Modificación pendiente' : isSellerRateExpired(rate) ? 'Solicitar actualización' : 'Solicitar modificación'" size="sm" variant="secondary" :disabled="pendingModification(rate)" @click="openModification(rate)" />
                         <DhButton v-if="canMarkReceived(rate)" label="Marcar recibida" size="sm"
                           :loading="receivingIds.includes(rate.id)" @click="markReceived(rate)" />
                         <template v-if="canRespondToRate(rate)">
