@@ -96,9 +96,11 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
 
 async function saveRate() {
   if (!(await refreshModificationCrmOwner())) return
-  const historicUnlinkedModification = Boolean(props.modificationRequestId && editingRate.value
+  const historicUnlinkedModification = Boolean(props.rateId && !props.viewOnly && editingRate.value
     && !editingRate.value.clientAccountId && !editingRate.value.clientLeadId && !form.clientId
-    && form.clientName.trim() && form.executiveName.trim())
+    && form.clientName.trim() && form.executiveName.trim()
+    && form.clientName.trim() === String(editingRate.value.clientName ?? '').trim()
+    && form.executiveName.trim() === String(editingRate.value.executiveName ?? '').trim())
   if (!historicUnlinkedModification && (!form.clientId || !form.crmClientKind || !form.clientName.trim() || !form.executiveName.trim() || (form.executiveName.trim().toLowerCase() !== 'castro fallas' && !form.executiveId))) {
     step.value = 3
     toastStore.error('La cuenta o prospecto seleccionado no tiene un ejecutivo comercial válido. Asigne un vendedor en CRM y seleccione la cuenta nuevamente.')
