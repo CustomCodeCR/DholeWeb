@@ -908,15 +908,9 @@ async function initialize() {
   if (props.rateId) {
     await loadLatestDecision()
 
-    if (
-      !decision.value
-      && !props.viewOnly
-      && props.context.mode !== 'Ftl'
-      && canCalculateAutoPricing.value
-    ) {
-      await calculateAutoPricing(false)
-    }
-
+    // Editing an existing quote must not invoke Auto Pricing implicitly.
+    // A missing profile is irrelevant to a manual quotation revision.
+    // The explicit Calculate/Recalculate button remains available.
     return
   }
 
@@ -940,9 +934,8 @@ watch(
     showDraftSuggestionConfirmation.value = false
 
     if (props.rateId) {
-      if (!props.viewOnly && props.context.mode !== 'Ftl' && canCalculateAutoPricing.value) {
-        await calculateAutoPricing(false)
-      } else if (canViewBenchmark.value) {
+      // Equipment changes only refresh read-only market information.
+      if (canViewBenchmark.value) {
         try {
           action.value = 'benchmark'
           benchmark.value = await MarketPricingService.getRateMarketBenchmark(

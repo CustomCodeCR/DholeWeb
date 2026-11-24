@@ -319,3 +319,14 @@ test('Air and AirConsol are not silently converted to FCL in the wizard', async 
   assert.match(wizard, /return 'AirConsol'/)
   assert.match(wizard, /return 'Air'/)
 })
+
+test('editing a saved quote does not automatically require an Auto Pricing profile', async () => {
+  const panel = await source('../src/modules/pricing/components/PricingMarketBenchmarkPanel.vue')
+  const initialize = panel.split('async function initialize() {')[1]?.split('watch(')[0] ?? ''
+  assert.match(initialize, /await loadLatestDecision\(\)/)
+  assert.doesNotMatch(initialize, /await calculateAutoPricing\(/)
+  const equipmentWatch = panel.split('  selectedEquipmentId,\n  async')[1]?.split('\nwatch(')[0] ?? ''
+  assert.ok(equipmentWatch)
+  assert.doesNotMatch(equipmentWatch, /await calculateAutoPricing\(/)
+  assert.match(panel, /@click="calculateAutoPricing\(Boolean\(activeDecisionId\)\)"/)
+})
