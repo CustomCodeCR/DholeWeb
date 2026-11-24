@@ -1,3 +1,7 @@
+## [1.124.10] - 2026-11-24 · DH-20261124-PRICING-PANAMA-ROAD-DEDUP
+
+- PATCH: concilia el tramo histórico CFZ–GAM con alias generados incluso si tienen CostId; bloquea su regeneración en P7, conserva excedente y valores negociados, y serializa ID e importes del mismo snapshot. Evita dos fletes de USD 2.140 y una segunda asignación Freight para un 40HC. Sin cambio de API, BD o realtime. CI/staging pendientes.
+
 ## [1.124.8] - 2026-11-24 · DH-20261124-PRICING-PANAMA-PERSISTED-SAVE
 
 - PATCH: conserva el RateDetailId del tramo terrestre CFZ → GAM de USD 2.140 al editar; evita aliases duplicados, mantiene venta negociada del excedente y concilia antes de serializar. La edición manual no dispara Auto Pricing automáticamente; se conserva el cálculo explícito. Pruebas de regresión agregadas. Sin cambio REST, realtime ni base de datos. CI/staging pendientes.
