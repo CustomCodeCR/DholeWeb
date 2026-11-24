@@ -48,6 +48,35 @@ function quoteEditTransportChanged387() {
   return ['modality', 'shipmentMode', 'originId', 'destinationId', 'podId',
     'agentId', 'carrierId', 'equipmentId', 'importRateId'].some(key => changed.has(key))
 }
+// Saved manual Inland rows are real RateDetails, not optional catalog entries.
+function quoteEditPersistedInlandMode(line: { name: string }) {
+  const name = normalizeCatalogValue(line.name)
+  if (name.includes('merchant haulage') || (name.includes('inland') && name.includes('merchant'))) return 'merchant'
+  if (name.includes('carrier haulage') || (name.includes('inland') && (name.includes('naviera') || name.includes('carrier')))) return 'carrier'
+  return null
+}
+function quoteEditKeepPersistedInland(line: { name: string; detailId?: string | null }) {
+  if (!props.rateId || !line.detailId || !quoteEditOriginalContext387.value
+      || quoteEditTransportChanged387()
+      || explicitlyRemovedPersistedDetailIds.value.has(line.detailId)) return false
+  const mode = quoteEditPersistedInlandMode(line)
+  return mode === 'merchant' ? Boolean(form.merchantHaulage)
+    : mode === 'carrier' ? Boolean(form.carrierHaulage) : false
+}
+function quoteEditRestorePersistedInland() {
+  const rate = editingRate.value
+  if (!rate) return
+  for (const detail of rate.rateDetails) {
+    if (!quoteEditKeepPersistedInland({ name: detail.name, detailId: detail.id })) continue
+    const existing = rateLines.value.find(line => line.detailId === detail.id)
+    if (existing) {
+      if (!existing.included) existing.included = true
+    } else {
+      rateLines.value.push(persistedRateLineForEdit(detail))
+    }
+  }
+}
+
 function quoteEditRequestedCosts387(): CostSelectDto[] {
   if (!editingRate.value || props.viewOnly || !quoteEditOriginalContext387.value) return []
   const changed = quoteEditChangedKeys387()
@@ -211,12 +240,14 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
   const signature = JSON.stringify(quoteEditContext387())
   if (!quoteEditChangedKeys387().size) {
     quoteEditRemoveInvalidDetails387()
+    quoteEditRestorePersistedInland()
     return true
   }
   const loaded = await loadApplicableCosts(true)
   if (!loaded || sequence !== quoteEditRequest387
       || signature !== JSON.stringify(quoteEditContext387())) return false
   quoteEditRemoveInvalidDetails387()
+  quoteEditRestorePersistedInland()
   quoteEditRequestedCosts387().forEach(cost => {
     appendConfiguredCostToPersistedEdit(cost)
   })
