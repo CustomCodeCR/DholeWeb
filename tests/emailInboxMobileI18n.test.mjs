@@ -76,7 +76,7 @@ test('Dhole mark appears in login, sidebar and browser without the legacy brand'
   assert.ok(sidebar.includes('dhole-brand-mark'))
   assert.ok(index.includes('favicon.ico'))
   assert.ok(index.includes('<title>DHOLE ERP</title>'))
-  assert.ok(logo.includes('#a80e18'))
+  assert.ok(logo.includes('#A90E19'))
   assert.ok(!logo.includes('<rect'))
   assert.ok(!logo.includes('Orvelum'))
   assert.equal(version.version, JSON.parse(source('package.json')).version)

@@ -1,3 +1,7 @@
+## [1.124.21] - 2026-11-24
+
+- DH-20261124-EXACT-SVG-LOGO: usar exactamente dhole-erp(1).svg entregado por el usuario; colores dinámicos mediante CSS, favicon transparente con rojo original #A90E19. Sin reconstruir los trazados. CI/staging pendientes.
+
 ## [1.124.20] - 2026-11-24
 
 - DH-20261124-OFFICIAL-SQUARE-LOGO: geometría rectangular del logo oficial, O cuadrada, logotipo completo en menú expandido e inicio de sesión, símbolo compacto y favicon rojo original transparente. CI/staging pendientes.

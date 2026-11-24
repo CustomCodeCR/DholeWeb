@@ -391,3 +391,7 @@ textarea {
   width: 100%;
   height: auto;
 }
+
+/* Keep the supplied SVG byte-for-byte intact; theme colors are applied externally. */
+.dhole-brand-lockup svg #red { fill: var(--dh-primary); }
+.dhole-brand-lockup svg #black { fill: var(--dh-text); }
