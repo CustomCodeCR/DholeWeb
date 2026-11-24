@@ -85,6 +85,9 @@ function dholeHaulageOptionalAssociation(cost: {
   if (merchant && carrier) return null
 
   const name = normalizeCatalogValue(String(cost.name ?? ''))
+  // International road freight is a separate leg, never a Merchant/Carrier
+  // destination option. Otherwise sync can hide its historical RateDetail.
+  if (!merchant && !carrier && /^(flete (?:terrestre internacional|internacional terrestre)|land freight)(?: |$)/.test(name)) return null
   const isInland = cost.costDetailType === 'InlandTransport'
     || ['inland', 'transporte interno', 'transporte terrestre', 'flete terrestre']
       .some((term) => name.includes(term))

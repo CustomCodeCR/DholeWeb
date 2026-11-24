@@ -77,6 +77,50 @@ function quoteEditRestorePersistedInland() {
   }
 }
 
+// Unchanged revisions must not lose required historical rows when a watcher
+// rebuilds them. Only relink a unique, exact, generated equivalent; never
+// guess between homonyms, distinct suppliers, equipment or manual charges.
+function quoteEditRestoreUnchangedRequiredDetails() {
+  const rate = editingRate.value
+  if (!rate || quoteEditChangedKeys387().size) return
+  const removed = explicitlyRemovedPersistedDetailIds.value
+  for (const detail of rate.rateDetails) {
+    if (!detail.id || removed.has(detail.id) || detail.costType === 'Optional') continue
+    const name = normalizeCatalogValue(detail.name)
+    // Panama road and excess have their own route/provenance-aware reconciliation.
+    if ((typeof isPanamaHistoricalRoad === 'function' && isPanamaHistoricalRoad(detail))
+        || /sobrepeso|overweight|excedente/.test(name)) continue
+    const existing = rateLines.value.find(line => line.detailId === detail.id)
+    if (existing) {
+      if (!existing.included && !existing.optional) existing.included = true
+      continue
+    }
+    const sameIdentity = (line: { name: string; costId?: string | null; costDetailType?: string | null; chargeBasis?: string | null }) =>
+      (line.costId ?? null) === (detail.costId ?? null)
+      && (Boolean(detail.costId) || normalizeCatalogValue(line.name) === name)
+      && line.costDetailType === detail.costDetailType
+      && line.chargeBasis === detail.chargeBasis
+    const aliases = rateLines.value.filter(line => !line.detailId && sameIdentity(line))
+    const originals = rate.rateDetails.filter(sameIdentity)
+    if (aliases.length || originals.length > 1) {
+      if (aliases.length !== 1 || originals.length !== 1 || aliases[0]!.manual) continue
+      const alias = aliases[0]!
+      // Restore the original authoritative identity and negotiated amounts;
+      // a generated alias is not a persisted operator edit.
+      rateLines.value = rateLines.value.map(line =>
+        line === alias ? persistedRateLineForEdit(detail) : line)
+    } else {
+      // Avoid inventing a second charge when a different catalog or manual
+      // row with the same label could already represent this detail.
+      const independentRoad = /^(flete (?:terrestre internacional|internacional terrestre)|land freight)(?: |$)/.test(name)
+      if (rateLines.value.some(line => !line.detailId && (normalizeCatalogValue(line.name) === name
+          || Boolean(detail.costId && line.costId === detail.costId)
+          || (independentRoad && /^(flete (?:terrestre internacional|internacional terrestre)|land freight)(?: |$)/.test(normalizeCatalogValue(line.name)))))) continue
+      rateLines.value.push(persistedRateLineForEdit(detail))
+    }
+  }
+}
+
 function quoteEditRequestedCosts387(): CostSelectDto[] {
   if (!editingRate.value || props.viewOnly || !quoteEditOriginalContext387.value) return []
   const changed = quoteEditChangedKeys387()
@@ -241,6 +285,7 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
   if (!quoteEditChangedKeys387().size) {
     quoteEditRemoveInvalidDetails387()
     quoteEditRestorePersistedInland()
+    quoteEditRestoreUnchangedRequiredDetails()
     return true
   }
   const loaded = await loadApplicableCosts(true)
@@ -347,6 +392,15 @@ export function patchPricingQuotationEditDelta387(source: string): string {
       + (s.includes('function syncPanamaOverweightLines() {') ? '  syncPanamaOverweightLines()\n' : '')
       + '\n' + snapshotAnchor,
     'save-side request delta before immutable snapshot')
+
+  const detailIdsAnchor = 'const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))'
+  // The final save must compare the exact serialized row identities, not a
+  // second live computed list that watchers may have changed after snapshot.
+  if (s.includes(detailIdsAnchor)) {
+    s = replaceSingle(s, detailIdsAnchor,
+      'const currentDetailIds = new Set(normalizedIncludedLines.map((line) => line.detailId).filter((id): id is string => Boolean(id)))',
+      'validate immutable persisted detail snapshot')
+  }
 
   const freight = 'function syncPersistedFreightLineForEdit() {'
   s = replaceSingle(s, freight,

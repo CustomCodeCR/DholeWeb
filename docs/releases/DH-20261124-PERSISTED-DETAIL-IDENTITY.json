@@ -1,0 +1,12 @@
+{
+  "releaseId": "DH-20261124-PERSISTED-DETAIL-IDENTITY",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.15",
+  "version": "1.124.16",
+  "ecosystemVersion": "1.124.16",
+  "target": "develop",
+  "changes": [
+    "Preserve exact historical detail identities; restore legacy Panama road without rule marker; independent road never a haulage alternative; validate serialized snapshot."
+  ],
+  "validation": "CI and staging pending"
+}

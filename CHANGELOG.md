@@ -1,3 +1,7 @@
+## [1.124.16] - 2026-11-24
+
+- DH-20261124-PERSISTED-DETAIL-IDENTITY: recuperar identidad original de cargos históricos obligatorios en revisiones sin cambio de contexto; reconocer flete CFZ–GAM sin marcador histórico y separarlo de Merchant/Naviera. Validar el mismo snapshot que se serializa, respetar eliminaciones explícitas y evitar duplicados. Pruebas de regresión añadidas; CI/staging pendientes.
+
 ## [1.124.15] - 2026-11-24
 
 - DH-20261124-INLAND-PERSISTED-EDIT: conservar Inland Merchant/Naviera persistido al modificar cotizaciones, incluso Variable sin CostId. Recuperar el detalle original y sus precios sin duplicar el flete terrestre independiente; respetar eliminaciones explícitas. Prueba de regresión P6/P7; CI y staging pendientes.
