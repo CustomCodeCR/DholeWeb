@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { applyFreightUnitAmount, singleIncludedFreightLine } from '../src/modules/pricing/utils/pricingFreightUnitSync.ts'
 
+import { patchLclProviderCostEditLock } from '../build/pricingWizardLclManualColoader.ts'
+
 const wizard = readFileSync(
   new URL('../src/modules/pricing/components/PricingAlternativeWizardCrystal.vue', import.meta.url),
   'utf8',
@@ -54,4 +56,23 @@ test('the wizard binds provider fields to freight details and verifies saved air
   assert.match(wizard, /const requestedAirFreight = updatePayload\.extraDetails\.find/)
   assert.match(wizard, /Math\.abs\(number\(savedAirFreight\.costAmount\) - number\(requestedAirFreight\.costAmount\)\)/)
   assert.match(wizard, /Math\.abs\(number\(savedAirFreight\.saleAmount\) - number\(requestedAirFreight\.saleAmount\)\)/)
+})
+
+test('direct P6 entry unlocks cost for a hydrated existing coloader quote only', () => {
+  const template = `<DhInput v-model.number="form.freightCost" :disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Coloader'" />`
+  const transformed = patchLclProviderCostEditLock(template)
+  const expression = transformed.match(/:disabled="([^"]+)"/)?.[1]
+  assert.ok(expression)
+  const isDisabled = new Function('viewOnly', 'shipmentModeForApi', 'lclSelectedSource',
+    'rateId', 'editingRate', 'hydratingExistingRate', 'sellerRequestMode',
+    'return Boolean(' + expression + ')')
+  const source = { kind: 'Coloader', manual: false }
+  const saved = { id: 'saved-quote' }
+  assert.equal(isDisabled(false, 'Lcl', source, saved.id, saved, false, false), false)
+  assert.equal(isDisabled(true, 'Lcl', source, saved.id, saved, false, false), true)
+  assert.equal(isDisabled(false, 'Lcl', source, saved.id, saved, true, false), true)
+  assert.equal(isDisabled(false, 'Lcl', source, saved.id, saved, false, true), true)
+  assert.equal(isDisabled(false, 'Lcl', source, null, null, false, false), true)
+  assert.equal(isDisabled(false, 'Lcl', { ...source, manual: true }, null, null, false, false), false)
+  assert.equal(isDisabled(false, 'Fcl', null, null, null, false, false), false)
 })

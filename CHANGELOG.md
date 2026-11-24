@@ -1,3 +1,7 @@
+## [1.124.18] - 2026-11-24
+
+- DH-20261124-LCL-DIRECT-STEP6-COST: habilitar el costo de flete coloader LCL en edición de una cotización existente al ingresar directamente a pantalla 6. Conserva restricciones de creación, solo lectura y ventas. Prueba obligatoria en prebuild; CI y staging pendientes.
+
 ## [1.124.17] - 2026-11-24
 
 - DH-20261124-LCL-EDIT-COST: promoción aislada de la corrección LCL integrada en develop. Normalizar contexto tras hidratación, compartir reconciliaciones, permitir revisar costos ante falla transitoria y conservar validación antes de guardar. CI de develop superado; staging y CI de master pendientes.
