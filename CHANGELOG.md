@@ -1,3 +1,10 @@
+## [1.122.1] - 2026-11-23 · DH-20261123-PRICING-AUTO-IDTRA-438
+
+- PATCH: elimina la solicitud de IDTRA manual en pantalla 9 (aceptación comercial) y del resumen previo. Operations es el responsable único de generar el consecutivo del trámite al consumir el evento de aceptación definitiva de Pricing.
+- La acción comercial envía únicamente estado AcceptedByClient y otras referencias opcionales; no envía ni inventa idtraNumber. Los IDTRA históricos ya asociados se visualizan sin edición en el resumen.
+- Reutiliza DhTextarea/DhButton del diseño DH; agrega prueba de regresión de UI y contrato. Versiones DholeWeb/DholeSystem 1.122.0 → 1.122.1; Pricing, Operations y 13 componentes restantes sin cambios.
+- Integración real Redis/CRM/Operations y despliegue en staging sujetos a verificación; sin cambios en master ni producción.
+
 ## [1.122.0] - 2026-11-23 · DH-20261123-OPS-AUTOSAVE-434
 
 - MINOR candidato: Aperturas manuales autoguarda borradores incompletos en PostgreSQL por usuario/empresa, con recuperación remota, copia local y control de conflictos.
