@@ -174,3 +174,48 @@ test('saved variable Merchant Inland with null CostId survives edit and repeated
   await q.apply()
   assert.equal(q.root.rateLines.value.some((l: any) => l.detailId === 'INLAND'), false)
 })
+
+test('unchanged revision restores required historical IDs without duplicating exact generated charges', async () => {
+  const q = fixture()
+  const saved = { id: 'FIXED', detailId: 'FIXED', key: 'existing:FIXED',
+    name: 'Cargo destino contratado', costId: 'COST-1', costType: 'Fixed',
+    costDetailType: 'DestinationCharge', chargeBasis: 'PerShipment',
+    included: true, manual: false, costAmount: 80, saleAmount: 120 }
+  const optional = { ...saved, id: 'OPT', detailId: 'OPT', key: 'existing:OPT',
+    name: 'Cargo opcional', costId: 'OPT-1', costType: 'Optional' }
+  q.root.editingRate.value.rateDetails.push(saved, optional)
+  q.root.rateLines.value.push({ ...saved, detailId: null, key: 'cost:COST-1', saleAmount: 90 },
+    { ...optional, included: false })
+  assert.equal(await q.apply(), true)
+  const matching = q.root.rateLines.value.filter((l: any) => l.costId === 'COST-1')
+  assert.equal(matching.length, 1)
+  assert.equal(matching[0].detailId, 'FIXED')
+  assert.equal(matching[0].saleAmount, 120)
+  assert.equal(q.root.rateLines.value.find((l: any) => l.detailId === 'OPT').included, false)
+  matching[0].saleAmount = 135
+  await q.apply()
+  assert.equal(matching[0].saleAmount, 135)
+  q.root.rateLines.value = q.root.rateLines.value.filter((l: any) => l.detailId !== 'FIXED')
+  await q.apply()
+  assert.equal(q.root.rateLines.value.find((l: any) => l.detailId === 'FIXED').saleAmount, 120)
+  q.root.explicitlyRemovedPersistedDetailIds.value.add('FIXED')
+  q.root.rateLines.value = q.root.rateLines.value.filter((l: any) => l.detailId !== 'FIXED')
+  await q.apply()
+  assert.equal(q.root.rateLines.value.some((l: any) => l.detailId === 'FIXED'), false)
+})
+
+test('catalog-backed historical road on any route retains its exact ID when a generated label changes', async () => {
+  const q = fixture()
+  const saved = { id: 'ROAD-OTHER', detailId: 'ROAD-OTHER', key: 'existing:ROAD-OTHER',
+    name: 'Flete terrestre internacional Guatemala a Costa Rica', costId: 'ROAD-COST',
+    costType: 'Fixed', costDetailType: 'Freight', chargeBasis: 'PerContainer',
+    included: true, manual: false, costAmount: 1200, saleAmount: 1450 }
+  q.root.editingRate.value.rateDetails.push(saved)
+  q.root.rateLines.value.push({ ...saved, detailId: null, key: 'cost:ROAD-COST',
+    name: 'Flete Internacional Terrestre', saleAmount: 1300 })
+  assert.equal(await q.apply(), true)
+  const rows = q.root.rateLines.value.filter((l: any) => l.costId === 'ROAD-COST')
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].detailId, 'ROAD-OTHER')
+  assert.equal(rows[0].saleAmount, 1450)
+})
