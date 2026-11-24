@@ -161,6 +161,8 @@ function dholeHaulageConverted(value: number, currencyCode: string) {
 
 function dholeEnsureSelectedHaulageLines() {
   if (props.viewOnly || !multiCarrierSelectionMode.value || step.value !== 7) return
+  // Existing quotes reconcile historical details through the edit delta.
+  if (props.rateId) return
   // Screen 6 and 7 must use the SAME eligible CostIds for the active route.
   // This also covers a configured Inland classified as delivery_destination
   // that the generic Incoterm line builder would otherwise omit.
@@ -478,6 +480,11 @@ function patchWizard(source: string) {
 
   rateLines.value.forEach((line) => {
     if (isPanamaOverweightSupplement(line)) return
+    // Persisted manual Inland is not required to have a current catalog CostId.
+    if (props.rateId && quoteEditKeepPersistedInland(line)) {
+      line.included = true
+      return
+    }
     // A configured Inland can be Fixed/Variable. Classify the actual route
     // before deciding whether this is a shared fixed charge or an alternative.
     const configured = line.costId ? costs.value.find((cost) => cost.id === line.costId) : null

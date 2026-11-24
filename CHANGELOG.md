@@ -1,3 +1,7 @@
+## [1.124.15] - 2026-11-24
+
+- DH-20261124-INLAND-PERSISTED-EDIT: conservar Inland Merchant/Naviera persistido al modificar cotizaciones, incluso Variable sin CostId. Recuperar el detalle original y sus precios sin duplicar el flete terrestre independiente; respetar eliminaciones explícitas. Promoción aislada de la corrección integrada en develop; validación de staging y CI de master pendientes.
+
 ## [1.124.11] - 2026-11-24 · DH-20261124-INLAND-AUTO-SELECTION
 
 ## [1.124.14] - 2026-11-24
