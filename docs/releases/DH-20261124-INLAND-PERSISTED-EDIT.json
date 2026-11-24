@@ -1,0 +1,10 @@
+{
+  "releaseId": "DH-20261124-INLAND-PERSISTED-EDIT",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.14",
+  "version": "1.124.15",
+  "ecosystemVersion": "1.124.15",
+  "target": "develop",
+  "changes": "Restore original Inland detail without CostId, preserve edited prices, avoid duplicates and respect explicit deletion.",
+  "validation": "CI and staging pending"
+}
