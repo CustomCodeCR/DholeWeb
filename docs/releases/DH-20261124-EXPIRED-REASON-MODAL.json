@@ -1,0 +1,13 @@
+{
+  "releaseId": "DH-20261124-EXPIRED-REASON-MODAL",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.11",
+  "version": "1.124.12",
+  "ecosystemVersion": "1.124.12",
+  "validation": "CI and staging pending",
+  "changes": [
+    "Visible reason form even when status lookup fails",
+    "JSON validation, retry and explicit pending confirmation",
+    "Generic management copy; recipients unchanged"
+  ]
+}
