@@ -45,3 +45,9 @@ test('resend error panel renders the actual API detail and preserves request id 
   assert.match(modal, /finally \{/)
   assert.match(modal, /sending\.value = false/)
 })
+
+test('suppressed opening notification does not report a queued email', () => {
+  assert.match(modal, /Pricing\.OpeningNotificationIdtraAssigned/)
+  assert.match(modal, /toast\.info\('Notificación no enviada'/)
+  assert.ok(modal.indexOf('Pricing.OpeningNotificationIdtraAssigned') < modal.indexOf('toast.success('))
+})
