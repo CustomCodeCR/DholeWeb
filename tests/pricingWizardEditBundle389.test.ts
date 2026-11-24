@@ -32,7 +32,7 @@ test('DH-389: saved quote P6 and edit delta consult wizard-bundle, not legacy se
   assert.doesNotMatch(result, /if \(!validCurrent && !props\.rateId\)/)
   assert.match(result, /PricingService\.selectWizardCosts\(contextualQuery\)/)
   assert.doesNotMatch(result, /PricingService\.selectCosts\(/)
-  assert.match(pricingQuotationEditDelta387Runtime, /const loaded = await loadApplicableCosts\(true\)/)
+  assert.match(pricingQuotationEditDelta387Runtime, /let loaded = await loadApplicableCosts\(true\)/)
 })
 
 test('DH-389: quote edits can add independent terrestrial freight but never overwrite ocean Freight', () => {

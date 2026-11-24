@@ -255,3 +255,33 @@ test('identical concurrent cost reconciliation shares request and neither caller
   assert.equal(await first, true)
   assert.equal(await second, true)
 })
+
+test('Air price-only edit retains negotiated charges without a live catalog lookup', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.form.shipmentMode = 'AIR'
+  q.root.shipmentModeForApi.value = 'Air'
+  q.original.value = q.snapshot()
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  q.root.rateLines.value[0].saleAmount = 5900
+  assert.equal(await q.apply(), true)
+  assert.equal(queries, 0)
+  assert.equal(q.root.rateLines.value[0].saleAmount, 5900)
+})
+
+test('Context reconciliation retries one transient failure without bypassing persistent errors', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'NEW-AGENT'
+  let queries = 0
+  q.root.loadApplicableCosts = async () => ++queries === 2
+  assert.equal(await q.apply(), true)
+  assert.equal(queries, 2)
+  q.root.form.agentId = 'ANOTHER-AGENT'
+  queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  const previous = JSON.stringify(q.root.rateLines.value)
+  assert.equal(await q.apply(), false)
+  assert.equal(queries, 2)
+  assert.equal(JSON.stringify(q.root.rateLines.value), previous)
+})
