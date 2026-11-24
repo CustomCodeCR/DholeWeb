@@ -379,3 +379,15 @@ textarea {
     animation-iteration-count: 1 !important;
   }
 }
+/* Shared transparent branding: the mask paints only the original silhouette. */
+.dhole-brand-mark {
+  display: inline-block;
+  background-color: var(--dh-primary);
+  -webkit-mask: url("/dhole-mark.svg") center / contain no-repeat;
+  mask: url("/dhole-mark.svg") center / contain no-repeat;
+}
+.dhole-brand-lockup svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

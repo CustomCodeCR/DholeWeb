@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import dholeLogo from '../../../assets/dhole-logo.svg?raw'
 const { t } = useI18n()
 </script>
 
@@ -7,8 +8,9 @@ const { t } = useI18n()
   <main class="grid min-h-[100dvh] min-w-0 place-items-center px-3 py-[max(0.75rem,env(safe-area-inset-top))] sm:p-6">
     <section class="dh-glass dh-liquid w-full min-w-0 max-w-md rounded-[26px] p-4 shadow-[var(--dh-shadow-lg)] sm:rounded-[38px] sm:p-8">
       <div class="mb-6 text-center sm:mb-8">
-        <img src="/dhole-mark.svg" alt="DHOLE ERP" class="mx-auto mb-4 h-14 w-14 sm:h-16 sm:w-16" />
-        <h1 class="break-words text-2xl font-black text-[var(--dh-text)] sm:text-3xl">{{ t('app.name') }}</h1>
+        <!-- Static, bundled SVG. Never insert runtime user HTML here. -->
+        <div class="dhole-brand-lockup mx-auto mb-4 w-full max-w-[280px]" v-html="dholeLogo" />
+        <h1 class="sr-only">{{ t('app.name') }}</h1>
         <p class="mt-1 break-words text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('app.subtitle') }}</p>
         <p class="mx-auto mt-3 max-w-[34ch] break-words text-center text-[11px] font-medium leading-relaxed text-[var(--dh-text-muted)]" data-testid="dhole-meaning">{{ t('app.meaning') }}</p>
       </div>
