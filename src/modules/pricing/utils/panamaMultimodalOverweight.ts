@@ -111,18 +111,28 @@ export function preservePersistedPanamaOverweightLines<
 interface PanamaSavedLine {
   key?: string | null; name?: string | null; notes?: string | null
   costId?: string | null; costDetailType?: string | null; chargeBasis?: string | null
+  manual?: boolean | null
 }
 export function isPanamaHistoricalRoad(line: PanamaSavedLine): boolean {
   return !line.costId && !isPanamaOverweightSupplement(line)
     && /\[PANAMA_PRODUCTION_NO_SEARCH\]/i.test(String(line.notes ?? ''))
     && /^(InlandTransport|Freight)$/.test(String(line.costDetailType ?? ''))
 }
-function isGeneratedPanamaRoad(line: PanamaSavedLine): boolean {
-  if (line.costId || isPanamaOverweightSupplement(line)) return false
+export function isGeneratedPanamaRoad(line: PanamaSavedLine): boolean {
+  if (isPanamaOverweightSupplement(line)) return false
   const key = String(line.key ?? '')
-  return isPanamaHistoricalRoad(line)
+  if (isPanamaHistoricalRoad(line)
     || key === 'panama-production:cfz-san-jose-2140'
     || key === 'p7-393-panama-gam-fcl-land'
+    || key.startsWith('p7-391-multimodal-land:')) return true
+  // The applicable catalog and edit delta can materialize the same base leg
+  // under a CostId and generic cost:<id> key. Scope this alias to the exact
+  // per-container road rubric, never other Inland, Bunker or excess charges.
+  const name = String(line.name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .trim().toLowerCase().replace(/\s+/g, ' ')
+  return line.manual !== true && line.chargeBasis === 'PerContainer'
+    && /^(Freight|InlandTransport)$/.test(String(line.costDetailType ?? ''))
+    && /^(flete internacional terrestre|flete terrestre internacional|land freight)$/.test(name)
 }
 export function preservePersistedPanamaRoad<
   T extends PanamaSavedLine & { detailId?: string | null; included: boolean; manual?: boolean; section?: string },
@@ -132,12 +142,15 @@ export function preservePersistedPanamaRoad<
   // Never collapse distinct, legitimately saved land legs.
   if (historical.length !== 1) return lines
   const detail = historical[0]!
-  const savedIndex = lines.findIndex(line => line.detailId === detail.id)
+  // A legacy relinker may attach the old ID to a newly generated alias.
+  // Prefer the original rule provenance over that alias if both exist.
+  const savedIndex = lines.findIndex(line => line.detailId === detail.id && isPanamaHistoricalRoad(line))
   const original = restore(detail)
   const current = savedIndex >= 0 ? lines[savedIndex]! : original
   if (wasRemoved(current)) return lines
   // Generated aliases are the same rule, not an additional billable row.
-  const aliases = lines.filter(line => !line.detailId && isGeneratedPanamaRoad(line))
+  const aliases = lines.filter(line => line !== current
+    && (!line.detailId || line.detailId === detail.id) && isGeneratedPanamaRoad(line))
   if (savedIndex >= 0 && current.included && !current.manual
       && current.section === 'international_freight' && aliases.length === 0) return lines
   const preserved = { ...current, included: true, manual: false, section: 'international_freight' }
