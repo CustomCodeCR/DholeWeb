@@ -620,8 +620,12 @@ async function restoreDraft() {
   try {
     const response = await operationsApi.getManualOpeningDraft()
     if ('draft' in response && response.draft) {
-      server = response as typeof server
-      remoteDraftVersion = response.version
+      const snapshot = response as {
+        version: number; updatedAtUtc: string; draft: Record<string, unknown>
+      }
+      server = { version: snapshot.version, updatedAtUtc: snapshot.updatedAtUtc,
+        draft: snapshot.draft }
+      remoteDraftVersion = snapshot.version
     }
   } catch {
     autosaveState.value = 'error'
@@ -633,7 +637,8 @@ async function restoreDraft() {
     localSavedAt = Number(local?.savedAt) || 0
   } catch { /* Invalid or restricted local backup. */ }
   const serverSavedAt = server ? new Date(server.updatedAtUtc).getTime() : 0
-  restoreLocalDraft(server && serverSavedAt >= localSavedAt ? server.draft : undefined)
+  if (server && serverSavedAt >= localSavedAt) restoreLocalDraft(server.draft)
+  else restoreLocalDraft()
 }
 async function clearLocalDraft() {
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -648,7 +653,10 @@ watch([form, accountId, selectedClientName, modality, activeStep, contactsTouche
   scheduleLocalDraft, { deep: true })
 onBeforeUnmount(() => {
   if (autosaveTimer) clearTimeout(autosaveTimer)
-  if (autosaveReady.value && !editingId.value) persistDraft()
+  if (autosaveReady.value && !editingId.value) {
+    persistLocalDraft()
+    persistDraft()
+  }
 })
 
 async function save() {
