@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FolderOpen, RefreshCw, Plus, ArrowUpRight, Route, Package, UsersRound, FileText, CheckCircle2 } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
+import { DhBadge, DhButton, DhSelect, DhInput, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
@@ -15,6 +15,51 @@ import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 const { locale } = useI18n()
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
+const canConfigureIdtra = computed(() => ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)))
+const sequenceOpen = ref(false)
+const sequenceBusy = ref(false)
+const sequenceCurrent = ref<number | null>(null)
+const sequenceNext = ref('')
+const sequenceReason = ref('')
+const sequenceError = ref('')
+const sequenceSuccess = ref('')
+const validSequence = computed(() => sequenceCurrent.value !== null
+  && /^[0-9]+$/.test(sequenceNext.value)
+  && Number.isSafeInteger(Number(sequenceNext.value))
+  && Number(sequenceNext.value) >= sequenceCurrent.value
+  && Number(sequenceNext.value) <= 999999999999
+  && sequenceReason.value.trim().length >= 3
+  && sequenceReason.value.trim().length <= 500)
+async function openSequence() {
+  if (!canConfigureIdtra.value) return
+  sequenceOpen.value = true
+  sequenceBusy.value = true
+  sequenceError.value = ''
+  sequenceSuccess.value = ''
+  sequenceCurrent.value = null
+  sequenceNext.value = ''
+  sequenceReason.value = ''
+  try {
+    const result = await operationsApi.idtraSequence()
+    sequenceCurrent.value = result.nextNumber
+    sequenceNext.value = String(result.nextNumber)
+  } catch { sequenceError.value = 'No se pudo consultar el consecutivo. Verifique Operations.' }
+  finally { sequenceBusy.value = false }
+}
+async function saveSequence() {
+  if (!canConfigureIdtra.value || !validSequence.value || sequenceBusy.value || sequenceCurrent.value === null) return
+  sequenceBusy.value = true
+  sequenceError.value = ''
+  sequenceSuccess.value = ''
+  try {
+    const result = await operationsApi.configureIdtraSequence(Number(sequenceNext.value), sequenceCurrent.value, sequenceReason.value.trim())
+    sequenceCurrent.value = result.nextNumber
+    sequenceNext.value = String(result.nextNumber)
+    sequenceReason.value = ''
+    sequenceSuccess.value = 'Próximo IDTRA confirmado por Operations.'
+  } catch { sequenceError.value = 'No se guardó el consecutivo. Es posible que se haya creado un trámite o que otro administrador lo haya cambiado. Consulte el valor actual.' }
+  finally { sequenceBusy.value = false }
+}
 const page = ref(1)
 const total = ref(0)
 const rows = ref<OperationsCaseRow[]>([])
@@ -304,11 +349,34 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
   <div class="mx-auto w-full max-w-[1680px] space-y-5 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
     <DhPageHeader title="Trámites" subtitle="Crea, busca y administra todos los expedientes operativos IDTRA a los que tienes acceso." :icon="FolderOpen" :hide-excel-export="true">
       <template #actions>
+        <DhButton v-if="canConfigureIdtra" variant="secondary" label="Consecutivo IDTRA" @click="openSequence" />
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
         <RouterLink v-if="canCreate" :to="{ name: 'operations-case-create' }"><DhButton :icon="Plus" label="Nuevo trámite" /></RouterLink>
       </template>
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
+
+    <DhDrawer :open="sequenceOpen && canConfigureIdtra" title="Configuración de consecutivo IDTRA" size="lg" @close="sequenceOpen = false">
+      <div class="space-y-4">
+        <DhCard padding="sm" title="Migración y continuidad">
+          <p class="text-sm text-[var(--dh-text-muted)]">El número ingresado corresponde al siguiente IDTRA nuevo. Los expedientes históricos conservan su identificador original. Nunca se reutilizan números emitidos ni se disminuye el consecutivo.</p>
+          <div v-if="sequenceCurrent !== null" class="mt-3 space-y-1">
+            <p class="text-xs text-[var(--dh-text-muted)]">Siguiente número confirmado</p>
+            <p class="text-xl font-bold tabular-nums">IDTRA{{ sequenceCurrent }}</p>
+          </div>
+        </DhCard>
+        <DhInput v-model="sequenceNext" type="number" label="Primer número / siguiente IDTRA" :min="sequenceCurrent || 1" :max="999999999999" :step="1" :disabled="sequenceBusy || sequenceCurrent === null" />
+        <DhTextarea v-model="sequenceReason" label="Motivo del cambio" placeholder="Ej. nueva fecha de corte de migración" :disabled="sequenceBusy" />
+        <p v-if="validSequence" class="text-sm text-[var(--dh-text-muted)]">Los próximos números serán IDTRA{{ Number(sequenceNext) }} e IDTRA{{ Number(sequenceNext) + 1 }} si no hay otra asignación concurrente.</p>
+        <p v-if="sequenceError" role="alert" class="text-sm text-red-500">{{ sequenceError }}</p>
+        <DhBadge v-if="sequenceSuccess" variant="success">{{ sequenceSuccess }}</DhBadge>
+        <DhButton variant="secondary" label="Consultar valor actual" :loading="sequenceBusy" @click="openSequence" />
+      </div>
+      <template #footer>
+        <DhButton variant="secondary" label="Cerrar" @click="sequenceOpen = false" />
+        <DhButton label="Guardar próximo IDTRA" :disabled="!validSequence" :loading="sequenceBusy" @click="saveSequence" />
+      </template>
+    </DhDrawer>
 
     <DhCard padding="sm" title="Todos los trámites" subtitle="Selecciona un expediente para consultar su resumen.">
       <div class="mb-3 grid gap-3 sm:grid-cols-2">

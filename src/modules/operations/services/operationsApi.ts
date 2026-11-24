@@ -206,6 +206,9 @@ function request<T>(path: string, method: Method = 'GET', body?: unknown): Promi
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
 }
 export const operationsApi = {
+  idtraSequence: () => request<{ nextNumber: number }>('/api/operations/idtra-sequence'),
+  configureIdtraSequence: (nextNumber: number, expectedNextNumber: number, reason: string) =>
+    request<{ nextNumber: number }>('/api/operations/idtra-sequence', 'PUT', { nextNumber, expectedNextNumber, reason }),
   dashboard: (teamId?: string) => request<OperationsDashboard>(
     '/api/operations/dashboard' + (teamId ? '?teamId=' + encodeURIComponent(teamId) : '')),
   cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow>>(

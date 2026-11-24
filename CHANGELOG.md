@@ -1,3 +1,8 @@
+## [1.123.0] - 2026-11-24 · DH-20261124-OPS-HISTORICAL-IDTRA
+
+- MINOR candidato: configuración interna de próximo IDTRA para superusuarios, con motivo, previsualización y control de concurrencia; reutiliza DhDrawer/DhInput/DhTextarea/DhButton. No modifica cotizaciones ni consecutivos existentes.
+- Release coordinado con Pricing y Operations para migración histórica. CI y staging pendientes.
+
 ## [1.122.5] - 2026-11-24 · DH-20261124-OPS-IDTRA-STATUS
 
 - PATCH: Pricing P9 consulta Operations mediante QUO padre y opción aceptada, con permiso de lectura, reintentos acotados y refresco SignalR. Muestra IDTRA real y acceso directo; distingue ausencia de expediente, falta de permiso y error de consulta. Conserva referencias históricas y no crea ni duplica IDTRA desde Web.
