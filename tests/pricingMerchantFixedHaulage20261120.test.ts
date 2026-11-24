@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
+import { isPanamaOverweightSupplement } from '../src/modules/pricing/utils/panamaMultimodalOverweight.ts'
 
 const source = readFileSync(
   new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8',
@@ -54,6 +55,7 @@ const carrier = {
 
 function environment() {
   const state = {
+    isPanamaOverweightSupplement,
     normalizeCatalogValue: (text: unknown) => String(text ?? '').toLowerCase(),
     dholeHaulageContextCosts: { value: [merchant, carrier] },
     dholeHaulageOtherConditionsMatch: () => true,
@@ -151,4 +153,22 @@ test('Estimates exclude fixed inland from shared costs to prevent double countin
   assert.match(source, /&& dholeHaulageOptionalAssociation\(cost\) === null/)
   assert.match(source, /optional: cost\.costType === 'Optional'/)
   assert.match(source, /label\.includes\('transporte terrestre'\)/)
+})
+
+test('saved Panama excess is independent of Merchant/Carrier selection', () => {
+  const { state, classify, sync } = environment()
+  const excess = { costId: 'excess', name: 'Flete Terrestre Internacional Panamá a Costa Rica',
+    notes: 'Sobrepeso sobre 19.000 kg por contenedor; costo maestro calculado únicamente por 2000 kg excedentes.',
+    costType: 'Optional', costDetailType: 'DestinationCharge', optional: true, included: true,
+    costAmount: 400, saleAmount: 560, applyDestinationTax: true }
+  state.rateLines.value.push(excess)
+  assert.equal(classify(excess), null)
+  sync()
+  state.form.merchantHaulage = false
+  state.form.carrierHaulage = true
+  sync()
+  assert.equal(excess.included, true)
+  assert.equal(excess.costAmount, 400)
+  assert.equal(excess.saleAmount, 560)
+  assert.equal(excess.applyDestinationTax, true)
 })
