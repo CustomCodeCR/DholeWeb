@@ -46,7 +46,8 @@ export function patchPricingWizardEditBundle389(source: string): string {
     + '      if (!pricesLoaded) return\n'
     + code.slice(p6Call + '      await loadApplicableCosts()'.length)
 
-  // Quotation edits must not auto-switch saved Merchant/Carrier choices.
+  // Keep a valid saved Merchant/Carrier choice, but repair a missing or invalid
+  // choice in editable quotations. Read-only views never select or mutate it.
   const selectionStart = code.indexOf('let dholeHaulageRequestVersion = 0')
   const selectionText = '      if (!validCurrent) {'
   const idx = code.indexOf(selectionText, selectionStart)
@@ -54,7 +55,7 @@ export function patchPricingWizardEditBundle389(source: string): string {
     throw new Error('[DH-389] P6 automatic haulage selection guard missing')
   }
   code = code.slice(0, idx)
-    + '      if (!validCurrent && !props.rateId) {'
+    + '      if (!validCurrent && !props.viewOnly) {'
     + code.slice(idx + selectionText.length)
 
   // Newly requested route-specific land Freight has its own CostId and MUST
