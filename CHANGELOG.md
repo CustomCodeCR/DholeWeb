@@ -1,6 +1,6 @@
 ## [1.124.21] - 2026-11-24
 
-- DH-20261124-EXACT-SVG-LOGO: usar exactamente dhole-erp(1).svg entregado por el usuario; colores dinámicos mediante CSS, favicon transparente con rojo original #A90E19. Sin reconstruir los trazados. CI/staging pendientes.
+- DH-20261124-EXACT-SVG-LOGO: usar exactamente dhole-erp(1).svg entregado por el usuario; colores dinámicos mediante CSS, favicon transparente con rojo original #A90E19. Sin reconstruir los trazados. Descripciones de marca solo en tooltip sobre logo; se conserva versión visible. CI/staging pendientes.
 
 ## [1.124.20] - 2026-11-24
 

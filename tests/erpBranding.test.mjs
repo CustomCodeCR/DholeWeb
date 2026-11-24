@@ -22,10 +22,6 @@ test('brand identity is consistent across the shell, login and build metadata', 
   assert.match(source('src/main.ts'), /DHOLE ERP · v/)
   assert.match(source('src/modules/auth/views/LoginView.vue'), /Bienvenido a DHOLE ERP/)
   assert.doesNotMatch(source('src/shared/components/layouts/AuthLayout.vue'), /app\.pronunciation/)
-  assert.match(source('src/shared/components/layouts/AuthLayout.vue'), /\{\{ t\('app\.meaning'\) \}\}/)
-  assert.match(source('src/shared/components/organisms/DhSidebar.vue'), /\{\{ t\('app\.meaning'\) \}\}/)
-  assert.match(source('src/shared/components/layouts/AuthLayout.vue'), /data-testid="dhole-meaning"/)
-  assert.match(source('src/shared/components/organisms/DhSidebar.vue'), /data-testid="dhole-meaning"/)
   assert.match(source('src/shared/components/organisms/DhSidebar.vue'), /app\.meaning/)
   assert.match(source('public/dhole-mark.svg'), /<title id="dhole-title">DHOLE ERP<\/title>/)
   assert.match(source('Dockerfile'), /VITE_APP_NAME="DHOLE ERP"/)
@@ -65,5 +61,14 @@ test('supplied SVG geometry remains intact and follows the theme', () => {
   assert.match(source('index.html'), /href="\/favicon\.ico\?v=/)
   const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
   assert.match(sidebar, /v-if="compact" role="img"[^>]+dhole-brand-mark/)
-  assert.match(sidebar, /v-if="!compact"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo"/)
+  assert.match(sidebar, /v-if="!compact"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo\.replace/)
+})
+
+test('brand description is only shown in the logo tooltip', () => {
+  for (const path of ['src/shared/components/layouts/AuthLayout.vue', 'src/shared/components/organisms/DhSidebar.vue']) {
+    const view = source(path)
+    assert.ok(view.includes("[t('app.subtitle'), t('app.meaning')]"))
+    assert.ok(!view.includes("{{ t('app.subtitle') }}"))
+    assert.ok(!view.includes("{{ t('app.meaning') }}"))
+  }
 })
