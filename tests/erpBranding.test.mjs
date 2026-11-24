@@ -56,5 +56,14 @@ test('supplied SVG geometry remains intact and follows the theme', () => {
   assert.match(source('index.html'), /href="\/favicon\.ico\?v=/)
   const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
   assert.match(sidebar, /v-if="compact" role="img"[^>]+dhole-brand-mark/)
-  assert.match(sidebar, /v-if="!compact"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo"/)
+  assert.match(sidebar, /v-if="!compact"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo\.replace/)
+})
+
+test('brand description is only shown in the logo tooltip', () => {
+  for (const path of ['src/shared/components/layouts/AuthLayout.vue', 'src/shared/components/organisms/DhSidebar.vue']) {
+    const view = source(path)
+    assert.ok(view.includes("[t('app.subtitle'), t('app.meaning')]"))
+    assert.ok(!view.includes("{{ t('app.subtitle') }}"))
+    assert.ok(!view.includes("{{ t('app.meaning') }}"))
+  }
 })

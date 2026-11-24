@@ -179,15 +179,12 @@ watch(
           class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
           :class="compact ? 'justify-center' : ''"
         >
-          <span v-if="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark h-10 w-10 shrink-0" :title="APP_VERSION_DETAIL" />
+          <span v-if="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark h-10 w-10 shrink-0" :title="[t('app.subtitle'), t('app.meaning'), APP_VERSION_DETAIL].join(' · ')" />
 
           <div v-if="!compact" class="min-w-0 flex-1">
-            <div class="dhole-brand-lockup mb-1 w-full" v-html="dholeLogo" />
+            <div class="dhole-brand-lockup mb-1 w-full" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />
             <p class="sr-only" :title="t('app.meaning')">
               {{ t('app.name') }}
-            </p>
-            <p class="truncate text-[11px] font-medium text-[var(--dh-text-muted)]">
-              {{ t('app.subtitle') }}
             </p>
             <p class="mt-0.5 truncate text-[10px] font-bold text-[var(--dh-text-muted)]" :title="APP_COMMIT || APP_VERSION_DETAIL">
               v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
