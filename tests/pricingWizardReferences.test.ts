@@ -10,13 +10,8 @@ const wizards = [
 for (const file of wizards) {
   test(file + ' preserves historical IDTRA and Dhole-only references on screen 8', () => {
     const source = readFileSync(file, 'utf8')
-    if (file.includes('PricingRateExistingWizardStable')) {
-      assert.doesNotMatch(source, /v-model="form\.idtraNumber"/)
-      assert.match(source, /IDTRA históricos asociados a Dynamics \(solo lectura\)/)
-    } else {
-      assert.match(source, /label="Números IDTRA \(separados por comas, opcional\)"/)
-      assert.match(source, /:error="wizardIdtraError \|\| undefined"/)
-    }
+    assert.doesNotMatch(source, /v-model="form\.idtraNumber"/)
+    assert.match(source, /IDTRA históricos asociados a Dynamics \(solo lectura\)/)
     assert.match(source, /label="Otras referencias \(opcional\)"/)
     assert.match(source, /v-model="form\.otherReferences"/)
     assert.match(source, /wizardIdtraIdentifiers/)
