@@ -1,3 +1,7 @@
+## [1.124.4] - 2026-11-24 · DH-20261124-OPENINGS-IDTRA-GUARD
+
+- PATCH: distingue la omisión de un correo de Aperturas por IDTRA asignado de una notificación realmente encolada. Reutiliza DhModal, DhSelect, DhButton y el toast existente. Conserva el reenvío comercial. CI y staging pendientes.
+
 ## [1.124.3] - 2026-11-24 · DH-20261124-PRICING-SENT-CRM-FIX
 
 - PATCH de sincronización de versión Web/System para el hotfix de transición Sent de Pricing. Sin cambios de interfaz, lógica ni contratos REST/realtime.
