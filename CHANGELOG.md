@@ -1,3 +1,7 @@
+## [1.124.3] - 2026-11-24 · DH-20261124-PRICING-SENT-CRM-FIX
+
+- PATCH de sincronización de versión Web/System para el hotfix de transición Sent de Pricing. Sin cambios de interfaz, lógica ni contratos REST/realtime.
+
 ## [1.124.2] - 2026-11-24 · DH-20261124-SELLER-ACCEPTANCE-FIX
 
 - PATCH coordinado: sincronización Web/System para la corrección de registro de aceptación de QUO en DholePricingService. Sin cambios visuales, componentes DH ni payload REST. CI y staging pendientes.
