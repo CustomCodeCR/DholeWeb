@@ -8,7 +8,7 @@ const stable = readFileSync(new URL('PricingRateExistingWizardStable.vue', root)
 const modal = readFileSync(new URL('PricingAssignIdtraModal.vue', root), 'utf8')
 const service = readFileSync(new URL('../src/core/services/pricingService.ts', import.meta.url), 'utf8')
 
-for (const [name, code] of [['alternative wizard', alternative], ['stable wizard', stable]]) {
+for (const [name, code] of [['stable legacy wizard', stable]]) {
   test(name + ': step 9 exposes Assign IDTRA next to pending IDTRA', () => {
     assert.match(code, /<div v-else-if="step === 9 && viewOnly && editingRate"/)
     assert.match(code, /data-testid="pricing-screen9-idtra-action"/)
@@ -28,10 +28,16 @@ test('assignment persists via dedicated API; it does not edit the quote or creat
   assert.match(service, /async assignRateIdtra\(/)
 })
 
-test('screen 9 visibly separates pending IDTRA display from authorized submit', () => {
-  for (const code of [alternative, stable]) {
-    assert.match(code, /<DhButton v-if="showAssignIdtra"/)
-    assert.match(code, /:disabled="!canAssignIdtra"/)
-    assert.match(code, /showAssignIdtra && !canAssignIdtra/)
-  }
+test('active wizard does not offer manual IDTRA assignment after client acceptance', () => {
+  assert.match(alternative, /data-testid="pricing-screen9-operations-idtra-status"/)
+  assert.match(alternative, /Sincronización con Operations por verificar/)
+  assert.doesNotMatch(alternative, /<DhButton[^>]*>Asignar IDTRA<\/DhButton>/)
+  assert.doesNotMatch(alternative, /component: PricingAssignIdtraModal/)
+  assert.match(alternative, /name: 'operations-cases'/)
+})
+
+test('legacy stable wizard preserves manual IDTRA support for historical records only', () => {
+  assert.match(stable, /<DhButton v-if="showAssignIdtra"/)
+  assert.match(stable, /:disabled="!canAssignIdtra"/)
+  assert.match(stable, /showAssignIdtra && !canAssignIdtra/)
 })

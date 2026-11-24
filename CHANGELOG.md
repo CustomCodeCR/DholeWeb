@@ -1,3 +1,10 @@
+## [1.122.3] - 2026-11-24 · DH-20261124-OPS-QUOTE-ACCEPTANCE-440
+
+- PATCH crítico de aceptación comercial → Aperturas: la QUO se aceptaba correctamente, pero Operations no creaba IDTRA por falta de configuración explícita de su worker, ausencia de lector CRM y cliente no vinculado en tarifas históricas. Se añade resolución CRM estricta y reutilización de Inbox pendiente, con validación de escenario en staging.
+- La pantalla Pricing P9 realmente montada elimina Asignar IDTRA manual y deja estado veraz Sincronización con Operations por verificar; Trámites sigue disponible. Componentes DH reutilizados y sin cambio de estilo.
+- Web/System 1.122.2 → 1.122.3, Operations 0.19.0 → 0.19.1, CRM 1.44.0 → 1.44.1, Pricing sin cambio de versión. Se prueban compilación, políticas, contratos de UI y seguridad Auth. Prueba efectiva con QUO aceptada pendiente.
+- Solo candidato para develop/staging. No modificar master ni desplegar producción.
+
 ## [1.122.2] - 2026-11-23 · DH-20261124-PRICING-ACTIVE-WIZARD-IDTRA-439
 
 - PATCH: corrige el wizard realmente utilizado por /pricing/rates/:rateId/wizard (PricingOverviewView → PricingAlternativeWizardCrystal). El parche 1.122.1 había cambiado solo el wizard alternativo no montado.
