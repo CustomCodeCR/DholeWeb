@@ -157,8 +157,7 @@ onMounted(() => { void load() })
         </div>
       </div>
     </DhCard>
-    <DhModal :model-value="Boolean(selected)" title="Resolver revisión comercial"
-      :loading="saving" @update:model-value="value => { if (!value) selected = null }">
+    <DhModal :open="Boolean(selected)" title="Resolver revisión comercial" @close="selected = null">
       <div v-if="selected" class="space-y-4">
         <p class="text-sm"><strong>{{ selected.idtra }}</strong> · {{ selected.serviceCode }}</p>
         <p class="text-sm text-[var(--dh-text-muted)]">{{ selected.reason }}</p>
