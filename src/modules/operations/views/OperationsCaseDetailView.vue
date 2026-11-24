@@ -6,7 +6,7 @@ import {
   FileText, LockKeyhole, MessageSquareText, Plus, Layers3,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhCard } from '@/shared/components/molecules'
+import { DhCard, DhDataTable, DhTabs, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
@@ -78,7 +78,7 @@ const openingSections = computed(() => {
       const value = typeof raw === 'string' || typeof raw === 'number'
         ? String(raw).trim() : ''
       return { label: row.label, value: value || (
-        row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar / no aplica'
+        row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
       ) }
     }),
   }))
@@ -87,6 +87,15 @@ const openingSections = computed(() => {
 const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
+const costRows = computed(() => costs.value.map(cost => ({ ...cost })))
+const costColumns: DhTableColumn<(typeof costRows.value)[number]>[] = [
+  { key: 'description', label: 'Rubro' },
+  { key: 'costCode', label: 'Código' },
+  { key: 'supplierName', label: 'Proveedor' },
+  { key: 'currencyCode', label: 'Moneda' },
+  { key: 'costAmount', label: 'Costo', align: 'right' },
+]
+const missingCostProviders = computed(() => costs.value.filter(cost => !cost.supplierName?.trim()).length)
 const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
 const newService = ref({ serviceCode: '', serviceName: '', reason: '' })
 const addingService = ref(false)
@@ -184,6 +193,18 @@ const modalityOptions = [
 ]
 const level = (code: OperationsTabCode): OperationsTabLevel =>
   access.value.find(tab => tab.code === code)?.accessLevel ?? 'LOCKED'
+const caseTabItems = computed(() => tabs.map(tab => ({
+  key: tab.code,
+  label: tab.label,
+  disabled: level(tab.code) === 'LOCKED' || level(tab.code) === 'NOT_APPLICABLE',
+  title: level(tab.code) === 'EDITABLE' ? 'Editable según permisos' : level(tab.code) === 'READ_ONLY' ? 'Solo lectura' : level(tab.code) === 'NOT_APPLICABLE' ? 'No aplica' : 'Aún no habilitado',
+})))
+function selectCaseTab(key: string) {
+  const tab = tabs.find(item => item.code === key)
+  if (!tab || level(tab.code) === 'LOCKED' || level(tab.code) === 'NOT_APPLICABLE') return
+  selectedTab.value = tab.code
+  editing.value = false
+}
 const canEditSummary = computed(() => level('RESUMEN') === 'EDITABLE')
 const canAddService = computed(() =>
   (level('RESUMEN') === 'EDITABLE' ||
@@ -410,49 +431,45 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
     <div v-if="loading" class="rounded-2xl bg-[var(--dh-input)] p-8 text-center text-[var(--dh-text-muted)]">Cargando expediente operativo…</div>
 
     <template v-if="record && workspace && !loading">
-      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <DhCard padding="sm">
+      <DhCard padding="sm"><div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Cliente</p>
-          <p class="mt-2 truncate font-black">{{ accountName || String(openingData.clientName || '') || 'Nombre pendiente de CRM' }}</p>
-          <p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">Ejecutivo: {{ clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) }}</p>
+          <p class="mt-1 break-words font-bold">{{ accountName || String(openingData.clientName || '') || 'Nombre pendiente de CRM' }}</p>
+          <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">Ejecutivo: {{ clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) }}</p>
           <RouterLink :to="`/crm/accounts/${record.accountId}`" class="text-xs text-[var(--dh-primary)] hover:underline">Consultar cuenta CRM</RouterLink>
-        </DhCard>
-        <DhCard padding="sm">
-          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Origen</p>
-          <p class="mt-2 font-black">{{ record.apertureType === 'AUTOMATIC' ? 'Pricing · QUO aceptada' : 'Manual' }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">{{ record.modalityCode }} · {{ record.originCountryCode || '—' }} → {{ record.destinationCountryCode || '—' }}</p>
-        </DhCard>
-        <DhCard padding="sm">
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Ruta y procedencia</p>
+          <p class="mt-1 font-bold">{{ record.apertureType === 'AUTOMATIC' ? 'Pricing · QUO aceptada' : 'Manual' }}</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ record.modalityCode }} · {{ openingData.pol || record.originCountryCode || 'Pendiente' }} → {{ openingData.pod || record.destinationCountryCode || 'Pendiente' }}</p>
+        </div>
+        <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Departamento y responsable</p>
-          <p class="mt-2 font-black">{{ statusLabel(currentResponsibility?.departmentCode) }}</p>
+          <p class="mt-1 font-bold">{{ statusLabel(currentResponsibility?.departmentCode) }}</p>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ currentResponsibility?.teamName || 'Equipo por asignar' }}</p>
           <p class="mt-1 text-xs font-semibold">{{ responsibleName(currentResponsibility?.assignedUserId) }}</p>
-        </DhCard>
-        <DhCard padding="sm">
+        </div>
+        <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado departamental</p>
-          <p class="mt-2 font-black">{{ currentDepartmentStatus }}</p>
+          <p class="mt-1 font-bold">{{ currentDepartmentStatus }}</p>
           <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Actualizado: {{ dateLabel(record.updatedAtUtc) }}</p>
           <p class="text-xs text-[var(--dh-text-muted)]">Versión {{ record.version }}</p>
-        </DhCard>
-      </div>
+        </div>
+      </div></DhCard>
 
-      <div role="tablist" aria-label="Departamentos del expediente" class="flex flex-wrap gap-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-2">
-        <button v-for="tab in tabs" :key="tab.code" type="button" role="tab"
-          :aria-selected="selectedTab === tab.code"
-          :disabled="level(tab.code) === 'LOCKED' || level(tab.code) === 'NOT_APPLICABLE'"
-          :title="level(tab.code) === 'EDITABLE' ? 'Editable según permisos' : level(tab.code) === 'READ_ONLY' ? 'Solo lectura' : level(tab.code) === 'NOT_APPLICABLE' ? 'No aplica' : 'Aún no habilitado'"
-          class="flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          :class="selectedTab === tab.code ? 'border-[var(--dh-primary)] bg-[var(--dh-input)] text-[var(--dh-primary)]' : 'border-transparent text-[var(--dh-text-soft)] hover:bg-[var(--dh-input)]'"
-          @click="selectedTab = tab.code; editing = false">
-          <LockKeyhole v-if="level(tab.code) === 'LOCKED'" class="h-3.5 w-3.5" />
-          {{ tab.label }}
-          <span v-if="level(tab.code) === 'NOT_APPLICABLE'" class="text-[10px]">N/A</span>
-        </button>
-      </div>
+      <DhTabs :model-value="selectedTab" :items="caseTabItems" aria-label="Departamentos del expediente" @update:model-value="selectCaseTab">
+        <template #label="{ item }">
+          <span class="inline-flex items-center gap-2">
+            <LockKeyhole v-if="level(item.key as OperationsTabCode) === 'LOCKED'" class="h-3.5 w-3.5" />
+            {{ item.label }}
+            <span v-if="level(item.key as OperationsTabCode) === 'NOT_APPLICABLE'" class="text-xs">N/A</span>
+          </span>
+        </template>
+      </DhTabs>
 
-      <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
+      <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div class="space-y-4">
-          <DhCard :icon="ClipboardList" title="Identificación y apertura" subtitle="Datos generales del expediente. Las condiciones comerciales de una QUO siguen bajo control de Pricing.">
+          <DhCard padding="sm" :icon="ClipboardList" title="Identificación y apertura">
             <div v-if="editing && canEditSummary" class="space-y-4">
               <div class="grid gap-4 sm:grid-cols-2">
                 <DhSelect v-model="edit.modalityCode" label="Modalidad" :options="modalityOptions" />
@@ -467,11 +484,11 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 <DhButton :icon="Save" label="Guardar cambios" :loading="saving" :disabled="!validEdit" @click="saveEdit" />
               </div>
             </div>
-            <div v-else class="grid gap-3 sm:grid-cols-2">
+            <div v-else class="grid gap-x-5 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
               <div v-for="item in [
                 { key: 'IDTRA', value: record.idtra },
                 { key: 'Modalidad', value: record.modalityCode },
-                { key: 'Tipo de apertura', value: record.apertureType },
+                { key: 'Tipo de apertura', value: record.apertureType === 'AUTOMATIC' ? 'Automática · Pricing' : 'Manual' },
                 { key: 'Estado del departamento', value: currentDepartmentStatus },
                 { key: 'Cliente', value: accountName || String(openingData.clientName || '') || 'Pendiente de CRM' },
                 { key: 'Ejecutivo comercial', value: clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) },
@@ -484,7 +501,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 { key: 'Creado', value: dateLabel(record.createdAtUtc) },
                 { key: 'Actualizado', value: dateLabel(record.updatedAtUtc) },
                 { key: 'Creado por', value: responsibleName(record.createdBy) },
-              ]" :key="item.key" class="rounded-xl bg-[var(--dh-input)] p-3">
+              ]" :key="item.key" class="min-w-0 border-b border-[var(--dh-border)] py-2">
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ item.key }}</p>
                 <p class="mt-1 break-words text-sm font-bold">{{ item.value }}</p>
               </div>
@@ -511,12 +528,12 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             </div>
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
           </DhCard>
-          <DhCard title="Ficha de apertura y mercancía" subtitle="Ruta, mercancía, servicios y pendientes agrupados por departamento.">
+          <DhCard padding="sm" title="Ficha de apertura y mercancía">
             <div class="space-y-5">
               <section v-for="section in openingSections" :key="section.title">
                 <h4 class="mb-2 text-sm font-bold">{{ section.title }}</h4>
-                <div class="grid gap-2 sm:grid-cols-2">
-                  <div v-for="field in section.rows" :key="field.label" class="min-w-0 rounded-xl bg-[var(--dh-input)] p-3">
+                <div class="grid gap-x-5 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
+                  <div v-for="field in section.rows" :key="field.label" class="min-w-0 border-b border-[var(--dh-border)] py-2">
                     <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
                     <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
                   </div>
@@ -546,6 +563,8 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
               <p v-if="!pendingFields.length" class="text-xs text-[var(--dh-text-muted)]">Hay campos sin confirmar antes de validar.</p>
             </div>
           </DhCard>
+        </div>
+        <div class="space-y-4">
           <OperationsApertureValidationPanel
             v-if="record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS'"
             :case-id="record.id"
@@ -559,10 +578,8 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             </div>
             <p v-if="!workspace.tasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas registradas.</p>
           </DhCard>
-        </div>
-        <div class="space-y-4">
-          <DhCard title="Cotización y seguimiento comercial">
-            <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">Abrir QUO en Pricing</RouterLink>
+          <DhCard padding="sm" title="Cotización y seguimiento comercial">
+            <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ workspace.quotes.find(quote => quote.isPrimary)?.quoteNumber || workspace.quotes[0]?.quoteNumber || 'Abrir QUO en Pricing' }}</RouterLink>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">SIN_QUO · Apertura manual sin costos ni ventas simuladas.</p>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Estado comercial y estado del cliente: consultar Pricing/CRM; no se derivan del estado operativo.</p>
           </DhCard>
@@ -586,21 +603,22 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
               </div>
               <RouterLink :to="`/pricing/rates/${quote.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Ver en Pricing</RouterLink>
             </div>
-            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción comercial aceptada: {{ quote.quoteOptionId }}</p>
+            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción aceptada vinculada · Consultar detalle en Pricing</p>
           </div>
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
             {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'SIN_QUO · La apertura fue creada sin cotización.' }}
           </p>
         </DhCard>
         <DhCard v-if="auth.hasScope('operations.cost.read')" title="Rubros y proveedores registrados" subtitle="Información histórica disponible; no se generan cargos ficticios.">
-          <div v-for="cost in costs" :key="cost.id" class="mb-2 flex flex-wrap justify-between gap-3 rounded-xl bg-[var(--dh-input)] p-3 last:mb-0">
-            <div>
-              <p class="text-sm font-bold">{{ cost.description }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ cost.costCode }} · {{ cost.supplierName || 'Proveedor sin registrar' }}</p>
-            </div>
-            <strong class="text-sm">{{ cost.currencyCode }} {{ cost.costAmount.toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</strong>
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-sm text-[var(--dh-text-muted)]">{{ costs.length }} rubros registrados</p>
+            <DhBadge v-if="missingCostProviders" variant="warning">{{ missingCostProviders }} rubros sin proveedor registrado</DhBadge>
           </div>
-          <p v-if="!costs.length" class="text-sm text-[var(--dh-text-muted)]">Sin rubros persistidos para esta cotización.</p>
+          <DhDataTable :columns="costColumns" :rows="costRows" empty-text="Sin rubros persistidos para esta cotización.">
+            <template #cell-description="{ row }"><span class="font-semibold">{{ row.description }}</span></template>
+            <template #cell-supplierName="{ row }"><span>{{ row.supplierName || 'Proveedor pendiente' }}</span></template>
+            <template #cell-costAmount="{ row }"><span class="font-semibold tabular-nums">{{ row.costAmount.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }}</span></template>
+          </DhDataTable>
         </DhCard>
         <DhCard title="Servicios del expediente y revisiones comerciales" subtitle="Los servicios cotizados se conservan. Los agregados por Operations requieren revisión en Pricing.">
           <div v-for="service in commercialReviews?.services || []" :key="service.id"

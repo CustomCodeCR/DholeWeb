@@ -6,7 +6,7 @@ import {
   ShieldCheck, UsersRound,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
-import { DhCard } from '@/shared/components/molecules'
+import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type OperationsDashboard } from '@/modules/operations/services/operationsApi'
 
@@ -78,6 +78,14 @@ const cards = computed(() => [
   },
 ])
 
+const recentRows = computed(() => data.value?.items ?? [])
+const recentColumns = computed<DhTableColumn<OperationsDashboard['items'][number]>[]>(() => [
+  { key: 'idtra', label: t('operations.validation.record') },
+  { key: 'modalityCode', label: t('operations.validation.modality') },
+  { key: 'status', label: t('operations.validation.status') },
+  { key: 'approvedReviews', label: t('operations.validation.reviews'), align: 'center' },
+  { key: 'createdAtUtc', label: t('operations.validation.created') },
+])
 function statusLabel(status: string): string {
   const keys: Record<string, string> = {
     PENDING_VALIDATION: 'statusReview', COMPLETED: 'statusCompleted',
@@ -162,7 +170,7 @@ onMounted(load)
       <DhButton class="mt-2" variant="secondary" size="sm" :label="t('operations.refresh')" :icon="RefreshCw" @click="load" />
     </div>
 
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6" :aria-busy="loading">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-6" :aria-busy="loading">
       <DhCard v-for="card in cards" :key="card.key" padding="sm">
         <div class="flex min-w-0 items-start justify-between gap-2">
           <p class="max-w-[22ch] text-xs font-bold leading-5 text-[var(--dh-text-muted)]">
@@ -172,7 +180,7 @@ onMounted(load)
             <component :is="card.icon" class="h-4 w-4" aria-hidden="true" />
           </span>
         </div>
-        <p class="mt-1 text-3xl font-black tabular-nums tracking-tight text-[var(--dh-text)] sm:text-4xl">
+        <p class="mt-1 text-2xl font-bold tabular-nums tracking-tight text-[var(--dh-text)] sm:text-3xl">
           {{ card.value ?? '—' }}
         </p>
         <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">{{ card.hint }}</p>
@@ -204,23 +212,16 @@ onMounted(load)
           <p class="mt-1 text-xs leading-5 text-[var(--dh-text-muted)]">{{ t('operations.dashboard.empty') }}</p>
         </div>
       </div>
-      <div v-else class="overflow-hidden rounded-xl border border-[var(--dh-border)]">
-        <div class="hidden grid-cols-[minmax(0,1.3fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.85fr)] gap-3 border-b border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-2.5 text-[11px] font-black uppercase tracking-wide text-[var(--dh-text-muted)] md:grid">
-          <span>{{ t('operations.validation.record') }}</span>
-          <span>{{ t('operations.validation.modality') }}</span>
-          <span>{{ t('operations.validation.status') }}</span>
-          <span>{{ t('operations.validation.reviews') }}</span>
-          <span>{{ t('operations.validation.created') }}</span>
-        </div>
-        <RouterLink v-for="item in data.items" :key="item.id"  :to="{ name: 'operations-case-detail', params: { id: item.id } }"
-          class="grid min-w-0 gap-2 border-b border-[var(--dh-border)] px-4 py-3 last:border-0 transition-colors hover:bg-[var(--dh-input)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dh-primary)] md:grid-cols-[minmax(0,1.3fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.85fr)] md:items-center md:gap-3">
-          <strong class="flex min-w-0 flex-wrap items-center gap-2 text-sm font-bold text-[var(--dh-text)]"><span class="truncate">{{ item.idtra }}</span><DhBadge :variant="item.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ item.apertureType === 'AUTOMATIC' ? 'Pricing' : 'Manual' }}</DhBadge></strong>
-          <span class="text-sm text-[var(--dh-text-soft)]">{{ item.modalityCode }}</span>
-          <span><DhBadge :variant="item.approvedReviews >= 2 ? 'success' : item.pendingReviews ? 'warning' : 'neutral'">{{ statusLabel(item.status) }}</DhBadge></span>
-          <span class="text-sm tabular-nums text-[var(--dh-text-soft)]">{{ item.approvedReviews }} / 2</span>
-          <span class="text-xs text-[var(--dh-text-muted)]">{{ dateLabel(item.createdAtUtc) }}</span>
-        </RouterLink>
-      </div>
+      <DhDataTable v-else :columns="recentColumns" :rows="recentRows">
+        <template #cell-idtra="{ row }">
+          <RouterLink :to="{ name: 'operations-case-detail', params: { id: row.id } }" class="flex flex-wrap items-center gap-2 font-semibold text-[var(--dh-primary)] hover:underline">
+            {{ row.idtra }} <DhBadge :variant="row.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ row.apertureType === 'AUTOMATIC' ? 'Pricing' : 'Manual' }}</DhBadge>
+          </RouterLink>
+        </template>
+        <template #cell-status="{ row }"><DhBadge :variant="row.approvedReviews >= 2 ? 'success' : row.pendingReviews ? 'warning' : 'neutral'">{{ statusLabel(row.status) }}</DhBadge></template>
+        <template #cell-approvedReviews="{ row }"><span class="tabular-nums">{{ row.approvedReviews }} / 2</span></template>
+        <template #cell-createdAtUtc="{ row }">{{ dateLabel(row.createdAtUtc) }}</template>
+      </DhDataTable>
       <p v-if="data && data.stats.total > data.items.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">
         {{ t('operations.dashboard.showingRecent') }}
       </p>

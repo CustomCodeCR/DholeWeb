@@ -33,7 +33,7 @@ const { t } = useI18n()
           role="dialog"
           aria-modal="true"
           :aria-label="title || t('common.drawer')"
-          class="dh-glass-strong flex h-[calc(100dvh-0.5rem)] w-full min-w-0 flex-col overflow-hidden rounded-t-[28px] border border-[var(--dh-border)] shadow-[var(--dh-shadow-lg)] sm:h-full sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l"
+          class="flex bg-[var(--dh-bg)] h-[calc(100dvh-0.5rem)] w-full min-w-0 flex-col overflow-hidden rounded-t-[28px] border border-[var(--dh-border)] shadow-[var(--dh-shadow-lg)] sm:h-full sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l"
           :class="[
             size === 'sm' && 'max-w-sm',
             size === 'md' && 'max-w-xl',

@@ -310,22 +310,22 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
     </DhPageHeader>
     <div v-if="error" role="alert" class="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</div>
 
-    <DhCard :icon="FolderOpen" title="Todos los trámites" subtitle="Consulta los IDTRA creados manualmente y los provenientes de Pricing. Selecciona una fila para ver el resumen.">
+    <DhCard padding="sm" title="Todos los trámites" subtitle="Selecciona un expediente para consultar su resumen.">
       <div class="mb-3 grid gap-3 sm:grid-cols-2">
         <DhSearchInput v-model="search" placeholder="Buscar IDTRA, QUO o modalidad…" />
         <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
       </div>
       <div class="mb-4 grid gap-3 sm:grid-cols-3">
-        <DhSelect v-model="accountId" :options="clientChoices" :disabled="fetchingClients" />
-        <DhSelect v-model="apertureType" :options="typeOptions" />
-        <DhSelect v-model="status" :options="statusOptions" />
+        <DhSelect v-model="accountId" label="Cliente" :options="clientChoices" :disabled="fetchingClients" />
+        <DhSelect v-model="apertureType" label="Procedencia" :options="typeOptions" />
+        <DhSelect v-model="status" label="Estado" :options="statusOptions" />
       </div>
       <DhDataTable :columns="columns" :rows="rows" :loading="loading" empty-text="No hay trámites para los filtros seleccionados." @row-click="openCase($event.id)">
         <template #cell-idtra="{ row }">
           <strong class="text-sm font-black text-[var(--dh-primary)]">{{ row.idtra }}</strong>
         </template>
         <template #cell-accountId="{ row }">
-          <span class="text-xs" :title="row.accountId">{{ accountLabel(row.accountId) }}</span>
+          <span class="break-words text-sm font-semibold">{{ accountLabel(row.accountId) }}</span>
         </template>
         <template #cell-sourceQuoteId="{ row }">
           <RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>Ver QUO</RouterLink>
@@ -355,8 +355,8 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
     <DhDrawer :open="Boolean(selected) || loadingDetail || Boolean(detailError)" :title="selected ? 'Resumen · ' + selected.idtra : 'Resumen de trámite'" size="lg" @close="closeDrawer">
       <div v-if="loadingDetail" class="py-16 text-center text-sm text-[var(--dh-text-muted)]">Cargando expediente…</div>
       <div v-else-if="detailError" role="alert" class="rounded-xl bg-red-500/10 p-4 text-sm text-red-500">{{ detailError }}</div>
-      <div v-else-if="selected" class="space-y-4 pb-2">
-        <div class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+      <div v-else-if="selected" class="space-y-3 pb-2">
+        <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div><p class="text-[10px] font-black uppercase tracking-widest text-[var(--dh-text-muted)]">Expediente operativo</p>
               <p class="mt-1 text-lg font-black text-[var(--dh-primary)]">{{ selected.idtra }}</p></div>
@@ -401,6 +401,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Mercancía y equipos</h3></div>
           <p class="break-words text-sm font-semibold">{{ openingText('cargoDescription') || 'Mercancía pendiente' }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
+            <DhBadge v-if="openingText('weightValue')" variant="neutral">{{ openingText('weightValue') }} {{ openingText('weightUnit') || '' }}</DhBadge>
             <span v-if="openingText('cabysCode')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">CABYS {{ openingText('cabysCode') }}</span>
             <span v-if="openingText('packageCount')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">{{ openingText('packageCount') }} {{ openingText('packageType') || 'bultos' }}</span>
             <span v-if="openingText('volumeValue')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">{{ openingText('volumeValue') }} {{ openingText('volumeUnit') }}</span>
@@ -462,7 +463,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
               { label: 'Observaciones', value: openingText('observations') },
             ]" :key="item.label" class="min-w-0">
               <p class="text-xs text-[var(--dh-text-muted)]">{{ item.label }}</p>
-              <p class="mt-0.5 break-words text-sm font-semibold">{{ item.value || 'Pendiente / no aplica' }}</p>
+              <p class="mt-0.5 break-words text-sm font-semibold">{{ item.value || 'Por confirmar' }}</p>
             </div>
           </div>
           <div v-if="openingServices.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
