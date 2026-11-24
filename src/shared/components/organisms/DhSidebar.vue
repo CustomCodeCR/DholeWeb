@@ -2,6 +2,7 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import dholeLogo from '../../../assets/dhole-logo.svg?raw'
 import { APP_VERSION, APP_VERSION_DETAIL, APP_CHANNEL, APP_COMMIT } from '@/core/version'
 import { ChevronDown, PanelLeftClose, PanelLeftOpen, Settings, X } from 'lucide-vue-next'
 
@@ -178,10 +179,11 @@ watch(
           class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
           :class="compact ? 'justify-center' : ''"
         >
-          <span role="img" aria-label="DHOLE ERP" class="dhole-brand-mark h-10 w-10 shrink-0" :title="t('app.meaning') + ' · ' + APP_VERSION_DETAIL" />
+          <span v-if="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark h-10 w-10 shrink-0" :title="t('app.meaning') + ' · ' + APP_VERSION_DETAIL" />
 
           <div v-if="!compact" class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-extrabold tracking-tight text-[var(--dh-text)]" :title="t('app.meaning')">
+            <div class="dhole-brand-lockup mb-1 w-full" v-html="dholeLogo" />
+            <p class="sr-only" :title="t('app.meaning')">
               {{ t('app.name') }}
             </p>
             <p class="truncate text-[11px] font-medium text-[var(--dh-text-muted)]">
