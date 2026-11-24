@@ -15,7 +15,7 @@ import {
   type OperationsCaseCost, type OperationsCaseTab, type OperationsTabCode,
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
-  type OperationsOpeningEdit,
+  type OperationsOpeningEdit, type OperationsServiceReviewDashboard,
 } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
@@ -87,6 +87,13 @@ const openingSections = computed(() => {
 const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
+const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
+const newService = ref({ serviceCode: '', serviceName: '', reason: '' })
+const addingService = ref(false)
+const addServiceKey = ref(crypto.randomUUID())
+const pendingCommercialAlerts = computed(() =>
+  commercialReviews.value?.alerts.filter(x =>
+    x.severity !== 'GREEN' && x.status !== 'RESOLVED') ?? [])
 const origin = ref<OperationsOriginProgress | null>(null)
 const notes = ref<OperationsInternalNote[]>([])
 const noteText = ref('')
@@ -178,6 +185,19 @@ const modalityOptions = [
 const level = (code: OperationsTabCode): OperationsTabLevel =>
   access.value.find(tab => tab.code === code)?.accessLevel ?? 'LOCKED'
 const canEditSummary = computed(() => level('RESUMEN') === 'EDITABLE')
+const canAddService = computed(() =>
+  (level('RESUMEN') === 'EDITABLE' ||
+    level('COORDINACION_ORIGEN') === 'EDITABLE') &&
+  (auth.hasScope('operations.case.update') ||
+    auth.hasScope('operations.origin.update') ||
+    auth.hasScope('operations.aperture.update')))
+const validNewService = computed(() =>
+  /^[A-Za-z0-9_.-]{1,60}$/.test(newService.value.serviceCode.trim()) &&
+  newService.value.serviceName.trim().length > 0 &&
+  newService.value.serviceName.trim().length <= 200 &&
+  newService.value.reason.trim().length >= 10 &&
+  newService.value.reason.trim().length <= 2000)
+
 const currentStage = computed(() =>
   workspace.value?.stages.find(s => s.departmentCode === selectedTab.value))
 const currentTasks = computed(() =>
@@ -238,6 +258,7 @@ async function load() {
     // prevent opening the whole expediente.
     const optional: Promise<unknown>[] = []
     costs.value = []
+    commercialReviews.value = null
     origin.value = null
     notes.value = []
     audit.value = []
@@ -252,6 +273,9 @@ async function load() {
       ...(work.validators || []).map(v => v.userId),
       ...work.tasks.map(t => t.assignedUserId),
     ], current))
+    optional.push(operationsApi.caseServicesAndReviews(caseId.value)
+      .then(x => { if (current === sequence) commercialReviews.value = x })
+      .catch(() => { /* Commercial panel has its own scope; no fake success. */ }))
     if (auth.hasScope('operations.cost.read')) optional.push(
       operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) costs.value = x.items }).catch(() => {}))
     if (auth.hasScope('operations.origin.read') &&
@@ -312,6 +336,28 @@ async function saveOriginStatus() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar el estado de Origen.'
   } finally { savingOrigin.value = false }
 }
+async function addOperationalService() {
+  if (!record.value || !canAddService.value || !validNewService.value || addingService.value) return
+  addingService.value = true
+  error.value = ''
+  try {
+    await operationsApi.addCaseService(record.value.id, {
+      idempotencyKey: addServiceKey.value,
+      serviceCode: newService.value.serviceCode.trim().toUpperCase(),
+      serviceName: newService.value.serviceName.trim(),
+      reason: newService.value.reason.trim(),
+    })
+    newService.value = { serviceCode: '', serviceName: '', reason: '' }
+    addServiceKey.value = crypto.randomUUID()
+    await load()
+    message.value = 'Servicio añadido. Se generó una alerta amarilla y una solicitud de revisión para Pricing.'
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message :
+      'No se pudo registrar el servicio adicional. El motivo y los datos se conservaron.'
+  } finally {
+    addingService.value = false
+  }
+}
 async function addNote() {
   if (!record.value || !canWriteNote.value || !noteText.value.trim() || postingNote.value) return
   postingNote.value = true
@@ -357,6 +403,10 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
       <DhButton size="sm" variant="secondary" label="Recargar" @click="serverChangedWhileEditing = false; load()" />
     </div>
     <div v-if="message" role="status" class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-400">{{ message }}</div>
+    <div v-if="pendingCommercialAlerts.length" role="alert" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+      <strong>Revisión comercial pendiente:</strong> {{ pendingCommercialAlerts.length }} servicio(s) o diferencia(s) requieren seguimiento en Pricing.
+      <span class="ml-2">La QUO original permanece sin modificaciones.</span>
+    </div>
     <div v-if="loading" class="rounded-2xl bg-[var(--dh-input)] p-8 text-center text-[var(--dh-text-muted)]">Cargando expediente operativo…</div>
 
     <template v-if="record && workspace && !loading">
@@ -551,6 +601,35 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             <strong class="text-sm">{{ cost.currencyCode }} {{ cost.costAmount.toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</strong>
           </div>
           <p v-if="!costs.length" class="text-sm text-[var(--dh-text-muted)]">Sin rubros persistidos para esta cotización.</p>
+        </DhCard>
+        <DhCard title="Servicios del expediente y revisiones comerciales" subtitle="Los servicios cotizados se conservan. Los agregados por Operations requieren revisión en Pricing.">
+          <div v-for="service in commercialReviews?.services || []" :key="service.id"
+            class="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm">
+            <span class="font-bold">{{ service.serviceName }}</span>
+            <span class="text-xs text-[var(--dh-text-muted)]">{{ service.serviceCode }}</span>
+            <DhBadge variant="neutral">{{ service.source === 'QUOTED' ? 'Cotizado' : 'Agregado Operations' }}</DhBadge>
+            <span v-if="service.requiresPricingReview" class="text-xs font-semibold text-amber-600 dark:text-amber-300">
+              {{ statusLabel(service.reviewStatus) }}
+            </span>
+          </div>
+          <p v-if="!commercialReviews?.services.length" class="text-sm text-[var(--dh-text-muted)]">No hay servicios registrados en este expediente.</p>
+          <div v-for="review in commercialReviews?.reviews || []" :key="review.id"
+            class="mt-2 rounded-xl border border-[var(--dh-border)] p-3">
+            <p class="text-xs font-bold">{{ statusLabel(review.status) }} · {{ dateLabel(review.requestedAtUtc) }}</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ review.reason }}</p>
+          </div>
+          <div v-if="canAddService" class="mt-4 space-y-3 border-t border-[var(--dh-border)] pt-4">
+            <p class="text-sm font-bold">Agregar servicio operativo no cotizado</p>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <DhInput v-model="newService.serviceCode" label="Código del servicio" placeholder="ALMACENAJE" />
+              <DhInput v-model="newService.serviceName" label="Descripción del servicio" placeholder="Almacenaje adicional" />
+            </div>
+            <DhTextarea v-model="newService.reason" label="Motivo de revisión comercial" placeholder="Explique por qué se requiere este servicio adicional." />
+            <div class="flex justify-end">
+              <DhButton :icon="Plus" label="Agregar y solicitar revisión a Pricing"
+                :loading="addingService" :disabled="!validNewService" @click="addOperationalService" />
+            </div>
+          </div>
         </DhCard>
       </div>
 
