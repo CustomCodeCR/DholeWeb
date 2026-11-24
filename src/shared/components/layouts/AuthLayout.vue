@@ -9,10 +9,8 @@ const { t } = useI18n()
     <section class="dh-glass dh-liquid w-full min-w-0 max-w-md rounded-[26px] p-4 shadow-[var(--dh-shadow-lg)] sm:rounded-[38px] sm:p-8">
       <div class="mb-6 text-center sm:mb-8">
         <!-- Static, bundled SVG. Never insert runtime user HTML here. -->
-        <div class="dhole-brand-lockup mx-auto mb-4 w-full max-w-[280px]" v-html="dholeLogo" />
+        <div class="dhole-brand-lockup mx-auto mb-4 w-full max-w-[280px]" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />
         <h1 class="sr-only">{{ t('app.name') }}</h1>
-        <p class="mt-1 break-words text-sm font-semibold text-[var(--dh-text-muted)]">{{ t('app.subtitle') }}</p>
-        <p class="mx-auto mt-3 max-w-[34ch] break-words text-center text-[11px] font-medium leading-relaxed text-[var(--dh-text-muted)]" data-testid="dhole-meaning">{{ t('app.meaning') }}</p>
       </div>
       <RouterView />
     </section>
