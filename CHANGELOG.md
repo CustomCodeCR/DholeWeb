@@ -1,3 +1,10 @@
+## [1.120.11] - 2026-11-23 · DH-20261123-PRICING-LCL-INCH-PERSISTENCE-432
+
+- PATCH: corrige la persistencia de dimensiones LCL/LTL en Pricing. Las líneas conservan su unidad interna durante el guardado aunque POL/catálogos se rehidraten; únicamente una transición explícita de origen transforma la representación interna.
+- El payload REST continúa enviando largo/ancho/alto en centímetros y el formulario sigue mostrando la unidad elegida (pulgadas, centímetros, metros o milímetros), preservando peso y reglas de CFT/CBM.
+- Regresión automatizada reproduce las cinco tarimas del caso Miami (50 × 44 × 29 in y otras cuatro líneas), con 68.248 CFT antes/después de cambios de contexto; incluida en prebuild.
+- Versión global DHOLE/DholeWeb 1.120.10 → 1.120.11; PricingService y demás servicios sin cambios de contrato ni versión. CI de develop aprobado; promoción selectiva solicitada y autorizada expresamente. Validación master y reapertura autenticada en staging pendientes.
+
 ## [1.120.10] - 2026-11-23 · DH-20261123-CRM-LEAD-AUDIT-431
 
 - PATCH: Prospectos incorpora Historial de cambios independiente del Historial de rutas, con la misma línea de tiempo de Cuentas, usuario, fecha, cambios antes/después, actualización y paginación DhPagination. Reutiliza los tokens y componentes DH existentes en ambos temas.
