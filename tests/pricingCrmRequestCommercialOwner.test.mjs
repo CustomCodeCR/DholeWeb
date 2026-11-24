@@ -82,3 +82,9 @@ test('Prospecto TARIFARIO se crea como maestro incluso desde un borrador SPOT', 
   assert.match(identity, /form\.clientName\.toLocaleUpperCase\(\)\.includes\('TARIFARIO'\)/)
   assert.match(identity, /form\.rateType = 'Tariff'/)
 })
+
+test('An editable duplicate lacking CRM IDs asks for an explicit link instead of bypassing validation', () => {
+  assert.match(identity, /!historicUnlinkedModification && props\.rateId && !form\.clientId/)
+  assert.match(identity, /Cotización sin vínculo CRM/)
+  assert.match(identity, /Seleccione la cuenta o prospecto real/)
+})

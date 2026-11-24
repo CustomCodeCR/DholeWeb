@@ -1,3 +1,8 @@
+## [1.124.27] - 2026-11-24
+
+- DH-20261124-PRICING-HISTORICAL-EDIT: mostrar el error específico y solicitar el vínculo CRM explícito en duplicados afectados; capturar contexto de todas las modalidades al finalizar hidratación, reintentar una consulta de costos transitoria sin omitir validación de cambios reales. Pruebas de regresión añadidas; CI, manifiesto central y staging pendientes.
+
+
 ## [1.124.26] - 2026-11-24
 
 - DH-20261124-VERSION-CARD-FIX: evitar encabezado duplicado de DhCard, tooltip interno y versión centrada en tarjeta compacta de ancho ajustado. CI/staging pendientes.
