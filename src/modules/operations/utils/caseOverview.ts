@@ -19,6 +19,8 @@ const stageLabels: Record<string, string> = {
   ON_HOLD: 'En espera',
   COMPLETED: 'Completado',
   SKIPPED: 'No aplica',
+  ACCEPTED: 'Aceptada', APPROVED: 'Aprobado', REJECTED: 'Rechazado',
+  APERTURAS: 'Aperturas', COORDINACION_ORIGEN: 'Coordinación Origen', DOCUMENTACION: 'Documentación', TRANSITO: 'Tránsito', PANAMA: 'Panamá', COSTA_RICA: 'Costa Rica', FINANZAS: 'Finanzas',
 }
 const apertureLabels: Record<string, string> = {
   DRAFT: 'Apertura por completar',

@@ -12,7 +12,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
   operationsApi, type OperationsCaseDetail, type OperationsCaseWorkspace,
-  type OperationsCaseCost, type OperationsCaseTab, type OperationsTabCode,
+  type OperationsCaseCost, type OperationsSnapshotCost, type OperationsCaseTab, type OperationsTabCode,
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
   type OperationsOpeningEdit, type OperationsServiceReviewDashboard,
@@ -22,7 +22,11 @@ import OperationsApertureValidationPanel from '../components/OperationsApertureV
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
 import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
+import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel } from '../utils/commercialPresentation'
+
 const route = useRoute()
+const { openingField, currency } = useCommercialLabels()
+const supplemental = ref<Record<string, unknown>>({})
 const auth = useAuthStore()
 const caseId = computed(() => String(route.params.id ?? ''))
 const loading = ref(false)
@@ -34,7 +38,7 @@ const openingData = computed<Record<string, unknown>>(() => {
   try {
     const value = JSON.parse(record.value?.openingDataJson || '{}') as unknown
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? value as Record<string, unknown> : {}
+      ? mergeCommercialOpening(value as Record<string, unknown>, workspace.value?.commercialData, supplemental.value) : {}
   } catch { return {} }
 })
 const openingSections = computed(() => {
@@ -48,6 +52,8 @@ const openingSections = computed(() => {
       { label: 'POE · Entrada', key: 'poe' },
       { label: 'POD · Destino', key: 'pod' },
       { label: 'ETD', key: 'etm' }, { label: 'ETA', key: 'eta' },
+      { label: 'Operación', key: 'provenance' }, { label: 'Tránsito cotizado', key: 'transitTime' },
+      { label: 'Días libres cotizados', key: 'freeDays' }, { label: 'Referencias de QUO', key: 'quoteReferences' },
     ] },
     { title: 'Mercancía', rows: [
       { label: 'Descripción', key: 'cargoDescription' },
@@ -74,9 +80,7 @@ const openingSections = computed(() => {
   return sections.map(section => ({
     title: section.title,
     rows: section.rows.map(row => {
-      const raw = data[row.key]
-      const value = typeof raw === 'string' || typeof raw === 'number'
-        ? String(raw).trim() : ''
+      const value = openingField(row.key, data)
       return { label: row.label, value: value || (
         row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
       ) }
@@ -87,15 +91,21 @@ const openingSections = computed(() => {
 const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
-const costRows = computed(() => costs.value.map(cost => ({ ...cost })))
+const snapshotCosts = ref<OperationsSnapshotCost[]>([])
+const costError = ref(false)
+const costRows = computed(() => snapshotCosts.value.length ? snapshotCosts.value : costs.value.map(cost => ({ ...cost, currencyName: null, quantity: null, unitCost: null })))
+function amountLabel(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : 'Por confirmar'
+}
 const costColumns: DhTableColumn<(typeof costRows.value)[number]>[] = [
   { key: 'description', label: 'Rubro' },
-  { key: 'costCode', label: 'Código' },
+  { key: 'quantity', label: 'Cantidad', align: 'right' },
+  { key: 'unitCost', label: 'Costo unitario', align: 'right' },
   { key: 'supplierName', label: 'Proveedor' },
   { key: 'currencyCode', label: 'Moneda' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
 ]
-const missingCostProviders = computed(() => costs.value.filter(cost => !cost.supplierName?.trim()).length)
+const missingCostProviders = computed(() => costRows.value.filter(cost => !readable(cost.supplierName)).length)
 const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
 const newService = ref({ serviceCode: '', serviceName: '', reason: '' })
 const addingService = ref(false)
@@ -157,7 +167,7 @@ const pendingFields = computed(() => Array.isArray(openingData.value.missingFiel
 const openingServices = computed(() => Array.isArray(openingData.value.services)
   ? (openingData.value.services as unknown[]).map(x => typeof x === 'string' ? x :
       x && typeof x === 'object' ? String((x as Record<string, unknown>).name ||
-        (x as Record<string, unknown>).label || (x as Record<string, unknown>).serviceCode || '') : '').filter(Boolean) : [])
+        (x as Record<string, unknown>).label || '') : '').filter(Boolean) : [])
 async function loadResponsibleNames(ids: Array<string | null | undefined>, current: number) {
   const uniques = [...new Set(ids.filter((x): x is string => Boolean(x)))]
   if (!uniques.length || !auth.hasScope('operations.audit.read')) return
@@ -279,6 +289,10 @@ async function load() {
     // prevent opening the whole expediente.
     const optional: Promise<unknown>[] = []
     costs.value = []
+    snapshotCosts.value = []
+    costError.value = false
+    supplemental.value = {}
+    optional.push(sameRevisionCommercialData(work).then(x => { if (current === sequence) supplemental.value = x }))
     commercialReviews.value = null
     origin.value = null
     notes.value = []
@@ -298,7 +312,7 @@ async function load() {
       .then(x => { if (current === sequence) commercialReviews.value = x })
       .catch(() => { /* Commercial panel has its own scope; no fake success. */ }))
     if (auth.hasScope('operations.cost.read')) optional.push(
-      operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) costs.value = x.items }).catch(() => {}))
+      operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) { costs.value = x.items; snapshotCosts.value = x.snapshotItems || [] } }).catch(() => { if (current === sequence) costError.value = true }))
     if (auth.hasScope('operations.origin.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
       operationsApi.caseOriginProgress(caseId.value).then(x => { if (current === sequence) { origin.value = x; originStatus.value = x.progress?.statusCode || 'ORIGIN_COORDINATION' } }).catch(() => {}))
@@ -441,7 +455,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
         <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Ruta y procedencia</p>
           <p class="mt-1 font-bold">{{ record.apertureType === 'AUTOMATIC' ? 'Pricing · QUO aceptada' : 'Manual' }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">{{ record.modalityCode }} · {{ openingData.pol || record.originCountryCode || 'Pendiente' }} → {{ openingData.pod || record.destinationCountryCode || 'Pendiente' }}</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ record.modalityCode }} · {{ openingData.pol || countryLabel(record.originCountryCode, openingData.pol) || 'Pendiente' }} → {{ openingData.pod || countryLabel(record.destinationCountryCode, openingData.pod) || 'Pendiente' }}</p>
         </div>
         <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Departamento y responsable</p>
@@ -494,8 +508,8 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 { key: 'Ejecutivo comercial', value: clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) },
                 { key: 'PO / referencia cliente', value: openingData.clientPoReference || 'Sin referencia' },
                 { key: 'División CRM', value: openingData.crmDivisionName || 'No registrada' },
-                { key: 'País de origen', value: record.originCountryCode || 'Pendiente' },
-                { key: 'País de destino', value: record.destinationCountryCode || 'Pendiente' },
+                { key: 'País de origen', value: countryLabel(record.originCountryCode, openingData.pol) || 'Pendiente' },
+                { key: 'País de destino', value: countryLabel(record.destinationCountryCode, openingData.pod) || 'Pendiente' },
                 { key: 'Prioridad', value: record.priority },
                 { key: 'Complejidad', value: record.complexityPoints },
                 { key: 'Creado', value: dateLabel(record.createdAtUtc) },
@@ -579,8 +593,8 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             <p v-if="!workspace.tasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas registradas.</p>
           </DhCard>
           <DhCard padding="sm" title="Cotización y seguimiento comercial">
-            <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ workspace.quotes.find(quote => quote.isPrimary)?.quoteNumber || workspace.quotes[0]?.quoteNumber || 'Abrir QUO en Pricing' }}</RouterLink>
-            <p v-else class="text-sm text-[var(--dh-text-muted)]">SIN_QUO · Apertura manual sin costos ni ventas simuladas.</p>
+            <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteOptionId || record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ workspace.quotes.find(quote => quote.isPrimary)?.quoteNumber || workspace.quotes[0]?.quoteNumber || 'Abrir QUO en Pricing' }}</RouterLink>
+            <p v-else class="text-sm text-[var(--dh-text-muted)]">Sin cotización · Apertura manual sin costos ni ventas simuladas.</p>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Estado comercial y estado del cliente: consultar Pricing/CRM; no se derivan del estado operativo.</p>
           </DhCard>
           <DhCard v-if="auth.hasScope('operations.audit.read')" title="Historial y trazabilidad">
@@ -601,30 +615,34 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 <p class="font-black">{{ quote.quoteNumber || 'Cotización vinculada' }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">Versión {{ quote.snapshotVersion }} · {{ statusLabel(quote.status) }}</p>
               </div>
-              <RouterLink :to="`/pricing/rates/${quote.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Ver en Pricing</RouterLink>
+              <RouterLink :to="`/pricing/rates/${quote.quoteOptionId || quote.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Ver en Pricing</RouterLink>
             </div>
             <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción aceptada vinculada · Consultar detalle en Pricing</p>
           </div>
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
-            {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'SIN_QUO · La apertura fue creada sin cotización.' }}
+            {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'Sin cotización · La apertura fue creada sin cotización.' }}
           </p>
         </DhCard>
         <DhCard v-if="auth.hasScope('operations.cost.read')" title="Rubros y proveedores registrados" subtitle="Información histórica disponible; no se generan cargos ficticios.">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p class="text-sm text-[var(--dh-text-muted)]">{{ costs.length }} rubros registrados</p>
+            <p class="text-sm text-[var(--dh-text-muted)]">{{ costRows.length }} rubros {{ snapshotCosts.length ? 'de la QUO aceptada' : 'registrados' }}</p>
             <DhBadge v-if="missingCostProviders" variant="warning">{{ missingCostProviders }} rubros sin proveedor registrado</DhBadge>
           </div>
-          <DhDataTable :columns="costColumns" :rows="costRows" empty-text="Sin rubros persistidos para esta cotización.">
-            <template #cell-description="{ row }"><span class="font-semibold">{{ row.description }}</span></template>
-            <template #cell-supplierName="{ row }"><span>{{ row.supplierName || 'Proveedor pendiente' }}</span></template>
-            <template #cell-costAmount="{ row }"><span class="font-semibold tabular-nums">{{ row.costAmount.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }}</span></template>
+          <p v-if="costError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudo consultar la información comercial. Utiliza Actualizar.</p>
+          <p v-else-if="snapshotCosts.length && costs.length !== snapshotCosts.length" class="mb-3 text-xs text-[var(--dh-text-muted)]">La tabla muestra el snapshot original completo. Los rubros pendientes de conciliación no se consideran costos operativos confirmados.</p>
+          <DhDataTable v-if="!costError" :columns="costColumns" :rows="costRows" empty-text="No hay rubros disponibles en la cotización aceptada.">
+            <template #cell-description="{ row }"><span class="font-semibold">{{ readable(row.description) || 'Rubro pendiente de identificar' }}</span></template>
+            <template #cell-supplierName="{ row }"><span>{{ readable(row.supplierName) || 'Proveedor pendiente' }}</span></template>
+            <template #cell-currencyCode="{ row }">{{ currency(row.currencyCode, row.currencyName) || 'Moneda pendiente' }}</template>
+            <template #cell-quantity="{ row }">{{ row.quantity ?? 'Por confirmar' }}</template>
+            <template #cell-unitCost="{ row }">{{ amountLabel(row.unitCost) }}</template>
+            <template #cell-costAmount="{ row }"><span class="font-semibold tabular-nums">{{ amountLabel(row.costAmount) }}</span></template>
           </DhDataTable>
         </DhCard>
         <DhCard title="Servicios del expediente y revisiones comerciales" subtitle="Los servicios cotizados se conservan. Los agregados por Operations requieren revisión en Pricing.">
           <div v-for="service in commercialReviews?.services || []" :key="service.id"
             class="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm">
             <span class="font-bold">{{ service.serviceName }}</span>
-            <span class="text-xs text-[var(--dh-text-muted)]">{{ service.serviceCode }}</span>
             <DhBadge variant="neutral">{{ service.source === 'QUOTED' ? 'Cotizado' : 'Agregado Operations' }}</DhBadge>
             <span v-if="service.requiresPricingReview" class="text-xs font-semibold text-amber-600 dark:text-amber-300">
               {{ statusLabel(service.reviewStatus) }}

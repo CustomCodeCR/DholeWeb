@@ -1,5 +1,7 @@
 ## [1.123.2] - 2026-11-24
 
+- Mostrar número de QUO, opción aceptada, datos de snapshot y rubros originales; resolver Incoterm/moneda mediante catálogos y eliminar identificadores técnicos de las vistas operativas. Sin sustituir datos de revisiones históricas por datos actuales.
+
 - Alineación del release de orden numérico descendente de Trámites; sin cambios visuales ni contratos.
 
 ## [1.123.1] - 2026-11-24

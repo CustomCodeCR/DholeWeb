@@ -56,12 +56,14 @@ function iconFor(code: string) {
   }
 }
 function preview(event: OperationsAudit): string {
+  if (event.actionCode === 'operations.case.accepted-quote.created') return 'Se creó el expediente a partir de la cotización aceptada.'
   return auditPreview(event, translate, lookupName)
 }
 function category(event: OperationsAudit): string {
   return t('operations.auditTimeline.categories.' + auditCategoryKey(event.actionCode))
 }
 function title(event: OperationsAudit): string {
+  if (event.actionCode === 'operations.case.accepted-quote.created') return 'Apertura creada desde Pricing'
   return t('operations.auditTimeline.actions.' + auditActionKey(event.actionCode))
 }
 function rowValue(value: unknown, field: string): string {
@@ -133,16 +135,7 @@ function rowValue(value: unknown, field: string): string {
               </template>
               <p v-else class="text-xs text-[var(--dh-text-muted)]">{{ t('operations.auditTimeline.noFieldChanges') }}</p>
 
-              <details class="mt-3 border-t border-[var(--dh-border)] pt-2">
-                <summary class="cursor-pointer text-xs font-semibold text-[var(--dh-text-muted)] hover:text-[var(--dh-primary)]">
-                  {{ t('operations.auditTimeline.technicalDetails') }}
-                </summary>
-                <dl class="mt-2 space-y-1 break-all text-[11px] text-[var(--dh-text-muted)]">
-                  <div><dt class="inline font-semibold">{{ t('operations.auditTimeline.eventCode') }}: </dt><dd class="inline">{{ event.actionCode }}</dd></div>
-                  <div><dt class="inline font-semibold">{{ t('operations.auditTimeline.eventId') }}: </dt><dd class="inline">{{ event.eventId }}</dd></div>
-                  <div><dt class="inline font-semibold">{{ t('operations.auditTimeline.actorId') }}: </dt><dd class="inline">{{ event.actorUserId }}</dd></div>
-                </dl>
-              </details>
+
             </div>
           </details>
         </li>
