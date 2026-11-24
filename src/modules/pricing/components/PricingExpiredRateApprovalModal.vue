@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import type { RateDto } from '@/core/interfaces/pricing'
-import { DhButton } from '@/shared/components/atoms'
+import { DhButton, DhTextarea } from '@/shared/components/atoms'
 import { useModalStore } from '@/core/stores/modalStore'
 import { useToastStore } from '@/core/stores/toastStore'
 import {
@@ -22,37 +22,59 @@ const modal = useModalStore()
 const reason = ref('')
 const busy = ref(false)
 const loading = ref(true)
+const loadError = ref('')
+const submitError = ref('')
+const submittedReason = ref('')
+let refreshSequence = 0
 const current = ref<ExpiredRateApprovalStatus | null>(null)
 const pending = ref<ExpiredRateApproval[]>([])
 const decisions = reactive<Record<string, string>>({})
 
 async function refresh() {
+  const sequence = ++refreshSequence
   loading.value = true
+  loadError.value = ''
   try {
-    if (props.mode === 'review') pending.value = await expiredRateApprovalService.pending()
-    else if (props.rate) current.value = await expiredRateApprovalService.forRate(props.rate.id)
+    if (props.mode === 'review') {
+      const rows = await expiredRateApprovalService.pending()
+      if (sequence === refreshSequence) pending.value = rows
+    } else if (props.rate) {
+      const status = await expiredRateApprovalService.forRate(props.rate.id)
+      if (sequence === refreshSequence) {
+        current.value = status
+        submittedReason.value = ''
+      }
+    } else {
+      throw new Error('No se identificó la tarifa.')
+    }
   } catch (error) {
-    toast.backendError(error, 'No se pudieron consultar las autorizaciones.')
+    if (sequence !== refreshSequence) return
+    loadError.value = 'No se pudo consultar el estado de la autorización. Puede reintentar la consulta.'
+    toast.backendError(error, loadError.value)
   } finally {
-    loading.value = false
+    if (sequence === refreshSequence) loading.value = false
   }
 }
 
 async function requestApproval() {
-  if (!props.rate || busy.value) return
+  if (!props.rate || busy.value || loading.value || submittedReason.value
+    || current.value?.currentApproval?.status === 'Pending' || current.value?.canUpdate) return
   const explanation = reason.value.trim()
-  if (explanation.length < 15) {
-    toast.warning('Justificación obligatoria', 'Explique por qué dejó vencer la tarifa, con al menos 15 caracteres.')
+  if (explanation.length < 15 || explanation.length > 4000) {
+    toast.warning('Justificación obligatoria', 'Explique por qué dejó vencer la tarifa, con 15 a 4000 caracteres.')
     return
   }
   busy.value = true
+  submitError.value = ''
   try {
     await expiredRateApprovalService.request(props.rate.id, explanation)
-    toast.success('Autorización solicitada', 'Roy y José Pablo recibirán la solicitud por sistema y correo.')
+    submittedReason.value = explanation
+    toast.success('Autorización solicitada', 'La jefatura recibirá la solicitud por sistema y correo.')
     await refresh()
     await props.onSaved?.()
   } catch (error) {
-    toast.backendError(error, 'No se pudo solicitar la autorización.')
+    submitError.value = 'No se pudo confirmar la solicitud. El motivo escrito se conserva; consulte el estado o vuelva a intentarlo.'
+    toast.backendError(error, submitError.value)
   } finally {
     busy.value = false
   }
@@ -101,20 +123,23 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
   <section class="space-y-4 text-[var(--dh-text)]">
     <p class="text-sm text-[var(--dh-text-muted)]">
       <template v-if="mode === 'review'">
-        Solicitudes de tarifas vencidas que necesitan la aprobación de Roy o José Pablo.
-        Solo la jefatura autorizada puede resolverlas.
+        Solicitudes de tarifas vencidas pendientes de aprobación de jefatura.
       </template>
       <template v-else>
         La tarifa {{ rate?.quoNumber || rate?.rateCode }} venció.
         Para actualizarla, indique por qué no se renovó antes del vencimiento.
-        Roy o José Pablo deberán autorizar la modificación.
+        La jefatura deberá autorizar la actualización.
       </template>
     </p>
 
-    <p v-if="loading" class="text-sm">Consultando autorizaciones…</p>
+    <p v-if="loading" class="text-sm" role="status">Consultando autorizaciones…</p>
+    <div v-if="loadError" role="alert" class="space-y-2 text-sm text-[var(--dh-text-muted)]">
+      <p>{{ loadError }}</p>
+      <DhButton variant="secondary" size="sm" label="Reintentar consulta" :loading="loading" @click="refresh" />
+    </div>
 
-    <template v-else-if="mode === 'review'">
-      <div v-if="pending.length === 0" class="rounded-xl border border-[var(--dh-border)] p-4 text-sm">
+    <template v-if="mode === 'review'">
+      <div v-if="!loading && !loadError && pending.length === 0" class="rounded-xl border border-[var(--dh-border)] p-4 text-sm">
         No hay autorizaciones pendientes.
       </div>
       <article
@@ -157,16 +182,16 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
       </article>
     </template>
 
-    <template v-else-if="current">
+    <template v-else>
       <div
-        v-if="current.currentApproval?.status === 'Pending'"
+        v-if="submittedReason || current?.currentApproval?.status === 'Pending'"
         class="rounded-xl border border-amber-500/40 p-4 text-sm"
       >
         <strong>Pendiente de autorización.</strong>
-        <p class="mt-1 whitespace-pre-wrap">Motivo: {{ current.currentApproval.reason }}</p>
+        <p class="mt-1 whitespace-pre-wrap">Motivo: {{ submittedReason || current?.currentApproval?.reason }}</p>
       </div>
       <div
-        v-else-if="current.canUpdate"
+        v-else-if="current?.canUpdate"
         class="rounded-xl border border-[var(--dh-border)] p-4 text-sm"
       >
         La actualización está autorizada.
@@ -177,29 +202,30 @@ onBeforeUnmount(() => window.removeEventListener('dhole:notification:received', 
         <template v-else> Regrese a la tarifa y seleccione Editar.</template>
       </div>
       <template v-else>
-        <label class="block space-y-1 text-sm font-semibold">
-          ¿Por qué se dejó vencer la tarifa? *
-          <textarea
-            v-model="reason"
-            rows="5"
-            maxlength="4000"
-            class="w-full rounded-lg border border-[var(--dh-border)] bg-[var(--dh-bg)] p-3 text-sm text-[var(--dh-text)]"
-            placeholder="Describa qué ocurrió, por qué no se renovó a tiempo y qué necesita actualizar."
-          />
-        </label>
+        <DhTextarea
+          v-model="reason"
+          label="¿Por qué se dejó vencer la tarifa? *"
+          :rows="5"
+          :disabled="busy"
+          placeholder="Describa qué ocurrió, por qué no se renovó a tiempo y qué necesita actualizar."
+          :error="reason.length > 4000 ? 'Máximo 4000 caracteres.' : undefined"
+        />
+        <p class="text-xs text-[var(--dh-text-muted)]">{{ reason.trim().length }} / 4000 caracteres · mínimo 15</p>
         <p class="text-xs text-[var(--dh-text-muted)]">
           El motivo y la decisión quedarán registrados en el historial de la tarifa.
           La edición permanecerá bloqueada mientras no exista aprobación.
         </p>
-        <button
-          type="button"
-          :disabled="busy || reason.trim().length < 15"
-          class="w-full rounded-lg bg-[var(--dh-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+        <p v-if="submitError" role="alert" class="text-sm text-red-600">{{ submitError }}</p>
+        <DhButton
+          class="w-full"
+          label="Solicitar autorización"
+          :loading="busy"
+          :disabled="loading || !rate || reason.trim().length < 15 || reason.trim().length > 4000"
           @click="requestApproval"
-        >Solicitar autorización</button>
+        />
       </template>
 
-      <div v-if="current.history.length" class="space-y-2 border-t border-[var(--dh-border)] pt-4">
+      <div v-if="current && current.history.length" class="space-y-2 border-t border-[var(--dh-border)] pt-4">
         <h3 class="text-sm font-bold">Historial de vencimientos y autorizaciones</h3>
         <div v-for="entry in current.history" :key="entry.id" class="rounded-lg border border-[var(--dh-border)] p-3 text-xs">
           <strong>{{ entry.status === 'Pending' ? 'Pendiente' : entry.status === 'Approved' ? 'Aprobada' : 'Rechazada' }}</strong>
