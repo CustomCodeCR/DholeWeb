@@ -20,5 +20,6 @@ test('incomplete manual opening autosaves on PostgreSQL and keeps an offline fal
 test('manual-opening draft never captures actual weight or creates a case during autosave', () => {
   assert.match(opening, /weightValue: _manualWeight, weightUnit: _manualWeightUnit/)
   assert.match(opening, /No se pudo crear la apertura/)
-  assert.doesNotMatch(opening, /saveManualOpeningDraft\(.*?createAperture/s)
+  const persistence = opening.slice(opening.indexOf('function persistDraft()'), opening.indexOf('function scheduleLocalDraft()'))
+  assert.doesNotMatch(persistence, /createAperture/)
 })
