@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { FolderOpen, RefreshCw, Plus, ArrowUpRight, Route, Package, UsersRound, FileText, CheckCircle2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhSelect, DhInput, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
@@ -15,6 +16,7 @@ import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable } from '../utils/commercialPresentation'
 
 const { locale } = useI18n()
+const route = useRoute()
 const { openingField } = useCommercialLabels()
 const supplemental = ref<Record<string, unknown>>({})
 const auth = useAuthStore()
@@ -72,6 +74,7 @@ const selectedWorkspace = ref<OperationsCaseWorkspace | null>(null)
 const selectedCaseId = computed(() => selected.value?.id || '')
 const selectedStage = computed(() => selectedWorkspace.value?.stages.find(s => s.status === 'IN_PROGRESS')
   || selectedWorkspace.value?.stages.find(s => s.status === 'READY')
+  || selectedWorkspace.value?.stages.find(s => !['COMPLETED', 'SKIPPED'].includes(s.status))
   || selectedWorkspace.value?.stages[0])
 const selectedStatusLabel = computed(() => departmentStatusLabel(
   selectedStage.value?.departmentCode, selectedStage.value?.status, selected.value?.status,
@@ -232,13 +235,16 @@ function formatDate(value: string | null | undefined) {
 function short(value: string | null | undefined) {
   return value ? value.slice(0, 8) : '—'
 }
+let listSequence = 0
 async function load() {
+  const current = ++listSequence
   loading.value = true
   error.value = ''
   try {
     const result = await operationsApi.cases(page.value, {
       q: search.value, status: status.value, apertureType: apertureType.value, accountId: accountId.value,
     })
+    if (current !== listSequence) return
     rows.value = result.items
     total.value = result.total
     caseClientNames.value = result.clientNames || {}
@@ -246,8 +252,11 @@ async function load() {
     void resolveAccountNames(result.items.map(x => x.accountId))
     void resolvePeople(result.items.flatMap(x => [x.assignedUserId, ...(x.pendingValidatorIds || [])]))
   } catch (cause) {
+    if (current !== listSequence) return
+    rows.value = []
+    total.value = 0
     error.value = cause instanceof Error ? cause.message : 'No se pudieron consultar los trámites.'
-  } finally { loading.value = false }
+  } finally { if (current === listSequence) loading.value = false }
 }
 let detailSequence = 0
 async function openCase(id: string) {
@@ -317,7 +326,7 @@ async function refreshSelected() {
         ...(work.validators || []).map(v => v.userId),
       ])
     }
-  } catch { /* Keep the current drawer visible; the next manual refresh can retry. */ }
+  } catch { if (selectedCaseId.value === id) closeDrawer() }
 }
 useOperationsCaseRealtime(selectedCaseId, () => {
   void load()
@@ -349,6 +358,7 @@ watch(clientSearch, () => {
   clearTimeout(crmTimer)
   crmTimer = setTimeout(() => { void loadClients() }, 250)
 })
+watch(() => auth.userId, () => { closeDrawer(); rows.value = []; total.value = 0; page.value = 1; void load() })
 onMounted(() => { void load(); void loadClients() })
 onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSequence++ })
 </script>
@@ -386,7 +396,8 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
       </template>
     </DhDrawer>
 
-    <DhCard padding="sm" title="Todos los trámites" subtitle="Selecciona un expediente para consultar su resumen.">
+    <DhCard v-if="route.query.manualSubmitted === '1'" padding="sm">Trámite manual registrado para Coordinación Origen. El pool realizará o recuperará la asignación sin doble aprobación.</DhCard>
+    <DhCard padding="sm" title="Mis trámites asignados" subtitle="Selecciona un expediente autorizado para consultar su resumen.">
       <div class="mb-3 grid gap-3 sm:grid-cols-2">
         <DhSearchInput v-model="search" placeholder="Buscar IDTRA, QUO o modalidad…" />
         <DhSearchInput v-model="clientSearch" placeholder="Buscar cliente en CRM…" />
@@ -421,7 +432,8 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
         </template>
         <template #cell-updatedAtUtc="{ row }">{{ formatDate(row.updatedAtUtc) }}</template>
         <template #cell-actions="{ row }">
-          <DhButton variant="secondary" size="sm" label="Resumen" @click.stop="openCase(row.id)" />
+          <RouterLink v-if="row.apertureType === 'AUTOMATIC' && row.pendingValidatorIds?.includes(auth.userId || '') && auth.hasScope('operations.aperture.validation.review')" :to="{ name: 'operations-case-detail', params: { id: row.id } }" @click.stop><DhButton size="sm" label="Revisar apertura" /></RouterLink>
+          <DhButton v-else variant="secondary" size="sm" label="Resumen" @click.stop="openCase(row.id)" />
         </template>
       </DhDataTable>
       <div class="mt-4 flex flex-wrap items-center justify-between gap-3">

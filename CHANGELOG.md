@@ -1,3 +1,9 @@
+## [1.123.4] - 2026-11-24
+
+- Operations: assigned-case lists and team-aware dashboard; prominent review actions for automatic openings.
+- Manual openings: direct Origin handoff; remove selection of dual Aperturas validators. Preserve existing draft ID on retry.
+- Candidate: CI and staging pending.
+
 ## [1.123.3] - 2026-11-24
 
 - Mostrar ambos validadores del pool y nombres autorizados de responsables y clientes sin exigir acceso al módulo CRM ni ampliar scopes. Reutiliza tablas y tarjetas DH.

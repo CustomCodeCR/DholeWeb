@@ -6,15 +6,13 @@ const opening = read('src/modules/operations/views/OperationsManualCreateView.vu
 const api = read('src/modules/operations/services/operationsApi.ts')
 const cases = read('src/modules/operations/views/OperationsCasesView.vue')
 
-test('select Aperturas team before creating the IDTRA and recover chosen team after refresh', () => {
-  assert.match(api, /apertures\/assignment-teams/)
-  assert.match(opening, /<DhSelect v-model="assignedTeamId"/)
-  assert.match(opening, /assignedTeamId: assignedTeamId\.value/)
-  assert.match(opening, /assignedTeamId\.value = String\(draft\.assignedTeamId/)
-  assert.match(opening, /operationsApi\.assign\(result\.id, assignedTeamId\.value\)/)
-  assert.match(opening, /selectedOpeningTeam\.value\?\.canAssign/)
-  assert.match(opening, /dos validadores/)
+test('manual opening delegates direct Origin handoff to backend without dual review', () => {
+  assert.match(opening, /operationsApi\.createAperture/)
+  assert.doesNotMatch(opening, /operationsApi\.assign\(result\.id/)
+  assert.doesNotMatch(opening, /<DhSelect v-model="assignedTeamId"/)
+  assert.match(opening, /Crear y enviar a Coordinación Origen/)
   assert.match(opening, /assignmentPendingId\.value = result\.id/)
+  assert.match(opening, /manualSubmitted: '1'/)
 })
 
 test('Aperturas does not collect weight or per-container weight', () => {
@@ -31,7 +29,7 @@ test('stackable is only displayed and persisted for LCL or LTL', () => {
 })
 test('review and drawer use structured client, route, cargo, documents and team sections', () => {
   for (const marker of ['Revisión de apertura', 'Cliente y responsable', 'Ruta e itinerario',
-    'Mercancía y equipos', 'Equipo de Aperturas', 'Completitud']) {
+    'Mercancía y equipos', 'Coordinación Origen', 'Completitud']) {
     assert.ok(opening.includes(marker), marker)
   }
   for (const marker of ['Expediente operativo', 'Cliente y comercial', 'Ruta del embarque',

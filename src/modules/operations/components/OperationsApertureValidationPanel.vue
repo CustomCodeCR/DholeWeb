@@ -13,6 +13,7 @@ const auth = useAuthStore()
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
 const canReview = computed(() => auth.hasScope('operations.aperture.validation.review'))
 const pair = ref<ValidationPair | null>(null)
+const myPendingReview = computed(() => pair.value?.stage.status === 'PENDING_VALIDATION' && pair.value.validators.some(v => v.userId === auth.userId && v.status === 'PENDING'))
 const busy = ref(false)
 const error = ref('')
 const comment = ref('')
@@ -61,9 +62,10 @@ function label(status: string) { return operationsLabel(status) }
 </script>
 
 <template>
-  <DhCard :icon="ShieldCheck" title="Validación de Aperturas" subtitle="El equipo valida el expediente sin salir de Trámites.">
+  <DhCard :icon="ShieldCheck" title="Validación de Aperturas" subtitle="Revisa el resumen y la QUO aceptada antes de registrar tu decisión.">
     <p v-if="error" role="alert" class="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</p>
     <div v-if="pair">
+      <p v-if="myPendingReview && canReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. La segunda aprobación enviará el expediente a Coordinación Origen.</p>
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <DhBadge variant="neutral">{{ label(pair.stage.status) }}</DhBadge>
         <DhButton v-if="canAssign && !pair.validators.length && pair.stage.status === 'PENDING_VALIDATION'"
@@ -79,7 +81,7 @@ function label(status: string) { return operationsLabel(status) }
         <div v-if="canReview && validator.userId === auth.userId && validator.status === 'PENDING' && pair.stage.status === 'PENDING_VALIDATION'">
           <DhTextarea v-model="comment" label="Observación de validación" :rows="2" />
           <div class="mt-2 flex flex-wrap gap-2">
-            <DhButton size="sm" label="Aprobar" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
+            <DhButton size="sm" label="Aprobar apertura" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
             <DhButton size="sm" variant="danger" label="Solicitar cambios" :disabled="busy || !comment.trim()" @click="decide(validator.id, 'REJECTED')" />
           </div>
         </div>
