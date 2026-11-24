@@ -93,3 +93,12 @@ test('Prospecto TARIFARIO se crea como maestro incluso desde un borrador SPOT', 
   assert.match(identity, /form\.clientName\.toLocaleUpperCase\(\)\.includes\('TARIFARIO'\)/)
   assert.match(identity, /form\.rateType = 'Tariff'/)
 })
+
+
+test('Direct edit of a historical unlinked QUO preserves its original commercial identity', () => {
+  const guard = identity.slice(identity.indexOf('const historicUnlinkedModification ='), identity.indexOf('if (!historicUnlinkedModification'))
+  assert.match(guard, /props\.rateId && !props\.viewOnly && editingRate\.value/)
+  assert.match(guard, /!editingRate\.value\.clientAccountId && !editingRate\.value\.clientLeadId && !form\.clientId/)
+  assert.match(guard, /form\.clientName\.trim\(\) === String\(editingRate\.value\.clientName/)
+  assert.match(guard, /form\.executiveName\.trim\(\) === String\(editingRate\.value\.executiveName/)
+})
