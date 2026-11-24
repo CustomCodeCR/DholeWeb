@@ -32,7 +32,7 @@ function createCargoRuntime(lines) {
     syncConsolidatedCargoForm: () => {},
   }
   const script = conversions + '\n' + runtime.slice(watcherStart, watcherEnd)
-    + '\n({ toCm: cargoDimensionToCm, fromCm: cargoDimensionFromCm, unit: () => consolidatedCargoStorageUnit })'
+    + '\n;({ toCm: cargoDimensionToCm, fromCm: cargoDimensionFromCm, unit: () => consolidatedCargoStorageUnit })'
   const helpers = vm.runInNewContext(script, context)
   assert.equal(typeof onOriginChange, 'function')
   return { helpers, context, lines: originalLines, onOriginChange }
