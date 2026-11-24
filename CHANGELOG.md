@@ -1,3 +1,7 @@
+## [1.124.20] - 2026-11-24
+
+- DH-20261124-OFFICIAL-SQUARE-LOGO: geometría rectangular del logo oficial, O cuadrada, logotipo completo en menú expandido e inicio de sesión, símbolo compacto y favicon rojo original transparente. CI/staging pendientes.
+
 ## [1.124.19] - 2026-11-24
 
 - DH-20261124-THEME-LOGO: nuevo logotipo SVG sin fondo, color primario y texto del tema, favicon ICO rojo original; regresiones de identidad visual. CI y staging pendientes.

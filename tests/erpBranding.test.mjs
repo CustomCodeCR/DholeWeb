@@ -49,6 +49,16 @@ test('transparent brand responds to current theme and keeps favicon original', (
   assert.match(theme, /mask: url\("\/dhole-mark\.svg"\)/)
   assert.equal(favicon.readUInt16LE(2), 1)
   assert.equal(favicon.readUInt16LE(4), 3)
-  assert.ok(favicon.includes(Buffer.from([168, 14, 24])))
+  assert.ok(favicon.includes(Buffer.from([24, 14, 168])))
   assert.match(source('index.html'), /href="\/favicon\.ico\?v=/)
+})
+
+test('official brand uses rectangular mark and square O and expands the complete lockup', () => {
+  const logo = source('src/assets/dhole-logo.svg')
+  const mark = source('public/dhole-mark.svg')
+  const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
+  assert.match(logo, /data-brand-shape="square-o"><path d="M837\.45 617\.65h166\.46v166\.46h-166\.46Z"/)
+  assert.equal((mark.match(/<path d="M[\d.]+ [\d.]+h[\d.]+v[\d.]+h-[\d.]+Z"/g) || []).length, 10)
+  assert.match(sidebar, /v-if="compact" role="img"[^>]+dhole-brand-mark/)
+  assert.match(sidebar, /v-if="!compact"[\s\S]*?dhole-brand-lockup[^>]+v-html="dholeLogo"/)
 })
