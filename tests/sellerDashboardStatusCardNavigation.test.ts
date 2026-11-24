@@ -47,7 +47,7 @@ test('supervision allows own seller actions without allowing actions on other se
   assert.match(sellerDashboard, /\/api\/pricing\/seller-rates'/)
   assert.match(sellerDashboard, /ownRatesById\.value\.has\(rate\.id\)/)
   assert.match(sellerDashboard, /ownRequestIds\.value\.has\(request\.id\)/)
-  assert.match(sellerDashboard, /v-if="canActOnRate\(rate\) \|\| canEditCreatedPricingRate\(rate\)"/)
+  assert.match(sellerDashboard, /v-if="canActOnRate\(rate\) \|\| canRequestModification\(rate\) \|\| canRespondToRate\(rate\) \|\| canEditCreatedPricingRate\(rate\)"/)
   assert.match(sellerDashboard, /if \(!canActOnRate\(rate\)\) return/)
   assert.match(sellerDashboard, /Promise\.allSettled/)
 })
@@ -76,4 +76,11 @@ test('seller workspace permission alone must not load the restricted Pricing das
   assert.match(dashboardView, /!hasSellerDashboardAccess\.value \|\| hasPricingOperatorAccess\.value/)
   assert.match(dashboardView, /if \(!canUsePricing\.value && hasSellerDashboardAccess\.value && !canUseOperations\.value\) return 'seller'/)
   assert.doesNotMatch(dashboardView, /authStore\.hasScope\(VIEW_SCOPES\.pricing\)/)
+})
+
+test('global commercial actions require both global visibility and request creation', () => {
+  assert.match(sellerDashboard, /props\.adminPreview && props\.enableSellerActions\s*&& authStore\.hasScope\('pricing\.rate-request\.view-all'\)/)
+  assert.match(sellerDashboard, /return canManageRate\(rate\)[\s\S]*?canDecideSellerQuote/)
+  assert.match(sellerDashboard, /return canManageRate\(rate\) && canSellerRequestRateModification/)
+  assert.match(sellerDashboard, /function canMarkReceived\(rate: RateDto\) \{\s*return canActOnRate\(rate\)/)
 })
