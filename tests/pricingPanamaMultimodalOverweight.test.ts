@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {
   panamaMultimodalWeightExcess,
   pricePanamaMultimodalOverweight,
+  isPanamaOverweightSupplement,
+  preservePersistedPanamaOverweightLines,
 } from '../src/modules/pricing/utils/panamaMultimodalOverweight.ts'
 import type { CostSelectDto } from '../src/core/interfaces/pricing.ts'
 import { readFileSync } from 'node:fs'
@@ -79,4 +81,29 @@ test('DH-390: FCL multimodal overweight uses the LTL master catalog from the sam
   const result = pricePanamaMultimodalOverweight([22000], catalog())
   assert.equal(result.excessKg, 3000)
   assert.equal(result.charges.length, 4)
+})
+
+test('saved FCL excess keeps the four charges when edit drops legacy terrestrial freight', () => {
+  const notes = 'Sobrepeso sobre 19.000 kg por contenedor; costo maestro calculado únicamente por 2000 kg excedentes.'
+  const details = names.map((name, index) => ({ id: 'detail-' + index, name, notes,
+    costId: 'cost-' + index, costAmount: [400, 200, 165, 55][index]!, saleAmount: [400, 200, 165, 55][index]! }))
+  const restore = (detail: typeof details[number]) => ({ ...detail, detailId: detail.id, included: true })
+  const current = details.slice(1).map(restore)
+  const result = preservePersistedPanamaOverweightLines(current, details, restore, () => false)
+  assert.equal(result.length, 4)
+  assert.equal(result.reduce((sum, line) => sum + line.costAmount, 0), 820)
+  assert.equal(result.reduce((sum, line) => sum + line.saleAmount, 0), 820)
+  assert.equal(preservePersistedPanamaOverweightLines(result, details, restore, () => false), result)
+  const edited = result.map(line => line.detailId === 'detail-0' ? { ...line, saleAmount: 450 } : line)
+  assert.equal(preservePersistedPanamaOverweightLines(edited, details, restore, () => false), edited)
+  assert.equal(preservePersistedPanamaOverweightLines(current, details, restore,
+    line => line.detailId === 'detail-0'), current)
+  assert.equal(isPanamaOverweightSupplement({ name: names[0]! }), false)
+  assert.equal(isPanamaOverweightSupplement({ name: names[0]!, notes }), true)
+  assert.equal(isPanamaOverweightSupplement({ name: 'Excedente Panamá · ' + names[0]! }), true)
+})
+test('haulage reconciliation skips generated and historical excess lines before catalog lookup', () => {
+  const transform = readFileSync(new URL('../build/pricingWizardHaulageComparison20261008.ts', import.meta.url), 'utf8')
+  assert.match(transform, /if \(isPanamaOverweightSupplement\(line\)\) return/)
+  assert.match(transform, /if \(isPanamaOverweightSupplement\(cost\)\) return null/)
 })
