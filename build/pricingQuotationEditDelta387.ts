@@ -88,7 +88,7 @@ function quoteEditRestoreUnchangedRequiredDetails() {
     if (!detail.id || removed.has(detail.id) || detail.costType === 'Optional') continue
     const name = normalizeCatalogValue(detail.name)
     // Panama road and excess have their own route/provenance-aware reconciliation.
-    if (/^(flete (?:terrestre internacional|internacional terrestre)|land freight)(?: |$)/.test(name)
+    if ((typeof isPanamaHistoricalRoad === 'function' && isPanamaHistoricalRoad(detail))
         || /sobrepeso|overweight|excedente/.test(name)) continue
     const existing = rateLines.value.find(line => line.detailId === detail.id)
     if (existing) {
@@ -96,8 +96,8 @@ function quoteEditRestoreUnchangedRequiredDetails() {
       continue
     }
     const sameIdentity = (line: { name: string; costId?: string | null; costDetailType?: string | null; chargeBasis?: string | null }) =>
-      normalizeCatalogValue(line.name) === name
-      && (line.costId ?? null) === (detail.costId ?? null)
+      (line.costId ?? null) === (detail.costId ?? null)
+      && (Boolean(detail.costId) || normalizeCatalogValue(line.name) === name)
       && line.costDetailType === detail.costDetailType
       && line.chargeBasis === detail.chargeBasis
     const aliases = rateLines.value.filter(line => !line.detailId && sameIdentity(line))
@@ -112,7 +112,10 @@ function quoteEditRestoreUnchangedRequiredDetails() {
     } else {
       // Avoid inventing a second charge when a different catalog or manual
       // row with the same label could already represent this detail.
-      if (rateLines.value.some(line => !line.detailId && normalizeCatalogValue(line.name) === name)) continue
+      const independentRoad = /^(flete (?:terrestre internacional|internacional terrestre)|land freight)(?: |$)/.test(name)
+      if (rateLines.value.some(line => !line.detailId && (normalizeCatalogValue(line.name) === name
+          || Boolean(detail.costId && line.costId === detail.costId)
+          || (independentRoad && /^(flete (?:terrestre internacional|internacional terrestre)|land freight)(?: |$)/.test(normalizeCatalogValue(line.name)))))) continue
       rateLines.value.push(persistedRateLineForEdit(detail))
     }
   }
