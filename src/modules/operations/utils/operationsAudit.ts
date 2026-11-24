@@ -80,7 +80,7 @@ function normalized(snapshot: Snapshot): Map<string, { field: string; value: unk
   const fields = new Map<string, { field: string; value: unknown }>()
   for (const [field, value] of Object.entries(snapshot)) {
     const key = field.toLowerCase()
-    if (!technicalKeys.has(key)) fields.set(key, { field, value })
+    if (!technicalKeys.has(key) && !/(?:id|ids|uuid|uuids)$/.test(key)) fields.set(key, { field, value })
   }
   return fields
 }

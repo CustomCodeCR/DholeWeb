@@ -91,6 +91,10 @@ export function useCommercialLabels() {
     if (key === 'incoterm') return incoterm(data.incoterm,data.incotermName)
     if (key === 'transportType') return transportLabel(data.transportType) || readable(data.transportType) || transportLabel(data.shipmentType)
     if (key === 'provenance') return ({Import:'Importación',Export:'Exportación',TransitDomestic:'Tránsito / doméstico'} as Record<string,string>)[String(data[key])] || ''
+    if (key === 'validFrom' || key === 'validTo') {
+      const value = readable(data[key])
+      if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10).split('-').reverse().join('/')
+    }
     return readable(data[key])
   }
   return { openingField, currency }

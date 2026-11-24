@@ -54,6 +54,7 @@ const openingSections = computed(() => {
       { label: 'ETD', key: 'etm' }, { label: 'ETA', key: 'eta' },
       { label: 'Operación', key: 'provenance' }, { label: 'Tránsito cotizado', key: 'transitTime' },
       { label: 'Días libres cotizados', key: 'freeDays' }, { label: 'Referencias de QUO', key: 'quoteReferences' },
+      { label: 'Válida desde', key: 'validFrom' }, { label: 'Válida hasta', key: 'validTo' },
     ] },
     { title: 'Mercancía', rows: [
       { label: 'Descripción', key: 'cargoDescription' },
@@ -97,14 +98,15 @@ const costRows = computed(() => snapshotCosts.value.length ? snapshotCosts.value
 function amountLabel(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : 'Por confirmar'
 }
-const costColumns: DhTableColumn<(typeof costRows.value)[number]>[] = [
+const costColumns = computed<DhTableColumn<(typeof costRows.value)[number]>[]>(() => [
   { key: 'description', label: 'Rubro' },
   { key: 'quantity', label: 'Cantidad', align: 'right' },
   { key: 'unitCost', label: 'Costo unitario', align: 'right' },
   { key: 'supplierName', label: 'Proveedor' },
   { key: 'currencyCode', label: 'Moneda' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
-]
+  ...(auth.hasScope('operations.finance.manage') ? [{ key: 'saleAmount' as const, label: 'Venta', align: 'right' as const }] : []),
+])
 const missingCostProviders = computed(() => costRows.value.filter(cost => !readable(cost.supplierName)).length)
 const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
 const newService = ref({ serviceCode: '', serviceName: '', reason: '' })
@@ -630,13 +632,14 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
           </div>
           <p v-if="costError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudo consultar la información comercial. Utiliza Actualizar.</p>
           <p v-else-if="snapshotCosts.length && costs.length !== snapshotCosts.length" class="mb-3 text-xs text-[var(--dh-text-muted)]">La tabla muestra el snapshot original completo. Los rubros pendientes de conciliación no se consideran costos operativos confirmados.</p>
-          <DhDataTable v-if="!costError" :columns="costColumns" :rows="costRows" empty-text="No hay rubros disponibles en la cotización aceptada.">
+          <DhDataTable :columns="costColumns" :rows="costRows" v-if="!costError" empty-text="No hay rubros disponibles en la cotización aceptada.">
             <template #cell-description="{ row }"><span class="font-semibold">{{ readable(row.description) || 'Rubro pendiente de identificar' }}</span></template>
             <template #cell-supplierName="{ row }"><span>{{ readable(row.supplierName) || 'Proveedor pendiente' }}</span></template>
             <template #cell-currencyCode="{ row }">{{ currency(row.currencyCode, row.currencyName) || 'Moneda pendiente' }}</template>
             <template #cell-quantity="{ row }">{{ row.quantity ?? 'Por confirmar' }}</template>
             <template #cell-unitCost="{ row }">{{ amountLabel(row.unitCost) }}</template>
             <template #cell-costAmount="{ row }"><span class="font-semibold tabular-nums">{{ amountLabel(row.costAmount) }}</span></template>
+            <template #cell-saleAmount="{ row }">{{ amountLabel(row.saleAmount) }}</template>
           </DhDataTable>
         </DhCard>
         <DhCard title="Servicios del expediente y revisiones comerciales" subtitle="Los servicios cotizados se conservan. Los agregados por Operations requieren revisión en Pricing.">
