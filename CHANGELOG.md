@@ -1,3 +1,8 @@
+## [1.124.7] - 2026-11-24 · DH-20261124-PRICING-PANAMA-EXCESS-EDIT
+
+- PATCH: conserva los cuatro cargos del excedente Panamá en FCL al editar, separa el flete del excedente de Merchant/Naviera y recupera detalles históricos por ID sin duplicarlos ni ignorar eliminaciones explícitas. No recalcula por la hidratación del indicador de sobrepeso.
+- Regresión incluida en prebuild. Sin cambios de API, base de datos o realtime. CI y staging pendientes.
+
 ## [1.124.6] - 2026-11-24 · DH-20261124-PRICING-LCL-EDIT-NAV
 
 - PATCH: permite P6 → P7 en cotizaciones LCL persistidas y editables (incluidas duplicadas), sin exigir naviera ni selección de tarifa nueva; valida agente, moneda e importes y ejecuta conciliación DH-387 antes de avanzar. Conserva detalles y precisión decimal. Los errores de conciliación se notifican; las nuevas cotizaciones mantienen las validaciones existentes.

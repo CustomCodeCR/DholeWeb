@@ -4,6 +4,7 @@ import {
   type LtlPanamaCostContext,
   type LtlPanamaCostKind,
   selectLtlPanamaCosts,
+  ltlPanamaCostKind,
 } from './ltlPanamaOwnCosts.ts'
 import { resolveCostPricing } from './pricingCostRules.ts'
 
@@ -63,4 +64,34 @@ export function pricePanamaMultimodalOverweight(
     })
   }
   return { excessKg, overweightContainers, charges, missing }
+}
+
+/** Identify generated and legacy saved excess rows, never the main inland freight. */
+export function isPanamaOverweightSupplement(line: {
+  key?: string | null; name?: string | null; notes?: string | null
+}): boolean {
+  const name = String(line.name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const notes = String(line.notes ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return Boolean(line.key?.startsWith('panama-overweight:')
+    || (ltlPanamaCostKind(name) && (/^excedente panama\b/.test(name)
+      || /sobrepeso sobre 19[.,]?000 kg por contenedor; costo maestro calculado unicamente por\s+\d+(?:[.,]\d+)?\s+kg excedentes/.test(notes))))
+}
+
+/** Restore only the persisted supplement; keep current edits and explicit deletions. */
+export function preservePersistedPanamaOverweightLines<
+  T extends { detailId?: string | null; costId?: string | null; included: boolean },
+  D extends { id: string; name: string; notes?: string | null },
+>(lines: T[], details: readonly D[], restore: (detail: D) => T,
+  wasRemoved: (line: T) => boolean): T[] {
+  let next = lines
+  for (const detail of details) {
+    if (!isPanamaOverweightSupplement(detail)) continue
+    const index = next.findIndex(line => line.detailId === detail.id)
+    const line = index >= 0 ? next[index]! : restore(detail)
+    if (wasRemoved(line) || (index >= 0 && line.included)) continue
+    if (next === lines) next = [...lines]
+    if (index >= 0) next[index] = { ...line, included: true }
+    else next.push(line)
+  }
+  return next
 }

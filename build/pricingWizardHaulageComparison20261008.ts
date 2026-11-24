@@ -77,6 +77,7 @@ function dholeHaulageOptionalAssociation(cost: {
   notes?: string | null
   operationalConditions?: string[] | null
 }): DholeHaulageChoice | null {
+  if (isPanamaOverweightSupplement(cost)) return null
   const conditions = cost.operationalConditions ?? []
   const merchant = conditions.includes('MerchantHaulage')
   const carrier = conditions.includes('CarrierHaulage')
@@ -476,6 +477,7 @@ function patchWizard(source: string) {
   if (props.viewOnly && props.rateId) return
 
   rateLines.value.forEach((line) => {
+    if (isPanamaOverweightSupplement(line)) return
     // A configured Inland can be Fixed/Variable. Classify the actual route
     // before deciding whether this is a shared fixed charge or an alternative.
     const configured = line.costId ? costs.value.find((cost) => cost.id === line.costId) : null
