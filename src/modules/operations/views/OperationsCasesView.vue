@@ -80,6 +80,7 @@ const selectedStatusLabel = computed(() => departmentStatusLabel(
 const clientName = ref('')
 const clientExecutiveName = ref('')
 const resolvedAccounts = ref<Record<string, string>>({})
+const caseClientNames = ref<Record<string, string | null>>({})
 const resolvedPeople = ref<Record<string, string>>({})
 const accountsChecked = new Set<string>()
 function personName(id: string | null | undefined) {
@@ -240,8 +241,10 @@ async function load() {
     })
     rows.value = result.items
     total.value = result.total
+    caseClientNames.value = result.clientNames || {}
+    resolvedPeople.value = { ...resolvedPeople.value, ...(result.people || {}) }
     void resolveAccountNames(result.items.map(x => x.accountId))
-    void resolvePeople(result.items.map(x => x.assignedUserId))
+    void resolvePeople(result.items.flatMap(x => [x.assignedUserId, ...(x.pendingValidatorIds || [])]))
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : 'No se pudieron consultar los trámites.'
   } finally { loading.value = false }
@@ -263,8 +266,9 @@ async function openCase(id: string) {
     if (sequence !== detailSequence) return
     selected.value = detail
     selectedWorkspace.value = workspace
+    resolvedPeople.value = { ...resolvedPeople.value, ...(workspace.people || {}) }
     void sameRevisionCommercialData(workspace).then(x => { if (sequence === detailSequence) supplemental.value = x })
-    clientName.value = accountLabel(detail.accountId)
+    clientName.value = resolvedAccounts.value[detail.accountId] || readable(workspace.commercialData?.clientName) || readable(caseClientNames.value[detail.id])
     void resolvePeople([
       detail.createdBy, detail.executiveUserId,
       ...workspace.stages.map(s => s.assignedUserId),
@@ -305,6 +309,7 @@ async function refreshSelected() {
     if (selectedCaseId.value === id) {
       selected.value = detail
       selectedWorkspace.value = work
+      resolvedPeople.value = { ...resolvedPeople.value, ...(work.people || {}) }
       void resolvePeople([
         detail.createdBy, detail.executiveUserId,
         ...work.stages.map(s => s.assignedUserId),
@@ -396,7 +401,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <strong class="text-sm font-black text-[var(--dh-primary)]">{{ row.idtra }}</strong>
         </template>
         <template #cell-accountId="{ row }">
-          <span class="break-words text-sm font-semibold">{{ accountLabel(row.accountId) }}</span>
+          <span class="break-words text-sm font-semibold">{{ resolvedAccounts[row.accountId] || readable(caseClientNames[row.id]) || accountLabel(row.accountId) }}</span>
         </template>
         <template #cell-sourceQuoteId="{ row }">
           <RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteOptionId || row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>{{ row.quoteNumber || 'Número pendiente de consulta' }}</RouterLink>
@@ -405,7 +410,12 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
         <template #cell-departmentCode="{ row }">{{ operationsLabel(row.departmentCode) }}</template>
         <template #cell-teamName="{ row }">{{ row.teamName || 'Sin equipo' }}</template>
-        <template #cell-assignedUserId="{ row }">{{ personName(row.assignedUserId) }}</template>
+        <template #cell-assignedUserId="{ row }">
+          <div v-if="row.pendingValidatorIds?.length" class="space-y-1 text-xs">
+            <p v-for="id in row.pendingValidatorIds" :key="id" class="break-words">{{ personName(id) }}</p>
+          </div>
+          <span v-else>{{ personName(row.assignedUserId) }}</span>
+        </template>
         <template #cell-departmentStatus="{ row }">
           <DhBadge :variant="row.departmentStatus === 'COMPLETED' ? 'success' : row.departmentStatus === 'PENDING' ? 'warning' : 'primary'">{{ departmentStatusLabel(row.departmentCode, row.departmentStatus, row.status, row.originStatusCode) }}</DhBadge>
         </template>
@@ -493,7 +503,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <div v-if="selectedWorkspace?.stages.length" class="space-y-2">
             <div v-for="stage in selectedWorkspace.stages" :key="stage.id" class="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[var(--dh-input)]/45 p-3">
               <div class="min-w-0"><p class="text-xs font-bold">{{ formatStatus(stage.departmentCode) }}</p><p class="mt-1 truncate text-xs text-[var(--dh-text-muted)]">{{ stage.teamName || 'Equipo por asignar' }}</p>
-                <p class="mt-1 text-xs font-semibold">Operativo: {{ personName(stage.assignedUserId) }}</p>
+                <p v-if="stage.departmentCode !== 'APERTURAS'" class="mt-1 text-xs font-semibold">Operativo: {{ personName(stage.assignedUserId) }}</p>
                 <p v-if="stage.supervisorUserIds?.length" class="mt-1 text-xs text-[var(--dh-text-soft)]">
                   Supervisión: {{ stage.supervisorUserIds.map(id => personName(id)).join(', ') }}
                 </p>

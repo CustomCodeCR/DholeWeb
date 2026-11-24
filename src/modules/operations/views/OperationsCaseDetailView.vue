@@ -302,7 +302,7 @@ async function load() {
     actors.value = []
     accountName.value = ''
     clientExecutiveName.value = ''
-    responsibleNames.value = {}
+    responsibleNames.value = { ...(work.people || {}) }
     optional.push(loadResponsibleNames([
       detail.createdBy, detail.executiveUserId,
       ...work.stages.map(s => s.assignedUserId),
@@ -528,7 +528,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
               <div>
                 <p class="text-sm font-bold">{{ statusLabel(stage.departmentCode) }}</p>
                 <p class="text-xs text-[var(--dh-text-muted)]">Equipo: {{ stage.teamName || 'Por asignar' }}</p>
-                <p class="mt-1 text-xs font-semibold">Operativo: {{ responsibleName(stage.assignedUserId) }}</p>
+                <p v-if="stage.departmentCode !== 'APERTURAS'" class="mt-1 text-xs font-semibold">Operativo: {{ responsibleName(stage.assignedUserId) }}</p>
                 <p v-if="stage.supervisorUserIds?.length" class="mt-1 text-xs text-[var(--dh-text-soft)]">
                   Supervisión: {{ stage.supervisorUserIds.map(id => responsibleName(id)).join(', ') }}
                 </p>

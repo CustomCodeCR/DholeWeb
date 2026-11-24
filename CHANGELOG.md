@@ -1,3 +1,7 @@
+## [1.123.3] - 2026-11-24
+
+- Mostrar ambos validadores del pool y nombres autorizados de responsables y clientes sin exigir acceso al módulo CRM ni ampliar scopes. Reutiliza tablas y tarjetas DH.
+
 ## [1.123.2] - 2026-11-24
 
 - Mostrar número de QUO, opción aceptada, datos de snapshot y rubros originales; resolver Incoterm/moneda mediante catálogos y eliminar identificadores técnicos de las vistas operativas. Sin sustituir datos de revisiones históricas por datos actuales.
