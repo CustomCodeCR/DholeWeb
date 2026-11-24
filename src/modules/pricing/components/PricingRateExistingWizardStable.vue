@@ -254,33 +254,11 @@ function validateWizardReferences() {
   toastStore.warning('Revise las referencias', message)
   return false
 }
-const commercialIdtra = ref('')
 const commercialOtherReferences = ref('')
-const commercialIdtraIdentifiers = computed(() => {
-  const seen = new Set<string>()
-  return commercialIdtra.value.split(',').map((value) => value.trim()).filter((value) => {
-    const key = value.toLocaleUpperCase()
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-})
-const commercialNormalizedIdtra = computed(() => commercialIdtraIdentifiers.value.join(', '))
-const commercialIdtraError = computed(() => {
-  if (!commercialIdtra.value.trim()) return ''
-  if (!commercialIdtraIdentifiers.value.length) return 'Indique un IDTRA válido o deje el campo vacío.'
-  if (commercialIdtraIdentifiers.value.length > 30) return 'Se permiten como máximo 30 IDTRA.'
-  if (commercialIdtraIdentifiers.value.some((value) => value.length > 100 || value.includes(';')))
-    return 'Cada IDTRA admite hasta 100 caracteres y no puede contener punto y coma.'
-  if (commercialNormalizedIdtra.value.length > 2000) return 'El conjunto de IDTRA no puede superar 2000 caracteres.'
-  return ''
-})
 const commercialOtherReferencesError = computed(() =>
   commercialOtherReferences.value.length > 2000 ? 'Las otras referencias no pueden superar 2000 caracteres.' : ''
 )
-const commercialAcceptanceInvalid = computed(() =>
-  Boolean(commercialIdtraError.value || commercialOtherReferencesError.value)
-)
+const commercialAcceptanceInvalid = computed(() => Boolean(commercialOtherReferencesError.value))
 const commercialRejectionReason = ref('')
 const commercialStatusSaving = ref(false)
 const commercialActionError = ref('')
@@ -3042,7 +3020,6 @@ async function hydrateExistingRate() {
     form.executiveName = rate.executiveName ?? ''
     form.idtraNumber = rate.idtraNumber ?? ''
     form.otherReferences = rate.otherReferences ?? ''
-    commercialIdtra.value = rate.idtraNumber ?? ''
     commercialOtherReferences.value = rate.otherReferences ?? ''
     commercialRejectionReason.value = rate.status === 'RejectedByClient' ? rate.closedReason ?? '' : ''
     commercialAction.value = null
@@ -3258,7 +3235,6 @@ function startCommercialDecision(action: 'accept' | 'reject') {
   commercialAction.value = action
   commercialActionError.value = ''
   if (action === 'accept') {
-    commercialIdtra.value = editingRate.value?.idtraNumber ?? form.idtraNumber ?? ''
     commercialOtherReferences.value = editingRate.value?.otherReferences ?? ''
   }
   if (action === 'reject') commercialRejectionReason.value = ''
@@ -3323,7 +3299,7 @@ async function submitCommercialDecision() {
     return
   }
   if (commercialAction.value === 'accept' && commercialAcceptanceInvalid.value) {
-    commercialActionError.value = commercialIdtraError.value || commercialOtherReferencesError.value
+    commercialActionError.value = commercialOtherReferencesError.value
     return
   }
 
@@ -3333,12 +3309,9 @@ async function submitCommercialDecision() {
     if (commercialAction.value === 'accept') {
       await PricingService.setRateStatus(editingRate.value.id, {
         status: 'AcceptedByClient',
-        idtraNumber: commercialNormalizedIdtra.value || null,
         otherReferences: commercialOtherReferences.value.trim(),
       })
-      toastStore.success('Tarifa aceptada', commercialNormalizedIdtra.value
-        ? `${commercialIdtraIdentifiers.value.length} IDTRA registrado(s).`
-        : 'El IDTRA podrá registrarse posteriormente.')
+      toastStore.success('Tarifa aceptada', 'La apertura se generará automáticamente en Operations. Consulte Trámites para verificar el IDTRA.')
     } else {
       await PricingService.setRateStatus(editingRate.value.id, {
         status: 'RejectedByClient',
@@ -5312,14 +5285,9 @@ onMounted(async () => {
               <p class="mt-3 text-lg font-black">{{ form.clientName || 'Cliente sin definir' }}</p>
               <p class="mt-1 text-sm font-semibold text-[var(--dh-text-muted)]">Ejecutivo: {{ form.executiveName || 'Sin asignar' }}</p>
               <div class="mt-4 space-y-3">
-                <DhTextarea
-                  v-model="form.idtraNumber"
-                  label="Números IDTRA (separados por comas, opcional)"
-                  placeholder="IDTRA999.12565, IDTRA999.12566"
-                  :rows="2"
-                  :disabled="viewOnly"
-                  :error="wizardIdtraError || undefined"
-                />
+                <p v-if="wizardIdtraIdentifiers.length" class="text-xs font-semibold text-[var(--dh-text-muted)]">
+                  IDTRA históricos asociados a Dynamics (solo lectura):
+                </p>
                 <div v-if="wizardIdtraIdentifiers.length" class="flex flex-wrap gap-1.5">
                   <span
                     v-for="idtra in wizardIdtraIdentifiers"
@@ -5336,8 +5304,8 @@ onMounted(async () => {
                   :error="wizardOtherReferencesError || undefined"
                 />
                 <p class="text-xs font-semibold text-[var(--dh-text-muted)]">
-                  Los IDTRA se separan con comas y podrán sincronizarse con Dynamics al aceptar la tarifa.
-                  Otras referencias se guardan únicamente en Dhole.
+                  El IDTRA de un trámite nuevo lo asigna Operations después de la aceptación definitiva.
+                  Las otras referencias se guardan únicamente en Dhole.
                 </p>
               </div>
               <p class="mt-4 text-sm font-bold">{{ displayValue(selectedOrigin) }} → {{ displayValue(selectedDestination) }}<span v-if="selectedPod"> → {{ displayValue(selectedPod) }}</span></p>
@@ -5525,16 +5493,11 @@ onMounted(async () => {
             <div v-if="commercialAction === 'accept'" class="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
               <p class="text-sm font-black">Aceptar tarifa</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Puede registrar varios IDTRA separados por comas o agregarlos posteriormente.
+                Al aceptar definitivamente la QUO, Pricing notificará a Operations para crear la apertura
+                y asignar automáticamente el IDTRA con el consecutivo del sistema.
+                No debe ingresar ningún IDTRA manualmente.
               </p>
-              <div class="mt-3 grid gap-3 md:grid-cols-2">
-                <DhTextarea
-                  v-model="commercialIdtra"
-                  label="Números IDTRA (separados por comas, opcional)"
-                  placeholder="IDTRA-2026-00125, IDTRA-2026-00126"
-                  :rows="2"
-                  :error="commercialIdtraError || undefined"
-                />
+              <div class="mt-3">
                 <DhTextarea
                   v-model="commercialOtherReferences"
                   label="Otras referencias (opcional)"
@@ -5544,17 +5507,9 @@ onMounted(async () => {
                 />
               </div>
               <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
-                Los IDTRA se guardan para Dynamics. Las otras referencias permanecen solo en Dhole y no se envían a Dynamics.
+                Las otras referencias permanecen en Dhole. La generación del IDTRA es asíncrona
+                y requiere que la cuenta esté correctamente vinculada a CRM.
               </p>
-              <div v-if="commercialIdtraIdentifiers.length" class="mt-3 flex flex-wrap gap-1.5">
-                <span v-for="idtra in commercialIdtraIdentifiers" :key="idtra"
-                  class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-[var(--dh-text)]">
-                  {{ idtra }}
-                </span>
-                <span class="self-center text-xs font-semibold text-[var(--dh-text-muted)]">
-                  {{ commercialIdtraIdentifiers.length }} IDTRA
-                </span>
-              </div>
               <div class="mt-4 flex flex-wrap justify-end gap-2">
                 <DhButton variant="secondary" :disabled="commercialStatusSaving" @click="commercialAction = null">Cancelar</DhButton>
                 <DhButton :loading="commercialStatusSaving" :disabled="commercialStatusSaving || commercialAcceptanceInvalid"

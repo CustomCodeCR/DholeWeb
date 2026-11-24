@@ -8,15 +8,20 @@ const wizards = [
 ]
 
 for (const file of wizards) {
-  test(file + ' displays CSV IDTRA and Dhole-only references on screen 8', () => {
+  test(file + ' preserves historical IDTRA and Dhole-only references on screen 8', () => {
     const source = readFileSync(file, 'utf8')
-    assert.match(source, /label="Números IDTRA \(separados por comas, opcional\)"/)
+    if (file.includes('PricingRateExistingWizardStable')) {
+      assert.doesNotMatch(source, /v-model="form\.idtraNumber"/)
+      assert.match(source, /IDTRA históricos asociados a Dynamics \(solo lectura\)/)
+    } else {
+      assert.match(source, /label="Números IDTRA \(separados por comas, opcional\)"/)
+      assert.match(source, /:error="wizardIdtraError \|\| undefined"/)
+    }
     assert.match(source, /label="Otras referencias \(opcional\)"/)
     assert.match(source, /v-model="form\.otherReferences"/)
     assert.match(source, /wizardIdtraIdentifiers/)
-    assert.match(source, /:error="wizardIdtraError \|\| undefined"/)
     assert.match(source, /:error="wizardOtherReferencesError \|\| undefined"/)
-    assert.match(source, /Otras referencias se guardan únicamente en Dhole/)
+    assert.match(source, /(?:Otras referencias|Las otras referencias) se guardan únicamente en Dhole/)
   })
 
   test(file + ' sends both fields on create and edit and restores internal references', () => {
