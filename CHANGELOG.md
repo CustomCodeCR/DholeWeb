@@ -1,3 +1,7 @@
+## [1.124.11] - 2026-11-24 · DH-20261124-INLAND-AUTO-SELECTION
+
+- PATCH: restablece selección automática de inland Merchant/Naviera en P6 de cotizaciones editables persistidas cuando no existe una elección válida; usa la única alternativa o la de menor costo. Mantiene elecciones válidas, vista de solo lectura y conciliación histórica DH-387. El mensaje de selección automática requiere una elección real. Regresión DH-389 ampliada; CI/staging pendientes. Sin cambios REST, SignalR ni BD.
+
 ## [1.124.10] - 2026-11-24 · DH-20261124-PRICING-PANAMA-ROAD-DEDUP
 
 - PATCH: concilia el tramo histórico CFZ–GAM con alias generados incluso si tienen CostId; bloquea su regeneración en P7, conserva excedente y valores negociados, y serializa ID e importes del mismo snapshot. Evita dos fletes de USD 2.140 y una segunda asignación Freight para un 40HC. Sin cambio de API, BD o realtime. CI/staging pendientes.
