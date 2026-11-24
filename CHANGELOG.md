@@ -1,3 +1,7 @@
+## [1.124.10] - 2026-11-24 · DH-20261124-PRICING-PANAMA-ROAD-DEDUP
+
+- PATCH: concilia el tramo histórico CFZ–GAM con alias generados incluso si tienen CostId; bloquea su regeneración en P7, conserva excedente y valores negociados, y serializa ID e importes del mismo snapshot. Evita dos fletes de USD 2.140 y una segunda asignación Freight para un 40HC. Sin cambio de API, BD o realtime. CI/staging pendientes.
+
 ## [1.124.9] - 2026-11-24 · DH-20261124-GLOBAL-COMMERCIAL-ACTIONS
 
 - PATCH: usuarios comerciales con view-all y create pueden solicitar modificaciones y renovaciones y aceptar/rechazar cotizaciones ajenas, conservando titularidad, estados, aprobación y componentes DH. CI y staging pendientes.

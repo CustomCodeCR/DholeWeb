@@ -151,3 +151,45 @@ test('save reconciles historical lines before capturing the serialization snapsh
   assert.match(source, /save-side request delta before immutable snapshot/)
   assert.match(source, /syncPanamaOverweightLines\(\)/)
 })
+
+test('QUO-677: catalog-backed road alias must not double charge the original CFZ leg or enter ocean allocation', () => {
+  const road = { id: 'historical-road', costId: null as string | null,
+    name: 'Flete terrestre internacional CFZ / Zona Libre Colón, Panamá → San Jose, Costa Rica',
+    costDetailType: 'InlandTransport', chargeBasis: 'PerContainer',
+    notes: '[PANAMA_PRODUCTION_NO_SEARCH] Regla GCF multimodal',
+    costAmount: 2140, saleAmount: 2140 }
+  const restore = (detail: typeof road) => ({ ...detail, detailId: detail.id as string | null,
+    key: 'existing:' + detail.id, included: true, manual: true, section: 'international_freight' })
+  const saved = restore(road)
+  const ocean = { ...saved, key: 'freight:40HC', detailId: 'ocean', name: 'Flete Internacional · 40HC',
+    costDetailType: 'Freight', notes: '1 × 40HC', costAmount: 5145, saleAmount: 5595 }
+  const alias = { ...saved, key: 'cost:land-master', detailId: null, costId: 'land-master',
+    name: 'Flete Internacional Terrestre', costDetailType: 'Freight', notes: '', manual: false }
+  const p7Alias = { ...alias, key: 'p7-391-multimodal-land:land-master' }
+  const excess = { ...saved, key: 'panama-overweight:freight', detailId: 'excess',
+    name: 'Excedente Panamá · Flete Terrestre Internacional Panama a Costa Rica',
+    costDetailType: 'DestinationCharge', chargeBasis: 'PerShipment', notes: '', costAmount: 400, saleAmount: 560 }
+  const other = { ...alias, detailId: 'different-saved-road', name: 'Flete terrestre tramo adicional' }
+  const manual = { ...alias, key: 'manual:extra', manual: true }
+  const next = preservePersistedPanamaRoad([ocean, saved, alias, p7Alias, excess, other, manual],
+    [road], restore, () => false)
+  assert.equal(next.length, 5)
+  assert.deepEqual(next.map(line => line.detailId), ['ocean', 'historical-road', 'excess', 'different-saved-road', null])
+  assert.equal(next[1]?.saleAmount, 2140)
+  assert.equal(next[2]?.saleAmount, 560)
+  const caseLines = preservePersistedPanamaRoad([ocean, saved, alias, excess], [road], restore, () => false)
+  assert.equal(caseLines.filter(line => line.costDetailType === 'Freight').length, 1)
+  assert.equal(caseLines.reduce((sum, line) => sum + line.costAmount, 0), 7685)
+  assert.equal(caseLines.reduce((sum, line) => sum + line.saleAmount, 0), 8295)
+  assert.equal(preservePersistedPanamaRoad(caseLines, [road], restore, () => false), caseLines)
+  const relinkedAlias = { ...alias, detailId: road.id }
+  const restored = preservePersistedPanamaRoad([ocean, relinkedAlias, excess], [road], restore, () => false)
+  assert.equal(restored.length, 3)
+  assert.equal(restored.find(line => line.detailId === road.id)?.costDetailType, 'InlandTransport')
+})
+test('P7 guards road generation using the historical identity before applying a catalog master', () => {
+  const source = readFileSync(new URL('../build/pricingP7Reconcile391.ts', import.meta.url), 'utf8')
+  assert.match(source, /hasHistoricalPanamaRoad = syncPersistedPanamaRoadForEdit\(\)/)
+  assert.match(source, /!hasHistoricalPanamaRoad && canAppend/)
+  assert.match(source, /normalizedIncludedLines.map\(\(line\) => \(\{ detailId: persistedDetailIdForLine\(line\) \}\)\)/)
+})
