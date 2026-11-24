@@ -1,5 +1,10 @@
 ## [1.124.11] - 2026-11-24 · DH-20261124-INLAND-AUTO-SELECTION
 
+## [1.124.12] - 2026-11-24
+
+- DH-20261124-EXPIRED-REASON-MODAL: mostrar siempre el campo de justificación de vencimiento salvo autorización pendiente/aprobada confirmada; manejar respuestas inválidas, errores y reintentos sin perder el texto; reutilizar DhTextarea/DhButton y mencionar únicamente a jefatura. El backend mantiene sus permisos, persistencia y notificaciones existentes.
+
+
 - PATCH: restablece selección automática de inland Merchant/Naviera en P6 de cotizaciones editables persistidas cuando no existe una elección válida; usa la única alternativa o la de menor costo. Mantiene elecciones válidas, vista de solo lectura y conciliación histórica DH-387. El mensaje de selección automática requiere una elección real. Regresión DH-389 ampliada; CI/staging pendientes. Sin cambios REST, SignalR ni BD.
 
 ## [1.124.10] - 2026-11-24 · DH-20261124-PRICING-PANAMA-ROAD-DEDUP
