@@ -26,16 +26,11 @@ function patchWizard(source: string) {
   const detailLines = details
     .map((detail) => normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`))
     .filter(Boolean)
-  const optionalDetailLines = details
-    .filter((detail) => normalizeCatalogValue(String(detail.costType ?? '')) === 'optional')
-    .map((detail) => normalizeCatalogValue(\`\${detail.name} \${detail.notes ?? ''}\`))
-    .filter(Boolean)
   const serviceLines = services
     .map((service) => normalizeCatalogValue(\`\${service.code ?? ''} \${service.name ?? ''}\`))
     .filter(Boolean)
 
   const hasDetail = (...terms: string[]) => persistedEditTermContains(detailLines, ...terms)
-  const hasOptionalDetail = (...terms: string[]) => persistedEditTermContains(optionalDetailLines, ...terms)
   const hasService = (...terms: string[]) => persistedEditTermContains(serviceLines, ...terms)
 
   // No inferir Carga peligrosa/Sobrepeso desde Subject To cuando la tarifa ya tiene
