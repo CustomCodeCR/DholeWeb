@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Bell, CheckCheck, Languages, LoaderCircle, LogOut, Menu, Moon, Search, Settings, Sun, UserRoundX } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { APP_VERSION, APP_CHANNEL, APP_VERSION_DETAIL } from '@/core/version'
 import DhIconButton from '@/shared/components/atoms/DhIconButton.vue'
 import DhAvatar from '@/shared/components/atoms/DhAvatar.vue'
 import { useAvatarAppearanceStore } from '@/core/stores/avatarAppearanceStore'
@@ -214,6 +215,14 @@ onBeforeUnmount(() => {
       </kbd>
     </button>
 
+    <span
+      data-testid="topbar-version"
+      class="hidden min-w-0 truncate whitespace-nowrap text-[10px] font-medium text-[var(--dh-text-muted)] xl:block"
+      :title="APP_VERSION_DETAIL"
+    >
+      v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
+    </span>
+
     <div class="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
       <div
         v-if="authStore.isImpersonating"
@@ -237,7 +246,7 @@ onBeforeUnmount(() => {
 
       <DhIconButton :icon="Languages" :label="t('topbar.language')" variant="secondary" @click="localeStore.toggleLocale()" />
       <DhIconButton :icon="themeStore.resolvedTheme === 'dark' ? Sun : Moon" :label="t('topbar.theme')" variant="secondary" class="dh-topbar-optional-mobile" @click="themeStore.toggleTheme()" />
-      <DhIconButton :icon="Settings" :label="t('topbar.settings')" variant="secondary" class="dh-topbar-settings-mobile" @click="openSettings" />
+      <DhIconButton :icon="Settings" :label="t('topbar.settings')" :title="`${t('topbar.settings')} · ${APP_VERSION_DETAIL}`" variant="secondary" class="dh-topbar-settings-mobile" @click="openSettings" />
 
       <div ref="inboxRoot" class="relative">
         <div class="relative">

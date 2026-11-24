@@ -84,15 +84,15 @@ test('sidebar logo is 15 percent smaller and animates compact and expanded state
   assert.match(sidebar, /transition-\[width,transform\] duration-300 ease-in-out/)
 })
 
-test('system version is in the fixed sidebar footer, not the brand header', () => {
+test('system version is shown in the topbar, not the sidebar', () => {
   const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
-  const brand = sidebar.split('<Transition name="sidebar-brand"')[1].split('</Transition>')[0]
-  assert.doesNotMatch(brand, /APP_VERSION|APP_CHANNEL|APP_COMMIT/)
-  const footer = sidebar.split('data-testid="sidebar-version"')[1].split('</footer>')[0]
-  assert.match(footer, /APP_VERSION_DETAIL/)
-  assert.match(footer, /APP_COMMIT/)
-  assert.match(footer, /v\{\{ APP_VERSION \}\}/)
-  assert.match(footer, /APP_CHANNEL !== 'production'/)
-  assert.match(footer, /compact \? 'sr-only'/)
-  assert.ok(sidebar.indexOf('</nav>') < sidebar.indexOf('data-testid="sidebar-version"'))
+  const topbar = source('src/shared/components/organisms/DhTopbar.vue')
+  assert.doesNotMatch(sidebar, /APP_VERSION|APP_CHANNEL|APP_COMMIT|sidebar-version/)
+  const version = topbar.split('data-testid="topbar-version"')[1].split('</span>')[0]
+  assert.match(version, /APP_VERSION_DETAIL/)
+  assert.match(version, /APP_VERSION/)
+  assert.match(version, /APP_CHANNEL !== 'production'/)
+  assert.match(version, /xl:block/)
+  assert.ok(topbar.indexOf('data-testid="topbar-version"') < topbar.indexOf('ml-auto flex shrink-0'))
+  assert.ok(topbar.includes("${APP_VERSION_DETAIL}"))
 })
