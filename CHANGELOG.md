@@ -1,6 +1,10 @@
-## [1.124.1] - 2026-11-24
+## [1.124.2] - 2026-11-24
 
 - Scope operational views by assignment, expose automatic opening review, and send manual openings directly to origin.
+
+## [1.124.1] - 2026-11-24 · DH-20261124-SELLER-ACCEPTANCE-FIX
+
+- PATCH coordinado: sincronización Web/System para la corrección de registro de aceptación de QUO en DholePricingService. Sin cambios visuales, componentes DH ni payload REST. CI y staging pendientes.
 
 ## [1.124.0] - 2026-11-24
 
