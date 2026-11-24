@@ -1,5 +1,10 @@
 ## [1.124.11] - 2026-11-24 · DH-20261124-INLAND-AUTO-SELECTION
 
+## [1.124.14] - 2026-11-24
+
+- DH-20261124-EXPIRED-APPROVAL-TRANSACTION: sincronización obligatoria de versión con el ecosistema para la corrección de transacciones de autorización en Pricing 1.29.10; no hay cambios funcionales de frontend.
+
+
 ## [1.124.13] - 2026-11-24
 
 - DH-20261124-EXPIRED-APPROVAL-ACCESS: historial de motivos y decisiones de vencimiento accesible en el detalle comercial y el historial de cotización, incluso tras renovar; reutiliza modal DH y SignalR. Pruebas de aprobación agregadas al CI de Pricing.
