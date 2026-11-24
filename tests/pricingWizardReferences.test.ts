@@ -21,7 +21,7 @@ for (const file of wizards) {
     assert.match(source, /v-model="form\.otherReferences"/)
     assert.match(source, /wizardIdtraIdentifiers/)
     assert.match(source, /:error="wizardOtherReferencesError \|\| undefined"/)
-    assert.match(source, /[Ll]as otras referencias se guardan únicamente en Dhole/)
+    assert.match(source, /(?:Otras referencias|Las otras referencias) se guardan únicamente en Dhole/)
   })
 
   test(file + ' sends both fields on create and edit and restores internal references', () => {
