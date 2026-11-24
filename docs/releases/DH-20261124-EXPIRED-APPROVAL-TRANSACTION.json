@@ -1,0 +1,10 @@
+{
+  "releaseId": "DH-20261124-EXPIRED-APPROVAL-TRANSACTION",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.13",
+  "version": "1.124.14",
+  "ecosystemVersion": "1.124.14",
+  "target": "master",
+  "changes": "Version alignment required by central policy; no frontend behavior changes.",
+  "validation": "CI and staging pending"
+}
