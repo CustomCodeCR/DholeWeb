@@ -1,5 +1,10 @@
 ## [1.124.11] - 2026-11-24 · DH-20261124-INLAND-AUTO-SELECTION
 
+## [1.124.13] - 2026-11-24
+
+- DH-20261124-EXPIRED-APPROVAL-ACCESS: historial de motivos y decisiones de vencimiento accesible en el detalle comercial y el historial de cotización, incluso tras renovar; reutiliza modal DH y SignalR. Pruebas de aprobación agregadas al CI de Pricing.
+
+
 ## [1.124.12] - 2026-11-24
 
 - DH-20261124-EXPIRED-REASON-MODAL: mostrar siempre el campo de justificación de vencimiento salvo autorización pendiente/aprobada confirmada; manejar respuestas inválidas, errores y reintentos sin perder el texto; reutilizar DhTextarea/DhButton y mencionar únicamente a jefatura. El backend mantiene sus permisos, persistencia y notificaciones existentes.

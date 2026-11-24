@@ -47,6 +47,16 @@ const isCastroFallas = computed(() => rate.value?.executiveName?.trim().toLocale
 const canReceive = computed(() => isSent.value && !revisionPending.value && !isReceived.value && !isCastroFallas.value)
 const canRequestModification = computed(() => Boolean(rate.value && canSellerRequestRateModification(rate.value)))
 
+function openExpiryHistory() {
+  if (!rate.value) return
+  modal.open({
+    title: 'Historial de vencimientos y autorizaciones',
+    component: PricingExpiredRateApprovalModal,
+    size: 'lg', surface: 'solid',
+    props: { rate: rate.value, mode: 'history' },
+  })
+}
+
 function requestModification() {
   if (!rate.value || !canRequestModification.value || pendingModification.value) return
   const selectedRate = rate.value
@@ -245,6 +255,7 @@ onBeforeUnmount(() => {
           IDTRA: {{ rate.idtraNumber || 'Pendiente de asignar' }} · QUO: {{ rate.quoNumber || rate.rateCode }}
         </p>
         <div data-seller-guide="detail-modify" class="mt-4 flex flex-wrap gap-2">
+          <DhButton variant="secondary" label="Historial de vencimientos" @click="openExpiryHistory" />
           <DhButton variant="secondary" label="Descargar cotización PDF" :loading="downloading" :disabled="revisionPending" @click="downloadPdf" />
           <DhButton v-if="canRequestModification" :label="pendingModification ? 'Modificación pendiente' : isSellerRateExpired(rate) ? 'Solicitar actualización' : 'Solicitar modificación'" variant="secondary" :disabled="pendingModification" @click="requestModification" />
         </div>
