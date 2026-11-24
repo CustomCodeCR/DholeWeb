@@ -16,6 +16,7 @@ import {
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
   type OperationsOpeningEdit, type OperationsServiceReviewDashboard,
+  type OperationsContact, type OperationsQuoteComparison, type OperationsQuoteComparisonRow,
 } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
@@ -109,9 +110,89 @@ const costColumns = computed<DhTableColumn<(typeof costRows.value)[number]>[]>((
 ])
 const missingCostProviders = computed(() => costRows.value.filter(cost => !readable(cost.supplierName)).length)
 const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
-const newService = ref({ serviceCode: '', serviceName: '', reason: '' })
-const addingService = ref(false)
-const addServiceKey = ref(crypto.randomUUID())
+const contacts = ref<OperationsContact[]>([])
+const contactsError = ref(false)
+const contactsLoading = ref(false)
+const comparison = ref<OperationsQuoteComparison | null>(null)
+const comparisonError = ref(false)
+const reviewComment = ref('')
+const requestingReview = ref(false)
+const reviewDraftChanged = ref(false)
+const comparisonRows = computed(() => (comparison.value?.rows || []).map(row => ({ ...row, id: row.field })))
+const comparisonColumns: DhTableColumn<OperationsQuoteComparisonRow>[] = [
+  { key: 'label', label: 'Dato comercial' },
+  { key: 'quoted', label: 'QUO aceptada' },
+  { key: 'current', label: 'Trámite actual' },
+  { key: 'status', label: 'Comparación' },
+]
+const discrepancyCount = computed(() => comparisonRows.value.filter(x => x.status === 'CHANGED').length)
+const unconfirmedCount = computed(() => comparisonRows.value.filter(x => x.status === 'UNCONFIRMED').length)
+const selectedContacts = computed(() => new Set(Array.isArray(openingData.value.contactIds) ? openingData.value.contactIds.map(String) : []))
+const quoteData = computed(() => mergeCommercialOpening({}, workspace.value?.commercialData, supplemental.value))
+const quoteFields = computed(() => [
+  ['Cliente', 'clientName'], ['Ejecutivo comercial', 'executiveName'], ['Tipo de embarque', 'shipmentType'],
+  ['Transporte', 'transportType'], ['Incoterm', 'incoterm'], ['Operación', 'provenance'],
+  ['POL · Origen', 'pol'], ['POE · Entrada', 'poe'], ['POD · Destino', 'pod'],
+  ['Naviera', 'carrierReference'], ['Agente / co-loader', 'agentReference'], ['Descripción de mercancía', 'cargoDescription'],
+  ['Tránsito cotizado', 'transitTime'], ['Días libres', 'freeDays'],
+  ['Válida desde', 'validFrom'], ['Válida hasta', 'validTo'], ['Referencias', 'quoteReferences'],
+].map(([label, key]) => ({ label: label!, value: openingField(key!, quoteData.value) || 'No registrado en la QUO' })))
+const quoteServices = computed(() => Array.isArray(quoteData.value.services)
+  ? quoteData.value.services.map(x => readable(x)).filter(Boolean) : [])
+const quoteEquipment = computed(() => Array.isArray(quoteData.value.equipment)
+  ? quoteData.value.equipment.map(x => {
+      const item = x as Record<string, unknown>
+      return [readable(item.quantity), readable(item.equipmentName) || readable(item.equipmentType)].filter(Boolean).join(' × ')
+    }).filter(Boolean) : [])
+const quoteTotals = computed(() => {
+  const grouped = new Map<string, { cost: number; sale: number; completeCost: boolean; completeSale: boolean }>()
+  for (const row of snapshotCosts.value) {
+    const code = currency(row.currencyCode, row.currencyName)
+    if (!code) return []
+    const group = grouped.get(code) || { cost: 0, sale: 0, completeCost: true, completeSale: true }
+    if (row.costAmount === null) group.completeCost = false
+    else group.cost += row.costAmount
+    if (row.saleAmount === null) group.completeSale = false
+    else group.sale += row.saleAmount
+    grouped.set(code, group)
+  }
+  return Array.from(grouped, ([code, group]) => ({ code, ...group }))
+})
+function comparisonValue(row: OperationsQuoteComparisonRow, side: 'quoted' | 'current') {
+  const value = row[side]
+  if (row.field === 'incoterm' && /^(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)$/.test(value || '')) return value!
+  if (row.field === 'incoterm' && side === 'quoted') return openingField('incoterm', quoteData.value) || readable(value) || 'Por identificar'
+  if (row.field === 'incoterm' && side === 'current') {
+    try { return openingField('incoterm', JSON.parse(record.value?.openingDataJson || '{}')) || readable(value) || 'Por identificar' }
+    catch { return 'Por identificar' }
+  }
+  return readable(value) || 'Por confirmar'
+}
+function comparisonStatusLabel(status: string) {
+  return ({ MATCH: 'Coincide', CHANGED: 'Cambió', UNCONFIRMED: 'Por confirmar' } as Record<string, string>)[status] || 'Por confirmar'
+}
+function comparisonStatusVariant(status: string) {
+  return status === 'MATCH' ? 'success' as const : status === 'CHANGED' ? 'danger' as const : 'warning' as const
+}
+const commercialSeverity = computed(() => {
+  const severity = comparison.value?.severity || 'UNKNOWN'
+  if (pendingCommercialAlerts.value.some(x => x.severity === 'RED') || severity === 'RED') return 'RED'
+  if (pendingCommercialAlerts.value.length || severity === 'YELLOW') return 'YELLOW'
+  return severity
+})
+const commercialLabel = computed(() => {
+  if (comparisonError.value) return 'No se pudo comparar'
+  if (!comparison.value?.hasSnapshot) return 'Sin QUO comparable'
+  if (commercialSeverity.value === 'RED') return comparison.value.currentReview?.status === 'REVIEWING'
+    ? 'Recotización requerida' : comparison.value.currentReview?.status === 'REJECTED'
+      ? 'Revisión rechazada · requiere atención' : 'Diferencias comerciales detectadas'
+  if (commercialSeverity.value === 'YELLOW') return comparison.value.currentReview?.status === 'PENDING_PRICING' || pendingCommercialAlerts.value.length
+    ? 'Pendiente de Pricing' : 'Datos por confirmar'
+  if (commercialSeverity.value === 'GREEN') return comparison.value.currentReview?.status === 'RESOLVED_NO_PRICE_CHANGE' ? 'Conciliado por Pricing' : 'Sin diferencias en campos comparados'
+  return 'Pendiente de comparación'
+})
+const commercialVariant = computed(() => commercialSeverity.value === 'GREEN' ? 'success' as const :
+  commercialSeverity.value === 'RED' ? 'danger' as const : commercialSeverity.value === 'YELLOW' ? 'warning' as const : 'neutral' as const)
 const pendingCommercialAlerts = computed(() =>
   commercialReviews.value?.alerts.filter(x =>
     x.severity !== 'GREEN' && x.status !== 'RESOLVED') ?? [])
@@ -218,19 +299,6 @@ function selectCaseTab(key: string) {
   editing.value = false
 }
 const canEditSummary = computed(() => level('RESUMEN') === 'EDITABLE')
-const canAddService = computed(() =>
-  (level('RESUMEN') === 'EDITABLE' ||
-    level('COORDINACION_ORIGEN') === 'EDITABLE') &&
-  (auth.hasScope('operations.case.update') ||
-    auth.hasScope('operations.origin.update') ||
-    auth.hasScope('operations.aperture.update')))
-const validNewService = computed(() =>
-  /^[A-Za-z0-9_.-]{1,60}$/.test(newService.value.serviceCode.trim()) &&
-  newService.value.serviceName.trim().length > 0 &&
-  newService.value.serviceName.trim().length <= 200 &&
-  newService.value.reason.trim().length >= 10 &&
-  newService.value.reason.trim().length <= 2000)
-
 const currentStage = computed(() =>
   workspace.value?.stages.find(s => s.departmentCode === selectedTab.value))
 const currentTasks = computed(() =>
@@ -273,6 +341,7 @@ async function load() {
   message.value = ''
   editing.value = false
   serverChangedWhileEditing.value = false
+  reviewDraftChanged.value = false
   try {
     const [detail, work, tabResponse] = await Promise.all([
       operationsApi.caseDetail(caseId.value),
@@ -296,6 +365,18 @@ async function load() {
     supplemental.value = {}
     optional.push(sameRevisionCommercialData(work).then(x => { if (current === sequence) supplemental.value = x }))
     commercialReviews.value = null
+    contacts.value = []
+    contactsError.value = false
+    contactsLoading.value = true
+    comparison.value = null
+    comparisonError.value = false
+    optional.push(operationsApi.caseContacts(caseId.value)
+      .then(x => { if (current === sequence) contacts.value = Array.isArray(x) ? x : [] })
+      .catch(() => { if (current === sequence) contactsError.value = true })
+      .finally(() => { if (current === sequence) contactsLoading.value = false }))
+    if (detail.sourceQuoteId) optional.push(operationsApi.caseQuoteComparison(caseId.value)
+      .then(x => { if (current === sequence) comparison.value = x })
+      .catch(() => { if (current === sequence) comparisonError.value = true }))
     origin.value = null
     notes.value = []
     audit.value = []
@@ -373,27 +454,24 @@ async function saveOriginStatus() {
     error.value = cause instanceof Error ? cause.message : 'No se pudo guardar el estado de Origen.'
   } finally { savingOrigin.value = false }
 }
-async function addOperationalService() {
-  if (!record.value || !canAddService.value || !validNewService.value || addingService.value) return
-  addingService.value = true
+async function requestCommercialReview() {
+  const selected = comparison.value
+  const id = record.value?.id
+  if (!id || !selected?.canRequest || selected.currentReview || !discrepancyCount.value ||
+      requestingReview.value || reviewDraftChanged.value) return
+  requestingReview.value = true
   error.value = ''
   try {
-    await operationsApi.addCaseService(record.value.id, {
-      idempotencyKey: addServiceKey.value,
-      serviceCode: newService.value.serviceCode.trim().toUpperCase(),
-      serviceName: newService.value.serviceName.trim(),
-      reason: newService.value.reason.trim(),
+    await operationsApi.requestQuoteReview(id, {
+      expectedVersion: selected.version, fingerprint: selected.fingerprint, comment: reviewComment.value.trim(),
     })
-    newService.value = { serviceCode: '', serviceName: '', reason: '' }
-    addServiceKey.value = crypto.randomUUID()
+    if (caseId.value !== id) return
+    reviewComment.value = ''
     await load()
-    message.value = 'Servicio añadido. Se generó una alerta amarilla y una solicitud de revisión para Pricing.'
+    message.value = 'Diferencias registradas; solicitud registrada para envío a Pricing.'
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message :
-      'No se pudo registrar el servicio adicional. El motivo y los datos se conservaron.'
-  } finally {
-    addingService.value = false
-  }
+    if (caseId.value === id) error.value = cause instanceof Error ? cause.message : 'No se pudo enviar la revisión. Actualice y verifique las diferencias.'
+  } finally { requestingReview.value = false }
 }
 async function addNote() {
   if (!record.value || !canWriteNote.value || !noteText.value.trim() || postingNote.value) return
@@ -409,13 +487,17 @@ async function addNote() {
   } finally { postingNote.value = false }
 }
 useOperationsCaseRealtime(caseId, () => {
+  if (requestingReview.value || reviewComment.value.trim()) {
+    reviewDraftChanged.value = true
+    return
+  }
   if (editing.value || saving.value) {
     serverChangedWhileEditing.value = true
     return
   }
   void load()
 })
-watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate: true })
+watch(caseId, () => { selectedTab.value = 'RESUMEN'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
 </script>
 
 <template>
@@ -428,6 +510,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
     <DhPageHeader :title="record?.idtra || 'Expediente operativo'" subtitle="Expediente IDTRA único · Gestión por departamentos y equipos" :icon="FolderOpen" :hide-excel-export="true">
       <template #actions>
         <DhBadge v-if="record" variant="primary">{{ currentDepartmentStatus }}</DhBadge>
+        <DhBadge v-if="record?.sourceQuoteId" :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
         <RouterLink v-if="record && canEditSummary && selectedTab === 'RESUMEN'" :to="{ name: 'operations-case-edit', params: { id: record.id } }">
           <DhButton :icon="Pencil" label="Completar o modificar apertura" />
@@ -489,8 +572,6 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             <div v-if="editing && canEditSummary" class="space-y-4">
               <div class="grid gap-4 sm:grid-cols-2">
                 <DhSelect v-model="edit.modalityCode" label="Modalidad" :options="modalityOptions" />
-                <DhInput :model-value="edit.priority" type="number" label="Prioridad" :min="1" :max="5" :step="1" @update:model-value="edit.priority = Number($event)" />
-                <DhInput :model-value="edit.complexityPoints" type="number" label="Complejidad" :min="0.5" :max="1000" :step="0.5" @update:model-value="edit.complexityPoints = Number($event)" />
                 <DhInput v-model="edit.originCountryCode" label="País de origen (ISO)" placeholder="CR" />
                 <DhInput v-model="edit.destinationCountryCode" label="País de destino (ISO)" placeholder="HN" />
               </div>
@@ -512,14 +593,29 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
                 { key: 'División CRM', value: openingData.crmDivisionName || 'No registrada' },
                 { key: 'País de origen', value: countryLabel(record.originCountryCode, openingData.pol) || 'Pendiente' },
                 { key: 'País de destino', value: countryLabel(record.destinationCountryCode, openingData.pod) || 'Pendiente' },
-                { key: 'Prioridad', value: record.priority },
-                { key: 'Complejidad', value: record.complexityPoints },
                 { key: 'Creado', value: dateLabel(record.createdAtUtc) },
                 { key: 'Actualizado', value: dateLabel(record.updatedAtUtc) },
                 { key: 'Creado por', value: responsibleName(record.createdBy) },
               ]" :key="item.key" class="min-w-0 border-b border-[var(--dh-border)] py-2">
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ item.key }}</p>
                 <p class="mt-1 break-words text-sm font-bold">{{ item.value }}</p>
+              </div>
+            </div>
+          </DhCard>
+          <DhCard title="Contactos del cliente" subtitle="Encargados de operaciones activos en CRM, asociados a este cliente.">
+            <p v-if="contactsLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando CRM…</p>
+            <p v-else-if="contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudieron consultar los contactos. Actualice el expediente para reintentar.</p>
+            <p v-else-if="!contacts.length" class="text-sm text-[var(--dh-text-muted)]">El cliente no tiene contactos operativos activos registrados.</p>
+            <div v-else class="grid gap-3 sm:grid-cols-2">
+              <div v-for="contact in contacts" :key="contact.id" class="min-w-0 border-b border-[var(--dh-border)] py-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="break-words text-sm font-bold">{{ contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Nombre no registrado' }}</p>
+                  <DhBadge v-if="contact.isPrimary" variant="primary">Principal</DhBadge>
+                  <DhBadge v-if="selectedContacts.has(contact.id)" variant="neutral">En apertura</DhBadge>
+                </div>
+                <p v-if="contact.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ contact.jobTitle }}</p>
+                <p class="mt-1 break-all text-sm">{{ contact.email || 'Correo no registrado' }}</p>
+                <p class="break-words text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
               </div>
             </div>
           </DhCard>
@@ -597,7 +693,11 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
           <DhCard padding="sm" title="Cotización y seguimiento comercial">
             <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteOptionId || record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ workspace.quotes.find(quote => quote.isPrimary)?.quoteNumber || workspace.quotes[0]?.quoteNumber || 'Abrir QUO en Pricing' }}</RouterLink>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">Sin cotización · Apertura manual sin costos ni ventas simuladas.</p>
-            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">Estado comercial y estado del cliente: consultar Pricing/CRM; no se derivan del estado operativo.</p>
+            <div v-if="record.sourceQuoteId" class="mt-3 space-y-2">
+              <DhBadge :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
+              <p v-if="comparison?.hasSnapshot" class="text-xs text-[var(--dh-text-muted)]">{{ discrepancyCount }} diferencias · {{ unconfirmedCount }} datos por confirmar</p>
+              <DhButton size="sm" variant="secondary" label="Comparar con la QUO" @click="selectCaseTab('QUO')" />
+            </div>
           </DhCard>
           <DhCard v-if="auth.hasScope('operations.audit.read')" title="Historial y trazabilidad">
             <OperationsAuditTimeline :events="audit" :users="actors" empty-title="Sin movimientos" empty-description="Todavía no hay eventos registrados." />
@@ -610,7 +710,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
       </div>
 
       <div v-else-if="selectedTab === 'QUO'" class="space-y-4">
-        <DhCard :icon="FileText" title="Condiciones comerciales vinculadas" subtitle="Las QUO, subQUO y versiones se consultan sin alterar los datos de Pricing.">
+        <DhCard :icon="FileText" title="Resumen de la QUO aceptada" subtitle="Referencia comercial original e independiente del trámite.">
           <div v-for="quote in workspace.quotes" :key="quote.id" class="mb-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -624,6 +724,75 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
             {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'Sin cotización · La apertura fue creada sin cotización.' }}
           </p>
+          <template v-if="workspace.commercialData">
+            <div class="grid gap-x-5 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+              <div v-for="field in quoteFields" :key="field.label" class="min-w-0 border-b border-[var(--dh-border)] py-2">
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
+                <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
+              </div>
+            </div>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <p class="mb-2 text-sm font-semibold">Mercancía y equipos cotizados</p>
+                <p class="text-sm">{{ readable(quoteData.packageCount) || '—' }} bultos · {{ readable(quoteData.weightValue) || '—' }} kg · {{ readable(quoteData.volumeValue) || '—' }} CBM</p>
+                <p v-if="quoteEquipment.length" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ quoteEquipment.join(' · ') }}</p>
+              </div>
+              <div>
+                <p class="mb-2 text-sm font-semibold">Servicios cotizados</p>
+                <div v-if="quoteServices.length" class="flex flex-wrap gap-2"><DhBadge v-for="service in quoteServices" :key="service" variant="neutral">{{ service }}</DhBadge></div>
+                <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin servicios en el snapshot.</p>
+              </div>
+            </div>
+            <div v-if="quoteTotals.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+              <p class="mb-2 text-sm font-semibold">Subtotales de rubros del snapshot, por moneda</p>
+              <div v-for="group in quoteTotals" :key="group.code" class="flex flex-wrap items-center gap-3 py-1 text-sm">
+                <strong>{{ group.code }}</strong>
+                <span>Costo: {{ group.completeCost ? amountLabel(group.cost) : 'Incompleto' }}</span>
+                <span v-if="auth.hasScope('operations.finance.manage')">Venta: {{ group.completeSale ? amountLabel(group.sale) : 'Incompleto' }}</span>
+              </div>
+              <p class="text-xs text-[var(--dh-text-muted)]">No sustituye el total comercial ni incluye impuestos no registrados en los rubros.</p>
+            </div>
+          </template>
+        </DhCard>
+        <DhCard v-if="record.sourceQuoteId" title="Semáforo comercial" subtitle="Compara datos de la revisión aceptada con los valores persistidos en el IDTRA.">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <DhBadge :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
+            <p v-if="comparison?.hasSnapshot" class="text-sm text-[var(--dh-text-muted)]">{{ discrepancyCount }} diferencias · {{ unconfirmedCount }} datos por confirmar</p>
+          </div>
+          <p v-if="comparisonError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudo consultar la comparación. Actualice el expediente.</p>
+          <p v-else-if="!comparison?.hasSnapshot" class="text-sm text-[var(--dh-text-muted)]">No hay snapshot aceptado suficiente para comparar. No se presume coincidencia.</p>
+          <template v-else>
+            <DhDataTable :columns="comparisonColumns" :rows="comparisonRows" empty-text="No hay campos comparables.">
+              <template #cell-quoted="{ row }">{{ comparisonValue(row, 'quoted') }}</template>
+              <template #cell-current="{ row }">{{ comparisonValue(row, 'current') }}</template>
+              <template #cell-status="{ row }"><DhBadge :variant="comparisonStatusVariant(row.status)">{{ comparisonStatusLabel(row.status) }}</DhBadge></template>
+            </DhDataTable>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">La ausencia de un dato no equivale a un cambio confirmado. El peso y volumen se comparan en unidades normalizadas.</p>
+            <div v-if="comparison.currentReview" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+              <p class="font-semibold">{{ statusLabel(comparison.currentReview.status) }} · {{ dateLabel(comparison.currentReview.requestedAtUtc) }}</p>
+              <p class="mt-1 break-words text-sm">{{ comparison.currentReview.reason }}</p>
+              <p v-if="comparison.currentReview.decisionReason" class="mt-1 text-xs text-[var(--dh-text-muted)]">Pricing: {{ comparison.currentReview.decisionReason }}</p>
+            </div>
+            <div v-else-if="comparison.canRequest && discrepancyCount" class="mt-4 space-y-3 border-t border-[var(--dh-border)] pt-3">
+              <DhTextarea v-model="reviewComment" label="Observación para Pricing (opcional)" placeholder="Agregue contexto para la recotización." />
+              <p v-if="reviewDraftChanged" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice la comparación antes de enviar.</p>
+              <div class="flex justify-end">
+                <DhButton label="Solicitar revisión / recotización" :loading="requestingReview"
+                  :disabled="reviewDraftChanged || reviewComment.length > 300" @click="requestCommercialReview" />
+              </div>
+            </div>
+            <div v-if="comparison.history.some(x => x.id !== comparison?.currentReview?.id)" class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3">
+              <p class="text-sm font-semibold">Historial de revisiones comerciales</p>
+              <div v-for="review in comparison.history.filter(x => x.id !== comparison?.currentReview?.id)" :key="review.id" class="border-b border-[var(--dh-border)] pb-2 text-sm">
+                <p class="font-semibold">{{ statusLabel(review.status) }} · {{ dateLabel(review.requestedAtUtc) }}</p>
+                <p class="break-words text-xs">{{ review.reason }}</p>
+              </div>
+            </div>
+          </template>
+          <div v-if="pendingCommercialAlerts.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
+            <p class="text-sm font-semibold">Revisiones de servicios registradas previamente</p>
+            <p v-for="review in commercialReviews?.reviews || []" :key="review.id" class="mt-1 text-xs">{{ statusLabel(review.status) }} · {{ review.reason }}</p>
+          </div>
         </DhCard>
         <DhCard v-if="auth.hasScope('operations.cost.read')" title="Rubros y proveedores registrados" subtitle="Información histórica disponible; no se generan cargos ficticios.">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -641,34 +810,6 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
             <template #cell-costAmount="{ row }"><span class="font-semibold tabular-nums">{{ amountLabel(row.costAmount) }}</span></template>
             <template #cell-saleAmount="{ row }">{{ amountLabel(row.saleAmount) }}</template>
           </DhDataTable>
-        </DhCard>
-        <DhCard title="Servicios del expediente y revisiones comerciales" subtitle="Los servicios cotizados se conservan. Los agregados por Operations requieren revisión en Pricing.">
-          <div v-for="service in commercialReviews?.services || []" :key="service.id"
-            class="mb-2 flex flex-wrap items-center gap-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm">
-            <span class="font-bold">{{ service.serviceName }}</span>
-            <DhBadge variant="neutral">{{ service.source === 'QUOTED' ? 'Cotizado' : 'Agregado Operations' }}</DhBadge>
-            <span v-if="service.requiresPricingReview" class="text-xs font-semibold text-amber-600 dark:text-amber-300">
-              {{ statusLabel(service.reviewStatus) }}
-            </span>
-          </div>
-          <p v-if="!commercialReviews?.services.length" class="text-sm text-[var(--dh-text-muted)]">No hay servicios registrados en este expediente.</p>
-          <div v-for="review in commercialReviews?.reviews || []" :key="review.id"
-            class="mt-2 rounded-xl border border-[var(--dh-border)] p-3">
-            <p class="text-xs font-bold">{{ statusLabel(review.status) }} · {{ dateLabel(review.requestedAtUtc) }}</p>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ review.reason }}</p>
-          </div>
-          <div v-if="canAddService" class="mt-4 space-y-3 border-t border-[var(--dh-border)] pt-4">
-            <p class="text-sm font-bold">Agregar servicio operativo no cotizado</p>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <DhInput v-model="newService.serviceCode" label="Código del servicio" placeholder="ALMACENAJE" />
-              <DhInput v-model="newService.serviceName" label="Descripción del servicio" placeholder="Almacenaje adicional" />
-            </div>
-            <DhTextarea v-model="newService.reason" label="Motivo de revisión comercial" placeholder="Explique por qué se requiere este servicio adicional." />
-            <div class="flex justify-end">
-              <DhButton :icon="Plus" label="Agregar y solicitar revisión a Pricing"
-                :loading="addingService" :disabled="!validNewService" @click="addOperationalService" />
-            </div>
-          </div>
         </DhCard>
       </div>
 

@@ -47,7 +47,7 @@ const canSubmit = computed(() => canReview.value && selected.value &&
   reason.value.trim().length >= 10 && reason.value.trim().length <= 2000 && !saving.value)
 const columns: DhTableColumn<PricingOperationsReview>[] = [
   { key: 'idtra', label: 'Trámite' },
-  { key: 'serviceCode', label: 'Servicio adicional' },
+  { key: 'serviceCode', label: 'Tipo de revisión' },
   { key: 'reason', label: 'Motivo Operations' },
   { key: 'status', label: 'Estado' },
   { key: 'requestedAtUtc', label: 'Solicitado' },
@@ -58,6 +58,9 @@ const decisions = [
   { value: 'REVISION_REQUIRED', label: 'Requiere revisión o modificación comercial' },
   { value: 'REJECTED', label: 'Rechazar solicitud' },
 ]
+function reviewType(code: string) {
+  return code === 'QUOTE_DISCREPANCY' ? 'Diferencias QUO / trámite' : 'Servicio adicional'
+}
 function date(value?: string | null) {
   if (!value) return '—'
   const result = new Date(value)
@@ -138,7 +141,8 @@ onMounted(() => { void load() })
         <template #cell-idtra="{ row }">
           <RouterLink :to="`/operations/cases/${row.caseId}`" class="font-bold text-[var(--dh-primary)] hover:underline" @click.stop>{{ row.idtra }}</RouterLink>
         </template>
-        <template #cell-reason="{ row }"><span class="text-sm">{{ row.reason }}</span></template>
+        <template #cell-serviceCode="{ row }">{{ reviewType(row.serviceCode) }}</template>
+        <template #cell-reason="{ row }"><span class="text-sm break-words">{{ row.reason }}</span></template>
         <template #cell-status="{ row }">
           <DhBadge :variant="row.status === 'NO_PRICE_CHANGE_REQUIRED' ? 'success' : row.status === 'REJECTED' ? 'danger' : 'warning'">{{ status(row.status) }}</DhBadge>
         </template>
@@ -159,7 +163,8 @@ onMounted(() => { void load() })
     </DhCard>
     <DhModal :open="Boolean(selected)" title="Resolver revisión comercial" @close="selected = null">
       <div v-if="selected" class="space-y-4">
-        <p class="text-sm"><strong>{{ selected.idtra }}</strong> · {{ selected.serviceCode }}</p>
+        <p class="text-sm"><strong>{{ selected.idtra }}</strong> · {{ reviewType(selected.serviceCode) }}</p>
+        <RouterLink v-if="selected.acceptedOptionId || selected.quoteId" :to="`/pricing/rates/${selected.acceptedOptionId || selected.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Consultar QUO aceptada para recotizar</RouterLink>
         <p class="text-sm text-[var(--dh-text-muted)]">{{ selected.reason }}</p>
         <DhSelect v-model="decision" label="Decisión de Pricing" :options="decisions" />
         <DhTextarea v-model="reason" label="Motivo obligatorio de resolución" placeholder="Describa la evaluación comercial y el siguiente paso autorizado." />

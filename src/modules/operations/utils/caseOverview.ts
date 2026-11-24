@@ -14,6 +14,7 @@ const originLabels: Record<string, string> = {
 }
 const stageLabels: Record<string, string> = {
   PENDING: 'Pendiente',
+  PENDING_PRICING: 'Pendiente de Pricing', REVIEWING: 'Recotización requerida', RESOLVED_NO_PRICE_CHANGE: 'Conciliado sin cambio de precio',
   READY: 'Listo para iniciar',
   IN_PROGRESS: 'En proceso',
   ON_HOLD: 'En espera',

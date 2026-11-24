@@ -1,3 +1,7 @@
+## [1.124.0] - 2026-11-24
+
+- MINOR: resumen de QUO original, semáforo comparativo, historial y solicitud de recotización, contactos CRM del expediente y drawer. Se elimina el formulario de servicios adicionales y la prioridad/complejidad visibles (se conservan métricas del pool). Reutiliza componentes DH. Sin alteración de la QUO original.
+
 ## [1.123.3] - 2026-11-24
 
 - Mostrar ambos validadores del pool y nombres autorizados de responsables y clientes sin exigir acceso al módulo CRM ni ampliar scopes. Reutiliza tablas y tarjetas DH.

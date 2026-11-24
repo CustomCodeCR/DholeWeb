@@ -132,8 +132,6 @@ async function submit() {
       </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <DhSelect v-model="opening.modalityCode" label="Modalidad" :options="modalityOptions" />
-        <DhInput :model-value="opening.priority" label="Prioridad (1-5)" type="number" :min="1" :max="5" :step="1" @update:model-value="opening.priority = Number($event)" />
-        <DhInput :model-value="opening.complexityPoints" label="Puntos de complejidad" type="number" :min="0.5" :max="1000" :step="0.5" @update:model-value="opening.complexityPoints = Number($event)" />
         <DhInput v-model="opening.originCountryCode" label="País de origen (ISO, opcional)" placeholder="CR" />
         <DhInput v-model="opening.destinationCountryCode" label="País de destino (ISO, opcional)" placeholder="HN" />
       </div>
