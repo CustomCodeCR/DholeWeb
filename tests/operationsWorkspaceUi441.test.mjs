@@ -7,9 +7,9 @@ test('operations reuses shared tables, prioritizes validation and retains quote 
   assert.match(detail, /<DhDataTable :columns="costColumns" :rows="costRows"/)
   assert.match(detail, /auth.hasScope\('operations.cost.read'\)/)
   assert.match(detail, /<OperationsApertureValidationPanel/)
-  assert.match(detail, /costTotals/)
+  assert.match(detail, /missingCostProviders/)
   assert.doesNotMatch(detail, /Opción comercial aceptada: \{\{ quote.quoteOptionId/)
-  assert.match(detail, /dh-responsive-tabs dh-scrollbar/)
+  assert.match(detail, /<DhTabs :model-value="selectedTab"/)
 })
 test('shared drawer uses opaque theme background and operations uses shared responsive table', () => {
   const drawer = read('src/shared/components/organisms/DhDrawer.vue')

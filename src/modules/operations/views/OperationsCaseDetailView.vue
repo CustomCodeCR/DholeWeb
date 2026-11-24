@@ -6,7 +6,7 @@ import {
   FileText, LockKeyhole, MessageSquareText, Plus, Layers3,
 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
-import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
+import { DhCard, DhDataTable, DhTabs, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
@@ -95,14 +95,7 @@ const costColumns: DhTableColumn<(typeof costRows.value)[number]>[] = [
   { key: 'currencyCode', label: 'Moneda' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
 ]
-const costTotals = computed(() => {
-  const totals = new Map<string, number>()
-  for (const cost of costs.value) {
-    if (!Number.isFinite(cost.costAmount)) continue
-    totals.set(cost.currencyCode, (totals.get(cost.currencyCode) ?? 0) + Math.round(cost.costAmount * 10000))
-  }
-  return Array.from(totals, ([currency, amount]) => ({ currency, amount: amount / 10000 }))
-})
+const missingCostProviders = computed(() => costs.value.filter(cost => !cost.supplierName?.trim()).length)
 const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
 const newService = ref({ serviceCode: '', serviceName: '', reason: '' })
 const addingService = ref(false)
@@ -200,6 +193,18 @@ const modalityOptions = [
 ]
 const level = (code: OperationsTabCode): OperationsTabLevel =>
   access.value.find(tab => tab.code === code)?.accessLevel ?? 'LOCKED'
+const caseTabItems = computed(() => tabs.map(tab => ({
+  key: tab.code,
+  label: tab.label,
+  disabled: level(tab.code) === 'LOCKED' || level(tab.code) === 'NOT_APPLICABLE',
+  title: level(tab.code) === 'EDITABLE' ? 'Editable según permisos' : level(tab.code) === 'READ_ONLY' ? 'Solo lectura' : level(tab.code) === 'NOT_APPLICABLE' ? 'No aplica' : 'Aún no habilitado',
+})))
+function selectCaseTab(key: string) {
+  const tab = tabs.find(item => item.code === key)
+  if (!tab || level(tab.code) === 'LOCKED' || level(tab.code) === 'NOT_APPLICABLE') return
+  selectedTab.value = tab.code
+  editing.value = false
+}
 const canEditSummary = computed(() => level('RESUMEN') === 'EDITABLE')
 const canAddService = computed(() =>
   (level('RESUMEN') === 'EDITABLE' ||
@@ -452,19 +457,15 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
         </div>
       </div></DhCard>
 
-      <div role="tablist" aria-label="Departamentos del expediente" class="dh-responsive-tabs dh-scrollbar flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-2xl bg-black/[0.04] p-1 dark:bg-white/[0.06]">
-        <button v-for="tab in tabs" :key="tab.code" type="button" role="tab"
-          :aria-selected="selectedTab === tab.code"
-          :disabled="level(tab.code) === 'LOCKED' || level(tab.code) === 'NOT_APPLICABLE'"
-          :title="level(tab.code) === 'EDITABLE' ? 'Editable según permisos' : level(tab.code) === 'READ_ONLY' ? 'Solo lectura' : level(tab.code) === 'NOT_APPLICABLE' ? 'No aplica' : 'Aún no habilitado'"
-          class="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:px-4"
-          :class="selectedTab === tab.code ? 'bg-[var(--dh-surface-strong)] text-[var(--dh-text)] shadow-sm' : 'text-[var(--dh-text-muted)] hover:text-[var(--dh-text)]'"
-          @click="selectedTab = tab.code; editing = false">
-          <LockKeyhole v-if="level(tab.code) === 'LOCKED'" class="h-3.5 w-3.5" />
-          {{ tab.label }}
-          <span v-if="level(tab.code) === 'NOT_APPLICABLE'" class="text-[10px]">N/A</span>
-        </button>
-      </div>
+      <DhTabs :model-value="selectedTab" :items="caseTabItems" aria-label="Departamentos del expediente" @update:model-value="selectCaseTab">
+        <template #label="{ item }">
+          <span class="inline-flex items-center gap-2">
+            <LockKeyhole v-if="level(item.key as OperationsTabCode) === 'LOCKED'" class="h-3.5 w-3.5" />
+            {{ item.label }}
+            <span v-if="level(item.key as OperationsTabCode) === 'NOT_APPLICABLE'" class="text-xs">N/A</span>
+          </span>
+        </template>
+      </DhTabs>
 
       <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div class="space-y-4">
@@ -611,12 +612,7 @@ watch(caseId, () => { selectedTab.value = 'RESUMEN'; void load() }, { immediate:
         <DhCard v-if="auth.hasScope('operations.cost.read')" title="Rubros y proveedores registrados" subtitle="Información histórica disponible; no se generan cargos ficticios.">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <p class="text-sm text-[var(--dh-text-muted)]">{{ costs.length }} rubros registrados</p>
-            <div v-if="costTotals.length" class="flex flex-wrap gap-3">
-              <div v-for="total in costTotals" :key="total.currency" class="text-right">
-                <p class="text-xs text-[var(--dh-text-muted)]">Suma de rubros · {{ total.currency }}</p>
-                <p class="text-sm font-bold tabular-nums">{{ total.amount.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) }}</p>
-              </div>
-            </div>
+            <DhBadge v-if="missingCostProviders" variant="warning">{{ missingCostProviders }} rubros sin proveedor registrado</DhBadge>
           </div>
           <DhDataTable :columns="costColumns" :rows="costRows" empty-text="Sin rubros persistidos para esta cotización.">
             <template #cell-description="{ row }"><span class="font-semibold">{{ row.description }}</span></template>
