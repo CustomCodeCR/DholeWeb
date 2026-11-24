@@ -1,3 +1,10 @@
+## [1.122.0] - 2026-11-23 · DH-20261123-OPS-AUTOSAVE-434
+
+- MINOR candidato: formulario de Aperturas manuales con autoguardado PostgreSQL por usuario/empresa, recuperación tras desconexión, copia local y control de conflictos entre pestañas.
+- Sin captura de peso real en borradores manuales; se limpia el borrador remoto al crear y asignar exitosamente el expediente. Reutiliza componentes DH y lenguaje visual actual.
+- Pruebas de regresión de autoguardado añadidas al prebuild; compilación, CI y staging aún pendientes. No se integra ni despliega en producción.
+- DholeWeb 1.120.11 → 1.122.0, versión global candidata 1.122.0; OperationsService 0.18.0 → 0.19.0, demás componentes sin cambios.
+
 ## [1.120.11] - 2026-11-23 · DH-20261123-PRICING-LCL-INCH-PERSISTENCE-432
 
 - PATCH: corrige la persistencia de dimensiones LCL/LTL en Pricing. Las líneas conservan su unidad interna durante el guardado aunque POL/catálogos se rehidraten; únicamente una transición explícita de origen transforma la representación interna.
