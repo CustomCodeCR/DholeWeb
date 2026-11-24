@@ -192,3 +192,31 @@ test('P7 guards road generation using the historical identity before applying a 
   assert.match(source, /!hasHistoricalPanamaRoad && canAppend/)
   assert.match(source, /normalizedIncludedLines.map\(\(line\) => \(\{ detailId: persistedDetailIdForLine\(line\) \}\)\)/)
 })
+
+test('legacy CFZ road without marker or Freight type recovers original detail ID and avoids duplicate', () => {
+  const road = { id: 'legacy-road', costId: null as string | null,
+    name: 'Flete terrestre internacional CFZ / Zona Libre Colón, Panamá → San Jose, Costa Rica',
+    costDetailType: 'DestinationCharge', chargeBasis: 'PerContainer',
+    notes: '', costAmount: 2140, saleAmount: 2240 }
+  const restore = (d: typeof road) => ({ ...d, detailId: d.id as string | null,
+    key: 'existing:' + d.id, included: true, manual: true, section: 'destination_charges' })
+  const alias = { ...restore(road), detailId: null, costDetailType: 'Freight',
+    name: 'Flete Internacional Terrestre', key: 'p7-393-panama-gam-fcl-land',
+    manual: false, saleAmount: 2140, section: 'international_freight' }
+  const inland = { ...restore(road), detailId: 'inland', name: 'Inland de Balboa a Colon Free Zone (Merchant)',
+    costAmount: 400, saleAmount: 430 }
+  const ocean = { ...alias, detailId: 'ocean', name: 'Flete Internacional · 40HC',
+    key: 'freight:40HC', costAmount: 5300, saleAmount: 5679 }
+  const result = preservePersistedPanamaRoad([ocean, alias, inland], [road], restore, () => false)
+  assert.deepEqual(result.map(l => l.detailId), ['ocean', 'legacy-road', 'inland'])
+  assert.equal(result[1]?.saleAmount, 2240)
+  assert.equal(result[1]?.section, 'international_freight')
+  assert.equal(preservePersistedPanamaRoad(result, [road], restore, () => false), result)
+  assert.equal(preservePersistedPanamaRoad([alias], [road], restore, () => true)[0], alias)
+  for (const name of ['Bunker Flete Terrestre Internacional CFZ a San José',
+    'Inland de Balboa a Colon Free Zone (Merchant)', 'Flete terrestre internacional Guatemala a Costa Rica']) {
+    const unrelated = { ...road, name }
+    const input = [alias]
+    assert.equal(preservePersistedPanamaRoad(input, [unrelated], restore, () => false), input)
+  }
+})
