@@ -81,7 +81,7 @@ test('Dhole mark appears in login, sidebar and browser without legacy branding',
   assert.ok(main.includes('DHOLE ERP'))
   assert.ok(login.includes('Bienvenido a DHOLE ERP'))
   assert.ok(dockerfile.includes('ARG VITE_APP_NAME="DHOLE ERP"'))
-  assert.ok(logo.includes('#a80e18'))
+  assert.ok(logo.includes('#A90E19'))
   assert.ok(!logo.includes('<rect'))
   assert.ok(!logo.includes('Orvelum'))
   assert.equal(version.version, JSON.parse(source('package.json')).version)
