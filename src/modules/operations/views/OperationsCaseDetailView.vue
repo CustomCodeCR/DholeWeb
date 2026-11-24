@@ -133,7 +133,7 @@ const quoteFields = computed(() => [
   ['Cliente', 'clientName'], ['Ejecutivo comercial', 'executiveName'], ['Tipo de embarque', 'shipmentType'],
   ['Transporte', 'transportType'], ['Incoterm', 'incoterm'], ['Operación', 'provenance'],
   ['POL · Origen', 'pol'], ['POE · Entrada', 'poe'], ['POD · Destino', 'pod'],
-  ['Naviera', 'carrierReference'], ['Agente / co-loader', 'agentReference'],
+  ['Naviera', 'carrierReference'], ['Agente / co-loader', 'agentReference'], ['Descripción de mercancía', 'cargoDescription'],
   ['Tránsito cotizado', 'transitTime'], ['Días libres', 'freeDays'],
   ['Válida desde', 'validFrom'], ['Válida hasta', 'validTo'], ['Referencias', 'quoteReferences'],
 ].map(([label, key]) => ({ label: label!, value: openingField(key!, quoteData.value) || 'No registrado en la QUO' })))
@@ -160,6 +160,7 @@ const quoteTotals = computed(() => {
 })
 function comparisonValue(row: OperationsQuoteComparisonRow, side: 'quoted' | 'current') {
   const value = row[side]
+  if (row.field === 'incoterm' && /^(EXW|FCA|FAS|FOB|CFR|CIF|CPT|CIP|DAP|DPU|DDP)$/.test(value || '')) return value!
   if (row.field === 'incoterm' && side === 'quoted') return openingField('incoterm', quoteData.value) || readable(value) || 'Por identificar'
   if (row.field === 'incoterm' && side === 'current') {
     try { return openingField('incoterm', JSON.parse(record.value?.openingDataJson || '{}')) || readable(value) || 'Por identificar' }
