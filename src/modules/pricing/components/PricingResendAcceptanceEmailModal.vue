@@ -29,11 +29,11 @@ const options = [
 const explanation = computed(() => {
   switch (notificationType.value) {
     case 'opening':
-      return 'Envía a Apertura de Trámite, con copia a Pricing y al vendedor asignado. Requiere generar PDF y adjunta los respaldos disponibles.'
+      return 'Envía a Apertura de Trámite, con copia a Pricing y al vendedor asignado. Solo se envía si no existe IDTRA asignado. Requiere generar PDF y adjunta los respaldos disponibles.'
     case 'quote':
       return 'Reenvía la cotización comercial al vendedor o a los contactos del cliente, según las preferencias vigentes de la cuenta CRM. Puede llegar al cliente.'
     case 'notice':
-      return 'Envía a Apertura un aviso explícitamente marcado SIN PDF, con copia a Pricing y al vendedor. Solo para avisar la aceptación mientras se resuelve un fallo de Reports. No sustituye el PDF obligatorio para apertura.'
+      return 'Envía a Apertura un aviso explícitamente marcado SIN PDF, con copia a Pricing y al vendedor. Solo si no existe IDTRA asignado y mientras se resuelve un fallo de Reports. No sustituye el PDF obligatorio para apertura.'
   }
 })
 
@@ -47,7 +47,13 @@ async function resend() {
   sending.value = true
   errorMessage.value = ''
   try {
-    await PricingService.resendAcceptedRateEmail(props.rateId, requestId.value, notificationType.value)
+    const result = await PricingService.resendAcceptedRateEmail(props.rateId, requestId.value, notificationType.value)
+    if (typeof result === 'object' && result !== null
+      && 'code' in result && result.code === 'Pricing.OpeningNotificationIdtraAssigned') {
+      toast.info('Notificación no enviada', 'La cotización ya tiene o tuvo un IDTRA asignado.')
+      modal.close()
+      return
+    }
     toast.success(
       'Notificación encolada',
       notificationType.value === 'notice'
