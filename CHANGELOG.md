@@ -1,3 +1,7 @@
+## [1.124.25] - 2026-11-24
+
+- DH-20261124-TOPBAR-VERSION-CARD: reutilizar DhCard con padding compacto compatible para mostrar versión entre notificaciones y usuario; canal en segunda línea fuera de producción y tooltip existente en pantallas estrechas. CI/staging pendientes.
+
 ## [1.124.24] - 2026-11-24
 
 - DH-20261124-TOPBAR-VERSION: retirar versión del sidebar y mostrarla discretamente en la barra superior, entre búsqueda y acciones; en pantallas estrechas consultar detalle mediante tooltip de configuración. Logo y animación sin cambios. CI/staging pendientes.

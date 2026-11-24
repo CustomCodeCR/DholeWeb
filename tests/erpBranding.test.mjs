@@ -84,15 +84,21 @@ test('sidebar logo is 15 percent smaller and animates compact and expanded state
   assert.match(sidebar, /transition-\[width,transform\] duration-300 ease-in-out/)
 })
 
-test('system version is shown in the topbar, not the sidebar', () => {
+test('system version uses a shared compact card between notifications and user', () => {
   const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
   const topbar = source('src/shared/components/organisms/DhTopbar.vue')
+  const card = source('src/shared/components/molecules/DhCard.vue')
   assert.doesNotMatch(sidebar, /APP_VERSION|APP_CHANNEL|APP_COMMIT|sidebar-version/)
-  const version = topbar.split('data-testid="topbar-version"')[1].split('</span>')[0]
+  const version = topbar.split('data-testid="topbar-version"')[1].split('</DhCard>')[0]
   assert.match(version, /APP_VERSION_DETAIL/)
   assert.match(version, /APP_VERSION/)
   assert.match(version, /APP_CHANNEL !== 'production'/)
-  assert.match(version, /xl:block/)
-  assert.ok(topbar.indexOf('data-testid="topbar-version"') < topbar.indexOf('ml-auto flex shrink-0'))
+  assert.match(version, /lg:flex/)
+  assert.match(topbar, /<DhCard\s+as="div"\s+padding="compact"\s+data-testid="topbar-version"/)
+  assert.match(card, /padding === 'compact' && 'px-3 py-2'/)
+  const position = topbar.indexOf('data-testid="topbar-version"')
+  assert.ok(topbar.indexOf('ref="inboxRoot"') < position)
+  assert.ok(position < topbar.indexOf('<DhAvatar'))
+  assert.equal((topbar.match(/data-testid="topbar-version"/g) || []).length, 1)
   assert.ok(topbar.includes("${APP_VERSION_DETAIL}"))
 })

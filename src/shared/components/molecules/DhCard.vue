@@ -8,7 +8,7 @@ withDefaults(
     subtitle?: string
     icon?: Component
     interactive?: boolean
-    padding?: 'sm' | 'md' | 'lg'
+    padding?: 'compact' | 'sm' | 'md' | 'lg'
   }>(),
   {
     as: 'section',
@@ -26,6 +26,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
     :type="as === 'button' ? 'button' : undefined"
     class="dh-glass dh-liquid min-w-0 rounded-[var(--dh-radius-xl)] text-left"
     :class="[
+      padding === 'compact' && 'px-3 py-2',
       padding === 'sm' && 'p-4',
       padding === 'md' && 'p-5 sm:p-6',
       padding === 'lg' && 'p-5 sm:p-7 lg:p-8',
