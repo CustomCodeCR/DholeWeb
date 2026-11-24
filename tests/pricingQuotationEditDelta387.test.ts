@@ -220,3 +220,39 @@ test('catalog-backed historical road on any route retains its exact ID when a ge
   assert.equal(rows[0].detailId, 'ROAD-OTHER')
   assert.equal(rows[0].saleAmount, 1450)
 })
+
+test('LCL price-only change preserves edited freight and needs no catalog lookup', async () => {
+  const q = fixture()
+  q.root.shipmentModeForApi.value = 'Lcl'
+  q.root.form.shipmentMode = 'LCL'
+  q.root.form.carrierId = ''
+  q.original.value = q.snapshot()
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  q.root.form.freightCost = 4.4533376924
+  q.root.form.freightSale = 3.15
+  q.root.rateLines.value[0].costAmount = 4.4533376924
+  q.root.rateLines.value[0].saleAmount = 3.15
+  assert.equal(await q.apply(), true)
+  assert.equal(queries, 0)
+  assert.equal(q.root.rateLines.value[0].detailId, 'F')
+  assert.equal(q.root.rateLines.value[0].costAmount, 4.4533376924)
+  assert.equal(q.root.rateLines.value[0].saleAmount, 3.15)
+})
+
+test('identical concurrent cost reconciliation shares request and neither caller fails', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'NEW-AGENT'
+  let queries = 0
+  let finish!: (value: boolean) => void
+  q.root.loadApplicableCosts = () => {
+    queries++
+    return new Promise<boolean>(resolve => { finish = resolve })
+  }
+  const first = q.apply()
+  const second = q.apply()
+  assert.equal(queries, 1)
+  finish(true)
+  assert.equal(await first, true)
+  assert.equal(await second, true)
+})
