@@ -113,10 +113,20 @@ interface PanamaSavedLine {
   costId?: string | null; costDetailType?: string | null; chargeBasis?: string | null
   manual?: boolean | null
 }
+/** A route-specific legacy CFZ road detail may have lost its marker or been
+ * stored as DestinationCharge. Match the actual lane, not the price or QUO. */
 export function isPanamaHistoricalRoad(line: PanamaSavedLine): boolean {
-  return !line.costId && !isPanamaOverweightSupplement(line)
-    && /\[PANAMA_PRODUCTION_NO_SEARCH\]/i.test(String(line.notes ?? ''))
-    && /^(InlandTransport|Freight)$/.test(String(line.costDetailType ?? ''))
+  if (line.costId || isPanamaOverweightSupplement(line)) return false
+  const name = String(line.name ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .trim().toLowerCase().replace(/\s+/g, ' ')
+  const marked = /\[PANAMA_PRODUCTION_NO_SEARCH\]/i.test(String(line.notes ?? ''))
+  const roadType = /^(InlandTransport|Freight)$/.test(String(line.costDetailType ?? ''))
+  if (marked && roadType) return true
+  const roadName = /^(flete (?:terrestre internacional|internacional terrestre)|land freight)\b/.test(name)
+  const cfz = /\b(cfz|zona libre colon|zona libre de colon|colon free zone)\b/.test(name)
+  const gam = /\b(san jose|gam|costa rica)\b/.test(name)
+  return roadName && cfz && gam && line.chargeBasis === 'PerContainer'
+    && /^(InlandTransport|Freight|DestinationCharge)$/.test(String(line.costDetailType ?? ''))
 }
 export function isGeneratedPanamaRoad(line: PanamaSavedLine): boolean {
   if (isPanamaOverweightSupplement(line)) return false
