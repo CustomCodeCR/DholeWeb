@@ -1,3 +1,7 @@
+## [1.123.1] - 2026-11-24
+
+- Alineación de metadatos del frontend con el release coordinado de corrección del importador histórico IDTRA; sin cambios de interfaz ni contratos.
+
 ## [1.123.0] - 2026-11-24 · DH-20261124-OPS-HISTORICAL-IDTRA
 
 - MINOR candidato: configuración interna de próximo IDTRA para superusuarios, con motivo, previsualización y control de concurrencia; reutiliza DhDrawer/DhInput/DhTextarea/DhButton. No modifica cotizaciones ni consecutivos existentes.
