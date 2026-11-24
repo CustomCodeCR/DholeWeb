@@ -59,3 +59,14 @@ test('expired renewal always offers the reason field or an explicit pending/appr
   assert.match(service, /requireApprovalStatus\(response, rateId\)/)
   assert.match(service, /result\.status !== 'Pending'/)
 })
+
+
+test('expiry reasons and decisions are accessible from quotation history even after renewal', () => {
+  assert.match(modal, /mode\?: 'request' \| 'review' \| 'history'/)
+  assert.match(modal, /mode !== 'review' && current && current.history.length/)
+  for (const file of ['../src/modules/pricing/components/PricingRateHistory.vue', '../src/modules/pricing/views/PricingSellerRateDetailView.vue']) {
+    const view = read(file)
+    assert.match(view, /mode: 'history'/)
+    assert.match(view, /@click="openExpiryHistory"/)
+  }
+})
