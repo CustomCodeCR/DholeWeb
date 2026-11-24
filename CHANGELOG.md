@@ -1,3 +1,7 @@
+## [1.124.22] - 2026-11-24
+
+- DH-20261124-SIDEBAR-BRAND-MOTION: reducir 15% el logotipo del sidebar en ambos estados y animar su transición con el ancho del menú, respetando movimiento reducido. SVG, favicon, login y tooltip sin cambios. CI/staging pendientes.
+
 ## [1.124.21] - 2026-11-24
 
 - DH-20261124-EXACT-SVG-LOGO: usar exactamente dhole-erp(1).svg entregado por el usuario; colores dinámicos mediante CSS, favicon transparente con rojo original #A90E19. Sin reconstruir los trazados. Descripciones de marca solo en tooltip sobre logo; se conserva versión visible. CI/staging pendientes.

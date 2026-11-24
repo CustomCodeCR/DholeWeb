@@ -167,7 +167,7 @@ watch(
   </Transition>
 
   <aside
-    class="fixed bottom-2 left-2 top-2 z-40 flex w-[min(18rem,calc(100vw-1rem))] overflow-hidden rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl transition-[width,transform] duration-300 sm:bottom-4 sm:left-4 sm:top-4 lg:translate-x-0"
+    class="fixed bottom-2 left-2 top-2 z-40 flex w-[min(18rem,calc(100vw-1rem))] overflow-hidden rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-shell)] shadow-[var(--dh-shadow-lg)] backdrop-blur-2xl transition-[width,transform] duration-300 ease-in-out sm:bottom-4 sm:left-4 sm:top-4 lg:translate-x-0"
     :class="[
       collapsed ? 'lg:w-20' : 'lg:w-72',
       mobileOpen ? 'translate-x-0' : '-translate-x-[120%] lg:translate-x-0',
@@ -179,17 +179,19 @@ watch(
           class="flex min-h-16 items-center gap-2.5 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
           :class="compact ? 'justify-center' : ''"
         >
-          <span v-if="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark h-10 w-10 shrink-0" :title="[t('app.subtitle'), t('app.meaning'), APP_VERSION_DETAIL].join(' · ')" />
+          <Transition name="sidebar-brand" mode="out-in">
+            <span v-if="compact" key="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark sidebar-brand-mark shrink-0" :title="[t('app.subtitle'), t('app.meaning'), APP_VERSION_DETAIL].join(' · ')" />
 
-          <div v-if="!compact" class="min-w-0 flex-1">
-            <div class="dhole-brand-lockup mb-1 w-full" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />
-            <p class="sr-only" :title="t('app.meaning')">
-              {{ t('app.name') }}
-            </p>
-            <p class="mt-0.5 truncate text-[10px] font-bold text-[var(--dh-text-muted)]" :title="APP_COMMIT || APP_VERSION_DETAIL">
-              v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
-            </p>
-          </div>
+            <div v-else key="expanded" class="sidebar-brand-expanded min-w-0 flex-1">
+              <div class="dhole-brand-lockup sidebar-brand-lockup mb-1" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />
+              <p class="sr-only" :title="t('app.meaning')">
+                {{ t('app.name') }}
+              </p>
+              <p class="mt-0.5 truncate text-[10px] font-bold text-[var(--dh-text-muted)]" :title="APP_COMMIT || APP_VERSION_DETAIL">
+                v{{ APP_VERSION }}<span v-if="APP_CHANNEL !== 'production'"> · {{ APP_CHANNEL }}</span>
+              </p>
+            </div>
+          </Transition>
 
           <button
             v-if="!compact && !mobileOpen"
@@ -337,6 +339,27 @@ watch(
 </template>
 
 <style scoped>
+/* Keep the 300ms sidebar resize and the logo swap synchronized. */
+.sidebar-brand-lockup { width: 85%; }
+.sidebar-brand-mark { width: 2.125rem; height: 2.125rem; }
+.sidebar-brand-enter-active {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+}
+.sidebar-brand-leave-active {
+  transition: opacity 120ms ease-in, transform 120ms ease-in;
+}
+.sidebar-brand-enter-from,
+.sidebar-brand-leave-to {
+  opacity: 0;
+  transform: translateX(-3px) scale(.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-brand-enter-active,
+  .sidebar-brand-leave-active { transition: none; }
+  .sidebar-brand-enter-from,
+  .sidebar-brand-leave-to { opacity: 1; transform: none; }
+}
+
 .sidebar-overlay-enter-active,
 .sidebar-overlay-leave-active {
   transition: opacity 180ms ease;
