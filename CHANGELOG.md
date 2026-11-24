@@ -1,3 +1,7 @@
+## [1.124.23] - 2026-11-24
+
+- DH-20261124-SIDEBAR-VERSION-FOOTER: trasladar versión y canal al pie fijo del sidebar; modo compacto con icono informativo y tooltip de versión/commit. Logo, animación, login y contratos sin cambios. CI/staging pendientes.
+
 ## [1.124.22] - 2026-11-24
 
 - DH-20261124-SIDEBAR-BRAND-MOTION: reducir 15% el logotipo del sidebar en ambos estados y animar su transición con el ancho del menú, respetando movimiento reducido. SVG, favicon, login y tooltip sin cambios. CI/staging pendientes.
