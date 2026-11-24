@@ -421,7 +421,7 @@ const SCREEN6 = `          <div v-if="dholeHaulageVisible && !props.viewOnly" cl
                 </button>
               </div>
               <p v-if="!dholeCarrierAvailable && !dholeMerchantAvailable" class="text-sm font-semibold text-amber-600">No hay cargos de Naviera ni de Merchant aplicables en Costos y recargos. No se agregará transporte interno automáticamente.</p>
-              <p v-else-if="dholeCarrierAvailable !== dholeMerchantAvailable" class="text-xs font-semibold text-[var(--dh-text-muted)]">Se seleccionó automáticamente la única alternativa disponible.</p>
+              <p v-else-if="dholeCurrentChoice && dholeCarrierAvailable !== dholeMerchantAvailable" class="text-xs font-semibold text-[var(--dh-text-muted)]">Se seleccionó automáticamente la única alternativa disponible.</p>
               <div v-if="dholeSelectedHaulageCosts.length" class="space-y-2">
                 <p class="text-sm font-black">Cargos incluidos en la opción seleccionada</p>
                 <div v-for="charge in dholeSelectedHaulageCosts" :key="charge.id" class="grid gap-1 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-4">
