@@ -47,3 +47,12 @@ test('both dashboard and quote detail use the same eligibility policy', () => {
   assert.equal((dashboard.match(/v-if="canRequestModification\(rate\)"/g) || []).length, 2)
   assert.match(detail, /v-if="canRequestModification"/)
 })
+
+test('global dashboard actions require both commercial scopes without granting receipt', () => {
+  const dashboard = readFileSync(new URL('../src/modules/dashboard/components/SellerRoleDashboard.vue', import.meta.url), 'utf8')
+  assert.match(dashboard, /props\.adminPreview && props\.enableSellerActions\s*&& authStore\.hasScope\('pricing\.rate-request\.view-all'\)/)
+  assert.match(dashboard, /return canManageRate\(rate\)[\s\S]*?canDecideSellerQuote/)
+  assert.match(dashboard, /return canManageRate\(rate\) && canSellerRequestRateModification/)
+  assert.match(dashboard, /function canMarkReceived\(rate: RateDto\) \{\s*return canActOnRate\(rate\)/)
+  assert.match(dashboard, /function pendingModification\(rate: RateDto\): boolean \{\s*return allRequests\.value\.some/)
+})
