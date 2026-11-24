@@ -1,0 +1,9 @@
+{
+  "releaseId": "DH-20261124-EXPIRED-APPROVAL-ACCESS",
+  "component": "DholeWeb",
+  "previousVersion": "1.124.12",
+  "version": "1.124.13",
+  "ecosystemVersion": "1.124.13",
+  "target": "develop",
+  "validation": "CI and staging pending"
+}

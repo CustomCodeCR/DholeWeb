@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ChevronDown, History, MessageSquareText, PencilLine, ShieldCheck, UserRound } from 'lucide-vue-next'
-import { DhBadge } from '@/shared/components/atoms'
+import { DhBadge, DhButton } from '@/shared/components/atoms'
+import { useModalStore } from '@/core/stores/modalStore'
+import PricingExpiredRateApprovalModal from './PricingExpiredRateApprovalModal.vue'
 import { PricingService } from '@/core/services/pricingService'
 import type { RateRevisionDto } from '@/core/interfaces/pricing'
 import PricingRateRevisionViewer from './PricingRateRevisionViewer.vue'
@@ -25,6 +27,15 @@ interface FieldChange {
 }
 
 const props = defineProps<{ rateId: string }>()
+const modal = useModalStore()
+function openExpiryHistory() {
+  modal.open({
+    title: 'Historial de vencimientos y autorizaciones',
+    component: PricingExpiredRateApprovalModal,
+    size: 'lg', surface: 'solid',
+    props: { rateId: props.rateId, mode: 'history' },
+  })
+}
 
 const loading = ref(false)
 const error = ref('')
@@ -379,6 +390,9 @@ onMounted(loadHistory)
       </div>
     </summary>
 
+    <div class="mt-4">
+      <DhButton variant="secondary" size="sm" label="Historial de vencimientos y autorizaciones" @click="openExpiryHistory" />
+    </div>
     <p v-if="loading" class="mt-4 text-xs font-bold text-[var(--dh-text-muted)]">Cargando historial…</p>
     <p v-else-if="error" class="mt-4 rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300">{{ error }}</p>
     <p v-else-if="history.length === 0" class="mt-4 text-xs font-bold text-[var(--dh-text-muted)]">Todavía no hay aprobaciones o modificaciones auditadas para esta cotización.</p>
