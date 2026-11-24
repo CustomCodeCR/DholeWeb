@@ -90,18 +90,23 @@ ${resetAnchor}`,
   return source.slice(0, start) + block + source.slice(end + 2)
 }
 
+// Saved quote revisions own their negotiated amounts; the source tariff remains immutable.
+export function patchLclProviderCostEditLock(source: string) {
+  return replaceRequired(
+    source,
+    `:disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Coloader'"`,
+    `:disabled="viewOnly || (shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Coloader' && !lclSelectedSource?.manual && !(rateId && editingRate && !hydratingExistingRate && !sellerRequestMode))"`,
+    'manual and persisted LCL freight editing',
+  )
+}
+
 function patchWizard(source: string) {
   let code = source
   if (code.includes('// dhole-lcl-manual-coloader-final')) return code
 
   code = patchApplyLclSource(code)
 
-  code = replaceRequired(
-    code,
-    `:disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Coloader'"`,
-    `:disabled="shipmentModeForApi === 'Lcl' && lclSelectedSource?.kind === 'Coloader' && !lclSelectedSource?.manual"`,
-    'manual LCL freight editing',
-  )
+  code = patchLclProviderCostEditLock(code)
 
   code = replaceOneOf(
     code,
