@@ -30,7 +30,7 @@ test('assignment persists via dedicated API; it does not edit the quote or creat
 
 test('active wizard does not offer manual IDTRA assignment after client acceptance', () => {
   assert.match(alternative, /data-testid="pricing-screen9-operations-idtra-status"/)
-  assert.match(alternative, /Sincronización con Operations por verificar/)
+  assert.match(alternative, /Apertura aún no confirmada por Operations/)
   assert.doesNotMatch(alternative, /<DhButton[^>]*>Asignar IDTRA<\/DhButton>/)
   assert.doesNotMatch(alternative, /component: PricingAssignIdtraModal/)
   assert.match(alternative, /name: 'operations-cases'/)

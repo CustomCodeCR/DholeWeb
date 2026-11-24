@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick as nextTickForPoe, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { operationsApi, type OperationsCaseRow } from '@/modules/operations/services/operationsApi'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { isGlobalCountryAgent } from '@/modules/catalogs/utils/globalAgentCountries'
 import {
   Check,
@@ -416,6 +418,75 @@ watch(
 
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
+const operationsIdtra = ref<OperationsCaseRow | null>(null)
+const operationsIdtraState = ref<'idle' | 'loading' | 'missing' | 'found' | 'error' | 'restricted'>('idle')
+const operationsIdentity = computed(() => {
+  const rate = editingRate.value
+  if (!rate || rate.id !== props.rateId || rate.status !== 'AcceptedByClient') return null
+  const group = savedQuoteGroup.value
+  const belongs = group?.alternatives.some(option => option.rateId === rate.id)
+  if (belongs && group?.selectedRateId && group.selectedRateId !== rate.id) return null
+  return { parent: belongs ? group!.parentRateId : rate.id, option: rate.id }
+})
+let operationsLookupGeneration = 0
+let operationsLookupBusy = false
+let operationsLookupTimer: ReturnType<typeof setTimeout> | undefined
+let operationsLookupAttempts = 0
+const operationsRetryDelays = [3000, 6000, 12000, 24000]
+function clearOperationsLookupTimer() {
+  if (operationsLookupTimer !== undefined) clearTimeout(operationsLookupTimer)
+  operationsLookupTimer = undefined
+}
+async function refreshOperationsIdtra() {
+  const identity = operationsIdentity.value
+  if (!identity || !authStore.hasScope('operations.case.read') || operationsLookupBusy) return
+  clearOperationsLookupTimer()
+  const generation = operationsLookupGeneration
+  operationsLookupBusy = true
+  if (!operationsIdtra.value) operationsIdtraState.value = 'loading'
+  try {
+    const result = await operationsApi.cases(1, { q: identity.parent, apertureType: 'AUTOMATIC' })
+    if (generation !== operationsLookupGeneration) return
+    const matches = result.items.filter(row => row.sourceQuoteId === identity.parent
+      && row.sourceQuoteOptionId === identity.option && row.apertureType === 'AUTOMATIC')
+    operationsIdtra.value = matches.length === 1 ? matches[0]! : null
+    operationsIdtraState.value = matches.length === 1 ? 'found' : matches.length > 1 ? 'error' : 'missing'
+  } catch {
+    if (generation !== operationsLookupGeneration) return
+    operationsIdtra.value = null
+    operationsIdtraState.value = 'error'
+  } finally {
+    if (generation === operationsLookupGeneration) {
+      operationsLookupBusy = false
+      if (operationsIdtraState.value !== 'found' && operationsLookupAttempts < operationsRetryDelays.length) {
+        operationsLookupTimer = setTimeout(() => { void refreshOperationsIdtra() }, operationsRetryDelays[operationsLookupAttempts++])
+      }
+    }
+  }
+}
+watch(
+  [() => operationsIdentity.value?.parent, () => operationsIdentity.value?.option, () => authStore.hasScope('operations.case.read')],
+  ([parent, option, permitted], _previous, onCleanup) => {
+    ++operationsLookupGeneration
+    clearOperationsLookupTimer()
+    operationsLookupBusy = false
+    operationsLookupAttempts = 0
+    operationsIdtra.value = null
+    operationsIdtraState.value = !parent || !option ? 'idle' : permitted ? 'loading' : 'restricted'
+    onCleanup(() => {
+      ++operationsLookupGeneration
+      clearOperationsLookupTimer()
+      operationsLookupBusy = false
+    })
+    if (parent && option && permitted) void refreshOperationsIdtra()
+  },
+  { immediate: true },
+)
+useRealtimeListRefresh({
+  prefixes: ['/api/operations'],
+  refresh: refreshOperationsIdtra,
+})
+
 const expandedSavedQuotePanels = ref<Record<string, boolean>>({})
 const primarySavedGroupAlternative = computed(() => {
   const group = savedQuoteGroup.value
@@ -9306,19 +9377,24 @@ onMounted(async () => {
                 </span>
               </div>
               <div data-testid="pricing-screen9-operations-idtra-status" class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5">
-                <p class="min-w-0 break-words text-sm font-bold">
-                  IDTRA: {{ isIdtraPending(editingRate.idtraNumber)
-                    ? (editingRate.status === 'AcceptedByClient'
-                        ? 'Sincronización con Operations por verificar'
-                        : 'Se genera automáticamente al aceptar')
-                    : editingRate.idtraNumber }}
-                </p>
-                <router-link
-                  v-if="editingRate.status === 'AcceptedByClient' && authStore.hasScope('operations.case.read')"
-                  :to="{ name: 'operations-cases' }"
-                  class="text-xs font-bold text-[var(--dh-primary)] underline"
-                >Ver Trámites</router-link>
-                
+                <div class="min-w-0 space-y-1">
+                  <p class="break-words text-sm font-bold">
+                    IDTRA: {{ operationsIdtra?.idtra || (!isIdtraPending(editingRate.idtraNumber)
+                      ? editingRate.idtraNumber
+                      : editingRate.status !== 'AcceptedByClient' ? 'Se genera automáticamente al aceptar'
+                      : operationsIdtraState === 'loading' ? 'Consultando Operations…'
+                      : operationsIdtraState === 'restricted' ? 'Consulta no disponible para su rol'
+                      : operationsIdtraState === 'error' ? 'No se pudo verificar en Operations'
+                      : 'Apertura aún no confirmada por Operations') }}
+                  </p>
+                  <p v-if="operationsIdtraState === 'missing'" class="text-xs text-[var(--dh-text-muted)]">La aceptación comercial está registrada; aún no hay un expediente coincidente visible.</p>
+                  <p v-if="operationsIdtra && !isIdtraPending(editingRate.idtraNumber) && editingRate.idtraNumber !== operationsIdtra.idtra" class="text-xs text-[var(--dh-text-muted)]">Referencia histórica: {{ editingRate.idtraNumber }}</p>
+                </div>
+                <router-link v-if="operationsIdtra" :to="{ name: 'operations-case-detail', params: { id: operationsIdtra.id } }" class="text-xs font-bold text-[var(--dh-primary)] underline">Abrir expediente</router-link>
+                <template v-else-if="editingRate.status === 'AcceptedByClient' && authStore.hasScope('operations.case.read')">
+                  <DhButton variant="secondary" size="sm" label="Verificar IDTRA" :loading="operationsIdtraState === 'loading'" @click="refreshOperationsIdtra" />
+                  <router-link :to="{ name: 'operations-cases' }" class="text-xs font-bold text-[var(--dh-primary)] underline">Ver Trámites</router-link>
+                </template>
               </div>
               <div v-if="editingRate.otherReferences?.trim()" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
