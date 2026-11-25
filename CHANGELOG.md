@@ -1,3 +1,7 @@
+## [1.129.3] - 2026-11-25
+
+- Show server-calculated individual opening field states using shared DH badges; preserve draft and realtime contracts, and prevent approval with blocking fields. CI and staging pending.
+
 ## [1.127.4] - 2026-11-25
 
 - Route Operations SignalR through trusted same-origin Gateway, reconcile after reconnect, refresh dashboard and case list, and validate the handoff regression. Preserves Pricing IDTRA release 1.127.3. CI/staging pending.

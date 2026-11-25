@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { operationsLabel } from '../utils/caseOverview'
+import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
 import { computed, ref, watch } from 'vue'
 import { ShieldCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { useAuthStore } from '@/core/stores/authStore'
-import { operationsApi, type ValidationPair } from '../services/operationsApi'
+import { operationsApi, type ValidationPair, type OpeningCompleteness } from '../services/operationsApi'
 
 const props = defineProps<{ caseId: string; version?: number }>()
 const emit = defineEmits<{ updated: []; approved: [] }>()
 const auth = useAuthStore()
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
 const pair = ref<ValidationPair | null>(null)
+const completeness = ref<OpeningCompleteness | null>(null)
 const myPendingReview = computed(() => pair.value?.validators.some(v => v.canReview === true))
 const busy = ref(false)
 const error = ref('')
@@ -21,13 +23,13 @@ async function load() {
   const current = ++sequence
   error.value = ''
   try {
-    const next = await operationsApi.validations(props.caseId)
-    if (sequence === current) pair.value = next
+    const [next, fields] = await Promise.all([operationsApi.validations(props.caseId), operationsApi.openingCompleteness(props.caseId)])
+    if (sequence === current) { pair.value = next; completeness.value = fields }
   } catch (cause) {
     if (sequence === current) error.value = cause instanceof Error ? cause.message : 'No se pudo obtener la validación.'
   }
 }
-watch(() => [props.caseId, props.version, auth.userId], () => { pair.value = null; void load() }, { immediate: true })
+watch(() => [props.caseId, props.version, auth.userId], () => { pair.value = null; completeness.value = null; void load() }, { immediate: true })
 async function assign() {
   if (!canAssign.value || busy.value) return
   busy.value = true
@@ -42,6 +44,10 @@ async function assign() {
 }
 async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
   if (!pair.value?.validators.some(v => v.id === id && v.canReview === true) || busy.value) return
+  if (decision === 'APPROVED' && !completeness.value?.canPassFieldValidation) {
+    error.value = 'Completa los campos bloqueantes antes de aprobar la apertura.'
+    return
+  }
   if (decision === 'REJECTED' && !comment.value.trim()) {
     error.value = 'Debe indicar el motivo de devolución.'
     return
@@ -70,6 +76,14 @@ function label(status: string) { return operationsLabel(status) }
   <DhCard :icon="ShieldCheck" title="Validación de Aperturas" subtitle="Revisa el resumen y la QUO aceptada antes de registrar tu decisión.">
     <p v-if="error" role="alert" class="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</p>
     <div v-if="pair">
+      <div v-if="completeness" class="mb-3 space-y-2 rounded-xl border border-[var(--dh-border)] p-3" aria-live="polite">
+        <p class="text-sm font-bold">Estados individuales de validación</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">{{ completeness.missingFields.length }} bloqueantes · {{ completeness.fields.filter(f => f.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</p>
+        <div v-for="field in completeness.fields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2">
+          <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span>
+          <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+        </div>
+      </div>
       <p v-if="myPendingReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. Tu aprobación enviará el expediente a Coordinación Origen.</p>
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <DhBadge variant="neutral">{{ label(pair.stage.status) }}</DhBadge>
@@ -86,7 +100,7 @@ function label(status: string) { return operationsLabel(status) }
         <div v-if="validator.canReview === true">
           <DhTextarea v-model="comment" label="Observación de validación" :rows="2" />
           <div class="mt-2 flex flex-wrap gap-2">
-            <DhButton size="sm" label="Aprobar apertura" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
+            <DhButton size="sm" label="Aprobar apertura" :disabled="!completeness?.canPassFieldValidation" :loading="busy" @click="decide(validator.id, 'APPROVED')" />
             <DhButton size="sm" variant="danger" label="Solicitar cambios" :disabled="busy || !comment.trim()" @click="decide(validator.id, 'REJECTED')" />
           </div>
         </div>
