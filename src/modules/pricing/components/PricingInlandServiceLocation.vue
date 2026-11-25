@@ -21,6 +21,7 @@ const props = defineProps<{
   operationType?: RateOperationType
   incotermCode?: string
   error?: string
+  operational?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: InlandServiceLocation]
@@ -53,7 +54,7 @@ function editPoint(index: number) {
   editingIndex.value = index
   draft.value = { ...point }
   cargoCondition.value = point.cargoCondition ?? ''
-  billingParty.value = point.billingParty ?? inlandBillingParty(
+  billingParty.value = props.operational ? '' : point.billingParty ?? inlandBillingParty(
     props.operationType ?? 'TransitDomestic', props.incotermCode ?? '')
   error.value = ''
 }
@@ -111,9 +112,11 @@ function saveLocation() {
     ...draft.value,
     address: writtenAddress,
     cargoCondition: cargoCondition.value,
-    billingParty: billingParty.value || inlandBillingParty(
-      props.operationType ?? 'TransitDomestic', props.incotermCode ?? ''),
+    ...(!props.operational ? { billingParty: billingParty.value || inlandBillingParty(
+      props.operationType ?? 'TransitDomestic', props.incotermCode ?? '') } : {}),
   }
+  // Operations records the physical stop, not a commercial billing decision.
+  if (props.operational) delete nextPoint.billingParty
   if (editingIndex.value == null) current.push(nextPoint)
   else current.splice(editingIndex.value, 1, nextPoint)
   emit('update:locations', current)
@@ -203,13 +206,13 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
         </p>
       </div>
     </div>
-    <p class="text-xs text-[var(--dh-text-muted)]">{{ payerContext }}</p>
+    <p v-if="!props.operational" class="text-xs text-[var(--dh-text-muted)]">{{ payerContext }}</p>
     <div v-if="savedPoints.length" class="space-y-2" data-inland-stops>
       <div v-for="(saved, index) in savedPoints" :key="index" class="flex items-start justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
         <div class="min-w-0">
           <p class="text-xs font-black">Punto {{ index + 1 }} · {{ saved.cargoCondition === 'FiscalCargo' ? 'Carga fiscal' : saved.cargoCondition === 'NationalizedCargo' ? 'Carga nacionalizada' : 'Tipo de carga pendiente' }}</p>
           <p class="break-words text-sm">{{ saved.address }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">{{ payerOptions.find(option => option.value === saved.billingParty)?.label ?? 'Responsable según Incoterm' }}</p>
+          <p v-if="!props.operational" class="text-xs text-[var(--dh-text-muted)]">{{ payerOptions.find(option => option.value === saved.billingParty)?.label ?? 'Responsable según Incoterm' }}</p>
         </div>
         <div class="flex shrink-0 gap-1">
           <DhButton variant="ghost" @click="editPoint(index)"><Pencil class="h-4 w-4" /> Editar</DhButton>
@@ -219,7 +222,7 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
     </div>
     <p class="text-xs font-semibold"> {{ editingIndex == null ? 'Agregar otro punto' : `Modificar punto ${editingIndex + 1}` }} </p>
     <DhSelect v-model="cargoCondition" label="Tipo de carga *" :options="cargoOptions" placeholder="Seleccione carga fiscal o nacionalizada" />
-    <DhSelect v-model="billingParty" label="Responsable del costo" :options="payerOptions" placeholder="Automático según operación e Incoterm" />
+    <DhSelect v-if="!props.operational" v-model="billingParty" label="Responsable del costo" :options="payerOptions" placeholder="Automático según operación e Incoterm" />
     <DhInput v-model="address" :error="props.error" :label="isPickup ? 'Dirección de recolección *' : 'Dirección de entrega *'"
       placeholder="Calle, ciudad, provincia/estado y país" />
     <div class="flex flex-wrap items-center gap-3">
@@ -227,7 +230,7 @@ async function selectPoint(selected: { latitude: number; longitude: number }) {
         {{ editingIndex == null ? (isPickup ? 'Guardar punto de recolección' : 'Guardar punto de entrega') : 'Actualizar punto' }}
       </DhButton>
       <p v-if="confirmedAddress && confirmedAddress === address.trim()" role="status" class="text-xs font-semibold text-[var(--dh-primary)]">
-        Punto agregado a la lista. Se conservará al guardar la tarifa.
+        {{ props.operational ? 'Punto agregado a la lista. Se conservará en el trámite.' : 'Punto agregado a la lista. Se conservará al guardar la tarifa.' }}
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-3">

@@ -16,7 +16,7 @@ import PricingContainerSelector from '@/modules/pricing/components/PricingContai
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { useAuthStore } from '@/core/stores/authStore'
-import { normalizeIncotermCode, incotermOperationExplanation } from '@/modules/pricing/utils/pricingIncotermPerspective'
+import { normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { operationForClientCountry, resolveCrmCountryCode } from '@/modules/pricing/utils/pricingClientCountryOperation'
 import { catalogMetadata, resolveLocationCountryCode } from '@/modules/pricing/utils/pricingCountryIso'
 import type { RateOperationType } from '@/core/interfaces/pricing'
@@ -309,6 +309,12 @@ const warehouseAddress = computed(() => String(warehouseMeta.value.address || wa
 const deliveryRequired = computed(() => form.value.requiresDelivery || ['DAP','DPU','DDP'].includes(selectedIncoterm.value))
 const validPoints = (points: InlandPoint[]) => points.length > 0 && points.every(p => typeof p?.address === 'string' && p.address.trim() &&
   ['FiscalCargo','NationalizedCargo'].includes(p.cargoCondition || ''))
+// New manual openings must not assign commercial billing responsibility.
+const operationalPoints = (points: InlandPoint[]): InlandPoint[] => points.map(point => {
+  const copy = { ...point }
+  delete copy.billingParty
+  return copy
+})
 const pickupPoint = computed<InlandPoint>({
   get: () => form.value.pickupLocations[0] || { address: form.value.pickupAddress },
   set: p => { form.value.pickupAddress = p.address },
@@ -608,7 +614,7 @@ let draftWriteQueue: Promise<void> = Promise.resolve()
 function draftSnapshot(): Record<string, unknown> {
   const { weightValue: _manualWeight, weightUnit: _manualWeightUnit, ...draftForm } = form.value
   return {
-    savedAt: Date.now(), version: 2, form: draftForm,
+    savedAt: Date.now(), version: 2, form: { ...draftForm, pickupLocations: operationalPoints(draftForm.pickupLocations), deliveryLocations: operationalPoints(draftForm.deliveryLocations) },
     routeIds: { pol: selectedPol.value, poe: selectedPoe.value, pod: selectedPod.value },
     accountId: accountId.value, selectedClientName: selectedClientName.value,
     modality: modality.value, step: activeStep.value,
@@ -768,7 +774,7 @@ async function save() {
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
       ...(!editingId.value ? { pickupAddress: selectedIncoterm.value === 'EXW' || pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '', destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
-      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? form.value.pickupLocations : [], deliveryLocations: deliveryRequired.value ? form.value.deliveryLocations : [] } : {}),
+      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [], deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
       ...(!editingId.value ? { openingValidationVersion: 3, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
@@ -1105,7 +1111,6 @@ onMounted(async () => {
             <DhInput v-model="form.etm" label="Fecha estimada de salida (ETD)" type="date" />
             <DhInput v-model="form.eta" label="Fecha estimada de llegada (ETA)" type="date" />
           </div>
-          <p v-if="selectedIncoterm && operation" class="text-xs text-[var(--dh-text-muted)]">{{ incotermOperationExplanation(operation, selectedIncoterm) }}</p>
           <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 space-y-3">
             <h4 class="text-sm font-black">WHS global (FCA)</h4>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
@@ -1126,14 +1131,14 @@ onMounted(async () => {
             <DhSelect :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
           </div>
           <PricingInlandServiceLocation v-if="selectedIncoterm === 'EXW' || pickupRequired"
-            v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup"
+            v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
           <div v-if="pickupRequired" class="grid gap-4 md:grid-cols-2">
             <DhInput v-model="form.pickupContact" label="Contacto de recolecta" />
             <DhInput v-model="form.pickupWindow" label="Ventana de recolecta" />
           </div>
           <PricingInlandServiceLocation v-if="deliveryRequired"
-            v-model="deliveryPoint" v-model:locations="form.deliveryLocations" kind="delivery"
+            v-model="deliveryPoint" v-model:locations="form.deliveryLocations" kind="delivery" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
         </div>
 
