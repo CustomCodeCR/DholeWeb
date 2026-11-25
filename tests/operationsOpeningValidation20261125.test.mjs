@@ -38,3 +38,11 @@ test('manual opening locations do not assign a commercial payer', () => {
   assert.ok(component.includes('...(!props.operational ? { billingParty:'))
   assert.ok(component.includes('Se conservará en el trámite.'))
 })
+
+ test('review displays operational stops without requiring pickup contact or window', () => {
+  assert.ok(!source.includes("result.push('Contacto de recolecta')"))
+  assert.ok(!source.includes("result.push('Ventana de recolecta')"))
+  assert.ok(source.includes('Puntos de recolecta'))
+  assert.ok(source.includes('Puntos de entrega'))
+  assert.ok(source.includes('pickupContact: undefined, pickupWindow: undefined'))
+})

@@ -367,8 +367,6 @@ const blockers = computed(() => {
   }
   if (pickupRequired.value) {
     if (!form.value.pickupAddress.trim() && !validPoints(form.value.pickupLocations)) result.push('Dirección de recolecta')
-    if (!form.value.pickupContact.trim()) result.push('Contacto de recolecta')
-    if (!form.value.pickupWindow.trim()) result.push('Ventana de recolecta')
   }
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim() || (!editingId.value && !currentCatalog(equipmentCatalogKey.value).some(item => item.id === resolvedEquipmentId(x) && item.isActive)))) result.push('Tipo de equipo por seleccionar')
@@ -612,7 +610,7 @@ const draftStorageKey = computed(() =>
 let remoteDraftVersion = 0
 let draftWriteQueue: Promise<void> = Promise.resolve()
 function draftSnapshot(): Record<string, unknown> {
-  const { weightValue: _manualWeight, weightUnit: _manualWeightUnit, ...draftForm } = form.value
+  const { weightValue: _manualWeight, weightUnit: _manualWeightUnit, pickupContact: _pickupContact, pickupWindow: _pickupWindow, ...draftForm } = form.value
   return {
     savedAt: Date.now(), version: 2, form: { ...draftForm, pickupLocations: operationalPoints(draftForm.pickupLocations), deliveryLocations: operationalPoints(draftForm.deliveryLocations) },
     routeIds: { pol: selectedPol.value, poe: selectedPoe.value, pod: selectedPod.value },
@@ -768,7 +766,7 @@ async function save() {
       incotermName: selectedIncoterm.value,
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
-      ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined } : {}),
+      ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined, pickupContact: undefined, pickupWindow: undefined } : {}),
       stackable: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
@@ -1133,10 +1131,6 @@ onMounted(async () => {
           <PricingInlandServiceLocation v-if="selectedIncoterm === 'EXW' || pickupRequired"
             v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
-          <div v-if="pickupRequired" class="grid gap-4 md:grid-cols-2">
-            <DhInput v-model="form.pickupContact" label="Contacto de recolecta" />
-            <DhInput v-model="form.pickupWindow" label="Ventana de recolecta" />
-          </div>
           <PricingInlandServiceLocation v-if="deliveryRequired"
             v-model="deliveryPoint" v-model:locations="form.deliveryLocations" kind="delivery" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
@@ -1361,8 +1355,8 @@ onMounted(async () => {
               </section>
               <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
                 <div class="mb-4 flex items-center gap-2"><Route class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Ruta e itinerario</h5></div>
-                <div class="grid gap-3 sm:grid-cols-3">
-                  <div v-for="stop in [{ name: 'Origen · POL', value: form.pol }, { name: 'Destino · POE', value: form.poe }, ...(showPod ? [{ name: 'Destino final · POD', value: form.pod }] : [])]" :key="stop.name" class="min-w-0 border-l-2 border-[var(--dh-primary)]/35 pl-3">
+                <div class="grid gap-3" :class="showPod && form.pod ? 'sm:grid-cols-3' : 'sm:grid-cols-2'">
+                  <div v-for="stop in [{ name: 'Origen · POL', value: form.pol }, { name: 'Destino · POE', value: form.poe }, ...(showPod && form.pod ? [{ name: 'Destino final · POD', value: form.pod }] : [])]" :key="stop.name" class="min-w-0 border-l-2 border-[var(--dh-primary)]/35 pl-3">
                     <p class="text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">{{ stop.name }}</p>
                     <p class="mt-1 break-words text-sm font-black">{{ stop.value || 'Pendiente' }}</p>
                   </div>
@@ -1372,6 +1366,25 @@ onMounted(async () => {
                   <span><span class="text-[var(--dh-text-muted)]">Incoterm:</span> <strong>{{ form.incoterm || 'Pendiente' }}</strong></span>
                   <span><span class="text-[var(--dh-text-muted)]">ETD:</span> <strong>{{ form.etm || 'Por confirmar' }}</strong></span>
                   <span><span class="text-[var(--dh-text-muted)]">ETA:</span> <strong>{{ form.eta || 'Por confirmar' }}</strong></span>
+                </div>
+                <div v-if="(selectedIncoterm === 'EXW' || pickupRequired) && form.pickupLocations.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+                  <p class="text-xs font-bold">Puntos de recolecta</p>
+                  <div v-for="(point, index) in form.pickupLocations" :key="index" class="mt-2 text-xs">
+                    <p class="break-words font-semibold">{{ index + 1 }}. {{ point.address }}</p>
+                    <p class="text-[var(--dh-text-muted)]">{{ point.cargoCondition === 'FiscalCargo' ? 'Carga fiscal' : point.cargoCondition === 'NationalizedCargo' ? 'Carga nacionalizada' : 'Tipo de carga pendiente' }}</p>
+                  </div>
+                </div>
+                <div v-if="deliveryRequired && form.deliveryLocations.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+                  <p class="text-xs font-bold">Puntos de entrega</p>
+                  <div v-for="(point, index) in form.deliveryLocations" :key="index" class="mt-2 text-xs">
+                    <p class="break-words font-semibold">{{ index + 1 }}. {{ point.address }}</p>
+                    <p class="text-[var(--dh-text-muted)]">{{ point.cargoCondition === 'FiscalCargo' ? 'Carga fiscal' : point.cargoCondition === 'NationalizedCargo' ? 'Carga nacionalizada' : 'Tipo de carga pendiente' }}</p>
+                  </div>
+                </div>
+                <div v-if="requiresWarehouse && (warehouse || warehouseAddress)" class="mt-4 border-t border-[var(--dh-border)] pt-3 text-xs">
+                  <p class="font-bold">WHS (FCA)</p>
+                  <p v-if="warehouse" class="mt-1 font-semibold">{{ optionText(warehouse) }}</p>
+                  <p v-if="warehouseAddress" class="mt-1 break-words">{{ warehouseAddress }}</p>
                 </div>
               </section>
               <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
