@@ -1,3 +1,7 @@
+## [1.127.3] - 2026-11-25
+
+- Route Operations SignalR through trusted same-origin Gateway with WebSocket upgrade, reconcile subscriptions after reconnect and refresh both dashboard and case list. Existing DH components retained. CI/staging pending.
+
 ## [1.127.2] - 2026-11-25
 
 - Subscribe the Operations dashboard to the existing authenticated SignalR Hub and reconcile after reconnect; refresh counters and recent openings through debounced authorized REST without clearing the current team snapshot during background refresh. Reuse existing DH components. CI and staging pending.
