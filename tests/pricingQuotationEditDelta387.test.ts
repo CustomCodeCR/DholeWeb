@@ -330,3 +330,46 @@ test('verified context does not hide a changed package count or equipment quanti
   assert.equal(await q.verify(), true)
   assert.equal(queries, 3)
 })
+
+
+test('Air duplicate ignores residual maritime source and blank optional ID representations', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.shipmentModeForApi.value = 'AirConsol'
+  q.root.form.selectedImportRateId = 'LEGACY-FCL'
+  q.root.form.carrierId = null
+  q.original.value = q.snapshot()
+  q.root.form.selectedImportRateId = ''
+  q.root.form.carrierId = ''
+  q.root.rateLines.value[0].saleAmount = 5999
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 0)
+  assert.equal(q.root.rateLines.value[0].saleAmount, 5999)
+  q.root.form.agentId = 'NEW-AGENT'
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 2)
+})
+
+test('Maritime FCL source changes still require verified costs', async () => {
+  const q = fixture()
+  q.root.form.selectedImportRateId = 'NEW-FCL'
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 2)
+})
+
+test('Equivalent GUID casing and service ordering do not initiate a catalog lookup', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'AABBCCDD-1234-5678-ABCD-0123456789AB'
+  q.root.form.serviceIds = ['TRANSPORT', 'ADUANAS']
+  q.original.value = q.snapshot()
+  q.root.form.agentId = 'aabbccdd-1234-5678-abcd-0123456789ab'
+  q.root.form.serviceIds = ['ADUANAS', 'TRANSPORT', 'TRANSPORT']
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 0)
+})
