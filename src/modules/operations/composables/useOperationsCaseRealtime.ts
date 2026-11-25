@@ -1,5 +1,6 @@
 import { computed, onScopeDispose, watch, type Ref } from 'vue'
 import { useAuthStore } from '@/core/stores/authStore'
+import { resolveGatewayBaseUrl } from '@/core/api/sameOriginGateway'
 
 /**
  * Authorized SignalR JSON-protocol client for the Operations Hub.
@@ -64,7 +65,7 @@ function useOperationsRealtime(
       const token = await auth.ensureValidAccessToken()
       if (disposed || expected !== generation) return
       if (!token) { schedule(id, expected); return }
-      const base = String(import.meta.env.VITE_API_URL || window.location.origin)
+      const base = resolveGatewayBaseUrl(import.meta.env.VITE_API_URL) || window.location.origin
       const url = new URL('/hubs/operations', base)
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
       // Browsers cannot set a Bearer Authorization header on WebSocket.
@@ -107,11 +108,11 @@ function useOperationsRealtime(
                 attempt = 0
                 // Reconcile the REST snapshot after joining or reconnecting.
                 // A Pub/Sub invalidation may have been missed while offline.
-                if (dashboard) onInvalidated(id)
-              } else if (joined && dashboard && message.type === 1 &&
-                         message.target === 'operationsDashboardChanged') {
                 onInvalidated(id)
-              } else if (joined && !dashboard && message.type === 1 && message.target === 'operationsChanged' &&
+              } else if (joined && dashboard && message.type === 1 &&
+                         message.target?.toLowerCase() === 'operationsdashboardchanged') {
+                onInvalidated(id)
+              } else if (joined && !dashboard && message.type === 1 && message.target?.toLowerCase() === 'operationsChanged'.toLowerCase() &&
                          message.arguments?.[0]?.caseId?.toLowerCase() === id.toLowerCase()) {
                 onInvalidated(id)
               } else if (message.type === 7) {

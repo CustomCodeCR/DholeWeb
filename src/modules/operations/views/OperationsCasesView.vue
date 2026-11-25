@@ -9,7 +9,7 @@ import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace, type CrmAccountOption } from '../services/operationsApi'
-import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
+import { useOperationsCaseRealtime, useOperationsDashboardRealtime } from '../composables/useOperationsCaseRealtime'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
@@ -342,6 +342,11 @@ async function refreshSelected() {
 useOperationsCaseRealtime(selectedCaseId, () => {
   void load()
   void refreshSelected()
+})
+useOperationsDashboardRealtime(() => {
+  window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+    detail: { endpoint: '/api/operations/cases', method: 'SIGNALR' },
+  }))
 })
 useRealtimeListRefresh({
   prefixes: ['/api/operations'],

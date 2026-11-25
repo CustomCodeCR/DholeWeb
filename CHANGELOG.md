@@ -1,3 +1,7 @@
+## [1.127.4] - 2026-11-25
+
+- Route Operations SignalR through trusted same-origin Gateway, reconcile after reconnect, refresh dashboard and case list, and validate the handoff regression. Preserves Pricing IDTRA release 1.127.3. CI/staging pending.
+
 ## [1.127.3] - 2026-11-25
 
 - PATCH: el listado de Pricing consulta los IDTRA reales de Operations para la alternativa aceptada, incluye múltiples expedientes, conserva referencias históricas y distingue fallos de consulta. Retira la acción manual del flujo automático y concilia mediante SignalR y REST autorizados. CI y staging pendientes.
