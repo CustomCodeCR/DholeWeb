@@ -7,13 +7,12 @@ import { DhCard } from '@/shared/components/molecules'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type ValidationPair } from '../services/operationsApi'
 
-const props = defineProps<{ caseId: string }>()
+const props = defineProps<{ caseId: string; version?: number }>()
 const emit = defineEmits<{ updated: [] }>()
 const auth = useAuthStore()
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
-const canReview = computed(() => auth.hasScope('operations.aperture.validation.review'))
 const pair = ref<ValidationPair | null>(null)
-const myPendingReview = computed(() => pair.value?.stage.status === 'PENDING_VALIDATION' && pair.value.validators.some(v => v.userId === auth.userId && v.status === 'PENDING'))
+const myPendingReview = computed(() => pair.value?.validators.some(v => v.canReview === true))
 const busy = ref(false)
 const error = ref('')
 const comment = ref('')
@@ -28,7 +27,7 @@ async function load() {
     if (sequence === current) error.value = cause instanceof Error ? cause.message : 'No se pudo obtener la validación.'
   }
 }
-watch(() => props.caseId, () => { void load() }, { immediate: true })
+watch(() => [props.caseId, props.version, auth.userId], () => { pair.value = null; void load() }, { immediate: true })
 async function assign() {
   if (!canAssign.value || busy.value) return
   busy.value = true
@@ -42,7 +41,7 @@ async function assign() {
   } finally { busy.value = false }
 }
 async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
-  if (!canReview.value || busy.value) return
+  if (!pair.value?.validators.some(v => v.id === id && v.canReview === true) || busy.value) return
   if (decision === 'REJECTED' && !comment.value.trim()) {
     error.value = 'Debe indicar el motivo de devolución.'
     return
@@ -65,20 +64,20 @@ function label(status: string) { return operationsLabel(status) }
   <DhCard :icon="ShieldCheck" title="Validación de Aperturas" subtitle="Revisa el resumen y la QUO aceptada antes de registrar tu decisión.">
     <p v-if="error" role="alert" class="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</p>
     <div v-if="pair">
-      <p v-if="myPendingReview && canReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. La segunda aprobación enviará el expediente a Coordinación Origen.</p>
+      <p v-if="myPendingReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. Tu aprobación enviará el expediente a Coordinación Origen.</p>
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <DhBadge variant="neutral">{{ label(pair.stage.status) }}</DhBadge>
         <DhButton v-if="canAssign && !pair.validators.length && pair.stage.status === 'PENDING_VALIDATION'"
-          :icon="UsersRound" label="Asignar validadores" :loading="busy" @click="assign" />
+          :icon="UsersRound" label="Asignar operativo" :loading="busy" @click="assign" />
       </div>
-      <p v-if="!pair.validators.length" class="text-sm text-[var(--dh-text-muted)]">Pendiente de asignar validadores autorizados.</p>
+      <p v-if="!pair.validators.length" class="text-sm text-[var(--dh-text-muted)]">Pendiente de asignar un operativo autorizado.</p>
       <div v-for="validator in pair.validators" :key="validator.id" class="mb-3 space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-sm font-bold">Revisión {{ validator.slot }}</p>
+          <p class="text-sm font-bold">Validación de apertura</p>
           <DhBadge :variant="validator.status === 'APPROVED' ? 'success' : validator.status === 'REJECTED' ? 'danger' : 'warning'">{{ label(validator.status) }}</DhBadge>
         </div>
         <p v-if="validator.comment" class="whitespace-pre-wrap text-sm text-[var(--dh-text-soft)]">{{ validator.comment }}</p>
-        <div v-if="canReview && validator.userId === auth.userId && validator.status === 'PENDING' && pair.stage.status === 'PENDING_VALIDATION'">
+        <div v-if="validator.canReview === true">
           <DhTextarea v-model="comment" label="Observación de validación" :rows="2" />
           <div class="mt-2 flex flex-wrap gap-2">
             <DhButton size="sm" label="Aprobar apertura" :loading="busy" @click="decide(validator.id, 'APPROVED')" />

@@ -13,7 +13,6 @@ const { t, locale } = useI18n()
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
-const canReview = computed(() => auth.hasScope('operations.aperture.validation.review'))
 const canAudit = computed(() => auth.hasScope('operations.audit.read'))
 const rows = ref<ApertureRow[]>([])
 const total = ref(0)
@@ -46,7 +45,7 @@ const statusOptions = computed(() => [
 ])
 const unassigned = computed(() => rows.value.filter(row => !row.validators?.length).length)
 const inReview = computed(() => rows.value.filter(row => row.validators?.some(v => v.status === 'PENDING')).length)
-const approved = computed(() => rows.value.filter(row => row.validators?.length >= 2 && row.validators.every(v => v.status === 'APPROVED')).length)
+const approved = computed(() => rows.value.filter(row => row.validators?.some(v => v.status === 'APPROVED')).length)
 const modalityOptions = computed(() => [
   { label: t('operations.validation.modalityFcl'), value: 'FCL' }, { label: t('operations.validation.modalityLcl'), value: 'LCL' },
   { label: t('operations.validation.modalityFtl'), value: 'FTL' }, { label: t('operations.validation.modalityLtl'), value: 'LTL' },
@@ -176,7 +175,7 @@ async function assign() {
   finally { busy.value = false }
 }
 async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
-  if (!selected.value || busy.value || !canReview.value) return
+  if (!selected.value || busy.value || !pair.value?.validators.some(v => v.id === id && v.canReview === true)) return
   if (decision === 'REJECTED' && !comment.value.trim()) {
     error.value = t('operations.validation.requiredReason'); return
   }
@@ -229,7 +228,7 @@ onMounted(load)
         <template #cell-sourceQuoteId="{ row }"><RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>Ver QUO</RouterLink><span v-else class="text-[var(--dh-text-muted)]">Sin QUO</span></template>
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
         <template #cell-status="{ row }"><DhBadge :variant="stateVariant(row.status)">{{ stateLabel(row.status) }}</DhBadge></template>
-        <template #cell-validators="{ row }"><span class="font-bold">{{ approvalCount(row) }} / 2</span></template>
+        <template #cell-validators="{ row }"><span class="font-bold">{{ Math.min(1, approvalCount(row)) }} / 1</span></template>
         <template #cell-createdAtUtc="{ row }">{{ label(row.createdAtUtc) }}</template>
         <template #cell-actions="{ row }"><DhButton size="sm" variant="secondary" :label="selectedId === row.id ? t('operations.validation.selectedStatus') : t('operations.validation.viewDetail')" @click="choose(row.id)" /></template>
       </DhDataTable>
@@ -261,7 +260,7 @@ onMounted(load)
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('operations.validation.personId', { id: short(validator.userId) }) }}</p>
             <p v-if="validator.reviewedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ label(validator.reviewedAtUtc) }}</p>
             <p v-if="validator.comment" class="mt-3 whitespace-pre-wrap text-sm text-[var(--dh-text-soft)]">{{ validator.comment }}</p>
-            <template v-if="canReview && validator.userId === auth.userId && validator.status === 'PENDING' && pair?.stage.status === 'PENDING_VALIDATION'">
+            <template v-if="validator.canReview === true">
               <DhTextarea v-model="comment" class="mt-4" :label="t('operations.validation.comment')" :placeholder="t('operations.validation.commentRequired')" :rows="3" />
               <div class="mt-3 flex flex-wrap gap-2">
                 <DhButton size="sm" :label="t('operations.validation.approve')" :loading="busy" @click="decide(validator.id, 'APPROVED')" />

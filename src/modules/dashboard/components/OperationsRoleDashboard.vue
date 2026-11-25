@@ -226,9 +226,9 @@ onMounted(load)
             {{ row.idtra }} <DhBadge :variant="row.apertureType === 'AUTOMATIC' ? 'primary' : 'neutral'">{{ row.apertureType === 'AUTOMATIC' ? 'Pricing' : 'Manual' }}</DhBadge>
           </RouterLink>
         </template>
-        <template #cell-status="{ row }"><DhBadge :variant="row.approvedReviews >= 2 ? 'success' : row.pendingReviews ? 'warning' : 'neutral'">{{ statusLabel(row.status) }}</DhBadge></template>
+        <template #cell-status="{ row }"><DhBadge :variant="row.approvedReviews >= 1 ? 'success' : row.pendingReviews ? 'warning' : 'neutral'">{{ statusLabel(row.status) }}</DhBadge></template>
         <template #cell-departmentCode="{ row }">{{ row.departmentCode ? t('operations.departments.' + row.departmentCode) : 'Pendiente' }}</template>
-        <template #cell-approvedReviews="{ row }"><span class="tabular-nums">{{ row.apertureType === 'MANUAL' ? 'No aplica' : row.approvedReviews + ' / 2' }}</span></template>
+        <template #cell-approvedReviews="{ row }"><span class="tabular-nums">{{ row.apertureType === 'MANUAL' ? 'No aplica' : Math.min(1, row.approvedReviews) + ' / 1' }}</span></template>
         <template #cell-actions="{ row }"><RouterLink :to="{ name: 'operations-case-detail', params: { id: row.id } }"><DhButton size="sm" variant="secondary" :label="row.canReview && auth.hasScope('operations.aperture.validation.review') ? 'Revisar apertura' : 'Abrir expediente'" /></RouterLink></template>
         <template #cell-createdAtUtc="{ row }">{{ dateLabel(row.createdAtUtc) }}</template>
       </DhDataTable>

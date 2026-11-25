@@ -1,3 +1,13 @@
+## [1.124.34] - 2026-11-24
+
+- Replace dual approval UI and counters with single-review workflow and direct Origin handoff. Preserve DH components and historical audit compatibility.
+- CI and authenticated staging pending.
+
+## [1.124.33] - 2026-11-24
+
+- Show only the authorized active aperture decision, reload validation on case version changes, and use the shared DH controls to open and download linked Pricing documents.
+- Candidate: CI and authenticated staging validation pending.
+
 ## [1.124.32] - 2026-11-24
 
 - DH-20261124-PRICING-AIR-QUANTITY-SAVE: conservar precios unitarios negociados al editar agente elegible, peso y cantidades de carga de una cotización aérea existente, incluso combinados; recalcular cantidades mediante el flujo existente, mantener validación de ruta/servicios y respetar eliminaciones explícitas. Regresiones añadidas; CI/staging pendientes.

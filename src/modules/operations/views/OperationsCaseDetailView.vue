@@ -23,7 +23,7 @@ import OperationsApertureValidationPanel from '../components/OperationsApertureV
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
 import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
-import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel } from '../utils/commercialPresentation'
+import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel, useOpeningDocuments } from '../utils/commercialPresentation'
 
 const route = useRoute()
 const { openingField, currency } = useCommercialLabels()
@@ -243,8 +243,7 @@ const currentDepartmentStatus = computed(() => departmentStatusLabel(
 function responsibleName(id: string | null | undefined): string {
   return id ? responsibleNames.value[id] || 'Nombre pendiente de consulta' : 'Sin operativo asignado'
 }
-const openingDocuments = computed(() => Array.isArray(openingData.value.supportDocuments)
-  ? (openingData.value.supportDocuments as Array<Record<string, unknown>>) : [])
+const { openingDocuments, downloadDocument, documentError } = useOpeningDocuments(() => openingData.value.supportDocuments)
 const pendingFields = computed(() => Array.isArray(openingData.value.missingFields)
   ? (openingData.value.missingFields as unknown[]).filter((x): x is string => typeof x === 'string') : [])
 const openingServices = computed(() => Array.isArray(openingData.value.services)
@@ -565,6 +564,7 @@ watch([caseId, () => auth.userId], () => { record.value = null; workspace.value 
       <OperationsApertureValidationPanel
         v-if="record.apertureType === 'AUTOMATIC' && (record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS')"
         :case-id="record.id"
+        :version="record.version"
         @updated="load"
       />
       <DhTabs :model-value="selectedTab" :items="caseTabItems" aria-label="Departamentos del expediente" @update:model-value="selectCaseTab">
@@ -676,9 +676,11 @@ watch([caseId, () => auth.userId], () => { record.value = null; workspace.value 
             <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
               <h4 class="mb-2 text-sm font-semibold">Documentación ({{ openingDocuments.length }})</h4>
               <p v-if="!openingDocuments.length" class="text-xs text-[var(--dh-text-muted)]">Sin adjuntos de apertura.</p>
-              <p v-for="(document, index) in openingDocuments" :key="index" class="mb-1 break-words text-xs">
-                {{ String(document.label || 'Documento') }} · {{ String(document.fileName || 'Archivo registrado') }}
-              </p>
+              <div v-for="document in openingDocuments" :key="document.id" class="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span class="break-words">{{ document.label }} · {{ document.fileName }}</span>
+                <DhButton v-if="document.storageId" size="sm" variant="secondary" label="Descargar" @click="downloadDocument(document)" />
+              </div>
+              <p v-if="documentError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ documentError }}</p>
             </div>
             <div v-if="pendingFields.length || openingData.completionStatus === 'DRAFT_INCOMPLETE'" class="mt-4 border-t border-[var(--dh-border)] pt-3">
               <h4 class="mb-2 text-sm font-semibold">Información por completar</h4>
