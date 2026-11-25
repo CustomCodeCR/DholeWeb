@@ -1,3 +1,7 @@
+## [1.130.0] - 2026-11-25
+
+- Promote staged commercial quotation workbook with all or selected statuses, creation dates and search; existing DH button and permissions. No unrelated staging changes.
+
 ## [1.127.5] - 2026-11-25
 
 - Fix compact sidebar brand: reuse bundled SVG silhouette, preserve theme color and transition, avoid stale cached public mask, and provide symmetric compact padding. CI and authenticated staging pending.
