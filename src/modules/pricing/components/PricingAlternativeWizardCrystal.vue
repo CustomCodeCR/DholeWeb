@@ -974,7 +974,9 @@ function activeCostContextKey(): string {
       agentId: form.agentId, polId: form.originId, incotermId: form.incotermId,
       shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
     }),
-    form.crmClientKind, form.clientId,
+    // Persisted quotation charges do not use live CRM preferential pricing.
+    // Recovering/reselecting its CRM identity cannot invalidate a physical lookup.
+    ...(props.rateId ? ['', ''] : [form.crmClientKind, form.clientId]),
   ].join('|')
 }
 
@@ -7079,9 +7081,20 @@ function setCrmClient(client: {
   countryId?: string | null
   isCastroFallasExecutive?: boolean
 } | null) {
-  if (client?.id !== resolvedCountryClientId.value) pricingQuoteOperationOverride.value = ''
+  const saved = editingRate.value
+  const samePersistedClient = Boolean(client && saved && props.rateId && (
+    (saved.clientAccountId || saved.clientLeadId)
+      ? client.id === (saved.clientAccountId || saved.clientLeadId)
+      : client.displayName.trim().toLocaleLowerCase() === String(saved.clientName ?? '').trim().toLocaleLowerCase()
+        && client.executiveName.trim().toLocaleLowerCase() === String(saved.executiveName ?? '').trim().toLocaleLowerCase()
+  ))
+  if (samePersistedClient && saved && !pricingQuoteOperationOverride.value) {
+    pricingQuoteOperationOverride.value = saved.operationType || ''
+  } else if (!samePersistedClient && client?.id !== resolvedCountryClientId.value) {
+    pricingQuoteOperationOverride.value = ''
+  }
   crmClientCountryId.value = client?.countryId || ''
-  pricingQuoteCountryOverrideId.value = ''
+  if (!samePersistedClient) pricingQuoteCountryOverrideId.value = ''
   resolvedCountryClientId.value = client?.id || ''
   form.crmClientKind = client?.kind || ''
   form.clientId = client?.id || ''
