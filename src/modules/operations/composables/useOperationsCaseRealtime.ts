@@ -112,7 +112,7 @@ function useOperationsRealtime(
               } else if (joined && dashboard && message.type === 1 &&
                          message.target?.toLowerCase() === 'operationsdashboardchanged') {
                 onInvalidated(id)
-              } else if (joined && !dashboard && message.type === 1 && message.target?.toLowerCase() === 'operationschanged' &&
+              } else if (joined && !dashboard && message.type === 1 && message.target?.toLowerCase() === 'operationsChanged'.toLowerCase() &&
                          message.arguments?.[0]?.caseId?.toLowerCase() === id.toLowerCase()) {
                 onInvalidated(id)
               } else if (message.type === 7) {
