@@ -16,6 +16,7 @@ import PricingContainerSelector from '@/modules/pricing/components/PricingContai
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
 import { useAuthStore } from '@/core/stores/authStore'
+import { normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 
 const router = useRouter()
 const route = useRoute()
@@ -78,9 +79,13 @@ const poeOptions = computed(() => locationChoices('poe'))
 const podOptions = computed(() => locationChoices('pod'))
 const warehouseOptions = computed(() => locationChoices('warehouses'))
 const incotermChoices = computed(() => {
-  const items = catalogChoices('incoterms')
-  const values = items.length ? items : incoterms.map(value => ({ label: value, value }))
-  return values.filter(item => isMaritime.value || !['FAS','FOB','CFR','CIF'].includes(item.value.toUpperCase()))
+  const items = currentCatalog('incoterms').filter(item => item.isActive)
+  const choices = items.map(item => {
+    const code = normalizeIncotermCode(item.code, [item.value, item.label, item.slug].filter(Boolean).join(' '))
+    return { value: code, label: optionText(item) }
+  }).filter(item => incoterms.includes(item.value))
+  const values = choices.length ? [...new Map(choices.map(item => [item.value, item])).values()] : incoterms.map(value => ({ label: value, value }))
+  return values.filter(item => isMaritime.value || !['FAS','FOB','CFR','CIF'].includes(item.value))
 })
 function lookupLabel(key: string, id: string) { return optionText(currentCatalog(key).find(x => x.id === id) || { value: '', label: '', code: '' } as CatalogItemSelectDto) }
 function selectedForLabel(key: string, label: string) {
@@ -120,7 +125,7 @@ const loading = ref(true)
 const error = ref('')
 const form = ref({
   provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '',
-  shipmentType: '', cargoNature: '', transportType: '', incoterm: '',
+  shipmentType: '', cargoNature: '', transportType: '', incoterm: '', incotermName: '',
   pol: '', poe: '', pod: '', pickupAddress: '', pickupContact: '',
   pickupWindow: '', requiresPickup: false, whsName: '',
   destinationAddress: '', cargoDescription: '', packageCount: '',
@@ -203,8 +208,9 @@ function selectTransport(value: string) {
   } else {
     modality.value = value === 'MULTIMODAL' ? 'MULTIMODAL' : effectiveShipment.value
   }
-  if (!['MARITIME', 'MULTIMODAL'].includes(value) && ['FAS','FOB','CFR','CIF'].includes(form.value.incoterm.toUpperCase())) {
+  if (!['MARITIME', 'MULTIMODAL'].includes(value) && ['FAS','FOB','CFR','CIF'].includes(selectedIncoterm.value)) {
     form.value.incoterm = ''
+    form.value.incotermName = ''
   }
 }
 function selectShipment(value: string) {
@@ -236,7 +242,14 @@ const originOptions = [
 const incoterms = ['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP']
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
 const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
-const requiresWarehouse = computed(() => form.value.incoterm?.trim().toUpperCase() === 'FCA')
+const selectedIncoterm = computed(() => form.value.incoterm
+  ? normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
+  : '')
+const requiresWarehouse = computed(() => selectedIncoterm.value === 'FCA')
+const pickupSelection = computed({
+  get: () => form.value.requiresPickup ? 'YES' : 'NO',
+  set: (value: string) => { form.value.requiresPickup = value === 'YES' },
+})
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
   (modalOptions.some(x => x.value === modality.value) || (Boolean(editingId.value) && modality.value === 'MULTIMODAL')) &&
@@ -255,7 +268,12 @@ const blockers = computed(() => {
   if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
   if (!form.value.pol.trim()) result.push('POL / lugar de origen')
   if (!form.value.pod.trim()) result.push('POD / lugar de destino')
-  if (!form.value.incoterm.trim()) result.push('Incoterm')
+  if (!incoterms.includes(selectedIncoterm.value) || (!isMaritime.value && ['FAS','FOB','CFR','CIF'].includes(selectedIncoterm.value))) result.push('Incoterm aplicable al transporte')
+  if (form.value.requiresPickup) {
+    if (!form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
+    if (!form.value.pickupContact.trim()) result.push('Contacto de recolecta')
+    if (!form.value.pickupWindow.trim()) result.push('Ventana de recolecta')
+  }
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
   if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
@@ -643,6 +661,7 @@ async function save() {
   try {
     const openingData = {
       ...form.value,
+      incotermName: selectedIncoterm.value,
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
       ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined } : {}),
@@ -720,6 +739,10 @@ onMounted(async () => {
       const parsed = JSON.parse(detail.openingDataJson || '{}') as Record<string, unknown>
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         form.value = { ...form.value, ...parsed } as typeof form.value
+        const term = normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
+        if (incoterms.includes(term)) { form.value.incoterm = term; form.value.incotermName = term }
+        if (typeof parsed.requiresPickup !== 'boolean' && typeof parsed.pickupAddress === 'string' && parsed.pickupAddress.trim())
+          form.value.requiresPickup = true
         if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
       }
       if (!form.value.transportType) {
@@ -971,11 +994,20 @@ onMounted(async () => {
           </div>
           <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <h4 class="mb-1 text-sm font-black">Almacén de origen (WHS)</h4>
-            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Obligatorio para FCA con carga LCL o LTL.</p>
+            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Obligatorio para FCA, independientemente del tipo de embarque.</p>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
               :options="warehouseOptions" terminal-type="WHS" />
             <DhInput v-model="form.whsName" label="Nombre WHS / referencia registrada" />
+          </div>
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
+            <h4 class="text-base font-black">Recolecta de carga</h4>
+            <DhSelect v-model="pickupSelection" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
+            <div v-if="form.requiresPickup" class="grid gap-4 md:grid-cols-2">
+              <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
+              <DhInput v-model="form.pickupContact" label="Contacto de recolecta" />
+              <DhInput v-model="form.pickupWindow" label="Ventana de recolecta" />
+            </div>
           </div>
         </div>
 

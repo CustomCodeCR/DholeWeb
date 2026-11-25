@@ -22,8 +22,8 @@ function catalogMatch(items: CatalogItemSelectDto[], raw: unknown) {
 export function transportLabel(value: unknown): string {
   switch (String(value ?? '').toUpperCase()) {
     case 'FCL': case 'LCL': case 'MARITIME': return 'Marítimo'
-    case 'FTL': case 'LTL': case 'LAND': return 'Terrestre'
-    case 'AIR': return 'Aéreo'
+    case 'FTL': case 'LTL': case 'LAND': case 'ROAD': return 'Terrestre'
+    case 'AIR': case 'AIRCONSOL': return 'Aéreo'
     case 'MULTIMODAL': return 'Multimodal'
     default: return ''
   }
