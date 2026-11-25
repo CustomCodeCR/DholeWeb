@@ -25,7 +25,7 @@ function patchWizard(source: string) {
     code = replaceOne(
       code,
       "import { PricingService } from '@/core/services/pricingService'",
-      "import { PricingService } from '@/core/services/pricingService'\nimport { crmPath, crmRequest } from '@/modules/crm/services/crmApi'",
+      "import { PricingService } from '@/core/services/pricingService'\nimport { crmPath, crmRequest } from '@/modules/crm/services/crmApi'\nimport { uniquePersistedCrmMatch } from '@/modules/pricing/utils/pricingCrmRelink'",
       'CRM lookup for pricing modifications',
     )
     code = replaceOne(
@@ -35,6 +35,7 @@ function patchWizard(source: string) {
   id: string
   kind: 'account' | 'lead'
   displayName: string
+  legalName?: string
   executiveUserId: string
   executiveName: string
   isCastroFallasExecutive: boolean
@@ -48,16 +49,36 @@ async function refreshModificationCrmOwner(): Promise<boolean> {
   const pricingModification = Boolean(props.modificationRequestId && editingRate.value)
   // New Pricing quotations must also revalidate the owner; drafts and legacy
   // watchers may contain a previous user's executive after a CRM selection.
-  if (!pricingModification && !props.sellerRequestMode && !form.clientId) return true
-  const clientId = String(form.clientId || (pricingModification
+  const saved = editingRate.value
+  const recoverUnlinked = Boolean(props.rateId && !props.viewOnly && saved
+    && !saved.clientAccountId && !saved.clientLeadId && !form.clientId
+    && form.clientName.trim() && form.executiveName.trim()
+    && form.clientName.trim() === String(saved.clientName ?? '').trim()
+    && form.executiveName.trim() === String(saved.executiveName ?? '').trim())
+  if (!pricingModification && !props.sellerRequestMode && !form.clientId && !recoverUnlinked) return true
+  let clientId = String(form.clientId || (pricingModification
     ? editingRate.value?.clientAccountId || editingRate.value?.clientLeadId : '') || '').trim()
-  if (!clientId) return true // Historical quotations/requests never linked to CRM.
+  const stillRecovering = () => editingRate.value === saved && !form.clientId
+    && form.clientName.trim() === String(saved?.clientName ?? '').trim()
+    && form.executiveName.trim() === String(saved?.executiveName ?? '').trim()
   try {
+    if (!clientId && recoverUnlinked) {
+      const query = new URLSearchParams({ mode: 'create', q: String(saved?.clientName ?? '').trim(), pageSize: '100' })
+      const result = await crmRequest<{ items: ModificationCrmClientOption[]; total: number }>(
+        crmPath('pricing-client-options') + '?' + query.toString(),
+      )
+      if (!stillRecovering()) return false
+      const match = uniquePersistedCrmMatch(result, saved?.clientName, saved?.executiveName)
+      if (match) clientId = match.id
+    }
+    if (!clientId) return true // Ambiguous or unavailable identities require explicit selection.
     const params = new URLSearchParams({ mode: props.sellerRequestMode ? 'request' : 'create', selectedClientId: clientId, pageSize: '1' })
     const response = await crmRequest<{ items: ModificationCrmClientOption[] }>(
       crmPath('pricing-client-options') + '?' + params.toString(),
     )
     const client = response.items?.find(item => item.id.toLowerCase() === clientId.toLowerCase())
+    if (recoverUnlinked && (!stillRecovering() || !client
+      || !uniquePersistedCrmMatch({ items: [client], total: 1 }, saved?.clientName, saved?.executiveName))) return false
     if (!client || !client.kind || !client.displayName?.trim()) {
       step.value = 3
       toastStore.error('La cuenta o prospecto vinculado no está disponible en CRM. Verifique los permisos o seleccione un registro vigente.')
