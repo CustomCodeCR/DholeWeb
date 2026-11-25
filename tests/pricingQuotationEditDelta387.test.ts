@@ -42,6 +42,7 @@ function fixture() {
     selectedIncotermCode: { value: 'FOB' },
     crcImportContext: { value: true },
     watch: () => {},
+    nextTickForPoe: async () => {},
     ref: (v: any) => ({ value: v }),
     number: (v: unknown) => Number(v) || 0,
     normalizeCatalogValue: (v: unknown) => String(v ?? '').toLowerCase(),
@@ -67,7 +68,7 @@ function fixture() {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText
   const ctx = vm.createContext(root)
-  const operations = vm.runInContext(js + '\n({ snapshot: quoteEditContext387, original: quoteEditOriginalContext387, apply: quoteEditApplyDelta387, requested: quoteEditRequestedCosts387 })', ctx) as any
+  const operations = vm.runInContext(js + '\n({ snapshot: quoteEditContext387, original: quoteEditOriginalContext387, apply: quoteEditApplyDelta387, verify: quoteEditVerifyBeforeSave387, requested: quoteEditRequestedCosts387 })', ctx) as any
   operations.original.value = operations.snapshot()
   return { root, ...operations }
 }
@@ -284,4 +285,48 @@ test('Context reconciliation retries one transient failure without bypassing per
   assert.equal(await q.apply(), false)
   assert.equal(queries, 2)
   assert.equal(JSON.stringify(q.root.rateLines.value), previous)
+})
+
+test('P7 verified context is reused at P8 after CRM reselect, without querying costs again', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'NEW'
+  let queries = 0
+  q.root.loadApplicableCosts = async () => ++queries === 1
+  assert.equal(await q.apply(), true)
+  q.root.form.clientId = 'CRM-RECOVERED'
+  q.root.form.crmClientKind = 'account'
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 1)
+  q.root.form.agentId = 'DIFFERENT'
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 3)
+})
+test('save follows a superseded physical context and refuses a stable failing context', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'NEW'
+  let queries = 0
+  q.root.loadApplicableCosts = async () => {
+    queries++
+    if (queries === 1) { q.root.form.agentId = 'FINAL'; return false }
+    return true
+  }
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 2)
+  q.root.form.agentId = 'FAIL'
+  q.root.loadApplicableCosts = async () => false
+  assert.equal(await q.verify(), false)
+})
+
+
+test('verified context does not hide a changed package count or equipment quantity', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'NEW'
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return true }
+  assert.equal(await q.verify(), true)
+  q.root.form.cargoPackages = 3
+  assert.equal(await q.verify(), true)
+  q.root.form.equipmentQuantity = 2
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 3)
 })

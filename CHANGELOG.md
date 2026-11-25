@@ -1,3 +1,8 @@
+## [1.124.29] - 2026-11-24
+
+- DH-20261124-PRICING-COST-CONTEXT-RELINK: conservar operación al reseleccionar el cliente de la QUO; separar identidad CRM de la consulta física de cargos en edición; reutilizar reconciliación P7 verificada para la misma configuración; esperar actualización de Vue antes de capturar contexto y guardar. Mantener bloqueo para cambios de transporte no verificados. CI y staging pendientes.
+
+
 ## [1.124.28] - 2026-11-24
 
 - DH-20261124-PRICING-DUPLICATE-RELINK: recuperar automáticamente vínculos CRM perdidos por duplicaciones anteriores al guardar una QUO. Exigir coincidencia exacta única, propietario comercial coincidente, consulta completa, verificación por ID y ausencia de cambios concurrentes; persistir el vínculo en el PUT normal. Pruebas de regresión; CI/staging pendientes.
