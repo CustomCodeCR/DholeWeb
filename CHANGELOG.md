@@ -1,3 +1,7 @@
+## [1.131.0] - 2026-11-25
+
+- Filter opening agents by origin coverage, use shared searchable DH selects and compact the case summary. CI and staging pending.
+
 ## [1.130.1] - 2026-11-25
 
 - Restore opening service/provider capture, observations and compact grouped completeness review. Preserve all-status quotation export. CI/staging pending.

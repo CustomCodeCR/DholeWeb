@@ -42,6 +42,10 @@ const message = ref('')
 const record = ref<OperationsCaseDetail | null>(null)
 const completeness = ref<OpeningCompleteness | null>(null)
 const completenessError = ref(false)
+const completenessGroup = ref('PENDIENTE_PERMITIDO')
+const completenessTabs = computed(() => (['PENDIENTE_BLOQUEANTE','PENDIENTE_PERMITIDO','CONFIRMADO','NO_APLICA'] as const).map(status => ({ key: status, label: openingStatusLabel(status) + ' (' + (completeness.value?.fields.filter(field => field.completionStatus === status).length || 0) + ')' })))
+const visibleCompleteness = computed(() => (completeness.value?.fields || []).filter(field => field.completionStatus === completenessGroup.value).map(field => ({ ...field, id: field.fieldCode, label: openingFieldLabel(field.fieldCode) })))
+watch(completeness, value => { if (value?.missingFields.length) completenessGroup.value = 'PENDIENTE_BLOQUEANTE' })
 const hasAperturePanel = computed(() => record.value?.apertureType === 'AUTOMATIC' && ['PENDING_VALIDATION', 'APERTURA_REQUIERE_CAMBIOS'].includes(record.value.status))
 const openingData = computed<Record<string, unknown>>(() => {
   try {
@@ -71,7 +75,9 @@ const openingSections = computed(() => {
       { label: 'Naturaleza de carga', key: 'cargoNature' },
       { label: 'Bultos', key: 'packageCount' },
       { label: 'Tipo de bulto', key: 'packageType' },
-      { label: 'Peso', key: 'weightValue' },
+      { label: 'Peso estimado', key: 'estimatedWeightValue' },
+      { label: 'Unidad estimada', key: 'estimatedWeightUnit' },
+      { label: 'Peso real', key: 'weightValue' },
       { label: 'Unidad de peso', key: 'weightUnit' },
       { label: 'Volumen', key: 'volumeValue' },
       { label: 'Unidad de volumen', key: 'volumeUnit' },
@@ -84,13 +90,16 @@ const openingSections = computed(() => {
       { label: 'Naviera', key: 'carrierReference' },
       { label: 'Agente', key: 'agentReference' },
       { label: 'Agente de consolidación', key: 'lclGroupAgentReference' },
-      { label: 'Merchant', key: 'merchantReference' },
+      { label: 'Transporte en destino', key: 'haulageMode' },
+      { label: 'Aerolínea', key: 'airline' },
+      { label: 'Transportista', key: 'roadCarrierReference' },
       { label: 'Observaciones', key: 'observations' },
     ] },
   ]
+  const inapplicable = new Set(completeness.value?.fields.filter(field => field.completionStatus === 'NO_APLICA').map(field => field.fieldCode))
   return sections.map(section => ({
     title: section.title,
-    rows: section.rows.map(row => {
+    rows: section.rows.filter(row => !inapplicable.has(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
       const value = openingField(row.key, data)
       return { label: row.label, value: value || (
         row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
@@ -258,7 +267,9 @@ function responsibleName(id: string | null | undefined): string {
   return id ? responsibleNames.value[id] || 'Nombre pendiente de consulta' : 'Sin operativo asignado'
 }
 const { openingDocuments, downloadDocument, documentError } = useOpeningDocuments(() => openingData.value.supportDocuments)
-const openingServices = computed(() => Array.isArray(openingData.value.services)
+const openingServices = computed(() => Array.isArray(openingData.value.serviceSelections) && openingData.value.serviceSelections.length
+  ? (openingData.value.serviceSelections as Array<{ label?: string }>).map(item => item.label || '').filter(Boolean)
+  : Array.isArray(openingData.value.services)
   ? (openingData.value.services as unknown[]).map(x => typeof x === 'string' ? x :
       x && typeof x === 'object' ? String((x as Record<string, unknown>).name ||
         (x as Record<string, unknown>).label || '') : '').filter(Boolean) : [])
@@ -713,21 +724,24 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               </div>
               <p v-if="documentError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ documentError }}</p>
             </div>
-            <div v-if="!hasAperturePanel" class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3" aria-live="polite">
-              <h4 class="text-sm font-semibold">Estados individuales de validación de apertura</h4>
-              <p v-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los estados de apertura.</p>
-              <p v-else-if="!completeness" class="text-xs text-[var(--dh-text-muted)]">Consultando estados…</p>
-              <template v-else>
-                <p class="text-xs text-[var(--dh-text-muted)]">{{ completeness.missingFields.length }} bloqueantes · {{ completeness.fields.filter(f => f.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</p>
-                <div v-for="field in completeness.fields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span>
-                  <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
-                </div>
-              </template>
-            </div>
           </DhCard>
         </div>
         <div class="space-y-4">
+          <DhCard v-if="!hasAperturePanel" title="Validación de apertura" padding="sm">
+            <p v-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los estados.</p>
+            <p v-else-if="!completeness" class="text-xs text-[var(--dh-text-muted)]">Consultando estados…</p>
+            <template v-else>
+              <DhBadge :variant="completeness.missingFields.length ? 'danger' : 'success'">{{ completeness.missingFields.length ? completeness.missingFields.length + ' bloqueantes' : 'Sin campos bloqueantes' }}</DhBadge>
+              <DhTabs v-model="completenessGroup" :items="completenessTabs" aria-label="Estados de apertura" class="mt-3" />
+              <div class="mt-2 max-h-72 overflow-y-auto dh-scrollbar">
+                <div v-for="field in visibleCompleteness" :key="field.id" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2">
+                  <span class="text-xs font-medium">{{ field.label }}</span>
+                  <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+                </div>
+                <p v-if="!visibleCompleteness.length" class="py-3 text-xs text-[var(--dh-text-muted)]">No hay campos en este estado.</p>
+              </div>
+            </template>
+          </DhCard>
           <DhCard title="Pendientes del expediente">
             <div v-for="task in workspace.tasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
               <p class="font-bold">{{ task.title }}</p>

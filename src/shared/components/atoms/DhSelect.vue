@@ -1,14 +1,23 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import DhMultiSelect from './DhMultiSelect.vue'
 import { useI18n } from 'vue-i18n'
 export interface DhSelectOption { label: string; value: string | number; disabled?: boolean }
 
-defineProps<{ modelValue: string | number | null; label?: string; placeholder?: string; options: DhSelectOption[]; error?: string; disabled?: boolean }>()
+const props = defineProps<{ searchable?: boolean; modelValue: string | number | null; label?: string; placeholder?: string; options: DhSelectOption[]; error?: string; disabled?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string | number] }>()
 const { t } = useI18n()
+const searchableOptions = computed(() => props.options.filter(option => !option.disabled).map(option => ({ label: option.label, value: String(option.value) })))
+const selectedValue = computed(() => props.modelValue == null || props.modelValue === '' ? [] : [String(props.modelValue)])
+function selectSearchValue(values: string[]) {
+  const option = props.options.find(item => String(item.value) === values[0] && !item.disabled)
+  emit('update:modelValue', option?.value ?? '')
+}
 </script>
 
 <template>
-  <label class="dh-select-wrap block">
+  <DhMultiSelect v-if="searchable" :model-value="selectedValue" :options="searchableOptions" :label="label" :placeholder="placeholder ?? t('common.select')" :disabled="disabled" :error="error" single @update:model-value="selectSearchValue" />
+  <label v-else class="dh-select-wrap block">
     <span v-if="label" class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">{{ label }}</span>
     <select
       :value="modelValue ?? ''"

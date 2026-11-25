@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhMultiSelect, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { agentMatchesOrigin } from '@/modules/catalogs/utils/agentOriginCoverage'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi, type OpeningCompleteness } from '../services/operationsApi'
@@ -177,11 +178,20 @@ const form = ref({
   supportEntityId: '',
   supportDocuments: [] as Array<{ id: string; fileName: string; category: string; categoryLabel: string; sizeInBytes: number }>,
 })
+const eligibleAgents = computed(() => {
+  const origin = currentCatalog('pol').find(item => item.id === selectedPol.value)
+  if (!origin) return []
+  return currentCatalog('agents').filter(item => item.isActive && agentMatchesOrigin(item, origin, currentCatalog('pol'), false))
+})
 const providerOptions = (group: string, previous: string, id: string) => {
-  const options = currentCatalog(group).filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item) }))
-  if (id && previous && !options.some(option => option.value === id)) options.push({ value: id, label: previous + ' (registrado)' })
+  const options = (group === 'agents' ? eligibleAgents.value : currentCatalog(group).filter(item => item.isActive)).map(item => ({ value: item.id, label: optionText(item) }))
+  if (editingId.value && id && previous && !options.some(option => option.value === id)) options.push({ value: id, label: previous + ' (registrado)' })
   return options
 }
+watch([selectedPol, eligibleAgents], () => {
+  if (editingId.value || restoringOpening || catalogLoading.value || !form.value.agentId) return
+  if (!eligibleAgents.value.some(item => item.id === form.value.agentId)) { form.value.agentId = ''; form.value.agentReference = '' }
+})
 const serviceOptions = computed(() => currentCatalog('pricing-services').filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item) })))
 const selectedServiceLabels = computed(() => (form.value.services as unknown[]).map(service => {
   if (typeof service === 'string') return serviceOptions.value.find(option => option.value === service)?.label || 'Servicio registrado'
@@ -1377,12 +1387,13 @@ onMounted(async () => {
             <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Selecciona los servicios acordados. Los proveedores pueden confirmarse en Origen; no se crean costos ni tarifas.</p>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="md:col-span-2" v-if="!editingId">
-                <DhMultiSelect v-model="form.services" :options="serviceOptions" label="Servicios solicitados" placeholder="Seleccionar servicios de Pricing" />
+                <DhMultiSelect v-model="form.services" :options="serviceOptions" label="Servicios solicitados" placeholder="Seleccionar servicios" show-selected-labels search-placeholder="Buscar servicio..." />
                 <p v-if="!serviceOptions.length" class="mt-2 text-xs text-[var(--dh-text-muted)]">Catálogo de servicios no disponible. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadPricingCatalogs" /></p>
               </div>
-              <DhSelect v-if="isMaritime" :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera (si se conoce)" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
-              <DhSelect :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
-              <DhSelect v-if="isMaritime" v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
+              <DhSelect v-if="isMaritime" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera (si se conoce)" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
+              <DhSelect searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
+              <p v-if="selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
+              <DhSelect v-if="isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
               <DhInput v-if="form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
               <DhInput v-if="form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
               <div class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
