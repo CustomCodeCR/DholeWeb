@@ -572,6 +572,7 @@ function draftSnapshot(): Record<string, unknown> {
   const { weightValue: _manualWeight, weightUnit: _manualWeightUnit, ...draftForm } = form.value
   return {
     savedAt: Date.now(), version: 2, form: draftForm,
+    routeIds: { pol: selectedPol.value, poe: selectedPoe.value, pod: selectedPod.value },
     accountId: accountId.value, selectedClientName: selectedClientName.value,
     modality: modality.value, step: activeStep.value,
     executiveName: executiveName.value, executiveUserId: executiveUserId.value,
@@ -644,6 +645,15 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
     const step = Number(draft.step)
     activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
     reconcileLocations()
+    const routeIds = draft.routeIds
+    if (routeIds && typeof routeIds === 'object' && !Array.isArray(routeIds)) {
+      const ids = routeIds as Record<string, unknown>
+      for (const [group, target] of [['pol', selectedPol], ['poe', selectedPoe], ['pod', selectedPod]] as const) {
+        const id = ids[group]
+        if (typeof id === 'string' && currentCatalog(group).some(item => item.id === id && item.isActive && optionText(item) === form.value[group]))
+          target.value = id
+      }
+    }
     lastAutoSaveAt.value = new Date(Number(draft.savedAt)).toLocaleTimeString([], {
       hour: '2-digit', minute: '2-digit',
     })
@@ -1306,7 +1316,7 @@ onMounted(async () => {
                   <span v-if="form.packageCount" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.packageCount }} {{ form.packageType || 'bultos' }}</span>
                   <span v-if="form.estimatedWeightValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.estimatedWeightValue }} {{ form.estimatedWeightUnit }} estimado</span>
                   <span v-if="form.volumeValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.volumeValue }} {{ form.volumeUnit }}</span>
-                  <span v-for="(item, i) in form.equipment.filter(x => x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
+                  <span v-for="(item, i) in form.equipment.filter(x => needsEquipment && x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
                 </div>
                 <div class="mt-4 flex flex-wrap gap-2">
                   <DhBadge v-if="form.isImo" variant="warning">IMO / peligrosa</DhBadge>
