@@ -1,4 +1,4 @@
-import { onScopeDispose, watch, type Ref } from 'vue'
+import { computed, onScopeDispose, watch, type Ref } from 'vue'
 import { useAuthStore } from '@/core/stores/authStore'
 
 /**
@@ -11,6 +11,20 @@ import { useAuthStore } from '@/core/stores/authStore'
 export function useOperationsCaseRealtime(
   caseId: Ref<string>,
   onInvalidated: (id: string) => void,
+): void {
+  useOperationsRealtime(caseId, onInvalidated, false)
+}
+
+/** Subscribe to the authorized company dashboard, including cases created after mount. */
+export function useOperationsDashboardRealtime(onInvalidated: () => void): void {
+  const auth = useAuthStore()
+  useOperationsRealtime(computed(() => auth.userId ?? ''), onInvalidated, true)
+}
+
+function useOperationsRealtime(
+  caseId: Readonly<Ref<string>>,
+  onInvalidated: (id: string) => void,
+  dashboard: boolean,
 ): void {
   const auth = useAuthStore()
   let disposed = false
@@ -48,7 +62,8 @@ export function useOperationsCaseRealtime(
     if (!id || disposed || expected !== generation) return
     try {
       const token = await auth.ensureValidAccessToken()
-      if (disposed || expected !== generation || !token) return
+      if (disposed || expected !== generation) return
+      if (!token) { schedule(id, expected); return }
       const base = String(import.meta.env.VITE_API_URL || window.location.origin)
       const url = new URL('/hubs/operations', base)
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -59,6 +74,7 @@ export function useOperationsCaseRealtime(
       socket = ws
       let buffer = ''
       let handshaken = false
+      let joined = false
       const frame = (value: unknown) => JSON.stringify(value) + '\u001e'
       ws.onopen = () => {
         if (expected === generation) ws.send(frame({ protocol: 'json', version: 1 }))
@@ -75,17 +91,27 @@ export function useOperationsCaseRealtime(
             try {
               const message = JSON.parse(packet) as {
                 type?: number; target?: string; arguments?: Array<{ caseId?: string }>
-                error?: string
+                error?: string; invocationId?: string
               }
               if (!handshaken) {
                 if (message.error) { ws.close(); return }
                 handshaken = true
-                attempt = 0
-                ws.send(frame({ type: 1, target: 'JoinCase', arguments: [id], invocationId: '1' }))
+                ws.send(frame({ type: 1, target: dashboard ? 'JoinDashboard' : 'JoinCase',
+                  arguments: dashboard ? [] : [id], invocationId: '1' }))
                 ping = setInterval(() => {
                   if (ws.readyState === WebSocket.OPEN) ws.send(frame({ type: 6 }))
                 }, 15000)
-              } else if (message.type === 1 && message.target === 'operationsChanged' &&
+              } else if (message.type === 3 && message.invocationId === '1') {
+                if (message.error) { ws.close(); return }
+                joined = true
+                attempt = 0
+                // Reconcile the REST snapshot after joining or reconnecting.
+                // A Pub/Sub invalidation may have been missed while offline.
+                if (dashboard) onInvalidated(id)
+              } else if (joined && dashboard && message.type === 1 &&
+                         message.target === 'operationsDashboardChanged') {
+                onInvalidated(id)
+              } else if (joined && !dashboard && message.type === 1 && message.target === 'operationsChanged' &&
                          message.arguments?.[0]?.caseId?.toLowerCase() === id.toLowerCase()) {
                 onInvalidated(id)
               } else if (message.type === 7) {
@@ -108,10 +134,10 @@ export function useOperationsCaseRealtime(
       schedule(id, expected)
     }
   }
-  const stopWatch = watch(caseId, id => {
+  const stopWatch = watch([caseId, () => auth.userId], ([id, userId]) => {
     stop()
     attempt = 0
-    if (id) void connect(id, generation)
+    if (id && userId) void connect(id, generation)
   }, { immediate: true })
 
   onScopeDispose(() => {
