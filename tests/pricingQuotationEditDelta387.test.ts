@@ -411,3 +411,66 @@ test('invalid Air agent never bypasses cost verification', async () => {
   assert.equal(await q.verify(), false)
   assert.equal(queries, 2)
 })
+
+
+test('air revision with agent AND weight changes persists reviewed unit prices without catalog', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.shipmentModeForApi.value = 'AirConsol'
+  q.root.form.cargoWeightKg = 100
+  q.root.form.cargoPackages = 2
+  q.original.value = q.snapshot()
+  q.root.eligibleAgents.value = [{ id: 'AIR-AGENT' }]
+  q.root.form.agentId = 'AIR-AGENT'
+  q.root.form.cargoWeightKg = 240
+  q.root.form.cargoPackages = 4
+  q.root.rateLines.value[0].chargeBasis = 'PerKg'
+  q.root.rateLines.value[0].costAmount = 4
+  q.root.rateLines.value[0].saleAmount = 6
+  q.root.explicitlyRemovedPersistedDetailIds.value.add('D')
+  q.root.rateLines.value = q.root.rateLines.value.filter((line: any) => line.detailId !== 'D')
+  q.root.rateLines.value.push({ key: 'manual:extra', manual: true, included: true, costAmount: 20, saleAmount: 30 })
+  const before = JSON.stringify(q.root.rateLines.value)
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  assert.equal(await q.apply(), true)
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 0)
+  assert.equal(JSON.stringify(q.root.rateLines.value), before)
+  assert.equal(q.root.form.cargoWeightKg, 240)
+  assert.deepEqual(Array.from(q.requested()), [])
+  q.root.form.serviceIds.push('ADUANAS')
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 2)
+})
+
+test('air weight-only edit does not require master catalog; route and invalid agent still do', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.shipmentModeForApi.value = 'Air'
+  q.root.form.cargoWeightKg = 100
+  q.original.value = q.snapshot()
+  q.root.form.cargoWeightKg = 180
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 0)
+  q.root.form.agentId = 'NOT-ELIGIBLE'
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 2)
+  q.root.form.agentId = 'WWL'
+  q.root.form.originId = 'OTHER-POL'
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 4)
+})
+
+test('air invalid negative weight does not use the reviewed-price preservation path', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.shipmentModeForApi.value = 'Air'
+  q.root.form.cargoWeightKg = 100
+  q.original.value = q.snapshot()
+  q.root.form.cargoWeightKg = -1
+  q.root.loadApplicableCosts = async () => false
+  assert.equal(await q.verify(), false)
+})
