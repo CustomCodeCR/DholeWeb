@@ -13,7 +13,6 @@ const { t, locale } = useI18n()
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
-const canReview = computed(() => auth.hasScope('operations.aperture.validation.review'))
 const canAudit = computed(() => auth.hasScope('operations.audit.read'))
 const rows = ref<ApertureRow[]>([])
 const total = ref(0)
@@ -176,7 +175,7 @@ async function assign() {
   finally { busy.value = false }
 }
 async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
-  if (!selected.value || busy.value || !canReview.value) return
+  if (!selected.value || busy.value || !pair.value?.validators.some(v => v.id === id && v.canReview === true)) return
   if (decision === 'REJECTED' && !comment.value.trim()) {
     error.value = t('operations.validation.requiredReason'); return
   }
@@ -261,7 +260,7 @@ onMounted(load)
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('operations.validation.personId', { id: short(validator.userId) }) }}</p>
             <p v-if="validator.reviewedAtUtc" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ label(validator.reviewedAtUtc) }}</p>
             <p v-if="validator.comment" class="mt-3 whitespace-pre-wrap text-sm text-[var(--dh-text-soft)]">{{ validator.comment }}</p>
-            <template v-if="canReview && validator.userId === auth.userId && validator.status === 'PENDING' && pair?.stage.status === 'PENDING_VALIDATION'">
+            <template v-if="validator.canReview === true">
               <DhTextarea v-model="comment" class="mt-4" :label="t('operations.validation.comment')" :placeholder="t('operations.validation.commentRequired')" :rows="3" />
               <div class="mt-3 flex flex-wrap gap-2">
                 <DhButton size="sm" :label="t('operations.validation.approve')" :loading="busy" @click="decide(validator.id, 'APPROVED')" />

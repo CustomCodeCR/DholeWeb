@@ -32,6 +32,7 @@ export interface OperationsAudit {
   occurredAtUtc: string
 }
 export interface OperationsValidator {
+  canReview?: boolean
   id: string
   slot: number
   userId: string

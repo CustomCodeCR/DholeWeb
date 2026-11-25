@@ -13,7 +13,7 @@ import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealt
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 
-import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable } from '../utils/commercialPresentation'
+import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, useOpeningDocuments } from '../utils/commercialPresentation'
 
 const { locale } = useI18n()
 const route = useRoute()
@@ -157,16 +157,7 @@ const openingEquipment = computed(() => {
     return label ? [{ label, quantity: Math.max(0, Number(equipment.quantity) || 0) }] : []
   })
 })
-const openingDocuments = computed(() => {
-  const values = opening.value.supportDocuments
-  if (!Array.isArray(values)) return [] as Array<{ id: string; label: string; fileName: string }>
-  return values.flatMap(item => {
-    if (!item || typeof item !== 'object') return []
-    const document = item as Record<string, unknown>
-    const fileName = String(document.fileName || '').trim()
-    return fileName ? [{ id: String(document.id || fileName), label: String(document.categoryLabel || 'Documento'), fileName }] : []
-  })
-})
+const { openingDocuments, downloadDocument, documentError } = useOpeningDocuments(() => opening.value.supportDocuments)
 const openingMissing = computed(() => {
   const items = opening.value.missingFields
   return Array.isArray(items) ? items.filter((v): v is string => typeof v === 'string') : []
@@ -523,7 +514,11 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             <div class="flex items-center gap-2"><FileText class="h-4 w-4 text-[var(--dh-primary)]" /><p class="text-xs font-black">Documentos ({{ openingDocuments.length }})</p></div>
             <p v-if="!openingDocuments.length" class="mt-1 text-xs text-[var(--dh-text-muted)]">Sin documentos registrados.</p>
             <div v-else class="mt-2 space-y-1.5">
-              <p v-for="doc in openingDocuments" :key="doc.id" class="break-words rounded-lg bg-[var(--dh-input)] p-2 text-xs"><strong>{{ doc.label }}</strong> · {{ doc.fileName }}</p>
+              <div v-for="doc in openingDocuments" :key="doc.id" class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--dh-input)] p-2 text-xs">
+                <span class="break-words"><strong>{{ doc.label }}</strong> · {{ doc.fileName }}</span>
+                <DhButton v-if="doc.storageId" size="sm" variant="secondary" label="Descargar" @click="downloadDocument(doc)" />
+              </div>
+              <p v-if="documentError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ documentError }}</p>
             </div>
           </div>
         </DhCard>
