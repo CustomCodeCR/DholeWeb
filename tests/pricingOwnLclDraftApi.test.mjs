@@ -17,3 +17,18 @@ test('own LCL destination costs use the shared wizard bundle and selected IDs', 
   assert.match(service, /ownLclDestinationPreview: true/)
   assert.match(view, /poeId: arrivalPoe\?\.id/)
 })
+
+
+test('own LCL create, edit and view share a drawer with persistent section navigation', () => {
+  assert.match(view, /<DhDrawer :open="editorOpen"[^>]*@close="closeEditor"/)
+  assert.doesNotMatch(view, /<section v-if="editorOpen"/)
+  assert.match(view, /<DhTabs v-model="editorTab" :items="editorTabs"/)
+  for (const key of ['data', 'tariff', 'fob', 'quotes']) {
+    assert.ok(view.includes("v-show=\"editorTab === '" + key + "'\""), key)
+  }
+  assert.match(view, /<template #footer>/)
+  assert.match(view, /function closeEditor\(\) \{\s*if \(editorBusy\.value\) return/)
+  assert.match(view, /editorTab\.value = 'data'\s*editorOpen\.value = true/)
+  assert.match(view, /!isMiamiMatrix\.value \? \[\{ key: 'fob'/)
+  assert.match(view, /selectedId\.value \? \[\{ key: 'quotes'/)
+})

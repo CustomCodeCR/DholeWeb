@@ -1,3 +1,7 @@
+## [1.126.4] - 2026-11-25
+
+- PATCH DH-20261125-OWN-LCL-DRAWER: mover creación, edición y consulta de consolidados LCL propios al DhDrawer compartido, con DhTabs para datos/costos, tarifario, FOB por país y QUOs vinculadas; pie de acciones fijo y permisos existentes. Sin cambios de contratos REST ni cálculos. CI y staging pendientes.
+
 ## [1.126.3] - 2026-11-25
 
 - DH-20261125-OWN-LCL-WIZARD-BUNDLE: use /api/pricing/costs/wizard-bundle for own LCL destination charges with real selected context, show approved fallback provenance, retain saved tariff lines. CI/staging pending.

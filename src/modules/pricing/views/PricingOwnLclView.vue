@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { Edit3, ExternalLink, Eye, Plus, RefreshCcw, Ship, X } from 'lucide-vue-next'
+import { Edit3, ExternalLink, Eye, Plus, RefreshCcw, Ship } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect } from '@/shared/components/atoms'
-import { DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
-import { DhPageHeader } from '@/shared/components/organisms'
+import { DhDataTable, DhSearchInput, DhTabs, type DhTableColumn, type DhTabItem } from '@/shared/components/molecules'
+import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import {
   OwnLclConsolidationService,
@@ -64,6 +64,8 @@ const canViewLinkedQuotes = canViewConsolidation
 const canOpenLinkedQuote = computed(() => authStore.hasScope(PRICING_SCOPES.rates.view))
 const canUpdateConsolidation = computed(() => authStore.hasScope(PRICING_SCOPES.ownLclConsolidations.update))
 const editorOpen = ref(false)
+const editorTab = ref('data')
+const editorBusy = computed(() => saving.value || pricingLineSaving.value || scenarioSaving.value || renameSaving.value || hydratingPricingEditor.value)
 const readOnly = ref(false)
 const selectedAutomation = ref<OwnLclAutomationSnapshotDto | null>(null)
 const profilePreview = ref<OwnLclDestinationProfileDto | null>(null)
@@ -298,12 +300,23 @@ function resetForm() {
     includeEmptyReturn: true,
   })
 }
+const editorTabs = computed<DhTabItem[]>(() => [
+  { key: 'data', label: 'Datos y costos' },
+  { key: 'tariff', label: isMiamiMatrix.value ? 'Costos Miami' : 'Costos y ventas' },
+  ...(!isMiamiMatrix.value ? [{ key: 'fob', label: 'Ventas FOB por país' }] : []),
+  ...(selectedId.value ? [{ key: 'quotes', label: 'QUOs vinculadas' }] : []),
+])
+watch(editorTabs, (tabs) => {
+  if (!tabs.some((tab) => tab.key === editorTab.value)) editorTab.value = 'data'
+})
+
 function newConsolidation() {
   if (!canCreateConsolidation.value) {
     toastStore.warning('Permiso requerido', 'Necesita el scope pricing.own-lcl-consolidation.create para crear consolidados propios.')
     return
   }
   resetForm()
+  editorTab.value = 'data'
   editorOpen.value = true
   void loadDraftPricingLines()
 }
@@ -359,6 +372,7 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
   selectedId.value = row.id
   if (canViewLinkedQuotes.value) void loadLinkedQuotes(row.id)
   readOnly.value = mode === 'view' || !canUpdateConsolidation.value
+  editorTab.value = 'data'
   editorOpen.value = true
   profilePreview.value = null
   scenarioMatrix.value = null
@@ -749,6 +763,7 @@ async function save() {
 }
 
 function closeEditor() {
+  if (editorBusy.value) return
   if (renameTimer) {
     clearTimeout(renameTimer)
     renameTimer = null
@@ -858,8 +873,9 @@ onMounted(load)
       </div>
     </section>
 
-    <section v-if="editorOpen" class="rounded-[30px] border border-[var(--dh-border)] bg-[var(--dh-card)] shadow-[var(--dh-shadow)] backdrop-blur-2xl">
-      <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--dh-border)] p-5">
+    <DhDrawer :open="editorOpen" :title="selectedId ? (readOnly ? 'Ver consolidado' : 'Editar consolidado') : 'Crear consolidado'" size="xl" @close="closeEditor">
+      <div class="space-y-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div class="flex items-center gap-2">
             <Ship class="h-5 w-5 text-[var(--dh-primary)]" />
@@ -869,11 +885,13 @@ onMounted(load)
           </div>
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Los cambios de costo y venta quedan ligados únicamente a este consolidado.</p>
         </div>
-        <DhButton :icon="X" variant="ghost" aria-label="Cerrar" @click="closeEditor" />
-      </header>
+      </div>
+      <div class="sticky top-0 z-10 bg-[var(--dh-bg)] py-1">
+        <DhTabs v-model="editorTab" :items="editorTabs" aria-label="Secciones del consolidado" />
+      </div>
 
 
-      <section v-if="selectedId" class="mx-5 mt-5 rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]" aria-label="Cotizaciones vinculadas">
+      <section v-if="selectedId" v-show="editorTab === 'quotes'" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]" aria-label="Cotizaciones vinculadas">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 class="text-sm font-black text-[var(--dh-text)]">QUOs vinculadas a este consolidado</h3>
@@ -907,11 +925,11 @@ onMounted(load)
         </div>
       </section>
 
-      <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,.85fr)]">
-        <div class="space-y-5">
+      <div v-show="editorTab === 'data'" class="space-y-4">
+        <div class="space-y-4">
           <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <p class="mb-4 text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Datos del proyecto y costos</p>
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div class="grid gap-3 sm:grid-cols-2">
               <DhInput v-model="form.name" label="Nombre del consolidado" placeholder="Ej. Consolidado China 1 / Miami 1" :disabled="readOnly" />
               <DhInput v-model.number="form.consolidationNumber" type="number" min="1" step="1" label="Número del consolidado" placeholder="Automático si se deja vacío" :disabled="readOnly" />
               <DhInput v-model="form.booking" label="Booking" placeholder="Booking de naviera" :disabled="readOnly" />
@@ -919,7 +937,7 @@ onMounted(load)
               <DhSelect v-model="form.carrierId" label="Naviera" :disabled="readOnly" :options="[{ label: 'Seleccione', value: '' }, ...carriers.map((x) => ({ label: x.label, value: x.id }))]" />
               <PricingLocationSearchSelect v-model="form.polId" label="Origen (POL)" placeholder="Buscar puerto de origen" search-placeholder="Buscar ciudad, puerto o código…" terminal-type="CY" :disabled="readOnly" :options="polLocationOptions" />
               <PricingLocationSearchSelect v-model="form.panamaArrivalPortCode" label="Puerto de llegada naviera (POE)" placeholder="Buscar POE" search-placeholder="Buscar cualquier POE activo…" terminal-type="CY" :disabled="readOnly" :options="poeLocationOptions" />
-              <div class="md:col-span-2 xl:col-span-2"><PricingContainerSelector v-model="form.containerId" transport="maritime" :disabled="readOnly" /></div>
+              <div class="sm:col-span-2"><PricingContainerSelector v-model="form.containerId" transport="maritime" :disabled="readOnly" /></div>
               <DhInput v-model.number="form.oceanFreight" type="number" min="0" step="0.01" label="Ocean Freight USD" :disabled="readOnly" />
               <DhInput v-model.number="form.maximumCbm" type="number" min="0.01" step="0.01" label="Capacidad máxima CBM" :disabled="readOnly" />
               <DhInput v-if="!isMiamiMatrix" v-model.number="form.carrierDestinationCostTotal" type="number" min="0" step="0.01" label="Costos destino USD" :disabled="readOnly" />
@@ -959,13 +977,35 @@ onMounted(load)
             <div v-else class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3 text-xs font-semibold text-[var(--dh-text-muted)]">Seleccione naviera + POE para consultar la Matriz de costos.</div>
           </section>
 
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+        </div>
+        <div class="space-y-4">
+          <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl">
+            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Costo del consolidado</p>
+            <div v-if="isMiamiMatrix" class="mt-4 grid gap-3 sm:grid-cols-2">
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }} / CBM</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">USD {{ money(previewMiamiOceanPerCft) }} / CFT</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean + cargos variables Miami</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm + previewMiamiCbmCost) }} / CBM</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">USD {{ money(previewMiamiVariableCostPerCft) }} / CFT</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costos por HBL / embarque</p><p class="mt-1 text-xl font-black">USD {{ money(previewMiamiHblCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La venta se resuelve por tarifa comercial A/B/C/D/NVOCC/LITTLE.</p></div>
+            </div>
+            <div v-else class="mt-4 grid gap-3 sm:grid-cols-2">
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Destino / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewDestinationPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Base Panamá / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Flete terrestre + Bunker / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewCrTransferPerCbm) }}</p></div>
+              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Utilidad flete / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(form.freightProfitPerCbm) }}</p></div>
+            </div>
+            <div v-if="isMiamiMatrix" class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Matriz independiente Miami</p><p class="mt-1 text-sm font-black">Ocean + cargos Miami configurados por proyecto</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">No utiliza la base Panamá/China ni sus diferenciales por puerto.</p></div>
+            <div v-else class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
+          </section>
+          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación · Matriz {{ formMatrixType }}</p><p v-if="isMiamiMatrix" class="mt-2">Miami mantiene su propia matriz por consolidado. Manejos, Forwarding, HBL, Bunker y THC/D se guardan aquí y no heredan cargos, escenarios FOB ni diferenciales de la matriz China. La utilidad/CBM configurada se aplica al Flete Internacional Marítimo.</p><p v-else class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. La utilidad/CBM configurada en este consolidado se aplica al Flete Internacional Marítimo para Panamá, Costa Rica y Centroamérica por igual (USD {{ money(form.freightProfitPerCbm) }} actualmente).</p></section>
+        </div>
+      </div>
+          <section v-show="editorTab === 'tariff'" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Tarifario del consolidado · Matriz {{ formMatrixType }} · {{ isMiamiMatrix ? 'costos operativos' : 'costos y ventas' }}</p>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isMiamiMatrix ? 'Miami guarda aquí los costos reales del proyecto. La venta ya no se define en esta matriz: se calcula por tipo de cliente en la cotización.' : 'Estos valores pertenecen solo a este consolidado. Las cotizaciones LCL propias los cargan automáticamente y ya no hay que corregirlos cotización por cotización.' }}</p>
               </div>
-              <DhButton v-if="selectedId && !readOnly" :label="isMiamiMatrix ? 'Guardar costos Miami' : 'Guardar costos y ventas'" :loading="pricingLineSaving" variant="secondary" @click="savePricingLineRows()" />
+              <DhButton v-if="selectedId && !readOnly" :label="isMiamiMatrix ? 'Guardar costos Miami' : 'Guardar costos y ventas'" :loading="pricingLineSaving" variant="secondary" :disabled="editorBusy" @click="savePricingLineRows()" />
             </div>
 
             <div v-if="pricingLinesLoading" class="mt-4 text-sm text-[var(--dh-text-muted)]">Cargando tarifario del backend...</div>
@@ -1014,13 +1054,13 @@ onMounted(load)
             </div>
           </section>
 
-          <section v-if="!isMiamiMatrix" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
+          <section v-if="!isMiamiMatrix" v-show="editorTab === 'fob'" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">{{ isSinglePolMatrix ? 'Escenarios FOB · POL único' : 'Escenarios FOB por país' }}</p>
                 <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">{{ isSinglePolMatrix ? `Este consolidado utiliza únicamente ${currentPolLabel}. No hereda los diferenciales de Shanghai ni los demás puertos.` : 'Abra un país para ver los puertos de China, el costo calculado y la venta asociada a este consolidado.' }}</p>
               </div>
-              <DhButton v-if="selectedId && !readOnly" label="Guardar ventas FOB" :loading="scenarioSaving" variant="secondary" @click="saveScenarioRows()" />
+              <DhButton v-if="selectedId && !readOnly" label="Guardar ventas FOB" :loading="scenarioSaving" variant="secondary" :disabled="editorBusy" @click="saveScenarioRows()" />
             </div>
             <div v-if="!selectedId" class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-4 text-xs font-semibold text-[var(--dh-text-muted)]">Guarde primero los datos base del consolidado para habilitar la matriz de ventas por país.</div>
             <div v-else-if="scenarioLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Cargando escenarios...</div>
@@ -1047,31 +1087,11 @@ onMounted(load)
               </details>
             </div>
           </section>
-        </div>
-
-        <aside class="space-y-4">
-          <section class="rounded-[26px] border border-[var(--dh-border)] bg-[var(--dh-input)] p-5 shadow-[var(--dh-shadow-sm)] backdrop-blur-xl">
-            <p class="text-xs font-black uppercase tracking-[0.14em] text-[var(--dh-text-muted)]">Costo del consolidado</p>
-            <div v-if="isMiamiMatrix" class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }} / CBM</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">USD {{ money(previewMiamiOceanPerCft) }} / CFT</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean + cargos variables Miami</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm + previewMiamiCbmCost) }} / CBM</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">USD {{ money(previewMiamiVariableCostPerCft) }} / CFT</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costos por HBL / embarque</p><p class="mt-1 text-xl font-black">USD {{ money(previewMiamiHblCost) }}</p><p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La venta se resuelve por tarifa comercial A/B/C/D/NVOCC/LITTLE.</p></div>
-            </div>
-            <div v-else class="mt-4 grid gap-3 sm:grid-cols-2">
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Ocean / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewOceanPerCbm) }}</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Destino / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewDestinationPerCbm) }}</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Base Panamá / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm) }}</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Flete terrestre + Bunker / CBM</p><p class="mt-1 text-xl font-black">USD {{ money(previewCrTransferPerCbm) }}</p></div>
-              <div class="rounded-2xl border border-[var(--dh-border)] p-4 sm:col-span-2"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Utilidad flete / CBM</p><p class="mt-1 text-xl font-black text-[var(--dh-primary)]">USD {{ money(form.freightProfitPerCbm) }}</p></div>
-            </div>
-            <div v-if="isMiamiMatrix" class="mt-3 rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-primary)]">Matriz independiente Miami</p><p class="mt-1 text-sm font-black">Ocean + cargos Miami configurados por proyecto</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">No utiliza la base Panamá/China ni sus diferenciales por puerto.</p></div>
-            <div v-else class="mt-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4"><p class="text-[10px] font-black uppercase tracking-[0.1em] text-[var(--dh-text-muted)]">Costo proyectado Costa Rica</p><p class="mt-1 text-2xl font-black text-[var(--dh-primary)]">USD {{ money(previewOceanPerCbm + previewDestinationPerCbm + previewCrTransferPerCbm) }} / CBM</p><p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">Base {{ decimal(form.maximumCbm) }} CBM</p></div>
-          </section>
-          <section class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 text-xs font-semibold text-[var(--dh-text-muted)] dark:bg-white/[0.025]"><p class="font-black text-[var(--dh-text)]">Regla de operación · Matriz {{ formMatrixType }}</p><p v-if="isMiamiMatrix" class="mt-2">Miami mantiene su propia matriz por consolidado. Manejos, Forwarding, HBL, Bunker y THC/D se guardan aquí y no heredan cargos, escenarios FOB ni diferenciales de la matriz China. La utilidad/CBM configurada se aplica al Flete Internacional Marítimo.</p><p v-else class="mt-2">Centroamérica guarda sus cargos por consolidado y permite modificarlos. Transbordo parte de costo/venta destino Panamá + USD 9; Stuffing parte de USD 550 ÷ 60 CBM; Documentación parte de USD 185. Cada flete terrestre guarda costo total, CBM base y venta/CBM. La utilidad/CBM configurada en este consolidado se aplica al Flete Internacional Marítimo para Panamá, Costa Rica y Centroamérica por igual (USD {{ money(form.freightProfitPerCbm) }} actualmente).</p></section>
-          <div v-if="!readOnly" class="flex justify-end gap-2"><DhButton label="Cancelar" variant="secondary" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading" @click="save" /></div>
-          <div v-else-if="canUpdateConsolidation" class="flex justify-end"><DhButton label="Editar" :icon="Edit3" variant="secondary" @click="readOnly = false; previewProfile()" /></div>
-        </aside>
       </div>
-    </section>
+      <template #footer>
+        <div v-if="!readOnly" class="flex flex-wrap justify-end gap-2"><DhButton label="Cancelar" variant="secondary" :disabled="editorBusy" @click="closeEditor" /><DhButton :label="selectedId ? 'Guardar consolidado' : 'Crear consolidado'" :loading="saving" :disabled="previewLoading || editorBusy" @click="save" /></div>
+        <div v-else class="flex flex-wrap justify-end gap-2"><DhButton label="Cerrar" variant="secondary" :disabled="editorBusy" @click="closeEditor" /><DhButton v-if="canUpdateConsolidation" label="Editar" :icon="Edit3" :disabled="editorBusy" @click="readOnly = false; previewProfile()" /></div>
+      </template>
+    </DhDrawer>
   </div>
 </template>
