@@ -886,7 +886,9 @@ onMounted(load)
           <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">Los cambios de costo y venta quedan ligados únicamente a este consolidado.</p>
         </div>
       </div>
-      <DhTabs v-model="editorTab" :items="editorTabs" aria-label="Secciones del consolidado" />
+      <div class="sticky top-0 z-10 bg-[var(--dh-bg)] py-1">
+        <DhTabs v-model="editorTab" :items="editorTabs" aria-label="Secciones del consolidado" />
+      </div>
 
 
       <section v-if="selectedId" v-show="editorTab === 'quotes'" class="rounded-[24px] border border-[var(--dh-border)] bg-black/[0.018] p-4 dark:bg-white/[0.025]" aria-label="Cotizaciones vinculadas">
