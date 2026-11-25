@@ -2055,6 +2055,11 @@
 
 # Changelog
 
+## [1.129.1] - 2026-11-25 · DH-20261125-OPS-OPERATIONAL-LOCATIONS
+
+- PATCH: oculta la responsabilidad comercial de costos en ubicaciones de Operations; conserva comportamiento de Pricing, dirección, tipo de carga y mapa. Elimina la asignación comercial de borradores y nuevas aperturas manuales.
+
+
 ## [1.129.0] - 2026-11-25 · DH-20261125-OPS-PRICING-PARITY
 
 - MINOR: apertura manual comparte reglas de países y perspectiva de Pricing, ruta dinámica, ubicaciones de recolecta/entrega y WHS FCA. Sin modalidad multimodal independiente. Candidato pendiente de CI/staging.

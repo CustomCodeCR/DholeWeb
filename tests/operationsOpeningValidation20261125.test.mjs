@@ -23,3 +23,18 @@ test('route and commercial perspective follow Pricing', () => {
   assert.ok(source.includes("pod: showPod.value ? form.value.pod : ''"))
   assert.ok(source.includes('PricingInlandServiceLocation'))
 })
+
+
+test('manual opening locations do not assign a commercial payer', () => {
+  const component = readFileSync(new URL('../src/modules/pricing/components/PricingInlandServiceLocation.vue', import.meta.url), 'utf8')
+  assert.ok(source.includes('kind="pickup" operational'))
+  assert.ok(source.includes('kind="delivery" operational'))
+  assert.ok(source.includes('operationalPoints(form.value.pickupLocations)'))
+  assert.ok(source.includes('operationalPoints(form.value.deliveryLocations)'))
+  assert.ok(!source.includes('incotermOperationExplanation'))
+  assert.ok(component.includes('operational?: boolean'))
+  assert.ok(component.includes('v-if="!props.operational" v-model="billingParty"'))
+  assert.ok(component.includes('if (props.operational) delete nextPoint.billingParty'))
+  assert.ok(component.includes('...(!props.operational ? { billingParty:'))
+  assert.ok(component.includes('Se conservará en el trámite.'))
+})
