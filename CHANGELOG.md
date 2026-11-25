@@ -1,3 +1,7 @@
+## [1.124.34] - 2026-11-25
+
+- DH-20261125-OWN-LCL-APPROVED-REFERENCE: show approved reference provenance if the live Maersk/Balboa matrix is incomplete; existing DH styles retained.
+
 ## [1.124.33] - 2026-11-25
 
 - DH-20261125-OWN-LCL-MAERSK-BALBOA: isolated backport of own-LCL draft line API, explicit destination/line errors and protection against stale responses; CI and staging pending.
