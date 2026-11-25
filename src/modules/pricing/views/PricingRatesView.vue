@@ -637,7 +637,7 @@ async function load() {
   }
 }
 
-async function exportBasicExcel() {
+async function exportCommercialExcel() {
   if (excelExporting.value) return
 
   // Export date range is optional; when omitted, reuse the quotation date filter.
@@ -651,12 +651,15 @@ async function exportBasicExcel() {
   excelExporting.value = true
   try {
     const params = new URLSearchParams()
-    if (from) params.set('from', from)
-    if (to) params.set('to', to)
+    params.set('includeAllStatuses', 'true')
+    params.set('dateType', 'created')
+    if (from) params.set('fromDate', from)
+    if (to) params.set('toDate', to)
+    if (selectedFilters.statuses.length) params.set('status', selectedFilters.statuses.join(','))
     if (filters.search.trim()) params.set('search', filters.search.trim())
     const query = params.toString()
     const blob = await fetchBlobClient(
-      '/api/pricing/rates/basic-report.xlsx' + (query ? '?' + query : ''),
+      '/api/pricing/rates/commercial-report.xlsx' + (query ? '?' + query : ''),
       {
         method: 'GET',
         headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
@@ -666,16 +669,19 @@ async function exportBasicExcel() {
     try {
       const link = document.createElement('a')
       link.href = url
-      link.download = 'Tarifas-' + (from || 'Todas') + (to ? '-a-' + to : '') + '.xlsx'
+      const category = selectedFilters.statuses.length === 1
+        ? statusOptions.find((option) => option.value === selectedFilters.statuses[0])?.label || 'Filtradas'
+        : selectedFilters.statuses.length ? 'Filtradas' : 'Todas'
+      link.download = 'Tarifas-' + category + (from ? '-' + from : '') + (to ? '-a-' + to : '') + '.xlsx'
       document.body.appendChild(link)
       link.click()
       link.remove()
     } finally {
       window.setTimeout(() => URL.revokeObjectURL(url), 1000)
     }
-    toastStore.success('Excel generado', 'Se descargó el reporte básico de tarifas con fecha, QUO, cliente, detalle, IDTRA, venta y costo.')
+    toastStore.success('Excel generado', 'Se descargó el reporte de cotizaciones con los estados seleccionados.')
   } catch (error) {
-    toastStore.backendError(error, 'No se pudo exportar el reporte básico de tarifas.')
+    toastStore.backendError(error, 'No se pudo exportar el reporte de cotizaciones.')
   } finally {
     excelExporting.value = false
   }
@@ -893,7 +899,7 @@ onMounted(async () => {
           label="Exportar Excel"
           :icon="FileSpreadsheet"
           :loading="excelExporting"
-          @click="exportBasicExcel"
+          @click="exportCommercialExcel"
         />
         <DhButton
           v-if="authStore.hasScope('pricing.rate-request.view-all')"
