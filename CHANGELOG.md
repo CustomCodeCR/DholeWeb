@@ -1,3 +1,7 @@
+## [1.127.0] - 2026-11-25
+
+- Add optional Booking Request Shipper document category in Pricing screen 4, reusing the existing Storage upload and document metadata. CI and staging pending.
+
 ## [1.126.3] - 2026-11-25
 
 - DH-20261125-OWN-LCL-WIZARD-BUNDLE: use /api/pricing/costs/wizard-bundle for own LCL destination charges with real selected context, show approved fallback provenance, retain saved tariff lines. CI/staging pending.
