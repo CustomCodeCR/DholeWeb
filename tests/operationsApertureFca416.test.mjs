@@ -4,8 +4,8 @@ import test from 'node:test'
 
 const opening = readFileSync(new URL('../src/modules/operations/views/OperationsManualCreateView.vue', import.meta.url), 'utf8')
 
-test('FCA demands warehouse for FCL, FTL, LCL and LTL alike', () => {
-  assert.match(opening, /const requiresWarehouse = computed\(\(\) => selectedIncoterm\.value === 'FCA'\)/)
+test('FCA demands warehouse when pickup is not selected', () => {
+  assert.match(opening, /const requiresWarehouse = computed\(\(\) => selectedIncoterm\.value === 'FCA' && !form\.value\.requiresPickup\)/)
   assert.match(opening, /requiresWarehouse\.value && !form\.value\.whsName\.trim\(\)/)
   assert.match(opening, /Nombre WHS \(FCA\)/)
   assert.match(opening, /v-if="requiresWarehouse"/)

@@ -2055,6 +2055,12 @@
 
 # Changelog
 
+## [1.128.0] - 2026-11-25 · DH-20261125-OPS-OPENING-VALIDATION
+
+- MINOR: apertura manual con terminales compatibles, eliminación de equipos incompatibles, muellaje condicional, peso estimado, dimensiones aéreas y validaciones EXW/FCA/entrega.
+- Mantiene peso real en Coordinación Origen, autoguardado y asignación existentes. Candidato pendiente de CI y staging.
+
+
 ## [1.17.12] - 2026-11-10
 
 - PATCH DH-20261110-PRICING-CRM-REQUEST-IDENTITY-067: solicitudes normales, edición y modificaciones de QUO recuperan el ejecutivo comercial vigente desde el CRM por ID, conservan executiveUserId al enviar y no reemplazan al vendedor con el usuario conectado. Se respetan cuentas Castro Fallas, permisos CRM, delegación y cotizaciones históricas sin vincular. Prueba de regresión pricingCrmRequestCommercialOwner; Pricing 1.9.10 y CRM 1.7.5 en develop / 1.4.2 en master.
