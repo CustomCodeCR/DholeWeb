@@ -1,3 +1,7 @@
+## [1.124.31] - 2026-11-24
+
+- DH-20261124-PRICING-AIR-AGENT-SAVE: en cotizaciones aéreas existentes, conservar costos negociados al cambiar únicamente a un agente válido; evitar recalcular el catálogo para guardar, prevenir sustitución automática del agente en la misma ruta y mantener validaciones de cambios físicos adicionales. Regresiones incluidas; CI/staging pendientes.
+
 ## [1.124.30] - 2026-11-24
 
 - DH-20261124-PRICING-EDIT-CONTEXT-NORMALIZATION: normalizar referencias equivalentes de edición y excluir fuentes FCL marítimas residuales en cotizaciones aéreas, terrestres y LCL; conservar cambios reales sujetos a consulta de costos y mostrar la causa específica del bloqueo de guardado. Pruebas de regresión incorporadas; CI, staging y manifiesto central pendientes.
