@@ -17,14 +17,28 @@ let quoteEditRequest387 = 0
 let quoteEditVerifiedSignature387 = ''
 let quoteEditPending387: { signature: string; promise: Promise<boolean> } | null = null
 
+// Normalize only representational differences, never real physical changes.
+function quoteEditId387(value: unknown): string {
+  const id = String(value ?? '').trim()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    ? id.toLowerCase() : id
+}
 function quoteEditContext387(): QuoteEditContext387 {
+  const modality = String(form.modality)
+  const shipmentMode = String(shipmentModeForApi.value)
+  // An air/land/LCL quote never uses a maritime FCL import-rate source.
+  // Legacy duplicates can retain that reference until a navigation watcher
+  // clears it. This is not a new transport selection.
+  const usesOceanFclSource = shipmentMode === 'Fcl'
+    && (modality === 'Maritime' || modality === 'Multimodal')
   return {
-    modality: String(form.modality), shipmentMode: String(shipmentModeForApi.value),
-    originId: form.originId, destinationId: form.destinationId,
-    podId: form.podId, agentId: form.agentId, carrierId: form.carrierId,
-    incotermId: form.incotermId, equipmentId: form.equipmentId,
-    importRateId: form.selectedImportRateId,
-    services: [...new Set(form.serviceIds)].sort(),
+    modality, shipmentMode,
+    originId: quoteEditId387(form.originId), destinationId: quoteEditId387(form.destinationId),
+    podId: quoteEditId387(form.podId), agentId: quoteEditId387(form.agentId),
+    carrierId: quoteEditId387(form.carrierId), incotermId: quoteEditId387(form.incotermId),
+    equipmentId: quoteEditId387(form.equipmentId),
+    importRateId: usesOceanFclSource ? quoteEditId387(form.selectedImportRateId) : '',
+    services: [...new Set(form.serviceIds.map(quoteEditId387).filter(Boolean))].sort(),
     merchant: Boolean(form.merchantHaulage), carrier: Boolean(form.carrierHaulage),
     dangerous: Boolean(form.dangerousCargo), overweight: Boolean(form.overweight),
     nonStackable: Boolean(form.nonStackable), storageDays: number(form.storageDays),
@@ -36,7 +50,7 @@ function quoteEditContext387(): QuoteEditContext387 {
 }
 function quoteEditAddedServices387() {
   const original = new Set(quoteEditOriginalContext387.value?.services ?? [])
-  return new Set(form.serviceIds.filter(id => !original.has(id)))
+  return new Set(form.serviceIds.filter(id => !original.has(quoteEditId387(id))))
 }
 function quoteEditChangedKeys387() {
   const original = quoteEditOriginalContext387.value
@@ -190,7 +204,7 @@ function quoteEditRemoveInvalidDetails387() {
   const rate = editingRate.value
   const original = quoteEditOriginalContext387.value
   if (!rate || !original) return
-  const selected = new Set(form.serviceIds)
+  const selected = new Set(form.serviceIds.map(quoteEditId387))
   const removed = new Set(original.services.filter(id => !selected.has(id)))
   const changed = quoteEditChangedKeys387()
   const applicable = new Set(costs.value.map(cost => cost.id))
@@ -211,8 +225,8 @@ function quoteEditRemoveInvalidDetails387() {
     const master = allCosts.value.find(cost => cost.id === line.costId)
     const services = line.serviceIds?.length ? line.serviceIds
       : master?.services?.map(service => service.id) ?? []
-    if (removed.size && services.some(id => removed.has(id))
-      && !services.some(id => selected.has(id))) return true
+    if (removed.size && services.some(id => removed.has(quoteEditId387(id)))
+      && !services.some(id => selected.has(quoteEditId387(id)))) return true
     if (!master || applicable.has(line.costId)) return false
     return (changed.has('carrierId') && (Boolean(master.carrierId) || Boolean(master.carriers?.length)))
       || (changed.has('agentId') && (Boolean(master.agentId) || Boolean(master.agents?.length)))
@@ -226,7 +240,7 @@ function quoteEditRemoveInvalidDetails387() {
       if (form.portHandlingMode && /anticipado|redestino/.test(normalizeCatalogValue(line.name))
           && outdated(line)) return false
       if (!line.serviceIds?.length) return true
-      return line.serviceIds.some(id => selected.has(id))
+      return line.serviceIds.some(id => selected.has(quoteEditId387(id)))
     }
     if (!outdated(line)) return true
     if (line.detailId) {
@@ -281,6 +295,23 @@ function quoteEditEnsureRequestedServices387() {
 // Wait for the final Vue update and reconcile again only when the physical
 // context actually changed while a request was in flight. A stable failed
 // request remains a failure, rather than permitting unverified new charges.
+function quoteEditCostFailureMessage387(): string {
+  if (!quoteEditOriginalContext387.value) return 'No se pudo recuperar el contexto original de esta tarifa.'
+  const labels: Record<string, string> = {
+    modality: 'modalidad', shipmentMode: 'tipo de embarque', originId: 'POL',
+    destinationId: 'POE', podId: 'POD', agentId: 'agente', carrierId: 'proveedor',
+    incotermId: 'Incoterm', equipmentId: 'equipo', importRateId: 'fuente de flete',
+    services: 'servicios', merchant: 'Merchant', carrier: 'Carrier',
+    dangerous: 'carga peligrosa', overweight: 'sobrepeso', nonStackable: 'estibabilidad',
+    storageDays: 'almacenaje', cargoValue: 'valor de carga', portHandlingMode: 'manejo portuario',
+    cargoWeightKg: 'peso', cargoPackages: 'bultos', cargoPallets: 'tarimas',
+    equipmentQuantity: 'cantidad de equipos',
+  }
+  const changes = [...quoteEditChangedKeys387()].map(key => labels[key] ?? key)
+  return 'No se pudieron verificar los cargos de Pricing para '
+    + (changes.length ? 'los cambios en: ' + changes.join(', ') : 'el contexto de esta tarifa')
+    + '. Se conservaron las líneas editadas; revise la consulta de costos y reintente.'
+}
 async function quoteEditVerifyBeforeSave387(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     await nextTickForPoe()
@@ -445,11 +476,22 @@ export function patchPricingQuotationEditDelta387(source: string): string {
   const snapshotAnchor = '  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {'
   s = replaceSingle(s, snapshotAnchor,
     '  if (props.rateId && editingRate.value && !(await quoteEditVerifyBeforeSave387())) {\n'
-      + '    toastStore.warning("Costos pendientes", "No se pudieron verificar los cambios de contexto. Intente guardar nuevamente.")\n'
+      + '    const contextFailure = quoteEditCostFailureMessage387()\n'
+      + '    saveButtonFeedback.value = "No se envió la tarifa al backend. " + contextFailure\n'
+      + '    toastStore.warning("Costos pendientes", contextFailure)\n'
       + '    return\n  }\n'
       + (s.includes('function syncPanamaOverweightLines() {') ? '  syncPanamaOverweightLines()\n' : '')
       + '\n' + snapshotAnchor,
     'save-side request delta before immutable snapshot')
+
+  // Preserve the reconciliation error instead of masking it with an unrelated
+  // list of possible missing fields in the save button handler.
+  const feedbackAnchor = '    if (!saveRequestSentToBackend.value) {'
+  if (s.includes(feedbackAnchor)) {
+    s = replaceSingle(s, feedbackAnchor,
+      feedbackAnchor + '\n      if (saveButtonFeedback.value.startsWith("No se envió la tarifa al backend. ")) return',
+      'preserve exact pre-save feedback')
+  }
 
   const detailIdsAnchor = 'const currentDetailIds = new Set(includedLines.value.map((line) => line.detailId).filter((id): id is string => Boolean(id)))'
   // The final save must compare the exact serialized row identities, not a
