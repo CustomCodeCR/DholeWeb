@@ -101,7 +101,7 @@ const costs = ref<OperationsCaseCost[]>([])
 const snapshotCosts = ref<OperationsSnapshotCost[]>([])
 const commercialConditions = ref<OperationsCommercialConditions | null>(null)
 const costError = ref(false)
-const costRows = computed<OperationsSnapshotCost[]>(() => snapshotCosts.value.length ? snapshotCosts.value : costs.value.map(cost => ({ ...cost, currencyName: null, quantity: null, unitCost: null })))
+const costRows = computed(() => snapshotCosts.value.length ? snapshotCosts.value.map(cost => ({ ...cost })) : costs.value.map(cost => ({ ...cost, currencyName: null, quantity: null, unitCost: null, taxAmount: null, saleTotal: null, chargeBasis: null, costDetailType: null })))
 function amountLabel(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : 'Por confirmar'
 }
