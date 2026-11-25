@@ -62,7 +62,25 @@ function quoteEditChangedKeys387() {
   }
   return changed
 }
+// Existing air quotations contain negotiated costs, not a live vendor price list.
+ // A valid agent-only edit keeps the reviewed RateDetails; the normal PUT still
+ // validates permissions, agent identity, currency, details and revision.
+function quoteEditAirAgentOnly387() {
+  if (!props.rateId || !editingRate.value || props.viewOnly || hydratingExistingRate.value
+      || String(form.modality) !== 'Air') return false
+  const changed = quoteEditChangedKeys387()
+  if (changed.size !== 1 || !changed.has('agentId')) return false
+  const agentId = quoteEditId387(form.agentId)
+  return Boolean(agentId && eligibleAgents.value.some(agent => quoteEditId387(agent.id) === agentId))
+}
+function quoteEditKeepAgentOnExistingRoute387() {
+  const original = quoteEditOriginalContext387.value
+  return Boolean(props.rateId && editingRate.value && original && form.agentId
+    && original.originId === quoteEditId387(form.originId)
+    && original.modality === String(form.modality))
+}
 function quoteEditTransportChanged387() {
+  if (quoteEditAirAgentOnly387()) return false
   const changed = quoteEditChangedKeys387()
   return ['modality', 'shipmentMode', 'originId', 'destinationId', 'podId',
     'agentId', 'carrierId', 'equipmentId', 'importRateId'].some(key => changed.has(key))
@@ -101,7 +119,7 @@ function quoteEditRestorePersistedInland() {
 // guess between homonyms, distinct suppliers, equipment or manual charges.
 function quoteEditRestoreUnchangedRequiredDetails() {
   const rate = editingRate.value
-  if (!rate || quoteEditChangedKeys387().size) return
+  if (!rate || (quoteEditChangedKeys387().size && !quoteEditAirAgentOnly387())) return
   const removed = explicitlyRemovedPersistedDetailIds.value
   for (const detail of rate.rateDetails) {
     if (!detail.id || removed.has(detail.id) || detail.costType === 'Optional') continue
@@ -143,7 +161,7 @@ function quoteEditRestoreUnchangedRequiredDetails() {
 function quoteEditRequestedCosts387(): CostSelectDto[] {
   if (!editingRate.value || props.viewOnly || !quoteEditOriginalContext387.value) return []
   const changed = quoteEditChangedKeys387()
-  if (!changed.size) return []
+  if (!changed.size || quoteEditAirAgentOnly387()) return []
   const added = quoteEditAddedServices387()
   const original = quoteEditOriginalContext387.value
   const relatedToChangedContext = (cost: CostSelectDto) =>
@@ -203,7 +221,7 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
 function quoteEditRemoveInvalidDetails387() {
   const rate = editingRate.value
   const original = quoteEditOriginalContext387.value
-  if (!rate || !original) return
+  if (!rate || !original || quoteEditAirAgentOnly387()) return
   const selected = new Set(form.serviceIds.map(quoteEditId387))
   const removed = new Set(original.services.filter(id => !selected.has(id)))
   const changed = quoteEditChangedKeys387()
@@ -337,6 +355,13 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
   quoteEditVerifiedSignature387 = ''
   quoteEditPending387 = null
   const sequence = ++quoteEditRequest387
+  if (quoteEditAirAgentOnly387()) {
+    // Never refresh/reprice an existing air quote solely because the operator
+    // changed its valid agent. Keep current reviewed amounts, explicit removals
+    // and manual additions. An explicit P7 catalog refresh is a separate action.
+    quoteEditRestoreUnchangedRequiredDetails()
+    return true
+  }
   if (!quoteEditChangedKeys387().size) {
     quoteEditRemoveInvalidDetails387()
     quoteEditRestorePersistedInland()
@@ -425,6 +450,19 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     '      || shouldIncludeOptionalCost(cost)\n      || Boolean(cost.services?.some(service => quoteEditAddedServices387().has(service.id)))\n      || (cost.costDetailType === "Insurance" && cargoInsuranceSelected.value),',
     'newly requested service inclusion')
   s = s.slice(0, appendStart) + append + s.slice(appendEnd)
+
+  // Prevent a catalog refresh or late watcher from replacing the operator's
+  // already assigned agent on the same saved route. New routes remain eligible.
+  const agentAssignment = 'function assignAgentForOrigin() {'
+  if (s.includes(agentAssignment)) {
+    s = replaceSingle(s, agentAssignment, agentAssignment
+      + '\n  if (quoteEditKeepAgentOnExistingRoute387()) return', 'preserve existing agent on unchanged route')
+  }
+  const agentReset = "    if (hydratingExistingRate.value || !form.agentId) return"
+  if (s.includes(agentReset)) {
+    s = replaceSingle(s, agentReset, agentReset
+      + '\n    if (quoteEditKeepAgentOnExistingRoute387()) return', 'preserve saved agent during catalog refresh')
+  }
 
   // Existing-rate hydration calls the filtered list, which is empty until the
   // operator changes a field. Prevent implicit haulage inclusion changes as well.
