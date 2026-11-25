@@ -13,7 +13,11 @@ const variants = {
   NO_APLICA: 'neutral',
 } as const
 const fields: Record<string, string> = {
-  accountId: 'Cliente CRM', modality: 'Modalidad', shipmentType: 'Tipo de embarque',
+  accountId: 'Cliente CRM', modality: 'Modalidad', transportType: 'Transporte', shipmentType: 'Tipo de embarque',
+  provenance: 'Origen de solicitud', clientPoReference: 'Referencia del cliente', crmDivisionId: 'División CRM',
+  cargoNature: 'Naturaleza de la carga', cabysCode: 'CABYS', packageType: 'Tipo de bulto', packageCount: 'Cantidad de bultos',
+  agentReference: 'Agente', merchantReference: 'Merchant', etm: 'ETD', eta: 'ETA', observations: 'Observaciones',
+  contactIds: 'Contactos operativos', services: 'Servicios', supportDocuments: 'Documentos de respaldo',
   operationDirection: 'Sentido de operación', pol: 'POL / origen', poe: 'POE / entrada',
   pod: 'POD / destino final', polTerminalType: 'Terminal de origen',
   poeTerminalType: 'Terminal de entrada', podTerminalType: 'Terminal de destino',

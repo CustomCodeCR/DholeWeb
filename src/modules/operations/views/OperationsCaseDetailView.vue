@@ -17,13 +17,14 @@ import {
   type OperationsCaseCost, type OperationsSnapshotCost, type OperationsCommercialConditions, type OperationsCaseTab, type OperationsTabCode,
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
-  type OperationsOpeningEdit, type OperationsServiceReviewDashboard,
+  type OperationsOpeningEdit, type OperationsServiceReviewDashboard, type OpeningCompleteness,
   type OperationsContact, type OperationsQuoteComparison, type OperationsQuoteComparisonRow,
 } from '../services/operationsApi'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
 import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
+import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
 
 import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel, useOpeningDocuments } from '../utils/commercialPresentation'
 
@@ -39,6 +40,9 @@ const saving = ref(false)
 const error = ref('')
 const message = ref('')
 const record = ref<OperationsCaseDetail | null>(null)
+const completeness = ref<OpeningCompleteness | null>(null)
+const completenessError = ref(false)
+const hasAperturePanel = computed(() => record.value?.apertureType === 'AUTOMATIC' && ['PENDING_VALIDATION', 'APERTURA_REQUIERE_CAMBIOS'].includes(record.value.status))
 const openingData = computed<Record<string, unknown>>(() => {
   try {
     const value = JSON.parse(record.value?.openingDataJson || '{}') as unknown
@@ -254,8 +258,6 @@ function responsibleName(id: string | null | undefined): string {
   return id ? responsibleNames.value[id] || 'Nombre pendiente de consulta' : 'Sin operativo asignado'
 }
 const { openingDocuments, downloadDocument, documentError } = useOpeningDocuments(() => openingData.value.supportDocuments)
-const pendingFields = computed(() => Array.isArray(openingData.value.missingFields)
-  ? (openingData.value.missingFields as unknown[]).filter((x): x is string => typeof x === 'string') : [])
 const openingServices = computed(() => Array.isArray(openingData.value.services)
   ? (openingData.value.services as unknown[]).map(x => typeof x === 'string' ? x :
       x && typeof x === 'object' ? String((x as Record<string, unknown>).name ||
@@ -380,6 +382,11 @@ async function load() {
     // Optional reads are scoped individually; an unauthorized panel must not
     // prevent opening the whole expediente.
     const optional: Promise<unknown>[] = []
+    completeness.value = null
+    completenessError.value = false
+    if (!hasAperturePanel.value) optional.push(operationsApi.openingCompleteness(detail.id)
+      .then(x => { if (current === sequence) completeness.value = x })
+      .catch(() => { if (current === sequence) completenessError.value = true }))
     costs.value = []
     snapshotCosts.value = []
     commercialConditions.value = null
@@ -706,10 +713,17 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               </div>
               <p v-if="documentError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ documentError }}</p>
             </div>
-            <div v-if="pendingFields.length || openingData.completionStatus === 'DRAFT_INCOMPLETE'" class="mt-4 border-t border-[var(--dh-border)] pt-3">
-              <h4 class="mb-2 text-sm font-semibold">Información por completar</h4>
-              <p v-for="field in pendingFields" :key="field" class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(field) }}</p>
-              <p v-if="!pendingFields.length" class="text-xs text-[var(--dh-text-muted)]">Hay campos sin confirmar antes de validar.</p>
+            <div v-if="!hasAperturePanel" class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3" aria-live="polite">
+              <h4 class="text-sm font-semibold">Estados individuales de validación de apertura</h4>
+              <p v-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los estados de apertura.</p>
+              <p v-else-if="!completeness" class="text-xs text-[var(--dh-text-muted)]">Consultando estados…</p>
+              <template v-else>
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ completeness.missingFields.length }} bloqueantes · {{ completeness.fields.filter(f => f.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</p>
+                <div v-for="field in completeness.fields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span>
+                  <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+                </div>
+              </template>
             </div>
           </DhCard>
         </div>

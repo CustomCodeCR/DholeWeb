@@ -337,8 +337,8 @@ export const operationsApi = {
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
   openingCompleteness: (id: string) => request<OpeningCompleteness>(`/api/operations/cases/${id}/aperture/completeness`),
-  previewOpeningCompleteness: (modality: string, accountId: string, openingData: Record<string, unknown>) =>
-    request<OpeningCompleteness>('/api/operations/apertures/drafts/completeness', 'POST', { modality, accountId, openingData }),
+  previewOpeningCompleteness: (modality: string, accountId: string, openingData: Record<string, unknown>, caseId?: string) =>
+    request<OpeningCompleteness>('/api/operations/apertures/drafts/completeness', 'POST', { modality, accountId, openingData, caseId }),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
   getManualOpeningDraft: () =>
     request<OperationsManualDraftSnapshot | Record<string, never>>(

@@ -785,23 +785,24 @@ function buildOpeningData() {
 const completeness = ref<OpeningCompleteness | null>(null)
 const completenessError = ref('')
 const completenessLoading = ref(false)
+const retryCompleteness = ref(0)
 let completenessSequence = 0
 let completenessTimer: ReturnType<typeof setTimeout> | undefined
 const previewPayload = computed(() => ({ modality: modality.value, accountId: accountId.value, openingData: buildOpeningData() }))
-watch([previewPayload, activeStep, editingId], () => {
+watch([previewPayload, activeStep, editingId, canEdit, retryCompleteness], () => {
   const sequence = ++completenessSequence
   if (completenessTimer) clearTimeout(completenessTimer)
   completeness.value = null
   completenessError.value = ''
   completenessLoading.value = false
-  if (activeStep.value !== 3 || editingId.value) return
+  if (activeStep.value !== 3 || (editingId.value && !canEdit.value)) return
   completenessLoading.value = true
   const payload = previewPayload.value
   const account = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.accountId)
     ? payload.accountId : '00000000-0000-0000-0000-000000000000'
   completenessTimer = setTimeout(async () => {
     try {
-      const result = await operationsApi.previewOpeningCompleteness(payload.modality, account, payload.openingData)
+      const result = await operationsApi.previewOpeningCompleteness(payload.modality, account, payload.openingData, editingId.value || undefined)
       if (sequence === completenessSequence) completeness.value = result
     } catch {
       if (sequence === completenessSequence) completenessError.value = 'No se pudo consultar la validación de Operations. Revisa la información y reintenta.'
@@ -815,10 +816,11 @@ onBeforeUnmount(() => {
   if (completenessTimer) clearTimeout(completenessTimer)
 })
 const serverBlockers = computed(() => completeness.value?.missingFields.length ?? 0)
+const reviewValidationPending = computed(() => activeStep.value === 3 && !completeness.value?.canPassFieldValidation)
 
 async function save() {
   if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
-  if ((!valid.value || blockers.value.length > 0 || serverBlockers.value > 0) && !assignmentPendingId.value && !editingId.value) {
+  if ((!valid.value || blockers.value.length > 0 || serverBlockers.value > 0 || reviewValidationPending.value) && !assignmentPendingId.value && !editingId.value) {
     error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en PostgreSQL (con copia local de respaldo).'
     return
   }
@@ -930,7 +932,7 @@ onMounted(async () => {
           </span>
           <DhButton :icon="editingId ? Save : FolderPlus"
             :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Confirmar trámite existente' : 'Crear y enviar a Coordinación Origen'"
-            :loading="saving" :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && (blockers.length > 0 || serverBlockers > 0) && !assignmentPendingId)"
+            :loading="saving" :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && (blockers.length > 0 || serverBlockers > 0 || reviewValidationPending) && !assignmentPendingId)"
             @click="save" />
         </div>
       </template>
@@ -1457,14 +1459,14 @@ onMounted(async () => {
                 </p>
               </DhCard>
               <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
-                <div class="flex items-center justify-between gap-2"><h5 class="text-sm font-black">Completitud</h5><DhBadge :variant="blockers.length ? 'warning' : 'success'">{{ blockers.length ? blockers.length + ' pendientes' : 'Lista' }}</DhBadge></div>
+                <div class="flex items-center justify-between gap-2"><h5 class="text-sm font-black">Completitud</h5><DhBadge :variant="blockers.length || serverBlockers ? 'danger' : completeness?.canPassFieldValidation ? 'success' : 'neutral'">{{ blockers.length || serverBlockers ? 'Campos bloqueantes' : completeness?.canPassFieldValidation ? 'Lista' : 'Por verificar' }}</DhBadge></div>
                 <p v-if="!blockers.length && !serverBlockers && completeness?.canPassFieldValidation" class="mt-3 text-xs text-[var(--dh-text-muted)]">Información mínima lista. Operations registra el envío a Coordinación Origen y recupera la asignación si el pool no está disponible.</p>
-                <ul v-else class="mt-3 space-y-2">
+                <ul v-if="blockers.length" class="mt-3 space-y-2">
                   <li v-for="item in blockers" :key="item" class="flex gap-2 text-xs font-semibold text-amber-500"><CircleAlert class="mt-0.5 h-3.5 w-3.5 shrink-0" />{{ item }}</li>
                 </ul>
-                <div v-if="!editingId" class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3" aria-live="polite">
+                <div class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3" aria-live="polite">
                   <p v-if="completenessLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando estados de validación…</p>
-                  <p v-else-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ completenessError }}</p>
+                  <div v-else-if="completenessError" role="alert" class="space-y-2"><p class="text-xs text-[var(--dh-text-muted)]">{{ completenessError }}</p><DhButton size="sm" variant="secondary" label="Reintentar" @click="retryCompleteness++" /></div>
                   <template v-else-if="completeness">
                     <p class="text-xs font-semibold">{{ serverBlockers }} campos bloqueantes · {{ completeness.fields.filter(f => f.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</p>
                     <div v-for="field in completeness.fields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2 py-1">
@@ -1493,7 +1495,7 @@ onMounted(async () => {
         <DhButton v-if="activeStep < wizardSteps.length" :icon="ChevronRight" label="Siguiente" @click="goToStep(activeStep + 1)" />
         <DhButton v-else :icon="editingId ? Save : FolderPlus"
           :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Confirmar trámite existente' : 'Crear y enviar a Coordinación Origen'"
-          :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && (blockers.length > 0 || serverBlockers > 0) && !assignmentPendingId)" :loading="saving" @click="save" />
+          :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && (blockers.length > 0 || serverBlockers > 0 || reviewValidationPending) && !assignmentPendingId)" :loading="saving" @click="save" />
       </div>
     </footer>
   </div>
