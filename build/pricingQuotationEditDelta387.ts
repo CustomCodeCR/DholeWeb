@@ -62,16 +62,23 @@ function quoteEditChangedKeys387() {
   }
   return changed
 }
-// Existing air quotations contain negotiated costs, not a live vendor price list.
- // A valid agent-only edit keeps the reviewed RateDetails; the normal PUT still
- // validates permissions, agent identity, currency, details and revision.
-function quoteEditAirAgentOnly387() {
+// Persisted air RateDetails carry negotiated unit prices. A change to the
+// billing quantities and/or eligible agent is an edit, not an automatic
+// selection of a new master tariff. quantityForRateLine computes the current
+// quantity and totals from the cargo; the normal PUT validates the snapshot.
+function quoteEditAirReviewedAmounts387() {
   if (!props.rateId || !editingRate.value || props.viewOnly || hydratingExistingRate.value
-      || String(form.modality) !== 'Air') return false
+      || String(form.modality) !== 'Air' || !quoteEditOriginalContext387.value) return false
   const changed = quoteEditChangedKeys387()
-  if (changed.size !== 1 || !changed.has('agentId')) return false
-  const agentId = quoteEditId387(form.agentId)
-  return Boolean(agentId && eligibleAgents.value.some(agent => quoteEditId387(agent.id) === agentId))
+  const editable = new Set(['agentId', 'cargoWeightKg', 'cargoPackages', 'cargoPallets'])
+  if (!changed.size || [...changed].some(key => !editable.has(key))) return false
+  if (changed.has('agentId')) {
+    const agentId = quoteEditId387(form.agentId)
+    if (!agentId || !eligibleAgents.value.some(agent => quoteEditId387(agent.id) === agentId)) return false
+  }
+  // Never accept non-finite or negative input in this preservation path.
+  return [form.cargoWeightKg, form.cargoPackages, form.cargoPallets]
+    .every(value => value == null || value === '' || (Number.isFinite(Number(value)) && Number(value) >= 0))
 }
 function quoteEditKeepAgentOnExistingRoute387() {
   const original = quoteEditOriginalContext387.value
@@ -80,7 +87,7 @@ function quoteEditKeepAgentOnExistingRoute387() {
     && original.modality === String(form.modality))
 }
 function quoteEditTransportChanged387() {
-  if (quoteEditAirAgentOnly387()) return false
+  if (quoteEditAirReviewedAmounts387()) return false
   const changed = quoteEditChangedKeys387()
   return ['modality', 'shipmentMode', 'originId', 'destinationId', 'podId',
     'agentId', 'carrierId', 'equipmentId', 'importRateId'].some(key => changed.has(key))
@@ -119,7 +126,7 @@ function quoteEditRestorePersistedInland() {
 // guess between homonyms, distinct suppliers, equipment or manual charges.
 function quoteEditRestoreUnchangedRequiredDetails() {
   const rate = editingRate.value
-  if (!rate || (quoteEditChangedKeys387().size && !quoteEditAirAgentOnly387())) return
+  if (!rate || (quoteEditChangedKeys387().size && !quoteEditAirReviewedAmounts387())) return
   const removed = explicitlyRemovedPersistedDetailIds.value
   for (const detail of rate.rateDetails) {
     if (!detail.id || removed.has(detail.id) || detail.costType === 'Optional') continue
@@ -161,7 +168,7 @@ function quoteEditRestoreUnchangedRequiredDetails() {
 function quoteEditRequestedCosts387(): CostSelectDto[] {
   if (!editingRate.value || props.viewOnly || !quoteEditOriginalContext387.value) return []
   const changed = quoteEditChangedKeys387()
-  if (!changed.size || quoteEditAirAgentOnly387()) return []
+  if (!changed.size || quoteEditAirReviewedAmounts387()) return []
   const added = quoteEditAddedServices387()
   const original = quoteEditOriginalContext387.value
   const relatedToChangedContext = (cost: CostSelectDto) =>
@@ -221,7 +228,7 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
 function quoteEditRemoveInvalidDetails387() {
   const rate = editingRate.value
   const original = quoteEditOriginalContext387.value
-  if (!rate || !original || quoteEditAirAgentOnly387()) return
+  if (!rate || !original || quoteEditAirReviewedAmounts387()) return
   const selected = new Set(form.serviceIds.map(quoteEditId387))
   const removed = new Set(original.services.filter(id => !selected.has(id)))
   const changed = quoteEditChangedKeys387()
@@ -351,10 +358,10 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
   quoteEditVerifiedSignature387 = ''
   quoteEditPending387 = null
   const sequence = ++quoteEditRequest387
-  if (quoteEditAirAgentOnly387()) {
-    // Never refresh/reprice an existing air quote solely because the operator
-    // changed its valid agent. Keep current reviewed amounts, explicit removals
-    // and manual additions. An explicit P7 catalog refresh is a separate action.
+  if (quoteEditAirReviewedAmounts387()) {
+    // Keep negotiated unit prices and explicit edits when only air billing
+    // quantities and/or the eligible agent change. The existing quantity and
+    // tax calculation uses the current cargo. Explicit P7 refresh is separate.
     quoteEditRestoreUnchangedRequiredDetails()
     return true
   }
