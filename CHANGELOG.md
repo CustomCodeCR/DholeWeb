@@ -1,6 +1,10 @@
-## [1.129.4] - 2026-11-25
+## [1.130.1] - 2026-11-25
 
-- Restore opening service/provider capture, observations and compact grouped completeness review. CI/staging pending.
+- Restore opening service/provider capture, observations and compact grouped completeness review. Preserve all-status quotation export. CI/staging pending.
+
+## [1.130.0] - 2026-11-25
+
+- MINOR: exportación de Tarifas con las 23 columnas del reporte de cotizaciones y filtros de estado, fecha de creación y búsqueda. Mantiene el botón DH y permisos existentes. CI y staging pendientes.
 
 ## [1.129.3] - 2026-11-25
 
