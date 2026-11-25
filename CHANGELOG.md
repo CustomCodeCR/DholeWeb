@@ -1,3 +1,7 @@
+## [1.124.32] - 2026-11-24
+
+- DH-20261124-PRICING-AIR-QUANTITY-SAVE: conservar precios unitarios negociados al editar agente elegible, peso y cantidades de carga de una cotización aérea existente, incluso combinados; recalcular cantidades mediante el flujo existente, mantener validación de ruta/servicios y respetar eliminaciones explícitas. Regresiones añadidas; CI/staging pendientes.
+
 ## [1.124.31] - 2026-11-24
 
 - DH-20261124-PRICING-AIR-AGENT-SAVE: corrección aislada de guardado de cotización aérea existente cuando únicamente cambia a un agente elegible; conservar importes negociados, no recalcular costos y evitar sustitución automática del agente. Validaciones de demás cambios conservadas. CI y staging pendientes.
