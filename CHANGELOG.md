@@ -1,3 +1,7 @@
+## [1.124.30] - 2026-11-24
+
+- DH-20261124-PRICING-EDIT-CONTEXT-NORMALIZATION: promoción aislada de la corrección de contexto de edición validada en CI de develop; normaliza referencias equivalentes y excluye fuentes marítimas residuales, mantiene validaciones reales y diagnóstico específico. CI de master y prueba funcional de staging pendientes.
+
 ## [1.124.29] - 2026-11-24
 
 - DH-20261124-PRICING-COST-CONTEXT-RELINK: conservar operación al reseleccionar el cliente de la QUO; separar identidad CRM de la consulta física de cargos en edición; reutilizar reconciliación P7 verificada para la misma configuración; esperar actualización de Vue antes de capturar contexto y guardar. Mantener bloqueo para cambios de transporte no verificados. CI y staging pendientes.
