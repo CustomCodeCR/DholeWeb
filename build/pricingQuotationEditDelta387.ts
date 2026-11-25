@@ -421,6 +421,8 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     if (finishIndex < 0) throw new Error('[DH-LCL-EDIT] Hydration completion anchor missing')
     s = s.slice(0, finishIndex)
       + '    if (quoteEditOriginalContext387.value && editingRate.value) {\n'
+      + (s.includes('async function refreshModificationCrmOwner()')
+        ? '      if (props.rateId && !props.viewOnly && !form.clientId && !editingRate.value.clientAccountId && !editingRate.value.clientLeadId) await refreshModificationCrmOwner()\n' : '')
       + '      await nextTickForPoe()\n'
       + '      quoteEditOriginalContext387.value = quoteEditContext387()\n'
       + '      quoteEditVerifiedSignature387 = ""\n'
