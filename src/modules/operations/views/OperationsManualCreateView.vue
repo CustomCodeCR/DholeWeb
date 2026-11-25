@@ -299,7 +299,7 @@ const clientCountry = computed(() => resolveCrmCountryCode(form.value.clientCoun
 const automaticOperation = computed(() => operationForClientCountry(clientCountry.value,
   countryFromRoute('pol', selectedPol.value, form.value.pol),
   showPod.value && selectedPod.value ? countryFromRoute('pod', selectedPod.value, form.value.pod) : countryFromRoute('poe', selectedPoe.value, form.value.poe)))
-const operation = computed(() => form.value.operationOverride || automaticOperation.value)
+const operation = computed(() => form.value.operationOverride || automaticOperation.value || (editingId.value ? (form.value.operationDirection === 'IMPORT' ? 'Import' : form.value.operationDirection === 'EXPORT' ? 'Export' : form.value.operationDirection === 'OTHER' ? 'TransitDomestic' : null) : null))
 const operationLabel = computed(() => operation.value === 'Import' ? 'Importación' :
   operation.value === 'Export' ? 'Exportación' : operation.value === 'TransitDomestic' ? 'Tránsito / doméstico' : '')
 const showOperationOverride = ref(false)
@@ -307,7 +307,7 @@ const warehouse = computed(() => currentCatalog('warehouses').find(item => item.
 const warehouseMeta = computed(() => catalogMetadata(warehouse.value))
 const warehouseAddress = computed(() => String(warehouseMeta.value.address || warehouseMeta.value.fullAddress || form.value.warehouseAddress || '').trim())
 const deliveryRequired = computed(() => form.value.requiresDelivery || ['DAP','DPU','DDP'].includes(selectedIncoterm.value))
-const validPoints = (points: InlandPoint[]) => points.length > 0 && points.every(p => p.address.trim() &&
+const validPoints = (points: InlandPoint[]) => points.length > 0 && points.every(p => typeof p?.address === 'string' && p.address.trim() &&
   ['FiscalCargo','NationalizedCargo'].includes(p.cargoCondition || ''))
 const pickupPoint = computed<InlandPoint>({
   get: () => form.value.pickupLocations[0] || { address: form.value.pickupAddress },
@@ -320,6 +320,9 @@ const deliveryPoint = computed<InlandPoint>({
 const requiresExwPickup = computed(() => selectedIncoterm.value === 'EXW' && operation.value === 'Import')
 const positive = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0
 const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
+watch(selectedIncoterm, (next, previous) => {
+  if (!editingId.value && !restoringOpening && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
+})
 const pickupSelection = computed({
   get: () => pickupRequired.value ? 'YES' : 'NO',
   set: (value: string) => { form.value.requiresPickup = value === 'YES' },
