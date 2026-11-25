@@ -56,3 +56,11 @@ test('automatic opening requires only one approval and sends to Origin', () => {
   assert.doesNotMatch(panel, /segunda aprobación|segundo operativo/)
   assert.match(dashboard, /Math\.min\(1, row\.approvedReviews\) \+ ' \/ 1'/)
 })
+
+test('commercial snapshot cost metadata and terms use shared controls and finance permission', () => {
+  const detail = read('src/modules/operations/views/OperationsCaseDetailView.vue')
+  assert.match(detail, /key: 'chargeBasis'/)
+  assert.match(detail, /key: 'costDetailType'/)
+  assert.match(detail, /auth\.hasScope\('operations\.finance\.manage'\) && commercialConditions/)
+  assert.match(detail, /commercialConditions\.value = null/)
+})

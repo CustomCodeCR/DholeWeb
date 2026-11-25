@@ -154,6 +154,12 @@ export interface OperationsSnapshotCost {
   id: string; description: string | null; costCode: string | null; supplierName: string | null
   currencyCode: string | null; currencyName: string | null; quantity: number | null
   unitCost: number | null; costAmount: number | null; saleAmount: number | null
+  costDetailType?: string | null; chargeBasis?: string | null
+  sourceCostId?: string | null; supplierId?: string | null
+  taxAmount?: number | null; saleTotal?: number | null
+}
+export interface OperationsCommercialConditions {
+  includes: string | null; excludes: string | null; subjectTo: string | null
 }
 export interface OperationsInternalNote {
   id: string; body: string; createdBy: string
@@ -260,7 +266,7 @@ export const operationsApi = {
     `/api/operations/cases/${id}/tabs`),
   caseWorkspace: (id: string) => request<OperationsCaseWorkspace>(
     `/api/operations/cases/${id}/workspace`),
-  caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[]; snapshotItems?: OperationsSnapshotCost[] }>(
+  caseCosts: (id: string) => request<{ caseId: string; items: OperationsCaseCost[]; snapshotItems?: OperationsSnapshotCost[]; conditions?: OperationsCommercialConditions | null }>(
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),

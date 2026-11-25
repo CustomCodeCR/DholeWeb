@@ -1,3 +1,7 @@
+## [1.126.0] - 2026-11-24
+
+- Display accepted-quote cost categories, charging units, scoped sale/tax totals and commercial conditions using existing DH tables/cards. Resolve catalog Incoterms using Pricing helper, align FCA and maritime-only rules, and capture pickup fields using existing DH controls. CI and visual/realtime staging pending.
+
 - Fix approved-opening exit, reuse the Operations workspace tab, use shared DH pagination and synchronize team selection with its department.
 
 ## [1.125.0] - 2026-11-24

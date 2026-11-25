@@ -14,7 +14,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
   operationsApi, type OperationsCaseDetail, type OperationsCaseWorkspace,
-  type OperationsCaseCost, type OperationsSnapshotCost, type OperationsCaseTab, type OperationsTabCode,
+  type OperationsCaseCost, type OperationsSnapshotCost, type OperationsCommercialConditions, type OperationsCaseTab, type OperationsTabCode,
   type OperationsTabLevel, type OperationsAudit, type OperationsUser,
   type OperationsInternalNote, type OperationsOriginProgress,
   type OperationsOpeningEdit, type OperationsServiceReviewDashboard,
@@ -79,6 +79,7 @@ const openingSections = computed(() => {
       { label: 'Dirección de entrega', key: 'destinationAddress' },
       { label: 'Naviera', key: 'carrierReference' },
       { label: 'Agente', key: 'agentReference' },
+      { label: 'Agente de consolidación', key: 'lclGroupAgentReference' },
       { label: 'Merchant', key: 'merchantReference' },
       { label: 'Observaciones', key: 'observations' },
     ] },
@@ -98,19 +99,22 @@ const workspace = ref<OperationsCaseWorkspace | null>(null)
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
 const snapshotCosts = ref<OperationsSnapshotCost[]>([])
+const commercialConditions = ref<OperationsCommercialConditions | null>(null)
 const costError = ref(false)
-const costRows = computed(() => snapshotCosts.value.length ? snapshotCosts.value : costs.value.map(cost => ({ ...cost, currencyName: null, quantity: null, unitCost: null })))
+const costRows = computed(() => snapshotCosts.value.length ? snapshotCosts.value.map(cost => ({ ...cost })) : costs.value.map(cost => ({ ...cost, currencyName: null, quantity: null, unitCost: null, taxAmount: null, saleTotal: null, chargeBasis: null, costDetailType: null })))
 function amountLabel(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : 'Por confirmar'
 }
 const costColumns = computed<DhTableColumn<(typeof costRows.value)[number]>[]>(() => [
   { key: 'description', label: 'Rubro' },
+  { key: 'costDetailType', label: 'Categoría' },
+  { key: 'chargeBasis', label: 'Unidad de cobro' },
   { key: 'quantity', label: 'Cantidad', align: 'right' },
   { key: 'unitCost', label: 'Costo unitario', align: 'right' },
   { key: 'supplierName', label: 'Proveedor' },
   { key: 'currencyCode', label: 'Moneda' },
   { key: 'costAmount', label: 'Costo', align: 'right' },
-  ...(auth.hasScope('operations.finance.manage') ? [{ key: 'saleAmount' as const, label: 'Venta', align: 'right' as const }] : []),
+  ...(auth.hasScope('operations.finance.manage') ? [{ key: 'saleAmount' as const, label: 'Subtotal venta', align: 'right' as const }, { key: 'taxAmount' as const, label: 'Impuesto', align: 'right' as const }, { key: 'saleTotal' as const, label: 'Total venta', align: 'right' as const }] : []),
 ])
 const missingCostProviders = computed(() => costRows.value.filter(cost => !readable(cost.supplierName)).length)
 const commercialReviews = ref<OperationsServiceReviewDashboard | null>(null)
@@ -137,7 +141,9 @@ const quoteFields = computed(() => [
   ['Cliente', 'clientName'], ['Ejecutivo comercial', 'executiveName'], ['Tipo de embarque', 'shipmentType'],
   ['Transporte', 'transportType'], ['Incoterm', 'incoterm'], ['Operación', 'provenance'],
   ['POL · Origen', 'pol'], ['POE · Entrada', 'poe'], ['POD · Destino', 'pod'],
-  ['Naviera', 'carrierReference'], ['Agente / co-loader', 'agentReference'], ['Descripción de mercancía', 'cargoDescription'],
+  ['Naviera', 'carrierReference'], ['Agente / co-loader', 'agentReference'],
+  ['Agente de consolidación', 'lclGroupAgentReference'], ['Merchant', 'merchantReference'],
+  ['Dirección de recolecta', 'pickupAddress'], ['Ruta de naviera', 'carrierRoute'], ['Descripción de mercancía', 'cargoDescription'],
   ['Tránsito cotizado', 'transitTime'], ['Días libres', 'freeDays'],
   ['Válida desde', 'validFrom'], ['Válida hasta', 'validTo'], ['Referencias', 'quoteReferences'],
 ].map(([label, key]) => ({ label: label!, value: openingField(key!, quoteData.value) || 'No registrado en la QUO' })))
@@ -376,6 +382,7 @@ async function load() {
     const optional: Promise<unknown>[] = []
     costs.value = []
     snapshotCosts.value = []
+    commercialConditions.value = null
     costError.value = false
     supplemental.value = {}
     optional.push(sameRevisionCommercialData(work).then(x => { if (current === sequence) supplemental.value = x }))
@@ -410,7 +417,7 @@ async function load() {
       .then(x => { if (current === sequence) commercialReviews.value = x })
       .catch(() => { /* Commercial panel has its own scope; no fake success. */ }))
     if (auth.hasScope('operations.cost.read')) optional.push(
-      operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) { costs.value = x.items; snapshotCosts.value = x.snapshotItems || [] } }).catch(() => { if (current === sequence) costError.value = true }))
+      operationsApi.caseCosts(caseId.value).then(x => { if (current === sequence) { costs.value = x.items; snapshotCosts.value = x.snapshotItems || []; commercialConditions.value = x.conditions || null } }).catch(() => { if (current === sequence) costError.value = true }))
     if (auth.hasScope('operations.origin.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
       operationsApi.caseOriginProgress(caseId.value).then(x => { if (current === sequence) { origin.value = x; originStatus.value = x.progress?.statusCode || 'ORIGIN_COORDINATION' } }).catch(() => {}))
@@ -830,11 +837,22 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             <template #cell-description="{ row }"><span class="font-semibold">{{ readable(row.description) || 'Rubro pendiente de identificar' }}</span></template>
             <template #cell-supplierName="{ row }"><span>{{ readable(row.supplierName) || 'Proveedor pendiente' }}</span></template>
             <template #cell-currencyCode="{ row }">{{ currency(row.currencyCode, row.currencyName) || 'Moneda pendiente' }}</template>
+            <template #cell-costDetailType="{ row }">{{ readable(row.costDetailType) || 'Por confirmar' }}</template>
+            <template #cell-chargeBasis="{ row }">{{ readable(row.chargeBasis) || 'Por confirmar' }}</template>
             <template #cell-quantity="{ row }">{{ row.quantity ?? 'Por confirmar' }}</template>
             <template #cell-unitCost="{ row }">{{ amountLabel(row.unitCost) }}</template>
             <template #cell-costAmount="{ row }"><span class="font-semibold tabular-nums">{{ amountLabel(row.costAmount) }}</span></template>
             <template #cell-saleAmount="{ row }">{{ amountLabel(row.saleAmount) }}</template>
+            <template #cell-taxAmount="{ row }">{{ amountLabel(row.taxAmount) }}</template>
+            <template #cell-saleTotal="{ row }">{{ amountLabel(row.saleTotal) }}</template>
           </DhDataTable>
+          <div v-if="auth.hasScope('operations.finance.manage') && commercialConditions" class="mt-4 space-y-3 border-t border-[var(--dh-border)] pt-3">
+            <p class="text-sm font-semibold">Condiciones de la QUO aceptada</p>
+            <div v-for="term in [{ label: 'Incluye', value: commercialConditions.includes }, { label: 'No incluye', value: commercialConditions.excludes }, { label: 'Sujeto a', value: commercialConditions.subjectTo }]" :key="term.label">
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ term.label }}</p>
+              <p class="whitespace-pre-wrap break-words text-sm">{{ term.value || 'No registrado en la QUO' }}</p>
+            </div>
+          </div>
         </DhCard>
       </div>
 
