@@ -79,3 +79,11 @@ test('opening uses origin-filtered agents, shared searchable selects and neutral
   assert.ok(detail.includes('v-model="completenessGroup"'))
   assert.ok(detail.includes('openingData.value.serviceSelections'))
 })
+
+test('Cargo dimensions keep original units and present normalized equivalents', () => {
+  assert.match(source, /lengthValue/)
+  assert.match(source, /dimensionOptions/)
+  assert.match(source, /0\.45359237/)
+  assert.match(source, /2\.54/)
+  assert.match(source, /0\.028316846592/)
+})

@@ -1,3 +1,10 @@
+## [1.132.0] - 2026-11-25
+
+- Captura exclusiva del peso real desde Coordinación Origen, con componentes DH y comparación en kg.
+- Unidades originales de dimensiones y equivalencias de peso y volumen en Aperturas.
+- Justificación obligatoria para revisiones comerciales de discrepancias.
+- Candidato parcial pendiente de CI y staging.
+
 ## [1.131.0] - 2026-11-25
 
 - Filter opening agents by origin coverage, use shared searchable DH selects and compact the case summary.

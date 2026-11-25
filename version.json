@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.131.0",
-  "ecosystemVersion": "1.131.0",
-  "releaseId": "DH-20261125-OPS-SUMMARY-QUOTE-LINK",
+  "version": "1.132.0",
+  "ecosystemVersion": "1.132.0",
+  "releaseId": "DH-20261125-OPS-PRIORITY1-13-18",
   "releaseStatus": "candidate-ci-staging-pending",
-  "businessReleaseId": "DH-20261125-OPS-SUMMARY-QUOTE-LINK"
+  "businessReleaseId": "DH-20261125-OPS-PRIORITY1-13-18"
 }
