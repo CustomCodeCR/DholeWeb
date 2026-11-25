@@ -89,6 +89,7 @@ const routeTerminal = computed<RouteTerminal>(() =>
 const locationChoices = (key: string) => currentCatalog(key).filter(item => item.isActive &&
   (key === 'warehouses' || routeTerminalType(item, key === 'pod' ? 'SD' : 'CY') === (key === 'pod' ? 'SD' : routeTerminal.value)))
   .map(item => ({ value: item.id, label: optionText(item), searchText: [item.label,item.code,item.slug].join(' ') }))
+function catalogCode(key: string, id: string): string { return currentCatalog(key).find(x => x.id === id && x.isActive)?.code || '' }
 function selectedRouteType(key: 'pol' | 'poe' | 'pod', id: string): RouteTerminal | undefined {
   const item = currentCatalog(key).find(x => x.id === id && x.isActive)
   return item ? routeTerminalType(item, key === 'pod' ? 'SD' : 'CY') : undefined
@@ -719,10 +720,11 @@ async function save() {
       requiresPickup: pickupRequired.value,
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
-      ...(!editingId.value ? { openingValidationVersion: 2, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: selectedPod.value, polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: selectedRouteType('pod', selectedPod.value) } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 2, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: selectedPod.value, polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: catalogCode('pod', selectedPod.value), polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: selectedRouteType('pod', selectedPod.value) } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
+        ...(!editingId.value ? { equipmentCatalogCode: catalogCode(equipmentCatalogKey.value, resolvedEquipmentId(item)) } : {}),
         quantity: Number(item.quantity),
         ...(editingId.value && item.weightKg != null ? { weightKg: item.weightKg } : {}),
       })).filter(() => needsEquipment.value || Boolean(editingId.value)),
