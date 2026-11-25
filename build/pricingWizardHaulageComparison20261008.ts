@@ -557,7 +557,7 @@ function patchWizard(source: string) {
   const afterFetch = '    const contextualCosts = bundle.applicable'
   if (!code.includes(afterFetch)) throw new Error('[haulage screen6] Missing contextual fetch.')
   code = code.replace(afterFetch,
-    '    if (contextKey !== currentCostContextKey()) return\n\n' + afterFetch)
+    '    if (contextKey !== currentCostContextKey()) return false\n\n' + afterFetch)
 
   const nextAnchor = 'const canNext = computed(() => {'
   if (code.split(nextAnchor).length !== 2) throw new Error('[haulage screen6] Missing wizard canNext.')

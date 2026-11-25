@@ -29,35 +29,29 @@ function ensureRuntimeFunction(
   definitions.push(definition)
 }
 
+/** Repair missing bindings only. The full canonical Pricing key includes equipment,
+ * cargo and CRM identity; replacing an existing helper with a shortened fallback
+ * discards every successful bundle at the downstream stale-response guard. */
+export function repairPricingCostContextReferences(source: string) {
+  let code = source
+  const aliases = [
+    ["currentCostContextKey", "    const contextKey = currentCostContextKey()", "    const contextKey = dholeRuntimeCostContextKey()"],
+    ["costContextImportRateId", "    const importRateId = costContextImportRateId()", "    const importRateId = dholeRuntimeCostContextImportRateId()"],
+    ["costContextPoeId", "      poeId: costContextPoeId() || undefined,", "      poeId: dholeRuntimeCostContextPoeId() || undefined,"],
+    ["costResolvedByBackendContext", "  const backendContextMatched = costResolvedByBackendContext(cost)", "  const backendContextMatched = dholeRuntimeCostResolvedByBackendContext(cost)"],
+    ["costMatchesHardRouteContext", "    if (!costMatchesHardRouteContext(cost)) return false", "    if (!dholeRuntimeCostMatchesHardRouteContext(cost)) return false"],
+  ] as const
+  for (const [binding, anchor, replacement] of aliases) {
+    if (!hasRuntimeBinding(source, binding)) code = replaceOptional(code, anchor, replacement)
+  }
+  return code
+}
+
 function patchWizard(source: string) {
   let code = source
   if (code.includes(MARKER)) return code
 
-  code = replaceOptional(
-    code,
-    '    const contextKey = currentCostContextKey()',
-    '    const contextKey = dholeRuntimeCostContextKey()',
-  )
-  code = replaceOptional(
-    code,
-    '    const importRateId = costContextImportRateId()',
-    '    const importRateId = dholeRuntimeCostContextImportRateId()',
-  )
-  code = replaceOptional(
-    code,
-    '      poeId: costContextPoeId() || undefined,',
-    '      poeId: dholeRuntimeCostContextPoeId() || undefined,',
-  )
-  code = replaceOptional(
-    code,
-    '  const backendContextMatched = costResolvedByBackendContext(cost)',
-    '  const backendContextMatched = dholeRuntimeCostResolvedByBackendContext(cost)',
-  )
-  code = replaceOptional(
-    code,
-    '    if (!costMatchesHardRouteContext(cost)) return false',
-    '    if (!dholeRuntimeCostMatchesHardRouteContext(cost)) return false',
-  )
+  code = repairPricingCostContextReferences(code)
   code = replaceOptional(
     code,
     '    const restoredMixedFclFreight = restorePersistedFclDistribution(rate)',
@@ -808,7 +802,7 @@ function dholeRuntimeCostContextKey() {
 }
 
 function dholeRuntimeCostResolvedByBackendContext(cost: CostSelectDto) {
-  return String(cost.__dholePricingContextKey ?? '') === dholeRuntimeCostContextKey()
+  return String(cost.__dholePricingContextKey ?? '') === ${hasRuntimeBinding(code, 'currentCostContextKey') ? 'currentCostContextKey()' : 'dholeRuntimeCostContextKey()'}
 }
 
 function dholeRuntimeCostMatchesHardRouteContext(cost: CostSelectDto) {
