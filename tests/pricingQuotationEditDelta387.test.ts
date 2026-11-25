@@ -17,6 +17,7 @@ function fixture() {
     services: [{ id: 'SEGURO' }] }
   const root: any = {
     props: { rateId: 'QUO-1', viewOnly: false },
+    eligibleAgents: { value: [] as { id: string }[] },
     hydratingExistingRate: { value: false },
     editingRate: { value: {
       rateDetails: [freight, destination],
@@ -372,4 +373,41 @@ test('Equivalent GUID casing and service ordering do not initiate a catalog look
   q.root.loadApplicableCosts = async () => { queries++; return false }
   assert.equal(await q.verify(), true)
   assert.equal(queries, 0)
+})
+
+
+test('existing Air agent-only edit reaches save without catalog and preserves reviewed details', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.shipmentModeForApi.value = 'AirConsol'
+  q.original.value = q.snapshot()
+  q.root.eligibleAgents.value = [{ id: 'NEW-AIR-AGENT' }]
+  q.root.form.agentId = 'NEW-AIR-AGENT'
+  q.root.rateLines.value[0].costAmount = 555
+  q.root.rateLines.value[0].saleAmount = 777
+  q.root.rateLines.value.push({ key: 'manual:extra', manual: true, included: true, costAmount: 20, saleAmount: 30 })
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  const before = JSON.stringify(q.root.rateLines.value)
+  assert.equal(await q.verify(), true)
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 0)
+  assert.equal(JSON.stringify(q.root.rateLines.value), before)
+  assert.deepEqual(Array.from(q.requested()), [])
+  q.root.form.destinationId = 'NEW-POE'
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 2)
+})
+
+test('invalid Air agent never bypasses cost verification', async () => {
+  const q = fixture()
+  q.root.form.modality = 'Air'
+  q.root.shipmentModeForApi.value = 'Air'
+  q.original.value = q.snapshot()
+  q.root.form.agentId = 'NOT-ELIGIBLE'
+  q.root.eligibleAgents.value = [{ id: 'OTHER' }]
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return false }
+  assert.equal(await q.verify(), false)
+  assert.equal(queries, 2)
 })
