@@ -263,6 +263,7 @@ export const operationsApi = {
     '/api/operations/dashboard' + (teamId ? '?teamId=' + encodeURIComponent(teamId) : '')),
   cases: (page = 1, filters: OperationsCaseFilters = {}, pageSize = 25) => request<Paged<OperationsCaseRow> & { clientNames?: Record<string, string | null>; people?: Record<string, string> }>(
     '/api/operations/cases?' + caseQuery(page, pageSize, filters)),
+  linkQuote: (caseId: string, rateId: string, expectedVersion: number) => request<{ requestId?: string; status: string; duplicate: boolean }>(`/api/operations/cases/${caseId}/quote-links`, 'POST', { rateId, expectedVersion }),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   caseContacts: (id: string) => request<OperationsContact[]>(`/api/operations/cases/${id}/operations-contacts`),
   caseQuoteComparison: (id: string) => request<OperationsQuoteComparison>(`/api/operations/cases/${id}/commercial/comparison`),

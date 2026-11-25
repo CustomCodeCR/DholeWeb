@@ -10,6 +10,8 @@ import {
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhTabs, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
+import { PricingService } from '@/core/services/pricingService'
+import type { RateDto } from '@/core/interfaces/pricing'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
@@ -109,6 +111,43 @@ const openingSections = computed(() => {
 })
 
 const workspace = ref<OperationsCaseWorkspace | null>(null)
+const quoteSearch = ref('')
+const quoteCandidates = ref<RateDto[]>([])
+const quoteSelection = ref('')
+const quoteLinkBusy = ref(false)
+const quoteLinkMessage = ref('')
+const quoteLinkError = ref('')
+const pendingQuoteLink = computed(() => workspace.value?.quotes.some(quote => quote.status === 'PENDING_LINK'))
+const canLinkQuote = computed(() => record.value?.apertureType === 'MANUAL' && !record.value.sourceQuoteId &&
+  !['CANCELLED','COMPLETED'].includes(record.value.status) && auth.hasScope('pricing.rate.update') &&
+  ['operations.case.update','operations.origin.update','operations.aperture.update'].some(scope => auth.hasScope(scope)))
+watch(caseId, () => { quoteSearch.value = ''; quoteCandidates.value = []; quoteSelection.value = ''; quoteLinkError.value = ''; quoteLinkMessage.value = '' })
+async function searchAcceptedQuotes() {
+  const detail = record.value
+  if (!detail || !quoteSearch.value.trim() || quoteLinkBusy.value) return
+  quoteLinkBusy.value = true; quoteSelection.value = ''; quoteCandidates.value = []; quoteLinkError.value = ''; quoteLinkMessage.value = ''
+  try {
+    const result = await PricingService.browseRates({ search: quoteSearch.value.trim(), status: 'AcceptedByClient', excludeTariffMasters: true, groupQuotes: false, pageNumber: 1, pageSize: 50 })
+    if (caseId.value !== detail.id) return
+    quoteCandidates.value = result.items.filter(rate => rate.status === 'AcceptedByClient' && rate.clientAccountId === detail.accountId &&
+      rate.shipmentMode.toUpperCase() === detail.modalityCode.toUpperCase())
+    if (!quoteCandidates.value.length) quoteLinkMessage.value = 'No se encontraron QUO aceptadas del mismo cliente y modalidad.'
+  } catch { quoteLinkError.value = 'No se pudo consultar las cotizaciones autorizadas.' }
+  finally { quoteLinkBusy.value = false }
+}
+async function requestQuoteLink() {
+  const detail = record.value
+  if (!detail || !quoteSelection.value || !canLinkQuote.value || quoteLinkBusy.value || pendingQuoteLink.value) return
+  quoteLinkBusy.value = true; quoteLinkError.value = ''; quoteLinkMessage.value = ''
+  try {
+    const result = await operationsApi.linkQuote(detail.id, quoteSelection.value, detail.version)
+    if (caseId.value !== detail.id) return
+    quoteLinkMessage.value = result.status === 'ACCEPTED' ? 'Vínculo confirmado.' : 'Solicitud registrada; pendiente de confirmación de Pricing.'
+    quoteSelection.value = ''; quoteCandidates.value = []
+    await load()
+  } catch { quoteLinkError.value = 'No se pudo registrar el vínculo. Verifica los permisos y actualiza el expediente.' }
+  finally { quoteLinkBusy.value = false }
+}
 const access = ref<OperationsCaseTab[]>([])
 const costs = ref<OperationsCaseCost[]>([])
 const snapshotCosts = ref<OperationsSnapshotCost[]>([])
@@ -752,7 +791,8 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
           </DhCard>
           <DhCard padding="sm" title="Cotización y seguimiento comercial">
             <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteOptionId || record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ workspace.quotes.find(quote => quote.isPrimary)?.quoteNumber || workspace.quotes[0]?.quoteNumber || 'Abrir QUO en Pricing' }}</RouterLink>
-            <p v-else class="text-sm text-[var(--dh-text-muted)]">Sin cotización · Apertura manual sin costos ni ventas simuladas.</p>
+            <p v-else class="text-sm text-[var(--dh-text-muted)]">{{ pendingQuoteLink ? 'Vinculación pendiente de confirmación' : 'Sin cotización vinculada' }}</p>
+            <DhButton v-if="canLinkQuote && !record.sourceQuoteId" size="sm" variant="secondary" label="Vincular QUO" class="mt-3" @click="selectCaseTab('QUO')" />
             <div v-if="record.sourceQuoteId" class="mt-3 space-y-2">
               <DhBadge :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
               <p v-if="comparison?.hasSnapshot" class="text-xs text-[var(--dh-text-muted)]">{{ discrepancyCount }} diferencias · {{ unconfirmedCount }} datos por confirmar</p>
@@ -770,16 +810,31 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
       </div>
 
       <div v-else-if="selectedTab === 'QUO'" class="space-y-4">
-        <DhCard :icon="FileText" title="Resumen de la QUO aceptada" subtitle="Referencia comercial original e independiente del trámite.">
+        <DhCard v-if="canLinkQuote" title="Vincular cotización" subtitle="Seleccione una QUO aceptada del mismo cliente y modalidad. Se conserva el IDTRA manual y cualquier otro IDTRA ya vinculado.">
+          <p v-if="pendingQuoteLink" class="text-sm"><DhBadge variant="warning">Pendiente de confirmación de Pricing</DhBadge></p>
+          <template v-else>
+            <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchAcceptedQuotes">
+              <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Número de QUO" placeholder="QUO-..." /></div>
+              <DhButton type="submit" label="Buscar" :loading="quoteLinkBusy" :disabled="!quoteSearch.trim()" />
+            </form>
+            <div v-if="quoteCandidates.length" class="mt-3 flex flex-wrap items-end gap-3">
+              <div class="min-w-0 flex-1"><DhSelect searchable v-model="quoteSelection" label="Cotización aceptada" :options="quoteCandidates.map(rate => ({ value: rate.id, label: (rate.quoNumber || rate.rateCode) + ' · ' + rate.polName + ' → ' + (rate.podName || rate.poeName) }))" /></div>
+              <DhButton label="Vincular al IDTRA" :loading="quoteLinkBusy" :disabled="!quoteSelection" @click="requestQuoteLink" />
+            </div>
+          </template>
+          <p v-if="quoteLinkMessage" class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ quoteLinkMessage }}</p>
+          <p v-if="quoteLinkError" role="alert" class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ quoteLinkError }}</p>
+        </DhCard>
+        <DhCard :icon="FileText" title="Cotización vinculada" subtitle="Referencia comercial original e independiente del trámite.">
           <div v-for="quote in workspace.quotes" :key="quote.id" class="mb-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p class="font-black">{{ quote.quoteNumber || 'Cotización vinculada' }}</p>
-                <p class="text-xs text-[var(--dh-text-muted)]">Versión {{ quote.snapshotVersion }} · {{ statusLabel(quote.status) }}</p>
+                <p class="font-black">{{ quote.quoteNumber || (quote.status === 'PENDING_LINK' ? 'Solicitud de vinculación' : 'Solicitud no confirmada') }}</p>
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ quote.status === 'ACCEPTED' ? 'Revisión ' + quote.snapshotVersion : quote.status === 'PENDING_LINK' ? 'Pendiente de confirmación' : 'Vinculación rechazada' }}</p>
               </div>
               <RouterLink :to="`/pricing/rates/${quote.quoteOptionId || quote.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Ver en Pricing</RouterLink>
             </div>
-            <p v-if="quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción aceptada vinculada · Consultar detalle en Pricing</p>
+            <p v-if="quote.status === 'ACCEPTED' && quote.quoteOptionId" class="mt-2 text-xs text-[var(--dh-text-muted)]">Opción aceptada vinculada · Consultar detalle en Pricing</p>
           </div>
           <p v-if="!workspace.quotes.length" class="text-sm text-[var(--dh-text-muted)]">
             {{ record.sourceQuoteId ? 'La cotización aún no tiene un snapshot comercial disponible en Operations.' : 'Sin cotización · La apertura fue creada sin cotización.' }}

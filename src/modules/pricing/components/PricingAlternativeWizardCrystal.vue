@@ -418,7 +418,14 @@ watch(
 
 const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
-const operationsIdtra = ref<OperationsCaseRow | null>(null)
+const linkedOperationsCases = ref<OperationsCaseRow[]>([])
+const operationsIdtra = computed(() => linkedOperationsCases.value[0] ?? null)
+const manualIdtraSearch = ref('')
+const manualIdtraCandidates = ref<OperationsCaseRow[]>([])
+const manualIdtraSelection = ref('')
+const manualLinkBusy = ref(false)
+const manualLinkMessage = ref('')
+const manualLinkError = ref('')
 const operationsIdtraState = ref<'idle' | 'loading' | 'missing' | 'found' | 'error' | 'restricted'>('idle')
 const operationsIdentity = computed(() => {
   const rate = editingRate.value
@@ -445,15 +452,18 @@ async function refreshOperationsIdtra() {
   operationsLookupBusy = true
   if (!operationsIdtra.value) operationsIdtraState.value = 'loading'
   try {
-    const result = await operationsApi.cases(1, { q: identity.parent, apertureType: 'AUTOMATIC' })
-    if (generation !== operationsLookupGeneration) return
-    const matches = result.items.filter(row => row.sourceQuoteId === identity.parent
-      && row.sourceQuoteOptionId === identity.option && row.apertureType === 'AUTOMATIC')
-    operationsIdtra.value = matches.length === 1 ? matches[0]! : null
-    operationsIdtraState.value = matches.length === 1 ? 'found' : matches.length > 1 ? 'error' : 'missing'
+    const matches: OperationsCaseRow[] = []
+    for (let page = 1; ; page++) {
+      const result = await operationsApi.cases(page, { q: identity.parent }, 50)
+      if (generation !== operationsLookupGeneration) return
+      matches.push(...result.items.filter(row => row.sourceQuoteId === identity.parent && row.sourceQuoteOptionId === identity.option))
+      if (!result.items.length || page * 50 >= result.total) break
+    }
+    linkedOperationsCases.value = matches
+    operationsIdtraState.value = matches.length ? 'found' : 'missing'
   } catch {
     if (generation !== operationsLookupGeneration) return
-    operationsIdtra.value = null
+    linkedOperationsCases.value = []
     operationsIdtraState.value = 'error'
   } finally {
     if (generation === operationsLookupGeneration) {
@@ -471,7 +481,7 @@ watch(
     clearOperationsLookupTimer()
     operationsLookupBusy = false
     operationsLookupAttempts = 0
-    operationsIdtra.value = null
+    linkedOperationsCases.value = []
     operationsIdtraState.value = !parent || !option ? 'idle' : permitted ? 'loading' : 'restricted'
     onCleanup(() => {
       ++operationsLookupGeneration
@@ -487,6 +497,38 @@ useRealtimeListRefresh({
   refresh: refreshOperationsIdtra,
 })
 
+const canLinkManualIdtra = computed(() => !!operationsIdentity.value && authStore.hasScope('pricing.rate.update') &&
+  authStore.hasScope('operations.case.read') && ['operations.case.update','operations.origin.update','operations.aperture.update'].some(scope => authStore.hasScope(scope)))
+watch(() => operationsIdentity.value?.option, () => {
+  manualIdtraSearch.value = ''; manualIdtraSelection.value = ''; manualIdtraCandidates.value = []; manualLinkMessage.value = ''; manualLinkError.value = ''
+})
+async function searchManualIdtras() {
+  const rate = editingRate.value
+  if (!rate?.clientAccountId || !manualIdtraSearch.value.trim() || manualLinkBusy.value) return
+  manualLinkBusy.value = true; manualLinkError.value = ''; manualLinkMessage.value = ''; manualIdtraCandidates.value = []; manualIdtraSelection.value = ''
+  try {
+    const result = await operationsApi.cases(1, { q: manualIdtraSearch.value.trim(), apertureType: 'MANUAL', accountId: rate.clientAccountId }, 50)
+    if (editingRate.value?.id !== rate.id) return
+    manualIdtraCandidates.value = result.items.filter(row => !row.sourceQuoteId && !['CANCELLED','COMPLETED'].includes(row.status) &&
+      row.accountId === rate.clientAccountId && row.modalityCode.toUpperCase() === rate.shipmentMode.toUpperCase())
+    if (!manualIdtraCandidates.value.length) manualLinkMessage.value = 'No hay IDTRA manuales disponibles para este cliente y modalidad.'
+  } catch { manualLinkError.value = 'No se pudieron consultar los IDTRA autorizados.' }
+  finally { manualLinkBusy.value = false }
+}
+async function linkExistingManualIdtra() {
+  const identity = operationsIdentity.value
+  if (!identity || !canLinkManualIdtra.value || !manualIdtraSelection.value || manualLinkBusy.value) return
+  manualLinkBusy.value = true; manualLinkError.value = ''; manualLinkMessage.value = ''
+  try {
+    const target = await operationsApi.caseDetail(manualIdtraSelection.value)
+    if (operationsIdentity.value?.option !== identity.option) return
+    const result = await operationsApi.linkQuote(target.id, identity.option, target.version)
+    manualLinkMessage.value = result.status === 'ACCEPTED' ? 'Vínculo confirmado.' : 'Solicitud registrada. La vinculación se confirmará mediante la sincronización de Operations.'
+    manualIdtraCandidates.value = []; manualIdtraSelection.value = ''
+    await refreshOperationsIdtra()
+  } catch { manualLinkError.value = 'No se pudo registrar el vínculo. Verifica el IDTRA, permisos y estado de la cotización.' }
+  finally { manualLinkBusy.value = false }
+}
 const expandedSavedQuotePanels = ref<Record<string, boolean>>({})
 const primarySavedGroupAlternative = computed(() => {
   const group = savedQuoteGroup.value
@@ -9393,7 +9435,7 @@ onMounted(async () => {
               <div data-testid="pricing-screen9-operations-idtra-status" class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5">
                 <div class="min-w-0 space-y-1">
                   <p class="break-words text-sm font-bold">
-                    IDTRA: {{ operationsIdtra?.idtra || (!isIdtraPending(editingRate.idtraNumber)
+                    IDTRA: {{ linkedOperationsCases.map(item => item.idtra).join(', ') || (!isIdtraPending(editingRate.idtraNumber)
                       ? editingRate.idtraNumber
                       : editingRate.status !== 'AcceptedByClient' ? 'Se genera automáticamente al aceptar'
                       : operationsIdtraState === 'loading' ? 'Consultando Operations…'
@@ -9404,11 +9446,25 @@ onMounted(async () => {
                   <p v-if="operationsIdtraState === 'missing'" class="text-xs text-[var(--dh-text-muted)]">La aceptación comercial está registrada; aún no hay un expediente coincidente visible.</p>
                   <p v-if="operationsIdtra && !isIdtraPending(editingRate.idtraNumber) && editingRate.idtraNumber !== operationsIdtra.idtra" class="text-xs text-[var(--dh-text-muted)]">Referencia histórica: {{ editingRate.idtraNumber }}</p>
                 </div>
-                <router-link v-if="operationsIdtra" :to="{ name: 'operations-case-detail', params: { id: operationsIdtra.id } }" class="text-xs font-bold text-[var(--dh-primary)] underline">Abrir expediente</router-link>
+                <template v-if="linkedOperationsCases.length"><router-link v-for="linkedCase in linkedOperationsCases" :key="linkedCase.id" :to="{ name: 'operations-case-detail', params: { id: linkedCase.id } }" class="text-xs font-bold text-[var(--dh-primary)] underline">Abrir {{ linkedCase.idtra }}</router-link></template>
                 <template v-else-if="editingRate.status === 'AcceptedByClient' && authStore.hasScope('operations.case.read')">
                   <DhButton variant="secondary" size="sm" label="Verificar IDTRA" :loading="operationsIdtraState === 'loading'" @click="refreshOperationsIdtra" />
                   <router-link :to="{ name: 'operations-cases' }" class="text-xs font-bold text-[var(--dh-primary)] underline">Ver Trámites</router-link>
                 </template>
+              </div>
+              <div v-if="canLinkManualIdtra" class="mt-3 space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
+                <p class="text-sm font-bold">Vincular IDTRA manual existente</p>
+                <p class="text-xs text-[var(--dh-text-muted)]">No crea otro expediente ni elimina IDTRA vinculados.</p>
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="min-w-0 flex-1"><DhInput v-model="manualIdtraSearch" label="Buscar IDTRA" placeholder="IDTRA..." /></div>
+                  <DhButton size="sm" variant="secondary" label="Buscar" :loading="manualLinkBusy" :disabled="!manualIdtraSearch.trim()" @click="searchManualIdtras" />
+                </div>
+                <div v-if="manualIdtraCandidates.length" class="flex flex-wrap items-end gap-2">
+                  <div class="min-w-0 flex-1"><DhSelect searchable v-model="manualIdtraSelection" label="Trámite manual" :options="manualIdtraCandidates.map(row => ({ value: row.id, label: row.idtra + ' · ' + row.modalityCode }))" /></div>
+                  <DhButton size="sm" label="Vincular" :loading="manualLinkBusy" :disabled="!manualIdtraSelection" @click="linkExistingManualIdtra" />
+                </div>
+                <p v-if="manualLinkMessage" class="text-xs text-[var(--dh-text-muted)]">{{ manualLinkMessage }}</p>
+                <p v-if="manualLinkError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ manualLinkError }}</p>
               </div>
               <div v-if="editingRate.otherReferences?.trim()" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
