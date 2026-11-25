@@ -8,12 +8,12 @@ test('FCA always requires Pricing WHS or address fallback, regardless of collect
   assert.ok(opening.includes('label="Dirección del WHS"'))
   assert.ok(opening.includes('if (requiresWarehouse.value && !(warehouse.value'))
 })
-test('EXW and inland stops share Pricing location component; contact and window stay in Operations', () => {
+test('EXW and inland stops share Pricing location component; contact and window are not opening fields', () => {
   assert.ok(opening.includes('PricingInlandServiceLocation'))
   assert.ok(opening.includes('v-model:locations="form.pickupLocations"'))
   assert.ok(opening.includes('v-model:locations="form.deliveryLocations"'))
   for (const field of ['pickupContact', 'pickupWindow']) {
-    assert.ok(opening.includes('v-model="form.' + field + '"'))
-    assert.ok(opening.includes('!form.value.' + field + '.trim()'))
+    assert.ok(!opening.includes('v-model="form.' + field + '"'))
+    assert.ok(!opening.includes('!form.value.' + field + '.trim()'))
   }
 })

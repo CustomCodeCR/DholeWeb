@@ -2055,6 +2055,11 @@
 
 # Changelog
 
+## [1.129.2] - 2026-11-25 · DH-20261125-OPS-PICKUP-COMPLETENESS
+
+- PATCH: elimina contacto y ventana de recolecta de la apertura manual y sus bloqueos; resumen muestra puntos de recolecta, entrega y WHS, sin columnas POD vacías.
+
+
 ## [1.129.1] - 2026-11-25 · DH-20261125-OPS-OPERATIONAL-LOCATIONS
 
 - PATCH: oculta la responsabilidad comercial de costos en ubicaciones de Operations; conserva comportamiento de Pricing, dirección, tipo de carga y mapa. Elimina la asignación comercial de borradores y nuevas aperturas manuales.
