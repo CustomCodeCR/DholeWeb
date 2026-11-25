@@ -163,7 +163,8 @@ const form = ref({
   destinationAddress: '', cargoDescription: '', packageCount: '',
   packageType: '', weightValue: '', weightUnit: 'KG',
   estimatedWeightValue: '', estimatedWeightUnit: 'KG',
-  lengthCm: '', widthCm: '', heightCm: '', operationDirection: '',
+  lengthCm: '', widthCm: '', heightCm: '', lengthValue: '', widthValue: '', heightValue: '',
+  lengthUnit: 'CM', widthUnit: 'CM', heightUnit: 'CM', operationDirection: '',
   clientCountryId: '', clientCountryOverrideId: '', operationOverride: '' as RateOperationType | '',
   pickupLocations: [] as InlandPoint[], deliveryLocations: [] as InlandPoint[], requiresDelivery: false, warehouseId: '', warehouseAddress: '',
   volumeValue: '', volumeUnit: 'CBM', consolidationReference: '',
@@ -360,6 +361,32 @@ const deliveryPoint = computed<InlandPoint>({
 })
 const requiresExwPickup = computed(() => selectedIncoterm.value === 'EXW' && operation.value === 'Import')
 const positive = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0
+const dimensionOptions = [{ label: 'cm', value: 'CM' }, { label: 'm', value: 'M' }, { label: 'in', value: 'IN' }]
+function toCm(value: unknown, unit: string) {
+  if (!positive(value)) return ''
+  const factor = unit === 'M' ? 100 : unit === 'IN' ? 2.54 : 1
+  return String(Number(value) * factor)
+}
+function restoreDimensionValues() {
+  for (const axis of ['length', 'width', 'height'] as const) {
+    if (!positive(form.value[`${axis}Value`]) && positive(form.value[`${axis}Cm`])) {
+      form.value[`${axis}Value`] = String(form.value[`${axis}Cm`])
+      form.value[`${axis}Unit`] = 'CM'
+    }
+  }
+}
+watch(() => [form.value.lengthValue, form.value.lengthUnit, form.value.widthValue, form.value.widthUnit, form.value.heightValue, form.value.heightUnit], () => {
+  form.value.lengthCm = toCm(form.value.lengthValue, form.value.lengthUnit)
+  form.value.widthCm = toCm(form.value.widthValue, form.value.widthUnit)
+  form.value.heightCm = toCm(form.value.heightValue, form.value.heightUnit)
+}, { flush: 'sync' })
+const estimatedKg = computed(() => positive(form.value.estimatedWeightValue)
+  ? Number(form.value.estimatedWeightValue) * (form.value.estimatedWeightUnit === 'LB' ? 0.45359237 : 1) : null)
+const normalizedVolume = computed(() => positive(form.value.volumeValue)
+  ? Number(form.value.volumeValue) * (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null)
+function measurementLabel(value: number | null) {
+  return value == null ? '—' : value.toLocaleString('es-CR', { maximumFractionDigits: 4 })
+}
 const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
 watch(selectedIncoterm, (next, previous) => {
   if (!editingId.value && !restoringOpening && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
@@ -701,6 +728,7 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
     }
     if (draft.form && typeof draft.form === 'object' && !Array.isArray(draft.form)) {
       form.value = { ...form.value, ...draft.form } as typeof form.value
+      restoreDimensionValues()
       // Manual openings do not capture actual weight (Coordinación Origen owns it).
       form.value.weightValue = ''
       form.value.weightUnit = 'KG'
@@ -796,6 +824,7 @@ function buildOpeningData() {
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
       ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined, pickupContact: undefined, pickupWindow: undefined } : {}),
+      estimatedWeightKg: estimatedKg.value,
       stackable: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
@@ -803,7 +832,11 @@ function buildOpeningData() {
       ...(!editingId.value ? { pickupAddress: selectedIncoterm.value === 'EXW' || pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '', destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
       ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [], deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
-      ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
+      ...Object.fromEntries((['length', 'width', 'height'] as const).flatMap(axis => [
+        [`${axis}Value`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Value`] : ''],
+        [`${axis}Unit`, form.value[`${axis}Unit`]],
+        [`${axis}Cm`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Cm`] : ''],
+      ])),
       ...(!editingId.value ? { openingValidationVersion: 4, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', form.value.carrierId], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
@@ -928,6 +961,11 @@ onMounted(async () => {
       const parsed = JSON.parse(detail.openingDataJson || '{}') as Record<string, unknown>
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         form.value = { ...form.value, ...parsed } as typeof form.value
+        restoreDimensionValues()
+        if (!positive(form.value.estimatedWeightValue) && positive(parsed.quotedWeightKg)) {
+          form.value.estimatedWeightValue = String(parsed.quotedWeightKg)
+          form.value.estimatedWeightUnit = 'KG'
+        }
         const term = normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
         if (incoterms.includes(term)) { form.value.incoterm = term; form.value.incotermName = term }
         if (typeof parsed.requiresPickup !== 'boolean' && typeof parsed.pickupAddress === 'string' && parsed.pickupAddress.trim())
@@ -1162,6 +1200,13 @@ onMounted(async () => {
             <DhSelect v-model="form.cargoNature" label="Naturaleza de la carga"
               :options="cargoNatureChoiceOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
+          <DhCard title="Equivalencias de la mercancía">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <p class="text-sm">Peso estimado: <strong>{{ measurementLabel(estimatedKg) }} kg</strong></p>
+              <p class="text-sm">Volumen: <strong>{{ measurementLabel(normalizedVolume) }} CBM</strong></p>
+              <p v-if="effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
+            </div>
+          </DhCard>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h4 class="text-base font-black">Ruta de transporte</h4><p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Buscadores de POL, POE y POD compartidos con el wizard de Pricing.</p></div>
@@ -1243,9 +1288,14 @@ onMounted(async () => {
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
             <DhSelect v-model="form.volumeUnit" label="Unidad volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
             <DhInput v-if="['LCL','LTL'].includes(effectiveShipment)" v-model="form.consolidationReference" label="Referencia de consolidado" />
-            <DhInput v-if="effectiveShipment === 'AIR'" v-model="form.lengthCm" label="Largo (cm)" type="number" :min="0" />
-            <DhInput v-if="effectiveShipment === 'AIR'" v-model="form.widthCm" label="Ancho (cm)" type="number" :min="0" />
-            <DhInput v-if="effectiveShipment === 'AIR'" v-model="form.heightCm" label="Alto (cm)" type="number" :min="0" />
+            <template v-if="effectiveShipment === 'AIR'">
+              <DhInput v-model="form.lengthValue" label="Largo" type="number" :min="0" />
+              <DhSelect v-model="form.lengthUnit" label="Unidad de largo" :options="dimensionOptions" />
+              <DhInput v-model="form.widthValue" label="Ancho" type="number" :min="0" />
+              <DhSelect v-model="form.widthUnit" label="Unidad de ancho" :options="dimensionOptions" />
+              <DhInput v-model="form.heightValue" label="Alto" type="number" :min="0" />
+              <DhSelect v-model="form.heightUnit" label="Unidad de alto" :options="dimensionOptions" />
+            </template>
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">

@@ -26,3 +26,12 @@ test('Legacy service request API is retained for compatible callers', () => {
   assert.match(api, /addCaseService: \(id: string, input:/)
   assert.match(api, /OPERATIONS_ADDED/)
 })
+
+test('Origin actual weight is independently captured and commercial reviews require justification', () => {
+  assert.match(detail, /title="Peso de la mercancía"/)
+  assert.match(detail, /operationsApi\.confirmOriginWeight/)
+  assert.match(detail, /level\('COORDINACION_ORIGEN'\) === 'EDITABLE'/)
+  assert.match(detail, /merged\.actualWeightValue = raw\.actualWeightValue/)
+  assert.match(detail, /!reviewComment\.trim\(\)/)
+  assert.match(api, /origin\/actual-weight/)
+})

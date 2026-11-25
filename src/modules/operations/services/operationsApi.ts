@@ -267,7 +267,7 @@ export const operationsApi = {
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   caseContacts: (id: string) => request<OperationsContact[]>(`/api/operations/cases/${id}/operations-contacts`),
   caseQuoteComparison: (id: string) => request<OperationsQuoteComparison>(`/api/operations/cases/${id}/commercial/comparison`),
-  requestQuoteReview: (id: string, input: { expectedVersion: number; fingerprint: string; comment?: string }) =>
+  requestQuoteReview: (id: string, input: { expectedVersion: number; fingerprint: string; comment: string }) =>
     request<{ reviewId: string; status: string; duplicate: boolean }>(`/api/operations/cases/${id}/commercial/comparison/review`, 'POST', input),
   caseServicesAndReviews: (id: string) =>
     request<OperationsServiceReviewDashboard>(`/api/operations/cases/${id}/services-and-reviews`),
@@ -284,6 +284,9 @@ export const operationsApi = {
     `/api/operations/cases/${id}/commercial/costs`),
   caseOriginProgress: (id: string) => request<OperationsOriginProgress>(
     `/api/operations/cases/${id}/origin/progress`),
+  confirmOriginWeight: (id: string, input: { expectedVersion: number; value: number; unit: string }) =>
+    request<{ id: string; version: number; actualWeightKg: number }>(
+      `/api/operations/cases/${id}/origin/actual-weight`, 'POST', input),
   updateOriginStatus: (id: string, statusCode: string, expectedVersion: number) =>
     request<{ statusCode: string; version: number }>(
       `/api/operations/cases/${id}/origin/progress`,

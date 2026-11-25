@@ -53,7 +53,17 @@ const openingData = computed<Record<string, unknown>>(() => {
   try {
     const value = JSON.parse(record.value?.openingDataJson || '{}') as unknown
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? (record.value?.apertureType === 'MANUAL' ? value as Record<string, unknown> : mergeCommercialOpening(value as Record<string, unknown>, workspace.value?.commercialData, supplemental.value)) : {}
+      ? (() => {
+          const raw = value as Record<string, unknown>
+          const merged = record.value?.apertureType === 'MANUAL' ? { ...raw } : mergeCommercialOpening(raw, workspace.value?.commercialData, supplemental.value)
+          // Quoted measurements are estimates, not proof of real cargo weight.
+          merged.estimatedWeightValue = raw.estimatedWeightValue ?? raw.quotedWeightKg ?? (record.value?.apertureType === 'AUTOMATIC' ? merged.weightValue : undefined)
+          merged.estimatedWeightUnit = raw.estimatedWeightUnit ?? (merged.estimatedWeightValue != null ? 'KG' : undefined)
+          merged.actualWeightValue = raw.actualWeightValue
+          merged.actualWeightUnit = raw.actualWeightUnit
+          merged.actualWeightKg = raw.actualWeightKg
+          return merged
+        })() : {}
   } catch { return {} }
 })
 const openingSections = computed(() => {
@@ -79,8 +89,9 @@ const openingSections = computed(() => {
       { label: 'Tipo de bulto', key: 'packageType' },
       { label: 'Peso estimado', key: 'estimatedWeightValue' },
       { label: 'Unidad estimada', key: 'estimatedWeightUnit' },
-      { label: 'Peso real', key: 'weightValue' },
-      { label: 'Unidad de peso', key: 'weightUnit' },
+      { label: 'Peso real', key: 'actualWeightValue' },
+      { label: 'Unidad de peso real', key: 'actualWeightUnit' },
+      { label: 'Peso real normalizado (kg)', key: 'actualWeightKg' },
       { label: 'Volumen', key: 'volumeValue' },
       { label: 'Unidad de volumen', key: 'volumeUnit' },
     ] },
@@ -104,7 +115,7 @@ const openingSections = computed(() => {
     rows: section.rows.filter(row => !inapplicable.has(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
       const value = openingField(row.key, data)
       return { label: row.label, value: value || (
-        row.key === 'weightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
+        row.key === 'actualWeightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
       ) }
     }),
   }))
@@ -263,6 +274,46 @@ const notes = ref<OperationsInternalNote[]>([])
 const noteText = ref('')
 const originStatus = ref('ORIGIN_COORDINATION')
 const savingOrigin = ref(false)
+const originWeightValue = ref('')
+const originWeightUnit = ref('KG')
+const originWeightSaving = ref(false)
+const originWeightStale = ref(false)
+const weightUnitOptions = [{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]
+function weightKg(value: unknown, unit: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 && n <= 1e12 && (unit === 'KG' || unit === 'LB')
+    ? n * (unit === 'LB' ? 0.45359237 : 1) : null
+}
+const estimatedWeightKg = computed(() => weightKg(openingData.value.estimatedWeightValue, openingData.value.estimatedWeightUnit))
+const confirmedWeightKg = computed(() => weightKg(openingData.value.actualWeightValue, openingData.value.actualWeightUnit))
+const pendingWeightKg = computed(() => weightKg(originWeightValue.value, originWeightUnit.value))
+const weightDifference = computed(() => estimatedWeightKg.value != null && confirmedWeightKg.value != null
+  ? confirmedWeightKg.value - estimatedWeightKg.value : null)
+const weightDirty = computed(() => originWeightValue.value !== String(openingData.value.actualWeightValue ?? '') ||
+  originWeightUnit.value !== String(openingData.value.actualWeightUnit ?? 'KG'))
+function hydrateOriginWeight() {
+  originWeightValue.value = String(openingData.value.actualWeightValue ?? '')
+  originWeightUnit.value = String(openingData.value.actualWeightUnit ?? 'KG')
+  originWeightStale.value = false
+}
+async function confirmOriginWeight() {
+  const detail = record.value
+  if (!detail || level('COORDINACION_ORIGEN') !== 'EDITABLE' || pendingWeightKg.value == null ||
+      !weightDirty.value || originWeightStale.value || originWeightSaving.value) return
+  originWeightSaving.value = true
+  error.value = ''
+  try {
+    await operationsApi.confirmOriginWeight(detail.id, { expectedVersion: detail.version, value: Number(originWeightValue.value), unit: originWeightUnit.value })
+    if (caseId.value !== detail.id) return
+    await load()
+    message.value = 'Peso real confirmado. El peso estimado se conserva.'
+  } catch (cause) {
+    if (caseId.value === detail.id) {
+      error.value = cause instanceof Error ? cause.message : 'No se pudo confirmar el peso.'
+      originWeightStale.value = true
+    }
+  } finally { originWeightSaving.value = false }
+}
 const originStatusChoices = computed(() => {
   switch (record.value?.modalityCode) {
     case 'FCL': case 'LCL': return [
@@ -425,6 +476,7 @@ async function load() {
     record.value = detail
     workspace.value = work
     access.value = tabResponse.tabs
+    hydrateOriginWeight()
     captureEdit(detail)
     if (level(selectedTab.value) === 'LOCKED' || level(selectedTab.value) === 'NOT_APPLICABLE')
       selectedTab.value = tabs.find(tab => ['EDITABLE', 'READ_ONLY'].includes(level(tab.code)))?.code ?? 'RESUMEN'
@@ -543,7 +595,7 @@ async function requestCommercialReview() {
   const selected = comparison.value
   const id = record.value?.id
   if (!id || !selected?.canRequest || selected.currentReview || !discrepancyCount.value ||
-      requestingReview.value || reviewDraftChanged.value) return
+      requestingReview.value || reviewDraftChanged.value || !reviewComment.value.trim() || reviewComment.value.trim().length > 300) return
   requestingReview.value = true
   error.value = ''
   try {
@@ -572,6 +624,10 @@ async function addNote() {
   } finally { postingNote.value = false }
 }
 useOperationsCaseRealtime(caseId, () => {
+  if (weightDirty.value || originWeightSaving.value) {
+    originWeightStale.value = true
+    return
+  }
   if (requestingReview.value || reviewComment.value.trim()) {
     reviewDraftChanged.value = true
     return
@@ -890,11 +946,11 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <p v-if="comparison.currentReview.decisionReason" class="mt-1 text-xs text-[var(--dh-text-muted)]">Pricing: {{ comparison.currentReview.decisionReason }}</p>
             </div>
             <div v-else-if="comparison.canRequest && discrepancyCount" class="mt-4 space-y-3 border-t border-[var(--dh-border)] pt-3">
-              <DhTextarea v-model="reviewComment" label="Observación para Pricing (opcional)" placeholder="Agregue contexto para la recotización." />
+              <DhTextarea v-model="reviewComment" label="Justificación de la revisión comercial" placeholder="Explique por qué cambian las condiciones de la operación." />
               <p v-if="reviewDraftChanged" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice la comparación antes de enviar.</p>
               <div class="flex justify-end">
                 <DhButton label="Solicitar revisión / recotización" :loading="requestingReview"
-                  :disabled="reviewDraftChanged || reviewComment.length > 300" @click="requestCommercialReview" />
+                  :disabled="reviewDraftChanged || !reviewComment.trim() || reviewComment.trim().length > 300" @click="requestCommercialReview" />
               </div>
             </div>
             <div v-if="comparison.history.some(x => x.id !== comparison?.currentReview?.id)" class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3">
@@ -962,6 +1018,23 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               </div>
             </div>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">Esta etapa no está activa en el flujo del trámite.</p>
+          </DhCard>
+          <DhCard v-if="selectedTab === 'COORDINACION_ORIGEN' && currentStage" title="Peso de la mercancía" subtitle="Conserva el peso estimado y confirma el peso real independientemente.">
+            <div class="grid gap-3 sm:grid-cols-3">
+              <div><p class="text-xs text-[var(--dh-text-muted)]">Estimado (kg)</p><p class="font-semibold tabular-nums">{{ amountLabel(estimatedWeightKg) }}</p></div>
+              <div><p class="text-xs text-[var(--dh-text-muted)]">Real (kg)</p><p class="font-semibold tabular-nums">{{ amountLabel(confirmedWeightKg) }}</p></div>
+              <div><p class="text-xs text-[var(--dh-text-muted)]">Diferencia (kg)</p><p class="font-semibold tabular-nums">{{ amountLabel(weightDifference) }}</p></div>
+            </div>
+            <div v-if="level('COORDINACION_ORIGEN') === 'EDITABLE'" class="mt-4 space-y-3">
+              <div class="grid gap-3 sm:grid-cols-2">
+                <DhInput v-model="originWeightValue" label="Peso real" type="number" :min="0" />
+                <DhSelect v-model="originWeightUnit" label="Unidad" :options="weightUnitOptions" />
+              </div>
+              <p class="text-sm text-[var(--dh-text-muted)]">Equivalencia: {{ amountLabel(pendingWeightKg) }} kg</p>
+              <p v-if="originWeightStale" role="alert" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice antes de confirmar el peso.</p>
+              <div class="flex justify-end"><DhButton :icon="Save" label="Confirmar peso real" :loading="originWeightSaving"
+                :disabled="originWeightStale || !weightDirty || pendingWeightKg == null" @click="confirmOriginWeight" /></div>
+            </div>
           </DhCard>
           <DhCard title="Hitos y seguimiento" subtitle="Fechas reales y planificadas registradas en Operations.">
             <div v-for="milestone in currentMilestones" :key="milestone.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3">
