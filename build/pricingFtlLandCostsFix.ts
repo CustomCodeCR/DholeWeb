@@ -56,7 +56,9 @@ function patchWizard(source: string) {
 }
 
 function costContextPoeId() {
-  const manualPoeId = String(manualOceanFreightPoeId.value ?? '').trim()
+  const canUseManualOceanPoe = shipmentModeForApi.value === 'Fcl'
+    && ['Maritime', 'Multimodal'].includes(String(form.modality))
+  const manualPoeId = canUseManualOceanPoe ? String(manualOceanFreightPoeId.value ?? '').trim() : ''
   if (!form.selectedImportRateId && manualPoeId) return manualPoeId
   if (!isMultimodalViaPanama(selectedDestination.value)) return form.destinationId
   return String(selectedImportRate.value?.poeId ?? '').trim() || form.destinationId

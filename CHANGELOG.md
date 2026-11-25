@@ -1,3 +1,7 @@
+## [1.127.1] - 2026-11-25
+
+- DH-20261125-PRICING-WIZARD-CONTEXT-P6: preserve the full canonical Pricing context through Vite runtime transforms, reject stale P6 responses explicitly, and restore Merchant/Carrier costs from the same wizard-bundle snapshot. Regression tests cover MSC Caldera, alternate routes, equipment, weight and customer identity. Existing REST, realtime and visual contracts unchanged. CI and staging pending.
+
 ## [1.127.0] - 2026-11-25
 
 - Add optional Booking Request Shipper document category in Pricing screen 4, reusing the existing Storage upload and document metadata. CI and staging pending.
