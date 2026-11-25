@@ -303,6 +303,7 @@ const supportCategories = [
   { key: 'packing-list', label: 'Packing List (PL)' },
   { key: 'invoice', label: 'Invoice' },
   { key: 'msds-tech-sheet', label: 'MSDS / Ficha técnica' },
+  { key: 'booking-request-shipper', label: 'Booking Request Shipper' },
 ] as const
 const supportAccept = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.xlsb'
 
