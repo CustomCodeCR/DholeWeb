@@ -8,7 +8,7 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type ValidationPair } from '../services/operationsApi'
 
 const props = defineProps<{ caseId: string; version?: number }>()
-const emit = defineEmits<{ updated: [] }>()
+const emit = defineEmits<{ updated: []; approved: [] }>()
 const auth = useAuthStore()
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
 const pair = ref<ValidationPair | null>(null)
@@ -51,6 +51,12 @@ async function decide(id: string, decision: 'APPROVED' | 'REJECTED') {
   try {
     await operationsApi.decide(props.caseId, id, decision, comment.value.trim())
     comment.value = ''
+    if (decision === 'APPROVED') {
+      ++sequence
+      pair.value = null
+      emit('approved')
+      return
+    }
     await load()
     emit('updated')
   } catch (cause) {

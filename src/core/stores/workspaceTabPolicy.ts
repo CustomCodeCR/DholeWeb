@@ -11,6 +11,8 @@ export function workspaceTabKey(path: string): string {
 // or between editor documents, updates that tab instead of leaving a stale one.
 export function workspaceTabGroup(path: string): string | null {
   const pathname = workspaceTabKey(path)
+  // Operations list and case detail reuse one slot; retain separate create/edit forms.
+  if (/^\/operations\/cases(?:\/[0-9a-f-]{36})?$/i.test(pathname)) return 'operations-cases'
   // CRM list and detail routes share one slot per module.
   if (/^\/crm\/accounts(?:\/[^/]+)?$/.test(pathname)) return 'crm-accounts'
   if (/^\/crm\/contacts(?:\/[^/]+)?$/.test(pathname)) return 'crm-contacts'

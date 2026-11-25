@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { UsersRound, RefreshCw, UserCheck, ShieldCheck, UserRoundPlus, Clock3, Layers3, Pencil, UserMinus, SlidersHorizontal, ChevronDown } from 'lucide-vue-next'
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
@@ -111,8 +111,8 @@ async function reload() {
   loading.value = true
   try {
     teams.value = await operationsApi.teams()
-    if (!selectedId.value || !teams.value.some(team => team.id === selectedId.value))
-      selectedId.value = teams.value[0]?.id ?? ''
+    if (!filteredTeams.value.some(team => team.id === selectedId.value))
+      selectedId.value = filteredTeams.value[0]?.id ?? ''
     await loadAudit()
   } catch (value) { fail(value) }
   finally { loading.value = false }
@@ -143,7 +143,7 @@ async function loadAudit() {
   }
 }
 function chooseTeam(id: string) {
-  selectedId.value = id
+  selectedId.value = filteredTeams.value.some(team => team.id === id) ? id : ''
   removingMemberId.value = ''
   clearForm()
   void loadAudit()
@@ -219,6 +219,10 @@ async function initialize() {
   }
   await Promise.all([reload(), searchUsers()])
 }
+watch(departmentFilter, () => {
+  if (!filteredTeams.value.some(team => team.id === selectedId.value)) chooseTeam(filteredTeams.value[0]?.id ?? '')
+})
+watch(() => auth.userId, () => { teams.value = []; selectedId.value = ''; knownUsers.value = []; users.value = []; history.value = []; auditPeople.value = []; clearForm(); void reload(); void searchUsers() })
 onMounted(initialize)
 </script>
 

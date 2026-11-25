@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { FolderOpen, RefreshCw, Plus, ArrowUpRight, Route, Package, UsersRound, FileText, CheckCircle2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhSelect, DhInput, DhTextarea } from '@/shared/components/atoms'
-import { DhCard, DhDataTable, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
+import { DhCard, DhDataTable, DhPagination, DhSearchInput, type DhTableColumn } from '@/shared/components/molecules'
 import { DhDrawer, DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
@@ -205,10 +205,11 @@ const loading = ref(false)
 const loadingDetail = ref(false)
 const error = ref('')
 const detailError = ref('')
-const pages = computed(() => Math.max(1, Math.ceil(total.value / 25)))
+const pageSize = ref(25)
+const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 const columns = computed<DhTableColumn<OperationsCaseRow>[]>(() => [
   { key: 'idtra', label: 'IDTRA' },
-  { key: 'accountId', label: 'Cliente' },
+  { key: 'accountId', label: 'Cliente', width: '240px' },
   { key: 'sourceQuoteId', label: 'Cotización' },
   { key: 'modalityCode', label: 'Modalidad' },
   { key: 'departmentCode', label: 'Departamento' },
@@ -247,10 +248,11 @@ async function load() {
   try {
     const result = await operationsApi.cases(page.value, {
       q: search.value, status: status.value, apertureType: apertureType.value, accountId: accountId.value,
-    })
+    }, pageSize.value)
     if (current !== listSequence) return
     rows.value = result.items
     total.value = result.total
+    if (page.value > pages.value) { page.value = pages.value; await load(); return }
     caseClientNames.value = result.clientNames || {}
     resolvedPeople.value = { ...resolvedPeople.value, ...(result.people || {}) }
     void resolveAccountNames(result.items.map(x => x.accountId))
@@ -357,6 +359,11 @@ async function changePage(next: number) {
   page.value = Math.min(pages.value, Math.max(1, next))
   await load()
 }
+async function changePageSize(next: number) {
+  pageSize.value = next
+  page.value = 1
+  await load()
+}
 let filterTimer: ReturnType<typeof setTimeout> | undefined
 watch([search, status, apertureType, accountId], () => {
   clearTimeout(filterTimer)
@@ -421,7 +428,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <strong class="text-sm font-black text-[var(--dh-primary)]">{{ row.idtra }}</strong>
         </template>
         <template #cell-accountId="{ row }">
-          <span class="break-words text-sm font-semibold">{{ resolvedAccounts[row.accountId] || readable(caseClientNames[row.id]) || accountLabel(row.accountId) }}</span>
+          <span class="inline-block min-w-[12rem] break-normal text-sm font-semibold">{{ resolvedAccounts[row.accountId] || readable(caseClientNames[row.id]) || accountLabel(row.accountId) }}</span>
         </template>
         <template #cell-sourceQuoteId="{ row }">
           <RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteOptionId || row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>{{ row.quoteNumber || 'Número pendiente de consulta' }}</RouterLink>
@@ -445,13 +452,8 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <DhButton v-else variant="secondary" size="sm" label="Resumen" @click.stop="openCase(row.id)" />
         </template>
       </DhDataTable>
-      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ total }} trámites · Página {{ page }} de {{ pages }}</p>
-        <div class="flex gap-2">
-          <DhButton variant="secondary" size="sm" label="Anterior" :disabled="page <= 1 || loading" @click="changePage(page - 1)" />
-          <DhButton variant="secondary" size="sm" label="Siguiente" :disabled="page >= pages || loading" @click="changePage(page + 1)" />
-        </div>
-      </div>
+      <DhPagination class="mt-4" :page="page" :page-size="pageSize" :total="total"
+        @update:page="changePage" @update:page-size="changePageSize" />
     </DhCard>
 
     <DhDrawer :open="Boolean(selected) || loadingDetail || Boolean(detailError)" :title="selected ? 'Resumen · ' + selected.idtra : 'Resumen de trámite'" size="lg" @close="closeDrawer">

@@ -1,3 +1,5 @@
+- Fix approved-opening exit, reuse the Operations workspace tab, use shared DH pagination and synchronize team selection with its department.
+
 ## [1.125.0] - 2026-11-24
 
 - Coordinated ecosystem version for multiple IDTRAs per accepted quotation. Existing DH Trámites list and individual IDTRA case routes retained.

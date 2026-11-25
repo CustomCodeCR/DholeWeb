@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useWorkspaceTabsStore } from '@/core/stores/workspaceTabsStore'
+import { workspaceTabKey } from '@/core/stores/workspaceTabPolicy'
 import {
   ArrowLeft, RefreshCw, Pencil, Save, FolderOpen, ClipboardList,
   FileText, LockKeyhole, MessageSquareText, Plus, Layers3,
@@ -26,6 +28,8 @@ import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
 import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel, useOpeningDocuments } from '../utils/commercialPresentation'
 
 const route = useRoute()
+const router = useRouter()
+const workspaceTabs = useWorkspaceTabsStore()
 const { openingField, currency } = useCommercialLabels()
 const supplemental = ref<Record<string, unknown>>({})
 const auth = useAuthStore()
@@ -332,8 +336,20 @@ function captureEdit(detail: OperationsCaseDetail) {
   }
 }
 let sequence = 0
+let leaving = false
+async function leaveApprovedCase() {
+  if (leaving) return
+  leaving = true
+  ++sequence
+  const key = workspaceTabKey(route.fullPath)
+  record.value = null
+  workspace.value = null
+  access.value = []
+  workspaceTabs.closeTab(key)
+  await router.replace({ path: '/operations/cases' })
+}
 async function load() {
-  if (!caseId.value) return
+  if (!caseId.value || leaving) return
   const current = ++sequence
   loading.value = true
   error.value = ''
@@ -353,7 +369,7 @@ async function load() {
     access.value = tabResponse.tabs
     captureEdit(detail)
     if (level(selectedTab.value) === 'LOCKED' || level(selectedTab.value) === 'NOT_APPLICABLE')
-      selectedTab.value = 'RESUMEN'
+      selectedTab.value = tabs.find(tab => ['EDITABLE', 'READ_ONLY'].includes(level(tab.code)))?.code ?? 'RESUMEN'
 
     // Optional reads are scoped individually; an unauthorized panel must not
     // prevent opening the whole expediente.
@@ -502,7 +518,7 @@ useOperationsCaseRealtime(caseId, () => {
   }
   void load()
 })
-watch([caseId, () => auth.userId], () => { record.value = null; workspace.value = null; selectedTab.value = 'RESUMEN'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
+watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.value = []; record.value = null; workspace.value = null; selectedTab.value = 'RESUMEN'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
 </script>
 
 <template>
@@ -566,6 +582,7 @@ watch([caseId, () => auth.userId], () => { record.value = null; workspace.value 
         :case-id="record.id"
         :version="record.version"
         @updated="load"
+        @approved="leaveApprovedCase"
       />
       <DhTabs :model-value="selectedTab" :items="caseTabItems" aria-label="Departamentos del expediente" @update:model-value="selectCaseTab">
         <template #label="{ item }">
