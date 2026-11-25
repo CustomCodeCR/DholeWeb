@@ -73,7 +73,27 @@ let restoringOpening = false
 const currentCatalog = (key: string) => catalogs.value[key] || []
 const optionText = (item: CatalogItemSelectDto) => String(item.value || item.label || item.code).trim()
 const catalogChoices = (key: string) => currentCatalog(key).filter(item => item.isActive).map(item => ({ value: optionText(item), label: optionText(item) }))
-const locationChoices = (key: string) => currentCatalog(key).filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item), searchText: [item.label,item.code,item.slug].join(' ') }))
+type RouteTerminal = 'CY' | 'SD' | 'APT'
+function routeTerminalType(item: CatalogItemSelectDto, fallback: RouteTerminal): RouteTerminal {
+  let configured = ''
+  try { configured = String(JSON.parse(item.metadataJson || '{}')?.terminalType || '').trim().toUpperCase() }
+  catch { /* Legacy catalog items use the code or group fallback. */ }
+  if (configured === 'CY' || configured === 'SD' || configured === 'APT') return configured
+  const code = String(item.code || '').trim().toUpperCase()
+  for (const terminal of ['CY', 'SD', 'APT'] as const)
+    if (code.split('_').includes(terminal)) return terminal
+  return fallback
+}
+const routeTerminal = computed<RouteTerminal>(() =>
+  form.value.transportType === 'AIR' ? 'APT' : form.value.transportType === 'ROAD' ? 'SD' : 'CY')
+const locationChoices = (key: string) => currentCatalog(key).filter(item => item.isActive &&
+  (key === 'warehouses' || routeTerminalType(item, key === 'pod' ? 'SD' : 'CY') === (key === 'pod' ? 'SD' : routeTerminal.value)))
+  .map(item => ({ value: item.id, label: optionText(item), searchText: [item.label,item.code,item.slug].join(' ') }))
+function catalogCode(key: string, id: string): string { return currentCatalog(key).find(x => x.id === id && x.isActive)?.code || '' }
+function selectedRouteType(key: 'pol' | 'poe' | 'pod', id: string): RouteTerminal | undefined {
+  const item = currentCatalog(key).find(x => x.id === id && x.isActive)
+  return item ? routeTerminalType(item, key === 'pod' ? 'SD' : 'CY') : undefined
+}
 const polOptions = computed(() => locationChoices('pol'))
 const poeOptions = computed(() => locationChoices('poe'))
 const podOptions = computed(() => locationChoices('pod'))
@@ -130,6 +150,8 @@ const form = ref({
   pickupWindow: '', requiresPickup: false, whsName: '',
   destinationAddress: '', cargoDescription: '', packageCount: '',
   packageType: '', weightValue: '', weightUnit: 'KG',
+  estimatedWeightValue: '', estimatedWeightUnit: 'KG',
+  lengthCm: '', widthCm: '', heightCm: '', operationDirection: '',
   volumeValue: '', volumeUnit: 'CBM', consolidationReference: '',
   isImo: false, imoClass: '', unNumber: '', stackable: true,
   overweight: false, overweightNotes: '', carrierReference: '',
@@ -202,6 +224,12 @@ function selectTransport(value: string) {
   if (form.value.transportType === value) return
   const available = shipmentOptionsByTransport[value] ?? []
   form.value.transportType = value
+  selectedPol.value = ''
+  selectedPoe.value = ''
+  form.value.pol = ''
+  form.value.poe = ''
+  form.value.equipment = []
+  if (!['MARITIME', 'MULTIMODAL'].includes(value)) form.value.portHandlingMode = ''
   if (!available.some(item => item.value === effectiveShipment.value)) {
     form.value.shipmentType = ''
     modality.value = ''
@@ -215,6 +243,10 @@ function selectTransport(value: string) {
 }
 function selectShipment(value: string) {
   if (!shipmentOptions.value.some(item => item.value === value)) return
+  if (form.value.shipmentType !== value) {
+    form.value.equipment = []
+    form.value.portHandlingMode = ''
+  }
   form.value.shipmentType = value
   modality.value = form.value.transportType === 'MULTIMODAL' ? 'MULTIMODAL' : value
 }
@@ -245,9 +277,13 @@ const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.v
 const selectedIncoterm = computed(() => form.value.incoterm
   ? normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
   : '')
-const requiresWarehouse = computed(() => selectedIncoterm.value === 'FCA')
+const needsCargoMeasurements = computed(() => ['LCL', 'LTL', 'AIR'].includes(effectiveShipment.value))
+const requiresWarehouse = computed(() => selectedIncoterm.value === 'FCA' && !form.value.requiresPickup)
+const requiresExwPickup = computed(() => selectedIncoterm.value === 'EXW' && form.value.operationDirection === 'IMPORT')
+const positive = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0
+const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
 const pickupSelection = computed({
-  get: () => form.value.requiresPickup ? 'YES' : 'NO',
+  get: () => pickupRequired.value ? 'YES' : 'NO',
   set: (value: string) => { form.value.requiresPickup = value === 'YES' },
 })
 const valid = computed(() =>
@@ -257,8 +293,8 @@ const valid = computed(() =>
   priority.value >= 1 && priority.value <= 5 && complexity.value > 0 &&
   (!form.value.originCountryCode || /^[A-Za-z]{2}$/.test(form.value.originCountryCode)) &&
   (!form.value.destinationCountryCode || /^[A-Za-z]{2}$/.test(form.value.destinationCountryCode)) &&
-  form.value.equipment.every(x => Number.isInteger(x.quantity) && x.quantity > 0 && (x.weightKg == null || Number(x.weightKg) >= 0)) &&
-  uniqueEquipment.value)
+  (!needsEquipment.value || (form.value.equipment.every(x => Number.isInteger(x.quantity) && x.quantity > 0 && (x.weightKg == null || Number(x.weightKg) >= 0)) &&
+  uniqueEquipment.value)))
 const blockers = computed(() => {
   const result: string[] = []
   if (!accountId.value) result.push('Cliente CRM')
@@ -268,15 +304,26 @@ const blockers = computed(() => {
   if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
   if (!form.value.pol.trim()) result.push('POL / lugar de origen')
   if (!form.value.pod.trim()) result.push('POD / lugar de destino')
+  if (!editingId.value) {
+    if (!['IMPORT', 'EXPORT', 'OTHER'].includes(form.value.operationDirection)) result.push('Sentido de operación')
+    if (!form.value.poe.trim()) result.push('POE / lugar de entrada')
+    if (selectedRouteType('pol', selectedPol.value) !== routeTerminal.value) result.push('Origen compatible con la modalidad')
+    if (selectedRouteType('poe', selectedPoe.value) !== routeTerminal.value) result.push('Entrada compatible con la modalidad')
+    if (selectedRouteType('pod', selectedPod.value) !== 'SD') result.push('Destino final compatible')
+    if (!positive(form.value.estimatedWeightValue) || !['KG', 'LB'].includes(form.value.estimatedWeightUnit)) result.push('Peso estimado')
+    if (needsCargoMeasurements.value && (!positive(form.value.volumeValue) || !['CBM','CFT'].includes(form.value.volumeUnit))) result.push('Volumen de carga')
+    if (effectiveShipment.value === 'AIR' && ![form.value.lengthCm, form.value.widthCm, form.value.heightCm].every(positive)) result.push('Dimensiones de carga')
+    if (['DAP','DPU','DDP'].includes(selectedIncoterm.value) && !form.value.destinationAddress.trim()) result.push('Lugar de entrega acordado')
+  }
   if (!incoterms.includes(selectedIncoterm.value) || (!isMaritime.value && ['FAS','FOB','CFR','CIF'].includes(selectedIncoterm.value))) result.push('Incoterm aplicable al transporte')
-  if (form.value.requiresPickup) {
+  if (pickupRequired.value) {
     if (!form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
     if (!form.value.pickupContact.trim()) result.push('Contacto de recolecta')
     if (!form.value.pickupWindow.trim()) result.push('Ventana de recolecta')
   }
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
-  if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
-  if (!uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
+  if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim() || (!editingId.value && !currentCatalog(equipmentCatalogKey.value).some(item => item.id === resolvedEquipmentId(x) && item.isActive)))) result.push('Tipo de equipo por seleccionar')
+  if (needsEquipment.value && !uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
@@ -525,6 +572,7 @@ function draftSnapshot(): Record<string, unknown> {
   const { weightValue: _manualWeight, weightUnit: _manualWeightUnit, ...draftForm } = form.value
   return {
     savedAt: Date.now(), version: 2, form: draftForm,
+    routeIds: { pol: selectedPol.value, poe: selectedPoe.value, pod: selectedPod.value },
     accountId: accountId.value, selectedClientName: selectedClientName.value,
     modality: modality.value, step: activeStep.value,
     executiveName: executiveName.value, executiveUserId: executiveUserId.value,
@@ -582,6 +630,8 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
       if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
       if (!Array.isArray(form.value.equipment)) form.value.equipment = []
       if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
+      if (!needsEquipment.value && form.value.shipmentType) form.value.equipment = []
+      if (!isMaritime.value) form.value.portHandlingMode = ''
     }
     accountId.value = String(draft.accountId || '')
     lastSelectedAccountId = accountId.value
@@ -595,6 +645,15 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
     const step = Number(draft.step)
     activeStep.value = step >= 1 && step <= wizardSteps.length ? step : 1
     reconcileLocations()
+    const routeIds = draft.routeIds
+    if (routeIds && typeof routeIds === 'object' && !Array.isArray(routeIds)) {
+      const ids = routeIds as Record<string, unknown>
+      for (const [group, target] of [['pol', selectedPol], ['poe', selectedPoe], ['pod', selectedPod]] as const) {
+        const id = ids[group]
+        if (typeof id === 'string' && currentCatalog(group).some(item => item.id === id && item.isActive && optionText(item) === form.value[group]))
+          target.value = id
+      }
+    }
     lastAutoSaveAt.value = new Date(Number(draft.savedAt)).toLocaleTimeString([], {
       hour: '2-digit', minute: '2-digit',
     })
@@ -668,12 +727,17 @@ async function save() {
       stackable: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
+      requiresPickup: pickupRequired.value,
+      portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
+      ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 2, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: selectedPod.value, polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: catalogCode('pod', selectedPod.value), polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: selectedRouteType('pod', selectedPod.value) } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
-        equipmentCatalogId: item.equipmentCatalogId || undefined,
+        equipmentCatalogId: resolvedEquipmentId(item) || undefined,
+        ...(!editingId.value ? { equipmentCatalogCode: catalogCode(equipmentCatalogKey.value, resolvedEquipmentId(item)) } : {}),
         quantity: Number(item.quantity),
         ...(editingId.value && item.weightKg != null ? { weightKg: item.weightKg } : {}),
-      })),
+      })).filter(() => needsEquipment.value || Boolean(editingId.value)),
       completionStatus: blockers.value.length ? 'DRAFT_INCOMPLETE' : 'READY_FOR_ORIGIN',
       missingFields: blockers.value,
       ...(!editingId.value ? { commercialStatus: 'SIN_QUO' } : {}),
@@ -962,6 +1026,7 @@ onMounted(async () => {
         <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="grid gap-4 md:grid-cols-2">
             <DhSelect v-model="form.incoterm" label="Incoterm" :options="incotermChoices" />
+            <DhSelect v-if="!editingId" v-model="form.operationDirection" label="Sentido de operación" :options="[{ label: 'Importación', value: 'IMPORT' }, { label: 'Exportación', value: 'EXPORT' }, { label: 'Otra operación', value: 'OTHER' }]" />
             <DhSelect v-model="form.cargoNature" label="Naturaleza de la carga"
               :options="cargoNatureChoiceOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
@@ -972,17 +1037,17 @@ onMounted(async () => {
             </div>
             <div class="grid gap-4 md:grid-cols-3">
               <div>
-                <PricingLocationSearchSelect v-if="polOptions.length" v-model="selectedPol" label="Origen / POL" placeholder="Buscar puerto o ciudad…" search-placeholder="Nombre, código o país…" :options="polOptions" terminal-type="CY" />
+                <PricingLocationSearchSelect v-if="polOptions.length" v-model="selectedPol" :label="routeTerminal === 'APT' ? 'Aeropuerto de origen / POL' : 'Origen / POL'" placeholder="Buscar ubicación…" search-placeholder="Nombre, código o país…" :options="polOptions" :terminal-type="routeTerminal" @update:model-value="!$event && (form.pol = '')" />
                 <DhInput v-else v-model="form.pol" label="Origen / POL" placeholder="Puerto o lugar de origen" />
                 <DhInput v-if="form.pol && !selectedPol && polOptions.length" v-model="form.pol" label="Origen registrado / texto libre" />
               </div>
               <div>
-                <PricingLocationSearchSelect v-if="poeOptions.length" v-model="selectedPoe" label="Entrada / POE" placeholder="Buscar puerto de entrada…" search-placeholder="Nombre, código o país…" :options="poeOptions" terminal-type="CY" />
+                <PricingLocationSearchSelect v-if="poeOptions.length" v-model="selectedPoe" :label="routeTerminal === 'APT' ? 'Aeropuerto de entrada / POE' : 'Entrada / POE'" placeholder="Buscar ubicación de entrada…" search-placeholder="Nombre, código o país…" :options="poeOptions" :terminal-type="routeTerminal" @update:model-value="!$event && (form.poe = '')" />
                 <DhInput v-else v-model="form.poe" label="Entrada / POE" placeholder="Puerto de entrada" />
                 <DhInput v-if="form.poe && !selectedPoe && poeOptions.length" v-model="form.poe" label="POE registrado / texto libre"  />
               </div>
               <div>
-                <PricingLocationSearchSelect v-if="podOptions.length" v-model="selectedPod" label="Destino final / POD" placeholder="Buscar destino…" search-placeholder="Nombre, código o país…" :options="podOptions" terminal-type="SD" />
+                <PricingLocationSearchSelect v-if="podOptions.length" v-model="selectedPod" label="Destino final / POD" placeholder="Buscar destino…" search-placeholder="Nombre, código o país…" :options="podOptions" terminal-type="SD" @update:model-value="!$event && (form.pod = '')" />
                 <DhInput v-else v-model="form.pod" label="Destino final / POD" placeholder="Destino" />
                 <DhInput v-if="form.pod && !selectedPod && podOptions.length" v-model="form.pod" label="POD registrado / texto libre" />
               </div>
@@ -994,7 +1059,7 @@ onMounted(async () => {
           </div>
           <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <h4 class="mb-1 text-sm font-black">Almacén de origen (WHS)</h4>
-            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Obligatorio para FCA, independientemente del tipo de embarque.</p>
+            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Obligatorio para FCA con entrega en bodega.</p>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
               :options="warehouseOptions" terminal-type="WHS" />
@@ -1002,13 +1067,14 @@ onMounted(async () => {
           </div>
           <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <h4 class="text-base font-black">Recolecta de carga</h4>
-            <DhSelect v-model="pickupSelection" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
-            <div v-if="form.requiresPickup" class="grid gap-4 md:grid-cols-2">
+            <DhSelect v-model="pickupSelection" :disabled="requiresExwPickup" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
+            <div v-if="pickupRequired" class="grid gap-4 md:grid-cols-2">
               <DhInput v-model="form.pickupAddress" label="Dirección de recolecta" />
               <DhInput v-model="form.pickupContact" label="Contacto de recolecta" />
               <DhInput v-model="form.pickupWindow" label="Ventana de recolecta" />
             </div>
           </div>
+          <DhInput v-if="['DAP','DPU','DDP'].includes(selectedIncoterm)" v-model="form.destinationAddress" label="Lugar de entrega acordado" />
         </div>
 
         <div v-show="activeStep === 2" class="space-y-5">
@@ -1033,9 +1099,14 @@ onMounted(async () => {
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
+            <DhInput v-model="form.estimatedWeightValue" label="Peso estimado" type="number" :min="0" />
+            <DhSelect v-model="form.estimatedWeightUnit" label="Unidad de peso estimado" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
             <DhSelect v-model="form.volumeUnit" label="Unidad volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
-            <DhInput v-model="form.consolidationReference" label="Referencia de consolidado" />
+            <DhInput v-if="['LCL','LTL'].includes(effectiveShipment)" v-model="form.consolidationReference" label="Referencia de consolidado" />
+            <DhInput v-if="effectiveShipment === 'AIR'" v-model="form.lengthCm" label="Largo (cm)" type="number" :min="0" />
+            <DhInput v-if="effectiveShipment === 'AIR'" v-model="form.widthCm" label="Ancho (cm)" type="number" :min="0" />
+            <DhInput v-if="effectiveShipment === 'AIR'" v-model="form.heightCm" label="Alto (cm)" type="number" :min="0" />
           </div>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -1079,7 +1150,7 @@ onMounted(async () => {
                   </span>
                 </button>
             </div>
-            <div class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
+            <div v-if="isMaritime" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
               <div class="mb-3">
                 <h5 class="text-sm font-black">Muellaje en destino</h5>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones excluyentes; selecciona únicamente la que corresponda.</p>
@@ -1117,7 +1188,7 @@ onMounted(async () => {
               <DhInput v-if="form.overweight" v-model="form.overweightNotes" label="Requerimientos por sobrepeso" />
             </div>
           </div>
-          <div v-if="needsEquipment || form.equipment.length" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
+          <div v-if="needsEquipment" class="overflow-hidden rounded-[24px] border border-[var(--dh-border)] bg-[var(--dh-card)]">
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--dh-border)] bg-[rgb(var(--dh-primary-rgb)/0.04)] px-5 py-4">
               <div>
                 <h4 class="text-base font-black">{{ effectiveShipment === 'FTL' ? 'Distribución de furgones FTL' : 'Distribución de contenedores FCL' }}</h4>
@@ -1165,7 +1236,7 @@ onMounted(async () => {
 
                 </span>
                 <div class="flex flex-wrap gap-1.5">
-                  <span v-for="(row, i) in form.equipment.filter(x => x.equipmentType)" :key="i"
+                  <span v-for="(row, i) in form.equipment.filter(x => needsEquipment && x.equipmentType)" :key="i"
                     class="rounded-full border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-1 text-[10px] font-bold">
                     {{ row.quantity }} × {{ row.equipmentType }}
                   </span>
@@ -1243,14 +1314,15 @@ onMounted(async () => {
                 <div class="mt-3 flex flex-wrap gap-2">
                   <span v-if="form.cabysCode" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">CABYS {{ form.cabysCode }}</span>
                   <span v-if="form.packageCount" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.packageCount }} {{ form.packageType || 'bultos' }}</span>
+                  <span v-if="form.estimatedWeightValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.estimatedWeightValue }} {{ form.estimatedWeightUnit }} estimado</span>
                   <span v-if="form.volumeValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.volumeValue }} {{ form.volumeUnit }}</span>
-                  <span v-for="(item, i) in form.equipment.filter(x => x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
+                  <span v-for="(item, i) in form.equipment.filter(x => needsEquipment && x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
                 </div>
                 <div class="mt-4 flex flex-wrap gap-2">
                   <DhBadge v-if="form.isImo" variant="warning">IMO / peligrosa</DhBadge>
                   <DhBadge v-if="['LCL','LTL'].includes(effectiveShipment)" variant="neutral">{{ form.stackable ? 'Estibable' : 'No estibable' }}</DhBadge>
                   <DhBadge v-if="form.overweight" variant="warning">Sobrepeso</DhBadge>
-                  <DhBadge v-if="form.portHandlingMode" variant="neutral">{{ form.portHandlingMode }}</DhBadge>
+                  <DhBadge v-if="isMaritime && form.portHandlingMode" variant="neutral">{{ form.portHandlingMode }}</DhBadge>
                   <DhBadge v-if="form.cargoNature" variant="neutral">{{ form.cargoNature }}</DhBadge>
                 </div>
                 <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
