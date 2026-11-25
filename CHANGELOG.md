@@ -1,3 +1,7 @@
+## [1.132.2] - 2026-11-25
+
+- DH-20261125-FTL-EDIT-P6-P7: candidato aislado de master con los mismos archivos de corrección y regresión de develop para edición FTL P6 → P7. No incluye funcionalidades de staging no relacionadas. Promoción pendiente de CI y validación de staging.
+
 ## [1.130.0] - 2026-11-25
 
 - Promote staged commercial quotation workbook with all or selected statuses, creation dates and search; existing DH button and permissions. No unrelated staging changes.
