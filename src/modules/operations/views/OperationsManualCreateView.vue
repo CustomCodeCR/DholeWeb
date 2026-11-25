@@ -820,6 +820,7 @@ onBeforeUnmount(() => {
 function buildOpeningData() {
   return {
       ...form.value,
+      ...(!editingId.value ? { etm: undefined, eta: undefined, consolidationReference: undefined } : {}),
       incotermName: selectedIncoterm.value,
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
@@ -1230,10 +1231,6 @@ onMounted(async () => {
               </div>
             </div>
           </div>
-          <div class="grid gap-4 md:grid-cols-2">
-            <DhInput v-model="form.etm" label="Fecha estimada de salida (ETD)" type="date" />
-            <DhInput v-model="form.eta" label="Fecha estimada de llegada (ETA)" type="date" />
-          </div>
           <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 space-y-3">
             <h4 class="text-sm font-black">WHS global (FCA)</h4>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
@@ -1280,6 +1277,7 @@ onMounted(async () => {
             <p v-if="form.cabysCode" class="text-xs font-black">CABYS seleccionado: {{ form.cabysCode }}</p>
           </div>
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
+          <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real, las fechas de transporte y el consolidado.</p>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
@@ -1287,7 +1285,6 @@ onMounted(async () => {
             <DhSelect v-model="form.estimatedWeightUnit" label="Unidad de peso estimado" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
             <DhSelect v-model="form.volumeUnit" label="Unidad volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
-            <DhInput v-if="['LCL','LTL'].includes(effectiveShipment)" v-model="form.consolidationReference" label="Referencia de consolidado" />
             <template v-if="effectiveShipment === 'AIR'">
               <DhInput v-model="form.lengthValue" label="Largo" type="number" :min="0" />
               <DhSelect v-model="form.lengthUnit" label="Unidad de largo" :options="dimensionOptions" />
@@ -1440,6 +1437,7 @@ onMounted(async () => {
                 <DhMultiSelect v-model="form.services" :options="serviceOptions" label="Servicios solicitados" placeholder="Seleccionar servicios" show-selected-labels search-placeholder="Buscar servicio..." />
                 <p v-if="!serviceOptions.length" class="mt-2 text-xs text-[var(--dh-text-muted)]">Catálogo de servicios no disponible. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadPricingCatalogs" /></p>
               </div>
+              <div v-else class="md:col-span-2"><p class="mb-2 text-xs font-bold text-[var(--dh-text-muted)]">Servicios registrados</p><div class="flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div></div>
               <DhSelect v-if="isMaritime" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera (si se conoce)" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
               <DhSelect searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
               <p v-if="selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
@@ -1510,8 +1508,6 @@ onMounted(async () => {
                 <div class="mt-4 flex flex-wrap gap-5 border-t border-[var(--dh-border)] pt-3 text-xs">
                   <span><span class="text-[var(--dh-text-muted)]">Operación:</span> <strong>{{ operationLabel || 'Pendiente' }}</strong></span>
                   <span><span class="text-[var(--dh-text-muted)]">Incoterm:</span> <strong>{{ form.incoterm || 'Pendiente' }}</strong></span>
-                  <span><span class="text-[var(--dh-text-muted)]">ETD:</span> <strong>{{ form.etm || 'Por confirmar' }}</strong></span>
-                  <span><span class="text-[var(--dh-text-muted)]">ETA:</span> <strong>{{ form.eta || 'Por confirmar' }}</strong></span>
                 </div>
                 <div v-if="(selectedIncoterm === 'EXW' || pickupRequired) && form.pickupLocations.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
                   <p class="text-xs font-bold">Puntos de recolecta</p>

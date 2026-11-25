@@ -121,9 +121,11 @@ export async function sameRevisionCommercialData(workspace: OperationsCaseWorksp
 export function useCommercialLabels() {
   const incoterms = ref<CatalogItemSelectDto[]>([])
   const currencies = ref<CatalogItemSelectDto[]>([])
+  const services = ref<CatalogItemSelectDto[]>([])
   onMounted(() => {
     void CatalogItemsService.select({catalogGroupSlug:'incoterms'}).then(x => incoterms.value = x).catch(() => {})
     void CatalogItemsService.select({catalogGroupSlug:'currencies'}).then(x => currencies.value = x).catch(() => {})
+    void CatalogItemsService.select({catalogGroupSlug:'pricing-services'}).then(x => services.value = x).catch(() => {})
   })
   function incoterm(code: unknown, name?: unknown): string {
     const item = catalogMatch(incoterms.value, code)
@@ -153,5 +155,21 @@ export function useCommercialLabels() {
     }
     return readable(data[key])
   }
-  return { openingField, currency }
+  function serviceLabels(data: Record<string, unknown>): string[] {
+    const labels = new Set<string>()
+    const selections = Array.isArray(data.serviceSelections) ? data.serviceSelections : []
+    const values = Array.isArray(data.services) ? data.services : []
+    for (const entry of [...selections, ...values]) {
+      const row = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}
+      const raw = typeof entry === 'string' ? entry : row.id ?? row.serviceId ?? row.pricingServiceId ?? row.code ?? row.serviceCode
+      const item = catalogMatch(services.value, raw)
+      const selected = selections.find(value => value && typeof value === 'object' &&
+        String((value as Record<string, unknown>).id ?? '') === String(raw ?? '')) as Record<string, unknown> | undefined
+      labels.add(readable(row.label) || readable(row.serviceName) || readable(row.name) ||
+        readable(selected?.label) || readable(item?.label) || readable(item?.value) ||
+        readable(raw) || 'Servicio pendiente de identificar')
+    }
+    return [...labels]
+  }
+  return { openingField, currency, serviceLabels }
 }

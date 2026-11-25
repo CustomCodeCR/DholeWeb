@@ -2,18 +2,23 @@
 import { operationsLabel } from '../utils/caseOverview'
 import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
 import { computed, ref, watch } from 'vue'
-import { ShieldCheck, UsersRound } from 'lucide-vue-next'
+import { ShieldCheck, UsersRound, Pencil } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhTextarea } from '@/shared/components/atoms'
-import { DhCard } from '@/shared/components/molecules'
+import { DhCard, DhTabs } from '@/shared/components/molecules'
 import { useAuthStore } from '@/core/stores/authStore'
 import { operationsApi, type ValidationPair, type OpeningCompleteness } from '../services/operationsApi'
 
-const props = defineProps<{ caseId: string; version?: number }>()
+const props = defineProps<{ caseId: string; version?: number; canEdit?: boolean }>()
 const emit = defineEmits<{ updated: []; approved: [] }>()
 const auth = useAuthStore()
 const canAssign = computed(() => auth.hasScope('operations.aperture.validation.assign') && auth.hasScope('operations.team.manage'))
 const pair = ref<ValidationPair | null>(null)
 const completeness = ref<OpeningCompleteness | null>(null)
+const group = ref('PENDIENTE_BLOQUEANTE')
+const originOnly = new Set(['etm','eta','actualWeight','bookingNumber','blNumber','containerNumber','consolidation'])
+const apertureFields = computed(() => (completeness.value?.fields || []).filter(f => f.completionStatus === 'PENDIENTE_BLOQUEANTE' || !originOnly.has(f.fieldCode)))
+const groups = computed(() => (['PENDIENTE_BLOQUEANTE','PENDIENTE_PERMITIDO','CONFIRMADO','NO_APLICA'] as const).map(status => ({key:status,label:openingStatusLabel(status) + ' (' + apertureFields.value.filter(f => f.completionStatus === status).length + ')'})))
+const visibleFields = computed(() => apertureFields.value.filter(f => f.completionStatus === group.value))
 const myPendingReview = computed(() => pair.value?.validators.some(v => v.canReview === true))
 const busy = ref(false)
 const error = ref('')
@@ -78,10 +83,17 @@ function label(status: string) { return operationsLabel(status) }
     <div v-if="pair">
       <div v-if="completeness" class="mb-3 space-y-2 rounded-xl border border-[var(--dh-border)] p-3" aria-live="polite">
         <p class="text-sm font-bold">Estados individuales de validación</p>
-        <p class="text-xs text-[var(--dh-text-muted)]">{{ completeness.missingFields.length }} bloqueantes · {{ completeness.fields.filter(f => f.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</p>
-        <div v-for="field in completeness.fields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <DhBadge :variant="completeness.missingFields.length ? 'danger' : 'success'">{{ completeness.missingFields.length ? completeness.missingFields.length + ' campos bloqueantes' : 'Sin bloqueantes' }}</DhBadge>
+          <RouterLink v-if="canEdit" :to="{ name: 'operations-case-edit', params: { id: caseId } }"><DhButton size="sm" :icon="Pencil" label="Completar datos de apertura" /></RouterLink>
+        </div>
+        <DhTabs v-model="group" :items="groups" aria-label="Estados de validación de Aperturas" />
+        <div class="max-h-64 overflow-y-auto space-y-2">
+        <div v-for="field in visibleFields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2">
           <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span>
           <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+        </div>
+        <p v-if="!visibleFields.length" class="py-2 text-xs text-[var(--dh-text-muted)]">No hay campos en este estado.</p>
         </div>
       </div>
       <p v-if="myPendingReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. Tu aprobación enviará el expediente a Coordinación Origen.</p>

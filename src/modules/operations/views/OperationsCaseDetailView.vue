@@ -33,7 +33,7 @@ import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData
 const route = useRoute()
 const router = useRouter()
 const workspaceTabs = useWorkspaceTabsStore()
-const { openingField, currency } = useCommercialLabels()
+const { openingField, currency, serviceLabels } = useCommercialLabels()
 const supplemental = ref<Record<string, unknown>>({})
 const auth = useAuthStore()
 const caseId = computed(() => String(route.params.id ?? ''))
@@ -112,7 +112,7 @@ const openingSections = computed(() => {
   const inapplicable = new Set(completeness.value?.fields.filter(field => field.completionStatus === 'NO_APLICA').map(field => field.fieldCode))
   return sections.map(section => ({
     title: section.title,
-    rows: section.rows.filter(row => !inapplicable.has(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
+    rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg','consolidationReference'].includes(row.key)) && !inapplicable.has(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
       const value = openingField(row.key, data)
       return { label: row.label, value: value || (
         row.key === 'actualWeightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
@@ -278,6 +278,31 @@ const originWeightValue = ref('')
 const originWeightUnit = ref('KG')
 const originWeightSaving = ref(false)
 const originWeightStale = ref(false)
+const originPlanning = ref({ etd: '', eta: '', consolidationReference: '' })
+const originPlanningBase = ref({ etd: '', eta: '', consolidationReference: '' })
+const originPlanningSaving = ref(false)
+const originPlanningStale = ref(false)
+const originPlanningDirty = computed(() => JSON.stringify(originPlanning.value) !== JSON.stringify(originPlanningBase.value))
+const originConsolidationApplicable = computed(() => ['LCL','LTL'].includes(record.value?.modalityCode || ''))
+function hydrateOriginPlanning() {
+  const data = openingData.value
+  const date = (value: unknown) => /^\d{4}-\d{2}-\d{2}/.test(String(value ?? '')) ? String(value).slice(0, 10) : ''
+  originPlanningBase.value = { etd: date(data.etm), eta: date(data.eta), consolidationReference: originConsolidationApplicable.value ? String(data.consolidationReference ?? '') : '' }
+  originPlanning.value = { ...originPlanningBase.value }
+  originPlanningStale.value = false
+}
+async function saveOriginPlanning() {
+  const detail = record.value
+  if (!detail || level('COORDINACION_ORIGEN') !== 'EDITABLE' || !originPlanningDirty.value || originPlanningStale.value || originPlanningSaving.value) return
+  originPlanningSaving.value = true
+  error.value = ''
+  try {
+    await operationsApi.updateOriginPlanning(detail.id, { expectedVersion: detail.version, ...originPlanning.value })
+    if (caseId.value === detail.id) { await load(); message.value = 'Planificación de Origen actualizada.' }
+  } catch (cause) {
+    if (caseId.value === detail.id) { error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la planificación.'; originPlanningStale.value = true }
+  } finally { originPlanningSaving.value = false }
+}
 const weightUnitOptions = [{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]
 function weightKg(value: unknown, unit: unknown): number | null {
   const n = Number(value)
@@ -357,12 +382,7 @@ function responsibleName(id: string | null | undefined): string {
   return id ? responsibleNames.value[id] || 'Nombre pendiente de consulta' : 'Sin operativo asignado'
 }
 const { openingDocuments, downloadDocument, documentError } = useOpeningDocuments(() => openingData.value.supportDocuments)
-const openingServices = computed(() => Array.isArray(openingData.value.serviceSelections) && openingData.value.serviceSelections.length
-  ? (openingData.value.serviceSelections as Array<{ label?: string }>).map(item => item.label || '').filter(Boolean)
-  : Array.isArray(openingData.value.services)
-  ? (openingData.value.services as unknown[]).map(x => typeof x === 'string' ? x :
-      x && typeof x === 'object' ? String((x as Record<string, unknown>).name ||
-        (x as Record<string, unknown>).label || '') : '').filter(Boolean) : [])
+const openingServices = computed(() => serviceLabels(openingData.value))
 async function loadResponsibleNames(ids: Array<string | null | undefined>, current: number) {
   const uniques = [...new Set(ids.filter((x): x is string => Boolean(x)))]
   if (!uniques.length || !auth.hasScope('operations.audit.read')) return
@@ -477,6 +497,7 @@ async function load() {
     workspace.value = work
     access.value = tabResponse.tabs
     hydrateOriginWeight()
+    hydrateOriginPlanning()
     captureEdit(detail)
     if (level(selectedTab.value) === 'LOCKED' || level(selectedTab.value) === 'NOT_APPLICABLE')
       selectedTab.value = tabs.find(tab => ['EDITABLE', 'READ_ONLY'].includes(level(tab.code)))?.code ?? 'RESUMEN'
@@ -624,6 +645,7 @@ async function addNote() {
   } finally { postingNote.value = false }
 }
 useOperationsCaseRealtime(caseId, () => {
+  if (originPlanningDirty.value || originPlanningSaving.value) { originPlanningStale.value = true; return }
   if (weightDirty.value || originWeightSaving.value) {
     originWeightStale.value = true
     return
@@ -701,6 +723,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
         v-if="record.apertureType === 'AUTOMATIC' && (record.status === 'PENDING_VALIDATION' || record.status === 'APERTURA_REQUIERE_CAMBIOS')"
         :case-id="record.id"
         :version="record.version"
+        :can-edit="canEditSummary"
         @updated="load"
         @approved="leaveApprovedCase"
       />
@@ -806,9 +829,9 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
                 {{ (item as { quantity: number; equipmentType: string }).quantity }} × {{ (item as { equipmentType: string }).equipmentType }}
               </div>
             </div>
-            <div v-if="openingServices.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+            <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
               <h4 class="mb-2 text-sm font-semibold">Servicios contratados y operativos</h4>
-              <div class="flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge></div>
+              <div class="flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div>
             </div>
             <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
               <h4 class="mb-2 text-sm font-semibold">Documentación ({{ openingDocuments.length }})</h4>
@@ -1034,6 +1057,21 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <p v-if="originWeightStale" role="alert" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice antes de confirmar el peso.</p>
               <div class="flex justify-end"><DhButton :icon="Save" label="Confirmar peso real" :loading="originWeightSaving"
                 :disabled="originWeightStale || !weightDirty || pendingWeightKg == null" @click="confirmOriginWeight" /></div>
+            </div>
+          </DhCard>
+          <DhCard v-if="selectedTab === 'COORDINACION_ORIGEN' && currentStage" title="Planificación de transporte" subtitle="Fechas estimadas y referencia operativa de consolidación.">
+            <div v-if="level('COORDINACION_ORIGEN') === 'EDITABLE'" class="space-y-3">
+              <div class="grid gap-3 sm:grid-cols-2">
+                <DhInput v-model="originPlanning.etd" type="date" label="Salida estimada (ETD)" />
+                <DhInput v-model="originPlanning.eta" type="date" label="Llegada estimada (ETA)" />
+                <DhInput v-if="originConsolidationApplicable" v-model="originPlanning.consolidationReference" label="Referencia de consolidado" />
+              </div>
+              <p v-if="originPlanningStale" role="alert" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice antes de guardar.</p>
+              <div class="flex justify-end"><DhButton :icon="Save" label="Guardar planificación" :loading="originPlanningSaving" :disabled="originPlanningStale || !originPlanningDirty" @click="saveOriginPlanning" /></div>
+            </div>
+            <div v-else class="grid gap-3 sm:grid-cols-2">
+              <p>ETD: {{ originPlanningBase.etd || 'Por confirmar' }}</p><p>ETA: {{ originPlanningBase.eta || 'Por confirmar' }}</p>
+              <p v-if="originConsolidationApplicable">Consolidado: {{ originPlanningBase.consolidationReference || 'Por confirmar' }}</p>
             </div>
           </DhCard>
           <DhCard title="Hitos y seguimiento" subtitle="Fechas reales y planificadas registradas en Operations.">
