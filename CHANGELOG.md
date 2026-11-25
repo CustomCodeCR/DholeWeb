@@ -1,3 +1,8 @@
+## [1.125.0] - 2026-11-24
+
+- Coordinated ecosystem version for multiple IDTRAs per accepted quotation. Existing DH Trámites list and individual IDTRA case routes retained.
+- CI and staging verification pending.
+
 ## [1.124.34] - 2026-11-24
 
 - Replace dual approval UI and counters with single-review workflow and direct Origin handoff. Preserve DH components and historical audit compatibility.
