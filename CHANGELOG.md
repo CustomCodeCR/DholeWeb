@@ -1,3 +1,7 @@
+## [1.127.0] - 2026-11-25
+
+- Add optional Booking Request Shipper document category in Pricing screen 4, reusing the existing Storage upload and document metadata. CI and staging pending.
+
 ## [1.124.35] - 2026-11-25
 
 - PATCH DH-20261125-OWN-LCL-DRAWER: backport aislado del editor LCL propio con DhDrawer, DhTabs, escenarios FOB por país, QUOs y pie fijo; misma vista validable que develop, sin otros cambios de staging. CI y staging pendientes.
