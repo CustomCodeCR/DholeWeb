@@ -837,7 +837,7 @@ function activeCostContextKey(): string {
       shipmentMode: shipmentModeForApi.value, serviceIds: form.serviceIds,
     }),
     // Persisted quotation charges do not use live CRM preferential pricing.
-    props.rateId ? '' : form.crmClientKind, props.rateId ? '' : form.clientId,
+    ...(props.rateId ? ['', ''] : [form.crmClientKind, form.clientId]),
     form.equipmentId, form.equipmentQuantity, form.cargoWeightKg,
     form.cargoPackages, form.cargoPallets, form.storageDays,
   ].join('|')
