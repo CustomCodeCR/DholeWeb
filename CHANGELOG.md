@@ -1,3 +1,7 @@
+## [1.124.30] - 2026-11-24
+
+- DH-20261124-PRICING-EDIT-CONTEXT-NORMALIZATION: normalizar referencias equivalentes de edición y excluir fuentes FCL marítimas residuales en cotizaciones aéreas, terrestres y LCL; conservar cambios reales sujetos a consulta de costos y mostrar la causa específica del bloqueo de guardado. Pruebas de regresión incorporadas; CI, staging y manifiesto central pendientes.
+
 ## [1.124.29] - 2026-11-24
 
 - DH-20261124-PRICING-COST-CONTEXT-RELINK: conservar operación al reseleccionar el cliente de la QUO; separar identidad CRM de la consulta física de cargos en edición; reutilizar reconciliación P7 verificada para la misma configuración; esperar actualización de Vue antes de capturar contexto y guardar. Mantener bloqueo para cambios de transporte no verificados. CI y staging pendientes.
