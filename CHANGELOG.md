@@ -1,3 +1,7 @@
+## [1.126.3] - 2026-11-25
+
+- DH-20261125-OWN-LCL-WIZARD-BUNDLE: use /api/pricing/costs/wizard-bundle for own LCL destination charges with real selected context, show approved fallback provenance, retain saved tariff lines. CI/staging pending.
+
 ## [1.126.1] - 2026-11-25
 
 - DH-20261125-OWN-LCL-MAERSK-BALBOA: load draft own-LCL pricing lines from Pricing API, surface destination/line load errors and reject stale preview responses. Preserve manual edits and existing DH components. CI/staging pending.

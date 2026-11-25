@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "ecosystem": "Dhole",
   "component": "DholeWeb",
-  "version": "1.126.1",
-  "ecosystemVersion": "1.126.1",
-  "releaseId": "DH-20261125-OWN-LCL-MAERSK-BALBOA",
+  "version": "1.126.3",
+  "ecosystemVersion": "1.126.3",
+  "releaseId": "DH-20261125-OWN-LCL-WIZARD-BUNDLE",
   "releaseStatus": "candidate-ci-staging-pending",
-  "businessReleaseId": "DH-20261125-OWN-LCL-MAERSK-BALBOA"
+  "businessReleaseId": "DH-20261125-OWN-LCL-WIZARD-BUNDLE"
 }

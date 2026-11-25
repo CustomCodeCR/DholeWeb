@@ -10,3 +10,10 @@ test('draft tariff uses backend endpoint, surfaces failures and guards stale res
   assert.match(view, /request !== previewRequest/)
   assert.match(view, /pricingLinesError/)
 })
+
+test('own LCL destination costs use the shared wizard bundle and selected IDs', () => {
+  assert.match(service, /costs\/wizard-bundle/)
+  assert.match(service, /shipmentMode: 'Lcl'/)
+  assert.match(service, /ownLclDestinationPreview: true/)
+  assert.match(view, /poeId: arrivalPoe\?\.id/)
+})
