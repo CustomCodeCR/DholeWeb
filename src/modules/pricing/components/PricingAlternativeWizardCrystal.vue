@@ -976,7 +976,7 @@ function activeCostContextKey(): string {
     }),
     // Persisted quotation charges do not use live CRM preferential pricing.
     // Recovering/reselecting its CRM identity cannot invalidate a physical lookup.
-    props.rateId ? '' : form.crmClientKind, props.rateId ? '' : form.clientId,
+    ...(props.rateId ? ['', ''] : [form.crmClientKind, form.clientId]),
   ].join('|')
 }
 
