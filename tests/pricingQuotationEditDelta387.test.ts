@@ -319,3 +319,17 @@ test('save follows a superseded physical context and refuses a stable failing co
   q.root.loadApplicableCosts = async () => false
   assert.equal(await q.verify(), false)
 })
+
+
+test('verified context does not hide a changed package count or equipment quantity', async () => {
+  const q = fixture()
+  q.root.form.agentId = 'NEW'
+  let queries = 0
+  q.root.loadApplicableCosts = async () => { queries++; return true }
+  assert.equal(await q.verify(), true)
+  q.root.form.cargoPackages = 3
+  assert.equal(await q.verify(), true)
+  q.root.form.equipmentQuantity = 2
+  assert.equal(await q.verify(), true)
+  assert.equal(queries, 3)
+})
