@@ -1,3 +1,7 @@
+## [1.124.35] - 2026-11-25
+
+- PATCH DH-20261125-OWN-LCL-DRAWER: backport aislado del editor LCL propio con DhDrawer, DhTabs, escenarios FOB por país, QUOs y pie fijo; misma vista validable que develop, sin otros cambios de staging. CI y staging pendientes.
+
 ## [1.124.34] - 2026-11-25
 
 - DH-20261125-OWN-LCL-WIZARD-BUNDLE: use wizard-bundle endpoint for own LCL destination charges and selected IDs; CI/staging pending.
