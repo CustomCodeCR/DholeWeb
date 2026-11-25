@@ -755,7 +755,13 @@ function closeEditor() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
-  pricingLines.value = createDefaultOwnLclPricingLines('China')
+  ++pricingLinesRequest
+  ++previewRequest
+  pricingLines.value = []
+  pricingLinesLoading.value = false
+  previewLoading.value = false
+  pricingLinesError.value = ''
+  previewError.value = ''
 }
 
 onMounted(load)
