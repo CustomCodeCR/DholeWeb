@@ -1,3 +1,8 @@
+## [1.124.34] - 2026-11-24
+
+- Replace dual approval UI and counters with single-review workflow and direct Origin handoff. Preserve DH components and historical audit compatibility.
+- CI and authenticated staging pending.
+
 ## [1.124.33] - 2026-11-24
 
 - Show only the authorized active aperture decision, reload validation on case version changes, and use the shared DH controls to open and download linked Pricing documents.

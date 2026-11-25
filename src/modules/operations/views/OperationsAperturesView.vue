@@ -45,7 +45,7 @@ const statusOptions = computed(() => [
 ])
 const unassigned = computed(() => rows.value.filter(row => !row.validators?.length).length)
 const inReview = computed(() => rows.value.filter(row => row.validators?.some(v => v.status === 'PENDING')).length)
-const approved = computed(() => rows.value.filter(row => row.validators?.length >= 2 && row.validators.every(v => v.status === 'APPROVED')).length)
+const approved = computed(() => rows.value.filter(row => row.validators?.some(v => v.status === 'APPROVED')).length)
 const modalityOptions = computed(() => [
   { label: t('operations.validation.modalityFcl'), value: 'FCL' }, { label: t('operations.validation.modalityLcl'), value: 'LCL' },
   { label: t('operations.validation.modalityFtl'), value: 'FTL' }, { label: t('operations.validation.modalityLtl'), value: 'LTL' },
@@ -228,7 +228,7 @@ onMounted(load)
         <template #cell-sourceQuoteId="{ row }"><RouterLink v-if="row.sourceQuoteId" :to="`/pricing/rates/${row.sourceQuoteId}/wizard?mode=view`" class="font-semibold text-[var(--dh-primary)] hover:underline" @click.stop>Ver QUO</RouterLink><span v-else class="text-[var(--dh-text-muted)]">Sin QUO</span></template>
         <template #cell-modalityCode="{ row }"><DhBadge variant="neutral">{{ row.modalityCode }}</DhBadge></template>
         <template #cell-status="{ row }"><DhBadge :variant="stateVariant(row.status)">{{ stateLabel(row.status) }}</DhBadge></template>
-        <template #cell-validators="{ row }"><span class="font-bold">{{ approvalCount(row) }} / 2</span></template>
+        <template #cell-validators="{ row }"><span class="font-bold">{{ Math.min(1, approvalCount(row)) }} / 1</span></template>
         <template #cell-createdAtUtc="{ row }">{{ label(row.createdAtUtc) }}</template>
         <template #cell-actions="{ row }"><DhButton size="sm" variant="secondary" :label="selectedId === row.id ? t('operations.validation.selectedStatus') : t('operations.validation.viewDetail')" @click="choose(row.id)" /></template>
       </DhDataTable>

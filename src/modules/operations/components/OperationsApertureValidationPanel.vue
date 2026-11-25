@@ -64,17 +64,16 @@ function label(status: string) { return operationsLabel(status) }
   <DhCard :icon="ShieldCheck" title="Validación de Aperturas" subtitle="Revisa el resumen y la QUO aceptada antes de registrar tu decisión.">
     <p v-if="error" role="alert" class="mb-3 rounded-xl bg-red-500/10 p-3 text-sm text-red-500">{{ error }}</p>
     <div v-if="pair">
-      <p v-if="myPendingReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. La segunda aprobación enviará el expediente a Coordinación Origen.</p>
+      <p v-if="myPendingReview" class="mb-3 text-sm font-semibold text-[var(--dh-primary)]">Tienes una validación asignada. Tu aprobación enviará el expediente a Coordinación Origen.</p>
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <DhBadge variant="neutral">{{ label(pair.stage.status) }}</DhBadge>
         <DhButton v-if="canAssign && !pair.validators.length && pair.stage.status === 'PENDING_VALIDATION'"
-          :icon="UsersRound" label="Asignar validadores" :loading="busy" @click="assign" />
+          :icon="UsersRound" label="Asignar operativo" :loading="busy" @click="assign" />
       </div>
       <p v-if="!pair.validators.length" class="text-sm text-[var(--dh-text-muted)]">Pendiente de asignar un operativo autorizado.</p>
-      <p v-else-if="pair.validators.length === 1 && pair.stage.status === 'PENDING_VALIDATION'" class="mb-3 text-sm text-[var(--dh-text-muted)]">{{ pair.validators[0]?.status === 'APPROVED' ? 'Primera revisión aprobada. Pendiente de asignar el segundo operativo.' : 'El segundo operativo se asignará después de la primera aprobación.' }}</p>
       <div v-for="validator in pair.validators" :key="validator.id" class="mb-3 space-y-3 rounded-xl border border-[var(--dh-border)] p-3">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-sm font-bold">Revisión {{ validator.slot }}</p>
+          <p class="text-sm font-bold">Validación de apertura</p>
           <DhBadge :variant="validator.status === 'APPROVED' ? 'success' : validator.status === 'REJECTED' ? 'danger' : 'warning'">{{ label(validator.status) }}</DhBadge>
         </div>
         <p v-if="validator.comment" class="whitespace-pre-wrap text-sm text-[var(--dh-text-soft)]">{{ validator.comment }}</p>

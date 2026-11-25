@@ -48,3 +48,11 @@ test('automatic Aperturas pool displays every pending reviewer with authorized l
   assert.match(detail, /work\.people/)
   assert.match(api, /pendingValidatorIds\?: string\[\]/)
 })
+
+test('automatic opening requires only one approval and sends to Origin', () => {
+  const panel = read('src/modules/operations/components/OperationsApertureValidationPanel.vue')
+  const dashboard = read('src/modules/dashboard/components/OperationsRoleDashboard.vue')
+  assert.match(panel, /Tu aprobación enviará el expediente a Coordinación Origen/)
+  assert.doesNotMatch(panel, /segunda aprobación|segundo operativo/)
+  assert.match(dashboard, /Math\.min\(1, row\.approvedReviews\) \+ ' \/ 1'/)
+})
