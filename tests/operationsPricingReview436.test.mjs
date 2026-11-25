@@ -5,7 +5,8 @@ const detail = readFileSync(new URL('../src/modules/operations/views/OperationsC
 const api = readFileSync(new URL('../src/modules/operations/services/operationsApi.ts', import.meta.url), 'utf8')
 const pricing = readFileSync(new URL('../src/modules/pricing/views/PricingOperationsReviewsView.vue', import.meta.url), 'utf8')
 test('Accepted QUO summary and discrepancy workflow are separate from service creation', () => {
-  assert.match(detail, /Resumen de la QUO aceptada/)
+  assert.match(detail, /title="Cotización vinculada"/)
+  assert.match(detail, /title="Vincular cotización"/)
   assert.match(detail, /Semáforo comercial/)
   assert.match(detail, /comparisonColumns/)
   assert.match(detail, /La QUO original permanece sin modificaciones/)
