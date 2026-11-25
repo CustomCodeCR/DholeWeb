@@ -157,3 +157,68 @@ test('LCL edit: the final combined transform installs the guard ahead of old val
   assert.ok(result.indexOf("shipmentModeForApi.value === 'Lcl'") < result.indexOf('if (!canNext.value)'))
   assert.match(result, /await quoteEditApplyDelta387\(\)/)
 })
+
+const ftlFixture = lclFixture + '\nfunction syncPersistedFreightLineForEdit() {}'
+function makeFtlNext({ rateId = 'saved-rate-id', mode = 'Ftl', modality = 'Land',
+  viewOnly = false, sellerRequestMode = false, editing = true, hydrating = false,
+  currencyId = 'USD', freightCost = 1600, freightSale = 1695, deltaReady = true } = {}) {
+  const modified = patchPersistedLandLtlEditNavigation422(ftlFixture)
+  const snippet = modified.slice(0, modified.indexOf('\nfunction previous()'))
+  const step = { value: 6 }
+  const props = { rateId, viewOnly, sellerRequestMode }
+  const editingRate = { value: editing ? { id: rateId, rateDetails: [
+    { id: 'saved-ftl-freight', costAmount: 1600, saleAmount: 1695 },
+    { id: 'saved-other-charge', costAmount: 25, saleAmount: 30 },
+  ] } : null }
+  const form = { modality, currencyId, freightCost, freightSale, agentId: 'Tigsa', carrierId: '' }
+  const warnings = []
+  let deltaCalls = 0
+  let syncCalls = 0
+  const next = new Function('step', 'canNext', 'props', 'editingRate', 'shipmentModeForApi',
+    'hydratingExistingRate', 'form', 'toastStore', 'quoteEditApplyDelta387',
+    'syncPersistedFreightLineForEdit', 'return ' + snippet)(
+    step, { value: false }, props, editingRate, { value: mode }, { value: hydrating }, form,
+    { warning: (...args) => warnings.push(args) }, async () => { deltaCalls++; return deltaReady },
+    () => { syncCalls++ },
+  )
+  return { next, step, editingRate, form, warnings, deltaCalls: () => deltaCalls, syncCalls: () => syncCalls }
+}
+
+test('FTL edit: saved land quote reaches P7 with no carrier and blocked live catalog', async () => {
+  const model = makeFtlNext({ deltaReady: false })
+  const original = structuredClone(model.editingRate.value.rateDetails)
+  await model.next()
+  assert.equal(model.step.value, 7)
+  assert.equal(model.deltaCalls(), 1)
+  assert.equal(model.syncCalls(), 1)
+  assert.equal(model.warnings.length, 1)
+  assert.deepEqual(model.editingRate.value.rateDetails, original)
+  assert.equal(model.form.freightCost, 1600)
+  assert.equal(model.form.freightSale, 1695)
+})
+
+test('FTL edit: valid context opens P7; missing currency or negative/invalid freight does not', async () => {
+  const valid = makeFtlNext()
+  await valid.next()
+  assert.equal(valid.step.value, 7)
+  assert.equal(valid.warnings.length, 0)
+  for (const options of [{ currencyId: '' }, { freightCost: -1 }, { freightSale: NaN }]) {
+    const invalid = makeFtlNext(options)
+    await invalid.next()
+    assert.equal(invalid.step.value, 6)
+    assert.equal(invalid.syncCalls(), 0)
+    assert.equal(invalid.deltaCalls(), 0)
+    assert.equal(invalid.warnings.length, 1)
+  }
+})
+
+test('FTL edit: new quotes, maritime, Sales, read-only and hydration retain existing guards', async () => {
+  for (const options of [{ rateId: null }, { mode: 'Fcl' }, { modality: 'Sea' },
+    { viewOnly: true }, { sellerRequestMode: true }, { editing: false }, { hydrating: true }]) {
+    const model = makeFtlNext(options)
+    await model.next()
+    assert.equal(model.step.value, 6, JSON.stringify(options))
+    assert.equal(model.deltaCalls(), 0)
+    assert.equal(model.syncCalls(), 0)
+  }
+})
