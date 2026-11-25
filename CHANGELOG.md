@@ -1,3 +1,7 @@
+## [1.126.1] - 2026-11-25
+
+- DH-20261125-OWN-LCL-MAERSK-BALBOA: load draft own-LCL pricing lines from Pricing API, surface destination/line load errors and reject stale preview responses. Preserve manual edits and existing DH components. CI/staging pending.
+
 ## [1.126.0] - 2026-11-24
 
 - Display accepted-quote cost categories, charging units, scoped sale/tax totals and commercial conditions using existing DH tables/cards. Resolve catalog Incoterms using Pricing helper, align FCA and maritime-only rules, and capture pickup fields using existing DH controls. CI and visual/realtime staging pending.

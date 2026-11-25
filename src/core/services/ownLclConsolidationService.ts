@@ -14,6 +14,7 @@ const endpoints = {
   createAutomatic: { method: 'POST', path: '/api/pricing/own-lcl-automation/consolidations', headers: jsonHeaders },
   updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
   getAutomation: { method: 'GET', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: acceptJson },
+  pricingLinesPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/pricing-lines-preview', headers: acceptJson },
   destinationPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/destination-preview', headers: acceptJson },
   fobScenarios: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: acceptJson },
   saveFobScenarios: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: jsonHeaders },
@@ -362,6 +363,10 @@ export const OwnLclConsolidationService = {
   async getAutomation(id: string): Promise<OwnLclAutomationSnapshotDto> {
     const response = await callEndpoint<unknown>(endpoints.getAutomation, { params: { id } })
     return unwrapApiResponse<OwnLclAutomationSnapshotDto>(response as never)
+  },
+  async previewPricingLines(query: { polCode?: string | null; polName?: string | null }): Promise<OwnLclPricingLineDto[]> {
+    const response = await callEndpointWithQuery<unknown>(endpoints.pricingLinesPreview, { query })
+    return unwrapListResponse<OwnLclPricingLineDto>(response)
   },
   async previewDestinationCosts(query: {
     carrierCode?: string | null
