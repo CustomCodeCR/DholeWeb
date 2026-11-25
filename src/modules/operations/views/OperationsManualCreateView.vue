@@ -242,7 +242,10 @@ function selectTransport(value: string) {
 }
 function selectShipment(value: string) {
   if (!shipmentOptions.value.some(item => item.value === value)) return
-  if (form.value.shipmentType !== value) form.value.equipment = []
+  if (form.value.shipmentType !== value) {
+    form.value.equipment = []
+    form.value.portHandlingMode = ''
+  }
   form.value.shipmentType = value
   modality.value = form.value.transportType === 'MULTIMODAL' ? 'MULTIMODAL' : value
 }
@@ -307,7 +310,7 @@ const blockers = computed(() => {
     if (selectedRouteType('poe', selectedPoe.value) !== routeTerminal.value) result.push('Entrada compatible con la modalidad')
     if (selectedRouteType('pod', selectedPod.value) !== 'SD') result.push('Destino final compatible')
     if (!positive(form.value.estimatedWeightValue) || !['KG', 'LB'].includes(form.value.estimatedWeightUnit)) result.push('Peso estimado')
-    if (needsCargoMeasurements.value && !positive(form.value.volumeValue)) result.push('Volumen de carga')
+    if (needsCargoMeasurements.value && (!positive(form.value.volumeValue) || !['CBM','CFT'].includes(form.value.volumeUnit))) result.push('Volumen de carga')
     if (effectiveShipment.value === 'AIR' && ![form.value.lengthCm, form.value.widthCm, form.value.heightCm].every(positive)) result.push('Dimensiones de carga')
     if (['DAP','DPU','DDP'].includes(selectedIncoterm.value) && !form.value.destinationAddress.trim()) result.push('Lugar de entrega acordado')
   }
@@ -318,7 +321,7 @@ const blockers = computed(() => {
     if (!form.value.pickupWindow.trim()) result.push('Ventana de recolecta')
   }
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
-  if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim())) result.push('Tipo de equipo por seleccionar')
+  if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim() || (!editingId.value && !currentCatalog(equipmentCatalogKey.value).some(item => item.id === resolvedEquipmentId(x) && item.isActive)))) result.push('Tipo de equipo por seleccionar')
   if (needsEquipment.value && !uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
   if (requiresWarehouse.value && !form.value.whsName.trim()) result.push('Nombre WHS (FCA)')
   if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
@@ -715,10 +718,11 @@ async function save() {
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
-      ...(!editingId.value ? { openingValidationVersion: 2, polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: selectedRouteType('pod', selectedPod.value) } : {}),
+      ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 2, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: selectedPod.value, polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: selectedRouteType('pod', selectedPod.value) } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
-        equipmentCatalogId: item.equipmentCatalogId || undefined,
+        equipmentCatalogId: resolvedEquipmentId(item) || undefined,
         quantity: Number(item.quantity),
         ...(editingId.value && item.weightKg != null ? { weightKg: item.weightKg } : {}),
       })).filter(() => needsEquipment.value || Boolean(editingId.value)),
