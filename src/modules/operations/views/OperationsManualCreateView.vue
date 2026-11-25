@@ -77,6 +77,7 @@ const selectedPol = ref('')
 const selectedPoe = ref('')
 const selectedPod = ref('')
 const selectedWarehouse = ref('')
+const warehouseCatalogGroup = ref('')
 let restoringOpening = false
 const currentCatalog = (key: string) => catalogs.value[key] || []
 const optionText = (item: CatalogItemSelectDto) => String(item.value || item.label || item.code).trim()
@@ -135,8 +136,9 @@ async function loadPricingCatalogs() {
     }))
     const warehouseGroups = ['pricing-warehouses','warehouses','whs','fca-warehouses']
     let warehouseItems: CatalogItemSelectDto[] = []
+    warehouseCatalogGroup.value = ''
     for (const key of warehouseGroups) {
-      try { warehouseItems = await CatalogItemsService.select({ catalogGroupSlug: key }); if (warehouseItems.length) break } catch { /* legacy slug */ }
+      try { warehouseItems = await CatalogItemsService.select({ catalogGroupSlug: key }); if (warehouseItems.length) { warehouseCatalogGroup.value = key; break } } catch { /* legacy slug */ }
     }
     catalogs.value = { ...Object.fromEntries(result), warehouses: warehouseItems }
     if (!polOptions.value.length || !poeOptions.value.length || !podOptions.value.length)
@@ -355,7 +357,7 @@ const blockers = computed(() => {
     if (!editingId.value && !validPoints(form.value.pickupLocations)) result.push('Punto de recolecta')
   }
   if (pickupRequired.value) {
-    if (!form.value.pickupAddress.trim()) result.push('Dirección de recolecta')
+    if (!form.value.pickupAddress.trim() && !validPoints(form.value.pickupLocations)) result.push('Dirección de recolecta')
     if (!form.value.pickupContact.trim()) result.push('Contacto de recolecta')
     if (!form.value.pickupWindow.trim()) result.push('Ventana de recolecta')
   }
@@ -452,6 +454,9 @@ function onCrmClientSelected(client: {
   executiveName: string; executiveUserId?: string; isCastroFallasExecutive?: boolean
 } | null) {
   if (client?.kind === 'lead') {
+    form.value.clientCountryId = ''
+    form.value.clientCountryOverrideId = ''
+    form.value.operationOverride = ''
     ++clientGeneration
     accountId.value = ''
     lastSelectedAccountId = ''
@@ -509,7 +514,7 @@ watch(() => [selectedPol.value, form.value.pol, selectedPoe.value, form.value.po
     ? countryFromRoute('pod', selectedPod.value, form.value.pod)
     : countryFromRoute('poe', selectedPoe.value, form.value.poe)
 })
-watch([selectedPol, selectedPoe, selectedPod], () => { if (!restoringOpening && autosaveReady.value) form.value.operationOverride = '' })
+watch([selectedPol, selectedPoe, selectedPod], () => { if (!restoringOpening && autosaveReady.value && !editingId.value) form.value.operationOverride = '' })
 async function searchCabys() {
   const query = form.value.cabysSearch.trim()
   if (query.length < 3) { error.value = 'Escriba al menos 3 caracteres para buscar CABYS.'; return }
@@ -759,7 +764,8 @@ async function save() {
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
-      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? form.value.pickupLocations : [], deliveryLocations: deliveryRequired.value ? form.value.deliveryLocations : [] } : {}),
+      ...(!editingId.value ? { pickupAddress: selectedIncoterm.value === 'EXW' || pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '', destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
+      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? form.value.pickupLocations : [], deliveryLocations: deliveryRequired.value ? form.value.deliveryLocations : [] } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
       ...(!editingId.value ? { openingValidationVersion: 3, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
