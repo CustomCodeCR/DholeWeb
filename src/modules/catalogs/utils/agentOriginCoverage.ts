@@ -1,5 +1,5 @@
 import type { CatalogItemSelectDto } from '@/core/interfaces/catalogs'
-import { isGlobalCountryAgent } from './globalAgentCountries'
+import { isGlobalCountryAgent } from './globalAgentCountries.ts'
 
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/\b(puerto|port|de|del|of|the)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
 function countryTokens(item: CatalogItemSelectDto | null | undefined, includeLabelFallback = true) {

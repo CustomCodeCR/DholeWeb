@@ -188,7 +188,7 @@ const providerOptions = (group: string, previous: string, id: string) => {
   if (editingId.value && id && previous && !options.some(option => option.value === id)) options.push({ value: id, label: previous + ' (registrado)' })
   return options
 }
-watch([selectedPol, eligibleAgents], () => {
+watch([selectedPol, eligibleAgents, catalogLoading], () => {
   if (editingId.value || restoringOpening || catalogLoading.value || !form.value.agentId) return
   if (!eligibleAgents.value.some(item => item.id === form.value.agentId)) { form.value.agentId = ''; form.value.agentReference = '' }
 })

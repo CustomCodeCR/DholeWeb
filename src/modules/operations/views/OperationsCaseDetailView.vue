@@ -53,7 +53,7 @@ const openingData = computed<Record<string, unknown>>(() => {
   try {
     const value = JSON.parse(record.value?.openingDataJson || '{}') as unknown
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? mergeCommercialOpening(value as Record<string, unknown>, workspace.value?.commercialData, supplemental.value) : {}
+      ? (record.value?.apertureType === 'MANUAL' ? value as Record<string, unknown> : mergeCommercialOpening(value as Record<string, unknown>, workspace.value?.commercialData, supplemental.value)) : {}
   } catch { return {} }
 })
 const openingSections = computed(() => {
@@ -826,6 +826,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
           <p v-if="quoteLinkError" role="alert" class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ quoteLinkError }}</p>
         </DhCard>
         <DhCard :icon="FileText" title="Cotización vinculada" subtitle="Referencia comercial original e independiente del trámite.">
+          <p v-if="record.apertureType === 'MANUAL' && record.sourceQuoteId" class="mb-3 text-xs text-[var(--dh-text-muted)]">Los rubros representan la QUO completa, no una distribución financiera por IDTRA. Los datos de apertura manual se mantienen separados.</p>
           <div v-for="quote in workspace.quotes" :key="quote.id" class="mb-3 rounded-xl border border-[var(--dh-border)] p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>

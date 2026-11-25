@@ -1,6 +1,7 @@
 ## [1.131.0] - 2026-11-25
 
-- Filter opening agents by origin coverage, use shared searchable DH selects and compact the case summary. CI and staging pending.
+- Filter opening agents by origin coverage, use shared searchable DH selects and compact the case summary.
+- Link accepted QUOs to existing manual IDTRA from both modules with explicit pending/confirmed states and preserve prior references. CI and staging pending.
 
 ## [1.130.1] - 2026-11-25
 
