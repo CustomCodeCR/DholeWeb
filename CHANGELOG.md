@@ -1,3 +1,7 @@
+## [1.124.31] - 2026-11-24
+
+- DH-20261124-PRICING-AIR-AGENT-SAVE: corrección aislada de guardado de cotización aérea existente cuando únicamente cambia a un agente elegible; conservar importes negociados, no recalcular costos y evitar sustitución automática del agente. Validaciones de demás cambios conservadas. CI y staging pendientes.
+
 ## [1.124.30] - 2026-11-24
 
 - DH-20261124-PRICING-EDIT-CONTEXT-NORMALIZATION: promoción aislada de la corrección de contexto de edición validada en CI de develop; normaliza referencias equivalentes y excluye fuentes marítimas residuales, mantiene validaciones reales y diagnóstico específico. CI de master y prueba funcional de staging pendientes.
