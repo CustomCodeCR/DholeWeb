@@ -28,6 +28,7 @@ const fields: Record<string, string> = {
   whsName: 'WHS', pickupLocations: 'Puntos de recolecta', pickupAddress: 'Dirección de recolecta',
   imoClass: 'Clase IMO', unNumber: 'Número UN', overweightNotes: 'Observaciones de sobrepeso',
   stackable: 'Estibabilidad', consolidation: 'Consolidación', carrierReference: 'Naviera',
+  haulageMode: 'Transporte en destino', roadCarrierReference: 'Transportista terrestre', executiveUserId: 'Ejecutivo comercial', isImo: 'Carga IMO', overweight: 'Sobrepeso',
   bookingNumber: 'Número de booking', blNumber: 'Número de BL', containerNumber: 'Número de contenedor',
   airline: 'Aerolínea', openingData: 'Datos de apertura',
 }
