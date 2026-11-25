@@ -9,6 +9,7 @@ import { DhBadge, DhButton, DhSelect } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, type DhTableColumn } from '@/shared/components/molecules'
 import { useAuthStore } from '@/core/stores/authStore'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
+import { useOperationsDashboardRealtime } from '@/modules/operations/composables/useOperationsCaseRealtime'
 import { operationsApi, type OperationsDashboard } from '@/modules/operations/services/operationsApi'
 
 const { t, locale } = useI18n()
@@ -107,11 +108,12 @@ function dateLabel(utc: string) {
     { day: '2-digit', month: 'short', year: 'numeric' },
   ).format(parsed)
 }
-async function load() {
+async function load() { await loadDashboard(false) }
+async function loadDashboard(background: boolean) {
   const current = ++requestId
-  loading.value = true
+  loading.value = !background || !data.value
   error.value = ''
-  data.value = null
+  if (!background) data.value = null
   try {
     const result = await operationsApi.dashboard(selectedTeamId.value || undefined)
     if (current !== requestId) return
@@ -126,7 +128,13 @@ async function load() {
 }
 watch(selectedTeamId, load)
 watch(() => auth.userId, () => { selectedTeamId.value = ''; accessibleTeams.value = []; void load() })
-useRealtimeListRefresh({ prefixes: ['/api/operations'], refresh: load })
+useRealtimeListRefresh({ prefixes: ['/api/operations'], refresh: () => loadDashboard(true) })
+useOperationsDashboardRealtime(() => {
+  // Reuse the shared debounced invalidation mechanism; no full page reload.
+  window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+    detail: { endpoint: '/api/operations/dashboard', method: 'SIGNALR' },
+  }))
+})
 onMounted(load)
 </script>
 

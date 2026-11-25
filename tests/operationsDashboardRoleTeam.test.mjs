@@ -69,3 +69,16 @@ test('Compact operations dashboard copy is translated in both languages', () => 
   assert.match(messages, /emptyTitle: 'Sin aperturas para mostrar'/)
   assert.match(messages, /emptyTitle: 'No openings to display'/)
 })
+
+
+test('Operations dashboard subscribes to the existing SignalR Hub and reconciles after reconnect', () => {
+  const view = read('src/modules/dashboard/components/OperationsRoleDashboard.vue')
+  const hook = read('src/modules/operations/composables/useOperationsCaseRealtime.ts')
+  assert.match(view, /useOperationsDashboardRealtime\(\(\) =>/)
+  assert.match(view, /endpoint: '\/api\/operations\/dashboard', method: 'SIGNALR'/)
+  assert.match(view, /refresh: \(\) => loadDashboard\(true\)/)
+  assert.match(hook, /dashboard \? 'JoinDashboard' : 'JoinCase'/)
+  assert.match(hook, /message\.target === 'operationsDashboardChanged'/)
+  assert.match(hook, /message\.type === 3 && message\.invocationId === '1'/)
+  assert.match(hook, /if \(dashboard\) onInvalidated\(id\)/)
+})
