@@ -242,8 +242,8 @@ export const operationsApi = {
     request<{ nextNumber: number }>('/api/operations/idtra-sequence', 'PUT', { nextNumber, expectedNextNumber, reason }),
   dashboard: (teamId?: string) => request<OperationsDashboard>(
     '/api/operations/dashboard' + (teamId ? '?teamId=' + encodeURIComponent(teamId) : '')),
-  cases: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<OperationsCaseRow> & { clientNames?: Record<string, string | null>; people?: Record<string, string> }>(
-    '/api/operations/cases?' + caseQuery(page, 25, filters)),
+  cases: (page = 1, filters: OperationsCaseFilters = {}, pageSize = 25) => request<Paged<OperationsCaseRow> & { clientNames?: Record<string, string | null>; people?: Record<string, string> }>(
+    '/api/operations/cases?' + caseQuery(page, pageSize, filters)),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   caseContacts: (id: string) => request<OperationsContact[]>(`/api/operations/cases/${id}/operations-contacts`),
   caseQuoteComparison: (id: string) => request<OperationsQuoteComparison>(`/api/operations/cases/${id}/commercial/comparison`),
