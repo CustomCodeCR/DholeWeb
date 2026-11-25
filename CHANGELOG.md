@@ -2055,6 +2055,11 @@
 
 # Changelog
 
+## [1.129.0] - 2026-11-25 · DH-20261125-OPS-PRICING-PARITY
+
+- MINOR: apertura manual comparte reglas de países y perspectiva de Pricing, ruta dinámica, ubicaciones de recolecta/entrega y WHS FCA. Sin modalidad multimodal independiente. Candidato pendiente de CI/staging.
+
+
 ## [1.128.0] - 2026-11-25 · DH-20261125-OPS-OPENING-VALIDATION
 
 - MINOR: apertura manual con terminales compatibles, eliminación de equipos incompatibles, muellaje condicional, peso estimado, dimensiones aéreas y validaciones EXW/FCA/entrega.
