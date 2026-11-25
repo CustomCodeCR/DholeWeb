@@ -13,7 +13,7 @@ test('new manual openings validate estimated weight and air dimensions without e
   assert.ok(source.includes('positive(form.value.estimatedWeightValue)'))
   assert.ok(source.includes("form.value.lengthCm, form.value.widthCm, form.value.heightCm"))
   assert.ok(source.includes("weightValue: undefined, weightUnit: undefined, weightKg: undefined"))
-  assert.ok(source.includes("openingValidationVersion: 3"))
+  assert.ok(source.includes("openingValidationVersion: 4"))
 })
 
 test('route and commercial perspective follow Pricing', () => {
@@ -56,4 +56,16 @@ test('opening states come from the backend and approval requires zero blockers',
   assert.ok(panel.includes('operationsApi.openingCompleteness'))
   assert.ok(panel.includes('!completeness.value?.canPassFieldValidation'))
   assert.ok(api.includes('/apertures/drafts/completeness'))
+})
+
+
+test('manual opening captures services, suppliers and observations and groups completeness', () => {
+  assert.ok(source.includes('DhMultiSelect v-model="form.services"'))
+  assert.ok(source.includes("currentCatalog('pricing-services')"))
+  assert.ok(source.includes('serviceSelections:'))
+  assert.ok(source.includes('providerSelections:'))
+  assert.ok(source.includes('v-model="form.haulageMode"'))
+  assert.ok(source.includes('v-model="form.observations"'))
+  assert.ok(source.includes('statusGroups.find'))
+  assert.ok(source.includes('max-h-72 overflow-y-auto'))
 })

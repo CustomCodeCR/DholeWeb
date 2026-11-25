@@ -168,7 +168,7 @@ const form = ref({
   volumeValue: '', volumeUnit: 'CBM', consolidationReference: '',
   isImo: false, imoClass: '', unNumber: '', stackable: true,
   overweight: false, overweightNotes: '', carrierReference: '',
-  agentReference: '', merchantReference: '', carrierId: '', agentId: '', merchantId: '', airline: '', roadCarrierReference: '', etm: '', eta: '',
+  agentReference: '', merchantReference: '', carrierId: '', agentId: '', merchantId: '', haulageMode: '', airline: '', roadCarrierReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
   equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number; weightKg?: number }>,
@@ -183,7 +183,14 @@ const providerOptions = (group: string, previous: string, id: string) => {
   return options
 }
 const serviceOptions = computed(() => currentCatalog('pricing-services').filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item) })))
-const selectedServiceLabels = computed(() => form.value.services.map(id => serviceOptions.value.find(option => option.value === id)?.label || id))
+const selectedServiceLabels = computed(() => (form.value.services as unknown[]).map(service => {
+  if (typeof service === 'string') return serviceOptions.value.find(option => option.value === service)?.label || 'Servicio registrado'
+  if (service && typeof service === 'object') {
+    const row = service as Record<string, unknown>
+    return String(row.name || row.serviceName || row.serviceCode || 'Servicio registrado')
+  }
+  return 'Servicio registrado'
+}))
 function setProvider(role: 'carrier' | 'agent' | 'merchant', id: string) {
   const group = role === 'carrier' ? 'carriers' : 'agents'
   const label = lookupLabel(group, id)
@@ -251,7 +258,7 @@ function selectTransport(value: string) {
   if (form.value.transportType === value) return
   const available = shipmentOptionsByTransport[value] ?? []
   form.value.transportType = value
-  if (value !== 'MARITIME') { form.value.carrierId = ''; form.value.carrierReference = ''; form.value.merchantId = ''; form.value.merchantReference = '' }
+  if (value !== 'MARITIME') { form.value.carrierId = ''; form.value.carrierReference = ''; form.value.merchantId = ''; form.value.merchantReference = ''; form.value.haulageMode = '' }
   if (value !== 'AIR') form.value.airline = ''
   if (value !== 'ROAD') form.value.roadCarrierReference = ''
   form.value.operationOverride = ''
@@ -787,7 +794,7 @@ function buildOpeningData() {
       ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [], deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
-      ...(!editingId.value ? { openingValidationVersion: 4, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', form.value.carrierId], ['agents', 'agentReference', form.value.agentId], ['agents', 'merchantReference', form.value.merchantId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 4, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', form.value.carrierId], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
@@ -837,6 +844,7 @@ onBeforeUnmount(() => {
 const serverBlockers = computed(() => completeness.value?.missingFields.length ?? 0)
 const statusGroups = computed(() => (['PENDIENTE_BLOQUEANTE', 'PENDIENTE_PERMITIDO', 'CONFIRMADO', 'NO_APLICA'] as const).map(status => ({ status, fields: completeness.value?.fields.filter(field => field.completionStatus === status) || [] })))
 const selectedStatusGroup = ref('PENDIENTE_PERMITIDO')
+watch(serverBlockers, count => { if (count > 0) selectedStatusGroup.value = 'PENDIENTE_BLOQUEANTE' })
 const reviewValidationPending = computed(() => activeStep.value === 3 && !completeness.value?.canPassFieldValidation)
 
 async function save() {
@@ -1374,7 +1382,7 @@ onMounted(async () => {
               </div>
               <DhSelect v-if="isMaritime" :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera (si se conoce)" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
               <DhSelect :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
-              <DhSelect v-if="isMaritime" :model-value="form.merchantId" :options="providerOptions('agents', form.merchantReference, form.merchantId)" label="Merchant (si corresponde)" placeholder="Por confirmar" @update:model-value="setProvider('merchant', String($event || ''))" />
+              <DhSelect v-if="isMaritime" v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
               <DhInput v-if="form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
               <DhInput v-if="form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
               <div class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
@@ -1470,7 +1478,7 @@ onMounted(async () => {
                 <div class="mt-3 grid gap-3 text-xs sm:grid-cols-2">
                   <p v-if="isMaritime">Naviera: <strong>{{ form.carrierReference || 'Por confirmar' }}</strong></p>
                   <p>Agente: <strong>{{ form.agentReference || 'Por confirmar' }}</strong></p>
-                  <p v-if="isMaritime">Merchant: <strong>{{ form.merchantReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="isMaritime">Transporte en destino: <strong>{{ form.haulageMode || form.merchantReference || 'Por confirmar' }}</strong></p>
                   <p v-if="form.transportType === 'AIR'">Aerolínea: <strong>{{ form.airline || 'Por confirmar' }}</strong></p>
                   <p v-if="form.transportType === 'ROAD'">Transportista: <strong>{{ form.roadCarrierReference || 'Por confirmar' }}</strong></p>
                 </div>
