@@ -220,7 +220,7 @@ export function patchPersistedLandLtlEditNavigation422(source: string): string {
     '    return',
     '  }',
   ].join('\n'))
-  return patchPersistedLclEditNavigation(withLtlNavigation)
+  return patchPersistedFtlEditNavigation(patchPersistedLclEditNavigation(withLtlNavigation))
 }
 
 /** A hydrated LCL edit has no naviera or new-tariff selection requirement. */
@@ -247,6 +247,37 @@ export function patchPersistedLclEditNavigation(source: string): string {
     '    }',
     '    // P7 is a local review of the persisted quotation, not a save.',
     '    // A transient catalog failure must not prevent editing/reviewing prices.',
+    '    if (!(await quoteEditApplyDelta387())) {',
+    "      toastStore.warning('Costos pendientes', 'Puede revisar las líneas; los cambios de contexto se verificarán antes de guardar.')",
+    '    }',
+    '    if (step.value === 6) step.value = 7',
+    '    return',
+    '  }',
+  ].join('\n'))
+}
+
+/** FTL edits must reach local P7 review even when the live tariff context is unavailable. */
+export function patchPersistedFtlEditNavigation(source: string): string {
+  if (!source.includes('async function quoteEditApplyDelta387()')
+      || !source.includes('function syncPersistedFreightLineForEdit()')) return source
+  const anchor = 'async function next() {'
+  if (source.split(anchor).length !== 2) {
+    throw new Error('[FTL edit navigation] Missing unique next()')
+  }
+  return source.replace(anchor, [
+    anchor,
+    "  if (step.value === 6 && props.rateId && editingRate.value",
+    "      && !props.viewOnly && !props.sellerRequestMode",
+    "      && form.modality === 'Land' && shipmentModeForApi.value === 'Ftl') {",
+    '    if (hydratingExistingRate.value) return',
+    '    // FTL has no carrier or new tariff requirement. Preserve the existing provider rules.',
+    '    if (!form.currencyId',
+    '        || !Number.isFinite(Number(form.freightCost)) || Number(form.freightCost) < 0',
+    '        || !Number.isFinite(Number(form.freightSale)) || Number(form.freightSale) < 0) {',
+    "      toastStore.warning('Flete incompleto', 'Revise la moneda, el costo y la venta del flete terrestre.')",
+    '      return',
+    '    }',
+    '    syncPersistedFreightLineForEdit()',
     '    if (!(await quoteEditApplyDelta387())) {',
     "      toastStore.warning('Costos pendientes', 'Puede revisar las líneas; los cambios de contexto se verificarán antes de guardar.')",
     '    }',
