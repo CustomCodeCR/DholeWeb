@@ -238,6 +238,19 @@ function caseQuery(page: number, pageSize: number, filters: OperationsCaseFilter
 }
 export interface Paged<T> { page: number; pageSize: number; total: number; items: T[] }
 
+export type OpeningFieldStatus = 'CONFIRMADO' | 'PENDIENTE_PERMITIDO' | 'PENDIENTE_BLOQUEANTE' | 'NO_APLICA'
+export interface OpeningFieldValidation {
+  fieldCode: string
+  completionStatus: OpeningFieldStatus
+  reason?: string | null
+}
+export interface OpeningCompleteness {
+  fields: OpeningFieldValidation[]
+  missingFields: string[]
+  canPassFieldValidation: boolean
+  version?: number
+}
+
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 function request<T>(path: string, method: Method = 'GET', body?: unknown): Promise<T> {
   return fetchClient<T>(path, { method, ...(body === undefined ? {} : { body }) })
@@ -323,6 +336,9 @@ export const operationsApi = {
     : Promise.resolve({ items: [] as OperationsUser[] }),
   apertures: (page = 1, filters: OperationsCaseFilters = {}) => request<Paged<ApertureRow>>(
     '/api/operations/apertures/validation-queue?' + caseQuery(page, 50, filters)),
+  openingCompleteness: (id: string) => request<OpeningCompleteness>(`/api/operations/cases/${id}/aperture/completeness`),
+  previewOpeningCompleteness: (modality: string, accountId: string, openingData: Record<string, unknown>, caseId?: string) =>
+    request<OpeningCompleteness>('/api/operations/apertures/drafts/completeness', 'POST', { modality, accountId, openingData, caseId }),
   createContext: () => request<{ companyId: string | null }>('/api/operations/apertures/create-context'),
   getManualOpeningDraft: () =>
     request<OperationsManualDraftSnapshot | Record<string, never>>(

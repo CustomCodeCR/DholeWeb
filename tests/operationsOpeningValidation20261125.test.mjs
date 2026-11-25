@@ -46,3 +46,14 @@ test('manual opening locations do not assign a commercial payer', () => {
   assert.ok(source.includes('Puntos de entrega'))
   assert.ok(source.includes('pickupContact: undefined, pickupWindow: undefined'))
 })
+
+
+test('opening states come from the backend and approval requires zero blockers', () => {
+  const panel = readFileSync(new URL('../src/modules/operations/components/OperationsApertureValidationPanel.vue', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('../src/modules/operations/services/operationsApi.ts', import.meta.url), 'utf8')
+  assert.ok(source.includes('operationsApi.previewOpeningCompleteness'))
+  assert.ok(source.includes('serverBlockers.value > 0'))
+  assert.ok(panel.includes('operationsApi.openingCompleteness'))
+  assert.ok(panel.includes('!completeness.value?.canPassFieldValidation'))
+  assert.ok(api.includes('/apertures/drafts/completeness'))
+})
