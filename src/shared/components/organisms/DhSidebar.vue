@@ -25,6 +25,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+// Build the compact mask from the same bundled SVG as the expanded brand.
+// No stable public URL: a previous browser-cached mark cannot leak into a new release.
+const compactBrandPath = dholeLogo.match(/<path id="red"[^>]*\/>/)?.[0] ?? ''
+const compactBrandSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-53 0 470 470">${compactBrandPath}</svg>`
+const compactBrandMask = `url("data:image/svg+xml,${encodeURIComponent(compactBrandSvg)}")`
+
 const compact = computed(() => Boolean(props.collapsed && !props.mobileOpen))
 
 // Settings is centralized in the topbar. Keep the routes available, but do not
@@ -175,10 +181,11 @@ watch(
     <div class="flex min-h-0 w-full flex-col">
       <div class="shrink-0 border-b border-[var(--dh-border)] px-3 pb-3 pt-3">
         <div
-          class="relative flex min-h-16 items-center justify-center rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] px-2.5 py-2 shadow-[var(--dh-shadow-sm)]"
+          class="relative flex min-h-16 items-center justify-center rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-card)] py-2 shadow-[var(--dh-shadow-sm)]"
+          :class="compact ? 'px-1.5' : 'px-2.5'"
         >
           <Transition name="sidebar-brand" mode="out-in">
-            <span v-if="compact" key="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark sidebar-brand-mark shrink-0" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" />
+            <span v-if="compact" key="compact" role="img" aria-label="DHOLE ERP" class="dhole-brand-mark sidebar-brand-mark shrink-0" :style="{ '--dh-brand-mask': compactBrandMask }" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" />
 
             <div v-else key="expanded" class="sidebar-brand-expanded flex min-w-0 flex-1 justify-center">
               <div class="dhole-brand-lockup sidebar-brand-lockup" :title="[t('app.subtitle'), t('app.meaning')].join(' · ')" v-html="dholeLogo.replace(/<title[^>]*>.*?<\/title>/, '')" />

@@ -1,3 +1,7 @@
+## [1.127.5] - 2026-11-25
+
+- Fix compact sidebar brand: reuse bundled SVG silhouette, preserve theme color and transition, avoid stale cached public mask, and provide symmetric compact padding. CI and authenticated staging pending.
+
 ## [1.127.0] - 2026-11-25
 
 - Add optional Booking Request Shipper document category in Pricing screen 4, reusing the existing Storage upload and document metadata. CI and staging pending.

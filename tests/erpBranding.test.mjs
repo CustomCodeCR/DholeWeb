@@ -113,3 +113,15 @@ test('sidebar logo is centered in the entire card independently of its controls'
   assert.equal((sidebar.match(/absolute right-2\.5 top-1\/2/g) || []).length, 2)
   assert.match(sidebar, /\.sidebar-brand-lockup \{ width: 85%; \}/)
 })
+
+test('compact sidebar uses bundled current logo instead of a cacheable public mask', () => {
+  const sidebar = source('src/shared/components/organisms/DhSidebar.vue')
+  const theme = source('src/assets/theme.css')
+  assert.ok(sidebar.includes('dholeLogo.match(/<path id="red"'))
+  assert.ok(sidebar.includes('viewBox="-53 0 470 470"'))
+  assert.ok(sidebar.includes('encodeURIComponent(compactBrandSvg)'))
+  assert.ok(sidebar.includes("'--dh-brand-mask': compactBrandMask"))
+  assert.ok(sidebar.includes("compact ? 'px-1.5' : 'px-2.5'"))
+  assert.ok(theme.includes('mask: var(--dh-brand-mask, none) center / contain no-repeat'))
+  assert.ok(!theme.includes('url("/dhole-mark.svg")'))
+})

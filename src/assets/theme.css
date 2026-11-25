@@ -383,8 +383,8 @@ textarea {
 .dhole-brand-mark {
   display: inline-block;
   background-color: var(--dh-primary);
-  -webkit-mask: url("/dhole-mark.svg") center / contain no-repeat;
-  mask: url("/dhole-mark.svg") center / contain no-repeat;
+  -webkit-mask: var(--dh-brand-mask, none) center / contain no-repeat;
+  mask: var(--dh-brand-mask, none) center / contain no-repeat;
 }
 .dhole-brand-lockup svg {
   display: block;
