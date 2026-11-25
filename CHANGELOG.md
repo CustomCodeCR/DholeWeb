@@ -1,3 +1,7 @@
+## [1.127.0] - 2026-11-25
+
+- Add optional Booking Request Shipper document category in Pricing screen 4, reusing the existing Storage upload and document metadata. CI and staging pending.
+
 ## [1.126.4] - 2026-11-25
 
 - PATCH DH-20261125-OWN-LCL-DRAWER: mover creación, edición y consulta de consolidados LCL propios al DhDrawer compartido, con DhTabs para datos/costos, tarifario, FOB por país y QUOs vinculadas; pie de acciones fijo y permisos existentes. Sin cambios de contratos REST ni cálculos. CI y staging pendientes.
