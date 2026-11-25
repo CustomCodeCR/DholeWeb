@@ -379,7 +379,7 @@ watch(() => [form.value.lengthValue, form.value.lengthUnit, form.value.widthValu
   form.value.lengthCm = toCm(form.value.lengthValue, form.value.lengthUnit)
   form.value.widthCm = toCm(form.value.widthValue, form.value.widthUnit)
   form.value.heightCm = toCm(form.value.heightValue, form.value.heightUnit)
-}, { flush: 'sync' })
+})
 const estimatedKg = computed(() => positive(form.value.estimatedWeightValue)
   ? Number(form.value.estimatedWeightValue) * (form.value.estimatedWeightUnit === 'LB' ? 0.45359237 : 1) : null)
 const normalizedVolume = computed(() => positive(form.value.volumeValue)
