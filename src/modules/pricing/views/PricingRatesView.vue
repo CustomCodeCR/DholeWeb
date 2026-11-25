@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Copy, Edit3, Eye, FileSpreadsheet, ReceiptText, Trash2 } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhCheckbox, DhInput, DhMultiSelect } from '@/shared/components/atoms'
@@ -20,7 +20,9 @@ import type { RateDto, RateStatus } from '@/core/interfaces/pricing'
 import PricingDuplicateRateModal from '@/modules/pricing/components/PricingDuplicateRateModal.vue'
 import PricingExpiredRateApprovalModal from '@/modules/pricing/components/PricingExpiredRateApprovalModal.vue'
 import { expiredRateApprovalService } from '@/modules/pricing/services/expiredRateApprovalService'
-import PricingAssignIdtraModal from '@/modules/pricing/components/PricingAssignIdtraModal.vue'
+import { operationsApi } from '@/modules/operations/services/operationsApi'
+import { useOperationsDashboardRealtime } from '@/modules/operations/composables/useOperationsCaseRealtime'
+import { historicalIdtra, resolveRateOperationsIdtras, type RateIdtraLookup } from '@/modules/pricing/utils/rateOperationsIdtras'
 import PricingApplyTariffModal from '@/modules/pricing/components/PricingApplyTariffModal.vue'
 import DhConfirmDialog from '@/shared/components/molecules/DhConfirmDialog.vue'
 import { usePricingCatalogs } from '@/modules/pricing/composables/usePricingCatalogs'
@@ -60,11 +62,9 @@ function normalizeCommercialStatus(value: unknown): CommercialRateStatusFilter {
   return ''
 }
 
-// The seller endpoint returns the full owner-scoped list, so sort before
-// client-side pagination to keep accepted quotes without IDTRA at the top.
 function acceptedRateMissingIdtra(rate: RateDto): boolean {
   return normalizeCommercialStatus(rate.status) === 'AcceptedByClient'
-    && !String(rate.idtraNumber ?? '').trim()
+    && !displayIdtra(rate) && idtraLookups.value[rate.id]?.state === 'missing'
 }
 
 const route = useRoute()
@@ -226,6 +226,60 @@ function visibleQuoteNumber(rate: RateDto) {
 }
 
 const rows = ref<RateDto[]>([])
+const idtraLookups = ref<Record<string, RateIdtraLookup>>({})
+let idtraGeneration = 0
+let idtraRefreshTimer: ReturnType<typeof setTimeout> | undefined
+
+function displayIdtra(rate: RateDto): string {
+  const lookup = idtraLookups.value[rate.id]
+  return lookup?.state === 'found' ? lookup.idtras.join(', ') : historicalIdtra(rate.idtraNumber)
+}
+
+function idtraStatusLabel(rate: RateDto): string {
+  if (normalizeCommercialStatus(rate.status) !== 'AcceptedByClient' || displayIdtra(rate)) return ''
+  if (!authStore.hasScope('operations.case.read')) return 'IDTRA: consulta no disponible para su rol'
+  if (acceptedRateMissingIdtra(rate)) return 'Apertura aún no confirmada por Operations'
+  if (idtraLookups.value[rate.id]?.state === 'error') return 'No se pudo verificar el IDTRA en Operations'
+  return 'Consultando IDTRA en Operations…'
+}
+
+async function refreshOperationsIdtras() {
+  const generation = ++idtraGeneration
+  if (!authStore.hasScope('operations.case.read')) {
+    idtraLookups.value = {}
+    return
+  }
+  const accepted = rows.value.filter(rate => normalizeCommercialStatus(rate.status) === 'AcceptedByClient')
+  const ids = new Set(accepted.map(rate => rate.id))
+  idtraLookups.value = Object.fromEntries(Object.entries(idtraLookups.value).filter(([id]) => ids.has(id)))
+  // Keep the visible page responsive and bound the number of simultaneous REST calls.
+  for (let start = 0; start < accepted.length; start += 5) {
+    const entries = await Promise.all(accepted.slice(start, start + 5).map(async rate => [rate.id,
+      await resolveRateOperationsIdtras(rate, PricingService.getRateGroup.bind(PricingService), operationsApi.cases),
+    ] as const))
+    if (generation !== idtraGeneration) return
+    idtraLookups.value = { ...idtraLookups.value, ...Object.fromEntries(entries) }
+  }
+}
+
+function queueOperationsIdtraRefresh() {
+  if (idtraRefreshTimer !== undefined) clearTimeout(idtraRefreshTimer)
+  idtraRefreshTimer = setTimeout(() => {
+    idtraRefreshTimer = undefined
+    void refreshOperationsIdtras()
+  }, 250)
+}
+
+watch([rows, () => authStore.hasScope('operations.case.read'), () => authStore.userId], () => {
+  ++idtraGeneration
+  void refreshOperationsIdtras()
+})
+watch(() => authStore.userId, () => { idtraLookups.value = {} })
+onActivated(queueOperationsIdtraRefresh)
+onBeforeUnmount(() => {
+  ++idtraGeneration
+  if (idtraRefreshTimer !== undefined) clearTimeout(idtraRefreshTimer)
+})
 const creatorDirectory = ref<Record<string, { displayName: string; userName: string }>>({})
 
 async function loadCreatorDirectory() {
@@ -534,10 +588,6 @@ async function load() {
         ].some((value) => String(value || '').toLowerCase().includes(searchValue))
       })
 
-      sellerRows.sort(
-        (left, right) => Number(acceptedRateMissingIdtra(right)) - Number(acceptedRateMissingIdtra(left)),
-      )
-
       const start = (page.value - 1) * pageSize.value
       const pageRows = sellerRows.slice(start, start + pageSize.value)
       rows.value = pageRows
@@ -655,22 +705,6 @@ function toggleSelection(id: string) {
   selectedIds.value = selectedIds.value.includes(id)
     ? selectedIds.value.filter((item) => item !== id)
     : [...selectedIds.value, id]
-}
-
-function canAssignIdtra(rate: RateDto): boolean {
-  return acceptedRateMissingIdtra(rate) &&
-    (authStore.hasScope(PRICING_SCOPES.rates.update) ||
-     authStore.hasScope(PRICING_SCOPES.rates.approveLowMargin))
-}
-
-function assignIdtra(rate: RateDto) {
-  if (!canAssignIdtra(rate)) return
-  modalStore.open({
-    title: 'Asignar IDTRA',
-    component: PricingAssignIdtraModal,
-    size: 'md',
-    props: { rate, onSaved: async () => { await load() } },
-  })
 }
 
 function openDetail(rate: RateDto) {
@@ -806,6 +840,14 @@ useRealtimeListRefresh({
   prefixes: ['/api/pricing'],
   refresh: load,
 })
+useRealtimeListRefresh({
+  prefixes: ['/api/operations'],
+  refresh: queueOperationsIdtraRefresh,
+})
+// The Operations Hub also reconciles after reconnect, independently of Pricing mutations.
+if (authStore.hasScope('operations.case.read')) {
+  useOperationsDashboardRealtime(queueOperationsIdtraRefresh)
+}
 function refreshExpiryApprovals(event: Event) {
   const detail = (event as CustomEvent<{ notificationType?: string }>).detail
   if (detail?.notificationType?.startsWith('pricing.rate.expired-update.')) void load()
@@ -1081,8 +1123,9 @@ onMounted(async () => {
                 <p class="mt-2 break-words text-sm font-black leading-5 text-[var(--dh-text)]">
                   {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
                 </p>
-                <p v-if="row.idtraNumber" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
-                  <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
+                <p v-if="displayIdtra(row) || idtraStatusLabel(row)" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
+                  <span v-if="displayIdtra(row)" class="font-black text-[var(--dh-primary)]"> · IDTRA: {{ displayIdtra(row) }}</span>
+                  <span v-else :class="acceptedRateMissingIdtra(row) ? 'font-black text-amber-600' : ''"> · {{ idtraStatusLabel(row) }}</span>
                 </p>
 
               </div>
@@ -1156,13 +1199,6 @@ onMounted(async () => {
               </div>
               <p class="mt-2 text-[11px] font-bold text-[var(--dh-text-soft)]">{{ row.freeDays }} días libres</p>
             </div>
-
-            <button
-              v-if="canAssignIdtra(row)"
-              type="button"
-              class="mt-3 w-full rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs font-black text-amber-700 dark:text-amber-300"
-              @click.stop="assignIdtra(row)"
-            >Asignar IDTRA · Pendiente para Dynamics</button>
 
             <div class="mt-3 grid grid-flow-col auto-cols-[2.75rem] justify-center gap-2 border-t border-[var(--dh-border)] pt-2.5" @click.stop>
               <button
@@ -1282,9 +1318,9 @@ onMounted(async () => {
                     <p class="mt-2 break-words font-black leading-5 text-[var(--dh-text)]">
                       {{ [row.polName, row.poeName, row.podName].filter(Boolean).join(' → ') }}
                     </p>
-                    <p v-if="row.idtraNumber || acceptedRateMissingIdtra(row)" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
-                      <span v-if="row.idtraNumber" class="font-black text-[var(--dh-primary)]"> · IDTRA {{ row.idtraNumber }}</span>
-                      <span v-if="acceptedRateMissingIdtra(row)" class="font-black text-amber-600"> · Pendiente de IDTRA</span>
+                    <p v-if="displayIdtra(row) || idtraStatusLabel(row)" class="mt-1 break-words text-xs font-semibold text-[var(--dh-text-muted)]">
+                      <span v-if="displayIdtra(row)" class="font-black text-[var(--dh-primary)]"> · IDTRA: {{ displayIdtra(row) }}</span>
+                      <span v-else :class="acceptedRateMissingIdtra(row) ? 'font-black text-amber-600' : ''"> · {{ idtraStatusLabel(row) }}</span>
                     </p>
 
                   </div>
@@ -1355,13 +1391,6 @@ onMounted(async () => {
                     >
                       <Eye class="h-4 w-4" />
                     </button>
-                    <button
-                      v-if="canAssignIdtra(row)"
-                      type="button"
-                      class="shrink-0 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] font-black text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
-                      title="Registrar IDTRA y enviar la Quote a Dynamics"
-                      @click="assignIdtra(row)"
-                    >Asignar IDTRA</button>
                     <button
                       v-if="canRequestExpiryApproval(row)"
                       type="button"
