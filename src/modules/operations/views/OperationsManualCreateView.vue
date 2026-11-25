@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
+import { DhBadge, DhButton, DhInput, DhMultiSelect, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi, type OpeningCompleteness } from '../services/operationsApi'
@@ -130,7 +130,7 @@ function reconcileLocations() {
 async function loadPricingCatalogs() {
   catalogLoading.value = true
   try {
-    const names = ['pol','poe','pod','incoterms','container-types','land-equipment-sizes','countries']
+    const names = ['pol','poe','pod','incoterms','container-types','land-equipment-sizes','countries','carriers','agents','pricing-services']
     const result = await Promise.all(names.map(async key => {
       try { return [key, await CatalogItemsService.select({ catalogGroupSlug: key })] as const }
       catch { return [key, [] as CatalogItemSelectDto[]] as const }
@@ -168,7 +168,7 @@ const form = ref({
   volumeValue: '', volumeUnit: 'CBM', consolidationReference: '',
   isImo: false, imoClass: '', unNumber: '', stackable: true,
   overweight: false, overweightNotes: '', carrierReference: '',
-  agentReference: '', merchantReference: '', etm: '', eta: '',
+  agentReference: '', merchantReference: '', carrierId: '', agentId: '', merchantId: '', airline: '', roadCarrierReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
   equipment: [] as Array<{ equipmentType: string; equipmentCatalogId?: string; quantity: number; weightKg?: number }>,
@@ -177,6 +177,20 @@ const form = ref({
   supportEntityId: '',
   supportDocuments: [] as Array<{ id: string; fileName: string; category: string; categoryLabel: string; sizeInBytes: number }>,
 })
+const providerOptions = (group: string, previous: string, id: string) => {
+  const options = currentCatalog(group).filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item) }))
+  if (id && previous && !options.some(option => option.value === id)) options.push({ value: id, label: previous + ' (registrado)' })
+  return options
+}
+const serviceOptions = computed(() => currentCatalog('pricing-services').filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item) })))
+const selectedServiceLabels = computed(() => form.value.services.map(id => serviceOptions.value.find(option => option.value === id)?.label || id))
+function setProvider(role: 'carrier' | 'agent' | 'merchant', id: string) {
+  const group = role === 'carrier' ? 'carriers' : 'agents'
+  const label = lookupLabel(group, id)
+  if (role === 'carrier') { form.value.carrierId = id; form.value.carrierReference = label }
+  else if (role === 'agent') { form.value.agentId = id; form.value.agentReference = label }
+  else { form.value.merchantId = id; form.value.merchantReference = label }
+}
 const cabysResults = ref<Array<{ code: string; description: string }>>([])
 const searchingCabys = ref(false)
 const uploadingSupport = ref('')
@@ -237,6 +251,9 @@ function selectTransport(value: string) {
   if (form.value.transportType === value) return
   const available = shipmentOptionsByTransport[value] ?? []
   form.value.transportType = value
+  if (value !== 'MARITIME') { form.value.carrierId = ''; form.value.carrierReference = ''; form.value.merchantId = ''; form.value.merchantReference = '' }
+  if (value !== 'AIR') form.value.airline = ''
+  if (value !== 'ROAD') form.value.roadCarrierReference = ''
   form.value.operationOverride = ''
   if (!['MARITIME','MULTIMODAL'].includes(value)) { selectedPod.value = ''; form.value.pod = '' }
   selectedPol.value = ''
@@ -345,6 +362,7 @@ const valid = computed(() =>
   uniqueEquipment.value)))
 const blockers = computed(() => {
   const result: string[] = []
+  if (!editingId.value && !form.value.services.length) result.push('Servicios solicitados')
   if (!accountId.value) result.push('Cliente CRM')
   else if (!executiveLoading.value && !executiveAssigned.value) result.push('Ejecutivo comercial por asignar en CRM')
   if (!form.value.transportType) result.push('Modalidad de transporte')
@@ -669,6 +687,7 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
       // Manual openings do not capture actual weight (Coordinación Origen owns it).
       form.value.weightValue = ''
       form.value.weightUnit = 'KG'
+      if (!Array.isArray(form.value.services)) form.value.services = []
       if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
       if (!Array.isArray(form.value.equipment)) form.value.equipment = []
       if (!Array.isArray(form.value.supportDocuments)) form.value.supportDocuments = []
@@ -768,7 +787,7 @@ function buildOpeningData() {
       ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [], deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...(!editingId.value ? { lengthCm: effectiveShipment.value === 'AIR' ? form.value.lengthCm : '', widthCm: effectiveShipment.value === 'AIR' ? form.value.widthCm : '', heightCm: effectiveShipment.value === 'AIR' ? form.value.heightCm : '' } : {}),
-      ...(!editingId.value ? { openingValidationVersion: 3, polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 4, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', form.value.carrierId], ['agents', 'agentReference', form.value.agentId], ['agents', 'merchantReference', form.value.merchantId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
@@ -816,6 +835,8 @@ onBeforeUnmount(() => {
   if (completenessTimer) clearTimeout(completenessTimer)
 })
 const serverBlockers = computed(() => completeness.value?.missingFields.length ?? 0)
+const statusGroups = computed(() => (['PENDIENTE_BLOQUEANTE', 'PENDIENTE_PERMITIDO', 'CONFIRMADO', 'NO_APLICA'] as const).map(status => ({ status, fields: completeness.value?.fields.filter(field => field.completionStatus === status) || [] })))
+const selectedStatusGroup = ref('PENDIENTE_PERMITIDO')
 const reviewValidationPending = computed(() => activeStep.value === 3 && !completeness.value?.canPassFieldValidation)
 
 async function save() {
@@ -1344,6 +1365,21 @@ onMounted(async () => {
               </div>
             </div>
           </div>
+          <DhCard title="Servicios solicitados y proveedores" padding="sm">
+            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Selecciona los servicios acordados. Los proveedores pueden confirmarse en Origen; no se crean costos ni tarifas.</p>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="md:col-span-2" v-if="!editingId">
+                <DhMultiSelect v-model="form.services" :options="serviceOptions" label="Servicios solicitados" placeholder="Seleccionar servicios de Pricing" />
+                <p v-if="!serviceOptions.length" class="mt-2 text-xs text-[var(--dh-text-muted)]">Catálogo de servicios no disponible. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadPricingCatalogs" /></p>
+              </div>
+              <DhSelect v-if="isMaritime" :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera (si se conoce)" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
+              <DhSelect :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
+              <DhSelect v-if="isMaritime" :model-value="form.merchantId" :options="providerOptions('agents', form.merchantReference, form.merchantId)" label="Merchant (si corresponde)" placeholder="Por confirmar" @update:model-value="setProvider('merchant', String($event || ''))" />
+              <DhInput v-if="form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
+              <DhInput v-if="form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
+              <div class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
+            </div>
+          </DhCard>
           <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
             <h4 class="text-base font-black">Documentos de respaldo</h4>
             <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
@@ -1428,6 +1464,19 @@ onMounted(async () => {
                   <p v-if="warehouseAddress" class="mt-1 break-words">{{ warehouseAddress }}</p>
                 </div>
               </section>
+              <DhCard title="Servicios y coordinación" padding="sm">
+                <p class="text-xs font-semibold">Servicios solicitados</p>
+                <div class="mt-2 flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Por completar</span></div>
+                <div class="mt-3 grid gap-3 text-xs sm:grid-cols-2">
+                  <p v-if="isMaritime">Naviera: <strong>{{ form.carrierReference || 'Por confirmar' }}</strong></p>
+                  <p>Agente: <strong>{{ form.agentReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="isMaritime">Merchant: <strong>{{ form.merchantReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="form.transportType === 'AIR'">Aerolínea: <strong>{{ form.airline || 'Por confirmar' }}</strong></p>
+                  <p v-if="form.transportType === 'ROAD'">Transportista: <strong>{{ form.roadCarrierReference || 'Por confirmar' }}</strong></p>
+                </div>
+                <p v-if="form.observations" class="mt-3 whitespace-pre-wrap break-words text-xs">{{ form.observations }}</p>
+                <DhButton class="mt-3" size="sm" variant="secondary" label="Editar servicios y proveedores" @click="goToStep(2)" />
+              </DhCard>
               <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
                 <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Mercancía y equipos</h5></div>
                 <p class="text-sm font-semibold">{{ form.cargoDescription || 'Descripción pendiente' }}</p>
@@ -1469,9 +1518,14 @@ onMounted(async () => {
                   <div v-else-if="completenessError" role="alert" class="space-y-2"><p class="text-xs text-[var(--dh-text-muted)]">{{ completenessError }}</p><DhButton size="sm" variant="secondary" label="Reintentar" @click="retryCompleteness++" /></div>
                   <template v-else-if="completeness">
                     <p class="text-xs font-semibold">{{ serverBlockers }} campos bloqueantes · {{ completeness.fields.filter(f => f.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</p>
-                    <div v-for="field in completeness.fields" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2 py-1">
-                      <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span>
-                      <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+                    <div class="grid grid-cols-2 gap-2">
+                      <DhButton v-for="group in statusGroups" :key="group.status" size="sm" :variant="selectedStatusGroup === group.status ? 'primary' : 'secondary'" :label="openingStatusLabel(group.status) + ' (' + group.fields.length + ')'" @click="selectedStatusGroup = group.status" />
+                    </div>
+                    <div class="max-h-72 overflow-y-auto space-y-1">
+                      <div v-for="field in statusGroups.find(group => group.status === selectedStatusGroup)?.fields || []" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2 py-1">
+                        <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span>
+                        <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+                      </div>
                     </div>
                   </template>
                 </div>

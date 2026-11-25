@@ -1,3 +1,7 @@
+## [1.129.4] - 2026-11-25
+
+- Restore opening service/provider capture, observations and compact grouped completeness review. CI/staging pending.
+
 ## [1.129.3] - 2026-11-25
 
 - Show server-calculated individual opening field states using shared DH badges; preserve draft and realtime contracts, and prevent approval with blocking fields. CI and staging pending.
