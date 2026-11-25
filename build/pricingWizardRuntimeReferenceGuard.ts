@@ -769,6 +769,9 @@ function patchWizard(source: string) {
   const helpers = `// dhole-runtime-reference-guard-20260925
 ${missingRuntimeDefinitions.join('\n\n')}
 ${missingRuntimeDefinitions.length ? '\n\n' : ''}function dholeRuntimeCostContextImportRateId() {
+  // The manual ocean source must not leak into air/land/LCL wizard-bundle queries.
+  if (shipmentModeForApi.value !== 'Fcl'
+      || !['Maritime', 'Multimodal'].includes(String(form.modality))) return ''
   const selectedRateId = String(form.selectedImportRateId ?? '').trim()
   if (!selectedRateId) return String(manualOceanFreightSavedId.value ?? '').trim()
   if (!isMultimodalViaPanama(selectedDestination.value)) return ''
