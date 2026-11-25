@@ -8,7 +8,6 @@ import { DhPageHeader } from '@/shared/components/organisms'
 import { CatalogItemsService } from '@/core/services/catalogItemsService'
 import {
   OwnLclConsolidationService,
-  createDefaultOwnLclPricingLines,
   type OwnLclAutomationSnapshotDto,
   type OwnLclConsolidationDto,
   type OwnLclLinkedQuoteDto,
@@ -41,7 +40,13 @@ const scenarioLoading = ref(false)
 const scenarioSaving = ref(false)
 const pricingLineSaving = ref(false)
 const hydratingPricingEditor = ref(false)
-const pricingLines = ref<OwnLclPricingLineDto[]>(createDefaultOwnLclPricingLines())
+const pricingLines = ref<OwnLclPricingLineDto[]>([])
+const pricingLinesLoading = ref(false)
+const pricingLinesError = ref('')
+const previewError = ref('')
+let pricingLinesRequest = 0
+let previewRequest = 0
+let lastAutomaticDestinationTotal: number | null = null
 const rows = ref<OwnLclTableRow[]>([])
 const carriers = ref<CatalogItemSelectDto[]>([])
 const containers = ref<CatalogItemSelectDto[]>([])
@@ -275,7 +280,14 @@ function resetForm() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
-  pricingLines.value = createDefaultOwnLclPricingLines('China')
+  ++pricingLinesRequest
+  ++previewRequest
+  pricingLinesLoading.value = false
+  previewLoading.value = false
+  pricingLinesError.value = ''
+  previewError.value = ''
+  lastAutomaticDestinationTotal = null
+  pricingLines.value = []
   readOnly.value = false
   Object.assign(form, {
     name: '', consolidationNumber: null,
@@ -293,6 +305,33 @@ function newConsolidation() {
   }
   resetForm()
   editorOpen.value = true
+  void loadDraftPricingLines()
+}
+
+async function loadDraftPricingLines() {
+  const request = ++pricingLinesRequest
+  const pol = option(pols.value, form.polId)
+  const matrix = formMatrixType.value
+  pricingLinesLoading.value = true
+  pricingLinesError.value = ''
+  pricingLines.value = []
+  try {
+    const lines = await OwnLclConsolidationService.previewPricingLines({
+      polCode: pol?.code || pol?.value || (matrix === 'Miami' ? 'MIA' : null),
+      polName: pol?.label || null,
+    })
+    if (request !== pricingLinesRequest) return
+    if (!lines.length) throw new Error('El backend no devolvió líneas del tarifario.')
+    pricingLines.value = lines
+    const transshipment = lines.find((line) => line.lineKey === 'CA_TRANSSHIPMENT')
+    if (transshipment) transshipment.costUnit = previewDestinationPerCbm.value + 9
+  } catch (error) {
+    if (request !== pricingLinesRequest) return
+    pricingLinesError.value = 'No fue posible cargar el tarifario del backend.'
+    toastStore.backendError(error, pricingLinesError.value)
+  } finally {
+    if (request === pricingLinesRequest) pricingLinesLoading.value = false
+  }
 }
 
 async function loadScenarios(id: string) {
@@ -308,6 +347,14 @@ async function loadScenarios(id: string) {
 }
 
 async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
+  ++pricingLinesRequest
+  ++previewRequest
+  pricingLinesLoading.value = false
+  previewLoading.value = false
+  pricingLinesError.value = ''
+  previewError.value = ''
+  lastAutomaticDestinationTotal = null
+  pricingLines.value = []
   hydratingPricingEditor.value = true
   selectedId.value = row.id
   if (canViewLinkedQuotes.value) void loadLinkedQuotes(row.id)
@@ -348,6 +395,7 @@ async function openRow(row: OwnLclTableRow, mode: 'view' | 'edit') {
     form.includeEmptyReturn = automation.includeEmptyReturn
   } catch (error) {
     selectedAutomation.value = null
+    pricingLinesError.value = 'No fue posible cargar el tarifario guardado.'
     toastStore.backendError(error, 'No fue posible cargar el detalle automático del consolidado.')
   } finally {
     hydratingPricingEditor.value = false
@@ -418,6 +466,9 @@ watch(() => form.name, () => {
 })
 
 async function previewProfile() {
+  const request = ++previewRequest
+  previewError.value = ''
+  previewLoading.value = false
   if (isMiamiMatrix.value) {
     profilePreview.value = null
     return
@@ -430,7 +481,7 @@ async function previewProfile() {
   try {
     previewLoading.value = true
     const container = option(containers.value, form.containerId)
-    profilePreview.value = await OwnLclConsolidationService.previewDestinationCosts({
+    const profile = await OwnLclConsolidationService.previewDestinationCosts({
       carrierCode: carrier.code || carrier.value,
       carrierName: carrier.label,
       arrivalPortCode: form.panamaArrivalPortCode,
@@ -439,13 +490,20 @@ async function previewProfile() {
       containerCode: container?.code || container?.value || null,
       bunkerCost: Math.max(Number(form.bunkerCost || 0), 0),
     })
-    if (!selectedId.value && form.carrierDestinationCostTotal === 0) {
-      form.carrierDestinationCostTotal = profilePreview.value.totalCost
+    if (request !== previewRequest) return
+    profilePreview.value = profile
+    if (!selectedId.value && (form.carrierDestinationCostTotal === 0
+        || form.carrierDestinationCostTotal === lastAutomaticDestinationTotal)) {
+      form.carrierDestinationCostTotal = profile.totalCost
     }
-  } catch {
+    lastAutomaticDestinationTotal = profile.totalCost
+  } catch (error) {
+    if (request !== previewRequest) return
     profilePreview.value = null
+    previewError.value = 'No se pudieron consultar los cargos de destino de la matriz.'
+    toastStore.backendError(error, previewError.value)
   } finally {
-    previewLoading.value = false
+    if (request === previewRequest) previewLoading.value = false
   }
 }
 
@@ -455,7 +513,7 @@ watch(() => [form.carrierId, form.containerId, form.panamaArrivalPortCode, form.
 
 watch(formMatrixType, (matrix, previous) => {
   if (hydratingPricingEditor.value || matrix === previous) return
-  pricingLines.value = createDefaultOwnLclPricingLines(matrix)
+  void loadDraftPricingLines()
   scenarioMatrix.value = null
   profilePreview.value = null
 
@@ -627,6 +685,14 @@ async function save() {
     return
   }
 
+  if (pricingLinesLoading.value || pricingLinesError.value || !pricingLines.value.length) {
+    toastStore.warning('Tarifario no disponible', 'Cargue las líneas del backend antes de guardar.')
+    return
+  }
+  if (!isMiamiMatrix.value && (previewLoading.value || previewError.value)) {
+    toastStore.warning('Costos de destino no verificados', 'Revise la referencia automática antes de guardar.')
+    return
+  }
   const body = buildPayload()
   if (!body.booking || !body.etd || !body.carrierCode || !body.panamaArrivalPortCode || !body.polCode || !body.containerCode || body.oceanFreight <= 0) {
     toastStore.warning('Datos incompletos', 'Ingrese booking y ETD; seleccione naviera, POE, POL y equipo; e indique el flete marítimo.')
@@ -689,7 +755,13 @@ function closeEditor() {
   selectedAutomation.value = null
   profilePreview.value = null
   scenarioMatrix.value = null
-  pricingLines.value = createDefaultOwnLclPricingLines('China')
+  ++pricingLinesRequest
+  ++previewRequest
+  pricingLines.value = []
+  pricingLinesLoading.value = false
+  previewLoading.value = false
+  pricingLinesError.value = ''
+  previewError.value = ''
 }
 
 onMounted(load)
@@ -862,6 +934,10 @@ onMounted(load)
               <span class="rounded-full border border-[var(--dh-primary)]/30 bg-[var(--dh-primary)]/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">editable por consolidado</span>
             </div>
             <div v-if="previewLoading" class="mt-4 text-sm font-bold text-[var(--dh-text-muted)]">Resolviendo costos...</div>
+            <div v-else-if="previewError" class="mt-4 flex items-center gap-3 text-sm text-[var(--dh-text)]">
+              <span>{{ previewError }}</span>
+              <DhButton label="Reintentar" variant="secondary" @click="previewProfile()" />
+            </div>
             <div v-else-if="effectiveProfile" class="mt-4 space-y-2">
               <div class="rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">POD final</p>
@@ -885,7 +961,12 @@ onMounted(load)
               <DhButton v-if="selectedId && !readOnly" :label="isMiamiMatrix ? 'Guardar costos Miami' : 'Guardar costos y ventas'" :loading="pricingLineSaving" variant="secondary" @click="savePricingLineRows()" />
             </div>
 
-            <div class="mt-4 space-y-3">
+            <div v-if="pricingLinesLoading" class="mt-4 text-sm text-[var(--dh-text-muted)]">Cargando tarifario del backend...</div>
+            <div v-else-if="pricingLinesError" class="mt-4 flex items-center gap-3 text-sm text-[var(--dh-text)]">
+              <span>{{ pricingLinesError }}</span>
+              <DhButton v-if="!selectedId" label="Reintentar" variant="secondary" @click="loadDraftPricingLines()" />
+            </div>
+            <div v-else class="mt-4 space-y-3">
               <details v-for="group in pricingLineGroups" :key="group.scope" class="group overflow-hidden rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)]" :open="group.scope === 'PA' || group.scope === 'MIA'">
                 <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                   <div><p class="font-black">{{ group.label }}</p><p class="mt-0.5 text-[11px] font-semibold text-[var(--dh-text-muted)]">{{ group.description }}</p></div>
