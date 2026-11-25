@@ -21,14 +21,14 @@ test('Manual aperture no longer has any dedicated services or coordination scree
   assert.doesNotMatch(opening, /v-show="activeStep === [456]"/)
 })
 
-test('FCA WHS is mandatory only for warehouse delivery', () => {
+test('FCA WHS follows Pricing', () => {
   assert.match(opening, /const requiresWarehouse = computed/)
   assert.match(opening, /const selectedIncoterm = computed/)
   assert.match(opening, /normalizeIncotermCode\(form\.value\.incoterm, form\.value\.incotermName\)/)
-  assert.match(opening, /const requiresWarehouse = computed\(\(\) => selectedIncoterm\.value === 'FCA' && !form\.value\.requiresPickup\)/)
-  assert.match(opening, /if \(requiresWarehouse\.value && !form\.value\.whsName\.trim\(\)\)/)
+  assert.match(opening, /const requiresWarehouse = computed\(\(\) => selectedIncoterm\.value === 'FCA'\)/)
+  assert.ok(opening.includes('if (requiresWarehouse.value && !(warehouse.value'))
   assert.match(opening, /<div v-if="requiresWarehouse"/)
-  assert.match(opening, /label="Nombre WHS \/ referencia registrada"/)
+  assert.match(opening, /label="WHS global"/)
   assert.match(opening, /const warehouseGroups =/)
 })
 

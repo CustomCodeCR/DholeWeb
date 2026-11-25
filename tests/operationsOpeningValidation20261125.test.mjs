@@ -13,5 +13,13 @@ test('new manual openings validate estimated weight and air dimensions without e
   assert.ok(source.includes('positive(form.value.estimatedWeightValue)'))
   assert.ok(source.includes("form.value.lengthCm, form.value.widthCm, form.value.heightCm"))
   assert.ok(source.includes("weightValue: undefined, weightUnit: undefined, weightKg: undefined"))
-  assert.ok(source.includes("openingValidationVersion: 2"))
+  assert.ok(source.includes("openingValidationVersion: 3"))
+})
+
+test('route and commercial perspective follow Pricing', () => {
+  assert.ok(source.includes('operationForClientCountry(clientCountry.value'))
+  assert.ok(source.includes('resolveLocationCountryCode(item, currentCatalog'))
+  assert.ok(source.includes('v-if="showPod"'))
+  assert.ok(source.includes("pod: showPod.value ? form.value.pod : ''"))
+  assert.ok(source.includes('PricingInlandServiceLocation'))
 })
