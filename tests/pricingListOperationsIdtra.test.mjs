@@ -12,10 +12,10 @@ const noGroup = async () => null
 test('accepted QUO resolves its Operations IDTRA without a historical Pricing field', async () => {
   const result = await resolveRateOperationsIdtras({ id: 'quote' }, noGroup, async (p, filters) => {
     assert.equal(p, 1)
-    assert.deepEqual(filters, { q: 'quote', apertureType: 'AUTOMATIC' })
+    assert.deepEqual(filters, { q: 'quote' })
     return page([row('IDTRA12967'), row('IDTRA99999', 'other'), row('IDTRA123', 'quote', 'other'), row('IDTRA42', 'quote', 'quote', 'MANUAL')])
   })
-  assert.deepEqual(result, { state: 'found', idtras: ['IDTRA12967'] })
+  assert.deepEqual(result, { state: 'found', idtras: ['IDTRA42', 'IDTRA12967'] })
 })
 
 test('selected group option can have several distinct IDTRAs across pages', async () => {

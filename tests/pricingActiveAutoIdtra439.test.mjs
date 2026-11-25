@@ -38,3 +38,10 @@ test('P8 displays historic IDs without modification and P9 explains the automati
   assert.match(active, /Se genera automáticamente al aceptar/)
   assert.match(active, /name: 'operations-cases'/)
 })
+
+
+test('accepted quote can link an existing manual IDTRA without automatic creation or direct dual write', () => {
+  assert.match(active, /operationsApi\.linkQuote\(target.id, identity.option, target.version\)/)
+  assert.match(active, /linkedOperationsCases.map\(item => item.idtra\)/)
+  assert.match(active, /apertureType: 'MANUAL'/)
+})

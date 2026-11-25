@@ -27,9 +27,9 @@ export async function resolveRateOperationsIdtras(
     const identifiers = new Set<string>()
     const pageSize = 25
     for (let page = 1; ; page++) {
-      const result = await getCases(page, { q: parent, apertureType: 'AUTOMATIC' }, pageSize)
+      const result = await getCases(page, { q: parent }, pageSize)
       for (const row of result.items) {
-        if (row.apertureType !== 'AUTOMATIC' || row.sourceQuoteId !== parent || row.sourceQuoteOptionId !== option) continue
+        if (row.sourceQuoteId !== parent || row.sourceQuoteOptionId !== option) continue
         const idtra = historicalIdtra(row.idtra)
         if (idtra) identifiers.add(idtra)
       }

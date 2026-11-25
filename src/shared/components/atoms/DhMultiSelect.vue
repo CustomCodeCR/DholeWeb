@@ -17,6 +17,9 @@ const props = withDefaults(
     searchPlaceholder?: string
     emptyText?: string
     disabled?: boolean
+    single?: boolean
+    showSelectedLabels?: boolean
+    error?: string
   }>(),
   {
     placeholder: 'Seleccione una o varias opciones',
@@ -84,6 +87,12 @@ const filtered = computed(() => {
 
 function toggle(value: string) {
   if (props.disabled) return
+  if (props.single) {
+    emit('update:modelValue', props.modelValue.includes(value) ? [] : [value])
+    closeMenu()
+    detailsRef.value?.querySelector('summary')?.focus()
+    return
+  }
   emit(
     'update:modelValue',
     props.modelValue.includes(value)
@@ -143,6 +152,8 @@ onBeforeUnmount(() => {
       @toggle="handleToggle"
     >
       <summary
+         :aria-invalid="Boolean(error)"
+        :class="error && '!border-red-500 ring-2 ring-red-500/20'"
         class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 py-2 text-sm font-semibold text-[var(--dh-text)] shadow-[var(--dh-shadow-sm)] backdrop-blur-xl dh-focus-primary"
       >
         <span
@@ -151,12 +162,12 @@ onBeforeUnmount(() => {
         >
           {{
             selected.length
-              ? `${selected.length} seleccionado${selected.length === 1 ? '' : 's'}`
+              ? (single || showSelectedLabels ? selected.map(option => option.label).join(', ') : `${selected.length} seleccionado${selected.length === 1 ? '' : 's'}`)
               : placeholder
           }}
         </span>
         <span
-          v-if="selected.length"
+          v-if="selected.length && !single"
           class="grid h-6 min-w-6 place-items-center rounded-full bg-[rgb(var(--dh-primary-rgb)/0.12)] px-1.5 text-[11px] font-black text-[var(--dh-primary)]"
         >
           {{ selected.length }}
@@ -224,7 +235,7 @@ onBeforeUnmount(() => {
       </div>
     </Teleport>
 
-    <div v-if="selected.length" class="mt-2 flex flex-wrap gap-1.5">
+    <div v-if="selected.length && !single" class="mt-2 flex flex-wrap gap-1.5">
       <button
         v-for="option in selected"
         :key="option.value"
@@ -237,6 +248,7 @@ onBeforeUnmount(() => {
         <X class="h-3 w-3" />
       </button>
     </div>
+    <span v-if="error" class="mt-1 block text-xs font-semibold text-red-500">{{ error }}</span>
   </label>
 </template>
 

@@ -6,13 +6,14 @@ const active = readFileSync('src/modules/pricing/components/PricingAlternativeWi
 const router = readFileSync('src/modules/pricing/views/PricingOverviewView.vue','utf8')
 const operationsConfig = readFileSync('docs/releases/DH-20261124-OPS-QUOTE-ACCEPTANCE-440.json','utf8')
 
-test('active Pricing wizard is mounted by PricingOverviewView and cannot assign IDTRA manually', () => {
+test('active Pricing wizard resolves existing Operations IDTRAs without free-text assignment', () => {
   assert.match(router, /PricingAlternativeWizardCrystal/)
   assert.doesNotMatch(active, /<DhButton[^>]+>Asignar IDTRA<\/DhButton>/)
   assert.doesNotMatch(active, /function openAssignIdtra/)
   assert.match(active, /pricing-screen9-operations-idtra-status/)
   assert.match(active, /Apertura aún no confirmada por Operations/)
-  assert.match(active, /operationsApi\.cases\(1, \{ q: identity.parent, apertureType: 'AUTOMATIC' \}\)/)
+  assert.match(active, /operationsApi\.cases\(page, \{ q: identity.parent \}, 50\)/)
+  assert.match(active, /operationsApi\.linkQuote\(target.id, identity.option, target.version\)/)
   assert.match(active, /row.sourceQuoteId === identity.parent/)
   assert.match(active, /row.sourceQuoteOptionId === identity.option/)
   assert.match(active, /name: 'operations-case-detail'/)

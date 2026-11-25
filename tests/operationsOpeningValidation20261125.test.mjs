@@ -69,3 +69,13 @@ test('manual opening captures services, suppliers and observations and groups co
   assert.ok(source.includes('statusGroups.find'))
   assert.ok(source.includes('max-h-72 overflow-y-auto'))
 })
+
+
+test('opening uses origin-filtered agents, shared searchable selects and neutral services wording', () => {
+  assert.ok(source.includes('agentMatchesOrigin(item, origin'))
+  assert.ok(source.includes('searchable :model-value="form.carrierId"'))
+  assert.ok(!source.includes('Seleccionar servicios de Pricing'))
+  const detail = readFileSync(new URL('../src/modules/operations/views/OperationsCaseDetailView.vue', import.meta.url), 'utf8')
+  assert.ok(detail.includes('v-model="completenessGroup"'))
+  assert.ok(detail.includes('openingData.value.serviceSelections'))
+})
