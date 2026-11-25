@@ -1,3 +1,8 @@
+## [1.132.1] - 2026-11-25
+- Resolve service names using the shared catalog in case drawer and detail.
+- Compact Aperturas validation with DH tabs and edit action.
+- Move operational dates and consolidation to Origin.
+
 ## [1.132.0] - 2026-11-25
 
 - Captura exclusiva del peso real desde Coordinación Origen, con componentes DH y comparación en kg.

@@ -17,7 +17,7 @@ import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData
 
 const { locale } = useI18n()
 const route = useRoute()
-const { openingField } = useCommercialLabels()
+const { openingField, serviceLabels } = useCommercialLabels()
 const supplemental = ref<Record<string, unknown>>({})
 const auth = useAuthStore()
 const canCreate = computed(() => auth.hasScope('operations.case.create'))
@@ -162,14 +162,7 @@ const openingMissing = computed(() => {
   const items = opening.value.missingFields
   return Array.isArray(items) ? items.filter((v): v is string => typeof v === 'string') : []
 })
-const openingServices = computed(() => {
-  const values = opening.value.services
-  if (!Array.isArray(values)) return []
-  return values.map(value => typeof value === 'string' ? value :
-    value && typeof value === 'object' ? String((value as Record<string, unknown>).name ||
-      (value as Record<string, unknown>).label ||
-      '') : '').filter(Boolean)
-})
+const openingServices = computed(() => serviceLabels(opening.value))
 const openingFlags = computed(() => [
   opening.value.isImo === true ? 'IMO / peligrosa' : '',
   opening.value.overweight === true ? 'Sobrepeso' : '',
@@ -592,9 +585,9 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
               <p class="mt-0.5 break-words text-sm font-semibold">{{ item.value || 'Por confirmar' }}</p>
             </div>
           </div>
-          <div v-if="openingServices.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
+          <div class="mt-3 border-t border-[var(--dh-border)] pt-3">
             <p class="text-xs font-bold">Servicios</p>
-            <div class="mt-2 flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge></div>
+            <div class="mt-2 flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div>
           </div>
           <div v-if="openingMissing.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
             <p class="mb-2 text-xs font-bold">Campos por completar ({{ openingMissing.length }})</p>

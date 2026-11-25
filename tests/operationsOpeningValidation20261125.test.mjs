@@ -77,7 +77,7 @@ test('opening uses origin-filtered agents, shared searchable selects and neutral
   assert.ok(!source.includes('Seleccionar servicios de Pricing'))
   const detail = readFileSync(new URL('../src/modules/operations/views/OperationsCaseDetailView.vue', import.meta.url), 'utf8')
   assert.ok(detail.includes('v-model="completenessGroup"'))
-  assert.ok(detail.includes('openingData.value.serviceSelections'))
+  assert.ok(detail.includes('serviceLabels(openingData.value)'))
 })
 
 test('Cargo dimensions keep original units and present normalized equivalents', () => {
@@ -86,4 +86,15 @@ test('Cargo dimensions keep original units and present normalized equivalents', 
   assert.match(source, /0\.45359237/)
   assert.match(source, /2\.54/)
   assert.match(source, /0\.028316846592/)
+})
+
+test('origin planning is separated from opening capture and uses a stage endpoint', () => {
+  const detail = readFileSync(new URL('../src/modules/operations/views/OperationsCaseDetailView.vue', import.meta.url), 'utf8')
+  const panel = readFileSync(new URL('../src/modules/operations/components/OperationsApertureValidationPanel.vue', import.meta.url), 'utf8')
+  const labels = readFileSync(new URL('../src/modules/operations/utils/commercialPresentation.ts', import.meta.url), 'utf8')
+  assert.doesNotMatch(source, /v-model="form\.(etm|eta|consolidationReference)"/)
+  assert.match(detail, /operationsApi.updateOriginPlanning/)
+  assert.match(panel, /Completar datos de apertura/)
+  assert.match(panel, /DhTabs v-model="group"/)
+  assert.match(labels, /catalogMatch\(services.value, raw\)/)
 })

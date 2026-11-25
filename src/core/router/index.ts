@@ -123,7 +123,7 @@ export const router = createRouter({
           name: 'operations-case-edit',
           component: () => import('@/modules/operations/views/OperationsManualCreateView.vue'),
           meta: { tabTitle: 'Modificar apertura', closable: true,
-            requiredScope: 'operations.case.update' },
+            requiredAnyScopes: ['operations.case.update', 'operations.aperture.validation.review'] },
         },
         {
           path: 'operations/cases/:id',
