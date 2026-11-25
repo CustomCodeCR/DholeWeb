@@ -1,3 +1,7 @@
+## [1.127.3] - 2026-11-25
+
+- PATCH: el listado de Pricing consulta los IDTRA reales de Operations para la alternativa aceptada, incluye múltiples expedientes, conserva referencias históricas y distingue fallos de consulta. Retira la acción manual del flujo automático y concilia mediante SignalR y REST autorizados. CI y staging pendientes.
+
 ## [1.127.2] - 2026-11-25
 
 - Subscribe the Operations dashboard to the existing authenticated SignalR Hub and reconcile after reconnect; refresh counters and recent openings through debounced authorized REST without clearing the current team snapshot during background refresh. Reuse existing DH components. CI and staging pending.
