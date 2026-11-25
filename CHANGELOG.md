@@ -1,3 +1,7 @@
+## [1.132.2] - 2026-11-25
+
+- DH-20261125-FTL-EDIT-P6-P7: permite revisar las líneas de una cotización terrestre FTL existente sin depender del catálogo de tarifas vigente, conserva RateDetails y mantiene la validación de costos antes de guardar. Pruebas de regresión P6 → P7; CI y staging pendientes.
+
 ## [1.132.1] - 2026-11-25
 - Resolve service names using the shared catalog in case drawer and detail.
 - Compact Aperturas validation with DH tabs and edit action.
