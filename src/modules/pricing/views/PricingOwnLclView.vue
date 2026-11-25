@@ -481,7 +481,13 @@ async function previewProfile() {
   try {
     previewLoading.value = true
     const container = option(containers.value, form.containerId)
+    const pol = option(pols.value, form.polId)
+    const arrivalPoe = poePorts.value.find((item) => (item.code || item.value) === form.panamaArrivalPortCode)
     const profile = await OwnLclConsolidationService.previewDestinationCosts({
+      carrierId: carrier.id,
+      polId: pol?.id ?? null,
+      poeId: arrivalPoe?.id ?? null,
+      containerTypeId: container?.id ?? null,
       carrierCode: carrier.code || carrier.value,
       carrierName: carrier.label,
       arrivalPortCode: form.panamaArrivalPortCode,
@@ -939,6 +945,7 @@ onMounted(load)
               <DhButton label="Reintentar" variant="secondary" @click="previewProfile()" />
             </div>
             <div v-else-if="effectiveProfile" class="mt-4 space-y-2">
+              <p v-if="effectiveProfile.version === 'MATRIX-APPROVED-REFERENCE'" class="text-xs font-semibold text-[var(--dh-text-muted)]">Referencia autorizada Maersk / Balboa: la matriz activa está incompleta. Los cuatro cargos se cargaron desde la referencia aprobada.</p>
               <div class="rounded-2xl border border-[var(--dh-primary)]/25 bg-[var(--dh-primary)]/5 px-4 py-3">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-primary)]">POD final</p>
                 <p class="mt-1 text-sm font-black text-[var(--dh-text)]">{{ effectiveProfile.finalRatePointName }} <span v-if="effectiveProfile.finalRatePointCode" class="text-[var(--dh-text-muted)]">({{ effectiveProfile.finalRatePointCode }})</span></p>

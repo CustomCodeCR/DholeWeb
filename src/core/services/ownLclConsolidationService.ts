@@ -15,7 +15,7 @@ const endpoints = {
   updateAutomatic: { method: 'PUT', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: jsonHeaders },
   getAutomation: { method: 'GET', path: '/api/pricing/own-lcl-automation/consolidations/{{id}}', headers: acceptJson },
   pricingLinesPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/pricing-lines-preview', headers: acceptJson },
-  destinationPreview: { method: 'GET', path: '/api/pricing/own-lcl-automation/destination-preview', headers: acceptJson },
+  destinationPreview: { method: 'GET', path: '/api/pricing/costs/wizard-bundle', headers: acceptJson },
   fobScenarios: { method: 'GET', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: acceptJson },
   saveFobScenarios: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/fob-scenarios', headers: jsonHeaders },
   saveCostOverrides: { method: 'PUT', path: '/api/pricing/own-lcl-consolidations/{{id}}/cost-overrides', headers: jsonHeaders },
@@ -369,6 +369,10 @@ export const OwnLclConsolidationService = {
     return unwrapListResponse<OwnLclPricingLineDto>(response)
   },
   async previewDestinationCosts(query: {
+    carrierId?: string | null
+    polId?: string | null
+    poeId?: string | null
+    containerTypeId?: string | null
     carrierCode?: string | null
     carrierName?: string | null
     arrivalPortCode?: string | null
@@ -377,8 +381,12 @@ export const OwnLclConsolidationService = {
     containerCode?: string | null
     bunkerCost?: number | null
   }): Promise<OwnLclDestinationProfileDto> {
-    const response = await callEndpointWithQuery<unknown>(endpoints.destinationPreview, { query })
-    return unwrapApiResponse<OwnLclDestinationProfileDto>(response as never)
+    const response = await callEndpointWithQuery<unknown>(endpoints.destinationPreview, {
+      query: { ...query, shipmentMode: 'Lcl', isActive: true, applicableToContext: true, ownLclDestinationPreview: true },
+    })
+    const bundle = unwrapApiResponse<{ ownLclDestinationProfile: OwnLclDestinationProfileDto | null }>(response as never)
+    if (!bundle?.ownLclDestinationProfile) throw new Error('Pricing no devolvió los cargos del consolidado.')
+    return bundle.ownLclDestinationProfile
   },
   async getFobScenarios(id: string): Promise<OwnLclFobScenarioMatrixDto> {
     const response = await callEndpoint<unknown>(endpoints.fobScenarios, { params: { id } })
