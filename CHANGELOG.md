@@ -1,3 +1,7 @@
+## [1.127.5] - 2026-11-25
+
+- Fix compact sidebar brand: reuse bundled SVG silhouette, preserve theme color and transition, avoid stale cached public mask, and provide symmetric compact padding. CI and authenticated staging pending.
+
 ## [1.127.4] - 2026-11-25
 
 - Route Operations SignalR through trusted same-origin Gateway, reconcile after reconnect, refresh dashboard and case list, and validate the handoff regression. Preserves Pricing IDTRA release 1.127.3. CI/staging pending.
