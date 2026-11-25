@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
+import { uniquePersistedCrmMatch } from '../src/modules/pricing/utils/pricingCrmRelink.ts'
 
 const source = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 const picker = source('src/modules/pricing/components/PricingCrmClientSelect.vue')
@@ -61,7 +62,7 @@ test('Existing modifications reject an unavailable seller and retain unlinked le
 })
 
 test('Solicitudes normales y de modificación recuperan también el ejecutivo de prospectos CRM por ID', () => {
-  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode && !form\.clientId\) return true/)
+  assert.match(identity, /if \(!pricingModification && !props\.sellerRequestMode && !form\.clientId && !recoverUnlinked\) return true/)
   assert.match(identity, /mode: props\.sellerRequestMode \? 'request' : 'create'/)
   assert.match(identity, /async function saveOpenRequest\(\) \{\s*if \(!\(await refreshModificationCrmOwner\(\)\)\) return/)
   assert.match(identity, /form\.crmClientKind = client\.kind/)
@@ -99,4 +100,21 @@ test('An editable duplicate lacking CRM IDs asks for an explicit link instead of
   assert.match(identity, /!historicUnlinkedModification && props\.rateId && !form\.clientId/)
   assert.match(identity, /Cotización sin vínculo CRM/)
   assert.match(identity, /Seleccione la cuenta o prospecto real/)
+})
+
+
+test('recover duplicated quote only from complete unique CRM match with persisted owner', () => {
+  const a = { id: 'crm-a', kind: 'account', displayName: 'CALZAMAX S.A.', legalName: 'Calzamax S.A.', executiveName: 'Richard Soto', executiveUserId: 'seller-a', isCastroFallasExecutive: false }
+  const lookup = (items, total = items.length, name = 'CALZAMAX S.A.', owner = 'Richard Soto') => uniquePersistedCrmMatch({items, total}, name, owner)
+  assert.equal(lookup([a]), a)
+  assert.equal(lookup([{ ...a, kind: 'lead' }])?.kind, 'lead')
+  assert.equal(lookup([a, {...a, id:'crm-b', kind:'lead'}]), undefined)
+  assert.equal(lookup([a], 2), undefined)
+  assert.equal(lookup([a], 1, 'CALZAMAX'), undefined)
+  assert.equal(lookup([a], 1, a.displayName, 'Other owner'), undefined)
+  assert.equal(lookup([{ ...a, executiveUserId: '' }]), undefined)
+  assert.equal(lookup([{ ...a, executiveName: 'Vendedor no disponible' }]), undefined)
+  assert.match(identity, /uniquePersistedCrmMatch\(result, saved\?\.clientName, saved\?\.executiveName\)/)
+  assert.match(identity, /if \(!stillRecovering\(\)\) return false/)
+  assert.match(identity, /selectedClientId: clientId/)
 })
