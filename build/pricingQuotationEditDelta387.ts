@@ -13,6 +13,7 @@ interface QuoteEditContext387 {
 const quoteEditOriginalContext387 = ref<QuoteEditContext387 | null>(null)
 const quoteEditAutoRemovedIds387 = new Set<string>()
 let quoteEditRequest387 = 0
+let quoteEditVerifiedSignature387 = ''
 let quoteEditPending387: { signature: string; promise: Promise<boolean> } | null = null
 
 function quoteEditContext387(): QuoteEditContext387 {
@@ -274,11 +275,28 @@ function quoteEditEnsureRequestedServices387() {
     if (currency) ensureCrcCustomsLine(rateLines.value, currency)
   }
 }
+// Wait for the final Vue update and reconcile again only when the physical
+// context actually changed while a request was in flight. A stable failed
+// request remains a failure, rather than permitting unverified new charges.
+async function quoteEditVerifyBeforeSave387(): Promise<boolean> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await nextTickForPoe()
+    const before = JSON.stringify([props.rateId, quoteEditContext387()])
+    const ok = await quoteEditApplyDelta387()
+    await nextTickForPoe()
+    if (before === JSON.stringify([props.rateId, quoteEditContext387()])) return ok
+  }
+  return false
+}
 async function quoteEditApplyDelta387(): Promise<boolean> {
   if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value) return true
   if (!quoteEditOriginalContext387.value) return false
   const signature = JSON.stringify([props.rateId, quoteEditContext387()])
   if (quoteEditPending387?.signature === signature) return quoteEditPending387.promise
+  // P7 has already reconciled this exact physical context. Do not require a
+  // second live catalog round-trip at P8 just to persist the same edited lines.
+  if (quoteEditVerifiedSignature387 === signature && !quoteEditPending387) return true
+  quoteEditVerifiedSignature387 = ''
   quoteEditPending387 = null
   const sequence = ++quoteEditRequest387
   if (!quoteEditChangedKeys387().size) {
@@ -304,6 +322,7 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
       appendConfiguredCostToPersistedEdit(cost)
     })
     quoteEditEnsureRequestedServices387()
+    quoteEditVerifiedSignature387 = signature
     return true
   })()
   quoteEditPending387 = { signature, promise }
@@ -395,7 +414,9 @@ export function patchPricingQuotationEditDelta387(source: string): string {
     if (finishIndex < 0) throw new Error('[DH-LCL-EDIT] Hydration completion anchor missing')
     s = s.slice(0, finishIndex)
       + '    if (quoteEditOriginalContext387.value && editingRate.value) {\n'
+      + '      await nextTickForPoe()\n'
       + '      quoteEditOriginalContext387.value = quoteEditContext387()\n'
+      + '      quoteEditVerifiedSignature387 = ""\n'
       + '      quoteEditRequest387++\n'
       + '      quoteEditPending387 = null\n'
       + '    }\n'
@@ -418,7 +439,7 @@ export function patchPricingQuotationEditDelta387(source: string): string {
   // normalizedIncludedLines captured stale values and misaligned RateDetail IDs.
   const snapshotAnchor = '  const normalizedIncludedLines = orderedCompleteRateLines.value.map((line) => {'
   s = replaceSingle(s, snapshotAnchor,
-    '  if (props.rateId && editingRate.value && !(await quoteEditApplyDelta387())) {\n'
+    '  if (props.rateId && editingRate.value && !(await quoteEditVerifyBeforeSave387())) {\n'
       + '    toastStore.warning("Costos pendientes", "No se pudieron verificar los cambios de contexto. Intente guardar nuevamente.")\n'
       + '    return\n  }\n'
       + (s.includes('function syncPanamaOverweightLines() {') ? '  syncPanamaOverweightLines()\n' : '')
