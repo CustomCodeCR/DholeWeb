@@ -1,3 +1,8 @@
+## [1.124.28] - 2026-11-24
+
+- DH-20261124-PRICING-DUPLICATE-RELINK: recuperar automáticamente vínculos CRM perdidos por duplicaciones anteriores al guardar una QUO. Exigir coincidencia exacta única, propietario comercial coincidente, consulta completa, verificación por ID y ausencia de cambios concurrentes; persistir el vínculo en el PUT normal. Pruebas de regresión; CI/staging pendientes.
+
+
 ## [1.124.27] - 2026-11-24
 
 - DH-20261124-PRICING-HISTORICAL-EDIT: mostrar el error específico y solicitar el vínculo CRM explícito en duplicados afectados; capturar contexto de todas las modalidades al finalizar hidratación, reintentar una consulta de costos transitoria sin omitir validación de cambios reales. Pruebas de regresión añadidas; CI, manifiesto central y staging pendientes.
