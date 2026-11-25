@@ -9,6 +9,7 @@ interface QuoteEditContext387 {
   equipmentId: string; importRateId: string; services: string[]
   merchant: boolean; carrier: boolean; dangerous: boolean; overweight: boolean
   nonStackable: boolean; storageDays: number; cargoValue: number; portHandlingMode: string; cargoWeightKg: number
+  cargoPackages: number; cargoPallets: number; equipmentQuantity: number
 }
 const quoteEditOriginalContext387 = ref<QuoteEditContext387 | null>(null)
 const quoteEditAutoRemovedIds387 = new Set<string>()
@@ -29,6 +30,8 @@ function quoteEditContext387(): QuoteEditContext387 {
     nonStackable: Boolean(form.nonStackable), storageDays: number(form.storageDays),
     cargoValue: number(form.cargoValue), portHandlingMode: String(form.portHandlingMode ?? ''),
     cargoWeightKg: number(form.cargoWeightKg),
+    cargoPackages: number(form.cargoPackages), cargoPallets: number(form.cargoPallets),
+    equipmentQuantity: number(form.equipmentQuantity),
   }
 }
 function quoteEditAddedServices387() {
@@ -341,7 +344,7 @@ watch(
     form.carrierId, form.agentId, form.originId, form.destinationId, form.podId,
     form.modality, form.shipmentMode, form.merchantHaulage, form.carrierHaulage,
     form.overweight, form.dangerousCargo, form.equipmentId, form.portHandlingMode,
-    form.cargoWeightKg] as const,
+    form.cargoWeightKg, form.cargoPackages, form.cargoPallets, form.equipmentQuantity] as const,
   () => {
     if (step.value !== 7 || !props.rateId || props.viewOnly || hydratingExistingRate.value) return
     void quoteEditApplyDelta387()
