@@ -1,3 +1,7 @@
+## [1.124.33] - 2026-11-25
+
+- DH-20261125-OWN-LCL-MAERSK-BALBOA: isolated backport of own-LCL draft line API, explicit destination/line errors and protection against stale responses; CI and staging pending.
+
 ## [1.124.32] - 2026-11-24
 
 - DH-20261124-PRICING-AIR-QUANTITY-SAVE: conservar precios unitarios negociados al editar agente elegible, peso y cantidades de carga de una cotización aérea existente, incluso combinados; recalcular cantidades mediante el flujo existente, mantener validación de ruta/servicios y respetar eliminaciones explícitas. Regresiones añadidas; CI/staging pendientes.
