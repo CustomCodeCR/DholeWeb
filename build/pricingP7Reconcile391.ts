@@ -220,7 +220,41 @@ export function patchPersistedLandLtlEditNavigation422(source: string): string {
     '    return',
     '  }',
   ].join('\n'))
-  return patchPersistedLclEditNavigation(withLtlNavigation)
+  return patchPersistedFtlEditNavigation(patchPersistedLclEditNavigation(withLtlNavigation))
+}
+
+/** Review saved FTL lines without making P7 depend on the live catalog. */
+export function patchPersistedFtlEditNavigation(source: string): string {
+  if (!source.includes('async function quoteEditApplyDelta387()')
+      || !source.includes('const persistedFtlAgentForEdit = computed')) return source
+  const anchor = 'async function next() {'
+  if (source.split(anchor).length !== 2) throw new Error('[FTL edit navigation] Missing unique next()')
+  return source.replace(anchor, [
+    anchor,
+    "  if (step.value === 6 && props.rateId && editingRate.value",
+    "      && !props.viewOnly && !props.sellerRequestMode",
+    "      && form.modality === 'Land' && shipmentModeForApi.value === 'Ftl') {",
+    '    if (hydratingExistingRate.value) return',
+    '    if (!form.currencyId || !Number.isFinite(Number(form.freightCost)) || Number(form.freightCost) < 0',
+    '        || !Number.isFinite(Number(form.freightSale)) || Number(form.freightSale) < 0) {',
+    "      toastStore.warning('Flete incompleto', 'Revise moneda, costo y venta del flete.')",
+    '      return',
+    '    }',
+    '    if (!form.agentId && persistedFtlAgentForEdit.value) form.agentId = persistedFtlAgentForEdit.value.id',
+    '    // Keep P7 review independent of catalog availability. Save still verifies the changed context.',
+    '    try {',
+    '      if (!(await quoteEditApplyDelta387())) {',
+    "        toastStore.warning('Costos pendientes', 'Puede revisar las líneas; los cambios se verificarán antes de guardar.')",
+    '      }',
+    '    } catch (error) {',
+    "      toastStore.backendError(error, 'Puede revisar las líneas; los cambios se verificarán antes de guardar.')",
+    '    }',
+    '    if (step.value !== 6) return',
+    '    syncPersistedFreightLineForEdit()',
+    '    step.value = 7',
+    '    return',
+    '  }',
+  ].join('\n'))
 }
 
 /** A hydrated LCL edit has no naviera or new-tariff selection requirement. */
