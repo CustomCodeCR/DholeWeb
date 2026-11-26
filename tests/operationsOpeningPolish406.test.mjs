@@ -40,8 +40,8 @@ test('container and trailer cards reuse Pricing selections, exclude duplicates a
 })
 
 test('selection controls and pricing transport icons replace free text', () => {
-  assert.match(opening, /<DhSelect v-model="form\.packageType"/)
-  assert.match(opening, /<DhSelect v-model="form\.cargoNature"/)
+  assert.match(opening, /<DhSelect v-if="editingId" v-model="form\.packageType"/)
+  assert.match(opening, /<DhSelect v-if="editingId" v-model="form\.cargoNature"/)
   assert.match(opening, /packageTypeChoiceOptions/)
   assert.match(opening, /cargoNatureChoiceOptions/)
   for (const icon of ['Boxes', 'PackageOpen', 'Truck', 'Plane']) assert.ok(opening.includes(icon))

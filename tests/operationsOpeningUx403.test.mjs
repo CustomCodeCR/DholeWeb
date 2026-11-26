@@ -7,7 +7,7 @@ const picker = readFileSync(new URL('../src/modules/pricing/components/PricingCr
 
 test('manual opening has exactly three steps without standalone transport or services pages', () => {
   assert.match(view, /label: 'Cliente y ruta'/)
-  assert.match(view, /label: 'Carga y documentos'/)
+  assert.match(view, /label: 'Carga y servicios'/)
   assert.match(view, /label: 'Revisión'/)
   assert.doesNotMatch(view, /v-show="activeStep === [456]"/)
   assert.doesNotMatch(view, /label: 'Puntos de complejidad'/)

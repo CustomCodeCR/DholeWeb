@@ -8,12 +8,15 @@ const operationsApi = source('src/modules/operations/services/operationsApi.ts')
 
 test('Manual aperture no longer has any dedicated services or coordination screen', () => {
   assert.match(opening, /label: 'Cliente y ruta'/)
-  assert.match(opening, /label: 'Carga y documentos'/)
+  assert.match(opening, /label: 'Carga y servicios'/)
   assert.match(opening, /label: 'Revisión'/)
   assert.doesNotMatch(opening, /label: 'Cliente, ruta y servicios'/)
   assert.doesNotMatch(opening, /Servicios contratados|PricingCrystalMultiSelect|serviceChoices|serviceCatalog/)
   assert.doesNotMatch(opening, /Recolecta \(según servicios contratados\)|Dirección de entrega final/)
-  assert.doesNotMatch(opening, /label="Agente de origen"|label="Naviera"|label="Merchant \/ referencia"/)
+  assert.doesNotMatch(opening, /label="Agente de origen"|label="Merchant \/ referencia"/)
+  assert.ok(opening.includes('<DhSelect v-if="showCarrier" searchable :model-value="form.carrierId"'))
+  assert.ok(opening.includes('label="Naviera"'))
+  assert.ok(opening.includes("editingId.value ? isMaritime.value : effectiveShipment.value === 'FCL'"))
   assert.doesNotMatch(opening, /label="Prioridad"|label="Puntos de complejidad"|Solicitar revisión comercial en Pricing/)
   assert.doesNotMatch(opening, /fieldTitle\('Servicios'/)
   assert.doesNotMatch(opening, /pickupIncluded|deliveryIncluded|serviceChoices/)
@@ -21,11 +24,11 @@ test('Manual aperture no longer has any dedicated services or coordination scree
   assert.doesNotMatch(opening, /v-show="activeStep === [456]"/)
 })
 
-test('FCA WHS follows Pricing', () => {
+test('Consolidated manual openings use WHS; legacy edits preserve FCA', () => {
   assert.match(opening, /const requiresWarehouse = computed/)
   assert.match(opening, /const selectedIncoterm = computed/)
   assert.match(opening, /normalizeIncotermCode\(form\.value\.incoterm, form\.value\.incotermName\)/)
-  assert.match(opening, /const requiresWarehouse = computed\(\(\) => selectedIncoterm\.value === 'FCA'\)/)
+  assert.ok(opening.includes("editingId.value ? selectedIncoterm.value === 'FCA' : ['LCL', 'LTL'].includes(effectiveShipment.value)"))
   assert.ok(opening.includes('if (requiresWarehouse.value && !(warehouse.value'))
   assert.match(opening, /<div v-if="requiresWarehouse"/)
   assert.match(opening, /label="WHS global"/)
