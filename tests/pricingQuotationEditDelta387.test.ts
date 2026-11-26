@@ -477,3 +477,37 @@ test('air invalid negative weight does not use the reviewed-price preservation p
   q.root.loadApplicableCosts = async () => false
   assert.equal(await q.verify(), false)
 })
+
+
+test('FTL agent-only edit preserves priced foreign customs, manual DUCA and freight', async () => {
+  const q = fixture()
+  Object.assign(q.root.form, { modality: 'Land', shipmentMode: 'FTL', originId: 'HN',
+    destinationId: 'CR', podId: '', carrierId: 'TIGSA', agentId: 'GCF', portHandlingMode: '',
+    serviceIds: ['FOREIGN', 'TRANSPORT', 'PICKUP'] })
+  q.root.shipmentModeForApi.value = 'Ftl'
+  q.root.eligibleAgents.value = [{id:'GCF'}, {id:'NEW'}]
+  const rows = [
+    {id:'F', detailId:'F', name:'Flete internacional terrestre', costDetailType:'Freight', costId:null, costAmount:1600, saleAmount:1695},
+    {id:'AD', detailId:'AD', name:'Agencia de Aduanas Exterior', costDetailType:'DestinationCharge', costId:'FOREIGN-COST', costAmount:95, saleAmount:145},
+    {id:'DUCA', detailId:'DUCA', name:'DUCA - F', costDetailType:'OriginCharge', costId:null, manual:true, costAmount:70, saleAmount:85},
+    {id:'T', detailId:'T', name:'DUCA-T', costDetailType:'OriginCharge', costId:'DUCAT', costAmount:30, saleAmount:85},
+  ].map(line => ({...line, key:'existing:'+line.id, costType:'Variable', chargeBasis:'PerShipment', included:true}))
+  q.root.editingRate.value.rateDetails = rows
+  q.root.rateLines.value = rows.map(line => ({...line}))
+  q.root.allCosts.value = [{id:'FOREIGN-COST', agentId:'GCF', services:[{id:'FOREIGN'}]}]
+  q.original.value = q.snapshot()
+  q.root.form.carrierId = ''
+  q.root.form.agentId = 'NEW'
+  let calls = 0
+  q.root.loadApplicableCosts = async () => { calls++; return false }
+  assert.equal(await q.apply(), true)
+  assert.equal(await q.verify(), true)
+  assert.equal(calls, 0)
+  assert.deepEqual(q.root.rateLines.value.map((line:any) => [line.detailId,line.costAmount,line.saleAmount]),
+    rows.map(line=>[line.detailId,line.costAmount,line.saleAmount]))
+  q.root.form.agentId = 'INVALID'
+  assert.equal(await q.verify(), false)
+  q.root.form.agentId = 'NEW'
+  q.root.form.originId = 'PA'
+  assert.equal(await q.verify(), false)
+})
