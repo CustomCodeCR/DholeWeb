@@ -1,3 +1,7 @@
+## [1.133.0] - 2026-11-25
+
+- Candidato: simplificar la apertura manual a cliente, ruta, servicios, bultos, volumen, peso y equipos; WHS para LCL/LTL y naviera para FCL. Mantener campos históricos en edición. La selección inicial de estado, asignación explícita y aceptación/revinculación QUO siguen pendientes; no promover.
+
 ## [1.132.2] - 2026-11-25
 
 - DH-20261125-FTL-PERSISTED-AGENT-P6: recuperar el agente FTL persistido en consulta y edición sin sustituir su ID; respetar el filtro de país en nuevas rutas. Permitir revisar las líneas de pantalla 7 sin bloquear por el catálogo; la verificación final de contexto permanece en guardado. Pruebas de regresión incluidas; CI y staging pendientes.
