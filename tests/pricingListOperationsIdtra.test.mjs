@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { historicalIdtra, resolveRateOperationsIdtras } from '../src/modules/pricing/utils/rateOperationsIdtras.ts'
+import { historicalIdtra, unverifiedHistoricalIdtras, resolveRateOperationsIdtras } from '../src/modules/pricing/utils/rateOperationsIdtras.ts'
 
 const row = (idtra, parent = 'quote', option = 'quote', apertureType = 'AUTOMATIC') => ({
   idtra, sourceQuoteId: parent, sourceQuoteOptionId: option, apertureType,
@@ -38,4 +38,10 @@ test('desktop and mobile use the resolved display and never show manual assignme
   assert.doesNotMatch(source, /canAssignIdtra|PricingAssignIdtraModal|Pendiente de IDTRA/)
   assert.match(source, /useOperationsDashboardRealtime\(queueOperationsIdtraRefresh\)/)
   assert.match(source, /prefixes: \['\/api\/operations'\]/)
+})
+
+test('historical references never duplicate confirmed identifiers or invent aliases', () => {
+  assert.deepEqual(unverifiedHistoricalIdtras('IDTRA1, idtra1, IDTRA2, IDTRA999.2, pendiente', ['IDTRA2']), ['IDTRA1', 'IDTRA999.2'])
+  assert.deepEqual(unverifiedHistoricalIdtras('idtra1', ['IDTRA1']), [])
+  assert.deepEqual(unverifiedHistoricalIdtras(null, []), [])
 })
