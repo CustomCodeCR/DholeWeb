@@ -89,3 +89,15 @@ test('historical FTL agent is available in view/edit without crossing an origin 
   props.rateId = ''
   assert.equal(result.persistedFtlAgentForEdit.value, null)
 })
+
+
+test('FTL agent recovery composes with the preceding Land provider transform', () => {
+  const transformedFixture = fixture.replace(
+    'const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))',
+    "const selectedAgent = computed(() =>\n  findById(catalogs.agents, form.agentId)\n    ?? (form.modality === 'Land' ? landAgentPlaceholder : null),\n)",
+  )
+  const output = patchPricingFtlEditPreservationFinal(transformedFixture)
+  const selected = output.split('\n').find(line => line.startsWith('const selectedAgent = computed'))
+  assert.ok(selected)
+  assert.ok(selected.indexOf('persistedFtlAgentForEdit.value') < selected.indexOf('landAgentPlaceholder'))
+})
