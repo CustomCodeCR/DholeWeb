@@ -113,10 +113,23 @@ const warehouseOptions = computed(() => {
   if (editingId.value) return options
   const agent = eligibleAgents.value.find(item => item.id === form.value.agentId)
   if (!agent) return []
-  return options.filter(option => {
+  const origin = countryFromRoute('pol', selectedPol.value, form.value.pol)
+  // A historical WHS without an owner can be selected for this operation,
+  // but must never be presented as a warehouse owned by the selected agent.
+  const linked = []
+  const unlinked = []
+  for (const option of options) {
     const item = currentCatalog('warehouses').find(row => row.id === option.value)
-    return String(catalogMetadata(item).agentId || '').toLowerCase() === agent.id.toLowerCase()
-  }).map(option => ({ ...option, searchText: option.searchText + ' ' + optionText(agent) }))
+    const owner = String(catalogMetadata(item).agentId || '').trim().toLowerCase()
+    if (owner === agent.id.toLowerCase()) {
+      linked.push({ ...option, searchText: option.searchText + ' ' + optionText(agent) })
+    } else if (!owner) {
+      const country = resolveLocationCountryCode(item, currentCatalog('countries'))
+      if (!country || !origin || country === origin)
+        unlinked.push({ ...option, label: option.label + ' · Sin agente vinculado', searchText: option.searchText + ' sin agente vinculado' })
+    }
+  }
+  return [...linked, ...unlinked]
 })
 const incotermChoices = computed(() => {
   const items = currentCatalog('incoterms').filter(item => item.isActive)
@@ -217,9 +230,11 @@ function setProvider(role: 'carrier' | 'agent' | 'merchant', id: string) {
   const label = lookupLabel(group, id)
   if (role === 'carrier') { form.value.carrierId = id; form.value.carrierReference = label }
   else if (role === 'agent') {
+    const changed = form.value.agentId !== id
     form.value.agentId = id
     form.value.agentReference = label
-    if (!editingId.value && selectedWarehouse.value && !warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) clearWarehouse()
+    if (!editingId.value && selectedWarehouse.value && (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value) ||
+      (changed && !String(catalogMetadata(warehouse.value).agentId || '').trim()))) clearWarehouse()
   }
   else { form.value.merchantId = id; form.value.merchantReference = label }
 }
@@ -482,7 +497,7 @@ const blockers = computed(() => {
   if (needsEquipment.value && !uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
   if (!editingId.value && requiresWarehouse.value) {
     if (!eligibleAgents.value.some(item => item.id === form.value.agentId)) result.push('Agente de origen del WHS')
-    if (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) result.push('WHS vinculado al agente')
+    if (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) result.push('WHS compatible con el agente')
   }
   if (requiresWarehouse.value && !(warehouse.value || (!warehouseOptions.value.length && form.value.warehouseAddress.trim()))) result.push('WHS global o dirección del WHS')
   if (editingId.value && form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
@@ -1272,19 +1287,21 @@ onMounted(async () => {
             </div>
           </div>
           <DhCard v-if="requiresWarehouse" title="WHS · Almacén de origen" :icon="Package" padding="sm" class="space-y-3">
-            <p class="text-xs text-[var(--dh-text-muted)]">Selecciona primero el agente de origen y luego uno de sus almacenes vinculados.</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">Selecciona primero el agente de origen y luego el WHS. Los almacenes sin propietario registrado se identifican por separado.</p>
             <DhSelect v-if="!editingId" searchable :disabled="!selectedPol || catalogLoading" :model-value="form.agentId"
               :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen"
               placeholder="Seleccionar agente" @update:model-value="setProvider('agent', String($event || ''))" />
-            <p v-if="!editingId && !form.agentId" class="text-xs text-[var(--dh-text-muted)]">Selecciona un agente con cobertura en el país de origen para habilitar sus WHS.</p>
-            <p v-else-if="!editingId && !warehouseOptions.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)]">Este agente no tiene WHS vinculados. Configuración → Catálogos → WHS globales permite asociar el almacén al agente.</p>
-            <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
+            <p v-if="!editingId && !form.agentId" class="text-xs text-[var(--dh-text-muted)]">Selecciona un agente con cobertura en el país de origen para habilitar el WHS.</p>
+            <p v-else-if="!editingId && !warehouseOptions.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)]">No hay WHS compatibles disponibles. Revisa los almacenes en Configuración → Catálogos → WHS globales.</p>
+            <PricingLocationSearchSelect v-if="!editingId || warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS global" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
+              :disabled="!editingId && (!form.agentId || catalogLoading)"
               :options="warehouseOptions" terminal-type="WHS" @open="loadPricingCatalogs"
               @update:model-value="!$event && (form.whsName = '', form.warehouseId = '', form.warehouseAddress = '')" />
             <div v-if="warehouse && (editingId || warehouseOptions.some(option => option.value === selectedWarehouse))" class="space-y-1 text-xs">
               <p class="font-black">{{ optionText(warehouse) }}</p>
               <p><strong>Agente:</strong> {{ warehouseAgent ? optionText(warehouseAgent) : 'Sin agente vinculado en Config' }}</p>
+              <p v-if="!editingId && !warehouseAgent" class="text-[var(--dh-text-muted)]">Se utilizará con {{ form.agentReference }} únicamente en este trámite. No se modifica el propietario del catálogo.</p>
               <p><strong>Dirección:</strong> {{ warehouseAddress || 'Sin dirección' }}</p>
               <p v-if="warehouseMeta.schedule"><strong>Horario:</strong> {{ warehouseMeta.schedule }}</p>
               <p v-if="warehouseMeta.contacts"><strong>Contactos:</strong> {{ warehouseMeta.contacts }}</p>
