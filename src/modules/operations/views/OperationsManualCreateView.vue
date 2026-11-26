@@ -22,7 +22,8 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { operationForClientCountry, resolveCrmCountryCode } from '@/modules/pricing/utils/pricingClientCountryOperation'
 import { catalogMetadata, resolveLocationCountryCode } from '@/modules/pricing/utils/pricingCountryIso'
-import type { RateOperationType } from '@/core/interfaces/pricing'
+import type { RateDto, RateOperationType } from '@/core/interfaces/pricing'
+import { PricingService } from '@/core/services/pricingService'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 
 type InlandPoint = { address: string; latitude?: number | null; longitude?: number | null;
@@ -57,6 +58,51 @@ const executiveLabel = computed(() =>
 const selectedOperationalContacts = computed(() =>
   operationalContacts.value.filter(contact => form.value.contactIds.includes(contact.id)))
 const modality = ref('')
+const quoteSearch = ref('')
+const quoteCandidates = ref<RateDto[]>([])
+const quoteRateId = ref('')
+const quoteLabel = ref('')
+const quoteBusy = ref(false)
+const quoteIssue = ref('')
+let quoteGeneration = 0
+const canSelectQuote = computed(() => auth.hasScope('pricing.rate.update'))
+function clearQuote() {
+  ++quoteGeneration
+  quoteSearch.value = ''
+  quoteRateId.value = ''
+  quoteLabel.value = ''
+  quoteCandidates.value = []
+  quoteIssue.value = ''
+  quoteBusy.value = false
+}
+watch([accountId, modality], clearQuote, { flush: 'sync' })
+function quoteOptionLabel(rate: RateDto) {
+  return [rate.quoNumber || rate.rateCode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ')
+}
+async function searchQuotes() {
+  if (!canSelectQuote.value || !accountId.value || !modality.value || !quoteSearch.value.trim() || quoteBusy.value) return
+  const generation = ++quoteGeneration
+  quoteBusy.value = true
+  quoteIssue.value = ''
+  quoteCandidates.value = []
+  try {
+    const result = await PricingService.browseRates({ search: quoteSearch.value.trim(), status: 'AcceptedByClient',
+      excludeTariffMasters: true, groupQuotes: false, pageNumber: 1, pageSize: 50 })
+    if (generation !== quoteGeneration) return
+    quoteCandidates.value = result.items.filter(rate => rate.status === 'AcceptedByClient' &&
+      rate.clientAccountId === accountId.value && rate.shipmentMode.toUpperCase() === modality.value.toUpperCase() && Boolean(rate.quoNumber))
+    if (!quoteCandidates.value.length) quoteIssue.value = 'No se encontraron QUO aceptadas de este cliente y tipo de embarque.'
+  } catch {
+    if (generation === quoteGeneration) quoteIssue.value = 'No se pudieron consultar las cotizaciones. Reintenta.'
+  } finally {
+    if (generation === quoteGeneration) quoteBusy.value = false
+  }
+}
+function selectQuote(id: string) {
+  const selected = quoteCandidates.value.find(rate => rate.id === id)
+  quoteRateId.value = selected?.id || ''
+  quoteLabel.value = selected ? quoteOptionLabel(selected) : ''
+}
 const priority = ref(1)
 const complexity = ref(1)
 const saving = ref(false)
@@ -764,6 +810,7 @@ function draftSnapshot(): Record<string, unknown> {
     executiveName: executiveName.value, executiveUserId: executiveUserId.value,
     institutionalExecutive: institutionalExecutive.value,
     contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
+    quoteRateId: quoteRateId.value, quoteLabel: quoteLabel.value,
   }
 }
 function persistLocalDraft(draft = draftSnapshot()) {
@@ -827,6 +874,10 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
     lastSelectedAccountId = accountId.value
     selectedClientName.value = String(draft.selectedClientName || '')
     modality.value = String(draft.modality || '')
+    if (canSelectQuote.value) {
+      quoteRateId.value = typeof draft.quoteRateId === 'string' ? draft.quoteRateId : ''
+      quoteLabel.value = typeof draft.quoteLabel === 'string' ? draft.quoteLabel : ''
+    }
     executiveName.value = String(draft.executiveName || '')
     executiveUserId.value = String(draft.executiveUserId || '')
     institutionalExecutive.value = draft.institutionalExecutive === true
@@ -889,7 +940,7 @@ async function clearLocalDraft() {
   try { await operationsApi.clearManualOpeningDraft() }
   catch { /* Successful IDTRA creation is never reverted by failed cleanup. */ }
 }
-watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId],
+watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, quoteRateId, quoteLabel],
   scheduleLocalDraft, { deep: true })
 onBeforeUnmount(() => {
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -985,7 +1036,7 @@ const manualReviewSections = computed(() => [
     { label: 'Cliente', value: selectedClientName.value || 'Por seleccionar' },
     { label: 'Vendedor', value: accountId.value ? executiveLabel.value : 'Por seleccionar' },
     { label: 'Contacto operativo', value: selectedOperationalContacts.value.map(contact => contact.name).join(' · ') || 'Sin contacto seleccionado' },
-    { label: 'QUO', value: 'Sin QUO vinculada' },
+    { label: 'QUO', value: quoteRateId.value ? (quoteLabel.value || 'Vínculo seleccionado') + ' · Se verificará en Pricing' : 'Sin QUO vinculada' },
   ] },
   { title: 'Transporte y ruta', icon: Route, step: 1, rows: [
     { label: 'Transporte', value: transportSelectionOptions.find(x => x.value === form.value.transportType)?.label || 'Por seleccionar' },
@@ -1040,6 +1091,7 @@ async function save() {
           originCountryCode: routingCountries.value.origin || null,
           destinationCountryCode: routingCountries.value.destination || null,
           openingData,
+          ...(quoteRateId.value && canSelectQuote.value ? { quoteRateId: quoteRateId.value } : {}),
         })
     // Operations atomically creates the Origin stage. The worker handles assignment retries.
     // Do not open a case that is now owned by another department.
@@ -1265,6 +1317,29 @@ onMounted(async () => {
             </div>
           </div>
         </div>
+
+        <DhCard v-if="!editingId && activeStep === 1" class="mt-6" title="Cotización (QUO)" padding="sm"
+          subtitle="Opcional. El expediente conserva su IDTRA y Pricing confirma el vínculo.">
+          <template #actions><DhBadge :variant="quoteRateId ? 'primary' : 'neutral'">{{ quoteRateId ? 'Seleccionada' : 'Sin QUO' }}</DhBadge></template>
+          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Tu usuario no tiene permiso para vincular cotizaciones.</p>
+          <p v-else-if="!accountId || !modality" class="text-sm text-[var(--dh-text-muted)]">Selecciona primero el cliente y el tipo de embarque.</p>
+          <div v-else class="space-y-3">
+            <div v-if="quoteRateId" class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-sm font-semibold">{{ quoteLabel || 'Cotización seleccionada' }}</p>
+              <DhButton variant="secondary" size="sm" label="Quitar QUO" :disabled="Boolean(assignmentPendingId)" @click="clearQuote" />
+            </div>
+            <template v-else>
+              <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchQuotes">
+                <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Buscar cotización" placeholder="Número de QUO" /></div>
+                <DhButton type="submit" :icon="Search" label="Buscar" :loading="quoteBusy" :disabled="!quoteSearch.trim()" />
+              </form>
+              <DhSelect v-if="quoteCandidates.length" searchable label="Cotización aceptada"
+                :model-value="quoteRateId" :options="quoteCandidates.map(rate => ({ value: rate.id, label: quoteOptionLabel(rate) }))"
+                placeholder="Seleccionar QUO" @update:model-value="selectQuote(String($event || ''))" />
+              <p v-if="quoteIssue" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ quoteIssue }}</p>
+            </template>
+          </div>
+        </DhCard>
 
         <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="grid gap-4 md:grid-cols-2">
