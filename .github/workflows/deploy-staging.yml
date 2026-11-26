@@ -72,9 +72,12 @@ jobs:
           set -euo pipefail
           echo "Disk before cleanup:"
           df -h /
-          docker builder prune -af || true
-          docker container prune -f || true
-          docker image prune -af || true
+          # Preserve warm dependency layers. Only reclaim old build cache under
+          # disk pressure; do not prune containers/images shared with production.
+          used="$(df -P / | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
+          if [[ "$used" =~ ^[0-9]+$ ]] && (( used >= 85 )); then
+            docker builder prune -af --filter until=168h || true
+          fi
           echo "Disk after cleanup:"
           df -h /
 
@@ -108,16 +111,58 @@ jobs:
           : "${VITE_API_URL:?VITE_API_URL is required}"
           : "${VITE_APP_NAME:?VITE_APP_NAME is required}"
           : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required}"
-          docker build --pull -f Dockerfile \
-            --build-arg VITE_API_URL="$VITE_API_URL" \
-            --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
-            --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
-            --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
-            --build-arg VITE_RELEASE_CHANNEL="staging" \
-            --build-arg VITE_DHOLE_REALTIME_ENABLED="$VITE_DHOLE_REALTIME_ENABLED" \
-            --build-arg VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT" \
-            --build-arg VITE_DHOLE_REALTIME_RELEASE="$VITE_DHOLE_REALTIME_RELEASE" \
-            -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
+          # Probe DNS from the same Node image as the Dockerfile, not just the host.
+          # Fall back to the host resolver only for this trusted staging build.
+          # No daemon restart, global DNS changes, or runtime network changes.
+          node_image="$(awk 'toupper($1) == "FROM" && $2 ~ /^node:/ {print $2; exit}' Dockerfile)"
+          : "${node_image:?Node build image is required}"
+          docker pull "$node_image"
+          probe_dns() {
+            timeout 25 docker run --rm --network "$1" "$node_image" node -e '
+              const dns = require("node:dns");
+              const timer = setTimeout(() => process.exit(1), 12000);
+              dns.lookup("registry.npmjs.org", (err, address) => {
+                clearTimeout(timer);
+                if (err) { console.error(err.code); process.exit(1); }
+                console.log(address);
+              });
+            '
+          }
+          build_network=default
+          if ! probe_dns bridge; then
+            echo "::warning::Docker bridge cannot resolve npm registry; testing host network."
+            if ! probe_dns host; then
+              echo "::error::Neither Docker bridge nor host resolves registry.npmjs.org. Repair runner DNS before retrying."
+              exit 1
+            fi
+            build_network=host
+          fi
+          build_image() {
+            docker build --pull --network "$1" -f Dockerfile \
+              --build-arg VITE_API_URL="$VITE_API_URL" \
+              --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
+              --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+              --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
+              --build-arg VITE_RELEASE_CHANNEL="staging" \
+              --build-arg VITE_DHOLE_REALTIME_ENABLED="$VITE_DHOLE_REALTIME_ENABLED" \
+              --build-arg VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT" \
+              --build-arg VITE_DHOLE_REALTIME_RELEASE="$VITE_DHOLE_REALTIME_RELEASE" \
+              -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
+          }
+          build_log="$(mktemp)"
+          trap 'rm -f "$build_log"' EXIT
+          if ! build_image "$build_network" 2>&1 | tee "$build_log"; then
+            # BuildKit and docker run can have different resolver behavior.
+            # Only retry a registry DNS error, not an application/build failure.
+            if [[ "$build_network" == default ]] &&
+               grep -Eiq '(ENOTFOUND|EAI_AGAIN|Temporary failure in name resolution|Could not resolve host).*registry\.npmjs\.org|registry\.npmjs\.org.*(ENOTFOUND|EAI_AGAIN|Temporary failure in name resolution|Could not resolve host)' "$build_log" &&
+               probe_dns host; then
+              echo "::warning::BuildKit registry DNS failed; retrying with host network."
+              build_image host
+            else
+              exit 1
+            fi
+          fi
 
       - name: Verify staging bundle
         shell: bash
@@ -150,7 +195,7 @@ jobs:
           docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps dhole-web
           docker exec "$CONTAINER_ID" wget -qO- http://127.0.0.1/health | grep -qx 'ok'
 
-      - name: Cleanup old images
+      - name: Report Docker disk usage
         if: always()
         continue-on-error: true
-        run: docker image prune -f
+        run: df -h /
