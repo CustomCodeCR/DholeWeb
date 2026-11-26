@@ -407,6 +407,9 @@ const isSellerUser = computed(() => {
 const canCreate = computed(() =>
   !isSellerUser.value && authStore.hasScope(PRICING_SCOPES.rates.create),
 )
+const canExportCategoryReport = computed(() =>
+  authStore.hasScope(PRICING_SCOPES.rates.exportReport) || authStore.hasScope('pricing.rate-request.view-all'),
+)
 const canUpdate = computed(() => authStore.hasScope(PRICING_SCOPES.rates.update))
 const canDelete = computed(() => authStore.hasScope(PRICING_SCOPES.rates.delete))
 
@@ -652,6 +655,7 @@ async function exportCommercialExcel() {
   try {
     const params = new URLSearchParams()
     params.set('includeAllStatuses', 'true')
+    params.set('categoryReport', 'true')
     params.set('dateType', 'created')
     if (from) params.set('fromDate', from)
     if (to) params.set('toDate', to)
@@ -883,7 +887,7 @@ onMounted(async () => {
       title="Tarifas"
       subtitle="Seguimiento por estado comercial, incluidas las tarifas aprobadas pendientes de re-aprobación."
       :icon="ReceiptText"
-      :hide-excel-export="authStore.hasScope('pricing.rate-request.view-all')"
+      :hide-excel-export="canExportCategoryReport"
     >
       <template #actions>
         <DhButton v-if="authStore.hasScope('pricing.rate.update')"
@@ -895,7 +899,7 @@ onMounted(async () => {
           @click="openExpiryApprovalQueue"
         />
         <DhButton
-          v-if="authStore.hasScope('pricing.rate-request.view-all')"
+          v-if="canExportCategoryReport"
           label="Exportar Excel"
           :icon="FileSpreadsheet"
           :loading="excelExporting"
@@ -1036,8 +1040,8 @@ onMounted(async () => {
           <DhInput v-model="filters.idtraNumber" label="Número IDTRA" placeholder="Buscar IDTRA" />
           <DhInput v-model="filters.quoNumber" label="Número QUO" placeholder="Buscar QUO" />
           <DhInput v-model="filters.quoteDate" type="date" label="Fecha de cotización" />
-          <DhInput v-if="authStore.hasScope('pricing.rate-request.view-all')" v-model="excelFrom" type="date" label="Excel: desde" />
-          <DhInput v-if="authStore.hasScope('pricing.rate-request.view-all')" v-model="excelTo" type="date" label="Excel: hasta" />
+          <DhInput v-if="canExportCategoryReport" v-model="excelFrom" type="date" label="Excel: desde" />
+          <DhInput v-if="canExportCategoryReport" v-model="excelTo" type="date" label="Excel: hasta" />
           <DhInput v-model="filters.validFrom" type="date" label="Vigente desde" />
           <DhInput v-model="filters.validTo" type="date" label="Vigente hasta" />
         </div>

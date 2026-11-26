@@ -1,3 +1,7 @@
+## [1.135.0] - 2026-11-26
+
+- MINOR: DH-20261126-PRICING-CATEGORY-REPORT. Exportar Excel por categoría con permiso independiente; conserva el reporte comercial detallado. CI y staging pendientes.
+
 ## [1.134.1] - 2026-11-26
 
 - PATCH: DH-20261126-OPS-WHS-DROPDOWN-LAYER. El selector WHS abre por encima de la tarjeta de equipo, sin recorte por DhCard y sin alterar los demás selectores. Regresión de apertura/cierre incluida; CI y staging pendientes.
