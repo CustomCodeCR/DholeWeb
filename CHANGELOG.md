@@ -1,3 +1,7 @@
+## [1.134.1] - 2026-11-26
+
+- PATCH: DH-20261126-OPS-WHS-DROPDOWN-LAYER. El selector WHS abre por encima de la tarjeta de equipo, sin recorte por DhCard y sin alterar los demás selectores. Regresión de apertura/cierre incluida; CI y staging pendientes.
+
 ## [1.134.0] - 2026-11-26
 
 - DH-20261126-OPS-MANUAL-WHS-ROUTING: apertura manual con WHS LCL/LTL y FCL/FTL FCA, selección de modalidad y embarque mediante DhSelect, equivalencias junto a carga, validación visible y resumen del equipo previsto. El envío sigue delegado a Operations y conserva autoguardado. CI y staging pendientes.
