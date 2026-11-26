@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Ship, Plane, Truck, Boxes, PackageOpen, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Truck, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhMultiSelect, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { agentMatchesOrigin } from '@/modules/catalogs/utils/agentOriginCoverage'
 import { DhCard } from '@/shared/components/molecules'
@@ -126,7 +126,8 @@ function reconcileLocations() {
   selectedPol.value = selectedForLabel('pol', form.value.pol)
   selectedPoe.value = selectedForLabel('poe', form.value.poe)
   selectedPod.value = selectedForLabel('pod', form.value.pod)
-  selectedWarehouse.value = selectedForLabel('warehouses', form.value.whsName)
+  selectedWarehouse.value = currentCatalog('warehouses').some(item => item.id === form.value.warehouseId && item.isActive)
+    ? form.value.warehouseId : selectedForLabel('warehouses', form.value.whsName)
 }
 async function loadPricingCatalogs() {
   catalogLoading.value = true
@@ -327,7 +328,8 @@ const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.v
 const selectedIncoterm = computed(() => form.value.incoterm
   ? normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
   : '')
-const requiresWarehouse = computed(() => editingId.value ? selectedIncoterm.value === 'FCA' : ['LCL', 'LTL'].includes(effectiveShipment.value))
+const requiresWarehouse = computed(() => ['LCL', 'LTL'].includes(effectiveShipment.value) ||
+  (selectedIncoterm.value === 'FCA' && (needsEquipment.value || Boolean(editingId.value))))
 const showCarrier = computed(() => editingId.value ? isMaritime.value : effectiveShipment.value === 'FCL')
 const showPod = computed(() => isMaritime.value)
 const clientCountry = computed(() => resolveCrmCountryCode(form.value.clientCountryId, currentCatalog('countries')) ||
@@ -336,6 +338,22 @@ const automaticOperation = computed(() => operationForClientCountry(clientCountr
   countryFromRoute('pol', selectedPol.value, form.value.pol),
   showPod.value && selectedPod.value ? countryFromRoute('pod', selectedPod.value, form.value.pod) : countryFromRoute('poe', selectedPoe.value, form.value.poe)))
 const operation = computed(() => form.value.operationOverride || automaticOperation.value || (editingId.value ? (form.value.operationDirection === 'IMPORT' ? 'Import' : form.value.operationDirection === 'EXPORT' ? 'Export' : form.value.operationDirection === 'OTHER' ? 'TransitDomestic' : null) : null))
+const originTeamPreview = computed(() => {
+  const origin = countryFromRoute('pol', selectedPol.value, form.value.pol)
+  const destination = showPod.value && selectedPod.value
+    ? countryFromRoute('pod', selectedPod.value, form.value.pod)
+    : countryFromRoute('poe', selectedPoe.value, form.value.poe)
+  if (!origin || !destination || !operation.value || !effectiveShipment.value) return 'Por determinar'
+  if (operation.value === 'TransitDomestic' && origin !== destination) return 'Origen · Tránsito'
+  if (origin === 'US' || destination === 'US') return 'Origen · Estados Unidos'
+  const centralAmerica = ['BZ', 'GT', 'SV', 'HN', 'NI', 'CR', 'PA']
+  if (centralAmerica.includes(origin) && centralAmerica.includes(destination)) return 'Origen · Centroamérica'
+  if (effectiveShipment.value === 'FCL') return 'Origen · FCL internacional'
+  if (['LCL', 'AIR'].includes(effectiveShipment.value)) return 'Origen · LCL y Aéreo internacional'
+  if (effectiveShipment.value === 'FTL') return 'Origen · FTL'
+  if (effectiveShipment.value === 'LTL') return 'Origen · LTL'
+  return 'Por determinar'
+})
 const operationLabel = computed(() => operation.value === 'Import' ? 'Importación' :
   operation.value === 'Export' ? 'Exportación' : operation.value === 'TransitDomestic' ? 'Tránsito / doméstico' : '')
 const showOperationOverride = ref(false)
@@ -837,7 +855,7 @@ function buildOpeningData() {
         [`${axis}Unit`, form.value[`${axis}Unit`]],
         [`${axis}Cm`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Cm`] : ''],
       ])),
-      ...(!editingId.value ? { openingValidationVersion: 5, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 6, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
@@ -1032,7 +1050,7 @@ onMounted(async () => {
     </RouterLink>
     <DhPageHeader
       :title="editingId ? 'Modificar apertura' : 'Nueva apertura manual'"
-      subtitle="La misma experiencia guiada de Crear tarifas, adaptada al expediente operativo."
+      subtitle="Registra los datos básicos y confirma el envío a Coordinación Origen."
       :icon="FolderPlus"
       :hide-excel-export="true"
     >
@@ -1042,7 +1060,7 @@ onMounted(async () => {
             :class="autosaveState === 'error' ? 'text-amber-500' : 'text-[var(--dh-text-muted)]'">
             {{ autosaveState === 'error' ? 'Autoguardado no disponible' : autosaveState === 'pending' ? 'Guardando cambios…' : lastAutoSaveAt ? 'Guardado automáticamente · ' + lastAutoSaveAt : 'Autoguardado activado' }}
           </span>
-          <DhButton :icon="editingId ? Save : FolderPlus"
+          <DhButton v-if="editingId" :icon="Save"
             :label="editingId ? 'Guardar modificaciones' : assignmentPendingId ? 'Confirmar trámite existente' : 'Crear y enviar a Coordinación Origen'"
             :loading="saving" :disabled="loading || saving || (!valid && !assignmentPendingId) || (!editingId && (blockers.length > 0 || serverBlockers > 0 || reviewValidationPending) && !assignmentPendingId)"
             @click="save" />
@@ -1105,59 +1123,19 @@ onMounted(async () => {
       </header>
 
       <div class="p-4 sm:p-6">
-        <div v-show="activeStep === 1" class="grid gap-5 lg:grid-cols-2">
-          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/25 p-4 sm:p-5">
-            <div class="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h4 class="text-sm font-black">Modalidad de transporte</h4>
-                <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Selecciona el medio principal de la operación.</p>
-              </div>
-              <DhBadge variant="neutral">3 opciones</DhBadge>
-            </div>
-            <div class="grid gap-2 sm:grid-cols-3">
-              <button v-for="option in transportSelectionOptions" :key="option.value" type="button"
-                :aria-pressed="form.transportType === option.value"
-                class="relative flex min-h-[116px] flex-col items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-                :class="form.transportType === option.value
-                  ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] text-[var(--dh-text)] shadow-sm'
-                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] text-[var(--dh-text)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
-                @click="selectTransport(option.value)">
-                <component :is="option.value === 'MARITIME' ? Ship : option.value === 'AIR' ? Plane : Truck"
-                  class="h-5 w-5 text-[var(--dh-primary)]" />
-                <span><strong class="block text-sm">{{ option.label }}</strong><span class="mt-1 block text-[11px] font-medium text-[var(--dh-text-muted)]">{{ option.caption }}</span></span>
-                <CircleCheck v-if="form.transportType === option.value" class="absolute right-3 top-3 h-4 w-4 text-[var(--dh-primary)]" />
-              </button>
-            </div>
-            <p v-if="form.transportType === 'MULTIMODAL' && editingId"
-              class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-500">
-              Este expediente histórico es multimodal. Sus datos se conservan; para nuevas aperturas selecciona marítimo, aéreo o terrestre.
-            </p>
+        <DhCard v-show="activeStep === 1" title="Modalidad y embarque" :icon="Truck" padding="sm">
+          <div class="grid gap-4 md:grid-cols-2">
+            <DhSelect label="Modalidad de transporte" :model-value="form.transportType"
+              :options="transportSelectionOptions" placeholder="Seleccionar modalidad"
+              @update:model-value="selectTransport(String($event))" />
+            <DhSelect label="Tipo de embarque" :model-value="effectiveShipment"
+              :options="shipmentOptions" :disabled="!shipmentOptions.length" placeholder="Seleccionar embarque"
+              @update:model-value="selectShipment(String($event))" />
           </div>
-          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/25 p-4 sm:p-5">
-            <h4 class="text-sm font-black">Tipo de embarque</h4>
-            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones compatibles con la modalidad seleccionada.</p>
-            <div v-if="shipmentOptions.length" class="mt-4 grid gap-2 sm:grid-cols-2">
-              <button v-for="option in shipmentOptions" :key="option.value" type="button"
-                :aria-pressed="effectiveShipment === option.value"
-                class="flex min-h-[92px] items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-                :class="effectiveShipment === option.value
-                  ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)]'
-                  : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/60 hover:bg-[var(--dh-card-hover)]'"
-                @click="selectShipment(option.value)">
-                <span class="flex items-center gap-3">
-                  <component :is="option.value === 'FCL' ? Boxes : option.value === 'LCL' ? PackageOpen : option.value === 'FTL' ? Truck : option.value === 'LTL' ? Package : Plane"
-                    class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-                  <span class="text-sm font-bold">{{ option.label }}</span>
-                </span>
-                <CircleCheck v-if="effectiveShipment === option.value" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-              </button>
-            </div>
-            <div v-else class="mt-4 rounded-2xl border border-dashed border-[var(--dh-border)] p-6 text-center text-xs text-[var(--dh-text-muted)]">
-              Elige primero la modalidad de transporte.
-            </div>
-          </div>
-        </div>
-
+          <p v-if="form.transportType === 'MULTIMODAL' && editingId" class="mt-3 text-xs text-[var(--dh-text-muted)]">
+            Expediente histórico multimodal. Para nuevas aperturas selecciona marítimo, aéreo o terrestre.
+          </p>
+        </DhCard>
         <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/60 p-4 sm:p-5">
             <div class="mb-4">
@@ -1235,13 +1213,6 @@ onMounted(async () => {
             <DhSelect v-if="editingId" v-model="form.cargoNature" label="Naturaleza de la carga"
               :options="cargoNatureChoiceOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
-          <DhCard title="Equivalencias de la mercancía">
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <p class="text-sm">Peso estimado: <strong>{{ measurementLabel(estimatedKg) }} kg</strong></p>
-              <p class="text-sm">Volumen: <strong>{{ measurementLabel(normalizedVolume) }} CBM</strong></p>
-              <p v-if="editingId && effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
-            </div>
-          </DhCard>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h4 class="text-base font-black">Ruta de transporte</h4><p class="mt-1 text-xs font-medium text-[var(--dh-text-muted)]">Buscadores de POL, POE y POD compartidos con el wizard de Pricing.</p></div>
@@ -1265,11 +1236,12 @@ onMounted(async () => {
               </div>
             </div>
           </div>
-          <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 space-y-3">
-            <h4 class="text-sm font-black">WHS global</h4>
+          <DhCard v-if="requiresWarehouse" title="WHS · Almacén de origen" :icon="Package" padding="sm" class="space-y-3">
+            <p class="text-xs text-[var(--dh-text-muted)]">Selecciona el almacén correspondiente a la operación.</p>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS global" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
-              :options="warehouseOptions" terminal-type="WHS" @open="loadPricingCatalogs" />
+              :options="warehouseOptions" terminal-type="WHS" @open="loadPricingCatalogs"
+              @update:model-value="!$event && (form.whsName = '', form.warehouseId = '', form.warehouseAddress = '')" />
             <div v-if="warehouse" class="space-y-1 text-xs">
               <p class="font-black">{{ optionText(warehouse) }}</p>
               <p><strong>Dirección:</strong> {{ warehouseAddress || 'Sin dirección' }}</p>
@@ -1278,8 +1250,13 @@ onMounted(async () => {
               <p v-if="warehouseMeta.email"><strong>Email:</strong> {{ warehouseMeta.email }}</p>
               <p v-if="warehouseMeta.phone"><strong>Teléfono:</strong> {{ warehouseMeta.phone }}</p>
             </div>
-            <DhInput v-else-if="!warehouseOptions.length" v-model="form.warehouseAddress" label="Dirección del WHS" />
-          </div>
+            <DhInput v-else-if="!warehouseOptions.length && !catalogLoading" v-model="form.warehouseAddress" label="Dirección del WHS" />
+            <p v-else-if="catalogLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando almacenes…</p>
+          </DhCard>
+          <DhCard v-if="!editingId" title="Equipo previsto" :icon="UsersRound" padding="sm">
+            <p class="text-sm font-semibold">{{ originTeamPreview }}</p>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El servidor confirma el equipo y asigna un operativo autorizado según disponibilidad y carga del pool.</p>
+          </DhCard>
           <div v-if="editingId" class="grid gap-4 md:grid-cols-2">
             <DhSelect v-if="selectedIncoterm !== 'EXW'" v-model="pickupSelection" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
             <DhSelect :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
@@ -1312,13 +1289,13 @@ onMounted(async () => {
           </div>
           <DhTextarea v-if="editingId" v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real, las fechas de transporte y el consolidado.</p>
-          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-if="editingId" v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
             <DhInput v-model="form.estimatedWeightValue" label="Peso estimado" type="number" :min="0" />
-            <DhSelect v-model="form.estimatedWeightUnit" label="Unidad de peso estimado" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
+            <DhSelect v-model="form.estimatedWeightUnit" label="Unidad de peso" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
-            <DhSelect v-model="form.volumeUnit" label="Unidad volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
+            <DhSelect v-model="form.volumeUnit" label="Unidad de volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
             <template v-if="editingId && effectiveShipment === 'AIR'">
               <DhInput v-model="form.lengthValue" label="Largo" type="number" :min="0" />
               <DhSelect v-model="form.lengthUnit" label="Unidad de largo" :options="dimensionOptions" />
@@ -1328,6 +1305,13 @@ onMounted(async () => {
               <DhSelect v-model="form.heightUnit" label="Unidad de alto" :options="dimensionOptions" />
             </template>
           </div>
+          <DhCard title="Equivalencias de la mercancía">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <p class="text-sm">Peso estimado: <strong>{{ measurementLabel(estimatedKg) }} kg</strong></p>
+              <p class="text-sm">Volumen: <strong>{{ measurementLabel(normalizedVolume) }} CBM</strong></p>
+              <p v-if="editingId && effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
+            </div>
+          </DhCard>
           <div v-if="editingId" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
@@ -1509,21 +1493,10 @@ onMounted(async () => {
             <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
               <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Consecutivo IDTRA</dt><dd class="mt-1 font-semibold">{{ assignmentPendingId ? 'Ya asignado al expediente' : 'Automático al confirmar' }}</dd></div>
               <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Estado inicial</dt><dd class="mt-1 font-semibold">Coordinación Origen</dd></div>
-              <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Equipo</dt><dd class="mt-1 font-semibold">Asignación por pool</dd></div>
+              <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Equipo previsto</dt><dd class="mt-1 font-semibold">{{ originTeamPreview }}</dd></div>
               <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Operativo</dt><dd class="mt-1 font-semibold">Asignación por pool</dd></div>
             </dl>
           </DhCard>
-          <div class="grid items-start gap-4 lg:grid-cols-2">
-            <DhCard v-for="section in manualReviewSections" :key="section.title" :title="section.title" :icon="section.icon" padding="sm">
-              <template #actions><DhButton size="sm" variant="secondary" label="Editar" :disabled="Boolean(assignmentPendingId)" @click="goToStep(section.step)" /></template>
-              <dl class="grid gap-x-4 gap-y-3 sm:grid-cols-2 text-sm">
-                <div v-for="row in section.rows" :key="row.label" class="min-w-0">
-                  <dt class="text-xs text-[var(--dh-text-muted)]">{{ row.label }}</dt>
-                  <dd class="mt-1 break-words font-semibold text-[var(--dh-text)]">{{ row.value }}</dd>
-                </div>
-              </dl>
-            </DhCard>
-          </div>
           <DhCard title="Validación de apertura" :icon="ClipboardCheck" padding="sm" aria-live="polite">
             <template #actions><DhBadge :variant="manualReviewReady ? 'success' : manualReviewBlockers.length ? 'danger' : 'neutral'">{{ manualReviewReady ? 'Completa' : manualReviewBlockers.length ? 'Datos requeridos' : 'Por verificar' }}</DhBadge></template>
             <ul v-if="manualReviewBlockers.length" class="space-y-2 text-sm">
@@ -1538,6 +1511,17 @@ onMounted(async () => {
             <p v-else-if="!manualReviewBlockers.length" class="text-sm text-[var(--dh-text-muted)]">Revisa el contexto de creación y los datos de apertura antes de confirmar.</p>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ assignmentPendingId ? 'El expediente ya existe. Confirmar no genera otro IDTRA.' : 'Al confirmar, se crea el IDTRA y se envía a Coordinación Origen. Los datos de etapas posteriores se completan allí.' }}</p>
           </DhCard>
+          <div class="grid items-stretch gap-4 lg:grid-cols-2">
+            <DhCard v-for="section in manualReviewSections" :key="section.title" :title="section.title" :icon="section.icon" padding="sm">
+              <template #actions><DhButton size="sm" variant="secondary" label="Editar" :disabled="Boolean(assignmentPendingId)" @click="goToStep(section.step)" /></template>
+              <dl class="grid gap-x-4 gap-y-3 sm:grid-cols-2 text-sm">
+                <div v-for="row in section.rows" :key="row.label" class="min-w-0">
+                  <dt class="text-xs text-[var(--dh-text-muted)]">{{ row.label }}</dt>
+                  <dd class="mt-1 break-words font-semibold text-[var(--dh-text)]">{{ row.value }}</dd>
+                </div>
+              </dl>
+            </DhCard>
+          </div>
         </div>
 
         <div v-if="editingId && activeStep === 3" class="space-y-5">
@@ -1679,7 +1663,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <footer class="sticky bottom-3 z-30 flex flex-wrap items-center justify-between gap-3 rounded-[23px] border border-[var(--dh-border)] bg-[var(--dh-card-solid,var(--dh-card))] p-3 shadow-xl sm:p-4">
+    <footer class="flex flex-wrap items-center justify-between gap-3 rounded-[var(--dh-radius-xl)] border border-[var(--dh-border)] bg-[var(--dh-card-solid,var(--dh-card))] p-3 sm:p-4" :class="editingId ? 'sticky bottom-3 z-30 shadow-xl' : ''">
       <DhButton variant="secondary" :icon="ChevronLeft" label="Anterior" :disabled="activeStep <= 1" @click="goToStep(activeStep - 1)" />
       <div class="hidden text-center sm:block">
         <p class="text-xs font-black">{{ activeStepMeta.label }}</p>
