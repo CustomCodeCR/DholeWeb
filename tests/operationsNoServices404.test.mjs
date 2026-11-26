@@ -24,13 +24,14 @@ test('Manual aperture no longer has any dedicated services or coordination scree
   assert.doesNotMatch(opening, /v-show="activeStep === [456]"/)
 })
 
-test('Consolidated manual openings use WHS; legacy edits preserve FCA', () => {
+test('Consolidated and full FCA manual openings use WHS; legacy edits preserve FCA', () => {
   assert.match(opening, /const requiresWarehouse = computed/)
   assert.match(opening, /const selectedIncoterm = computed/)
   assert.match(opening, /normalizeIncotermCode\(form\.value\.incoterm, form\.value\.incotermName\)/)
-  assert.ok(opening.includes("editingId.value ? selectedIncoterm.value === 'FCA' : ['LCL', 'LTL'].includes(effectiveShipment.value)"))
+  assert.match(opening, /requiresWarehouse = computed\(\(\) => \['LCL', 'LTL'\]\.includes\(effectiveShipment\.value\)/)
+  assert.match(opening, /selectedIncoterm\.value === 'FCA' && \(needsEquipment\.value \|\| Boolean\(editingId\.value\)\)/)
   assert.ok(opening.includes('if (requiresWarehouse.value && !(warehouse.value'))
-  assert.match(opening, /<div v-if="requiresWarehouse"/)
+  assert.match(opening, /<DhCard v-if="requiresWarehouse"/)
   assert.match(opening, /label="WHS global"/)
   assert.match(opening, /const warehouseGroups =/)
 })

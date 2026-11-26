@@ -13,7 +13,7 @@ test('new manual openings validate estimated weight, volume and bultos without e
   assert.ok(source.includes('positive(form.value.estimatedWeightValue)'))
   assert.ok(source.includes("Number.isInteger(Number(form.value.packageCount))"))
   assert.ok(source.includes("weightValue: undefined, weightUnit: undefined, weightKg: undefined"))
-  assert.ok(source.includes("openingValidationVersion: 5"))
+  assert.ok(source.includes("openingValidationVersion: 6"))
 })
 
 test('route and commercial perspective follow Pricing', () => {
@@ -115,4 +115,20 @@ test('manual review shows basic opening information and only blocking validation
   assert.match(review, /<DhCard/)
   assert.match(review, /completenessError/)
   assert.match(review, /retryCompleteness\+\+/)
+})
+
+test('manual opening review displays planned team without implying an assigned operator', () => {
+  assert.match(source, /const originTeamPreview = computed/)
+  for (const team of ['Origen · Estados Unidos', 'Origen · Centroamérica', 'Origen · Tránsito', 'Origen · FCL internacional', 'Origen · LCL y Aéreo internacional', 'Origen · FTL', 'Origen · LTL'])
+    assert.ok(source.includes(team), team)
+  assert.match(source, /originCountryCode: routingCountries\.value\.origin/)
+  assert.match(source, /destinationCountryCode: routingCountries\.value\.destination/)
+  assert.match(source, /Equipo previsto/)
+  assert.match(source, /El servidor confirma el equipo/)
+  assert.match(source, /<DhCard v-if="requiresWarehouse"/)
+  const step2 = source.indexOf('<div v-show="activeStep === 2"')
+  assert.ok(source.indexOf('title="Equivalencias de la mercancía"') > step2)
+  const review = source.slice(source.indexOf('data-testid="manual-opening-review"'), source.indexOf('<div v-if="editingId && activeStep === 3"'))
+  assert.ok(review.indexOf('title="Validación de apertura"') < review.indexOf('v-for="section in manualReviewSections"'))
+  assert.match(source, /:class="editingId \? 'sticky bottom-3 z-30 shadow-xl' : ''"/)
 })

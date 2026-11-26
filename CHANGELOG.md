@@ -1,3 +1,7 @@
+## [1.134.0] - 2026-11-26
+
+- DH-20261126-OPS-MANUAL-WHS-ROUTING: apertura manual con WHS LCL/LTL y FCL/FTL FCA, selección de modalidad y embarque mediante DhSelect, equivalencias junto a carga, validación visible y resumen del equipo previsto. El envío sigue delegado a Operations y conserva autoguardado. CI y staging pendientes.
+
 ## [1.133.1] - 2026-11-25
 
 - PATCH: revisión de apertura manual con tarjetas DH, datos básicos por sección, asignación real por pool y únicamente campos bloqueantes. Mantiene validación de servidor y revisión histórica. CI/staging pendientes.

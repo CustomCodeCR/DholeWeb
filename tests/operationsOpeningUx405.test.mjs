@@ -9,8 +9,10 @@ test('manual opening offers only maritime, air and road selection; historical ca
   const selection = opening.slice(opening.indexOf('const transportSelectionOptions ='), opening.indexOf('const shipmentOptionsByTransport:'))
   for (const mode of ['MARITIME', 'AIR', 'ROAD']) assert.ok(selection.includes(mode))
   assert.doesNotMatch(selection, /Multimodal|MULTIMODAL/)
-  assert.match(opening, /@click="selectTransport\(option\.value\)"/)
-  assert.match(opening, /@click="selectShipment\(option\.value\)"/)
+  assert.match(opening, /<DhSelect label="Modalidad de transporte"/)
+  assert.match(opening, /@update:model-value="selectTransport\(String\(\$event\)\)"/)
+  assert.match(opening, /<DhSelect label="Tipo de embarque"/)
+  assert.match(opening, /@update:model-value="selectShipment\(String\(\$event\)\)"/)
   assert.match(opening, /Boolean\(editingId\.value\) && modality\.value === 'MULTIMODAL'/)
 })
 
@@ -41,7 +43,7 @@ test('special conditions are accessible toggles and destination handling is excl
     "form.portHandlingMode === 'Redestino'", "form.portHandlingMode === 'Anticipado'"]) {
     assert.ok(opening.includes(':aria-pressed="' + binding + '"'))
   }
-  assert.match(opening, /<CircleCheck v-if="effectiveShipment === option\.value"/)
+  assert.match(opening, /:model-value="effectiveShipment"/)
   assert.match(opening, /Muellaje en destino/)
   assert.match(opening, /toggleHandling\('Redestino'\)/)
   assert.match(opening, /toggleHandling\('Anticipado'\)/)
