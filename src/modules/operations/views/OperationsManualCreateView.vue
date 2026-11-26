@@ -64,23 +64,37 @@ const quoteRateId = ref('')
 const quoteLabel = ref('')
 const quoteBusy = ref(false)
 const quoteIssue = ref('')
+const quoteHydrated = ref(false)
 let quoteGeneration = 0
+let applyingQuote = false
 const canSelectQuote = computed(() => auth.hasScope('pricing.rate.update'))
 function clearQuote() {
   ++quoteGeneration
   quoteSearch.value = ''
   quoteRateId.value = ''
   quoteLabel.value = ''
+  quoteHydrated.value = false
   quoteCandidates.value = []
   quoteIssue.value = ''
   quoteBusy.value = false
 }
-watch([accountId, modality], clearQuote, { flush: 'sync' })
+watch([accountId, modality], () => { if (!applyingQuote) clearQuote() }, { flush: 'sync' })
+function quoteTransport(mode: string) {
+  return ['FCL', 'LCL'].includes(mode) ? 'MARITIME' : ['FTL', 'LTL'].includes(mode) ? 'ROAD' : mode === 'AIR' ? 'AIR' : ''
+}
+function quoteMatchesOpening(rate: RateDto) {
+  const mode = rate.shipmentMode.toUpperCase()
+  const transport = quoteTransport(mode)
+  return rate.status === 'AcceptedByClient' && Boolean(rate.quoNumber && rate.clientAccountId && transport) &&
+    (!accountId.value || rate.clientAccountId === accountId.value) &&
+    (!modality.value || mode === modality.value.toUpperCase()) &&
+    (!form.value.transportType || transport === form.value.transportType)
+}
 function quoteOptionLabel(rate: RateDto) {
-  return [rate.quoNumber || rate.rateCode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ')
+  return [rate.quoNumber || rate.rateCode, rate.clientName, rate.shipmentMode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ')
 }
 async function searchQuotes() {
-  if (!canSelectQuote.value || !accountId.value || !modality.value || !quoteSearch.value.trim() || quoteBusy.value) return
+  if (!canSelectQuote.value || !quoteSearch.value.trim() || quoteBusy.value || assignmentPendingId.value) return
   const generation = ++quoteGeneration
   quoteBusy.value = true
   quoteIssue.value = ''
@@ -89,19 +103,171 @@ async function searchQuotes() {
     const result = await PricingService.browseRates({ search: quoteSearch.value.trim(), status: 'AcceptedByClient',
       excludeTariffMasters: true, groupQuotes: false, pageNumber: 1, pageSize: 50 })
     if (generation !== quoteGeneration) return
-    quoteCandidates.value = result.items.filter(rate => rate.status === 'AcceptedByClient' &&
-      rate.clientAccountId === accountId.value && rate.shipmentMode.toUpperCase() === modality.value.toUpperCase() && Boolean(rate.quoNumber))
-    if (!quoteCandidates.value.length) quoteIssue.value = 'No se encontraron QUO aceptadas de este cliente y tipo de embarque.'
+    quoteCandidates.value = result.items.filter(quoteMatchesOpening)
+    if (!quoteCandidates.value.length) quoteIssue.value = 'No se encontraron QUO aceptadas compatibles. Revisa el número o los filtros de cliente y embarque.'
   } catch {
     if (generation === quoteGeneration) quoteIssue.value = 'No se pudieron consultar las cotizaciones. Reintenta.'
   } finally {
     if (generation === quoteGeneration) quoteBusy.value = false
   }
 }
-function selectQuote(id: string) {
+// Resolve real catalog identifiers, not labels or fabricated UUIDs.
+function quoteCatalogItem(group: string, id?: string | null, code?: string | null, name?: string | null) {
+  const items = currentCatalog(group).filter(item => item.isActive)
+  const key = (value: unknown) => String(value || '').trim().toLowerCase()
+  return (id && items.find(item => key(item.id) === key(id))) ||
+    (code && items.find(item => key(item.code) === key(code))) ||
+    (name && items.find(item => [item.label, item.value, optionText(item)].some(value => key(value) === key(name)))) || undefined
+}
+
+function quoteInlandPoints(points: Array<{ address: string; latitude?: number | null; longitude?: number | null; cargoCondition?: 'FiscalCargo' | 'NationalizedCargo' | null }>): InlandPoint[] {
+  return points.filter(point => typeof point?.address === 'string' && point.address.trim()).map(point => ({
+    address: point.address, latitude: point.latitude, longitude: point.longitude, cargoCondition: point.cargoCondition,
+  }))
+}
+
+function hydrateQuoteOpening(rate: RateDto) {
+  const warnings: string[] = []
+  const mode = rate.shipmentMode.toUpperCase()
+  if (!accountId.value && rate.clientAccountId) {
+    accountId.value = rate.clientAccountId
+    onCrmClientSelected({ id: rate.clientAccountId, displayName: rate.clientName || '', executiveName: '' })
+  }
+  if (!modality.value) {
+    selectTransport(quoteTransport(mode))
+    selectShipment(mode)
+  }
+  const term = normalizeIncotermCode(rate.incotermCode, rate.incotermName)
+  if (term && incotermChoices.value.some(item => item.value === term)) {
+    form.value.incoterm = term
+    form.value.incotermName = term
+  } else if (rate.incotermCode || rate.incotermName) warnings.push('Incoterm')
+  for (const [group, target, id, code, name] of [
+    ['pol', selectedPol, rate.polId, rate.polCode, rate.polName],
+    ['poe', selectedPoe, rate.poeId, rate.poeCode, rate.poeName],
+    ['pod', selectedPod, rate.podId, rate.podCode, rate.podName],
+  ] as const) {
+    if (group === 'pod' && !showPod.value) continue
+    if (!id && !name && !code) continue
+    const item = quoteCatalogItem(group, id, code, name)
+    if (item && locationChoices(group).some(option => option.value === item.id)) {
+      target.value = item.id
+      form.value[group] = optionText(item)
+    } else {
+      target.value = ''
+      form.value[group] = name || code || ''
+      warnings.push(group.toUpperCase())
+    }
+  }
+  if (rate.operationType && ['Import','Export','TransitDomestic'].includes(rate.operationType))
+    form.value.operationOverride = rate.operationType
+  const carrier = quoteCatalogItem('carriers', rate.carrierId, rate.carrierCode, rate.carrierName)
+  if (showCarrier.value && carrier) setProvider('carrier', carrier.id)
+  else if (showCarrier.value && (rate.carrierId || rate.carrierName)) warnings.push('Naviera')
+  const agent = quoteCatalogItem('agents', rate.agentId, rate.agentCode, rate.agentName)
+  if (agent && eligibleAgents.value.some(item => item.id === agent.id)) setProvider('agent', agent.id)
+  else if (rate.agentId || rate.agentName) warnings.push('Agente')
+  if (rate.warehouseId && requiresWarehouse.value) {
+    const whs = quoteCatalogItem('warehouses', rate.warehouseId)
+    if (whs && warehouseOptions.value.some(option => option.value === whs.id)) {
+      selectedWarehouse.value = whs.id
+      form.value.warehouseId = whs.id
+      form.value.whsName = optionText(whs)
+      form.value.warehouseAddress = String(catalogMetadata(whs).address || catalogMetadata(whs).fullAddress || '')
+    } else warnings.push('WHS')
+  }
+  if (positive(rate.totalPackages)) form.value.packageCount = String(rate.totalPackages)
+  if (positive(rate.totalWeightKg)) {
+    form.value.estimatedWeightValue = String(rate.totalWeightKg)
+    form.value.estimatedWeightUnit = 'KG'
+  }
+  if (positive(rate.totalVolumeCbm)) {
+    form.value.volumeValue = String(rate.totalVolumeCbm)
+    form.value.volumeUnit = 'CBM'
+  }
+  const lines = rate.cargoLines || []
+  const descriptions = [...new Set(lines.map(line => line.description?.trim()).filter(Boolean))]
+  if (descriptions.length) form.value.cargoDescription = descriptions.join(' · ')
+  // A single dimension set is only meaningful when the quote has one cargo line.
+  if (mode === 'AIR' && lines.length === 1 && lines[0]) {
+    const line = lines[0]
+    for (const axis of ['length','width','height'] as const) {
+      const value = line[`${axis}Cm`]
+      if (positive(value)) {
+        form.value[`${axis}Value`] = String(value)
+        form.value[`${axis}Unit`] = 'CM'
+      }
+    }
+  }
+  if (needsEquipment.value) {
+    const containers = rate.containers?.length ? rate.containers : [{
+      containerTypeId: rate.containerTypeId, containerTypeName: rate.containerTypeName,
+      containerTypeCode: rate.containerTypeCode, quantity: rate.containerQuantity,
+    }]
+    const equipment = new Map<string, typeof form.value.equipment[number]>()
+    for (const row of containers) {
+      if (!positive(row.quantity)) continue
+      const item = quoteCatalogItem(equipmentCatalogKey.value, row.containerTypeId, row.containerTypeCode, row.containerTypeName)
+      if (!item) { warnings.push('Tipo de equipo: ' + (row.containerTypeName || row.containerTypeCode || 'sin catálogo')); continue }
+      const existing = equipment.get(item.id)
+      if (existing) existing.quantity += row.quantity
+      else equipment.set(item.id, { equipmentType: optionText(item), equipmentCatalogId: item.id, quantity: row.quantity })
+    }
+    if (equipment.size) form.value.equipment = [...equipment.values()]
+  }
+  if (rate.services?.length) {
+    const services = rate.services.map(service => quoteCatalogItem('pricing-services', service.id, service.code, service.name)?.id)
+    if (services.some(id => !id)) warnings.push('Servicios sin correspondencia en catálogo')
+    const ids = services.filter((id): id is string => Boolean(id))
+    if (ids.length) form.value.services = [...new Set(ids)]
+  }
+  const pickups = quoteInlandPoints(rate.inlandPickupLocations?.length ? rate.inlandPickupLocations :
+    rate.inlandPickupLocation ? [rate.inlandPickupLocation] : rate.pickupLocations?.length ? rate.pickupLocations :
+    rate.pickupAddress ? [{ address: rate.pickupAddress, latitude: rate.pickupLatitude, longitude: rate.pickupLongitude }] : [])
+  const deliveries = quoteInlandPoints(rate.inlandDeliveryLocations?.length ? rate.inlandDeliveryLocations :
+    rate.inlandDeliveryLocation ? [rate.inlandDeliveryLocation] : [])
+  if (pickups.length) {
+    form.value.requiresPickup = true
+    form.value.pickupLocations = pickups
+    form.value.pickupAddress = pickups[0]!.address
+  }
+  if (deliveries.length) {
+    form.value.requiresDelivery = true
+    form.value.deliveryLocations = deliveries
+    form.value.destinationAddress = deliveries[0]!.address
+  }
+  return warnings
+}
+
+async function selectQuote(id: string) {
   const selected = quoteCandidates.value.find(rate => rate.id === id)
-  quoteRateId.value = selected?.id || ''
-  quoteLabel.value = selected ? quoteOptionLabel(selected) : ''
+  const reload = id === quoteRateId.value
+  if ((!selected && !reload) || (selected && !quoteMatchesOpening(selected)) || !canSelectQuote.value || assignmentPendingId.value || quoteBusy.value) return
+  const generation = ++quoteGeneration
+  quoteBusy.value = true
+  quoteIssue.value = ''
+  try {
+    const rate = await PricingService.getRate(id)
+    if (generation !== quoteGeneration) return
+    if (rate.id !== id || !quoteMatchesOpening(rate)) {
+      quoteIssue.value = 'La cotización ya no es compatible o no está aceptada. Revisa los datos.'
+      return
+    }
+    applyingQuote = true
+    try {
+      const warnings = hydrateQuoteOpening(rate)
+      await nextTick()
+      if (generation !== quoteGeneration) return
+      quoteRateId.value = rate.id
+      quoteLabel.value = quoteOptionLabel(rate)
+      quoteHydrated.value = true
+      quoteIssue.value = warnings.length ? 'Datos de QUO cargados. Revisa los campos sin catálogo compatible: ' + [...new Set(warnings)].join(', ') : ''
+    } finally { applyingQuote = false }
+  } catch {
+    if (generation === quoteGeneration) quoteIssue.value = 'No se pudo cargar el detalle de la QUO. Reintenta antes de crear el trámite.'
+  } finally {
+    if (generation === quoteGeneration) quoteBusy.value = false
+  }
 }
 const priority = ref(1)
 const complexity = ref(1)
@@ -516,7 +682,7 @@ function measurementLabel(value: number | null) {
 }
 const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
 watch(selectedIncoterm, (next, previous) => {
-  if (!editingId.value && !restoringOpening && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
+  if (!editingId.value && !restoringOpening && !applyingQuote && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
 })
 const pickupSelection = computed({
   get: () => pickupRequired.value ? 'YES' : 'NO',
@@ -533,6 +699,8 @@ const valid = computed(() =>
   uniqueEquipment.value)))
 const blockers = computed(() => {
   const result: string[] = []
+  if (!editingId.value && quoteRateId.value && !quoteHydrated.value) result.push('Cargar datos de la QUO')
+  if (!editingId.value && quoteBusy.value) result.push('Cargando cotización')
   if (!editingId.value && !form.value.services.length) result.push('Servicios solicitados')
   if (!accountId.value) result.push('Cliente CRM')
   else if (!executiveLoading.value && !executiveAssigned.value) result.push('Ejecutivo comercial por asignar en CRM')
@@ -712,7 +880,7 @@ watch(() => [selectedPol.value, form.value.pol, selectedPoe.value, form.value.po
     ? countryFromRoute('pod', selectedPod.value, form.value.pod)
     : countryFromRoute('poe', selectedPoe.value, form.value.poe)
 })
-watch([selectedPol, selectedPoe, selectedPod], () => { if (!restoringOpening && autosaveReady.value && !editingId.value) form.value.operationOverride = '' })
+watch([selectedPol, selectedPoe, selectedPod], () => { if (!restoringOpening && !applyingQuote && autosaveReady.value && !editingId.value) form.value.operationOverride = '' })
 async function searchCabys() {
   const query = form.value.cabysSearch.trim()
   if (query.length < 3) { error.value = 'Escriba al menos 3 caracteres para buscar CABYS.'; return }
@@ -810,7 +978,7 @@ function draftSnapshot(): Record<string, unknown> {
     executiveName: executiveName.value, executiveUserId: executiveUserId.value,
     institutionalExecutive: institutionalExecutive.value,
     contactsTouched: contactsTouched.value, assignmentPendingId: assignmentPendingId.value,
-    quoteRateId: quoteRateId.value, quoteLabel: quoteLabel.value,
+    quoteRateId: quoteRateId.value, quoteLabel: quoteLabel.value, quoteHydrated: quoteHydrated.value,
   }
 }
 function persistLocalDraft(draft = draftSnapshot()) {
@@ -877,6 +1045,7 @@ function restoreLocalDraft(serverDraft?: Record<string, unknown>) {
     if (canSelectQuote.value) {
       quoteRateId.value = typeof draft.quoteRateId === 'string' ? draft.quoteRateId : ''
       quoteLabel.value = typeof draft.quoteLabel === 'string' ? draft.quoteLabel : ''
+      quoteHydrated.value = draft.quoteHydrated === true
     }
     executiveName.value = String(draft.executiveName || '')
     executiveUserId.value = String(draft.executiveUserId || '')
@@ -940,7 +1109,7 @@ async function clearLocalDraft() {
   try { await operationsApi.clearManualOpeningDraft() }
   catch { /* Successful IDTRA creation is never reverted by failed cleanup. */ }
 }
-watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, quoteRateId, quoteLabel],
+watch([form, accountId, selectedClientName, modality, activeStep, contactsTouched, assignmentPendingId, quoteRateId, quoteLabel, quoteHydrated],
   scheduleLocalDraft, { deep: true })
 onBeforeUnmount(() => {
   if (autosaveTimer) clearTimeout(autosaveTimer)
@@ -1062,7 +1231,7 @@ const manualReviewSections = computed(() => [
 ])
 
 async function save() {
-  if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
+  if (saving.value || quoteBusy.value || (quoteRateId.value && !quoteHydrated.value && !assignmentPendingId.value) || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
   if ((!valid.value || blockers.value.length > 0 || serverBlockers.value > 0 || reviewValidationPending.value) && !assignmentPendingId.value && !editingId.value) {
     error.value = 'Completa los campos indispensables antes de crear y asignar el trámite. Los avances se guardan automáticamente en PostgreSQL (con copia local de respaldo).'
     return
@@ -1114,7 +1283,11 @@ watch(selectedPod, id => { const label = lookupLabel('pod', id); if (label) form
 watch(selectedWarehouse, id => { const label = lookupLabel('warehouses', id); if (label) { form.value.whsName = label; form.value.warehouseId = id; form.value.warehouseAddress = String(catalogMetadata(warehouse.value).address || catalogMetadata(warehouse.value).fullAddress || '') } })
 onMounted(async () => {
   await Promise.all([loadContext(), loadPricingCatalogs()])
-  if (!editingId.value) { await restoreDraft(); autosaveReady.value = true }
+  if (!editingId.value) {
+    await restoreDraft()
+    autosaveReady.value = true
+    if (quoteRateId.value && !quoteHydrated.value && !assignmentPendingId.value) await selectQuote(quoteRateId.value)
+  }
   if (editingId.value) {
     try {
       const [detail, tabs] = await Promise.all([
@@ -1242,6 +1415,34 @@ onMounted(async () => {
       </header>
 
       <div class="p-4 sm:p-6">
+        <DhCard v-if="!editingId && activeStep === 1" class="mb-6" title="Cotización (QUO)" padding="sm"
+          subtitle="Opcional. Vincula una QUO aceptada para cargar sus datos comerciales y logísticos disponibles.">
+          <template #actions><DhBadge :variant="quoteRateId ? 'primary' : 'neutral'">{{ quoteRateId ? 'Seleccionada' : 'Sin QUO' }}</DhBadge></template>
+          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Tu usuario no tiene permiso para vincular cotizaciones.</p>
+          <div v-else class="space-y-3">
+            <div v-if="quoteRateId" class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-sm font-semibold">{{ quoteLabel || 'Cotización seleccionada' }}</p>
+              <div class="flex flex-wrap gap-2">
+                <DhButton variant="secondary" size="sm" :icon="RefreshCw" label="Cargar datos de QUO" :loading="quoteBusy" :disabled="Boolean(assignmentPendingId)" @click="selectQuote(quoteRateId)" />
+                <DhButton variant="secondary" size="sm" label="Quitar QUO" :disabled="Boolean(assignmentPendingId) || quoteBusy" @click="clearQuote" />
+              </div>
+            </div>
+            <template v-else>
+              <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchQuotes">
+                <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Número de QUO" placeholder="Ej. QUO-00000-000672" /></div>
+                <DhButton type="submit" :icon="Search" label="Buscar QUO" :loading="quoteBusy" :disabled="!quoteSearch.trim() || Boolean(assignmentPendingId)" />
+              </form>
+              <DhSelect v-if="quoteCandidates.length" searchable label="Cotización aceptada"
+                :model-value="quoteRateId" :disabled="quoteBusy" :options="quoteCandidates.map(rate => ({ value: rate.id, label: quoteOptionLabel(rate) }))"
+                placeholder="Vincular QUO" @update:model-value="selectQuote(String($event || ''))" />
+              <DhButton v-if="quoteCandidates.length === 1 && quoteCandidates[0]" label="Vincular QUO" :loading="quoteBusy" :disabled="Boolean(assignmentPendingId)" @click="selectQuote(quoteCandidates[0].id)" />
+            </template>
+            <p v-if="quoteBusy" role="status" class="text-sm text-[var(--dh-text-muted)]">Consultando cotización y cargando datos…</p>
+            <p v-else-if="quoteRateId && quoteHydrated" role="status" class="text-sm text-[var(--dh-text-muted)]">Datos de QUO cargados. Puedes completar los campos operativos restantes.</p>
+            <p v-if="quoteIssue" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ quoteIssue }}</p>
+          </div>
+        </DhCard>
+
         <DhCard v-show="activeStep === 1" title="Modalidad y embarque" :icon="Truck" padding="sm">
           <div class="grid gap-4 md:grid-cols-2">
             <DhSelect label="Modalidad de transporte" :model-value="form.transportType"
@@ -1263,7 +1464,7 @@ onMounted(async () => {
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="space-y-3 md:col-span-2">
-                <PricingCrmClientSelect v-model="accountId" mode="create" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
+                <PricingCrmClientSelect v-model="accountId" mode="create" :initial-name="selectedClientName" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
                 <div role="status" aria-live="polite"
                   class="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
                   :class="executiveAssigned ? 'border-[var(--dh-primary)]/35 bg-[rgb(var(--dh-primary-rgb)/0.09)]' : 'border-amber-500/35 bg-amber-500/5'">
@@ -1318,28 +1519,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <DhCard v-if="!editingId && activeStep === 1" class="mt-6" title="Cotización (QUO)" padding="sm"
-          subtitle="Opcional. El expediente conserva su IDTRA y Pricing confirma el vínculo.">
-          <template #actions><DhBadge :variant="quoteRateId ? 'primary' : 'neutral'">{{ quoteRateId ? 'Seleccionada' : 'Sin QUO' }}</DhBadge></template>
-          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Tu usuario no tiene permiso para vincular cotizaciones.</p>
-          <p v-else-if="!accountId || !modality" class="text-sm text-[var(--dh-text-muted)]">Selecciona primero el cliente y el tipo de embarque.</p>
-          <div v-else class="space-y-3">
-            <div v-if="quoteRateId" class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-sm font-semibold">{{ quoteLabel || 'Cotización seleccionada' }}</p>
-              <DhButton variant="secondary" size="sm" label="Quitar QUO" :disabled="Boolean(assignmentPendingId)" @click="clearQuote" />
-            </div>
-            <template v-else>
-              <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchQuotes">
-                <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Buscar cotización" placeholder="Número de QUO" /></div>
-                <DhButton type="submit" :icon="Search" label="Buscar" :loading="quoteBusy" :disabled="!quoteSearch.trim()" />
-              </form>
-              <DhSelect v-if="quoteCandidates.length" searchable label="Cotización aceptada"
-                :model-value="quoteRateId" :options="quoteCandidates.map(rate => ({ value: rate.id, label: quoteOptionLabel(rate) }))"
-                placeholder="Seleccionar QUO" @update:model-value="selectQuote(String($event || ''))" />
-              <p v-if="quoteIssue" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ quoteIssue }}</p>
-            </template>
-          </div>
-        </DhCard>
+
 
         <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="grid gap-4 md:grid-cols-2">
