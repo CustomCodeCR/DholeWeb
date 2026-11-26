@@ -1,3 +1,7 @@
+## [1.136.0] - 2026-11-26
+
+- DH-20261126-OPS-WHS-AGENT-RECONCILED: selección de agente antes del WHS, filtro por identidad de Config, limpieza de WHS incompatibles y resumen del agente. Catálogo WHS permite asociar un agente real, incluso en almacenes genéricos. Conserva release de reportes 1.135.0. CI y staging pendientes.
+
 ## [1.135.0] - 2026-11-26
 
 - MINOR: DH-20261126-PRICING-CATEGORY-REPORT. Exportar Excel por categoría con permiso independiente; conserva el reporte comercial detallado. CI y staging pendientes.

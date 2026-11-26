@@ -108,7 +108,16 @@ function selectedRouteType(key: 'pol' | 'poe' | 'pod', id: string): RouteTermina
 const polOptions = computed(() => locationChoices('pol'))
 const poeOptions = computed(() => locationChoices('poe'))
 const podOptions = computed(() => locationChoices('pod'))
-const warehouseOptions = computed(() => locationChoices('warehouses'))
+const warehouseOptions = computed(() => {
+  const options = locationChoices('warehouses')
+  if (editingId.value) return options
+  const agent = eligibleAgents.value.find(item => item.id === form.value.agentId)
+  if (!agent) return []
+  return options.filter(option => {
+    const item = currentCatalog('warehouses').find(row => row.id === option.value)
+    return String(catalogMetadata(item).agentId || '').toLowerCase() === agent.id.toLowerCase()
+  }).map(option => ({ ...option, searchText: option.searchText + ' ' + optionText(agent) }))
+})
 const incotermChoices = computed(() => {
   const items = currentCatalog('incoterms').filter(item => item.isActive)
   const choices = items.map(item => {
@@ -192,7 +201,7 @@ const providerOptions = (group: string, previous: string, id: string) => {
 }
 watch([selectedPol, eligibleAgents, catalogLoading], () => {
   if (editingId.value || restoringOpening || catalogLoading.value || !form.value.agentId) return
-  if (!eligibleAgents.value.some(item => item.id === form.value.agentId)) { form.value.agentId = ''; form.value.agentReference = '' }
+  if (!eligibleAgents.value.some(item => item.id === form.value.agentId)) setProvider('agent', '')
 })
 const serviceOptions = computed(() => currentCatalog('pricing-services').filter(item => item.isActive).map(item => ({ value: item.id, label: optionText(item) })))
 const selectedServiceLabels = computed(() => (form.value.services as unknown[]).map(service => {
@@ -207,7 +216,11 @@ function setProvider(role: 'carrier' | 'agent' | 'merchant', id: string) {
   const group = role === 'carrier' ? 'carriers' : 'agents'
   const label = lookupLabel(group, id)
   if (role === 'carrier') { form.value.carrierId = id; form.value.carrierReference = label }
-  else if (role === 'agent') { form.value.agentId = id; form.value.agentReference = label }
+  else if (role === 'agent') {
+    form.value.agentId = id
+    form.value.agentReference = label
+    if (!editingId.value && selectedWarehouse.value && !warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) clearWarehouse()
+  }
   else { form.value.merchantId = id; form.value.merchantReference = label }
 }
 const cabysResults = ref<Array<{ code: string; description: string }>>([])
@@ -363,7 +376,19 @@ const originTeamPreview = computed(() => {
 const operationLabel = computed(() => operation.value === 'Import' ? 'Importación' :
   operation.value === 'Export' ? 'Exportación' : operation.value === 'TransitDomestic' ? 'Tránsito / doméstico' : '')
 const showOperationOverride = ref(false)
+function clearWarehouse() {
+  selectedWarehouse.value = ''
+  form.value.whsName = ''
+  form.value.warehouseId = ''
+  form.value.warehouseAddress = ''
+}
 const warehouse = computed(() => currentCatalog('warehouses').find(item => item.id === selectedWarehouse.value))
+const warehouseAgent = computed(() => currentCatalog('agents').find(item =>
+  item.id.toLowerCase() === String(catalogMetadata(warehouse.value).agentId || '').toLowerCase()))
+watch([warehouseOptions, catalogLoading], () => {
+  if (editingId.value || restoringOpening || catalogLoading.value || !form.value.agentId || !selectedWarehouse.value) return
+  if (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) clearWarehouse()
+})
 const warehouseMeta = computed(() => catalogMetadata(warehouse.value))
 const warehouseAddress = computed(() => String(warehouseMeta.value.address || warehouseMeta.value.fullAddress || form.value.warehouseAddress || '').trim())
 const deliveryRequired = computed(() => form.value.requiresDelivery || ['DAP','DPU','DDP'].includes(selectedIncoterm.value))
@@ -455,6 +480,10 @@ const blockers = computed(() => {
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim() || (!editingId.value && !currentCatalog(equipmentCatalogKey.value).some(item => item.id === resolvedEquipmentId(x) && item.isActive)))) result.push('Tipo de equipo por seleccionar')
   if (needsEquipment.value && !uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
+  if (!editingId.value && requiresWarehouse.value) {
+    if (!eligibleAgents.value.some(item => item.id === form.value.agentId)) result.push('Agente de origen del WHS')
+    if (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) result.push('WHS vinculado al agente')
+  }
   if (requiresWarehouse.value && !(warehouse.value || (!warehouseOptions.value.length && form.value.warehouseAddress.trim()))) result.push('WHS global o dirección del WHS')
   if (editingId.value && form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
   if (editingId.value && form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
@@ -861,7 +890,7 @@ function buildOpeningData() {
         [`${axis}Unit`, form.value[`${axis}Unit`]],
         [`${axis}Cm`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Cm`] : ''],
       ])),
-      ...(!editingId.value ? { openingValidationVersion: 6, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 7, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
@@ -934,7 +963,7 @@ const manualReviewSections = computed(() => [
     { label: 'POL · Origen', value: form.value.pol || 'Por seleccionar' },
     { label: 'POE · Entrada', value: form.value.poe || 'Por seleccionar' },
     ...(showPod.value ? [{ label: 'POD · Destino final', value: form.value.pod || 'Por seleccionar' }] : []),
-    ...(requiresWarehouse.value ? [{ label: 'WHS', value: [warehouse.value ? optionText(warehouse.value) : '', warehouseAddress.value].filter(Boolean).join(' · ') || 'Por seleccionar' }] : []),
+    ...(requiresWarehouse.value ? [{ label: 'WHS', value: [warehouse.value ? optionText(warehouse.value) : '', warehouseAgent.value ? optionText(warehouseAgent.value) : '', warehouseAddress.value].filter(Boolean).join(' · ') || 'Por seleccionar' }] : []),
   ] },
   { title: 'Mercancía y equipos', icon: Package, step: 2, rows: [
     { label: 'Cantidad de bultos', value: form.value.packageCount || 'Por completar' },
@@ -1243,20 +1272,26 @@ onMounted(async () => {
             </div>
           </div>
           <DhCard v-if="requiresWarehouse" title="WHS · Almacén de origen" :icon="Package" padding="sm" class="space-y-3">
-            <p class="text-xs text-[var(--dh-text-muted)]">Selecciona el almacén correspondiente a la operación.</p>
+            <p class="text-xs text-[var(--dh-text-muted)]">Selecciona primero el agente de origen y luego uno de sus almacenes vinculados.</p>
+            <DhSelect v-if="!editingId" searchable :disabled="!selectedPol || catalogLoading" :model-value="form.agentId"
+              :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen"
+              placeholder="Seleccionar agente" @update:model-value="setProvider('agent', String($event || ''))" />
+            <p v-if="!editingId && !form.agentId" class="text-xs text-[var(--dh-text-muted)]">Selecciona un agente con cobertura en el país de origen para habilitar sus WHS.</p>
+            <p v-else-if="!editingId && !warehouseOptions.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)]">Este agente no tiene WHS vinculados. Configuración → Catálogos → WHS globales permite asociar el almacén al agente.</p>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS global" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
               :options="warehouseOptions" terminal-type="WHS" @open="loadPricingCatalogs"
               @update:model-value="!$event && (form.whsName = '', form.warehouseId = '', form.warehouseAddress = '')" />
-            <div v-if="warehouse" class="space-y-1 text-xs">
+            <div v-if="warehouse && (editingId || warehouseOptions.some(option => option.value === selectedWarehouse))" class="space-y-1 text-xs">
               <p class="font-black">{{ optionText(warehouse) }}</p>
+              <p><strong>Agente:</strong> {{ warehouseAgent ? optionText(warehouseAgent) : 'Sin agente vinculado en Config' }}</p>
               <p><strong>Dirección:</strong> {{ warehouseAddress || 'Sin dirección' }}</p>
               <p v-if="warehouseMeta.schedule"><strong>Horario:</strong> {{ warehouseMeta.schedule }}</p>
               <p v-if="warehouseMeta.contacts"><strong>Contactos:</strong> {{ warehouseMeta.contacts }}</p>
               <p v-if="warehouseMeta.email"><strong>Email:</strong> {{ warehouseMeta.email }}</p>
               <p v-if="warehouseMeta.phone"><strong>Teléfono:</strong> {{ warehouseMeta.phone }}</p>
             </div>
-            <DhInput v-else-if="!warehouseOptions.length && !catalogLoading" v-model="form.warehouseAddress" label="Dirección del WHS" />
+            <DhInput v-else-if="editingId && !warehouseOptions.length && !catalogLoading" v-model="form.warehouseAddress" label="Dirección del WHS" />
             <p v-else-if="catalogLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando almacenes…</p>
           </DhCard>
           <DhCard v-if="!editingId" title="Equipo previsto" :icon="UsersRound" padding="sm">
@@ -1463,8 +1498,9 @@ onMounted(async () => {
               </div>
               <div v-else class="md:col-span-2"><p class="mb-2 text-xs font-bold text-[var(--dh-text-muted)]">Servicios registrados</p><div class="flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div></div>
               <DhSelect v-if="showCarrier" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
-              <DhSelect searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
-              <p v-if="selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
+              <DhSelect v-if="editingId || !requiresWarehouse" searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
+              <p v-if="(editingId || !requiresWarehouse) && selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
+              <div v-if="!editingId && requiresWarehouse" class="text-sm"><span class="text-xs font-semibold text-[var(--dh-text-muted)]">Agente de origen (paso 1)</span><p class="font-semibold">{{ form.agentReference || 'Por seleccionar' }}</p></div>
               <DhSelect v-if="editingId && isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
               <DhInput v-if="editingId && form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
               <DhInput v-if="editingId && form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />

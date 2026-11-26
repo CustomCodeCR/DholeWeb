@@ -13,7 +13,7 @@ test('new manual openings validate estimated weight, volume and bultos without e
   assert.ok(source.includes('positive(form.value.estimatedWeightValue)'))
   assert.ok(source.includes("Number.isInteger(Number(form.value.packageCount))"))
   assert.ok(source.includes("weightValue: undefined, weightUnit: undefined, weightKg: undefined"))
-  assert.ok(source.includes("openingValidationVersion: 6"))
+  assert.ok(source.includes("openingValidationVersion: 7"))
 })
 
 test('route and commercial perspective follow Pricing', () => {
@@ -145,4 +145,22 @@ test('open WHS menu escapes the DH card clipping and stacks above sibling cards'
   assert.match(theme, /\.dh-liquid > \[data-dh-whs-menu-open="true"\]\s*\{\s*z-index: 2;/)
   assert.match(picker, /pricing-location-menu absolute z-\[120\]/)
   assert.match(picker, /function closeSearch\(\)\s*\{\s*open.value = false/)
+})
+
+test('new WHS opening selects the agent first and filters by explicit Config identity', () => {
+  const drawer = readFileSync(new URL('../src/modules/catalogs/components/CatalogItemFormDrawer.vue', import.meta.url), 'utf8')
+  assert.match(drawer, /label="Agente propietario del WHS"/)
+  assert.match(drawer, /metadata\.agentId = id/)
+  assert.match(drawer, /catalogGroupSlug: 'agents'/)
+  assert.match(drawer, /isGeneric: true, .*agentId: warehouseAgentId\.value/)
+  const filter = source.slice(source.indexOf('const warehouseOptions = computed'), source.indexOf('const incotermChoices = computed'))
+  assert.match(filter, /eligibleAgents\.value\.find/)
+  assert.match(filter, /if \(!agent\) return \[\]/)
+  assert.match(filter, /catalogMetadata\(item\)\.agentId/)
+  const whs = source.slice(source.indexOf('<DhCard v-if="requiresWarehouse"'), source.indexOf('<DhCard v-if="!editingId" title="Equipo previsto"'))
+  assert.ok(whs.indexOf('label="Agente / oficina de origen"') < whs.indexOf('label="WHS global"'))
+  assert.match(whs, /Agente:<\/strong>/)
+  assert.match(source, /!warehouseOptions\.value\.some\(option => option\.value === selectedWarehouse\.value\)\) clearWarehouse\(\)/)
+  assert.match(source, /WHS vinculado al agente/)
+  assert.match(source, /v-if="editingId \|\| !requiresWarehouse" searchable/)
 })
