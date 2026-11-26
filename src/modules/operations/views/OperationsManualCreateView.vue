@@ -889,6 +889,41 @@ const statusGroups = computed(() => (['PENDIENTE_BLOQUEANTE', 'PENDIENTE_PERMITI
 const selectedStatusGroup = ref('PENDIENTE_PERMITIDO')
 watch(serverBlockers, count => { if (count > 0) selectedStatusGroup.value = 'PENDIENTE_BLOQUEANTE' })
 const reviewValidationPending = computed(() => activeStep.value === 3 && !completeness.value?.canPassFieldValidation)
+const manualReviewBlockers = computed(() => [...new Set([
+  ...blockers.value,
+  ...(completeness.value?.missingFields ?? []).map(openingFieldLabel),
+])])
+const manualReviewReady = computed(() => valid.value && !manualReviewBlockers.value.length &&
+  !completenessLoading.value && !completenessError.value && completeness.value?.canPassFieldValidation === true)
+const manualReviewSections = computed(() => [
+  { title: 'Cliente y comercial', icon: UserRound, step: 1, rows: [
+    { label: 'Cliente', value: selectedClientName.value || 'Por seleccionar' },
+    { label: 'Vendedor', value: accountId.value ? executiveLabel.value : 'Por seleccionar' },
+    { label: 'Contacto operativo', value: selectedOperationalContacts.value.map(contact => contact.name).join(' · ') || 'Sin contacto seleccionado' },
+    { label: 'QUO', value: 'Sin QUO vinculada' },
+  ] },
+  { title: 'Transporte y ruta', icon: Route, step: 1, rows: [
+    { label: 'Transporte', value: transportSelectionOptions.find(x => x.value === form.value.transportType)?.label || 'Por seleccionar' },
+    { label: 'Tipo de embarque', value: shipmentOptions.value.find(x => x.value === effectiveShipment.value)?.label || 'Por seleccionar' },
+    { label: 'Sentido de operación', value: operationLabel.value || 'Por seleccionar' },
+    { label: 'Incoterm', value: selectedIncoterm.value || 'Por seleccionar' },
+    { label: 'POL · Origen', value: form.value.pol || 'Por seleccionar' },
+    { label: 'POE · Entrada', value: form.value.poe || 'Por seleccionar' },
+    ...(showPod.value ? [{ label: 'POD · Destino final', value: form.value.pod || 'Por seleccionar' }] : []),
+    ...(requiresWarehouse.value ? [{ label: 'WHS', value: [warehouse.value ? optionText(warehouse.value) : '', warehouseAddress.value].filter(Boolean).join(' · ') || 'Por seleccionar' }] : []),
+  ] },
+  { title: 'Mercancía y equipos', icon: Package, step: 2, rows: [
+    { label: 'Cantidad de bultos', value: form.value.packageCount || 'Por completar' },
+    { label: 'Peso estimado', value: positive(form.value.estimatedWeightValue) ? form.value.estimatedWeightValue + ' ' + form.value.estimatedWeightUnit : 'Por completar' },
+    { label: 'Volumen', value: positive(form.value.volumeValue) ? form.value.volumeValue + ' ' + form.value.volumeUnit : 'Por completar' },
+    ...(needsEquipment.value ? [{ label: effectiveShipment.value === 'FTL' ? 'Furgones: cantidad y tipo' : 'Contenedores: cantidad y tipo', value: form.value.equipment.filter(x => x.equipmentType).map(x => x.quantity + ' × ' + x.equipmentType).join(' · ') || 'Por seleccionar' }] : []),
+  ] },
+  { title: 'Servicios y proveedores', icon: Truck, step: 2, rows: [
+    { label: 'Servicios', value: selectedServiceLabels.value.join(' · ') || 'Por seleccionar' },
+    ...(showCarrier.value ? [{ label: 'Naviera', value: form.value.carrierReference || 'Por seleccionar' }] : []),
+    { label: 'Agente', value: form.value.agentReference || 'Sin agente seleccionado' },
+  ] },
+])
 
 async function save() {
   if (saving.value || (editingId.value ? !canEdit.value : !auth.hasScope('operations.case.create'))) return
@@ -1066,7 +1101,7 @@ onMounted(async () => {
           <h3 class="mt-0.5 text-lg font-black tracking-tight">{{ activeStepMeta.label }}</h3>
           <p class="text-xs font-medium text-[var(--dh-text-muted)]">{{ activeStepMeta.hint }}</p>
         </div>
-        <DhBadge v-if="activeStep === 3" variant="warning" class="ml-auto">{{ blockers.length }} pendientes</DhBadge>
+        <DhBadge v-if="activeStep === 3 && editingId" :variant="blockers.length ? 'warning' : 'success'" class="ml-auto">{{ blockers.length ? blockers.length + ' pendientes' : 'Sin pendientes locales' }}</DhBadge>
       </header>
 
       <div class="p-4 sm:p-6">
@@ -1464,7 +1499,48 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div v-show="activeStep === 3" class="space-y-5">
+        <div v-if="!editingId && activeStep === 3" class="space-y-4" data-testid="manual-opening-review">
+          <DhCard title="Revisión de apertura manual" padding="sm">
+            <template #actions>
+              <DhBadge :variant="manualReviewReady ? 'success' : manualReviewBlockers.length ? 'warning' : 'neutral'">
+                {{ manualReviewReady ? 'Lista para crear' : manualReviewBlockers.length ? 'Requiere revisión' : 'Por verificar' }}
+              </DhBadge>
+            </template>
+            <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+              <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Consecutivo IDTRA</dt><dd class="mt-1 font-semibold">{{ assignmentPendingId ? 'Ya asignado al expediente' : 'Automático al confirmar' }}</dd></div>
+              <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Estado inicial</dt><dd class="mt-1 font-semibold">Coordinación Origen</dd></div>
+              <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Equipo</dt><dd class="mt-1 font-semibold">Asignación por pool</dd></div>
+              <div class="min-w-0"><dt class="text-xs text-[var(--dh-text-muted)]">Operativo</dt><dd class="mt-1 font-semibold">Asignación por pool</dd></div>
+            </dl>
+          </DhCard>
+          <div class="grid items-start gap-4 lg:grid-cols-2">
+            <DhCard v-for="section in manualReviewSections" :key="section.title" :title="section.title" :icon="section.icon" padding="sm">
+              <template #actions><DhButton size="sm" variant="secondary" label="Editar" :disabled="Boolean(assignmentPendingId)" @click="goToStep(section.step)" /></template>
+              <dl class="grid gap-x-4 gap-y-3 sm:grid-cols-2 text-sm">
+                <div v-for="row in section.rows" :key="row.label" class="min-w-0">
+                  <dt class="text-xs text-[var(--dh-text-muted)]">{{ row.label }}</dt>
+                  <dd class="mt-1 break-words font-semibold text-[var(--dh-text)]">{{ row.value }}</dd>
+                </div>
+              </dl>
+            </DhCard>
+          </div>
+          <DhCard title="Validación de apertura" :icon="ClipboardCheck" padding="sm" aria-live="polite">
+            <template #actions><DhBadge :variant="manualReviewReady ? 'success' : manualReviewBlockers.length ? 'danger' : 'neutral'">{{ manualReviewReady ? 'Completa' : manualReviewBlockers.length ? 'Datos requeridos' : 'Por verificar' }}</DhBadge></template>
+            <ul v-if="manualReviewBlockers.length" class="space-y-2 text-sm">
+              <li v-for="item in manualReviewBlockers" :key="item" class="flex items-start gap-2"><CircleAlert class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />{{ item }}</li>
+            </ul>
+            <p v-if="completenessLoading" class="text-sm text-[var(--dh-text-muted)]">Verificando los datos de apertura…</p>
+            <div v-else-if="completenessError" role="alert" class="space-y-2">
+              <p class="text-sm">{{ completenessError }}</p>
+              <DhButton size="sm" variant="secondary" label="Reintentar" @click="retryCompleteness++" />
+            </div>
+            <p v-else-if="manualReviewReady" class="flex items-center gap-2 text-sm font-semibold"><CircleCheck class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />Todos los datos requeridos para la apertura están completos.</p>
+            <p v-else-if="!manualReviewBlockers.length" class="text-sm text-[var(--dh-text-muted)]">Revisa el contexto de creación y los datos de apertura antes de confirmar.</p>
+            <p class="mt-3 text-xs text-[var(--dh-text-muted)]">{{ assignmentPendingId ? 'El expediente ya existe. Confirmar no genera otro IDTRA.' : 'Al confirmar, se crea el IDTRA y se envía a Coordinación Origen. Los datos de etapas posteriores se completan allí.' }}</p>
+          </DhCard>
+        </div>
+
+        <div v-if="editingId && activeStep === 3" class="space-y-5">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h4 class="text-lg font-black">Revisión de apertura</h4>

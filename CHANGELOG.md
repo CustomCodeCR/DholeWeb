@@ -1,3 +1,7 @@
+## [1.133.1] - 2026-11-25
+
+- PATCH: revisión de apertura manual con tarjetas DH, datos básicos por sección, asignación real por pool y únicamente campos bloqueantes. Mantiene validación de servidor y revisión histórica. CI/staging pendientes.
+
 ## [1.133.0] - 2026-11-25
 
 - Move optional PO and invoice references to the existing Origin planning form; retain PO read-only in opening edits.
