@@ -30,7 +30,8 @@ export function patchPricingStep7FixedCostsAndCustoms(source: string): string {
   )
   if (!editableFixedInputs) throw new Error('[pricingStep7FixedCostsAndCustoms] Missing screen 7 cost inputs')
 
-  // The Config label is not always the legacy '... CRC' one.
+  // Customs is a country-specific service, not a generic text category.
+  // The foreign service must never trigger the Costa Rica price requirement.
   const oldCustomsName = [
     "  return name.includes('agencia aduanas crc')",
     "    || name.includes('agencia aduanal crc')",
@@ -38,9 +39,12 @@ export function patchPricingStep7FixedCostsAndCustoms(source: string): string {
     "    || name.includes('aduanas costa rica')",
   ].join('\n')
   code = replaceOnce(code, oldCustomsName, [
-    oldCustomsName,
-    "    || /(?:servicio|agencia|tramite|despacho).*aduan|aduan.*(?:servicio|agencia|tramite|crc|costa rica)/.test(name)",
-    "    || name.includes('customs clearance')",
+    "  const customsCode = String(service.code ?? '').trim().toUpperCase()",
+    "  if (customsCode === 'CUSTOMS_FOREIGN' || /(?:^| )(?:exterior|extranjero|extranjera|foreign|exportacion|export|origen|origin)(?: |$)/.test(name)) return false",
+    "  if (customsCode === 'CUSTOMS_CR') return true",
+    "  // Legacy Config aliases require an explicit Costa Rica qualifier.",
+    "  return /aduan|customs|nacionaliz/.test(name)",
+    "    && /(?:^| )(?:crc|cr|costa rica)(?: |$)/.test(name)",
   ].join('\n'), 'CRC customs service aliases')
 
   const coloaderStart = code.indexOf('function rebuildLclColoaderAgentLines() {')
