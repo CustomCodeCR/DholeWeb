@@ -1,3 +1,7 @@
+## [1.138.0] - 2026-11-26
+
+- MINOR candidato: perfiles de scopes de equipo visibles mediante DhBadge y componentes existentes, distinguiendo recomendaciones y permisos efectivos. Origen permite WHS LCL, booking aéreo y recolecta declarada. Sin otorgamiento automático, sin alterar Pricing/CRM ni confirmar salida ficticia; CI y staging pendientes.
+
 ## [1.137.4] - 2026-11-26
 
 - Operations: prioritize route, cargo, services, responsible team, QUO and pending validation in the detail and quick drawer; distinguish estimated and actual weight, combine measurement units and use backend applicability; keep existing DH controls, permissions and realtime reads.
