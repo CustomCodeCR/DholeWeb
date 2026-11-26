@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { DhButton, DhInput, DhSwitch } from '@/shared/components/atoms'
+import { DhButton, DhInput, DhSelect, DhSwitch } from '@/shared/components/atoms'
 import DhStorageImage from '@/shared/components/DhStorageImage.vue'
 import { useDrawerStore } from '@/core/stores/drawerStore'
 import { useToastStore } from '@/core/stores/toastStore'
@@ -99,6 +99,37 @@ function parseMetadataJson(value?: string | null): WarehouseImageMetadata {
   }
 }
 
+
+const warehouseAgents = ref<Array<{ value: string; label: string }>>([])
+const warehouseAgentsLoading = ref(false)
+const warehouseAgentsError = ref(false)
+const warehouseAgentId = computed({
+  get: () => String(parseMetadataJson(form.value.metadataJson).agentId || ''),
+  set: (id: string) => {
+    const metadata = parseMetadataJson(form.value.metadataJson)
+    if (id) metadata.agentId = id
+    else delete metadata.agentId
+    form.value.metadataJson = JSON.stringify(metadata)
+  },
+})
+const warehouseAgentOptions = computed(() => {
+  const options = [...warehouseAgents.value]
+  if (warehouseAgentId.value && !options.some(item => item.value === warehouseAgentId.value))
+    options.push({ value: warehouseAgentId.value, label: 'Agente registrado no disponible' })
+  return [{ value: '', label: 'Sin agente vinculado' }, ...options]
+})
+async function loadWarehouseAgents() {
+  if (!isWarehouseGroup.value) return
+  warehouseAgentsLoading.value = true
+  warehouseAgentsError.value = false
+  try {
+    const agents = await CatalogItemsService.select({ catalogGroupSlug: 'agents' })
+    warehouseAgents.value = agents.filter(agent => agent.isActive)
+      .map(agent => ({ value: agent.id, label: agent.value || agent.label || agent.code }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  } catch { warehouseAgentsError.value = true }
+  finally { warehouseAgentsLoading.value = false }
+}
 
 const isAgentGroup = computed(() => props.group.slug === 'agents')
 const isGlobalAgent = computed(() => isAgentGroup.value && isGlobalCountryAgent({
@@ -290,7 +321,7 @@ async function loadAgentCountries() {
   }
 }
 
-onMounted(() => { void loadAgentCountries() })
+onMounted(() => { void loadAgentCountries(); void loadWarehouseAgents() })
 
 function storedWarehouseImages(metadata: WarehouseImageMetadata): WarehouseStoredImage[] {
   const images: WarehouseStoredImage[] = []
@@ -502,7 +533,7 @@ async function save() {
   // A generic WHS carries no street address, geocoding, city, photos or contacts.
   const value = isGeneric ? name : (selectedRoute?.value ?? form.value.value) || null
   const metadataJsonForSave = isGeneric
-    ? JSON.stringify({ isGeneric: true })
+    ? JSON.stringify({ isGeneric: true, ...(warehouseAgentId.value ? { agentId: warehouseAgentId.value } : {}) })
     : isGlobalAgent.value
       ? withGlobalCountryCoverage(selectedRoute?.metadataJson ?? form.value.metadataJson, polCountries.value)
       : (selectedRoute?.metadataJson ?? form.value.metadataJson)
@@ -594,6 +625,13 @@ onBeforeUnmount(clearPendingWarehouseImages)
     <template v-else>
     <section v-if="isWarehouseGroup" class="rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
       <DhSwitch v-model="genericWarehouse" label="WHS genérico: solo nombre" :disabled="!canSave" />
+      <div class="mt-4">
+        <DhSelect searchable :model-value="warehouseAgentId" :options="warehouseAgentOptions"
+          label="Agente propietario del WHS" :disabled="!canSave || warehouseAgentsLoading || warehouseAgentsError"
+          placeholder="Vincular agente" @update:model-value="warehouseAgentId = String($event || '')" />
+        <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Solo los WHS vinculados al agente estarán disponibles en las nuevas aperturas manuales.</p>
+        <p v-if="warehouseAgentsError" class="mt-2 text-xs text-[var(--dh-text-muted)]">No se pudo consultar el catálogo de agentes. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadWarehouseAgents" /></p>
+      </div>
       <p class="mt-2 text-xs font-semibold text-[var(--dh-text-muted)]">
         Al activarlo, escriba únicamente el país o nombre (ej. Alemania). Dirección, coordenadas, ciudad y demás datos no son necesarios.
       </p>
