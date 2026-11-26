@@ -889,16 +889,17 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
       </div>
 
       <div v-else-if="selectedTab === 'QUO'" class="space-y-4">
-        <DhCard v-if="canLinkQuote" title="Vincular cotización" subtitle="Seleccione una QUO aceptada del mismo cliente y modalidad. Se conserva el IDTRA manual y cualquier otro IDTRA ya vinculado.">
+        <DhCard v-if="canLinkQuote" :icon="FileText" title="Agregar QUO al expediente" subtitle="Busca una cotización aceptada del mismo cliente y tipo de embarque. El IDTRA actual se conserva.">
+          <template #actions><DhBadge :variant="pendingQuoteLink ? 'warning' : 'neutral'">{{ pendingQuoteLink ? 'Vinculación pendiente' : 'Sin QUO' }}</DhBadge></template>
           <p v-if="pendingQuoteLink" class="text-sm"><DhBadge variant="warning">Pendiente de confirmación de Pricing</DhBadge></p>
           <template v-else>
             <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchAcceptedQuotes">
-              <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Número de QUO" placeholder="QUO-..." /></div>
+              <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Buscar cotización" placeholder="Número de QUO" /></div>
               <DhButton type="submit" label="Buscar" :loading="quoteLinkBusy" :disabled="!quoteSearch.trim()" />
             </form>
             <div v-if="quoteCandidates.length" class="mt-3 flex flex-wrap items-end gap-3">
-              <div class="min-w-0 flex-1"><DhSelect searchable v-model="quoteSelection" label="Cotización aceptada" :options="quoteCandidates.map(rate => ({ value: rate.id, label: (rate.quoNumber || rate.rateCode) + ' · ' + rate.polName + ' → ' + (rate.podName || rate.poeName) }))" /></div>
-              <DhButton label="Vincular al IDTRA" :loading="quoteLinkBusy" :disabled="!quoteSelection" @click="requestQuoteLink" />
+              <div class="min-w-0 flex-1"><DhSelect searchable v-model="quoteSelection" label="Cotización" placeholder="Seleccionar QUO" :options="quoteCandidates.map(rate => ({ value: rate.id, label: [rate.quoNumber || rate.rateCode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ') }))" /></div>
+              <DhButton label="Vincular QUO" :loading="quoteLinkBusy" :disabled="!quoteSelection" @click="requestQuoteLink" />
             </div>
           </template>
           <p v-if="quoteLinkMessage" class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ quoteLinkMessage }}</p>
