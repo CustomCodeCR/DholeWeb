@@ -25,7 +25,7 @@ import {
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
-import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
+import { departmentStatusLabel, operationsLabel, summaryMeasure, isPendingOperationsTask } from '../utils/caseOverview'
 import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
 
 import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel, useOpeningDocuments } from '../utils/commercialPresentation'
@@ -110,10 +110,18 @@ const openingSections = computed(() => {
     ] },
   ]
   const inapplicable = new Set(completeness.value?.fields.filter(field => field.completionStatus === 'NO_APLICA').map(field => field.fieldCode))
+  const fieldAliases: Record<string, string> = {
+    estimatedWeightValue: 'estimatedWeight', estimatedWeightUnit: 'estimatedWeight',
+    actualWeightValue: 'actualWeight', actualWeightUnit: 'actualWeight', actualWeightKg: 'actualWeight',
+    volumeValue: 'volume', volumeUnit: 'volume', consolidationReference: 'consolidation',
+  }
+  const units: Record<string, string> = { estimatedWeightValue: 'estimatedWeightUnit', actualWeightValue: 'actualWeightUnit', volumeValue: 'volumeUnit' }
   return sections.map(section => ({
     title: section.title,
-    rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg','consolidationReference'].includes(row.key)) && !inapplicable.has(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
-      const value = openingField(row.key, data)
+    rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg','consolidationReference'].includes(row.key)) && !inapplicable.has(row.key) && !inapplicable.has(fieldAliases[row.key] || row.key) && !['estimatedWeightUnit','actualWeightUnit','volumeUnit'].includes(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
+      const raw = openingField(row.key, data)
+      const unitKey = units[row.key]
+      const value = unitKey ? summaryMeasure(raw, openingField(unitKey, data)) : raw
       return { label: row.label, value: value || (
         row.key === 'actualWeightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
       ) }
@@ -122,6 +130,7 @@ const openingSections = computed(() => {
 })
 
 const workspace = ref<OperationsCaseWorkspace | null>(null)
+const pendingSummaryTasks = computed(() => (workspace.value?.tasks || []).filter(isPendingOperationsTask))
 const quoteSearch = ref('')
 const quoteCandidates = ref<RateDto[]>([])
 const quoteSelection = ref('')
@@ -672,7 +681,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
         <ArrowLeft class="h-4 w-4" /> Todos los trámites
       </RouterLink>
     </div>
-    <DhPageHeader :title="record?.idtra || 'Expediente operativo'" subtitle="Expediente IDTRA único · Gestión por departamentos y equipos" :icon="FolderOpen" :hide-excel-export="true">
+    <DhPageHeader :title="record?.idtra || 'Expediente operativo'" subtitle="Centro de control operativo" :icon="FolderOpen" :hide-excel-export="true">
       <template #actions>
         <DhBadge v-if="record" variant="primary">{{ currentDepartmentStatus }}</DhBadge>
         <DhBadge v-if="record?.sourceQuoteId" :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
@@ -704,8 +713,8 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
         </div>
         <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Ruta y procedencia</p>
-          <p class="mt-1 font-bold">{{ record.apertureType === 'AUTOMATIC' ? 'Pricing · QUO aceptada' : 'Manual' }}</p>
-          <p class="text-xs text-[var(--dh-text-muted)]">{{ record.modalityCode }} · {{ openingData.pol || countryLabel(record.originCountryCode, openingData.pol) || 'Pendiente' }} → {{ openingData.pod || countryLabel(record.destinationCountryCode, openingData.pod) || 'Pendiente' }}</p>
+          <div class="mt-1 flex flex-wrap gap-1"><DhBadge variant="primary">{{ record.modalityCode }}</DhBadge><DhBadge variant="neutral">{{ record.apertureType === 'AUTOMATIC' ? 'Automática' : 'Manual' }}</DhBadge><DhBadge v-if="openingField('incoterm', openingData)" variant="neutral">{{ openingField('incoterm', openingData) }}</DhBadge></div>
+          <p class="mt-2 break-words text-sm font-semibold">{{ openingData.pol || countryLabel(record.originCountryCode, openingData.pol) || 'Pendiente' }} → {{ openingData.pod || countryLabel(record.destinationCountryCode, openingData.pod) || 'Pendiente' }}</p>
         </div>
         <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Departamento y responsable</p>
@@ -714,9 +723,9 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
           <p class="mt-1 text-xs font-semibold">{{ responsibleName(currentResponsibility?.assignedUserId) }}</p>
         </div>
         <div class="min-w-0">
-          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado departamental</p>
-          <p class="mt-1 font-bold">{{ currentDepartmentStatus }}</p>
-          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Actualizado: {{ dateLabel(record.updatedAtUtc) }}</p>
+          <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado operativo</p>
+          <DhBadge class="mt-1" variant="primary">{{ currentDepartmentStatus }}</DhBadge>
+          <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Actualizado: {{ dateLabel(record.updatedAtUtc) }}</p>
           <p class="text-xs text-[var(--dh-text-muted)]">Versión {{ record.version }}</p>
         </div>
       </div></DhCard>
@@ -740,59 +749,40 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
       </DhTabs>
 
       <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-        <div class="space-y-4">
-          <DhCard padding="sm" :icon="ClipboardList" title="Identificación y apertura">
-            <div v-if="editing && canEditSummary" class="space-y-4">
-              <div class="grid gap-4 sm:grid-cols-2">
-                <DhSelect v-model="edit.modalityCode" label="Modalidad" :options="modalityOptions" />
-                <DhInput v-model="edit.originCountryCode" label="País de origen (ISO)" placeholder="CR" />
-                <DhInput v-model="edit.destinationCountryCode" label="País de destino (ISO)" placeholder="HN" />
-              </div>
-              <p class="text-xs text-[var(--dh-text-muted)]">Los cambios se auditan y requieren la versión vigente. Cliente, ejecutivo y QUO aceptada no se modifican desde este formulario.</p>
-              <div class="flex justify-end gap-2">
-                <DhButton variant="secondary" label="Cancelar" @click="editing = false; captureEdit(record)" />
-                <DhButton :icon="Save" label="Guardar cambios" :loading="saving" :disabled="!validEdit" @click="saveEdit" />
-              </div>
+        <div class="min-w-0 space-y-4">
+          <DhCard padding="sm" title="Información logística">
+            <div class="mb-4 border-b border-[var(--dh-border)] pb-3">
+              <h4 class="mb-2 text-sm font-semibold">Servicios contratados y operativos</h4>
+              <div class="flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div>
             </div>
-            <div v-else class="grid gap-x-5 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
-              <div v-for="item in [
-                { key: 'IDTRA', value: record.idtra },
-                { key: 'Modalidad', value: record.modalityCode },
-                { key: 'Tipo de apertura', value: record.apertureType === 'AUTOMATIC' ? 'Automática · Pricing' : 'Manual' },
-                { key: 'Estado del departamento', value: currentDepartmentStatus },
-                { key: 'Cliente', value: accountName || String(openingData.clientName || '') || 'Pendiente de CRM' },
-                { key: 'Ejecutivo comercial', value: clientExecutiveName || String(openingData.executiveName || '') || responsibleName(record.executiveUserId) },
-                { key: 'PO / referencia cliente', value: openingData.clientPoReference || 'Sin referencia' },
-                { key: 'División CRM', value: openingData.crmDivisionName || 'No registrada' },
-                { key: 'País de origen', value: countryLabel(record.originCountryCode, openingData.pol) || 'Pendiente' },
-                { key: 'País de destino', value: countryLabel(record.destinationCountryCode, openingData.pod) || 'Pendiente' },
-                { key: 'Creado', value: dateLabel(record.createdAtUtc) },
-                { key: 'Actualizado', value: dateLabel(record.updatedAtUtc) },
-                { key: 'Creado por', value: responsibleName(record.createdBy) },
-              ]" :key="item.key" class="min-w-0 border-b border-[var(--dh-border)] py-2">
-                <p class="text-xs text-[var(--dh-text-muted)]">{{ item.key }}</p>
-                <p class="mt-1 break-words text-sm font-bold">{{ item.value }}</p>
-              </div>
-            </div>
-          </DhCard>
-          <DhCard title="Contactos del cliente" subtitle="Encargados de operaciones activos en CRM, asociados a este cliente.">
-            <p v-if="contactsLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando CRM…</p>
-            <p v-else-if="contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudieron consultar los contactos. Actualice el expediente para reintentar.</p>
-            <p v-else-if="!contacts.length" class="text-sm text-[var(--dh-text-muted)]">El cliente no tiene contactos operativos activos registrados.</p>
-            <div v-else class="grid gap-3 sm:grid-cols-2">
-              <div v-for="contact in contacts" :key="contact.id" class="min-w-0 border-b border-[var(--dh-border)] py-2">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="break-words text-sm font-bold">{{ contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Nombre no registrado' }}</p>
-                  <DhBadge v-if="contact.isPrimary" variant="primary">Principal</DhBadge>
-                  <DhBadge v-if="selectedContacts.has(contact.id)" variant="neutral">En apertura</DhBadge>
+            <div class="space-y-4">
+              <section v-for="section in openingSections.filter(section => section.rows.length)" :key="section.title">
+                <h4 class="mb-2 text-sm font-bold">{{ section.title }}</h4>
+                <div class="grid gap-x-5 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
+                  <div v-for="field in section.rows" :key="field.label" class="min-w-0 border-b border-[var(--dh-border)] py-2">
+                    <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
+                    <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
+                  </div>
                 </div>
-                <p v-if="contact.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ contact.jobTitle }}</p>
-                <p class="mt-1 break-all text-sm">{{ contact.email || 'Correo no registrado' }}</p>
-                <p class="break-words text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
+              </section>
+            </div>
+            <div v-if="Array.isArray(openingData.equipment) && openingData.equipment.length" class="mt-4">
+              <h4 class="mb-2 text-sm font-semibold">Equipos</h4>
+              <div v-for="(item, index) in openingData.equipment" :key="index" class="mb-1 rounded-lg bg-[var(--dh-input)] px-3 py-2 text-sm">
+                {{ (item as { quantity: number; equipmentType: string }).quantity }} × {{ (item as { equipmentType: string }).equipmentType }}
               </div>
             </div>
+            <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
+              <h4 class="mb-2 text-sm font-semibold">Documentación ({{ openingDocuments.length }})</h4>
+              <p v-if="!openingDocuments.length" class="text-xs text-[var(--dh-text-muted)]">Sin adjuntos de apertura.</p>
+              <div v-for="document in openingDocuments" :key="document.id" class="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span class="break-words">{{ document.label }} · {{ document.fileName }}</span>
+                <DhButton v-if="document.storageId" size="sm" variant="secondary" label="Descargar" @click="downloadDocument(document)" />
+              </div>
+              <p v-if="documentError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ documentError }}</p>
+            </div>
           </DhCard>
-          <DhCard title="Departamentos y responsables" subtitle="Etapas, equipos, operativos y validadores del expediente.">
+          <DhCard padding="sm" title="Departamentos y responsables" subtitle="Etapas, equipos, operativos y validadores del expediente.">
             <div v-for="stage in workspace.stages" :key="stage.id" class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--dh-border)] p-3 last:mb-0">
               <div>
                 <p class="text-sm font-bold">{{ statusLabel(stage.departmentCode) }}</p>
@@ -813,63 +803,51 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             </div>
             <p v-if="!workspace.stages.length" class="text-sm text-[var(--dh-text-muted)]">No hay departamentos asignados.</p>
           </DhCard>
-          <DhCard padding="sm" title="Ficha de apertura y mercancía">
-            <div class="space-y-5">
-              <section v-for="section in openingSections" :key="section.title">
-                <h4 class="mb-2 text-sm font-bold">{{ section.title }}</h4>
-                <div class="grid gap-x-5 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
-                  <div v-for="field in section.rows" :key="field.label" class="min-w-0 border-b border-[var(--dh-border)] py-2">
-                    <p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p>
-                    <p class="mt-1 break-words text-sm font-semibold">{{ field.value }}</p>
-                  </div>
+          <DhCard padding="sm" :icon="ClipboardList" title="Datos de apertura">
+            <div v-if="editing && canEditSummary" class="space-y-4">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <DhSelect v-model="edit.modalityCode" label="Modalidad" :options="modalityOptions" />
+                <DhInput v-model="edit.originCountryCode" label="País de origen (ISO)" placeholder="CR" />
+                <DhInput v-model="edit.destinationCountryCode" label="País de destino (ISO)" placeholder="HN" />
+              </div>
+              <p class="text-xs text-[var(--dh-text-muted)]">Los cambios se auditan y requieren la versión vigente. Cliente, ejecutivo y QUO aceptada no se modifican desde este formulario.</p>
+              <div class="flex justify-end gap-2">
+                <DhButton variant="secondary" label="Cancelar" @click="editing = false; captureEdit(record)" />
+                <DhButton :icon="Save" label="Guardar cambios" :loading="saving" :disabled="!validEdit" @click="saveEdit" />
+              </div>
+            </div>
+            <div v-else class="grid gap-x-5 gap-y-1 sm:grid-cols-2 2xl:grid-cols-3">
+              <div v-for="item in [
+                { key: 'Tipo de apertura', value: record.apertureType === 'AUTOMATIC' ? 'Automática · Pricing' : 'Manual' },
+                { key: 'PO / referencia cliente', value: openingData.clientPoReference || 'Sin referencia' },
+                { key: 'División CRM', value: openingData.crmDivisionName || 'No registrada' },
+                { key: 'Creado', value: dateLabel(record.createdAtUtc) },
+                { key: 'Creado por', value: responsibleName(record.createdBy) },
+              ]" :key="item.key" class="min-w-0 border-b border-[var(--dh-border)] py-2">
+                <p class="text-xs text-[var(--dh-text-muted)]">{{ item.key }}</p>
+                <p class="mt-1 break-words text-sm font-bold">{{ item.value }}</p>
+              </div>
+            </div>
+          </DhCard>
+          <DhCard padding="sm" title="Contactos del cliente" subtitle="Encargados de operaciones activos en CRM, asociados a este cliente.">
+            <p v-if="contactsLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando CRM…</p>
+            <p v-else-if="contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudieron consultar los contactos. Actualice el expediente para reintentar.</p>
+            <p v-else-if="!contacts.length" class="text-sm text-[var(--dh-text-muted)]">El cliente no tiene contactos operativos activos registrados.</p>
+            <div v-else class="grid gap-3 sm:grid-cols-2">
+              <div v-for="contact in contacts" :key="contact.id" class="min-w-0 border-b border-[var(--dh-border)] py-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="break-words text-sm font-bold">{{ contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Nombre no registrado' }}</p>
+                  <DhBadge v-if="contact.isPrimary" variant="primary">Principal</DhBadge>
+                  <DhBadge v-if="selectedContacts.has(contact.id)" variant="neutral">En apertura</DhBadge>
                 </div>
-              </section>
-            </div>
-            <div v-if="Array.isArray(openingData.equipment) && openingData.equipment.length" class="mt-4">
-              <h4 class="mb-2 text-sm font-semibold">Equipos</h4>
-              <div v-for="(item, index) in openingData.equipment" :key="index" class="mb-1 rounded-lg bg-[var(--dh-input)] px-3 py-2 text-sm">
-                {{ (item as { quantity: number; equipmentType: string }).quantity }} × {{ (item as { equipmentType: string }).equipmentType }}
+                <p v-if="contact.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ contact.jobTitle }}</p>
+                <p class="mt-1 break-all text-sm">{{ contact.email || 'Correo no registrado' }}</p>
+                <p class="break-words text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
               </div>
-            </div>
-            <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
-              <h4 class="mb-2 text-sm font-semibold">Servicios contratados y operativos</h4>
-              <div class="flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div>
-            </div>
-            <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
-              <h4 class="mb-2 text-sm font-semibold">Documentación ({{ openingDocuments.length }})</h4>
-              <p v-if="!openingDocuments.length" class="text-xs text-[var(--dh-text-muted)]">Sin adjuntos de apertura.</p>
-              <div v-for="document in openingDocuments" :key="document.id" class="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span class="break-words">{{ document.label }} · {{ document.fileName }}</span>
-                <DhButton v-if="document.storageId" size="sm" variant="secondary" label="Descargar" @click="downloadDocument(document)" />
-              </div>
-              <p v-if="documentError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ documentError }}</p>
             </div>
           </DhCard>
         </div>
-        <div class="space-y-4">
-          <DhCard v-if="!hasAperturePanel" title="Validación de apertura" padding="sm">
-            <p v-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los estados.</p>
-            <p v-else-if="!completeness" class="text-xs text-[var(--dh-text-muted)]">Consultando estados…</p>
-            <template v-else>
-              <DhBadge :variant="completeness.missingFields.length ? 'danger' : 'success'">{{ completeness.missingFields.length ? completeness.missingFields.length + ' bloqueantes' : 'Sin campos bloqueantes' }}</DhBadge>
-              <DhTabs v-model="completenessGroup" :items="completenessTabs" aria-label="Estados de apertura" class="mt-3" />
-              <div class="mt-2 max-h-72 overflow-y-auto dh-scrollbar">
-                <div v-for="field in visibleCompleteness" :key="field.id" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2">
-                  <span class="text-xs font-medium">{{ field.label }}</span>
-                  <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
-                </div>
-                <p v-if="!visibleCompleteness.length" class="py-3 text-xs text-[var(--dh-text-muted)]">No hay campos en este estado.</p>
-              </div>
-            </template>
-          </DhCard>
-          <DhCard title="Pendientes del expediente">
-            <div v-for="task in workspace.tasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
-              <p class="font-bold">{{ task.title }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(task.status) }} · {{ dateLabel(task.dueAtUtc) }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">Responsable: {{ responsibleName(task.assignedUserId) }}</p>
-            </div>
-            <p v-if="!workspace.tasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas registradas.</p>
-          </DhCard>
+        <div class="min-w-0 space-y-4">
           <DhCard padding="sm" title="Cotización y seguimiento comercial">
             <RouterLink v-if="record.sourceQuoteId" :to="`/pricing/rates/${record.sourceQuoteOptionId || record.sourceQuoteId}/wizard?mode=view`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ workspace.quotes.find(quote => quote.isPrimary)?.quoteNumber || workspace.quotes[0]?.quoteNumber || 'Abrir QUO en Pricing' }}</RouterLink>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">{{ pendingQuoteLink ? 'Vinculación pendiente de confirmación' : 'Sin cotización vinculada' }}</p>
@@ -880,10 +858,33 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <DhButton size="sm" variant="secondary" label="Comparar con la QUO" @click="selectCaseTab('QUO')" />
             </div>
           </DhCard>
-          <DhCard v-if="auth.hasScope('operations.audit.read')" title="Historial y trazabilidad">
+          <DhCard v-if="!hasAperturePanel" title="Validación de apertura" padding="sm">
+            <p v-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los estados.</p>
+            <p v-else-if="!completeness" class="text-xs text-[var(--dh-text-muted)]">Consultando estados…</p>
+            <template v-else>
+              <DhBadge :variant="completeness.missingFields.length ? 'danger' : 'success'">{{ completeness.missingFields.length ? completeness.missingFields.length + ' bloqueantes' : 'Sin campos bloqueantes' }}</DhBadge>
+              <DhTabs v-model="completenessGroup" :items="completenessTabs" aria-label="Estados de apertura" class="mt-3" />
+              <div class="mt-2 max-h-72 overflow-y-auto dh-scrollbar">
+                <div v-for="field in visibleCompleteness" :key="field.id" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2">
+                  <div class="min-w-0 flex-1"><p class="text-xs font-medium">{{ field.label }}</p><p v-if="field.reason" class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ field.reason }}</p></div>
+                  <DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+                </div>
+                <p v-if="!visibleCompleteness.length" class="py-3 text-xs text-[var(--dh-text-muted)]">No hay campos en este estado.</p>
+              </div>
+            </template>
+          </DhCard>
+          <DhCard padding="sm" :title="'Tareas pendientes (' + pendingSummaryTasks.length + ')'">
+            <div v-for="task in pendingSummaryTasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
+              <p class="font-bold">{{ task.title }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(task.status) }} · {{ dateLabel(task.dueAtUtc) }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">Responsable: {{ responsibleName(task.assignedUserId) }}</p>
+            </div>
+            <p v-if="!pendingSummaryTasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas pendientes.</p>
+          </DhCard>
+          <DhCard v-if="auth.hasScope('operations.audit.read')" padding="sm" title="Historial y trazabilidad">
             <OperationsAuditTimeline :events="audit" :users="actors" empty-title="Sin movimientos" empty-description="Todavía no hay eventos registrados." />
           </DhCard>
-          <DhCard title="Acceso del expediente">
+          <DhCard padding="sm" title="Permisos de consulta">
             <p class="text-sm text-[var(--dh-text-soft)]">{{ canEditSummary ? 'Aperturas editable mientras esté pendiente de validación; el backend comprueba cada cambio.' : 'Consulta habilitada. La edición depende de la etapa, su estado y el permiso específico.' }}</p>
             <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Un superusuario puede consultar todos los departamentos, incluso los que aún no han iniciado, sin generar etapas ficticias.</p>
           </DhCard>

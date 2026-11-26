@@ -41,6 +41,6 @@ test('manual form captures the approved opening data domains without quoting cos
 test('IDTRA detail displays persisted opening fields and links to full edit route', () => {
   const detail = source('src/modules/operations/views/OperationsCaseDetailView.vue')
   assert.match(detail, /openingDataJson/)
-  assert.match(detail, /Ficha de apertura y mercancía/)
+  assert.match(detail, /title="Información logística"/)
   assert.match(detail, /name: 'operations-case-edit'/)
 })
