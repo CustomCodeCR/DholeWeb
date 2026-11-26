@@ -2,6 +2,9 @@
 import { computed, nextTick as nextTickForPoe, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { operationsApi, type OperationsCaseRow } from '@/modules/operations/services/operationsApi'
+import { DhCard } from '@/shared/components/molecules'
+import { unverifiedHistoricalIdtras } from '@/modules/pricing/utils/rateOperationsIdtras'
+import { departmentStatusLabel } from '@/modules/operations/utils/caseOverview'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
 import { isGlobalCountryAgent } from '@/modules/catalogs/utils/globalAgentCountries'
 import {
@@ -420,6 +423,11 @@ const savedQuoteGroup = ref<GroupQuoteSnapshot | null>(null)
 const savedGroupRates = ref<RateDto[]>([])
 const linkedOperationsCases = ref<OperationsCaseRow[]>([])
 const operationsIdtra = computed(() => linkedOperationsCases.value[0] ?? null)
+const historicalOperationsReferences = computed(() => unverifiedHistoricalIdtras(editingRate.value?.idtraNumber,
+  linkedOperationsCases.value.map(item => item.idtra)))
+const linkedOperationsCountLabel = computed(() => linkedOperationsCases.value.length === 1 ? '1 IDTRA vinculado' : linkedOperationsCases.value.length + ' IDTRAs vinculados')
+const showAllLinkedIdtras = ref(false)
+const visibleLinkedIdtras = computed(() => showAllLinkedIdtras.value ? linkedOperationsCases.value : linkedOperationsCases.value.slice(0, 3))
 const manualIdtraSearch = ref('')
 const manualIdtraCandidates = ref<OperationsCaseRow[]>([])
 const manualIdtraSelection = ref('')
@@ -459,7 +467,8 @@ async function refreshOperationsIdtra() {
       matches.push(...result.items.filter(row => row.sourceQuoteId === identity.parent && row.sourceQuoteOptionId === identity.option))
       if (!result.items.length || page * 50 >= result.total) break
     }
-    linkedOperationsCases.value = matches
+    linkedOperationsCases.value = [...new Map(matches.map(row => [row.id, row])).values()]
+      .sort((a, b) => a.idtra.localeCompare(b.idtra, undefined, { numeric: true }))
     operationsIdtraState.value = matches.length ? 'found' : 'missing'
   } catch {
     if (generation !== operationsLookupGeneration) return
@@ -481,6 +490,7 @@ watch(
     clearOperationsLookupTimer()
     operationsLookupBusy = false
     operationsLookupAttempts = 0
+    showAllLinkedIdtras.value = false
     linkedOperationsCases.value = []
     operationsIdtraState.value = !parent || !option ? 'idle' : permitted ? 'loading' : 'restricted'
     onCleanup(() => {
@@ -7381,7 +7391,7 @@ onMounted(async () => {
             <DhBadge :label="editingRate.status" :variant="editingRate.status === 'AcceptedByClient' ? 'success' : 'neutral'" />
           </div>
           <p class="mt-3 text-lg font-black">{{ groupedRateDisplayName(editingRate) }}</p>
-          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">IDTRA: {{ editingRate.idtraNumber || 'Se asigna en Operations tras aceptación definitiva' }} · QUO: {{ groupedCommercialNumber || '—' }}</p>
+          <p class="mt-1 text-xs font-bold text-[var(--dh-text-muted)]">{{ linkedOperationsCases.length ? linkedOperationsCountLabel : historicalOperationsReferences.length ? historicalOperationsReferences.length + ' referencias IDTRA' : 'IDTRA se asigna en Operations tras aceptación definitiva' }} · QUO: {{ groupedCommercialNumber || '—' }}</p>
           <p v-if="editingRate.otherReferences?.trim()" class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text-muted)]">
             <span class="font-black text-[var(--dh-text)]">Otras referencias (solo Dhole):</span> {{ editingRate.otherReferences }}
           </p>
@@ -9314,7 +9324,8 @@ onMounted(async () => {
                   <DhBadge v-if="editingRate.pendingReapproval" label="Pendiente de reaprobación" variant="warning" />
                   <DhBadge v-if="editingRate.sellerReceivedAtUtc" label="Recibida por vendedor" variant="success" />
                   <DhBadge :label="`REV ${editingRate.revisionNumber || 1}`" variant="neutral" />
-                  <DhBadge v-if="editingRate.idtraNumber" :label="`IDTRA ${editingRate.idtraNumber}`" variant="primary" />
+                  <DhBadge v-if="linkedOperationsCases.length" :label="linkedOperationsCountLabel" variant="primary" />
+                  <DhBadge v-else-if="historicalOperationsReferences.length" :label="historicalOperationsReferences.length + ' referencias IDTRA'" variant="neutral" />
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
@@ -9432,40 +9443,6 @@ onMounted(async () => {
                   Derivada de tarifario · REV {{ editingRate.sourceTariffRevisionNumber || 1 }}
                 </span>
               </div>
-              <div data-testid="pricing-screen9-operations-idtra-status" class="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2.5">
-                <div class="min-w-0 space-y-1">
-                  <p class="break-words text-sm font-bold">
-                    IDTRA: {{ linkedOperationsCases.map(item => item.idtra).join(', ') || (!isIdtraPending(editingRate.idtraNumber)
-                      ? editingRate.idtraNumber
-                      : editingRate.status !== 'AcceptedByClient' ? 'Se genera automáticamente al aceptar'
-                      : operationsIdtraState === 'loading' ? 'Consultando Operations…'
-                      : operationsIdtraState === 'restricted' ? 'Consulta no disponible para su rol'
-                      : operationsIdtraState === 'error' ? 'No se pudo verificar en Operations'
-                      : 'Apertura aún no confirmada por Operations') }}
-                  </p>
-                  <p v-if="operationsIdtraState === 'missing'" class="text-xs text-[var(--dh-text-muted)]">La aceptación comercial está registrada; aún no hay un expediente coincidente visible.</p>
-                  <p v-if="operationsIdtra && !isIdtraPending(editingRate.idtraNumber) && editingRate.idtraNumber !== operationsIdtra.idtra" class="text-xs text-[var(--dh-text-muted)]">Referencia histórica: {{ editingRate.idtraNumber }}</p>
-                </div>
-                <template v-if="linkedOperationsCases.length"><router-link v-for="linkedCase in linkedOperationsCases" :key="linkedCase.id" :to="{ name: 'operations-case-detail', params: { id: linkedCase.id } }" class="text-xs font-bold text-[var(--dh-primary)] underline">Abrir {{ linkedCase.idtra }}</router-link></template>
-                <template v-else-if="editingRate.status === 'AcceptedByClient' && authStore.hasScope('operations.case.read')">
-                  <DhButton variant="secondary" size="sm" label="Verificar IDTRA" :loading="operationsIdtraState === 'loading'" @click="refreshOperationsIdtra" />
-                  <router-link :to="{ name: 'operations-cases' }" class="text-xs font-bold text-[var(--dh-primary)] underline">Ver Trámites</router-link>
-                </template>
-              </div>
-              <div v-if="canLinkManualIdtra" class="mt-3 space-y-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3">
-                <p class="text-sm font-bold">Vincular IDTRA manual existente</p>
-                <p class="text-xs text-[var(--dh-text-muted)]">No crea otro expediente ni elimina IDTRA vinculados.</p>
-                <div class="flex flex-wrap items-end gap-2">
-                  <div class="min-w-0 flex-1"><DhInput v-model="manualIdtraSearch" label="Buscar IDTRA" placeholder="IDTRA..." /></div>
-                  <DhButton size="sm" variant="secondary" label="Buscar" :loading="manualLinkBusy" :disabled="!manualIdtraSearch.trim()" @click="searchManualIdtras" />
-                </div>
-                <div v-if="manualIdtraCandidates.length" class="flex flex-wrap items-end gap-2">
-                  <div class="min-w-0 flex-1"><DhSelect searchable v-model="manualIdtraSelection" label="Trámite manual" :options="manualIdtraCandidates.map(row => ({ value: row.id, label: row.idtra + ' · ' + row.modalityCode }))" /></div>
-                  <DhButton size="sm" label="Vincular" :loading="manualLinkBusy" :disabled="!manualIdtraSelection" @click="linkExistingManualIdtra" />
-                </div>
-                <p v-if="manualLinkMessage" class="text-xs text-[var(--dh-text-muted)]">{{ manualLinkMessage }}</p>
-                <p v-if="manualLinkError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ manualLinkError }}</p>
-              </div>
               <div v-if="editingRate.otherReferences?.trim()" class="mt-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-2">
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">Otras referencias · Solo Dhole</p>
                 <p class="mt-1 whitespace-pre-wrap break-words text-xs font-semibold text-[var(--dh-text)]">{{ editingRate.otherReferences }}</p>
@@ -9486,6 +9463,60 @@ onMounted(async () => {
               <p class="mt-1 text-sm font-bold">Tránsito: {{ editingRate.transitTime || 'Por confirmar' }}</p>
               <p class="mt-1 text-xs font-semibold text-[var(--dh-text-muted)]">TC venta: {{ Number(editingRate.exchangeRateSale || editingRate.exchangeRateApplied || 0).toLocaleString('es-CR', { minimumFractionDigits: 2 }) }}</p>
             </div>
+          </div>
+
+          <div class="grid min-w-0 items-start gap-4" :class="canLinkManualIdtra ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''">
+            <DhCard data-testid="pricing-screen9-operations-idtra-status" title="IDTRAs vinculados" subtitle="Expedientes confirmados por Operations para esta cotización." :icon="FolderPlus" padding="sm">
+              <template #actions>
+                <DhBadge :label="linkedOperationsCountLabel" :variant="linkedOperationsCases.length ? 'primary' : 'neutral'" />
+              </template>
+              <div v-if="linkedOperationsCases.length" class="space-y-2">
+                <div v-for="linkedCase in visibleLinkedIdtras" :key="linkedCase.id" class="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class="break-words text-sm font-black text-[var(--dh-text)]">{{ linkedCase.idtra }}</span>
+                      <DhBadge :label="linkedCase.apertureType === 'MANUAL' ? 'Manual' : 'Automática'" variant="neutral" />
+                    </div>
+                    <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ departmentStatusLabel(linkedCase.departmentCode, linkedCase.departmentStatus, linkedCase.status, linkedCase.originStatusCode) }}<span v-if="linkedCase.teamName"> · {{ linkedCase.teamName }}</span></p>
+                  </div>
+                  <DhButton size="sm" variant="secondary" :icon="ExternalLink" label="Abrir expediente" :aria-label="'Abrir expediente ' + linkedCase.idtra" @click="router.push({ name: 'operations-case-detail', params: { id: linkedCase.id } })" />
+                </div>
+                <DhButton v-if="linkedOperationsCases.length > 3" size="sm" variant="ghost" :icon="ChevronDown" :aria-expanded="showAllLinkedIdtras"
+                  :label="showAllLinkedIdtras ? 'Mostrar menos' : 'Ver todos (' + linkedOperationsCases.length + ')'" @click="showAllLinkedIdtras = !showAllLinkedIdtras" />
+              </div>
+              <div v-else class="space-y-2">
+                <p class="text-sm font-semibold text-[var(--dh-text-muted)]">{{ editingRate.status !== 'AcceptedByClient' ? 'Se genera automáticamente al aceptar'
+                  : operationsIdtraState === 'loading' ? 'Consultando Operations…'
+                  : operationsIdtraState === 'restricted' ? 'Consulta no disponible para su rol'
+                  : operationsIdtraState === 'error' ? 'No se pudo verificar en Operations'
+                  : 'Apertura aún no confirmada por Operations' }}</p>
+                <p v-if="operationsIdtraState === 'missing'" class="text-xs text-[var(--dh-text-muted)]">La aceptación comercial está registrada; aún no hay un expediente coincidente visible.</p>
+                <div v-if="editingRate.status === 'AcceptedByClient' && authStore.hasScope('operations.case.read')" class="flex flex-wrap items-center gap-2">
+                  <DhButton variant="secondary" size="sm" label="Verificar IDTRA" :loading="operationsIdtraState === 'loading'" @click="refreshOperationsIdtra" />
+                  <DhButton variant="ghost" size="sm" label="Ver Trámites" @click="router.push({ name: 'operations-cases' })" />
+                </div>
+              </div>
+              <div v-if="historicalOperationsReferences.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
+                <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Referencias de Pricing sin confirmación individual en Operations</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <DhBadge v-for="reference in historicalOperationsReferences" :key="reference" :label="reference" variant="neutral" />
+                </div>
+              </div>
+            </DhCard>
+            <DhCard v-if="canLinkManualIdtra" title="Vincular IDTRA manual existente" subtitle="Añade un expediente sin crear otro ni eliminar los vínculos actuales." padding="sm">
+              <div class="space-y-3">
+                <div class="flex flex-wrap items-end gap-2">
+                  <div class="min-w-0 flex-1"><DhInput v-model="manualIdtraSearch" label="Buscar IDTRA" placeholder="IDTRA..." /></div>
+                  <DhButton size="sm" variant="secondary" label="Buscar" :loading="manualLinkBusy" :disabled="!manualIdtraSearch.trim()" @click="searchManualIdtras" />
+                </div>
+                <div v-if="manualIdtraCandidates.length" class="flex flex-wrap items-end gap-2">
+                  <div class="min-w-0 flex-1"><DhSelect searchable v-model="manualIdtraSelection" label="Trámite manual" :options="manualIdtraCandidates.map(row => ({ value: row.id, label: row.idtra + ' · ' + row.modalityCode }))" /></div>
+                  <DhButton size="sm" label="Vincular" :loading="manualLinkBusy" :disabled="!manualIdtraSelection" @click="linkExistingManualIdtra" />
+                </div>
+                <p v-if="manualLinkMessage" class="text-xs text-[var(--dh-text-muted)]">{{ manualLinkMessage }}</p>
+                <p v-if="manualLinkError" role="alert" class="text-xs text-[var(--dh-text-muted)]">{{ manualLinkError }}</p>
+              </div>
+            </DhCard>
           </div>
 
           <div class="crystal-soft p-5">
