@@ -13,35 +13,56 @@ export function patchPricingFtlEditPreservationFinal(source: string): string {
   if (source.includes(MARKER)) return source
   let code = source
 
-  // Agents are filtered by country. Keep the saved agent selectable on an edit
-  // even when legacy metadata is incomplete or the user changed POE.
+
+  // Preserve the exact agent on a historical FTL; never turn a missing catalog
+  // entry into an empty selection or silently substitute another agent.
   const agentAnchor = 'const eligibleAgents = computed(() => catalogs.agents.filter(agentMatchesSelectedPol))'
   code = replaceOne(code, agentAnchor, String.raw`
-const persistedFtlAgentForEdit = computed(() => {
+const persistedFtlAgentForEdit = computed<CatalogItemSelectDto | null>(() => {
   const rate = editingRate.value
-  if (!props.rateId || !rate || props.viewOnly || shipmentModeForApi.value !== 'Ftl') return null
+  if (!props.rateId || !rate || rate.id !== props.rateId
+      || String(rate.shipmentMode).toLowerCase() !== 'ftl'
+      || shipmentModeForApi.value !== 'Ftl' || form.modality !== 'Land'
+      || form.originId !== rate.polId) return null
   const id = String(rate.agentId ?? '')
+  if (!id) return null
   const byId = catalogs.agents.find((agent) => agent.id === id)
   if (byId) return byId
-  const savedCode = normalizeCatalogValue(rate.agentCode ?? '')
-  const byCode = savedCode ? catalogs.agents.find((agent) =>
-    normalizeCatalogValue(agent.code) === savedCode) : null
-  if (byCode) return byCode
-  const name = normalizeCatalogValue(rate.agentName ?? '')
-  return name ? (catalogs.agents.find((agent) =>
-    normalizeCatalogValue(displayValue(agent)) === name) ?? null) : null
+  // Read-only snapshot of the already persisted relation, not a new catalog
+  // agent. Keep its actual GUID/name/code, even if the select API omits it.
+  const name = String(rate.agentName ?? '').trim()
+  if (!name) return null
+  return {
+    id, value: name, label: name, code: rate.agentCode ?? '',
+    slug: '', metadataJson: null, isActive: false,
+  }
 })
-const eligibleAgents = computed(() => catalogs.agents.filter((agent) =>
-  agentMatchesSelectedPol(agent) || (
-    Boolean(props.rateId) && !props.viewOnly && shipmentModeForApi.value === 'Ftl'
-    && agent.id === persistedFtlAgentForEdit.value?.id
-  ),
-))
-watch(step, (currentStep) => {
-  if (currentStep !== 6 || !persistedFtlAgentForEdit.value || form.agentId) return
-  form.agentId = persistedFtlAgentForEdit.value.id
-}, { flush: 'sync' })
+const eligibleAgents = computed(() => {
+  const historical = persistedFtlAgentForEdit.value
+  const current = catalogs.agents.filter((agent) =>
+    agentMatchesSelectedPol(agent) || agent.id === historical?.id)
+  return historical && !current.some((agent) => agent.id === historical.id)
+    ? [...current, historical] : current
+})
+watch([step, hydratingExistingRate, persistedFtlAgentForEdit], ([currentStep, hydrating, historical]) => {
+  if (hydrating || currentStep !== 6 || !historical || form.agentId) return
+  form.agentId = historical.id
+}, { flush: 'post' })
 `.trim(), 'persisted FTL agent options')
+
+  // The payload and the select must resolve the same historical agent.
+  const selectedAnchor = 'const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))'
+  const landAnchor = "const selectedAgent = computed(() =>\n  findById(catalogs.agents, form.agentId)\n    ?? (form.modality === 'Land' ? landAgentPlaceholder : null),\n)"
+  const selectedExpression = 'findById(catalogs.agents, form.agentId) ?? (persistedFtlAgentForEdit.value?.id === form.agentId ? persistedFtlAgentForEdit.value : null)'
+  if (code.includes(landAnchor)) {
+    code = replaceOne(code, landAnchor,
+      "const selectedAgent = computed(() => " + selectedExpression + " ?? (form.modality === 'Land' ? landAgentPlaceholder : null))",
+      'persisted FTL selected agent after Land transform')
+  } else {
+    code = replaceOne(code, selectedAnchor,
+      'const selectedAgent = computed(() => ' + selectedExpression + ')',
+      'persisted FTL selected agent')
+  }
 
   // The catalog code can be CUR-2026-001; display Config.Value (USD/CRC).
   const currencyLabelVariants = [
