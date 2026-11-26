@@ -216,7 +216,7 @@ export const operationsMessages = {
     teamStatus: 'Team status', activate: 'Activate team', deactivate: 'Deactivate team',
     missingReviewers: 'Openings require one available and authorized reviewer.',
     privatePermissions: 'Auth automatically synchronizes permissions when members of active teams are added, changed or removed.',
-    teamScopeProfile: 'Automatic team scopes', teamScopeProfileHint: 'These scopes are automatically granted according to the member's responsibility in the active team. Removing a member revokes only team-derived permissions that no longer apply.',
+    teamScopeProfile: 'Automatic team scopes', teamScopeProfileHint: 'These scopes are automatically granted according to the responsibility of each member in the active team. Removing a member revokes only team-derived permissions that no longer apply.',
     audit: 'Activity log', auditHint: 'Assignments and changes are tracked in AuditLogs.',
     noAudit: 'No activity has been recorded for this team.',
     loadError: 'Could not load teams.', saveError: 'Could not save the changes.',
