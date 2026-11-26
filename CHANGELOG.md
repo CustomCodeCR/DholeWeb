@@ -1,3 +1,7 @@
+## [1.139.0] - 2026-11-26
+
+- MINOR: interfaz DH de equipos informa la asignación y retirada automática de scopes según membresía y responsabilidad. Conserva permisos independientes y los componentes existentes. CI y staging pendientes.
+
 ## [1.138.0] - 2026-11-26
 
 - MINOR candidato: perfiles de scopes de equipo visibles mediante DhBadge y componentes existentes, distinguiendo recomendaciones y permisos efectivos. Origen permite WHS LCL, booking aéreo y recolecta declarada. Sin otorgamiento automático, sin alterar Pricing/CRM ni confirmar salida ficticia; CI y staging pendientes.
