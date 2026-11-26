@@ -39,12 +39,14 @@ test('container and trailer cards reuse Pricing selections, exclude duplicates a
   assert.match(pricingEquipment, /excludedEquipmentIds/)
 })
 
-test('selection controls and pricing transport icons replace free text', () => {
+test('shared DH selection controls replace free text', () => {
   assert.match(opening, /<DhSelect v-if="editingId" v-model="form\.packageType"/)
   assert.match(opening, /<DhSelect v-if="editingId" v-model="form\.cargoNature"/)
   assert.match(opening, /packageTypeChoiceOptions/)
   assert.match(opening, /cargoNatureChoiceOptions/)
-  for (const icon of ['Boxes', 'PackageOpen', 'Truck', 'Plane']) assert.ok(opening.includes(icon))
+  assert.match(opening, /<DhSelect label="Modalidad de transporte"/)
+  assert.match(opening, /<DhSelect label="Tipo de embarque"/)
+  assert.match(opening, /<DhCard v-show="activeStep === 1" title="Modalidad y embarque"/)
   assert.match(opening, /mt-6 space-y-5/)
 })
 
