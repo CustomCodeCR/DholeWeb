@@ -1,3 +1,7 @@
+## [1.137.0] - 2026-11-26
+
+- MINOR (WIP, no integrar): DH-20261126-OPS-QUO-OPENING. Selector opcional de QUO aceptada durante apertura manual, persistencia del borrador, revisión y vista previa del vínculo en expediente. Pendientes aceptación de QUO no aceptada, pruebas CI y staging.
+
 ## [1.136.2] - 2026-11-26
 
 - PATCH: DH-20261126-OPS-WHS-AGENT-METADATA. Reconoce las relaciones WHS existentes en Config (agentId, agentCode, agentCodes, agentName y agentNames). Distingue Xiamen WWL de RS Logistics, excluye otros propietarios y muestra agente y código cuando haya etiquetas repetidas. Conserva IDs físicos y almacenes realmente sin asignar; sin cambios de datos maestros. CI y staging pendientes.

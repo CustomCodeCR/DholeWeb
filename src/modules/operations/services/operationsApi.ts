@@ -359,7 +359,7 @@ export const operationsApi = {
   createAperture: (body: {
     companyId: string; accountId: string; modalityCode: string;
     priority: number; complexityPoints: number; originCountryCode?: string | null;
-    destinationCountryCode?: string | null; openingData?: Record<string, unknown>
+    destinationCountryCode?: string | null; openingData?: Record<string, unknown>; quoteRateId?: string
   }) => request<{ id: string; idtra: string; status: string }>(
     '/api/operations/cases', 'POST', body),
   validations: (caseId: string) =>
