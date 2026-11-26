@@ -281,7 +281,10 @@ function selectTransport(value: string) {
   form.value.poe = ''
   form.value.equipment = []
   if (!['MARITIME', 'MULTIMODAL'].includes(value)) form.value.portHandlingMode = ''
-  if (!available.some(item => item.value === effectiveShipment.value)) {
+  if (available.length === 1 && available[0]) {
+    form.value.shipmentType = available[0].value
+    modality.value = available[0].value
+  } else if (!available.some(item => item.value === effectiveShipment.value)) {
     form.value.shipmentType = ''
     modality.value = ''
   } else {
@@ -338,11 +341,14 @@ const automaticOperation = computed(() => operationForClientCountry(clientCountr
   countryFromRoute('pol', selectedPol.value, form.value.pol),
   showPod.value && selectedPod.value ? countryFromRoute('pod', selectedPod.value, form.value.pod) : countryFromRoute('poe', selectedPoe.value, form.value.poe)))
 const operation = computed(() => form.value.operationOverride || automaticOperation.value || (editingId.value ? (form.value.operationDirection === 'IMPORT' ? 'Import' : form.value.operationDirection === 'EXPORT' ? 'Export' : form.value.operationDirection === 'OTHER' ? 'TransitDomestic' : null) : null))
-const originTeamPreview = computed(() => {
-  const origin = countryFromRoute('pol', selectedPol.value, form.value.pol)
-  const destination = showPod.value && selectedPod.value
+const routingCountries = computed(() => ({
+  origin: countryFromRoute('pol', selectedPol.value, form.value.pol),
+  destination: showPod.value && selectedPod.value
     ? countryFromRoute('pod', selectedPod.value, form.value.pod)
-    : countryFromRoute('poe', selectedPoe.value, form.value.poe)
+    : countryFromRoute('poe', selectedPoe.value, form.value.poe),
+}))
+const originTeamPreview = computed(() => {
+  const { origin, destination } = routingCountries.value
   if (!origin || !destination || !operation.value || !effectiveShipment.value) return 'Por determinar'
   if (operation.value === 'TransitDomestic' && origin !== destination) return 'Origen · Tránsito'
   if (origin === 'US' || destination === 'US') return 'Origen · Estados Unidos'
@@ -970,8 +976,8 @@ async function save() {
           modalityCode: modality.value,
           priority: Number(priority.value),
           complexityPoints: Number(complexity.value),
-          originCountryCode: form.value.originCountryCode.toUpperCase() || null,
-          destinationCountryCode: form.value.destinationCountryCode.toUpperCase() || null,
+          originCountryCode: routingCountries.value.origin || null,
+          destinationCountryCode: routingCountries.value.destination || null,
           openingData,
         })
     // Operations atomically creates the Origin stage. The worker handles assignment retries.
