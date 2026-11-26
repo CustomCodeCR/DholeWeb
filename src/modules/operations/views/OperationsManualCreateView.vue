@@ -65,6 +65,7 @@ const quoteLabel = ref('')
 const quoteBusy = ref(false)
 const quoteIssue = ref('')
 let quoteGeneration = 0
+let applyingQuote = false
 const canSelectQuote = computed(() => auth.hasScope('pricing.rate.update'))
 function clearQuote() {
   ++quoteGeneration
@@ -75,12 +76,23 @@ function clearQuote() {
   quoteIssue.value = ''
   quoteBusy.value = false
 }
-watch([accountId, modality], clearQuote, { flush: 'sync' })
+watch([accountId, modality], () => { if (!applyingQuote) clearQuote() }, { flush: 'sync' })
+function quoteTransport(mode: string) {
+  return ['FCL', 'LCL'].includes(mode) ? 'MARITIME' : ['FTL', 'LTL'].includes(mode) ? 'ROAD' : mode === 'AIR' ? 'AIR' : ''
+}
+function quoteMatchesOpening(rate: RateDto) {
+  const mode = rate.shipmentMode.toUpperCase()
+  const transport = quoteTransport(mode)
+  return rate.status === 'AcceptedByClient' && Boolean(rate.quoNumber && rate.clientAccountId && transport) &&
+    (!accountId.value || rate.clientAccountId === accountId.value) &&
+    (!modality.value || mode === modality.value.toUpperCase()) &&
+    (!form.value.transportType || transport === form.value.transportType)
+}
 function quoteOptionLabel(rate: RateDto) {
-  return [rate.quoNumber || rate.rateCode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ')
+  return [rate.quoNumber || rate.rateCode, rate.clientName, rate.shipmentMode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ')
 }
 async function searchQuotes() {
-  if (!canSelectQuote.value || !accountId.value || !modality.value || !quoteSearch.value.trim() || quoteBusy.value) return
+  if (!canSelectQuote.value || !quoteSearch.value.trim() || quoteBusy.value || assignmentPendingId.value) return
   const generation = ++quoteGeneration
   quoteBusy.value = true
   quoteIssue.value = ''
@@ -89,9 +101,8 @@ async function searchQuotes() {
     const result = await PricingService.browseRates({ search: quoteSearch.value.trim(), status: 'AcceptedByClient',
       excludeTariffMasters: true, groupQuotes: false, pageNumber: 1, pageSize: 50 })
     if (generation !== quoteGeneration) return
-    quoteCandidates.value = result.items.filter(rate => rate.status === 'AcceptedByClient' &&
-      rate.clientAccountId === accountId.value && rate.shipmentMode.toUpperCase() === modality.value.toUpperCase() && Boolean(rate.quoNumber))
-    if (!quoteCandidates.value.length) quoteIssue.value = 'No se encontraron QUO aceptadas de este cliente y tipo de embarque.'
+    quoteCandidates.value = result.items.filter(quoteMatchesOpening)
+    if (!quoteCandidates.value.length) quoteIssue.value = 'No se encontraron QUO aceptadas compatibles. Revisa el número o los filtros de cliente y embarque.'
   } catch {
     if (generation === quoteGeneration) quoteIssue.value = 'No se pudieron consultar las cotizaciones. Reintenta.'
   } finally {
@@ -100,8 +111,23 @@ async function searchQuotes() {
 }
 function selectQuote(id: string) {
   const selected = quoteCandidates.value.find(rate => rate.id === id)
-  quoteRateId.value = selected?.id || ''
-  quoteLabel.value = selected ? quoteOptionLabel(selected) : ''
+  if (!selected || !quoteMatchesOpening(selected) || !selected.clientAccountId || !canSelectQuote.value || assignmentPendingId.value) return
+  const mode = selected.shipmentMode.toUpperCase()
+  applyingQuote = true
+  try {
+    if (!accountId.value) {
+      accountId.value = selected.clientAccountId
+      selectedClientName.value = selected.clientName || ''
+      // The shared CRM selector hydrates the account and its authoritative executive.
+    }
+    if (!modality.value) {
+      selectTransport(quoteTransport(mode))
+      selectShipment(mode)
+    }
+    quoteRateId.value = selected.id
+    quoteLabel.value = quoteOptionLabel(selected)
+    quoteIssue.value = ''
+  } finally { applyingQuote = false }
 }
 const priority = ref(1)
 const complexity = ref(1)
@@ -1242,6 +1268,29 @@ onMounted(async () => {
       </header>
 
       <div class="p-4 sm:p-6">
+        <DhCard v-if="!editingId && activeStep === 1" class="mb-6" title="Cotización (QUO)" padding="sm"
+          subtitle="Opcional. Busca primero la QUO aceptada para completar cliente y embarque, o crea el trámite sin QUO.">
+          <template #actions><DhBadge :variant="quoteRateId ? 'primary' : 'neutral'">{{ quoteRateId ? 'Seleccionada' : 'Sin QUO' }}</DhBadge></template>
+          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Tu usuario no tiene permiso para vincular cotizaciones.</p>
+          <div v-else class="space-y-3">
+            <div v-if="quoteRateId" class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-sm font-semibold">{{ quoteLabel || 'Cotización seleccionada' }}</p>
+              <DhButton variant="secondary" size="sm" label="Quitar QUO" :disabled="Boolean(assignmentPendingId)" @click="clearQuote" />
+            </div>
+            <template v-else>
+              <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchQuotes">
+                <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Número de QUO" placeholder="Ej. QUO-00000-000672" /></div>
+                <DhButton type="submit" :icon="Search" label="Buscar QUO" :loading="quoteBusy" :disabled="!quoteSearch.trim() || Boolean(assignmentPendingId)" />
+              </form>
+              <DhSelect v-if="quoteCandidates.length" searchable label="Cotización aceptada"
+                :model-value="quoteRateId" :options="quoteCandidates.map(rate => ({ value: rate.id, label: quoteOptionLabel(rate) }))"
+                placeholder="Vincular QUO" @update:model-value="selectQuote(String($event || ''))" />
+              <DhButton v-if="quoteCandidates.length === 1 && quoteCandidates[0]" label="Vincular QUO" :disabled="Boolean(assignmentPendingId)" @click="selectQuote(quoteCandidates[0].id)" />
+              <p v-if="quoteIssue" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ quoteIssue }}</p>
+            </template>
+          </div>
+        </DhCard>
+
         <DhCard v-show="activeStep === 1" title="Modalidad y embarque" :icon="Truck" padding="sm">
           <div class="grid gap-4 md:grid-cols-2">
             <DhSelect label="Modalidad de transporte" :model-value="form.transportType"
@@ -1263,7 +1312,7 @@ onMounted(async () => {
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="space-y-3 md:col-span-2">
-                <PricingCrmClientSelect v-model="accountId" mode="create" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
+                <PricingCrmClientSelect v-model="accountId" mode="create" :initial-name="selectedClientName" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
                 <div role="status" aria-live="polite"
                   class="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
                   :class="executiveAssigned ? 'border-[var(--dh-primary)]/35 bg-[rgb(var(--dh-primary-rgb)/0.09)]' : 'border-amber-500/35 bg-amber-500/5'">
@@ -1318,28 +1367,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <DhCard v-if="!editingId && activeStep === 1" class="mt-6" title="Cotización (QUO)" padding="sm"
-          subtitle="Opcional. El expediente conserva su IDTRA y Pricing confirma el vínculo.">
-          <template #actions><DhBadge :variant="quoteRateId ? 'primary' : 'neutral'">{{ quoteRateId ? 'Seleccionada' : 'Sin QUO' }}</DhBadge></template>
-          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Tu usuario no tiene permiso para vincular cotizaciones.</p>
-          <p v-else-if="!accountId || !modality" class="text-sm text-[var(--dh-text-muted)]">Selecciona primero el cliente y el tipo de embarque.</p>
-          <div v-else class="space-y-3">
-            <div v-if="quoteRateId" class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-sm font-semibold">{{ quoteLabel || 'Cotización seleccionada' }}</p>
-              <DhButton variant="secondary" size="sm" label="Quitar QUO" :disabled="Boolean(assignmentPendingId)" @click="clearQuote" />
-            </div>
-            <template v-else>
-              <form class="flex flex-wrap items-end gap-3" @submit.prevent="searchQuotes">
-                <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Buscar cotización" placeholder="Número de QUO" /></div>
-                <DhButton type="submit" :icon="Search" label="Buscar" :loading="quoteBusy" :disabled="!quoteSearch.trim()" />
-              </form>
-              <DhSelect v-if="quoteCandidates.length" searchable label="Cotización aceptada"
-                :model-value="quoteRateId" :options="quoteCandidates.map(rate => ({ value: rate.id, label: quoteOptionLabel(rate) }))"
-                placeholder="Seleccionar QUO" @update:model-value="selectQuote(String($event || ''))" />
-              <p v-if="quoteIssue" role="status" class="text-sm text-[var(--dh-text-muted)]">{{ quoteIssue }}</p>
-            </template>
-          </div>
-        </DhCard>
+
 
         <div v-show="activeStep === 1" class="mt-6 space-y-5">
           <div class="grid gap-4 md:grid-cols-2">
