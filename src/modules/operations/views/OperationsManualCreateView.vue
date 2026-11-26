@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Truck, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound } from 'lucide-vue-next'
 import { DhBadge, DhButton, DhInput, DhMultiSelect, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { agentMatchesOrigin } from '@/modules/catalogs/utils/agentOriginCoverage'
+import { warehouseAgentNames, warehouseAgentOwnership } from '@/modules/catalogs/utils/warehouseAgentOwnership'
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi, type OpeningCompleteness } from '../services/operationsApi'
@@ -120,16 +121,21 @@ const warehouseOptions = computed(() => {
   const unlinked = []
   for (const option of options) {
     const item = currentCatalog('warehouses').find(row => row.id === option.value)
-    const owner = String(catalogMetadata(item).agentId || '').trim().toLowerCase()
-    if (owner === agent.id.toLowerCase()) {
-      linked.push({ ...option, searchText: option.searchText + ' ' + optionText(agent) })
-    } else if (!owner) {
+    const ownership = warehouseAgentOwnership(item?.metadataJson, agent)
+    if (ownership === 'linked') {
+      const ownerLabel = String(catalogMetadata(item).agentId || '').trim() ? optionText(agent) : warehouseAgentNames(item?.metadataJson).join(' / ') || optionText(agent)
+      linked.push({ ...option, label: option.label + ' · ' + ownerLabel,
+        searchText: option.searchText + ' ' + ownerLabel + ' ' + optionText(agent) })
+    } else if (ownership === 'unlinked') {
       const country = resolveLocationCountryCode(item, currentCatalog('countries'))
       if (!country || !origin || country === origin)
         unlinked.push({ ...option, label: option.label + ' · Sin agente vinculado', searchText: option.searchText + ' sin agente vinculado' })
     }
   }
-  return [...linked, ...unlinked]
+  const available = [...linked, ...unlinked]
+  // Same city can have multiple physical warehouses; never collapse distinct IDs.
+  return available.map(option => available.filter(row => row.label === option.label).length > 1
+    ? { ...option, label: option.label + ' · ' + catalogCode('warehouses', option.value) } : option)
 })
 const incotermChoices = computed(() => {
   const items = currentCatalog('incoterms').filter(item => item.isActive)
@@ -234,7 +240,7 @@ function setProvider(role: 'carrier' | 'agent' | 'merchant', id: string) {
     form.value.agentId = id
     form.value.agentReference = label
     if (!editingId.value && selectedWarehouse.value && (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value) ||
-      (changed && !String(catalogMetadata(warehouse.value).agentId || '').trim()))) clearWarehouse()
+      (changed && warehouseAgentOwnership(warehouse.value?.metadataJson) === 'unlinked'))) clearWarehouse()
   }
   else { form.value.merchantId = id; form.value.merchantReference = label }
 }
@@ -398,8 +404,19 @@ function clearWarehouse() {
   form.value.warehouseAddress = ''
 }
 const warehouse = computed(() => currentCatalog('warehouses').find(item => item.id === selectedWarehouse.value))
-const warehouseAgent = computed(() => currentCatalog('agents').find(item =>
-  item.id.toLowerCase() === String(catalogMetadata(warehouse.value).agentId || '').toLowerCase()))
+const warehouseAgent = computed(() => {
+  if (!warehouse.value) return undefined
+  const agents = currentCatalog('agents').filter(item => warehouseAgentOwnership(warehouse.value?.metadataJson, item) === 'linked')
+  return agents.find(item => item.id === form.value.agentId) || agents[0]
+})
+const warehouseOwnerLabel = computed(() => {
+  if (!warehouse.value) return ''
+  if (String(catalogMetadata(warehouse.value).agentId || '').trim())
+    return warehouseAgent.value ? optionText(warehouseAgent.value) : 'Agente registrado no disponible'
+  return warehouseAgentNames(warehouse.value.metadataJson).join(' / ') ||
+    (warehouseAgent.value ? optionText(warehouseAgent.value) : '') ||
+    (warehouseAgentOwnership(warehouse.value.metadataJson) === 'unlinked' ? 'Sin agente vinculado en Config' : 'Agente registrado no disponible')
+})
 watch([warehouseOptions, catalogLoading], () => {
   if (editingId.value || restoringOpening || catalogLoading.value || !form.value.agentId || !selectedWarehouse.value) return
   if (!warehouseOptions.value.some(option => option.value === selectedWarehouse.value)) clearWarehouse()
@@ -978,7 +995,7 @@ const manualReviewSections = computed(() => [
     { label: 'POL · Origen', value: form.value.pol || 'Por seleccionar' },
     { label: 'POE · Entrada', value: form.value.poe || 'Por seleccionar' },
     ...(showPod.value ? [{ label: 'POD · Destino final', value: form.value.pod || 'Por seleccionar' }] : []),
-    ...(requiresWarehouse.value ? [{ label: 'WHS', value: [warehouse.value ? optionText(warehouse.value) : '', warehouseAgent.value ? optionText(warehouseAgent.value) : '', warehouseAddress.value].filter(Boolean).join(' · ') || 'Por seleccionar' }] : []),
+    ...(requiresWarehouse.value ? [{ label: 'WHS', value: [warehouse.value ? optionText(warehouse.value) : '', warehouseOwnerLabel.value, warehouseAddress.value].filter(Boolean).join(' · ') || 'Por seleccionar' }] : []),
   ] },
   { title: 'Mercancía y equipos', icon: Package, step: 2, rows: [
     { label: 'Cantidad de bultos', value: form.value.packageCount || 'Por completar' },
@@ -1300,8 +1317,8 @@ onMounted(async () => {
               @update:model-value="!$event && (form.whsName = '', form.warehouseId = '', form.warehouseAddress = '')" />
             <div v-if="warehouse && (editingId || warehouseOptions.some(option => option.value === selectedWarehouse))" class="space-y-1 text-xs">
               <p class="font-black">{{ optionText(warehouse) }}</p>
-              <p><strong>Agente:</strong> {{ warehouseAgent ? optionText(warehouseAgent) : 'Sin agente vinculado en Config' }}</p>
-              <p v-if="!editingId && !warehouseAgent" class="text-[var(--dh-text-muted)]">Se utilizará con {{ form.agentReference }} únicamente en este trámite. No se modifica el propietario del catálogo.</p>
+              <p><strong>Agente:</strong> {{ warehouseOwnerLabel }}</p>
+              <p v-if="!editingId && warehouseAgentOwnership(warehouse?.metadataJson) === 'unlinked'" class="text-[var(--dh-text-muted)]">Se utilizará con {{ form.agentReference }} únicamente en este trámite. No se modifica el propietario del catálogo.</p>
               <p><strong>Dirección:</strong> {{ warehouseAddress || 'Sin dirección' }}</p>
               <p v-if="warehouseMeta.schedule"><strong>Horario:</strong> {{ warehouseMeta.schedule }}</p>
               <p v-if="warehouseMeta.contacts"><strong>Contactos:</strong> {{ warehouseMeta.contacts }}</p>

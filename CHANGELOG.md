@@ -1,3 +1,7 @@
+## [1.136.2] - 2026-11-26
+
+- PATCH: DH-20261126-OPS-WHS-AGENT-METADATA. Reconoce las relaciones WHS existentes en Config (agentId, agentCode, agentCodes, agentName y agentNames). Distingue Xiamen WWL de RS Logistics, excluye otros propietarios y muestra agente y código cuando haya etiquetas repetidas. Conserva IDs físicos y almacenes realmente sin asignar; sin cambios de datos maestros. CI y staging pendientes.
+
 ## [1.136.1] - 2026-11-26
 
 - PATCH: DH-20261126-OPS-WHS-LEGACY-OPTIONS. Selector WHS visible tras elegir agente, muestra primero almacenes vinculados y recupera almacenes históricos sin propietario del país de origen o sin país identificado. Identifica ausencia de vínculo, excluye propietarios incompatibles, mantiene el agente del trámite y no cambia Config. CI y staging pendientes.
