@@ -190,6 +190,21 @@ body.dh-has-client-background {
   overflow: visible;
 }
 
+/* A WHS search directly inside a DH glass card must escape its clipping and
+   paint above sibling cards. Restore the original stack when the menu closes. */
+.dh-liquid:has(> [data-dh-whs-menu-open="true"]) {
+  overflow: visible;
+  z-index: 20;
+}
+
+.dh-liquid:has(> [data-dh-whs-menu-open="true"])::before {
+  border-radius: inherit;
+}
+
+.dh-liquid > [data-dh-whs-menu-open="true"] {
+  z-index: 2;
+}
+
 .dh-card-hover {
   transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
