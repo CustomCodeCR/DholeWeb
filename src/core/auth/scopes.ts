@@ -132,6 +132,7 @@ export const PRICING_SCOPES = {
     approveLowMargin: 'pricing.rate.approve-low-margin',
     approveFreight: 'pricing.rate.approve-freight',
     generateReport: 'pricing.rate.report.generate',
+    exportReport: 'pricing.rate.report.export',
   },
 
   fclRateDetails: {
