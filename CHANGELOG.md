@@ -1,3 +1,7 @@
+## [1.135.0] - 2026-11-26
+
+- MINOR: DH-20261126-PRICING-CATEGORY-REPORT. Exportar Excel por categoría con permiso independiente; conserva el reporte comercial detallado. Promoción selectiva; CI pendiente.
+
 ## [1.132.3] - 2026-11-25
 
 - DH-20261125-FTL-CUSTOMS-SCOPE: separar CUSTOMS_FOREIGN de CUSTOMS_CR en pantalla 7 y guardado; aliases históricos requieren país explícito. Conservar RateDetails FTL negociados en cambios exclusivos de agente elegible, sin tratar la naviera oculta como cambio de contexto. Regresiones incluidas; CI/staging pendientes.
