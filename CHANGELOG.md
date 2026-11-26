@@ -1,3 +1,7 @@
+## [1.136.1] - 2026-11-26
+
+- PATCH: DH-20261126-OPS-WHS-LEGACY-OPTIONS. Selector WHS visible tras elegir agente, muestra primero almacenes vinculados y recupera almacenes históricos sin propietario del país de origen o sin país identificado. Identifica ausencia de vínculo, excluye propietarios incompatibles, mantiene el agente del trámite y no cambia Config. CI y staging pendientes.
+
 ## [1.136.0] - 2026-11-26
 
 - DH-20261126-OPS-WHS-AGENT-RECONCILED: selección de agente antes del WHS, filtro por identidad de Config, limpieza de WHS incompatibles y resumen del agente. Catálogo WHS permite asociar un agente real, incluso en almacenes genéricos. Conserva release de reportes 1.135.0. CI y staging pendientes.
