@@ -52,9 +52,17 @@ watch([step, hydratingExistingRate, persistedFtlAgentForEdit], ([currentStep, hy
 
   // The payload and the select must resolve the same historical agent.
   const selectedAnchor = 'const selectedAgent = computed(() => findById(catalogs.agents, form.agentId))'
-  code = replaceOne(code, selectedAnchor,
-    "const selectedAgent = computed(() => findById(catalogs.agents, form.agentId) ?? (persistedFtlAgentForEdit.value?.id === form.agentId ? persistedFtlAgentForEdit.value : null))",
-    'persisted FTL selected agent')
+  const landAnchor = "const selectedAgent = computed(() =>\n  findById(catalogs.agents, form.agentId)\n    ?? (form.modality === 'Land' ? landAgentPlaceholder : null),\n)"
+  const selectedExpression = 'findById(catalogs.agents, form.agentId) ?? (persistedFtlAgentForEdit.value?.id === form.agentId ? persistedFtlAgentForEdit.value : null)'
+  if (code.includes(landAnchor)) {
+    code = replaceOne(code, landAnchor,
+      "const selectedAgent = computed(() => " + selectedExpression + " ?? (form.modality === 'Land' ? landAgentPlaceholder : null))",
+      'persisted FTL selected agent after Land transform')
+  } else {
+    code = replaceOne(code, selectedAnchor,
+      'const selectedAgent = computed(() => ' + selectedExpression + ')',
+      'persisted FTL selected agent')
+  }
 
   // The catalog code can be CUR-2026-001; display Config.Value (USD/CRC).
   const currencyLabelVariants = [
