@@ -35,7 +35,8 @@ function quoteEditContext387(): QuoteEditContext387 {
     modality, shipmentMode,
     originId: quoteEditId387(form.originId), destinationId: quoteEditId387(form.destinationId),
     podId: quoteEditId387(form.podId), agentId: quoteEditId387(form.agentId),
-    carrierId: quoteEditId387(form.carrierId), incotermId: quoteEditId387(form.incotermId),
+    // FTL uses the agent, never the legacy hidden carrier placeholder.
+    carrierId: modality === 'Land' && shipmentMode === 'Ftl' ? '' : quoteEditId387(form.carrierId), incotermId: quoteEditId387(form.incotermId),
     equipmentId: quoteEditId387(form.equipmentId),
     importRateId: usesOceanFclSource ? quoteEditId387(form.selectedImportRateId) : '',
     services: [...new Set(form.serviceIds.map(quoteEditId387).filter(Boolean))].sort(),
@@ -79,6 +80,17 @@ function quoteEditAirReviewedAmounts387() {
   // Never accept non-finite or negative input in this preservation path.
   return [form.cargoWeightKg, form.cargoPackages, form.cargoPallets]
     .every(value => value == null || value === '' || (Number.isFinite(Number(value)) && Number(value) >= 0))
+}
+// On an existing FTL the agent is an editable header, not a request to reprice
+// negotiated RateDetails. A genuinely changed route or service still reconciles.
+function quoteEditFtlAgentOnly387() {
+  if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value
+      || form.modality !== 'Land' || shipmentModeForApi.value !== 'Ftl'
+      || !quoteEditOriginalContext387.value) return false
+  const changed = quoteEditChangedKeys387()
+  const agentId = quoteEditId387(form.agentId)
+  return changed.size === 1 && changed.has('agentId') && Boolean(agentId)
+    && eligibleAgents.value.some(agent => quoteEditId387(agent.id) === agentId)
 }
 function quoteEditKeepAgentOnExistingRoute387() {
   const original = quoteEditOriginalContext387.value
@@ -126,7 +138,7 @@ function quoteEditRestorePersistedInland() {
 // guess between homonyms, distinct suppliers, equipment or manual charges.
 function quoteEditRestoreUnchangedRequiredDetails() {
   const rate = editingRate.value
-  if (!rate || (quoteEditChangedKeys387().size && !quoteEditAirReviewedAmounts387())) return
+  if (!rate || (quoteEditChangedKeys387().size && !quoteEditAirReviewedAmounts387() && !quoteEditFtlAgentOnly387())) return
   const removed = explicitlyRemovedPersistedDetailIds.value
   for (const detail of rate.rateDetails) {
     if (!detail.id || removed.has(detail.id) || detail.costType === 'Optional') continue
@@ -168,7 +180,7 @@ function quoteEditRestoreUnchangedRequiredDetails() {
 function quoteEditRequestedCosts387(): CostSelectDto[] {
   if (!editingRate.value || props.viewOnly || !quoteEditOriginalContext387.value) return []
   const changed = quoteEditChangedKeys387()
-  if (!changed.size || quoteEditAirReviewedAmounts387()) return []
+  if (!changed.size || quoteEditAirReviewedAmounts387() || quoteEditFtlAgentOnly387()) return []
   const added = quoteEditAddedServices387()
   const original = quoteEditOriginalContext387.value
   const relatedToChangedContext = (cost: CostSelectDto) =>
@@ -228,7 +240,7 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
 function quoteEditRemoveInvalidDetails387() {
   const rate = editingRate.value
   const original = quoteEditOriginalContext387.value
-  if (!rate || !original || quoteEditAirReviewedAmounts387()) return
+  if (!rate || !original || quoteEditAirReviewedAmounts387() || quoteEditFtlAgentOnly387()) return
   const selected = new Set(form.serviceIds.map(quoteEditId387))
   const removed = new Set(original.services.filter(id => !selected.has(id)))
   const changed = quoteEditChangedKeys387()
@@ -358,6 +370,10 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
   quoteEditVerifiedSignature387 = ''
   quoteEditPending387 = null
   const sequence = ++quoteEditRequest387
+  if (quoteEditFtlAgentOnly387()) {
+    quoteEditRestoreUnchangedRequiredDetails()
+    return true
+  }
   if (quoteEditAirReviewedAmounts387()) {
     // Keep negotiated unit prices and explicit edits when only air billing
     // quantities and/or the eligible agent change. The existing quantity and
