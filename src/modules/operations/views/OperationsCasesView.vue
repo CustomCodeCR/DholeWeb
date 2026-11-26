@@ -11,7 +11,8 @@ import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import { operationsApi, type OperationsCaseRow, type OperationsCaseDetail, type OperationsCaseWorkspace, type CrmAccountOption } from '../services/operationsApi'
 import { useOperationsCaseRealtime, useOperationsDashboardRealtime } from '../composables/useOperationsCaseRealtime'
 import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
-import { departmentStatusLabel, operationsLabel } from '../utils/caseOverview'
+import { departmentStatusLabel, operationsLabel, summaryMeasure, isPendingOperationsTask } from '../utils/caseOverview'
+import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
 
 import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, useOpeningDocuments } from '../utils/commercialPresentation'
 
@@ -85,10 +86,18 @@ const clientContacts = ref<import('../services/operationsApi').OperationsContact
 const contactsUnavailable = ref(false)
 const contactsLoading = ref(false)
 const drawerComparison = ref<import('../services/operationsApi').OperationsQuoteComparison | null>(null)
+const drawerCompleteness = ref<import('../services/operationsApi').OpeningCompleteness | null>(null)
+const drawerCompletenessUnavailable = ref(false)
+const drawerPendingFields = computed(() => (drawerCompleteness.value?.fields || []).filter(x => ['PENDIENTE_BLOQUEANTE', 'PENDIENTE_PERMITIDO'].includes(x.completionStatus)).sort((a, b) => Number(b.completionStatus === 'PENDIENTE_BLOQUEANTE') - Number(a.completionStatus === 'PENDIENTE_BLOQUEANTE')))
+const drawerPendingTasks = computed(() => (selectedWorkspace.value?.tasks || []).filter(isPendingOperationsTask))
+let drawerReadSequence = 0
 async function loadCaseCommercialAndContacts(id: string, sequence: number) {
   contactsLoading.value = true
-  const [contacts, comparison] = await Promise.allSettled([operationsApi.caseContacts(id), operationsApi.caseQuoteComparison(id)])
-  if (sequence !== detailSequence || selectedCaseId.value !== id) return
+  const requestSequence = ++drawerReadSequence
+  const [contacts, comparison, completeness] = await Promise.allSettled([operationsApi.caseContacts(id), operationsApi.caseQuoteComparison(id), operationsApi.openingCompleteness(id)])
+  if (sequence !== detailSequence || requestSequence !== drawerReadSequence || selectedCaseId.value !== id) return
+  drawerCompleteness.value = completeness.status === 'fulfilled' ? completeness.value : null
+  drawerCompletenessUnavailable.value = completeness.status === 'rejected'
   clientContacts.value = contacts.status === 'fulfilled' && Array.isArray(contacts.value) ? contacts.value : []
   contactsUnavailable.value = contacts.status === 'rejected'
   drawerComparison.value = comparison.status === 'fulfilled' ? comparison.value : null
@@ -143,7 +152,7 @@ const opening = computed<Record<string, unknown>>(() => {
   try {
     const value: unknown = JSON.parse(selected.value?.openingDataJson || '{}')
     return value && typeof value === 'object' && !Array.isArray(value)
-      ? mergeCommercialOpening(value as Record<string, unknown>, selectedWorkspace.value?.commercialData, supplemental.value) : {}
+      ? selected.value?.apertureType === 'MANUAL' ? value as Record<string, unknown> : mergeCommercialOpening(value as Record<string, unknown>, selectedWorkspace.value?.commercialData, supplemental.value) : {}
   } catch { return {} }
 })
 function openingText(key: string) { return openingField(key, opening.value) }
@@ -158,10 +167,13 @@ const openingEquipment = computed(() => {
   })
 })
 const { openingDocuments, downloadDocument, documentError } = useOpeningDocuments(() => opening.value.supportDocuments)
-const openingMissing = computed(() => {
-  const items = opening.value.missingFields
-  return Array.isArray(items) ? items.filter((v): v is string => typeof v === 'string') : []
-})
+const drawerEstimatedWeight = computed(() => summaryMeasure(
+  openingText('estimatedWeightValue') || openingText('quotedWeightKg') || (selected.value?.apertureType === 'AUTOMATIC' ? openingText('weightValue') : ''),
+  openingText('estimatedWeightUnit') || (openingText('quotedWeightKg') ? 'KG' : openingText('weightUnit')),
+))
+const drawerActualWeight = computed(() => summaryMeasure(openingText('actualWeightValue'), openingText('actualWeightUnit')))
+const drawerVolume = computed(() => summaryMeasure(openingText('volumeValue'), openingText('volumeUnit')))
+const drawerInapplicable = computed(() => new Set((drawerCompleteness.value?.fields || []).filter(x => x.completionStatus === 'NO_APLICA').map(x => x.fieldCode)))
 const openingServices = computed(() => serviceLabels(opening.value))
 const openingFlags = computed(() => [
   opening.value.isImo === true ? 'IMO / peligrosa' : '',
@@ -268,6 +280,8 @@ async function openCase(id: string) {
   clientContacts.value = []
   contactsUnavailable.value = false
   drawerComparison.value = null
+  drawerCompleteness.value = null
+  drawerCompletenessUnavailable.value = false
   supplemental.value = {}
   selected.value = null
   try {
@@ -468,6 +482,11 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             <DhBadge variant="neutral">{{ selected.apertureType === 'MANUAL' ? 'Manual' : 'Desde Pricing' }}</DhBadge>
             <DhBadge variant="primary">{{ openingText('shipmentType') || selected.modalityCode }}</DhBadge>
             <DhBadge v-if="openingText('incoterm')" variant="neutral">{{ openingText('incoterm') }}</DhBadge>
+            <DhBadge v-if="openingText('transportType')" variant="neutral">{{ openingText('transportType') }}</DhBadge>
+          </div>
+          <div class="mt-3 grid gap-2 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Operativo responsable</p><p class="break-words text-sm font-semibold">{{ personName(selectedStage?.assignedUserId) }}</p><p class="text-xs text-[var(--dh-text-muted)]">{{ selectedStage?.teamName || 'Equipo por asignar' }}</p></div>
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Servicios</p><div class="mt-1 flex flex-wrap gap-1"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div></div>
           </div>
         </div>
 
@@ -481,7 +500,11 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
               <RouterLink v-if="selected.sourceQuoteId" :to="'/pricing/rates/' + (selected.sourceQuoteOptionId || selected.sourceQuoteId) + '/wizard?mode=view'" class="mt-1 inline-block text-sm font-bold text-[var(--dh-primary)]" >{{ selectedWorkspace?.quotes.find(q => q.isPrimary)?.quoteNumber || selectedWorkspace?.quotes[0]?.quoteNumber || 'Número pendiente de consulta' }}</RouterLink>
               <p v-else class="mt-1 text-sm font-semibold">Sin cotización</p></div>
             <div v-if="openingText('clientPoReference')"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">PO / referencia</p><p class="mt-1 break-words text-sm font-semibold">{{ openingText('clientPoReference') }}</p></div>
+            <div v-if="openingText('crmDivisionName')"><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">División CRM</p><p class="mt-1 break-words text-sm font-semibold">{{ openingText('crmDivisionName') }}</p></div>
             <div><p class="text-[10px] font-bold uppercase text-[var(--dh-text-muted)]">Fecha de apertura</p><p class="mt-1 text-sm font-semibold">{{ formatDate(selected.createdAtUtc) }}</p></div>
+          </div>
+          <div v-if="drawerComparison?.hasSnapshot" class="mt-3">
+            <DhBadge :variant="drawerComparison.severity === 'RED' ? 'danger' : drawerComparison.severity === 'YELLOW' ? 'warning' : drawerComparison.severity === 'GREEN' ? 'success' : 'neutral'">{{ drawerComparison.rows.filter(x => x.status === 'CHANGED').length }} diferencias con QUO</DhBadge>
           </div>
         </DhCard>
 
@@ -503,10 +526,12 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h3 class="text-sm font-black">Mercancía y equipos</h3></div>
           <p class="break-words text-sm font-semibold">{{ openingText('cargoDescription') || 'Mercancía pendiente' }}</p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <DhBadge v-if="openingText('weightValue')" variant="neutral">{{ openingText('weightValue') }} {{ openingText('weightUnit') || '' }}</DhBadge>
+            <DhBadge v-if="drawerEstimatedWeight" variant="neutral">Estimado: {{ drawerEstimatedWeight }}</DhBadge>
+            <DhBadge v-if="drawerActualWeight" variant="neutral">Real: {{ drawerActualWeight }}</DhBadge>
+            <DhBadge v-else-if="!drawerInapplicable.has('actualWeight')" variant="warning">Peso real pendiente</DhBadge>
             <span v-if="openingText('cabysCode')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">CABYS {{ openingText('cabysCode') }}</span>
             <span v-if="openingText('packageCount')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">{{ openingText('packageCount') }} {{ openingText('packageType') || 'bultos' }}</span>
-            <span v-if="openingText('volumeValue')" class="rounded-lg bg-[var(--dh-input)] px-2.5 py-1 text-xs font-bold">{{ openingText('volumeValue') }} {{ openingText('volumeUnit') }}</span>
+            <DhBadge v-if="drawerVolume" variant="neutral">{{ drawerVolume }}</DhBadge>
             <span v-for="(item, i) in openingEquipment" :key="i" class="rounded-lg border border-[var(--dh-primary)]/25 px-2.5 py-1 text-xs font-bold">{{ item.quantity }} × {{ item.label }}</span>
           </div>
           <div v-if="openingFlags.length" class="mt-3 flex flex-wrap gap-2 border-t border-[var(--dh-border)] pt-3"><DhBadge v-for="flag in openingFlags" :key="flag" variant="neutral">{{ flag }}</DhBadge></div>
@@ -523,6 +548,27 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
           </div>
         </DhCard>
 
+        <DhCard padding="sm" title="Validación y pendientes">
+          <p v-if="drawerCompletenessUnavailable" class="text-xs text-[var(--dh-text-muted)]">No se pudo consultar la validación.</p>
+          <p v-else-if="!drawerCompleteness" class="text-xs text-[var(--dh-text-muted)]">Consultando validación…</p>
+          <template v-else>
+            <div class="flex flex-wrap gap-2">
+              <DhBadge :variant="drawerCompleteness.missingFields.length ? 'danger' : 'success'">{{ drawerCompleteness.missingFields.length ? drawerCompleteness.missingFields.length + ' bloqueantes' : 'Sin campos bloqueantes' }}</DhBadge>
+              <DhBadge variant="neutral">{{ drawerPendingFields.filter(x => x.completionStatus === 'PENDIENTE_PERMITIDO').length }} pendientes permitidos</DhBadge>
+            </div>
+            <div v-if="drawerPendingFields.length" class="mt-2 space-y-1">
+              <div v-for="field in drawerPendingFields.slice(0, 5)" :key="field.fieldCode" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2">
+                <span class="text-xs font-medium">{{ openingFieldLabel(field.fieldCode) }}</span><DhBadge :variant="openingStatusVariant(field.completionStatus)">{{ openingStatusLabel(field.completionStatus) }}</DhBadge>
+              </div>
+              <p v-if="drawerPendingFields.length > 5" class="text-xs text-[var(--dh-text-muted)]">+{{ drawerPendingFields.length - 5 }} campos en el expediente completo.</p>
+            </div>
+          </template>
+          <div class="mt-3 border-t border-[var(--dh-border)] pt-3">
+            <p class="text-xs font-bold">Tareas pendientes ({{ drawerPendingTasks.length }})</p>
+            <p v-for="task in drawerPendingTasks.slice(0, 3)" :key="task.id" class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ task.title }}</p>
+            <p v-if="drawerPendingTasks.length > 3" class="text-xs text-[var(--dh-text-muted)]">Ver todas en el expediente.</p>
+          </div>
+        </DhCard>
         <DhCard padding="sm" title="Contactos del cliente">
           <p v-if="contactsLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando CRM…</p>
           <p v-else-if="contactsUnavailable" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los contactos de CRM.</p>
@@ -531,9 +577,6 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             <p class="text-sm font-semibold">{{ contact.name || 'Nombre no registrado' }}</p>
             <p class="break-all text-xs">{{ contact.email || 'Correo no registrado' }}</p>
             <p class="text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
-          </div>
-          <div v-if="drawerComparison?.hasSnapshot" class="mt-3">
-            <DhBadge :variant="drawerComparison.severity === 'RED' ? 'danger' : drawerComparison.severity === 'YELLOW' ? 'warning' : drawerComparison.severity === 'GREEN' ? 'success' : 'neutral'">{{ drawerComparison.rows.filter(x => x.status === 'CHANGED').length }} diferencias con QUO</DhBadge>
           </div>
         </DhCard>
         <DhCard padding="sm">
@@ -555,10 +598,6 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
             </div>
           </div>
           <p v-else class="text-xs text-[var(--dh-text-muted)]">Sin etapas activas.</p>
-          <div v-if="selectedWorkspace?.tasks.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
-            <p class="mb-2 text-xs font-black">Tareas pendientes</p>
-            <p v-for="task in selectedWorkspace.tasks.slice(0, 4)" :key="task.id" class="mb-1 text-xs text-[var(--dh-text-muted)]">{{ task.title }}</p>
-          </div>
           <div class="mt-3 grid gap-2 border-t border-[var(--dh-border)] pt-3 text-xs sm:grid-cols-2">
             <p>Creado por: <strong>{{ personName(selected.createdBy) }}</strong></p>
             <p>Fecha: <strong>{{ formatDate(selected.createdAtUtc) }}</strong></p>
@@ -580,18 +619,10 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
               { label: 'Merchant', value: openingText('merchantReference') },
               { label: 'Consolidado', value: openingText('consolidationReference') },
               { label: 'Observaciones', value: openingText('observations') },
-            ]" :key="item.label" class="min-w-0">
+            ].filter(item => !drawerInapplicable.has(({ Recolecta: 'pickupAddress', WHS: 'whsName', Entrega: 'destinationAddress', Naviera: 'carrierReference', Consolidado: 'consolidation', Merchant: 'merchantReference' } as Record<string, string>)[item.label] || ''))" :key="item.label" class="min-w-0">
               <p class="text-xs text-[var(--dh-text-muted)]">{{ item.label }}</p>
               <p class="mt-0.5 break-words text-sm font-semibold">{{ item.value || 'Por confirmar' }}</p>
             </div>
-          </div>
-          <div class="mt-3 border-t border-[var(--dh-border)] pt-3">
-            <p class="text-xs font-bold">Servicios</p>
-            <div class="mt-2 flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div>
-          </div>
-          <div v-if="openingMissing.length" class="mt-3 border-t border-[var(--dh-border)] pt-3">
-            <p class="mb-2 text-xs font-bold">Campos por completar ({{ openingMissing.length }})</p>
-            <p v-for="field in openingMissing" :key="field" class="text-xs text-[var(--dh-text-muted)]">{{ operationsLabel(field) }}</p>
           </div>
         </DhCard>
       </div>

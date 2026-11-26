@@ -46,3 +46,13 @@ export function departmentStatusLabel(
     return apertureLabels[caseStatus]
   return operationsLabel(departmentStatus || caseStatus)
 }
+
+/** A missing measurement must never be presented as a measured zero. */
+export function summaryMeasure(value: string, unit: string): string {
+  return value ? [value, unit].filter(Boolean).join(' ') : ''
+}
+
+/** Only unfinished tasks belong in the operational pending queue. */
+export function isPendingOperationsTask(task: { status: string; completedAtUtc: string | null }): boolean {
+  return !task.completedAtUtc && !['COMPLETED', 'DONE', 'CANCELLED', 'SKIPPED'].includes(task.status)
+}
