@@ -137,16 +137,32 @@ jobs:
             fi
             build_network=host
           fi
-          docker build --pull --network "$build_network" -f Dockerfile \
-            --build-arg VITE_API_URL="$VITE_API_URL" \
-            --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
-            --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
-            --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
-            --build-arg VITE_RELEASE_CHANNEL="staging" \
-            --build-arg VITE_DHOLE_REALTIME_ENABLED="$VITE_DHOLE_REALTIME_ENABLED" \
-            --build-arg VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT" \
-            --build-arg VITE_DHOLE_REALTIME_RELEASE="$VITE_DHOLE_REALTIME_RELEASE" \
-            -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
+          build_image() {
+            docker build --pull --network "$1" -f Dockerfile \
+              --build-arg VITE_API_URL="$VITE_API_URL" \
+              --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
+              --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+              --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
+              --build-arg VITE_RELEASE_CHANNEL="staging" \
+              --build-arg VITE_DHOLE_REALTIME_ENABLED="$VITE_DHOLE_REALTIME_ENABLED" \
+              --build-arg VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT" \
+              --build-arg VITE_DHOLE_REALTIME_RELEASE="$VITE_DHOLE_REALTIME_RELEASE" \
+              -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
+          }
+          build_log="$(mktemp)"
+          trap 'rm -f "$build_log"' EXIT
+          if ! build_image "$build_network" 2>&1 | tee "$build_log"; then
+            # BuildKit and docker run can have different resolver behavior.
+            # Only retry a registry DNS error, not an application/build failure.
+            if [[ "$build_network" == default ]] &&
+               grep -Eiq '(ENOTFOUND|EAI_AGAIN|Temporary failure in name resolution|Could not resolve host).*registry\.npmjs\.org|registry\.npmjs\.org.*(ENOTFOUND|EAI_AGAIN|Temporary failure in name resolution|Could not resolve host)' "$build_log" &&
+               probe_dns host; then
+              echo "::warning::BuildKit registry DNS failed; retrying with host network."
+              build_image host
+            else
+              exit 1
+            fi
+          fi
 
       - name: Verify staging bundle
         shell: bash
