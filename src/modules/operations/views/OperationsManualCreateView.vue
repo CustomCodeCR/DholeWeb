@@ -68,7 +68,7 @@ let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
 const wizardSteps = [
   { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
-  { id: 2, label: 'Carga y documentos', hint: 'CABYS, mercancía, equipos y respaldos' },
+  { id: 2, label: 'Carga y servicios', hint: 'Bultos, peso, volumen, equipos, servicios y proveedores' },
   { id: 3, label: 'Revisión', hint: 'Confirmar datos y enviar a Coordinación Origen' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
@@ -327,8 +327,8 @@ const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.v
 const selectedIncoterm = computed(() => form.value.incoterm
   ? normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
   : '')
-const needsCargoMeasurements = computed(() => ['LCL', 'LTL', 'AIR'].includes(effectiveShipment.value))
-const requiresWarehouse = computed(() => selectedIncoterm.value === 'FCA')
+const requiresWarehouse = computed(() => editingId.value ? selectedIncoterm.value === 'FCA' : ['LCL', 'LTL'].includes(effectiveShipment.value))
+const showCarrier = computed(() => editingId.value ? isMaritime.value : effectiveShipment.value === 'FCL')
 const showPod = computed(() => isMaritime.value)
 const clientCountry = computed(() => resolveCrmCountryCode(form.value.clientCountryId, currentCatalog('countries')) ||
   resolveCrmCountryCode(form.value.clientCountryOverrideId, currentCatalog('countries')))
@@ -411,7 +411,7 @@ const blockers = computed(() => {
   else if (!executiveLoading.value && !executiveAssigned.value) result.push('Ejecutivo comercial por asignar en CRM')
   if (!form.value.transportType) result.push('Modalidad de transporte')
   if (!effectiveShipment.value) result.push('Tipo de embarque')
-  if (!form.value.cargoDescription.trim()) result.push('Descripción de la carga')
+  if (editingId.value && !form.value.cargoDescription.trim()) result.push('Descripción de la carga')
   if (!form.value.pol.trim()) result.push('POL / lugar de origen')
   if (!form.value.poe.trim()) result.push('POE / destino')
   if (!editingId.value) {
@@ -420,23 +420,20 @@ const blockers = computed(() => {
     if (form.value.poe.trim() && selectedRouteType('poe', selectedPoe.value) !== routeTerminal.value) result.push('Entrada compatible con la modalidad')
     if (showPod.value && form.value.pod.trim() && selectedRouteType('pod', selectedPod.value) !== 'SD') result.push('Destino final compatible')
     if (!positive(form.value.estimatedWeightValue) || !['KG', 'LB'].includes(form.value.estimatedWeightUnit)) result.push('Peso estimado')
-    if (needsCargoMeasurements.value && (!positive(form.value.volumeValue) || !['CBM','CFT'].includes(form.value.volumeUnit))) result.push('Volumen de carga')
-    if (effectiveShipment.value === 'AIR' && ![form.value.lengthCm, form.value.widthCm, form.value.heightCm].every(positive)) result.push('Dimensiones de carga')
-    if (deliveryRequired.value && !validPoints(form.value.deliveryLocations)) result.push('Punto de entrega acordado')
+    if (!positive(form.value.volumeValue) || !['CBM','CFT'].includes(form.value.volumeUnit)) result.push('Volumen de carga')
+    if (!positive(form.value.packageCount) || !Number.isInteger(Number(form.value.packageCount))) result.push('Cantidad de bultos')
+    if (showCarrier.value && !form.value.carrierId) result.push('Naviera')
   }
   if (!incoterms.includes(selectedIncoterm.value) || (!isMaritime.value && ['FAS','FOB','CFR','CIF'].includes(selectedIncoterm.value))) result.push('Incoterm aplicable al transporte')
-  if (selectedIncoterm.value === 'EXW' || pickupRequired.value) {
-    if (!editingId.value && !validPoints(form.value.pickupLocations)) result.push('Punto de recolecta')
-  }
-  if (pickupRequired.value) {
+  if (editingId.value && pickupRequired.value) {
     if (!form.value.pickupAddress.trim() && !validPoints(form.value.pickupLocations)) result.push('Dirección de recolecta')
   }
   if (needsEquipment.value && !form.value.equipment.length) result.push('Equipos')
   if (needsEquipment.value && form.value.equipment.some(x => !x.equipmentType.trim() || (!editingId.value && !currentCatalog(equipmentCatalogKey.value).some(item => item.id === resolvedEquipmentId(x) && item.isActive)))) result.push('Tipo de equipo por seleccionar')
   if (needsEquipment.value && !uniqueEquipment.value) result.push('Equipos duplicados: unifica las cantidades')
-  if (requiresWarehouse.value && !(warehouse.value || (!warehouseOptions.value.length && form.value.warehouseAddress.trim()))) result.push('WHS global o dirección del WHS (FCA)')
-  if (form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
-  if (form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
+  if (requiresWarehouse.value && !(warehouse.value || (!warehouseOptions.value.length && form.value.warehouseAddress.trim()))) result.push('WHS global o dirección del WHS')
+  if (editingId.value && form.value.isImo && (!form.value.imoClass || !form.value.unNumber)) result.push('Clase IMO / número UN')
+  if (editingId.value && form.value.overweight && !form.value.overweightNotes.trim()) result.push('Observaciones de sobrepeso')
   return result
 })
 function addEquipment() { form.value.equipment.push({ equipmentType: '', equipmentCatalogId: '', quantity: 1 }) }
@@ -820,25 +817,27 @@ onBeforeUnmount(() => {
 function buildOpeningData() {
   return {
       ...form.value,
-      ...(!editingId.value ? { etm: undefined, eta: undefined, consolidationReference: undefined } : {}),
+      ...(!editingId.value ? { etm: undefined, eta: undefined, consolidationReference: undefined, clientPoReference: undefined, invoiceReference: undefined } : {}),
       incotermName: selectedIncoterm.value,
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
       ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined, pickupContact: undefined, pickupWindow: undefined } : {}),
       estimatedWeightKg: estimatedKg.value,
-      stackable: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
+      stackable: editingId.value && ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
+      ...(!editingId.value ? { isImo: form.value.isImo || undefined, overweight: form.value.overweight || undefined } : {}),
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
       ...(!editingId.value ? { pickupAddress: selectedIncoterm.value === 'EXW' || pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '', destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
       ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [], deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
+      ...(!editingId.value && !showCarrier.value ? { carrierId: '', carrierReference: '' } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...Object.fromEntries((['length', 'width', 'height'] as const).flatMap(axis => [
         [`${axis}Value`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Value`] : ''],
         [`${axis}Unit`, form.value[`${axis}Unit`]],
         [`${axis}Cm`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Cm`] : ''],
       ])),
-      ...(!editingId.value ? { openingValidationVersion: 4, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', form.value.carrierId], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 5, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
@@ -1150,9 +1149,9 @@ onMounted(async () => {
                   <CircleAlert v-else-if="accountId && !executiveLoading" class="h-5 w-5 shrink-0 text-amber-500" />
                 </div>
               </div>
-              <DhSelect v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
-              <DhInput v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
-              <div class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
+              <DhSelect v-if="editingId" v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
+              <p v-if="editingId && form.clientPoReference" class="text-sm text-[var(--dh-text-muted)]">PO: {{ form.clientPoReference }} · Editable en Coordinación Origen.</p>
+              <div v-if="editingId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
                 <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">División comercial CRM (opcional)</p>
                 <p class="mt-1 text-xs font-semibold">{{ form.crmDivisionId || 'Sin división vinculada' }}</p>
                 <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La selección de divisiones se habilitará cuando CRM publique su catálogo. No se aceptan referencias inventadas.</p>
@@ -1198,14 +1197,14 @@ onMounted(async () => {
               <DhSelect v-if="showOperationOverride || (!operation && accountId && selectedPol && selectedPoe)" v-model="form.operationOverride" label="Importación / exportación" :options="[{ value: 'Import', label: 'Importación' }, { value: 'Export', label: 'Exportación' }, { value: 'TransitDomestic', label: 'Tránsito / doméstico' }]" />
               <DhButton v-if="form.operationOverride" variant="ghost" size="sm" @click="form.operationOverride = ''">Usar cálculo automático</DhButton>
             </div>
-            <DhSelect v-model="form.cargoNature" label="Naturaleza de la carga"
+            <DhSelect v-if="editingId" v-model="form.cargoNature" label="Naturaleza de la carga"
               :options="cargoNatureChoiceOptions" placeholder="Seleccione la naturaleza de la carga" />
           </div>
           <DhCard title="Equivalencias de la mercancía">
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <p class="text-sm">Peso estimado: <strong>{{ measurementLabel(estimatedKg) }} kg</strong></p>
               <p class="text-sm">Volumen: <strong>{{ measurementLabel(normalizedVolume) }} CBM</strong></p>
-              <p v-if="effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
+              <p v-if="editingId && effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
             </div>
           </DhCard>
           <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
@@ -1232,7 +1231,7 @@ onMounted(async () => {
             </div>
           </div>
           <div v-if="requiresWarehouse" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 space-y-3">
-            <h4 class="text-sm font-black">WHS global (FCA)</h4>
+            <h4 class="text-sm font-black">WHS global</h4>
             <PricingLocationSearchSelect v-if="warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS global" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
               :options="warehouseOptions" terminal-type="WHS" @open="loadPricingCatalogs" />
@@ -1246,20 +1245,20 @@ onMounted(async () => {
             </div>
             <DhInput v-else-if="!warehouseOptions.length" v-model="form.warehouseAddress" label="Dirección del WHS" />
           </div>
-          <div class="grid gap-4 md:grid-cols-2">
+          <div v-if="editingId" class="grid gap-4 md:grid-cols-2">
             <DhSelect v-if="selectedIncoterm !== 'EXW'" v-model="pickupSelection" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
             <DhSelect :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
           </div>
-          <PricingInlandServiceLocation v-if="selectedIncoterm === 'EXW' || pickupRequired"
+          <PricingInlandServiceLocation v-if="editingId && (selectedIncoterm === 'EXW' || pickupRequired)"
             v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
-          <PricingInlandServiceLocation v-if="deliveryRequired"
+          <PricingInlandServiceLocation v-if="editingId && deliveryRequired"
             v-model="deliveryPoint" v-model:locations="form.deliveryLocations" kind="delivery" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
         </div>
 
         <div v-show="activeStep === 2" class="space-y-5">
-          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+          <div v-if="editingId" class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
             <h4 class="text-base font-black">Descripción de carga y CABYS</h4>
             <div class="flex flex-wrap items-end gap-3">
               <div class="min-w-[180px] flex-1">
@@ -1276,16 +1275,16 @@ onMounted(async () => {
             </div>
             <p v-if="form.cabysCode" class="text-xs font-black">CABYS seleccionado: {{ form.cabysCode }}</p>
           </div>
-          <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
+          <DhTextarea v-if="editingId" v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real, las fechas de transporte y el consolidado.</p>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
-            <DhSelect v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
+            <DhSelect v-if="editingId" v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
             <DhInput v-model="form.estimatedWeightValue" label="Peso estimado" type="number" :min="0" />
             <DhSelect v-model="form.estimatedWeightUnit" label="Unidad de peso estimado" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
             <DhSelect v-model="form.volumeUnit" label="Unidad volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
-            <template v-if="effectiveShipment === 'AIR'">
+            <template v-if="editingId && effectiveShipment === 'AIR'">
               <DhInput v-model="form.lengthValue" label="Largo" type="number" :min="0" />
               <DhSelect v-model="form.lengthUnit" label="Unidad de largo" :options="dimensionOptions" />
               <DhInput v-model="form.widthValue" label="Ancho" type="number" :min="0" />
@@ -1294,7 +1293,7 @@ onMounted(async () => {
               <DhSelect v-model="form.heightUnit" label="Unidad de alto" :options="dimensionOptions" />
             </template>
           </div>
-          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
+          <div v-if="editingId" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
@@ -1438,19 +1437,19 @@ onMounted(async () => {
                 <p v-if="!serviceOptions.length" class="mt-2 text-xs text-[var(--dh-text-muted)]">Catálogo de servicios no disponible. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadPricingCatalogs" /></p>
               </div>
               <div v-else class="md:col-span-2"><p class="mb-2 text-xs font-bold text-[var(--dh-text-muted)]">Servicios registrados</p><div class="flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div></div>
-              <DhSelect v-if="isMaritime" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera (si se conoce)" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
+              <DhSelect v-if="showCarrier" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
               <DhSelect searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
               <p v-if="selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
-              <DhSelect v-if="isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
-              <DhInput v-if="form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
-              <DhInput v-if="form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
-              <div class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
+              <DhSelect v-if="editingId && isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
+              <DhInput v-if="editingId && form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
+              <DhInput v-if="editingId && form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
+              <div v-if="editingId" class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
             </div>
           </DhCard>
-          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
+          <div v-if="editingId || form.supportDocuments.length" class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
             <h4 class="text-base font-black">Documentos de respaldo</h4>
             <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div v-if="editingId" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <label v-for="category in supportCategories" :key="category.key" class="flex min-h-[68px] cursor-pointer items-center justify-center gap-3 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] px-3 py-4 text-center text-xs font-black transition-all hover:border-[var(--dh-primary)] hover:bg-[rgb(var(--dh-primary-rgb)/0.07)]">
                 <FileUp class="h-4 w-4" />{{ uploadingSupport === category.key ? 'Subiendo…' : category.label }}
                 <input class="hidden" type="file" :accept="supportAccept" :disabled="Boolean(uploadingSupport)" @change="uploadDocument(category.key, category.label, $event)" />
@@ -1488,7 +1487,7 @@ onMounted(async () => {
                 <div class="mb-4 flex items-center gap-2"><UserRound class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Cliente y responsable</h5></div>
                 <p class="text-lg font-black">{{ selectedClientName || 'Cliente por seleccionar' }}</p>
                 <p class="mt-1 text-sm text-[var(--dh-text-muted)]">Ejecutivo comercial: <strong class="text-[var(--dh-text)]">{{ executiveLabel }}</strong></p>
-                <div class="mt-4 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
+                <div v-if="editingId" class="mt-4 grid gap-3 border-t border-[var(--dh-border)] pt-3 sm:grid-cols-2">
                   <div><p class="text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">Procedencia</p><p class="mt-1 text-sm font-semibold">{{ originOptions.find(x => x.value === form.provenance)?.label || '—' }}</p></div>
                   <div><p class="text-[10px] font-bold uppercase tracking-wider text-[var(--dh-text-muted)]">PO / referencia</p><p class="mt-1 break-words text-sm font-semibold">{{ form.clientPoReference || 'Sin referencia' }}</p></div>
                 </div>
@@ -1524,7 +1523,7 @@ onMounted(async () => {
                   </div>
                 </div>
                 <div v-if="requiresWarehouse && (warehouse || warehouseAddress)" class="mt-4 border-t border-[var(--dh-border)] pt-3 text-xs">
-                  <p class="font-bold">WHS (FCA)</p>
+                  <p class="font-bold">WHS</p>
                   <p v-if="warehouse" class="mt-1 font-semibold">{{ optionText(warehouse) }}</p>
                   <p v-if="warehouseAddress" class="mt-1 break-words">{{ warehouseAddress }}</p>
                 </div>
@@ -1533,18 +1532,18 @@ onMounted(async () => {
                 <p class="text-xs font-semibold">Servicios solicitados</p>
                 <div class="mt-2 flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Por completar</span></div>
                 <div class="mt-3 grid gap-3 text-xs sm:grid-cols-2">
-                  <p v-if="isMaritime">Naviera: <strong>{{ form.carrierReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="showCarrier">Naviera: <strong>{{ form.carrierReference || 'Por confirmar' }}</strong></p>
                   <p>Agente: <strong>{{ form.agentReference || 'Por confirmar' }}</strong></p>
-                  <p v-if="isMaritime">Transporte en destino: <strong>{{ form.haulageMode || form.merchantReference || 'Por confirmar' }}</strong></p>
-                  <p v-if="form.transportType === 'AIR'">Aerolínea: <strong>{{ form.airline || 'Por confirmar' }}</strong></p>
-                  <p v-if="form.transportType === 'ROAD'">Transportista: <strong>{{ form.roadCarrierReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="editingId && isMaritime">Transporte en destino: <strong>{{ form.haulageMode || form.merchantReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="editingId && form.transportType === 'AIR'">Aerolínea: <strong>{{ form.airline || 'Por confirmar' }}</strong></p>
+                  <p v-if="editingId && form.transportType === 'ROAD'">Transportista: <strong>{{ form.roadCarrierReference || 'Por confirmar' }}</strong></p>
                 </div>
                 <p v-if="form.observations" class="mt-3 whitespace-pre-wrap break-words text-xs">{{ form.observations }}</p>
                 <DhButton class="mt-3" size="sm" variant="secondary" label="Editar servicios y proveedores" @click="goToStep(2)" />
               </DhCard>
               <section class="rounded-[20px] border border-[var(--dh-border)] bg-[var(--dh-card)] p-4 sm:p-5">
                 <div class="mb-3 flex items-center gap-2"><Package class="h-4 w-4 text-[var(--dh-primary)]" /><h5 class="text-sm font-black">Mercancía y equipos</h5></div>
-                <p class="text-sm font-semibold">{{ form.cargoDescription || 'Descripción pendiente' }}</p>
+                <p v-if="editingId || form.cargoDescription" class="text-sm font-semibold">{{ form.cargoDescription || 'Descripción pendiente' }}</p>
                 <div class="mt-3 flex flex-wrap gap-2">
                   <span v-if="form.cabysCode" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">CABYS {{ form.cabysCode }}</span>
                   <span v-if="form.packageCount" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.packageCount }} {{ form.packageType || 'bultos' }}</span>
@@ -1552,14 +1551,14 @@ onMounted(async () => {
                   <span v-if="form.volumeValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.volumeValue }} {{ form.volumeUnit }}</span>
                   <span v-for="(item, i) in form.equipment.filter(x => needsEquipment && x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
                 </div>
-                <div class="mt-4 flex flex-wrap gap-2">
+                <div v-if="editingId" class="mt-4 flex flex-wrap gap-2">
                   <DhBadge v-if="form.isImo" variant="warning">IMO / peligrosa</DhBadge>
                   <DhBadge v-if="['LCL','LTL'].includes(effectiveShipment)" variant="neutral">{{ form.stackable ? 'Estibable' : 'No estibable' }}</DhBadge>
                   <DhBadge v-if="form.overweight" variant="warning">Sobrepeso</DhBadge>
                   <DhBadge v-if="isMaritime && form.portHandlingMode" variant="neutral">{{ form.portHandlingMode }}</DhBadge>
                   <DhBadge v-if="form.cargoNature" variant="neutral">{{ form.cargoNature }}</DhBadge>
                 </div>
-                <div class="mt-4 border-t border-[var(--dh-border)] pt-3">
+                <div v-if="editingId || form.supportDocuments.length" class="mt-4 border-t border-[var(--dh-border)] pt-3">
                   <p class="text-xs font-bold">Documentos: {{ form.supportDocuments.length }}</p>
                   <p v-if="form.supportDocuments.length" class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ form.supportDocuments.map(x => x.fileName).join(' · ') }}</p>
                   <p v-else class="mt-1 text-xs text-[var(--dh-text-muted)]">Sin documentos adjuntos.</p>

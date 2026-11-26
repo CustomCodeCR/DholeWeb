@@ -1,3 +1,9 @@
+## [1.133.0] - 2026-11-25
+
+- Move optional PO and invoice references to the existing Origin planning form; retain PO read-only in opening edits.
+
+- Candidato: simplificar la apertura manual a cliente, ruta, servicios, bultos, volumen, peso y equipos; WHS para LCL/LTL y naviera para FCL. Mantener campos históricos en edición. La selección inicial de estado, asignación explícita y aceptación/revinculación QUO siguen pendientes; no promover.
+
 ## [1.132.3] - 2026-11-25
 
 - DH-20261125-FTL-CUSTOMS-SCOPE: separar CUSTOMS_FOREIGN de CUSTOMS_CR en pantalla 7 y guardado; aliases históricos requieren país explícito. Conservar RateDetails FTL negociados en cambios exclusivos de agente elegible, sin tratar la naviera oculta como cambio de contexto. Regresiones incluidas; CI/staging pendientes.

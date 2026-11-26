@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 const opening = readFileSync(new URL('../src/modules/operations/views/OperationsManualCreateView.vue', import.meta.url), 'utf8')
-test('FCA always requires Pricing WHS or address fallback, regardless of collection', () => {
-  assert.match(opening, /const requiresWarehouse = computed\(\(\) => selectedIncoterm\.value === 'FCA'\)/)
+test('New manual opening uses WHS for consolidated cargo; historical edits retain FCA rule', () => {
+  assert.ok(opening.includes("editingId.value ? selectedIncoterm.value === 'FCA' : ['LCL', 'LTL'].includes(effectiveShipment.value)"))
   assert.ok(opening.includes('label="WHS global"'))
   assert.ok(opening.includes('label="Dirección del WHS"'))
   assert.ok(opening.includes('if (requiresWarehouse.value && !(warehouse.value'))

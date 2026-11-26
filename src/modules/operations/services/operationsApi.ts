@@ -287,7 +287,7 @@ export const operationsApi = {
   confirmOriginWeight: (id: string, input: { expectedVersion: number; value: number; unit: string }) =>
     request<{ id: string; version: number; actualWeightKg: number }>(
       `/api/operations/cases/${id}/origin/actual-weight`, 'POST', input),
-  updateOriginPlanning: (id: string, input: { expectedVersion: number; etd: string; eta: string; consolidationReference: string }) =>
+  updateOriginPlanning: (id: string, input: { expectedVersion: number; etd: string; eta: string; consolidationReference: string; clientPoReference?: string; invoiceReference?: string }) =>
     request<{ id: string; version: number }>(`/api/operations/cases/${id}/origin/planning`, 'POST', input),
   updateOriginStatus: (id: string, statusCode: string, expectedVersion: number) =>
     request<{ statusCode: string; version: number }>(

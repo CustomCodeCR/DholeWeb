@@ -9,11 +9,11 @@ test('transport changes remove equipment and use terminal metadata', () => {
   assert.ok(!source.includes('needsEquipment || form.equipment.length'))
   assert.ok(source.includes("selectedRouteType('pol', selectedPol.value) !== routeTerminal.value"))
 })
-test('new manual openings validate estimated weight and air dimensions without editing actual weight', () => {
+test('new manual openings validate estimated weight, volume and bultos without editing actual weight', () => {
   assert.ok(source.includes('positive(form.value.estimatedWeightValue)'))
-  assert.ok(source.includes("form.value.lengthCm, form.value.widthCm, form.value.heightCm"))
+  assert.ok(source.includes("Number.isInteger(Number(form.value.packageCount))"))
   assert.ok(source.includes("weightValue: undefined, weightUnit: undefined, weightKg: undefined"))
-  assert.ok(source.includes("openingValidationVersion: 4"))
+  assert.ok(source.includes("openingValidationVersion: 5"))
 })
 
 test('route and commercial perspective follow Pricing', () => {
