@@ -132,3 +132,17 @@ test('manual opening review displays planned team without implying an assigned o
   assert.ok(review.indexOf('title="Validación de apertura"') < review.indexOf('v-for="section in manualReviewSections"'))
   assert.match(source, /:class="editingId \? 'sticky bottom-3 z-30 shadow-xl' : ''"/)
 })
+
+test('open WHS menu escapes the DH card clipping and stacks above sibling cards', () => {
+  const picker = readFileSync(new URL('../src/modules/pricing/components/PricingLocationSearchSelect.vue', import.meta.url), 'utf8')
+  const theme = readFileSync(new URL('../src/assets/theme.css', import.meta.url), 'utf8')
+  const card = readFileSync(new URL('../src/shared/components/molecules/DhCard.vue', import.meta.url), 'utf8')
+  assert.match(source, /<DhCard v-if="requiresWarehouse"/)
+  assert.match(source, /<PricingLocationSearchSelect v-if="warehouseOptions.length"/)
+  assert.match(card, /dh-glass dh-liquid/)
+  assert.ok(picker.includes(':data-dh-whs-menu-open="terminalType === \'WHS\' && open && !disabled ? \'true\' : undefined"'))
+  assert.match(theme, /\.dh-liquid:has\(> \[data-dh-whs-menu-open="true"\]\)\s*\{\s*overflow: visible;\s*z-index: 20;/)
+  assert.match(theme, /\.dh-liquid > \[data-dh-whs-menu-open="true"\]\s*\{\s*z-index: 2;/)
+  assert.match(picker, /pricing-location-menu absolute z-\[120\]/)
+  assert.match(picker, /function closeSearch\(\)\s*\{\s*open.value = false/)
+})

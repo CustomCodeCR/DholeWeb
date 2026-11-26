@@ -156,7 +156,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="relative min-w-0">
+  <div ref="root" class="relative min-w-0"
+    :data-dh-whs-menu-open="terminalType === 'WHS' && open && !disabled ? 'true' : undefined">
     <label class="block">
       <span class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
         {{ label }}<span v-if="optional" class="normal-case tracking-normal"> (opcional)</span>
