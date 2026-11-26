@@ -172,7 +172,7 @@ test('legacy WHS without ownership remains selectable without claiming ownership
   assert.match(filter, /!country \|\| !origin \|\| country === origin/)
   assert.match(filter, /Sin agente vinculado/)
   assert.match(filter, /return \[\.\.\.linked, \.\.\.unlinked\]/)
-  assert.match(source, /:disabled="!editingId && \(!form.agentId \|\| catalogLoading\)"/)
+  assert.match(source, /:disabled="!editingId && !form.agentId"/)
   assert.match(source, /únicamente en este trámite/)
   assert.match(source, /changed && !String\(catalogMetadata\(warehouse.value\).agentId/)
 })
