@@ -125,6 +125,7 @@ const workspace = ref<OperationsCaseWorkspace | null>(null)
 const quoteSearch = ref('')
 const quoteCandidates = ref<RateDto[]>([])
 const quoteSelection = ref('')
+const selectedQuoteCandidate = computed(() => quoteCandidates.value.find(rate => rate.id === quoteSelection.value))
 const quoteLinkBusy = ref(false)
 const quoteLinkMessage = ref('')
 const quoteLinkError = ref('')
@@ -143,6 +144,7 @@ async function searchAcceptedQuotes() {
     quoteCandidates.value = result.items.filter(rate => rate.status === 'AcceptedByClient' && rate.clientAccountId === detail.accountId &&
       rate.shipmentMode.toUpperCase() === detail.modalityCode.toUpperCase())
     if (!quoteCandidates.value.length) quoteLinkMessage.value = 'No se encontraron QUO aceptadas del mismo cliente y modalidad.'
+    else if (quoteCandidates.value.length === 1) quoteSelection.value = quoteCandidates.value[0]!.id
   } catch { quoteLinkError.value = 'No se pudo consultar las cotizaciones autorizadas.' }
   finally { quoteLinkBusy.value = false }
 }
@@ -897,9 +899,25 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <div class="min-w-0 flex-1"><DhInput v-model="quoteSearch" label="Buscar cotización" placeholder="Número de QUO" /></div>
               <DhButton type="submit" label="Buscar" :loading="quoteLinkBusy" :disabled="!quoteSearch.trim()" />
             </form>
-            <div v-if="quoteCandidates.length" class="mt-3 flex flex-wrap items-end gap-3">
-              <div class="min-w-0 flex-1"><DhSelect searchable v-model="quoteSelection" label="Cotización" placeholder="Seleccionar QUO" :options="quoteCandidates.map(rate => ({ value: rate.id, label: [rate.quoNumber || rate.rateCode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ') }))" /></div>
-              <DhButton label="Vincular QUO" :loading="quoteLinkBusy" :disabled="!quoteSelection" @click="requestQuoteLink" />
+            <div v-if="quoteCandidates.length" class="mt-3 space-y-3">
+              <DhSelect searchable v-model="quoteSelection" label="Cotización" placeholder="Seleccionar QUO" :options="quoteCandidates.map(rate => ({ value: rate.id, label: [rate.quoNumber || rate.rateCode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ') }))" />
+              <DhCard v-if="selectedQuoteCandidate" padding="sm">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p class="font-semibold">{{ selectedQuoteCandidate.quoNumber || selectedQuoteCandidate.rateCode }}</p>
+                    <p class="text-sm text-[var(--dh-text-muted)]">{{ selectedQuoteCandidate.clientName || 'Cliente del expediente' }} · {{ selectedQuoteCandidate.shipmentMode }}</p>
+                  </div>
+                  <DhBadge variant="success">Aceptada</DhBadge>
+                </div>
+                <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                  <div><dt class="text-xs text-[var(--dh-text-muted)]">Ruta</dt><dd>{{ selectedQuoteCandidate.polName }} → {{ selectedQuoteCandidate.podName || selectedQuoteCandidate.poeName }}</dd></div>
+                  <div><dt class="text-xs text-[var(--dh-text-muted)]">IDTRA existentes</dt><dd>{{ selectedQuoteCandidate.idtraNumber || 'Sin IDTRA registrado' }}</dd></div>
+                </dl>
+                <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-xs text-[var(--dh-text-muted)]">Se mantiene el IDTRA del expediente y la información operativa existente.</p>
+                  <DhButton label="Vincular QUO" :loading="quoteLinkBusy" :disabled="!quoteSelection" @click="requestQuoteLink" />
+                </div>
+              </DhCard>
             </div>
           </template>
           <p v-if="quoteLinkMessage" class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ quoteLinkMessage }}</p>
