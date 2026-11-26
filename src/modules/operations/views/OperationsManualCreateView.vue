@@ -1295,7 +1295,7 @@ onMounted(async () => {
             <p v-else-if="!editingId && !warehouseOptions.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)]">No hay WHS compatibles disponibles. Revisa los almacenes en Configuración → Catálogos → WHS globales.</p>
             <PricingLocationSearchSelect v-if="!editingId || warehouseOptions.length" v-model="selectedWarehouse"
               label="WHS global" placeholder="Buscar almacén…" search-placeholder="Buscar bodega o ciudad…"
-              :disabled="!editingId && (!form.agentId || catalogLoading)"
+              :disabled="!editingId && !form.agentId"
               :options="warehouseOptions" terminal-type="WHS" @open="loadPricingCatalogs"
               @update:model-value="!$event && (form.whsName = '', form.warehouseId = '', form.warehouseAddress = '')" />
             <div v-if="warehouse && (editingId || warehouseOptions.some(option => option.value === selectedWarehouse))" class="space-y-1 text-xs">
