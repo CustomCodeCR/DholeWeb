@@ -817,7 +817,7 @@ onBeforeUnmount(() => {
 function buildOpeningData() {
   return {
       ...form.value,
-      ...(!editingId.value ? { etm: undefined, eta: undefined, consolidationReference: undefined } : {}),
+      ...(!editingId.value ? { etm: undefined, eta: undefined, consolidationReference: undefined, clientPoReference: undefined, invoiceReference: undefined } : {}),
       incotermName: selectedIncoterm.value,
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
@@ -1150,7 +1150,7 @@ onMounted(async () => {
                 </div>
               </div>
               <DhSelect v-if="editingId" v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
-              <DhInput v-if="editingId" v-model="form.clientPoReference" label="Orden / PO / referencia del cliente" />
+              <p v-if="editingId && form.clientPoReference" class="text-sm text-[var(--dh-text-muted)]">PO: {{ form.clientPoReference }} · Editable en Coordinación Origen.</p>
               <div v-if="editingId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
                 <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">División comercial CRM (opcional)</p>
                 <p class="mt-1 text-xs font-semibold">{{ form.crmDivisionId || 'Sin división vinculada' }}</p>

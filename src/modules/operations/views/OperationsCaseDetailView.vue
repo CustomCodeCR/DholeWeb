@@ -278,8 +278,8 @@ const originWeightValue = ref('')
 const originWeightUnit = ref('KG')
 const originWeightSaving = ref(false)
 const originWeightStale = ref(false)
-const originPlanning = ref({ etd: '', eta: '', consolidationReference: '' })
-const originPlanningBase = ref({ etd: '', eta: '', consolidationReference: '' })
+const originPlanning = ref({ etd: '', eta: '', consolidationReference: '', clientPoReference: '', invoiceReference: '' })
+const originPlanningBase = ref({ etd: '', eta: '', consolidationReference: '', clientPoReference: '', invoiceReference: '' })
 const originPlanningSaving = ref(false)
 const originPlanningStale = ref(false)
 const originPlanningDirty = computed(() => JSON.stringify(originPlanning.value) !== JSON.stringify(originPlanningBase.value))
@@ -287,7 +287,7 @@ const originConsolidationApplicable = computed(() => ['LCL','LTL'].includes(reco
 function hydrateOriginPlanning() {
   const data = openingData.value
   const date = (value: unknown) => /^\d{4}-\d{2}-\d{2}/.test(String(value ?? '')) ? String(value).slice(0, 10) : ''
-  originPlanningBase.value = { etd: date(data.etm), eta: date(data.eta), consolidationReference: originConsolidationApplicable.value ? String(data.consolidationReference ?? '') : '' }
+  originPlanningBase.value = { etd: date(data.etm), eta: date(data.eta), consolidationReference: originConsolidationApplicable.value ? String(data.consolidationReference ?? '') : '', clientPoReference: String(data.clientPoReference ?? ''), invoiceReference: String(data.invoiceReference ?? '') }
   originPlanning.value = { ...originPlanningBase.value }
   originPlanningStale.value = false
 }
@@ -1064,6 +1064,8 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <div class="grid gap-3 sm:grid-cols-2">
                 <DhInput v-model="originPlanning.etd" type="date" label="Salida estimada (ETD)" />
                 <DhInput v-model="originPlanning.eta" type="date" label="Llegada estimada (ETA)" />
+                <DhInput v-model="originPlanning.clientPoReference" label="PO / referencia del cliente (opcional)" :maxlength="250" />
+                <DhInput v-model="originPlanning.invoiceReference" label="Factura (opcional)" :maxlength="250" />
                 <DhInput v-if="originConsolidationApplicable" v-model="originPlanning.consolidationReference" label="Referencia de consolidado" />
               </div>
               <p v-if="originPlanningStale" role="alert" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice antes de guardar.</p>
@@ -1071,6 +1073,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             </div>
             <div v-else class="grid gap-3 sm:grid-cols-2">
               <p>ETD: {{ originPlanningBase.etd || 'Por confirmar' }}</p><p>ETA: {{ originPlanningBase.eta || 'Por confirmar' }}</p>
+              <p>PO: {{ originPlanningBase.clientPoReference || 'Sin referencia' }}</p><p>Factura: {{ originPlanningBase.invoiceReference || 'Sin referencia' }}</p>
               <p v-if="originConsolidationApplicable">Consolidado: {{ originPlanningBase.consolidationReference || 'Por confirmar' }}</p>
             </div>
           </DhCard>

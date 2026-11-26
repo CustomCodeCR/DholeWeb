@@ -1,5 +1,7 @@
 ## [1.133.0] - 2026-11-25
 
+- Move optional PO and invoice references to the existing Origin planning form; retain PO read-only in opening edits.
+
 - Candidato: simplificar la apertura manual a cliente, ruta, servicios, bultos, volumen, peso y equipos; WHS para LCL/LTL y naviera para FCL. Mantener campos históricos en edición. La selección inicial de estado, asignación explícita y aceptación/revinculación QUO siguen pendientes; no promover.
 
 ## [1.132.2] - 2026-11-25
