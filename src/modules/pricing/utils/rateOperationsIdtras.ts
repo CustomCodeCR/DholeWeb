@@ -11,6 +11,17 @@ export function historicalIdtra(value: string | null | undefined): string {
   return /^(pendiente(?: de asignar)?|sin idtra|sin asignar|no asignado|n\/a)$/i.test(trimmed) ? '' : trimmed
 }
 
+// Only exact identifier matches are removed; legacy aliases are not assumed.
+export function unverifiedHistoricalIdtras(value: string | null | undefined, confirmed: readonly string[]): string[] {
+  const seen = new Set(confirmed.map(id => id.trim().toUpperCase()))
+  return String(value ?? '').split(',').map(historicalIdtra).filter(id => {
+    const key = id.toUpperCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 // Pricing keeps historical references; Operations is authoritative for new openings.
 export async function resolveRateOperationsIdtras(
   rate: Pick<RateDto, 'id' | 'groupAlternativeCount' | 'groupQuoteNumber'>,
