@@ -351,27 +351,40 @@ async function confirmOriginWeight() {
   } finally { originWeightSaving.value = false }
 }
 const originStatusChoices = computed(() => {
+  const pickup = openingData.value.requiresPickup === true ? [{ label: 'Recolecta de carga', value: 'CARGO_PICKUP' }] : []
   switch (record.value?.modalityCode) {
-    case 'FCL': case 'LCL': return [
+    case 'FCL': return [
       { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      ...pickup,
+      { label: 'Booking listo', value: 'BOOKING_READY' },
+      { label: 'Carga en puerto de salida', value: 'PORT_OF_LOADING' },
+    ]
+    case 'LCL': return [
+      { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      ...pickup,
+      { label: 'Carga WHS Origen', value: 'ORIGIN_WAREHOUSE' },
       { label: 'Booking listo', value: 'BOOKING_READY' },
       { label: 'Carga en puerto de salida', value: 'PORT_OF_LOADING' },
     ]
     case 'AIR': return [
       { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      ...pickup,
       { label: 'Carga WHS Origen', value: 'ORIGIN_WAREHOUSE' },
+      { label: 'Booking listo', value: 'BOOKING_READY' },
       { label: 'Carga en aeropuerto salida', value: 'DEPARTURE_AIRPORT' },
     ]
     case 'FTL': case 'MULTIMODAL': return [
       { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      ...pickup,
       { label: 'Preparando envío', value: 'PREPARING_DISPATCH' },
     ]
     case 'LTL': return [
       { label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' },
+      ...pickup,
       { label: 'Carga WHS Origen', value: 'ORIGIN_WAREHOUSE' },
       { label: 'Preparando envío', value: 'PREPARING_DISPATCH' },
     ]
-    default: return [{ label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' }]
+    default: return [{ label: 'Coordinación en Origen', value: 'ORIGIN_COORDINATION' }, ...pickup]
   }
 })
 const postingNote = ref(false)

@@ -286,6 +286,18 @@ onMounted(initialize)
             class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-200">
             {{ t('operations.missingReviewers') }}
           </p>
+          <div v-if="selected.operatorScopes?.length || selected.supervisorScopes?.length" class="mt-5 border-t border-[var(--dh-border)] pt-4">
+            <h3 class="text-sm font-black text-[var(--dh-text)]">{{ t('operations.teamScopeProfile') }}</h3>
+            <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamScopeProfileHint') }}</p>
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
+              <div v-for="profile in [{ label: t('operations.operator'), scopes: selected.operatorScopes || [] }, { label: t('operations.supervisor'), scopes: selected.supervisorScopes || [] }]" :key="profile.label">
+                <p class="mb-2 text-xs font-semibold text-[var(--dh-text)]">{{ profile.label }}</p>
+                <div class="flex flex-wrap gap-1">
+                  <DhBadge v-for="scope in profile.scopes" :key="scope" variant="neutral">{{ scope }}</DhBadge>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="mt-5 border-t border-[var(--dh-border)] pt-4">
             <h3 class="text-sm font-black text-[var(--dh-text)]">{{ t('operations.teamMembers') }}</h3>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamMembersHint') }}</p>

@@ -21,6 +21,8 @@ export interface OperationsTeam {
   name: string
   isActive: boolean
   members: OperationsMember[]
+  operatorScopes?: string[]
+  supervisorScopes?: string[]
 }
 export interface OperationsUser { id: string; displayName: string; userName: string }
 export interface OperationsAudit {
