@@ -123,7 +123,7 @@ const warehouseOptions = computed(() => {
     const item = currentCatalog('warehouses').find(row => row.id === option.value)
     const ownership = warehouseAgentOwnership(item?.metadataJson, agent)
     if (ownership === 'linked') {
-      const ownerLabel = warehouseAgentNames(item?.metadataJson).join(' / ') || optionText(agent)
+      const ownerLabel = String(catalogMetadata(item).agentId || '').trim() ? optionText(agent) : warehouseAgentNames(item?.metadataJson).join(' / ') || optionText(agent)
       linked.push({ ...option, label: option.label + ' · ' + ownerLabel,
         searchText: option.searchText + ' ' + ownerLabel + ' ' + optionText(agent) })
     } else if (ownership === 'unlinked') {
@@ -411,6 +411,8 @@ const warehouseAgent = computed(() => {
 })
 const warehouseOwnerLabel = computed(() => {
   if (!warehouse.value) return ''
+  if (String(catalogMetadata(warehouse.value).agentId || '').trim())
+    return warehouseAgent.value ? optionText(warehouseAgent.value) : 'Agente registrado no disponible'
   return warehouseAgentNames(warehouse.value.metadataJson).join(' / ') ||
     (warehouseAgent.value ? optionText(warehouseAgent.value) : '') ||
     (warehouseAgentOwnership(warehouse.value.metadataJson) === 'unlinked' ? 'Sin agente vinculado en Config' : 'Agente registrado no disponible')
