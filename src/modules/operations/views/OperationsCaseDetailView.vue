@@ -120,7 +120,8 @@ const openingSections = computed(() => {
     title: section.title,
     rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg','consolidationReference'].includes(row.key)) && !inapplicable.has(row.key) && !inapplicable.has(fieldAliases[row.key] || row.key) && !['estimatedWeightUnit','actualWeightUnit','volumeUnit'].includes(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
       const raw = openingField(row.key, data)
-      const value = units[row.key] ? summaryMeasure(raw, openingField(units[row.key], data)) : raw
+      const unitKey = units[row.key]
+      const value = unitKey ? summaryMeasure(raw, openingField(unitKey, data)) : raw
       return { label: row.label, value: value || (
         row.key === 'actualWeightValue' ? 'Pendiente de Coordinación Origen' : 'Por confirmar'
       ) }
