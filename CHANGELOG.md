@@ -1,3 +1,7 @@
+## [1.132.2] - 2026-11-25
+
+- DH-20261125-FTL-PERSISTED-AGENT-P6: recuperar el agente FTL persistido en consulta y edición sin sustituir su ID; respetar el filtro de país en nuevas rutas. Permitir revisar las líneas de pantalla 7 sin bloquear por el catálogo; la verificación final de contexto permanece en guardado. Pruebas de regresión incluidas; CI y staging pendientes.
+
 ## [1.132.1] - 2026-11-25
 - Resolve service names using the shared catalog in case drawer and detail.
 - Compact Aperturas validation with DH tabs and edit action.
