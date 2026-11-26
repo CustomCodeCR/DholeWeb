@@ -1,3 +1,7 @@
+## [1.132.3] - 2026-11-25
+
+- DH-20261125-FTL-CUSTOMS-SCOPE: separar CUSTOMS_FOREIGN de CUSTOMS_CR en pantalla 7 y guardado; aliases históricos requieren país explícito. Conservar RateDetails FTL negociados en cambios exclusivos de agente elegible, sin tratar la naviera oculta como cambio de contexto. Regresiones incluidas; CI/staging pendientes.
+
 ## [1.132.2] - 2026-11-25
 
 - DH-20261125-FTL-PERSISTED-AGENT-P6: recuperar el agente FTL persistido en consulta y edición sin sustituir su ID; respetar el filtro de país en nuevas rutas. Permitir revisar las líneas de pantalla 7 sin bloquear por el catálogo; la verificación final de contexto permanece en guardado. Pruebas de regresión incluidas; CI y staging pendientes.
