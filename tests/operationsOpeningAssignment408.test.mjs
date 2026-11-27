@@ -5,6 +5,8 @@ const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8'
 const opening = read('src/modules/operations/views/OperationsManualCreateView.vue')
 const api = read('src/modules/operations/services/operationsApi.ts')
 const cases = read('src/modules/operations/views/OperationsCasesView.vue')
+const detail = read('src/modules/operations/views/OperationsCaseDetailView.vue')
+const presentation = read('src/modules/operations/utils/commercialPresentation.ts')
 
 test('manual opening delegates direct Origin handoff to backend without dual review', () => {
   assert.match(opening, /operationsApi\.createAperture/)
@@ -27,18 +29,19 @@ test('stackable is captured in new and existing openings with explicit unknown s
   assert.match(opening, /stackable: stackableApplicable\.value \? form\.value\.stackable : null/)
   assert.ok(opening.includes("stackable: null as boolean | null"))
   assert.match(opening, /toggleCondition\(form\.stackable\)/)
-  assert.match(cases, /opening\.value\.stackable === false/)
+  assert.match(detail, /key: 'stackable'/)
+  assert.match(presentation, /data\[key\] === true \? 'Sí' : data\[key\] === false \? 'No' : ''/)
 })
-test('review and drawer use structured client, route, cargo, documents and team sections', () => {
+test('review retains detailed sections while compact drawer prioritizes account and linked cases', () => {
   for (const marker of ['Revisión de apertura', 'Cliente y responsable', 'Ruta e itinerario',
     'Mercancía y equipos', 'Coordinación Origen', 'Completitud']) {
     assert.ok(opening.includes(marker), marker)
   }
-  for (const marker of ['Expediente operativo', 'Cliente y comercial', 'Ruta del embarque',
-    'Mercancía y equipos', 'Responsables y validación', 'Documentos']) {
+  for (const marker of ['Expediente operativo', 'Cuenta y contactos', 'Trámites vinculados', 'Referencia del cliente']) {
     assert.ok(cases.includes(marker), marker)
   }
-  assert.doesNotMatch(cases, /Ruta · países/)
+  assert.doesNotMatch(cases, /Ruta del embarque|Mercancía y equipos|Responsables y validación/)
+  for (const marker of ['Ruta y transporte', 'Mercancía', 'Departamentos y responsables', 'Documentación']) assert.ok(detail.includes(marker), marker)
   assert.match(cases, /openingDataJson/)
   assert.match(cases, /clientExecutiveName/)
 })
