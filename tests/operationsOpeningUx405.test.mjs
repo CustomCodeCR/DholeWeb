@@ -34,7 +34,8 @@ test('only actual active operational CRM contacts can be selected for notices', 
   assert.match(opening, /operationalContacts\.value = entries\.flatMap/)
   assert.match(opening, /toggleOperationalContact/)
   assert.match(opening, /contactIds: \[\] as string\[\]/)
-  assert.match(opening, /:checked="form\.contactIds\.includes\(contact\.id\)"/)
+  assert.match(opening, /<DhCheckbox :model-value="form\.contactIds\.includes\(contact\.id\)"/)
+  assert.match(opening, /@update:model-value="toggleOperationalContact\(contact\.id, \$event\)"/)
   assert.match(opening, /form\.value\.contactReferences = form\.value\.contactIds\.join/)
 })
 
