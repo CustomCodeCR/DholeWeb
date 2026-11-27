@@ -6,8 +6,10 @@ const read = (path: string) => readFileSync(new URL('../' + path, import.meta.ur
 
 test('the modification draft loads seller EXW/form after old quote hydration and never writes on opening', () => {
   const source = read('build/pricingSellerModificationWizard.ts')
-  assert.match(source, /watch\(\[pricingModificationWorkItem, editingRate, loadingExistingRate\]/)
-  assert.match(source, /loadingExistingRate\.value \|\| pricingModificationApplied\.value/)
+  assert.match(source, /watch\(\[pricingModificationWorkItem, editingRate, loadingExistingRate, hydratingExistingRate\]/)
+  assert.match(source, /loadingExistingRate\.value \|\| hydratingExistingRate\.value \|\| pricingModificationApplied\.value/)
+  assert.match(source, /requestedForm\.serviceIds = effectiveServices\.value\.map/)
+  assert.match(source, /form\.serviceIds = \[\.\.\.form\.serviceIds, cargoInsuranceService\.value\.id\]/)
   assert.match(source, /void applyPricingModification\(\)/)
   assert.match(source, /const proposal = pricingModificationWorkItem\.value\?\.payload\?\.form/)
   assert.match(source, /\(form as unknown as Record<string, unknown>\)\[key\] = JSON\.parse/)
