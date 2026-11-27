@@ -5,7 +5,7 @@ import test from 'node:test'
 const opening = readFileSync(new URL('../src/modules/operations/views/OperationsManualCreateView.vue', import.meta.url), 'utf8')
 
 test('Operations retains Pricing transport and shipment choices within three steps', () => {
-  for (const label of ['Cliente y ruta', 'Carga y servicios', 'Revisión'])
+  for (const label of ['Cliente, ruta y servicios', 'Carga y condiciones', 'Revisión'])
     assert.ok(opening.includes(`label: '${label}'`), label)
   assert.match(opening, /<DhSelect label="Modalidad de transporte"/)
   assert.match(opening, /@update:model-value="selectTransport\(String\(\$event\)\)"/)

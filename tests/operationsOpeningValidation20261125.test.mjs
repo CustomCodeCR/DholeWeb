@@ -13,7 +13,7 @@ test('new manual openings validate estimated weight, volume and bultos without e
   assert.ok(source.includes('positive(form.value.estimatedWeightValue)'))
   assert.ok(source.includes("Number.isInteger(Number(form.value.packageCount))"))
   assert.ok(source.includes("weightValue: undefined, weightUnit: undefined, weightKg: undefined"))
-  assert.ok(source.includes("openingValidationVersion: 7"))
+  assert.ok(source.includes("openingValidationVersion: 8"))
 })
 
 test('route and commercial perspective follow Pricing', () => {
