@@ -17,8 +17,6 @@ interface PricingOperationsReview {
   acceptedOptionId: string | null
   serviceCode: string
   reason: string
-  requestedBy?: string | null
-  requestedByName?: string | null
   status: string
   requestedAtUtc: string
   decidedAtUtc: string | null
@@ -169,7 +167,6 @@ onMounted(() => { void load() })
           <div class="grid gap-3 sm:grid-cols-2">
             <div><p class="text-xs text-[var(--dh-text-muted)]">Trámite</p><RouterLink :to="`/operations/cases/${selected.caseId}`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ selected.idtra }}</RouterLink></div>
             <div><p class="text-xs text-[var(--dh-text-muted)]">Tipo</p><p class="text-sm font-semibold">{{ reviewType(selected.serviceCode) }}</p></div>
-            <div><p class="text-xs text-[var(--dh-text-muted)]">Solicitante</p><p class="break-words text-sm">{{ selected.requestedByName || selected.requestedBy || 'No informado por Pricing' }}</p></div>
             <div><p class="text-xs text-[var(--dh-text-muted)]">Fecha de solicitud</p><p class="text-sm">{{ date(selected.requestedAtUtc) }}</p></div>
           </div>
         </DhCard>

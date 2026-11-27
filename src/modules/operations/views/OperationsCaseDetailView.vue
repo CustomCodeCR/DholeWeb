@@ -1018,7 +1018,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <DhCard padding="compact"><DhBadge variant="warning">Por confirmar</DhBadge><p class="mt-2 text-xl font-bold tabular-nums">{{ unconfirmedCount }}</p><p class="text-xs text-[var(--dh-text-muted)]">Falta información verificable</p></DhCard>
               <DhCard padding="compact"><DhBadge variant="danger">Diferencias</DhBadge><p class="mt-2 text-xl font-bold tabular-nums">{{ discrepancyCount }}</p><p class="text-xs text-[var(--dh-text-muted)]">Cambios respecto a lo cotizado</p></DhCard>
             </div>
-            <p v-if="!confirmedHold && (discrepancyCount || unconfirmedCount > 5)" class="mb-3 text-sm text-[var(--dh-text-muted)]" role="status">Revisa las discrepancias y los datos pendientes. Estos indicadores no confirman un bloqueo HOLD; el estado operativo lo determina Operations.</p>
+            <p v-if="!confirmedHold && (discrepancyCount || unconfirmedCount)" class="mb-3 text-sm text-[var(--dh-text-muted)]" role="status">Revisa las discrepancias y los datos pendientes. Estos indicadores no confirman un bloqueo HOLD; el estado operativo lo determina Operations.</p>
             <DhTabs v-model="comparisonFilter" :items="comparisonFilters" aria-label="Filtrar datos de la comparación" class="mb-3" />
             <DhDataTable :columns="comparisonColumns" :rows="visibleComparisonRows" empty-text="No hay datos en esta categoría.">
               <template #cell-quoted="{ row }">{{ comparisonValue(row, 'quoted') }}</template>
