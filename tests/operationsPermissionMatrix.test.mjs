@@ -35,3 +35,14 @@ test('Team responsibility selector uses DH and retains legacy clients', () => {
   assert.ok(api.includes('roleProfiles?: Record<string, string[]>'))
   assert.ok(api.includes('roleCode?: string | null'))
 })
+
+test('Granular team permissions are independent in the DH view', () => {
+  const view = read('src/modules/operations/views/OperationsTeamsView.vue')
+  const router = read('src/core/router/index.ts')
+  assert.ok(view.includes("auth.hasScope('operations.team.read')"))
+  assert.ok(view.includes("auth.hasScope('operations.team.member.assign')"))
+  assert.ok(view.includes("auth.hasScope('operations.team.member.remove')"))
+  assert.ok(view.includes('v-if="canRemoveMember(member)"'))
+  assert.ok(view.includes('v-if="canAssign"'))
+  assert.ok(router.includes("requiredAnyScopes: ['operations.team.read', 'operations.team.manage']"))
+})

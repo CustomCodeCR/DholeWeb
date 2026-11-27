@@ -14,6 +14,9 @@ import { operationsApi, type OperationsAudit, type OperationsTeam, type Operatio
 const { t } = useI18n()
 const auth = useAuthStore()
 const canManage = computed(() => auth.hasScope('operations.team.manage'))
+const canView = computed(() => canManage.value || auth.hasScope('operations.team.read'))
+const canAssign = computed(() => canManage.value || auth.hasScope('operations.team.member.assign'))
+const canRemove = computed(() => canManage.value || auth.hasScope('operations.team.member.remove'))
 const canAudit = computed(() => auth.hasScope('operations.audit.read'))
 const canManageLeadership = computed(() => ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)))
 const teams = ref<OperationsTeam[]>([])
@@ -121,7 +124,9 @@ const displayedProfiles = computed(() => roleOrder
 const memberGroups = computed(() => roleOrder
   .map(role => ({ role, people: members.value.filter(member => memberRole(member) === role) }))
   .filter(group => group.people.length))
-const canEditMember = (member: OperationsMember) => canManage.value &&
+const canEditMember = (member: OperationsMember) => canAssign.value &&
+  (!isLeadership(memberRole(member)) || canManageLeadership.value)
+const canRemoveMember = (member: OperationsMember) => canRemove.value &&
   (!isLeadership(memberRole(member)) || canManageLeadership.value)
 const allMembers = computed(() => new Set(teams.value.filter(team => team.isActive)
   .flatMap(team => team.members.map(member => member.userId))).size)
@@ -149,7 +154,7 @@ async function reload() {
   finally { loading.value = false }
 }
 async function searchUsers() {
-  if (!canManage.value) return
+  if (!canView.value && !canAssign.value) return
   try {
     const result = await operationsApi.users()
     users.value = result.items
@@ -189,7 +194,7 @@ function editMember(member: OperationsMember) {
   showAdvanced.value = true
 }
 async function saveMember() {
-  if (!selected.value || busy.value || !canManage.value ||
+  if (!selected.value || busy.value || !canAssign.value ||
       !Number.isFinite(capacity.value) || capacity.value < 0.5 || capacity.value > 10000) return
   const editing = Boolean(selectedMember.value)
   const pendingIds = [...new Set(memberIds.value)]
@@ -218,7 +223,9 @@ async function saveMember() {
   finally { busy.value = false }
 }
 async function removeMember(userId: string) {
-  if (!selected.value || !canManage.value || busy.value) return
+  if (!selected.value || !canRemove.value || busy.value) return
+  const member = members.value.find(item => item.userId === userId)
+  if (!member || !canRemoveMember(member)) return
   if (removingMemberId.value !== userId) {
     removingMemberId.value = userId
     return
@@ -360,9 +367,9 @@ onMounted(initialize)
                     <span>{{ isLeadership(memberRole(member)) ? t('operations.leadershipAccess') : (member.isAvailable ? t('operations.available') : t('operations.unavailable')) }}</span>
                   </div>
                 </div>
-                <div v-if="canEditMember(member)" class="flex flex-wrap gap-1">
-                  <DhButton size="sm" variant="secondary" :icon="Pencil" :label="t('operations.edit')" @click="editMember(member)" />
-                  <DhButton size="sm" variant="danger" :icon="UserMinus" :label="removingMemberId === member.userId ? t('operations.confirmRemove') : t('operations.remove')" @click="removeMember(member.userId)" />
+                <div v-if="canEditMember(member) || canRemoveMember(member)" class="flex flex-wrap gap-1">
+                  <DhButton v-if="canEditMember(member)" size="sm" variant="secondary" :icon="Pencil" :label="t('operations.edit')" @click="editMember(member)" />
+                  <DhButton v-if="canRemoveMember(member)" size="sm" variant="danger" :icon="UserMinus" :label="removingMemberId === member.userId ? t('operations.confirmRemove') : t('operations.remove')" @click="removeMember(member.userId)" />
                   <DhButton v-if="removingMemberId === member.userId" size="sm" variant="ghost" :label="t('operations.cancel')" @click="removingMemberId = ''" />
                 </div>
               </div>
@@ -371,7 +378,7 @@ onMounted(initialize)
           </div>
         </DhCard>
 
-        <DhCard v-if="canManage" :title="selectedMember ? t('operations.editMember') : t('operations.addMembers')" :subtitle="t('operations.privatePermissions')" :icon="UserRoundPlus">
+        <DhCard v-if="canAssign" :title="selectedMember ? t('operations.editMember') : t('operations.addMembers')" :subtitle="t('operations.privatePermissions')" :icon="UserRoundPlus">
           <form class="space-y-4" @submit.prevent="saveMember">
             <p class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] p-3 text-xs text-[var(--dh-text-soft)]">{{ t('operations.eligibleRolesHint') }}</p>
             <template v-if="selectedMember">

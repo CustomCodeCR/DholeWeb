@@ -8,9 +8,9 @@ test('Operations pages and sidebar require explicit scopes', () => {
   const sidebar = read('src/shared/components/layouts/MainLayout.vue')
   assert.match(routes, /operations\/teams/)
   assert.match(routes, /operations\/apertures/)
-  assert.match(routes, /requiredScope: 'operations\.team\.manage'/)
+  assert.match(routes, /requiredAnyScopes: \['operations\.team\.read', 'operations\.team\.manage'\]/)
   assert.match(routes, /requiredScope: 'operations\.case\.read'/)
-  assert.match(sidebar, /canView\('operations\.team\.manage'\)/)
+  assert.match(sidebar, /canView\('operations\.team\.read'\) \|\| canView\('operations\.team\.manage'\)/)
 })
 test('the first Aperturas workspace invokes dual validator endpoints, not a single assignee', () => {
   const api = read('src/modules/operations/services/operationsApi.ts')

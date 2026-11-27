@@ -442,8 +442,9 @@ export const CRM_WORKSPACE_SCOPES = [
 ] as const
 
 export const OPERATIONS_SCOPES = {
-  cases: { create: 'operations.case.create', read: 'operations.case.read', readAll: 'operations.case.read-all', update: 'operations.case.update' },
-  teams: { manage: 'operations.team.manage' },
+  cases: { create: 'operations.case.create', read: 'operations.case.read', readAll: 'operations.case.read-all', update: 'operations.case.update', delete: 'operations.case.delete' },
+  teams: { manage: 'operations.team.manage', read: 'operations.team.read', assign: 'operations.team.member.assign', remove: 'operations.team.member.remove' },
+  departments: { transit: 'operations.transit.manage', centralAmerica: 'operations.central-america.manage', land: 'operations.land.manage', costaRica: 'operations.costa-rica.manage', panama: 'operations.panama.manage' },
   assignments: { manage: 'operations.assignment.manage' },
   apertureValidations: {
     assign: 'operations.aperture.validation.assign',

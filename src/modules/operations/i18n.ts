@@ -26,7 +26,7 @@ export const operationsMessages = {
     person: 'Colaborador', personPlaceholder: 'Selecciona un usuario',
     role: 'Responsabilidad', supervisor: 'Supervisor', operator: 'Operativo',
     totalPeople: 'Integrantes activos', leadershipAccess: 'Acceso transversal · fuera del pool',
-    teamRoles: { LOGISTICS_MANAGER: 'Gerencia Logística', OPERATIONS_HEAD: 'Jefe de operaciones', ORIGIN_SUPERVISOR: 'Supervisor Origen', TEAM_SUPERVISOR: 'Supervisor de equipo (anterior)', OPERATOR: 'Operativo' },
+    teamRoles: { LOGISTICS_MANAGER: 'Gerente Logistica', OPERATIONS_HEAD: 'Jefe Operaciones', ORIGIN_SUPERVISOR: 'Supervisor Origen', TEAM_SUPERVISOR: 'Supervisor Operaciones', OPERATOR: 'Operativo' },
     teamRoleHints: {
       LOGISTICS_MANAGER: 'Consulta transversal de los trámites de la empresa; no recibe asignaciones del pool.',
       OPERATIONS_HEAD: 'Consulta todos los trámites de la empresa; no recibe asignaciones del pool.',

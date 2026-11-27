@@ -1,3 +1,7 @@
+## [1.141.0] - 2026-11-26
+
+- MINOR candidato: scopes granulares y controles DH independientes para consulta, asignación y remoción de miembros. CI y staging pendientes.
+
 ## [1.140.0] - 2026-11-26
 
 - MINOR candidato: responsabilidades de equipos con DhSelect, integrantes agrupados por cargo, perfiles de scopes efectivos y acceso transversal separado del pool; nombres del catálogo simplificados sin alterar enrutamiento. Conserva supervisión anterior y sincronización realtime. CI y staging pendientes.
