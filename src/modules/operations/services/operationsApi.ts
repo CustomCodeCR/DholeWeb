@@ -124,6 +124,7 @@ export type OperationsTabLevel = 'EDITABLE' | 'READ_ONLY' | 'LOCKED' | 'NOT_APPL
 export interface OperationsCaseTab { code: OperationsTabCode; accessLevel: OperationsTabLevel }
 export interface OperationsCaseWorkspace {
   caseId: string
+  relatedCases?: Array<{ id: string; idtra: string; status: string; modalityCode: string }>
   commercialData?: Record<string, unknown> | null
   people?: Record<string, string>
   stages: Array<{
