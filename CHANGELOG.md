@@ -1,5 +1,9 @@
 ## [1.145.4] - 2026-11-27
 
+## [1.145.5] - 2026-11-27
+- Replace nested glass division cards with a compact DH selector and aligned operational recipient list; retain filtering, recovery and grouped selection.
+
+
 - PATCH: resolve amendment insurance currency by canonical Config Value; preserve negotiated charges and permit independent insurance-only seller amendments without a route-cost catalog response. Accept valid decimal Hacienda exchange rates, clarify draft status. CI/staging pending.
 
 ## [1.145.3] - 2026-11-27

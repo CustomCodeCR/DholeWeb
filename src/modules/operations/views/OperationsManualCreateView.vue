@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Truck, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound, Building2, Layers3, Mail, ListChecks } from 'lucide-vue-next'
-import { DhBadge, DhButton, DhInput, DhMultiSelect, DhSelect, DhTextarea, DhCheckbox, DhAvatar, DhSkeleton } from '@/shared/components/atoms'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCheck, Package, Plus, Trash2, Save, FolderPlus, Route, Check, Search, FileUp, Truck, RefreshCw, UserRound, CircleAlert, CircleCheck, UsersRound, Layers3 } from 'lucide-vue-next'
+import { DhBadge, DhButton, DhInput, DhMultiSelect, DhSelect, DhTextarea, DhCheckbox, DhSkeleton } from '@/shared/components/atoms'
 import { agentMatchesOrigin } from '@/modules/catalogs/utils/agentOriginCoverage'
 import { warehouseAgentNames, warehouseAgentOwnership } from '@/modules/catalogs/utils/warehouseAgentOwnership'
 import { DhCard } from '@/shared/components/molecules'
@@ -52,9 +52,24 @@ const operationalContacts = ref<Array<{ id: string; name: string; email: string;
 const crmDivisions = ref<Array<{ id: string; name: string }>>([])
 const eligibleOperationalContacts = computed(() => contactsForDivision(operationalContacts.value, form.value.crmDivisionId))
 const selectedDivision = computed(() => crmDivisions.value.find(d => d.id === form.value.crmDivisionId))
-const divisionChoices = computed(() => crmDivisions.value.map(d => ({
-  ...d, contactCount: divisionContactCount(operationalContacts.value, d.id),
-})))
+// A non-empty sentinel lets both the native and searchable DH selectors display
+// the general-account option as a genuine selection, without persisting it.
+const generalDivisionValue = 'account-general'
+const divisionChoices = computed(() => [
+  { value: generalDivisionValue, label: 'Cuenta general' },
+  ...crmDivisions.value.map(d => ({ value: d.id, label: d.name })),
+])
+const divisionSelectValue = computed(() => form.value.crmDivisionId || generalDivisionValue)
+const divisionContactSummary = computed(() => {
+  if (!selectedDivision.value) return ''
+  const own = divisionContactCount(operationalContacts.value, selectedDivision.value.id)
+  return own + ' de la división · ' + generalContactCount.value + ' generales'
+})
+function selectOpeningDivision(value: string | number) {
+  const id = String(value)
+  if (id === generalDivisionValue || !id) changeDivision('')
+  else if (crmDivisions.value.some(d => d.id === id)) changeDivision(id)
+}
 const contactGroups = computed(() => groupDivisionContacts(eligibleOperationalContacts.value, form.value.crmDivisionId))
 const generalContactCount = computed(() => operationalContacts.value.filter(c => !c.divisionIds.length).length)
 const selectedRecipientCount = computed(() => eligibleOperationalContacts.value.filter(c => form.value.contactIds.includes(c.id)).length)
@@ -1562,147 +1577,70 @@ onMounted(async () => {
               </div>
               <DhSelect v-if="editingId" v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <p v-if="editingId && form.clientPoReference" class="text-sm text-[var(--dh-text-muted)]">PO: {{ form.clientPoReference }} · Editable en Coordinación Origen.</p>
-              <!-- CRM division and notification recipients share one visual decision workspace. -->
-              <DhCard padding="sm" class="md:col-span-2" data-testid="opening-division-workspace">
-                <div class="space-y-4" :aria-busy="operationalContactsLoading">
-                  <header class="flex flex-wrap items-start justify-between gap-3">
-                    <div class="flex min-w-0 flex-1 items-start gap-3">
-                      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl dh-bg-primary-soft text-[var(--dh-primary)]"><Layers3 class="h-5 w-5" /></span>
-                      <div class="min-w-0">
-                        <h4 class="text-sm font-black text-[var(--dh-text)]">División de la cuenta</h4>
-                        <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Elige el área del cliente a la que corresponde el trámite. Esto determina los contactos sugeridos.</p>
+              <!-- Flat form layout: no nested glass cards, duplicate summaries or oversized choices. -->
+              <section class="min-w-0 border-t border-[var(--dh-border)] pt-4 md:col-span-2"
+                data-testid="opening-division-workspace" :aria-busy="operationalContactsLoading">
+                <p v-if="!accountId" class="text-sm text-[var(--dh-text-muted)]">Selecciona una cuenta para consultar sus divisiones y contactos operativos.</p>
+                <div v-else-if="operationalContactsLoading" class="grid gap-4 md:grid-cols-3" role="status" aria-label="Consultando divisiones y contactos">
+                  <DhSkeleton height="2.75rem" rounded="md" />
+                  <DhSkeleton class="md:col-span-2" height="2.75rem" rounded="md" />
+                </div>
+                <div v-else-if="operationalContactsIssue" role="alert" class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="min-w-0 flex-1 text-sm text-[var(--dh-text)]">{{ operationalContactsIssue }} Se conserva la selección guardada.</p>
+                  <DhButton size="sm" variant="secondary" :icon="RefreshCw" label="Reintentar" @click="retryDivisionDirectory" />
+                </div>
+                <div v-else class="grid min-w-0 gap-5 md:grid-cols-3">
+                  <div class="min-w-0 space-y-2">
+                    <DhSelect v-if="crmDivisions.length || form.crmDivisionId"
+                      :model-value="divisionSelectValue" label="División de la cuenta (opcional)"
+                      :options="divisionChoices" :searchable="crmDivisions.length > 8"
+                      placeholder="" @update:model-value="selectOpeningDivision" />
+                    <div v-else>
+                      <p class="mb-1.5 text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">División de la cuenta</p>
+                      <div class="flex min-h-11 items-center gap-2 rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] px-3 text-sm font-semibold text-[var(--dh-text)]">
+                        <Layers3 class="h-4 w-4 shrink-0 text-[var(--dh-text-muted)]" /> Cuenta general
                       </div>
+                      <p class="mt-2 text-xs text-[var(--dh-text-muted)]">No hay divisiones registradas.</p>
                     </div>
-                    <DhBadge variant="neutral">Opcional</DhBadge>
-                  </header>
+                    <p v-if="form.crmDivisionId && !selectedDivision" role="alert" class="text-xs font-semibold text-[var(--dh-text)]">La división guardada ya no está disponible. Selecciona otra opción.</p>
+                    <p v-else-if="divisionContactSummary" class="text-xs text-[var(--dh-text-muted)]">{{ divisionContactSummary }}</p>
+                    <p v-else-if="crmDivisions.length" class="text-xs text-[var(--dh-text-muted)]">Sin división específica.</p>
+                  </div>
 
-                  <div v-if="!accountId" class="flex items-center gap-3 rounded-xl border border-dashed border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]" role="status">
-                    <Building2 class="h-5 w-5 shrink-0" /> Selecciona una cuenta CRM para consultar sus divisiones.
-                  </div>
-                  <div v-else-if="operationalContactsLoading" class="grid gap-2 sm:grid-cols-2" role="status" aria-label="Consultando divisiones y contactos">
-                    <DhSkeleton v-for="index in 2" :key="index" height="4.5rem" rounded="lg" />
-                  </div>
-                  <div v-else-if="operationalContactsIssue" class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--dh-border)] p-3" role="alert">
-                    <div class="min-w-0 flex-1">
-                      <p class="text-sm font-bold">No se pudo consultar el directorio CRM</p>
-                      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ operationalContactsIssue }} La selección guardada se conserva.</p>
+                  <div class="min-w-0 md:col-span-2">
+                    <div class="mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                      <h5 class="text-sm font-bold text-[var(--dh-text)]">Contactos operativos</h5>
+                      <span class="text-xs font-semibold text-[var(--dh-text)]" aria-live="polite">{{ selectedRecipientCount }} de {{ eligibleOperationalContacts.length }} seleccionados</span>
                     </div>
-                    <DhButton size="sm" variant="secondary" :icon="RefreshCw" label="Reintentar" @click="retryDivisionDirectory" />
-                  </div>
-                  <template v-else>
-                    <div v-if="form.crmDivisionId && !selectedDivision" class="rounded-xl border border-[var(--dh-border)] p-3" role="alert">
-                      <p class="text-sm font-bold">La división guardada ya no está disponible en el catálogo</p>
-                      <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ form.crmDivisionName || 'Selecciona una división vigente o la cuenta general.' }}</p>
-                      <DhButton class="mt-2" variant="secondary" size="sm" label="Usar cuenta general" @click="changeDivision('')" />
-                    </div>
-                    <div v-if="divisionChoices.length && divisionChoices.length <= 6" class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label="Elegir división">
-                      <DhCard as="button" interactive padding="compact" class="min-h-20 w-full border transition-colors dh-focus-primary"
-                        :class="!form.crmDivisionId ? '!border-[var(--dh-primary)] dh-bg-primary-soft' : 'border-[var(--dh-border)]'"
-                        :aria-pressed="!form.crmDivisionId" @click="changeDivision('')">
-                        <div class="flex w-full items-center gap-3">
-                          <Building2 class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-                          <span class="min-w-0 flex-1">
-                            <span class="block break-words text-sm font-black">Cuenta general</span>
-                            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ generalContactCount }} contactos generales</span>
+                    <p v-if="missingRecipientCount" role="status" class="mb-2 text-xs font-semibold text-[var(--dh-text)]">{{ missingRecipientCount }} contactos guardados ya no están disponibles. Restaura la selección sugerida para actualizarla.</p>
+                    <p v-if="!eligibleOperationalContacts.length" class="rounded-xl border border-[var(--dh-border)] px-3 py-2.5 text-sm text-[var(--dh-text-muted)]">No hay contactos operativos con correo válido para esta selección.</p>
+                    <div v-else class="overflow-hidden rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)]">
+                      <section v-for="group in contactGroups" :key="group.key" :aria-label="group.label" class="border-b border-[var(--dh-border)] last:border-b-0">
+                        <div v-if="contactGroups.length > 1 || group.contacts.length > 1"
+                          class="flex flex-wrap items-center justify-between gap-1 border-b border-[var(--dh-border)] px-3 py-1.5">
+                          <h6 class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ group.label }} ({{ group.contacts.length }})</h6>
+                          <DhButton v-if="group.contacts.length > 1" size="sm" variant="ghost"
+                            :label="group.contacts.every(c => form.contactIds.includes(c.id)) ? 'Desmarcar grupo' : 'Seleccionar grupo'"
+                            @click="setRecipientGroup(group.contacts.map(c => c.id), !group.contacts.every(c => form.contactIds.includes(c.id)))" />
+                        </div>
+                        <div v-for="contact in group.contacts" :key="contact.id"
+                          class="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[var(--dh-border)] px-3 py-2.5 last:border-b-0">
+                          <DhCheckbox :model-value="form.contactIds.includes(contact.id)" :label="contact.name"
+                            :description="contact.email" class="min-w-0 flex-1 break-words"
+                            @update:model-value="toggleOperationalContact(contact.id, $event)" />
+                          <span class="text-xs text-[var(--dh-text-muted)]">
+                            {{ !contact.divisionIds.length ? 'General' : form.crmDivisionId ? 'División' : crmDivisions.filter(d => contact.divisionIds.includes(d.id)).map(d => d.name).join(' · ') || 'División' }}
                           </span>
-                          <CircleCheck v-if="!form.crmDivisionId" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
                         </div>
-                      </DhCard>
-                      <DhCard v-for="division in divisionChoices" :key="division.id" as="button" interactive padding="compact"
-                        class="min-h-20 w-full border transition-colors dh-focus-primary"
-                        :class="form.crmDivisionId === division.id ? '!border-[var(--dh-primary)] dh-bg-primary-soft' : 'border-[var(--dh-border)]'"
-                        :aria-pressed="form.crmDivisionId === division.id" @click="changeDivision(division.id)">
-                        <div class="flex w-full items-center gap-3">
-                          <Layers3 class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-                          <span class="min-w-0 flex-1">
-                            <span class="block break-words text-sm font-black">{{ division.name }}</span>
-                            <span class="mt-1 block text-xs text-[var(--dh-text-muted)]">{{ division.contactCount }} contactos propios</span>
-                          </span>
-                          <CircleCheck v-if="form.crmDivisionId === division.id" class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-                        </div>
-                      </DhCard>
+                      </section>
                     </div>
-                    <div v-else-if="divisionChoices.length > 6" class="grid items-end gap-2 sm:grid-cols-[1fr_auto]">
-                      <DhSelect :model-value="form.crmDivisionId" label="Buscar división"
-                        :options="divisionChoices.map(d => ({ value: d.id, label: d.name + ' · ' + d.contactCount + ' contactos propios' }))"
-                        placeholder="Cuenta general" searchable @update:model-value="changeDivision(String($event))" />
-                      <DhButton v-if="form.crmDivisionId" variant="secondary" label="Usar cuenta general" @click="changeDivision('')" />
+                    <div class="mt-1 flex flex-wrap items-center justify-between gap-x-2">
+                      <p class="text-xs text-[var(--dh-text-muted)]">Destinatarios de notificaciones. El borrador no envía correos.</p>
+                      <DhButton v-if="eligibleOperationalContacts.length || missingRecipientCount" size="sm" variant="ghost" label="Restaurar sugeridos" @click="restoreSuggestedRecipients" />
                     </div>
-                    <div v-else class="flex items-center gap-3 rounded-xl border border-[var(--dh-border)] p-3">
-                      <Building2 class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-                      <div class="min-w-0 flex-1">
-                        <p class="text-sm font-bold">Cuenta general</p>
-                        <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Esta cuenta no tiene divisiones registradas. Puedes continuar sin una división.</p>
-                      </div>
-                      <DhBadge variant="neutral">Sin divisiones</DhBadge>
-                    </div>
-                    <div v-if="divisionChoices.length" class="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--dh-border)] p-3" aria-live="polite">
-                      <CircleCheck class="h-5 w-5 shrink-0 text-[var(--dh-primary)]" />
-                      <div class="min-w-0 flex-1">
-                        <p class="text-xs font-semibold text-[var(--dh-text-muted)]">Alcance de la apertura</p>
-                        <p class="break-words text-sm font-black">{{ selectedDivision?.name || (!form.crmDivisionId ? 'Cuenta general' : 'División por revisar') }}</p>
-                      </div>
-                      <DhBadge variant="primary">{{ selectedDivision ? 'División CRM' : 'Cuenta CRM' }}</DhBadge>
-                    </div>
-                  </template>
-
-                  <div class="border-t border-[var(--dh-border)] pt-4">
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                      <div class="flex min-w-0 flex-1 items-start gap-3">
-                        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl dh-bg-primary-soft text-[var(--dh-primary)]"><Mail class="h-5 w-5" /></span>
-                        <div class="min-w-0">
-                          <h5 class="text-sm font-black">Contactos operativos para notificaciones</h5>
-                          <p class="mt-1 text-xs leading-relaxed text-[var(--dh-text-muted)]">Selecciona quién recibirá las comunicaciones operativas. Guardar el borrador no envía correos.</p>
-                        </div>
-                      </div>
-                      <DhBadge :variant="selectedRecipientCount ? 'primary' : 'neutral'">
-                        {{ selectedRecipientCount }} de {{ eligibleOperationalContacts.length }} seleccionados
-                      </DhBadge>
-                    </div>
-                    <template v-if="accountId && !operationalContactsLoading && !operationalContactsIssue">
-                      <div v-if="missingRecipientCount" role="status" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--dh-border)] p-3">
-                        <CircleAlert class="h-4 w-4 shrink-0 text-[var(--dh-primary)]" />
-                        <p class="min-w-0 flex-1 text-xs text-[var(--dh-text-muted)]">{{ missingRecipientCount }} contactos guardados ya no están disponibles para esta selección.</p>
-                        <DhButton size="sm" variant="secondary" label="Restaurar sugeridos" @click="restoreSuggestedRecipients" />
-                      </div>
-                      <p v-if="!eligibleOperationalContacts.length" class="mt-3 rounded-xl border border-dashed border-[var(--dh-border)] p-4 text-sm text-[var(--dh-text-muted)]">No hay contactos operativos activos con correo válido para este alcance.</p>
-                      <div v-else class="mt-4 space-y-4">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                          <span class="flex items-center gap-2 text-xs font-semibold text-[var(--dh-text-muted)]"><ListChecks class="h-4 w-4" /> Destinatarios del trámite</span>
-                          <DhButton size="sm" variant="ghost" label="Restaurar sugeridos" @click="restoreSuggestedRecipients" />
-                        </div>
-                        <section v-for="group in contactGroups" :key="group.key" class="space-y-2" :aria-label="group.label">
-                          <div class="flex flex-wrap items-center justify-between gap-2">
-                            <div class="flex flex-wrap items-center gap-2">
-                              <h6 class="text-xs font-black uppercase tracking-wider text-[var(--dh-text-muted)]">{{ group.label }}</h6>
-                              <DhBadge variant="neutral">{{ group.contacts.length }}</DhBadge>
-                            </div>
-                            <DhButton size="sm" variant="ghost"
-                              :label="group.contacts.every(c => form.contactIds.includes(c.id)) ? 'Desmarcar grupo' : 'Seleccionar grupo'"
-                              @click="setRecipientGroup(group.contacts.map(c => c.id), !group.contacts.every(c => form.contactIds.includes(c.id)))" />
-                          </div>
-                          <div class="grid gap-2 sm:grid-cols-2">
-                            <div v-for="contact in group.contacts" :key="contact.id"
-                              class="flex min-w-0 items-start gap-3 rounded-xl border p-3 transition-colors"
-                              :class="form.contactIds.includes(contact.id) ? 'border-[var(--dh-primary)] dh-bg-primary-soft' : 'border-[var(--dh-border)]'">
-                              <DhAvatar :name="contact.name" fallback="initials" size="sm" />
-                              <div class="min-w-0 flex-1">
-                                <DhCheckbox :model-value="form.contactIds.includes(contact.id)" :label="contact.name"
-                                  class="break-all" @update:model-value="toggleOperationalContact(contact.id, $event)" />
-                                <p class="mt-1 break-all text-xs text-[var(--dh-text-muted)]">{{ contact.email }}</p>
-                                <div class="mt-2 flex flex-wrap gap-1">
-                                  <DhBadge v-if="!contact.divisionIds.length" variant="neutral">General</DhBadge>
-                                  <DhBadge v-for="division in crmDivisions.filter(d => contact.divisionIds.includes(d.id))" :key="division.id" :variant="division.id === form.crmDivisionId ? 'primary' : 'neutral'">{{ division.name }}</DhBadge>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </section>
-                      </div>
-                    </template>
                   </div>
                 </div>
-              </DhCard>
+              </section>
             </div>
           </div>
         </div>

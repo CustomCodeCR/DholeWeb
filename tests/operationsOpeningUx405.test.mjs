@@ -58,3 +58,17 @@ test('drafts, supported documents and backend completion requirements are preser
     assert.ok(opening.includes(fragment), fragment)
   }
 })
+
+test('opening division uses a flat compact form instead of nested glass cards', () => {
+  const start = opening.indexOf('<!-- Flat form layout:')
+  const end = opening.indexOf('</section>', opening.indexOf('data-testid="opening-division-workspace"', start))
+  assert.ok(start >= 0 && end > start)
+  const block = opening.slice(start, opening.indexOf('<div v-show="activeStep === 1"', start))
+  assert.match(block, /data-testid="opening-division-workspace"/)
+  assert.match(block, /<DhSelect/)
+  assert.match(block, /<DhCheckbox/)
+  assert.match(block, /md:grid-cols-3/)
+  assert.doesNotMatch(block, /<DhCard|<DhAvatar|dh-bg-primary-soft|Alcance de la apertura/)
+  assert.match(opening, /generalDivisionValue = 'account-general'/)
+  assert.match(opening, /id === generalDivisionValue \|\| !id\) changeDivision\(''\)/)
+})
