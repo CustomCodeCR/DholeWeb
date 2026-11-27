@@ -845,6 +845,30 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
 
       <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div class="min-w-0 space-y-4">
+          <DhCard padding="sm" title="Detalles de la cuenta" subtitle="Información general y contactos operativos de CRM">
+            <div class="mb-3 grid gap-3 sm:grid-cols-2">
+              <div><p class="text-xs text-[var(--dh-text-muted)]">Cuenta</p><p class="break-words text-sm font-bold">{{ accountName || readable(openingData.clientName) || 'Pendiente de CRM' }}</p></div>
+              <div><p class="text-xs text-[var(--dh-text-muted)]">División</p><p class="text-sm font-semibold">{{ openingData.crmDivisionName || 'Sin división' }}</p></div>
+              <div v-for="field in [{label:'Razón social', value:readable(accountDetails.legalName)}, {label:'Identificación', value:readable(accountDetails.taxId)}, {label:'Teléfono', value:readable(accountDetails.phone)}, {label:'Correo', value:readable(accountDetails.email)}, {label:'Dirección', value:readable(accountDetails.address)}].filter(x => x.value)" :key="field.label"><p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p><p class="break-words text-sm">{{ field.value }}</p></div>
+            </div>
+            <h4 class="mb-2 border-t border-[var(--dh-border)] pt-3 text-sm font-semibold">Contactos operativos</h4>
+            <p v-if="contactsLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando CRM…</p>
+            <p v-else-if="contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudieron consultar los contactos. Actualice el expediente para reintentar.</p>
+            <p v-else-if="!contacts.length" class="text-sm text-[var(--dh-text-muted)]">El cliente no tiene contactos operativos activos registrados.</p>
+            <div v-else class="grid gap-3 sm:grid-cols-2">
+              <div v-for="contact in contacts" :key="contact.id" class="min-w-0 border-b border-[var(--dh-border)] py-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="break-words text-sm font-bold">{{ contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Nombre no registrado' }}</p>
+                  <DhBadge v-if="contact.isPrimary" variant="primary">Principal</DhBadge>
+                  <DhBadge v-if="selectedContacts.has(contact.id)" variant="neutral">En apertura</DhBadge>
+                  <DhBadge v-for="division in contact.divisions || []" :key="division.id" variant="neutral">{{ division.name }}</DhBadge>
+                </div>
+                <p v-if="contact.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ contact.jobTitle }}</p>
+                <p class="mt-1 break-all text-sm">{{ contact.email || 'Correo no registrado' }}</p>
+                <p class="break-words text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
+              </div>
+            </div>
+          </DhCard>
           <DhCard padding="sm" title="Instrucciones especiales">
             <p v-if="readable(openingData.observations)" class="whitespace-pre-wrap break-words text-sm">{{ readable(openingData.observations) }}</p>
             <p v-else class="text-sm text-[var(--dh-text-muted)]">Sin observaciones especiales registradas en la apertura.</p>
@@ -954,30 +978,6 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               ]" :key="item.key" class="min-w-0 border-b border-[var(--dh-border)] py-2">
                 <p class="text-xs text-[var(--dh-text-muted)]">{{ item.key }}</p>
                 <p class="mt-1 break-words text-sm font-bold">{{ item.value }}</p>
-              </div>
-            </div>
-          </DhCard>
-          <DhCard padding="sm" title="Detalles de la cuenta" subtitle="Información general y contactos operativos de CRM">
-            <div class="mb-3 grid gap-3 sm:grid-cols-2">
-              <div><p class="text-xs text-[var(--dh-text-muted)]">Cuenta</p><p class="break-words text-sm font-bold">{{ accountName || readable(openingData.clientName) || 'Pendiente de CRM' }}</p></div>
-              <div><p class="text-xs text-[var(--dh-text-muted)]">División</p><p class="text-sm font-semibold">{{ openingData.crmDivisionName || 'Sin división' }}</p></div>
-              <div v-for="field in [{label:'Razón social', value:readable(accountDetails.legalName)}, {label:'Identificación', value:readable(accountDetails.taxId)}, {label:'Teléfono', value:readable(accountDetails.phone)}, {label:'Correo', value:readable(accountDetails.email)}, {label:'Dirección', value:readable(accountDetails.address)}].filter(x => x.value)" :key="field.label"><p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p><p class="break-words text-sm">{{ field.value }}</p></div>
-            </div>
-            <h4 class="mb-2 border-t border-[var(--dh-border)] pt-3 text-sm font-semibold">Contactos operativos</h4>
-            <p v-if="contactsLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando CRM…</p>
-            <p v-else-if="contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudieron consultar los contactos. Actualice el expediente para reintentar.</p>
-            <p v-else-if="!contacts.length" class="text-sm text-[var(--dh-text-muted)]">El cliente no tiene contactos operativos activos registrados.</p>
-            <div v-else class="grid gap-3 sm:grid-cols-2">
-              <div v-for="contact in contacts" :key="contact.id" class="min-w-0 border-b border-[var(--dh-border)] py-2">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="break-words text-sm font-bold">{{ contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Nombre no registrado' }}</p>
-                  <DhBadge v-if="contact.isPrimary" variant="primary">Principal</DhBadge>
-                  <DhBadge v-if="selectedContacts.has(contact.id)" variant="neutral">En apertura</DhBadge>
-                  <DhBadge v-for="division in contact.divisions || []" :key="division.id" variant="neutral">{{ division.name }}</DhBadge>
-                </div>
-                <p v-if="contact.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ contact.jobTitle }}</p>
-                <p class="mt-1 break-all text-sm">{{ contact.email || 'Correo no registrado' }}</p>
-                <p class="break-words text-xs text-[var(--dh-text-muted)]">{{ contact.phone || 'Teléfono no registrado' }}</p>
               </div>
             </div>
           </DhCard>
