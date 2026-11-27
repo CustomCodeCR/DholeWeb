@@ -10,7 +10,7 @@ test('Manual aperture no longer has any dedicated services or coordination scree
   assert.match(opening, /label: 'Cliente, ruta y servicios'/)
   assert.match(opening, /label: 'Carga y condiciones'/)
   assert.match(opening, /label: 'Revisión'/)
-  assert.doesNotMatch(opening, /label: 'Cliente, ruta y servicios'/)
+  assert.ok(opening.indexOf('<DhCard title="Servicios solicitados y proveedores"') < opening.indexOf('<div v-show="activeStep === 2"'))
   assert.doesNotMatch(opening, /Servicios contratados|PricingCrystalMultiSelect|serviceChoices|serviceCatalog/)
   assert.doesNotMatch(opening, /Recolecta \(según servicios contratados\)|Dirección de entrega final/)
   assert.doesNotMatch(opening, /label="Agente de origen"|label="Merchant \/ referencia"/)
