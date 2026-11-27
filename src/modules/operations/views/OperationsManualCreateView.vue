@@ -9,6 +9,7 @@ import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsApi, type OpeningCompleteness } from '../services/operationsApi'
 import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
+import { contactsForDivision, defaultDivisionContacts } from '../utils/accountDivisionContacts'
 import { crmGet, crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import PricingCrmClientSelect from '@/modules/pricing/components/PricingCrmClientSelect.vue'
 import { callEndpoint } from '@/core/api/callEndpoint'
@@ -49,13 +50,12 @@ const operationalContactsLoading = ref(false)
 const operationalContactsIssue = ref('')
 const operationalContacts = ref<Array<{ id: string; name: string; email: string; divisionIds: string[] }>>([])
 const crmDivisions = ref<Array<{ id: string; name: string }>>([])
-const eligibleOperationalContacts = computed(() => operationalContacts.value.filter(contact =>
-  !form.value.crmDivisionId || !contact.divisionIds.length || contact.divisionIds.includes(form.value.crmDivisionId)))
+const eligibleOperationalContacts = computed(() => contactsForDivision(operationalContacts.value, form.value.crmDivisionId))
 function changeDivision(id: string) {
   form.value.crmDivisionId = id
   form.value.crmDivisionName = crmDivisions.value.find(d => d.id === id)?.name || ''
   contactsTouched.value = true
-  form.value.contactIds = eligibleOperationalContacts.value.map(c => c.id)
+  form.value.contactIds = defaultDivisionContacts(operationalContacts.value, form.value.crmDivisionId, crmDivisions.value.length > 0).map(c => c.id)
   form.value.contactReferences = form.value.contactIds.join(',')
 }
 let clientGeneration = 0
@@ -798,6 +798,7 @@ async function resolveCrmOpeningData(id: string, client: {
     if (accountResponse.status === 'fulfilled') {
       const account = accountResponse.value as Record<string, unknown>
       form.value.clientCountryId = String(account.countryId || form.value.clientCountryId || '')
+      selectedClientName.value = String(account.displayName || selectedClientName.value || '')
       institutionalExecutive.value = institutionalExecutive.value || account.isCastroFallasExecutive === true
       executiveUserId.value = String(account.executiveUserId || executiveUserId.value || '')
       executiveName.value = String(account.executiveName || executiveName.value || '').trim()
@@ -837,7 +838,7 @@ async function resolveCrmOpeningData(id: string, client: {
           ? [{ id: contactId, name, email, divisionIds: Array.isArray(relation.divisionIds) ? relation.divisionIds.map(String) : [] }] : []
       })
       if (!contactsTouched.value && !form.value.contactIds.length) {
-        form.value.contactIds = eligibleOperationalContacts.value.filter(contact => form.value.crmDivisionId || !crmDivisions.value.length || !contact.divisionIds.length).map(contact => contact.id)
+        form.value.contactIds = defaultDivisionContacts(operationalContacts.value, form.value.crmDivisionId, crmDivisions.value.length > 0).map(contact => contact.id)
         form.value.contactReferences = form.value.contactIds.join(',')
       }
     } else {
@@ -1351,6 +1352,7 @@ onMounted(async () => {
       priority.value = detail.priority
       complexity.value = detail.complexityPoints
       const parsed = JSON.parse(detail.openingDataJson || '{}') as Record<string, unknown>
+      selectedClientName.value = String(parsed.clientName || '')
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         form.value = { ...form.value, ...parsed } as typeof form.value
         restoreDimensionValues()

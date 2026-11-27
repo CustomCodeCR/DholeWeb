@@ -162,6 +162,25 @@ const canEditDivisionContacts = computed(() => has('crm.contact.read') && has('c
 const operationalContactOptions = computed(() => contacts.value
   .filter(c => c.isOperationsContact === true && String(c.status || 'Active').toLowerCase() === 'active')
   .map(c => ({ value: String(c.id), label: String(c.name || c.displayName || c.id), description: String(c.email || '') })))
+// Account realtime reconciliation updates the parent row version. Refresh only
+// the directory and relationship flags instead of reloading the whole workspace.
+let divisionRefreshGeneration = 0
+watch(() => [props.account.id, props.account.rowVersion] as const, ([id, version], [oldId, oldVersion]) => {
+  if (id !== oldId || version === oldVersion) return
+  const current = ++divisionRefreshGeneration
+  if (has('crm.account.read') || has('crm.account.read-all')) {
+    void crmRequest<DivisionDirectory>(crmPath('accounts', String(id), 'divisions'))
+      .then(result => { if (current === divisionRefreshGeneration && props.account.id === id) divisionDirectory.value = result })
+      .catch(cause => { if (current === divisionRefreshGeneration && props.account.id === id) divisionError.value = message(cause) })
+  }
+  if (has('crm.contact.read')) {
+    void crmRequest<CrmRow[]>(crmPath('accounts', String(id), 'contacts'))
+      .then(result => { if (current === divisionRefreshGeneration && props.account.id === id)
+        contacts.value = result.map(x => x.contact && typeof x.contact === 'object'
+          ? { ...(x.contact as CrmRow), isOperationsContact: x.isOperationsContact, isPrimary: x.isPrimary, relationRole: x.relationRole } : x) })
+      .catch(() => { /* Preserve the last authorized projection on transient failure. */ })
+  }
+})
 const divisionNamesForContact = (id: string) => (divisionDirectory.value?.divisions || [])
   .filter(d => d.contactIds.includes(id)).map(d => d.name)
 function editDivision(division?: AccountDivision) {
