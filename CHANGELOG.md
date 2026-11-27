@@ -1,3 +1,7 @@
+## [1.146.4] - 2026-11-27
+
+- DH-20261127-DYNAMICS-FTL-26-7TON: synchronize ecosystem version only; no UI changes. CI and staging pending.
+
 ## [1.146.3] - 2026-11-27
 
 - Serialize unspecified opening volume as null when editing, and omit Origin-owned weight and equipment details from opening writes. Preserve strict creation requirements. CI and staging pending.
