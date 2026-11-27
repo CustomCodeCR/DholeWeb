@@ -533,3 +533,30 @@ test('seller amendment: declared value creates a missing insurance charge even w
   assert.equal(q.root.rateLines.value.filter((line: any) => line.costDetailType === 'Insurance').length, 1)
   assert.equal(lines[0].saleAmount, 55)
 })
+
+test('seller LCL insurance-only amendment with unavailable cost catalog can proceed without repricing original charges', async () => {
+  const q = fixture()
+  q.root.props.modificationRequestId = 'seller-request'
+  q.root.form.modality = 'Maritime'
+  q.root.shipmentModeForApi.value = 'Lcl'
+  q.root.form.carrierId = ''
+  q.root.form.agentId = 'Pier17'
+  q.root.form.cargoValue = 0
+  q.original.value = q.snapshot()
+  q.root.form.cargoValue = 4020.2
+  q.root.form.serviceIds.push('SEGURO')
+  let calls = 0
+  q.root.loadApplicableCosts = async () => { calls++; return false }
+  q.root.syncSellerModificationInsurance = () => {
+    if (!q.root.rateLines.value.some((line: any) => line.costDetailType === 'Insurance'))
+      q.root.rateLines.value.push({ key: 'quote-edit:insurance', costDetailType: 'Insurance', included: true, costAmount: 35, saleAmount: 95 })
+  }
+  assert.equal(await q.apply(), true)
+  assert.equal(await q.verify(), true)
+  assert.equal(calls, 0)
+  assert.equal(q.root.rateLines.value.length, 3)
+  assert.equal(q.root.rateLines.value[0].saleAmount, 5800)
+  q.root.form.agentId = 'OTHER'
+  assert.equal(await q.apply(), false)
+  assert.ok(calls > 0)
+})

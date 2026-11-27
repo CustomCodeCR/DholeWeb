@@ -445,9 +445,9 @@ onBeforeUnmount(() => {
               {{ modificationChanges.length }} diferencias solicitadas
             </p>
           </div>
-          <span class="rounded-full border border-amber-500/40 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-300">Pendiente de aplicar</span>
+          <span class="rounded-full border border-amber-500/40 px-3 py-1 text-xs font-bold text-amber-600 dark:text-amber-300">Solicitud de modificación</span>
         </div>
-        <p class="text-xs text-[var(--dh-text-muted)]">Compare los valores vigentes con lo pedido por Ventas. Abrir esta solicitud no aplica cambios ni completa la tarifa.</p>
+        <p class="text-xs text-[var(--dh-text-muted)]">Compare los valores vigentes con lo pedido por Ventas. El wizard carga los cambios en un borrador; la tarifa original no cambia hasta guardar la revisión.</p>
         <div v-if="modificationChanges.length" class="overflow-x-auto rounded-xl border border-[var(--dh-border)]">
           <table class="w-full min-w-[620px] text-left text-sm">
             <thead class="bg-[var(--dh-card-hover)] text-[11px] font-black uppercase text-[var(--dh-text-muted)]">
