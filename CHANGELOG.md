@@ -1,3 +1,7 @@
+## [1.143.0] - 2026-11-27
+
+- MINOR candidato parcial: formulario de apertura manual con equivalencias KG/LB y CBM/CFT en ambos sentidos, conversión al cambiar la unidad y acceso a descripción/CABYS durante la creación. Reutiliza los controles DH. CI y staging pendientes.
+
 ## [1.142.0] - 2026-11-26
 
 - MINOR: comparación de QUO y expediente con indicadores y filtros DH; estado HOLD solo cuando el servidor lo informa; revisión comercial manual con contexto y detalle en Pricing. Conserva permisos y realtime existentes. No activa bloqueos ni recotizaciones automáticas.
