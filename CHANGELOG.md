@@ -1,3 +1,7 @@
+## [1.140.0] - 2026-11-26
+
+- MINOR candidato: responsabilidades de equipos con DhSelect, integrantes agrupados por cargo, perfiles de scopes efectivos y acceso transversal separado del pool; nombres del catálogo simplificados sin alterar enrutamiento. Conserva supervisión anterior y sincronización realtime. CI y staging pendientes.
+
 ## [1.139.0] - 2026-11-26
 
 - MINOR: interfaz DH de equipos informa la asignación y retirada automática de scopes según membresía y responsabilidad. Conserva permisos independientes y los componentes existentes. CI y staging pendientes.

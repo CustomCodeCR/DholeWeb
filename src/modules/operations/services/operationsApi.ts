@@ -5,6 +5,7 @@ export interface OperationsMember {
   userId: string
   capacityPoints: number
   isSupervisor: boolean
+  roleCode?: string | null
   isAvailable: boolean
 }
 export interface OperationsAssignmentTeam {
@@ -23,6 +24,7 @@ export interface OperationsTeam {
   members: OperationsMember[]
   operatorScopes?: string[]
   supervisorScopes?: string[]
+  roleProfiles?: Record<string, string[]>
 }
 export interface OperationsUser { id: string; displayName: string; userName: string }
 export interface OperationsAudit {
@@ -327,7 +329,7 @@ export const operationsApi = {
     return { page: 1, pageSize: items.length, total, items }
   },
   addMembers: (teamId: string, body: {
-    userIds: string[]; capacityPoints: number; isSupervisor: boolean; isAvailable: boolean
+    userIds: string[]; capacityPoints: number; isSupervisor: boolean; isAvailable: boolean; roleCode?: string
   }) => request<{ assigned: number; skippedExisting: number; total: number }>(
     `/api/operations/teams/${teamId}/members/bulk`, 'POST', body),
   saveMember: (teamId: string, body: OperationsMember) =>

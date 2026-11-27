@@ -31,7 +31,11 @@ const options = computed(() => [
   })),
 ])
 const roleLabel = computed(() =>
-  ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)) ||
+  auth.hasScope('operations.case.read-all') && !['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role))
+    ? t('operations.dashboard.supervisor')
+    : auth.hasScope('operations.origin.read-all') && !['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role))
+      ? t('operations.teamRoles.ORIGIN_SUPERVISOR')
+      : ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)) ||
   accessibleTeams.value.some(team => team.isSupervisor)
     ? t('operations.dashboard.supervisor')
     : t('operations.dashboard.operator'))
