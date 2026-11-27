@@ -15,7 +15,7 @@ test('Operations has protected cases, opening queue and team destinations', () =
   assert.match(router, /path: 'operations\/cases'/)
   assert.match(router, /component: \(\) => import\('@\/modules\/operations\/views\/OperationsCasesView\.vue'\)/)
   assert.match(router, /requiredScope: 'operations\.case\.read'/)
-  assert.match(router, /requiredScope: 'operations\.team\.manage'/)
+  assert.match(router, /requiredAnyScopes: \['operations\.team\.read', 'operations\.team\.manage'\]/)
 })
 
 test('Team screen is assignment-first, without raw company UUID or manual team creation', () => {

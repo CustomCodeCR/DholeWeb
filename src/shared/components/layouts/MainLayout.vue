@@ -364,12 +364,12 @@ const sidebarItems = computed<SidebarItem[]>(() => {
       items.push({ label: t('crm.title'), icon: Users, children: crmChildren })
   }
 
-  if (canView('operations.team.manage') || canView('operations.case.read')) {
+  if ((canView('operations.team.read') || canView('operations.team.manage')) || canView('operations.case.read')) {
     const operationsChildren: SidebarItem[] = []
     if (canView('operations.case.read')) {
       operationsChildren.push({ label: t('operations.cases'), path: '/operations/cases', icon: FolderOpen })
     }
-    if (canView('operations.team.manage'))
+    if ((canView('operations.team.read') || canView('operations.team.manage')))
       operationsChildren.push({ label: t('operations.teams'), path: '/operations/teams', icon: Users })
     items.push({ label: t('operations.title'), icon: Workflow, children: operationsChildren })
   }
