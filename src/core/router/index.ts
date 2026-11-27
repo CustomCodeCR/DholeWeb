@@ -137,7 +137,7 @@ export const router = createRouter({
           name: 'operations-teams',
           component: () => import('@/modules/operations/views/OperationsTeamsView.vue'),
           meta: { tabTitleKey: 'operations.teams', closable: true,
-            requiredScope: 'operations.team.manage' },
+            requiredAnyScopes: ['operations.team.read', 'operations.team.manage'] },
         },
         {
           path: 'operations/apertures',
