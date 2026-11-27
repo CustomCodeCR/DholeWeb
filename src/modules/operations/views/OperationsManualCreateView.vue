@@ -24,7 +24,7 @@ import { normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPe
 import { operationForClientCountry, resolveCrmCountryCode } from '@/modules/pricing/utils/pricingClientCountryOperation'
 import { catalogMetadata, resolveLocationCountryCode } from '@/modules/pricing/utils/pricingCountryIso'
 import type { RateOperationType } from '@/core/interfaces/pricing'
-import { operationsQuoteApi, type OperationsQuoteSummary, type OperationsQuoteDetail } from '../services/operationsQuoteApi'
+import { operationsQuoteApi, type OperationsQuoteSummary, type OperationsQuoteDetail, type OperationsConsolidation } from '../services/operationsQuoteApi'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 
 type InlandPoint = { address: string; latitude?: number | null; longitude?: number | null;
@@ -187,6 +187,11 @@ function hydrateQuoteOpening(rate: OperationsQuoteDetail) {
   if (!modality.value) {
     selectTransport(quoteTransport(mode))
     selectShipment(mode)
+  }
+  if (mode === 'LCL' && (rate.consolidationId || rate.consolidationNumber)) {
+    form.value.consolidationId = rate.consolidationId || ''
+    form.value.consolidationNumber = rate.consolidationNumber ?? null
+    form.value.consolidationReference = rate.consolidationReference || ''
   }
   const term = normalizeIncotermCode(rate.incotermCode, rate.incotermName)
   if (term && incotermChoices.value.some(item => item.value === term)) {
@@ -462,7 +467,7 @@ const form = ref({
   lengthUnit: 'CM', widthUnit: 'CM', heightUnit: 'CM', operationDirection: '',
   clientCountryId: '', clientCountryOverrideId: '', operationOverride: '' as RateOperationType | '',
   pickupLocations: [] as InlandPoint[], deliveryLocations: [] as InlandPoint[], requiresDelivery: false, warehouseId: '', warehouseAddress: '',
-  volumeValue: '', volumeUnit: 'CBM', consolidationReference: '',
+  volumeValue: '', volumeUnit: 'CBM', consolidationReference: '', consolidationId: '', consolidationNumber: null as number | null,
   isImo: null as boolean | null, imoClass: '', unNumber: '', stackable: null as boolean | null,
   overweight: null as boolean | null, overweightNotes: '', carrierReference: '',
   agentReference: '', merchantReference: '', carrierId: '', agentId: '', merchantId: '', haulageMode: '', airline: '', roadCarrierReference: '', etm: '', eta: '',
@@ -756,6 +761,33 @@ const volumeUnitSelection = computed({
 function measurementLabel(value: number | null) {
   return value == null ? '—' : value.toLocaleString('es-CR', { maximumFractionDigits: 4 })
 }
+const consolidationRows = ref<OperationsConsolidation[]>([])
+const consolidationLoading = ref(false)
+const consolidationError = ref('')
+let consolidationRequest = 0
+async function loadConsolidations() {
+  const generation = ++consolidationRequest
+  consolidationRows.value = []
+  consolidationError.value = ''
+  if (effectiveShipment.value !== 'LCL') { consolidationLoading.value = false; return }
+  consolidationLoading.value = true
+  try {
+    const rows = await operationsQuoteApi.consolidations('LCL')
+    if (generation === consolidationRequest) consolidationRows.value = rows
+  } catch {
+    if (generation === consolidationRequest) consolidationError.value = 'No se pudieron consultar los consolidados de Pricing.'
+  } finally { if (generation === consolidationRequest) consolidationLoading.value = false }
+}
+const selectedConsolidation = computed(() => consolidationRows.value.find(row => form.value.consolidationId ? row.id === form.value.consolidationId : form.value.consolidationNumber != null ? row.number === form.value.consolidationNumber : false))
+const consolidationOptions = computed(() => [{ label: 'Por confirmar / sin consolidado propio', value: '' }, ...consolidationRows.value.filter(row => row.isActive || row.id === selectedConsolidation.value?.id).map(row => ({ label: row.name, value: row.id }))])
+function selectConsolidation(value: string | number) {
+  const row = consolidationRows.value.find(item => item.id === String(value))
+  form.value.consolidationId = row?.id || ''
+  form.value.consolidationNumber = row?.number ?? null
+  form.value.consolidationReference = row?.name || ''
+}
+watch(effectiveShipment, () => { void loadConsolidations() }, { immediate: true })
+watch(selectedConsolidation, row => { if (row && effectiveShipment.value === 'LCL') { form.value.consolidationId = row.id; form.value.consolidationNumber = row.number; form.value.consolidationReference = row.name } })
 const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
 watch(selectedIncoterm, (next, previous) => {
   if (!editingId.value && !restoringOpening && !applyingQuote && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
@@ -1227,7 +1259,9 @@ function buildOpeningData() {
       stackable: form.value.stackable,
       isImo: form.value.isImo,
       overweight: form.value.overweight,
-      consolidationReference: ['LCL', 'LTL'].includes(effectiveShipment.value) ? String(form.value.consolidationReference ?? '').trim() : '',
+      consolidationId: effectiveShipment.value === 'LCL' ? form.value.consolidationId || null : null,
+      consolidationNumber: effectiveShipment.value === 'LCL' ? form.value.consolidationNumber : null,
+      consolidationReference: ['LCL', 'LTL'].includes(effectiveShipment.value) ? String(selectedConsolidation.value?.name ?? form.value.consolidationReference ?? '').trim() : '',
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
@@ -1323,7 +1357,7 @@ const manualReviewSections = computed(() => [
     { label: 'IMO', value: conditionLabel(form.value.isImo) },
     { label: 'Estibable', value: conditionLabel(form.value.stackable) },
     { label: 'Sobrepeso', value: conditionLabel(form.value.overweight) },
-    ...(['LCL','LTL'].includes(effectiveShipment.value) ? [{ label: 'Número de consolidado', value: form.value.consolidationReference || 'Por confirmar' }] : []),
+    ...(['LCL','LTL'].includes(effectiveShipment.value) ? [{ label: 'Nombre del consolidado', value: selectedConsolidation.value?.name || form.value.consolidationReference || 'Por confirmar' }] : []),
     { label: 'Cantidad de bultos', value: form.value.packageCount || 'Por completar' },
     { label: 'Peso estimado', value: positive(form.value.estimatedWeightValue) ? form.value.estimatedWeightValue + ' ' + form.value.estimatedWeightUnit : 'Por completar' },
     { label: 'Volumen', value: positive(form.value.volumeValue) ? form.value.volumeValue + ' ' + form.value.volumeUnit : 'Por completar' },
@@ -1425,6 +1459,14 @@ onMounted(async () => {
         if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
         if (!Array.isArray(form.value.pickupLocations)) form.value.pickupLocations = []
         if (!Array.isArray(form.value.deliveryLocations)) form.value.deliveryLocations = []
+      }
+      if (detail.modalityCode === 'LCL' && !form.value.consolidationId && !form.value.consolidationNumber && !form.value.consolidationReference && detail.sourceQuoteOptionId) {
+        try {
+          const quote = await operationsQuoteApi.detail(detail.sourceQuoteOptionId)
+          form.value.consolidationId = quote.consolidationId || ''
+          form.value.consolidationNumber = quote.consolidationNumber ?? null
+          form.value.consolidationReference = quote.consolidationReference || ''
+        } catch { /* Existing opening remains editable. */ }
       }
       if (!form.value.transportType) {
         form.value.transportType = modality.value === 'AIR' ? 'AIR'
@@ -1763,7 +1805,13 @@ onMounted(async () => {
           </div>
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real y las fechas de transporte.</p>
-          <DhInput v-if="['LCL', 'LTL'].includes(effectiveShipment)" v-model="form.consolidationReference" label="Número de consolidado" placeholder="Por confirmar si aún no está disponible" />
+          <div v-if="effectiveShipment === 'LCL'" class="space-y-2">
+            <DhSelect searchable :model-value="selectedConsolidation?.id || form.consolidationId || ''" :options="consolidationOptions" label="Nombre del consolidado" placeholder="Buscar consolidado de Pricing" :disabled="consolidationLoading" @update:model-value="selectConsolidation" />
+            <p v-if="consolidationLoading" class="text-xs text-[var(--dh-text-muted)]">Consultando consolidados…</p>
+            <p v-else-if="consolidationError" class="text-xs text-[var(--dh-text-muted)]">{{ consolidationError }} <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadConsolidations" /></p>
+            <p v-if="!selectedConsolidation && form.consolidationReference" class="text-xs text-[var(--dh-text-muted)]">Referencia guardada: {{ form.consolidationReference }}</p>
+          </div>
+          <DhInput v-else-if="effectiveShipment === 'LTL'" v-model="form.consolidationReference" label="Nombre del consolidado" placeholder="Por confirmar si aún no está disponible" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-if="editingId" v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />

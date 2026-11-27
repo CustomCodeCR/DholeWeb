@@ -65,6 +65,24 @@ const openingData = computed<Record<string, unknown>>(() => {
         })() : {}
   } catch { return {} }
 })
+const consolidationName = ref('')
+let consolidationLookup = 0
+watch(() => [record.value?.id, record.value?.sourceQuoteOptionId, record.value?.modalityCode, openingData.value.consolidationId, openingData.value.consolidationNumber, openingData.value.consolidationReference], async () => {
+  const generation = ++consolidationLookup
+  consolidationName.value = ''
+  if (record.value?.modalityCode !== 'LCL') return
+  const data = openingData.value
+  try {
+    if (data.consolidationId || data.consolidationNumber) {
+      const rows = await operationsQuoteApi.consolidations('LCL')
+      const row = rows.find(item => data.consolidationId ? item.id === data.consolidationId : item.number === data.consolidationNumber)
+      if (generation === consolidationLookup) consolidationName.value = row?.name || ''
+    } else if (!data.consolidationReference && record.value.sourceQuoteOptionId) {
+      const quote = await operationsQuoteApi.detail(record.value.sourceQuoteOptionId)
+      if (generation === consolidationLookup) consolidationName.value = quote.consolidationReference || ''
+    }
+  } catch { /* Preserve the previously saved reference when Pricing is unavailable. */ }
+}, { immediate: true })
 const openingSections = computed(() => {
   const data = openingData.value
   const sections: Array<{ title: string; rows: Array<{ label: string; key: string }> }> = [
@@ -98,7 +116,7 @@ const openingSections = computed(() => {
       { label: 'Unidad de volumen', key: 'volumeUnit' },
     ] },
     { title: 'Coordinación y proveedores', rows: [
-      { label: 'Número de consolidado', key: 'consolidationReference' },
+      { label: 'Nombre del consolidado', key: 'consolidationReference' },
       { label: 'Dirección de recolecta', key: 'pickupAddress' },
       { label: 'WHS', key: 'whsName' },
       { label: 'Dirección de entrega', key: 'destinationAddress' },
@@ -121,7 +139,7 @@ const openingSections = computed(() => {
   return sections.map(section => ({
     title: section.title,
     rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg'].includes(row.key)) && !inapplicable.has(row.key) && !inapplicable.has(fieldAliases[row.key] || row.key) && !['estimatedWeightUnit','actualWeightUnit','volumeUnit'].includes(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
-      const raw = openingField(row.key, data)
+      const raw = row.key === 'consolidationReference' ? consolidationName.value || String(data.consolidationReference || '') : openingField(row.key, data)
       const unitKey = units[row.key]
       const value = unitKey ? summaryMeasure(raw, openingField(unitKey, data)) : raw
       return { label: row.label, value: value || (

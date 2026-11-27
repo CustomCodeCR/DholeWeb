@@ -5,7 +5,8 @@ import type { RateDto } from '@/core/interfaces/pricing'
 export type OperationsQuoteSummary = Pick<RateDto,
   'id' | 'rateCode' | 'quoNumber' | 'clientName' | 'clientAccountId' | 'idtraNumber' |
   'polName' | 'poeName' | 'podName' | 'shipmentMode' | 'status'>
-export type OperationsQuoteDetail = OperationsQuoteSummary & Pick<RateDto,
+export interface OperationsConsolidation { id: string; number: number; name: string; isActive: boolean }
+export type OperationsQuoteDetail = OperationsQuoteSummary & { consolidationId?: string | null; consolidationNumber?: number | null; consolidationReference?: string | null } & Pick<RateDto,
   'operationType' | 'polId' | 'polCode' | 'poeId' | 'poeCode' | 'podId' | 'podCode' |
   'incotermCode' | 'incotermName' | 'carrierId' | 'carrierCode' | 'carrierName' |
   'agentId' | 'agentCode' | 'agentName' | 'warehouseId' | 'totalPackages' | 'totalWeightKg' |
@@ -16,6 +17,9 @@ export type OperationsQuoteDetail = OperationsQuoteSummary & Pick<RateDto,
   'inlandDeliveryLocations' | 'inlandDeliveryLocation'>
 const base = '/api/pricing/operations-quotes'
 export const operationsQuoteApi = {
+  consolidations(modality: string) {
+    return fetchClient<OperationsConsolidation[]>(base + '/consolidations?' + new URLSearchParams({ modality }), { method: 'GET' })
+  },
   search(search: string, accountId?: string) {
     const query = new URLSearchParams({ search: search.trim(), ...(accountId ? { accountId } : {}) })
     return fetchClient<{ items: OperationsQuoteSummary[] }>(base + '?' + query, { method: 'GET' })
