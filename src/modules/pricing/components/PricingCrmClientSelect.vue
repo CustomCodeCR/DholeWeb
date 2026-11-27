@@ -22,7 +22,7 @@ interface ClientPage {
 }
 const props = withDefaults(defineProps<{
   modelValue: string
-  mode: 'request' | 'create'
+  mode: 'request' | 'create' | 'operations'
   sellerUserId?: string
   initialName?: string
   disabled?: boolean
@@ -172,12 +172,12 @@ onBeforeUnmount(() => {
 <template>
   <div class="relative min-w-0">
     <label class="mb-1.5 block text-xs font-black uppercase tracking-[0.12em] text-[var(--dh-text-muted)]">
-      Cuenta o prospecto CRM *
+      {{ mode === 'operations' ? 'Cuenta CRM *' : 'Cuenta o prospecto CRM *' }}
     </label>
     <div class="relative">
       <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--dh-primary)]"/>
       <input type="search" :value="query" :disabled="disabled"
-        :aria-invalid="!!error" autocomplete="off" placeholder="Buscar cuenta o prospecto por nombre o cédula…"
+        :aria-invalid="!!error" autocomplete="off" :placeholder="mode === 'operations' ? 'Buscar cuenta por nombre o cédula…' : 'Buscar cuenta o prospecto por nombre o cédula…'"
         class="h-11 w-full rounded-[18px] border border-[var(--dh-border)] bg-[var(--dh-input)] pl-10 pr-10 text-sm font-semibold outline-none dh-focus-primary disabled:opacity-60"
         @input="typeSearch(($event.target as HTMLInputElement).value)"
         @focus="open=true;void load()" @keydown.escape="open=false"/>

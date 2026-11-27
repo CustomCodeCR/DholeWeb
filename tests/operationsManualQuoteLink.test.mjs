@@ -41,7 +41,7 @@ test('QUO search is the first optional step and does not require a client or mod
 })
 
 test('selecting a QUO loads detail, maps logistics and restores old drafts', () => {
-  assert.match(opening, /await PricingService\.getRate\(id\)/)
+  assert.match(opening, /await operationsQuoteApi\.detail\(id\)/)
   assert.match(opening, /hydrateQuoteOpening\(rate\)/)
   assert.match(opening, /normalizeIncotermCode\(rate\.incotermCode, rate\.incotermName\)/)
   assert.match(opening, /\['pol', selectedPol, rate\.polId, rate\.polCode, rate\.polName\]/)
@@ -58,4 +58,19 @@ test('selecting a QUO loads detail, maps logistics and restores old drafts', () 
   assert.match(opening, /quoteRateId\.value && !quoteHydrated\.value && !assignmentPendingId\.value\) await selectQuote/)
   assert.match(opening, /label="Cargar datos de QUO"/)
   assert.doesNotMatch(opening.slice(opening.indexOf('function hydrateQuoteOpening'), opening.indexOf('async function selectQuote')), /actualWeight|form\.value\.weightValue\s*=/)
+})
+
+
+test('Operations quote lookup and link use dedicated scopes, never commercial rate access', () => {
+  const lookup = read('src/modules/operations/services/operationsQuoteApi.ts')
+  for (const view of [opening, detail]) {
+    assert.match(view, /operations\.pricing\.quote\.read/)
+    assert.match(view, /operations\.pricing\.quote\.link/)
+    assert.match(view, /operationsQuoteApi\.search/)
+    assert.doesNotMatch(view, /PricingService\.browseRates|pricing\.rate\.update/)
+  }
+  assert.match(lookup, /\/api\/pricing\/operations-quotes/)
+  assert.doesNotMatch(lookup, /totalCostAmount|marginPercentage|rateDetails/)
+  assert.match(opening, /mode="operations"/)
+  assert.match(opening, /crmPath\('operations\/accounts', id, 'contacts'\)/)
 })
