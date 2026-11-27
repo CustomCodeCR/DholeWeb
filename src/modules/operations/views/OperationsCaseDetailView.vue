@@ -12,6 +12,8 @@ import { DhCard, DhDataTable, DhTabs, type DhTableColumn } from '@/shared/compon
 import { DhPageHeader } from '@/shared/components/organisms'
 import { operationsQuoteApi, type OperationsQuoteSummary, type OperationsConsolidation } from '../services/operationsQuoteApi'
 import { useAuthStore } from '@/core/stores/authStore'
+import { NotificationsService } from '@/core/services/notificationsService'
+import type { NotificationMessageDto } from '@/core/interfaces/notifications'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
   operationsApi, type OperationsCaseDetail, type OperationsCaseWorkspace,
@@ -443,6 +445,24 @@ const actors = ref<OperationsUser[]>([])
 const accountName = ref('')
 const accountDetails = ref<Record<string, unknown>>({})
 const notesUnavailable = ref(false)
+const notificationHistory = ref<NotificationMessageDto[]>([])
+const notificationHistoryUnavailable = ref(false)
+const notificationHistoryTruncated = ref(false)
+const customerNotificationRows = computed(() => {
+  const emails = new Set(contacts.value.map(contact => contact.email?.trim().toLowerCase()).filter(Boolean))
+  return notificationHistory.value.flatMap(message => {
+    // Case-scoped history includes internal assignment emails. Only external,
+    // known operational CRM addresses are presented as customer communications.
+    if (message.channel !== 'Email' || ['operations.aperture.validation.assigned','operations.origin.assigned'].includes(message.notificationType)) return []
+    return message.recipients.filter(recipient => !recipient.userId && emails.has(recipient.address.trim().toLowerCase())).map(recipient => {
+      const attempts = message.deliveryAttempts.filter(attempt => attempt.notificationRecipientId === recipient.id)
+      const delivered = attempts.some(attempt => attempt.succeeded)
+      return { id: message.id + ':' + recipient.id, subject: message.subject || 'Notificación sin asunto', address: recipient.address,
+        date: message.sentAtUtc || message.createdAtUtc, status: delivered ? 'Enviada' : message.status === 'Sent' ? 'Envío sin confirmación individual' : message.status,
+        delivered }
+    })
+  })
+})
 const clientExecutiveName = ref('')
 const responsibleNames = ref<Record<string, string>>({})
 const currentResponsibility = computed(() => workspace.value?.stages.find(s =>
@@ -612,6 +632,12 @@ async function load() {
     accountName.value = ''
     accountDetails.value = {}
     notesUnavailable.value = false
+    notificationHistory.value = []
+    notificationHistoryUnavailable.value = false
+    notificationHistoryTruncated.value = false
+    if (auth.hasScope('notifications.history.view')) optional.push(NotificationsService.historyByEntity('OperationsCase', detail.id, 1, 50)
+      .then(x => { if (current === sequence) { notificationHistory.value = x.items; notificationHistoryTruncated.value = (x.totalCount ?? x.items.length) > x.items.length } })
+      .catch(() => { if (current === sequence) notificationHistoryUnavailable.value = true }))
     clientExecutiveName.value = ''
     responsibleNames.value = { ...(work.people || {}) }
     optional.push(loadResponsibleNames([
@@ -841,7 +867,16 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             <p v-else class="text-sm text-[var(--dh-text-muted)]">Bitácora no disponible para esta etapa o perfil.</p>
           </DhCard>
           <DhCard padding="sm" title="Historial de notificaciones del cliente">
-            <p class="text-sm text-[var(--dh-text-muted)]">El historial de comunicaciones al cliente todavía no está disponible en el expediente. No se muestran notificaciones internas como si fueran envíos al cliente.</p>
+            <p v-if="!auth.hasScope('notifications.history.view')" class="text-sm text-[var(--dh-text-muted)]">Tu perfil no tiene permiso para consultar el historial de notificaciones.</p>
+            <p v-else-if="notificationHistoryUnavailable || contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudo verificar el historial o los destinatarios de CRM.</p>
+            <template v-else>
+              <p v-if="!customerNotificationRows.length" class="text-sm text-[var(--dh-text-muted)]">No se encontraron correos del trámite dirigidos a los contactos operativos actuales.</p>
+              <div v-for="message in customerNotificationRows" :key="message.id" class="border-b border-[var(--dh-border)] py-3">
+                <div class="flex flex-wrap items-center justify-between gap-2"><p class="break-words text-sm font-semibold">{{ message.subject }}</p><DhBadge :variant="message.delivered ? 'success' : 'neutral'">{{ message.status }}</DhBadge></div>
+                <p class="break-all text-xs">{{ message.address }}</p><p class="text-xs text-[var(--dh-text-muted)]">{{ dateLabel(message.date) }}</p>
+              </div>
+              <p v-if="notificationHistoryTruncated" class="mt-2 text-xs text-[var(--dh-text-muted)]">Consulta limitada a los últimos 50 registros del trámite.</p>
+            </template>
           </DhCard>
           <DhCard padding="sm" title="Información logística" subtitle="Campos de apertura y datos del embarque">
             <div class="mb-4 border-b border-[var(--dh-border)] pb-3">
