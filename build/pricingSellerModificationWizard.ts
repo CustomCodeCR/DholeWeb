@@ -363,7 +363,7 @@ async function loadPricingModificationWorkItem() {
 // Use the established declared-value calculation, never replace negotiated rows.
 function syncSellerModificationInsurance() {
   if (!props.modificationRequestId || props.viewOnly || !pricingModificationApplied.value
-      || hydratingExistingRate.value || isOwnLclMatrixContext()) return
+      || hydratingExistingRate.value) return
   const proposal = pricingModificationWorkItem.value?.payload?.form
   const declared = number(proposal?.cargoValue)
   if (!(declared > 0)) return
@@ -375,15 +375,17 @@ function syncSellerModificationInsurance() {
       existing.included = true
     return
   }
-  const currency = catalogs.currencies.find(item => String(item.code ?? '').toUpperCase() === 'USD')
+  const currency = catalogs.currencies.find(item => canonicalCurrencyCode({
+    currencyId: item.id, currencyCode: item.code, currencyName: displayValue(item),
+  }) === 'USD')
   if (!currency) return
   const calculated = calculateCargoInsurance(declared, number(form.freightCost))
   const line: RateLine = {
     key: 'quote-edit:insurance', section: 'destination_charges', name: 'Seguro de carga',
     costDetailType: 'Insurance', costType: 'Optional', chargeBasis: 'PerShipment',
     serviceIds: service ? [service.id] : [],
-    currencyId: currency.id, currencyName: displayValue(currency), currencyCode: currency.code,
-    amountCurrencyCode: currency.code, costAmount: calculated.cost, saleAmount: calculated.sale,
+    currencyId: currency.id, currencyName: displayValue(currency), currencyCode: 'USD',
+    amountCurrencyCode: 'USD', costAmount: calculated.cost, saleAmount: calculated.sale,
     included: true, optional: true, manual: false,
     notes: cargoInsuranceNote(declared, number(form.freightCost)),
     contextLabel: 'Seguro solicitado en la modificación',

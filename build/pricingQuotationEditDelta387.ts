@@ -368,9 +368,33 @@ async function quoteEditVerifyBeforeSave387(): Promise<boolean> {
   }
   return false
 }
+// A seller's declared-value insurance-only amendment uses the existing
+// commercial insurance formula and negotiated RateDetails. The live route
+// catalog cannot invalidate this independent service. All other changes
+// (including physical cargo quantities and supplier changes) retain the gate.
+function quoteEditSellerInsuranceOnly387() {
+  if (!props.modificationRequestId || !quoteEditOriginalContext387.value
+      || number(form.cargoValue) <= 0) return false
+  const changed = quoteEditChangedKeys387()
+  if ([...changed].some(key => key !== 'cargoValue' && key !== 'services')) return false
+  const original = new Set(quoteEditOriginalContext387.value.services)
+  const current = new Set(form.serviceIds.map(quoteEditId387))
+  if ([...original].some(id => !current.has(id))) return false
+  const insuranceIds = new Set(catalogs.services.filter(service =>
+    /seguro.*carga|carga.*seguro/.test(normalizeCatalogValue(displayValue(service))))
+    .map(service => quoteEditId387(service.id)))
+  return [...current].every(id => original.has(id) || insuranceIds.has(id))
+    && [...current].some(id => insuranceIds.has(id))
+}
 async function quoteEditApplyDelta387(): Promise<boolean> {
   if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value) return true
   if (!quoteEditOriginalContext387.value) return false
+  if (quoteEditSellerInsuranceOnly387()) {
+    syncSellerModificationInsurance()
+    return rateLines.value.some(line => line.costDetailType === 'Insurance' && line.included
+      && Number.isFinite(Number(line.costAmount)) && Number(line.costAmount) > 0
+      && Number.isFinite(Number(line.saleAmount)) && Number(line.saleAmount) > 0)
+  }
   const signature = JSON.stringify([props.rateId, quoteEditContext387()])
   if (quoteEditPending387?.signature === signature) return quoteEditPending387.promise
   // P7 has already reconciled this exact physical context. Do not require a
