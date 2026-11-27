@@ -400,7 +400,7 @@ function quoteEditRecoverDeclaredInsurance387() {
     contextLabel: 'Calculado sobre el valor declarado de la carga',
   }
   if (typeof screen7LineWasRemoved !== 'function' || !screen7LineWasRemoved(line))
-    rateLines.value = [...rateLines.value, line]
+    rateLines.value.push(line)
 }
 
 // A declared-value insurance-only amendment uses the existing
