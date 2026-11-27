@@ -71,15 +71,15 @@ test('existing LCL seller request restores insurance independently of catalog-co
   const freight = { key: 'existing:F', detailId: 'F', costDetailType: 'Freight', included: true, costAmount: 50, saleAmount: 185 }
   const rateLines = { value: [freight] as any[] }
   const removed = new Set<string>()
-  const run = new Function('props', 'pricingModificationApplied', 'hydratingExistingRate', 'isOwnLclMatrixContext',
+  const run = new Function('props', 'pricingModificationApplied', 'hydratingExistingRate', 'canonicalCurrencyCode',
     'pricingModificationWorkItem', 'number', 'cargoInsuranceService', 'rateLines', 'screen7LineWasRemoved',
     'explicitlyRemovedPersistedDetailIds', 'catalogs', 'calculateCargoInsurance', 'form', 'displayValue', 'cargoInsuranceNote',
     js + '\nreturn syncSellerModificationInsurance')(
-      { modificationRequestId: 'R1' }, { value: true }, { value: false }, () => false,
+      { modificationRequestId: 'R1' }, { value: true }, { value: false }, (item: any) => item.currencyName,
       { value: { payload: { form: { cargoValue: 4020.2 } } } }, Number, { value: { id: 'INS' } },
       rateLines, (line: any) => removed.has(line.key), { value: new Set() },
-      { currencies: [{ id: 'CRC', code: 'CRC' }, { id: 'USD', code: 'USD' }] },
-      () => ({ cost: 35, sale: 95 }), { freightCost: 50 }, (item: any) => item.code, () => 'Seguro de carga')
+      { currencies: [{ id: 'CRC', code: 'CUR-2026-001', value: 'CRC' }, { id: 'USD', code: 'CUR-2026-002', value: 'USD' }] },
+      () => ({ cost: 35, sale: 95 }), { freightCost: 50 }, (item: any) => item.value, () => 'Seguro de carga')
   run()
   assert.equal(rateLines.value.length, 2)
   const insurance = rateLines.value[1]
@@ -98,4 +98,12 @@ test('existing LCL seller request restores insurance independently of catalog-co
   rateLines.value = [freight]
   run()
   assert.equal(rateLines.value.length, 1)
+})
+
+test('valid Hacienda decimal amounts are not rejected by the native step base', () => {
+  const source = read('src/modules/pricing/components/PricingAlternativeWizardCrystal.vue')
+  for (const name of ['exchangeRatePurchase', 'exchangeRateSale']) {
+    const input = source.split('\n').find(line => line.includes('v-model.number="' + name + '"'))
+    assert.ok(input?.includes('min="0.000001" step="any"'))
+  }
 })

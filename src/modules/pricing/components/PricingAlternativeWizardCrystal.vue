@@ -8635,8 +8635,8 @@ onMounted(async () => {
               <DhButton variant="secondary" size="sm" :loading="exchangeRateLoading" :disabled="exchangeRateLoading" @click="loadHaciendaExchangeRate(true)">Actualizar Hacienda</DhButton>
             </div>
             <div class="mt-4 grid gap-3 md:grid-cols-2">
-              <DhInput v-model.number="exchangeRatePurchase" data-required-field="exchangeRatePurchase" :error="fieldError('exchangeRatePurchase')" type="number" min="0.000001" step="0.01" label="Compra Hacienda (editable)" />
-              <DhInput v-model.number="exchangeRateSale" data-required-field="exchangeRateSale" :error="fieldError('exchangeRateSale')" type="number" min="0.000001" step="0.01" label="Venta Hacienda (editable)" />
+              <DhInput v-model.number="exchangeRatePurchase" data-required-field="exchangeRatePurchase" :error="fieldError('exchangeRatePurchase')" type="number" min="0.000001" step="any" label="Compra Hacienda (editable)" />
+              <DhInput v-model.number="exchangeRateSale" data-required-field="exchangeRateSale" :error="fieldError('exchangeRateSale')" type="number" min="0.000001" step="any" label="Venta Hacienda (editable)" />
             </div>
             <p v-if="euroUsdRate" class="mt-3 text-xs font-semibold text-[var(--dh-text-muted)]">
               EUR → USD (Hacienda): <strong>1 EUR = {{ euroUsdRate.toFixed(4) }} USD</strong><span v-if="euroRateDate"> · fecha {{ formatDate(euroRateDate) }}</span>
