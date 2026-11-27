@@ -281,6 +281,9 @@ async function submitSellerModification() {
       return
     }
     const requestedForm = JSON.parse(JSON.stringify(form)) as Record<string, unknown>
+    // Effective services include insurance implied by a positive declared cargo value.
+    // Persist the ID, not just the display label, so Pricing can reconcile the charge.
+    requestedForm.serviceIds = effectiveServices.value.map(service => service.id)
     for (const key of ['modality', 'shipmentMode', 'equipmentId', 'validTo']) {
       if (!modificationComparable(requestedForm[key]) && modificationComparable(source.form[key]))
         requestedForm[key] = source.form[key]
@@ -395,6 +398,12 @@ async function applyPricingModification() {
   if (['LCL', 'LTL'].includes(String(proposal.shipmentMode ?? '').toUpperCase()))
     restoreSellerConsolidatedCargo(proposal, workPayload?.sellerContext)
   await nextTick()
+  // Historical seller requests may contain cargoValue and the insurance label but
+  // omit the service ID. Use the same effective service catalog as a new request.
+  if (number(form.cargoValue) > 0 && cargoInsuranceService.value
+      && !form.serviceIds.includes(cargoInsuranceService.value.id)) {
+    form.serviceIds = [...form.serviceIds, cargoInsuranceService.value.id]
+  }
   // Modifying a quote does not replace its saved lines or financial detail IDs.
   if (originalFinancialLines.length) {
     rateLines.value = originalFinancialLines
@@ -414,9 +423,9 @@ async function applyPricingModification() {
 // The existing quote hydrates asynchronously after catalog loading. Do not
 // display/price its old FCA values: apply the requested EXW and other seller
 // inputs only AFTER the quote hydration completes, without persisting anything.
-watch([pricingModificationWorkItem, editingRate, loadingExistingRate], () => {
+watch([pricingModificationWorkItem, editingRate, loadingExistingRate, hydratingExistingRate], () => {
   if (!props.modificationRequestId || !pricingModificationWorkItem.value
-    || !editingRate.value || loadingExistingRate.value || pricingModificationApplied.value
+    || !editingRate.value || loadingExistingRate.value || hydratingExistingRate.value || pricingModificationApplied.value
     || pricingModificationApplying.value) return
   void applyPricingModification()
 }, { immediate: true })
