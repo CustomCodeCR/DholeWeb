@@ -422,9 +422,9 @@ function selectedForLabel(key: string, label: string) {
   return currentCatalog(key).find(item => optionText(item).trim().toLowerCase() === label.trim().toLowerCase())?.id || ''
 }
 function reconcileLocations() {
-  selectedPol.value = selectedForLabel('pol', form.value.pol)
-  selectedPoe.value = selectedForLabel('poe', form.value.poe)
-  selectedPod.value = selectedForLabel('pod', form.value.pod)
+  selectedPol.value = quoteCatalogItem('pol', form.value.polCatalogId, undefined, form.value.pol)?.id || selectedForLabel('pol', form.value.pol)
+  selectedPoe.value = quoteCatalogItem('poe', form.value.poeCatalogId, undefined, form.value.poe)?.id || selectedForLabel('poe', form.value.poe)
+  selectedPod.value = quoteCatalogItem('pod', form.value.podCatalogId, undefined, form.value.pod)?.id || selectedForLabel('pod', form.value.pod)
   selectedWarehouse.value = currentCatalog('warehouses').some(item => item.id === form.value.warehouseId && item.isActive)
     ? form.value.warehouseId : selectedForLabel('warehouses', form.value.whsName)
 }
@@ -458,7 +458,7 @@ const error = ref('')
 const form = ref({
   provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '', crmDivisionName: '',
   shipmentType: '', cargoNature: '', transportType: '', incoterm: '', incotermName: '',
-  pol: '', poe: '', pod: '', pickupAddress: '', pickupContact: '',
+  pol: '', poe: '', pod: '', polCatalogId: '', poeCatalogId: '', podCatalogId: '', pickupAddress: '', pickupContact: '',
   pickupWindow: '', requiresPickup: false, whsName: '',
   destinationAddress: '', cargoDescription: '', packageCount: '',
   packageType: '', weightValue: '', weightUnit: 'KG',
@@ -633,9 +633,7 @@ const originOptions = [
 const incoterms = ['EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP','DAP','DPU','DDP']
 const isMaritime = computed(() => ['MARITIME','MULTIMODAL'].includes(form.value.transportType))
 const needsEquipment = computed(() => ['FCL','FTL'].includes(effectiveShipment.value))
-const selectedIncoterm = computed(() => form.value.incoterm
-  ? normalizeIncotermCode(form.value.incoterm, form.value.incotermName)
-  : '')
+const selectedIncoterm = computed(() => normalizeIncotermCode(form.value.incoterm, form.value.incotermName))
 const requiresWarehouse = computed(() => ['LCL', 'LTL'].includes(effectiveShipment.value) ||
   (selectedIncoterm.value === 'FCA' && (needsEquipment.value || Boolean(editingId.value))))
 const showCarrier = computed(() => editingId.value ? isMaritime.value : effectiveShipment.value === 'FCL')
@@ -694,7 +692,12 @@ watch([warehouseOptions, catalogLoading], () => {
 })
 const warehouseMeta = computed(() => catalogMetadata(warehouse.value))
 const warehouseAddress = computed(() => String(warehouseMeta.value.address || warehouseMeta.value.fullAddress || form.value.warehouseAddress || '').trim())
-const deliveryRequired = computed(() => form.value.requiresDelivery || ['DAP','DPU','DDP'].includes(selectedIncoterm.value))
+const deliveryRequired = computed(() => (form.value.services as unknown[]).some(service => {
+  const item = typeof service === 'string' ? currentCatalog('pricing-services').find(row => row.id === service) : service
+  const row = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+  const key = [typeof service === 'string' ? service : '', row.code, row.slug, row.label, row.value, row.name, row.serviceName, row.serviceCode].filter(Boolean).join(' ')
+  return /entrega|delivery/i.test(key)
+}))
 const validPoints = (points: InlandPoint[]) => points.length > 0 && points.every(p => typeof p?.address === 'string' && p.address.trim() &&
   ['FiscalCargo','NationalizedCargo'].includes(p.cargoCondition || ''))
 // New manual openings must not assign commercial billing responsibility.
@@ -1269,8 +1272,10 @@ function buildOpeningData() {
       requiresPickup: pickupRequired.value,
       pickupAddress: pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '',
       pickupLocations: pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [],
-      ...(!editingId.value ? { destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
-      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
+      destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '',
+      requiresDelivery: deliveryRequired.value,
+      deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [],
+      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '' } : {}),
       ...(!editingId.value && !showCarrier.value ? { carrierId: '', carrierReference: '' } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...Object.fromEntries((['length', 'width', 'height'] as const).flatMap(axis => [
@@ -1461,6 +1466,31 @@ onMounted(async () => {
         if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
         if (!Array.isArray(form.value.pickupLocations)) form.value.pickupLocations = []
         if (!Array.isArray(form.value.deliveryLocations)) form.value.deliveryLocations = []
+      }
+      // Recover only missing commercial references for previously created automatic openings.
+      // Do not overwrite operational edits or infer a negative value from absent quote data.
+      if (detail.apertureType === 'AUTOMATIC' && detail.sourceQuoteOptionId) {
+        try {
+          const quote = await operationsQuoteApi.detail(detail.sourceQuoteOptionId)
+          if (quote.id === detail.sourceQuoteOptionId) {
+            const term = normalizeIncotermCode(quote.incotermCode, quote.incotermName)
+            if (!selectedIncoterm.value && incoterms.includes(term)) { form.value.incoterm = term; form.value.incotermName = term }
+            if (!form.value.cargoDescription.trim()) form.value.cargoDescription = [...new Set((quote.cargoLines || []).map(line => line.description?.trim()).filter(Boolean))].join(' · ')
+            if (!form.value.carrierId && (!form.value.carrierReference || form.value.carrierReference === quote.carrierName)) {
+              form.value.carrierId = quote.carrierId || ''
+              form.value.carrierReference ||= quote.carrierName || ''
+            }
+            if (!form.value.agentId && (!form.value.agentReference || form.value.agentReference === quote.agentName)) {
+              form.value.agentId = quote.agentId || ''
+              form.value.agentReference ||= quote.agentName || ''
+            }
+            if (deliveryRequired.value && !form.value.deliveryLocations.length && !form.value.destinationAddress) {
+              const points = quote.inlandDeliveryLocations?.length ? quote.inlandDeliveryLocations : quote.inlandDeliveryLocation ? [quote.inlandDeliveryLocation] : []
+              form.value.deliveryLocations = quoteInlandPoints(points)
+              form.value.destinationAddress = form.value.deliveryLocations[0]?.address || ''
+            }
+          }
+        } catch { /* Preserve the stored opening when Pricing is unavailable. */ }
       }
       if (detail.modalityCode === 'LCL' && !form.value.consolidationId && !form.value.consolidationNumber && !form.value.consolidationReference && detail.sourceQuoteOptionId) {
         try {
@@ -1793,13 +1823,10 @@ onMounted(async () => {
               <div v-if="editingId" class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
             </div>
           </DhCard>
-          <div v-if="editingId" class="grid gap-4 md:grid-cols-2">
-            <DhSelect v-if="editingId" :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
-          </div>
           <PricingInlandServiceLocation v-if="pickupRequired"
             v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
-          <PricingInlandServiceLocation v-if="editingId && deliveryRequired"
+          <PricingInlandServiceLocation v-if="deliveryRequired"
             v-model="deliveryPoint" v-model:locations="form.deliveryLocations" kind="delivery" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
         </div>
