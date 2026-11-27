@@ -358,9 +358,41 @@ async function loadPricingModificationWorkItem() {
     pricingModificationLoading.value = false
   }
 }
+// A seller amendment is an explicit insurance request even if the saved header
+// already contains the service or wizard-bundle returns no configured costs.
+// Use the established declared-value calculation, never replace negotiated rows.
+function syncSellerModificationInsurance() {
+  if (!props.modificationRequestId || props.viewOnly || !pricingModificationApplied.value
+      || hydratingExistingRate.value || isOwnLclMatrixContext()) return
+  const proposal = pricingModificationWorkItem.value?.payload?.form
+  const declared = number(proposal?.cargoValue)
+  if (!(declared > 0)) return
+  const service = cargoInsuranceService.value
+  const existing = rateLines.value.find(line => line.costDetailType === 'Insurance')
+  if (existing) {
+    if (!existing.included && !screen7LineWasRemoved(existing)
+        && !(existing.detailId && explicitlyRemovedPersistedDetailIds.value.has(existing.detailId)))
+      existing.included = true
+    return
+  }
+  const currency = catalogs.currencies.find(item => String(item.code ?? '').toUpperCase() === 'USD')
+  if (!currency) return
+  const calculated = calculateCargoInsurance(declared, number(form.freightCost))
+  const line: RateLine = {
+    key: 'quote-edit:insurance', section: 'destination_charges', name: 'Seguro de carga',
+    costDetailType: 'Insurance', costType: 'Optional', chargeBasis: 'PerShipment',
+    serviceIds: service ? [service.id] : [],
+    currencyId: currency.id, currencyName: displayValue(currency), currencyCode: currency.code,
+    amountCurrencyCode: currency.code, costAmount: calculated.cost, saleAmount: calculated.sale,
+    included: true, optional: true, manual: false,
+    notes: cargoInsuranceNote(declared, number(form.freightCost)),
+    contextLabel: 'Seguro solicitado en la modificación',
+  }
+  if (!screen7LineWasRemoved(line)) rateLines.value = [...rateLines.value, line]
+}
 async function applyPricingModification() {
   const proposal = pricingModificationWorkItem.value?.payload?.form
-  if (!proposal || !editingRate.value || props.viewOnly || pricingModificationApplied.value || pricingModificationApplying.value) return
+  if (!proposal || !editingRate.value || props.viewOnly || !pricingDraftReady.value || pricingDraftRestoring.value || pricingModificationApplied.value || pricingModificationApplying.value) return
   const originalFinancialLines = rateLines.value.map(line => ({ ...line }))
   pricingModificationApplying.value = true
   try {
@@ -410,6 +442,7 @@ async function applyPricingModification() {
     syncDeclaredCargoInsuranceOnEdit()
   }
   pricingModificationApplied.value = true
+  syncSellerModificationInsurance()
   if (!editingRate.value && hasInternationalTransportService.value) await searchApprovedRates()
   step.value = 5
   toastStore.info('Solicitud de Ventas cargada',
@@ -423,12 +456,17 @@ async function applyPricingModification() {
 // The existing quote hydrates asynchronously after catalog loading. Do not
 // display/price its old FCA values: apply the requested EXW and other seller
 // inputs only AFTER the quote hydration completes, without persisting anything.
-watch([pricingModificationWorkItem, editingRate, loadingExistingRate, hydratingExistingRate], () => {
+watch([pricingModificationWorkItem, editingRate, loadingExistingRate, hydratingExistingRate, pricingDraftReady, pricingDraftRestoring], () => {
   if (!props.modificationRequestId || !pricingModificationWorkItem.value
     || !editingRate.value || loadingExistingRate.value || hydratingExistingRate.value || pricingModificationApplied.value
-    || pricingModificationApplying.value) return
+    || pricingModificationApplying.value || !pricingDraftReady.value || pricingDraftRestoring.value) return
   void applyPricingModification()
 }, { immediate: true })
+// Reconcile after a provider rebuild or entry into P7, even when the
+// contextual cost API fails or its verified signature has not changed.
+watch(() => [step.value, pricingModificationApplied.value, hydratingExistingRate.value,
+  catalogs.currencies.length, rateLines.value.map(line => line.key + ':' + line.included).join('|')],
+  () => { if (step.value === 7) syncSellerModificationInsurance() }, { flush: 'post' })
 onMounted(() => { void loadPricingModificationWorkItem() })
 `
 
@@ -442,7 +480,7 @@ onMounted(() => { void loadPricingModificationWorkItem() })
     'seller source initialization')
   code = once(code,
     'const scope = props.sellerEditRequestId',
-    "const scope = props.sellerModificationRateId\n    ? 'seller:modify:' + props.sellerModificationRateId\n    : props.sellerEditRequestId",
+    "const scope = props.modificationRequestId\n    ? 'pricing:modify:' + props.modificationRequestId + ':' + props.rateId\n    : props.sellerModificationRateId\n      ? 'seller:modify:' + props.sellerModificationRateId\n      : props.sellerEditRequestId",
     'isolated draft')
   code = once(code,
     'async function saveOpenRequest() {',
@@ -512,7 +550,10 @@ onMounted(() => { void loadPricingModificationWorkItem() })
   code = once(code,
     'async function saveRate() {',
     `async function saveRate() {
-  if (props.modificationRequestId) updateReason.value = 'Solicitud de modificacion de vendedor'
+  if (props.modificationRequestId) {
+    updateReason.value = 'Solicitud de modificacion de vendedor'
+    syncSellerModificationInsurance()
+  }
   if (props.modificationRequestId && !pricingModificationApplied.value) {
     toastStore.warning('Modificación pendiente de aplicar',
       'Primero cargue los datos solicitados por Ventas antes de guardar una nueva revisión.')
