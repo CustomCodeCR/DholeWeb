@@ -7,8 +7,8 @@ const opening = source('src/modules/operations/views/OperationsManualCreateView.
 const operationsApi = source('src/modules/operations/services/operationsApi.ts')
 
 test('Manual aperture no longer has any dedicated services or coordination screen', () => {
-  assert.match(opening, /label: 'Cliente y ruta'/)
-  assert.match(opening, /label: 'Carga y servicios'/)
+  assert.match(opening, /label: 'Cliente, ruta y servicios'/)
+  assert.match(opening, /label: 'Carga y condiciones'/)
   assert.match(opening, /label: 'Revisión'/)
   assert.doesNotMatch(opening, /label: 'Cliente, ruta y servicios'/)
   assert.doesNotMatch(opening, /Servicios contratados|PricingCrystalMultiSelect|serviceChoices|serviceCatalog/)
