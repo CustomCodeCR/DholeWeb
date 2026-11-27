@@ -24,3 +24,14 @@ test('Origin exposes conditional pickup and correct LCL and AIR states', () => {
   assert.ok(choices.slice(choices.indexOf("case 'AIR'"), choices.indexOf("case 'FTL'")).includes('BOOKING_READY'))
   assert.ok(!choices.includes('IN_TRANSIT'))
 })
+
+test('Team responsibility selector uses DH and retains legacy clients', () => {
+  const view = read('src/modules/operations/views/OperationsTeamsView.vue')
+  const api = read('src/modules/operations/services/operationsApi.ts')
+  assert.ok(view.includes('<DhSelect :model-value="roleCode"'))
+  assert.ok(view.includes('canManageLeadership'))
+  assert.ok(view.includes('memberGroups'))
+  assert.ok(view.includes('!isLeadership(roleCode.value) && isAvailable.value'))
+  assert.ok(api.includes('roleProfiles?: Record<string, string[]>'))
+  assert.ok(api.includes('roleCode?: string | null'))
+})

@@ -43,7 +43,7 @@ const technicalKeys = new Set([
 const fieldKeys: Record<string, string> = {
   name: 'name', departmentcode: 'department', department: 'department',
   priority: 'priority', capacitypoints: 'capacity', isavailable: 'availability',
-  issupervisor: 'supervisor', isactive: 'active', origincountrycode: 'origin',
+  issupervisor: 'supervisor', rolecode: 'supervisor', isactive: 'active', origincountrycode: 'origin',
   destinationcountrycode: 'destination', modalitycode: 'modality',
   modalities: 'modalities', slot: 'reviewer', slots: 'reviewers',
   status: 'status', decision: 'decision', bothapproved: 'bothApproved',
@@ -131,6 +131,7 @@ export function auditValue(value: unknown, field: string, translate: Translate):
   }
   if (typeof value === 'object') return translate('operations.auditTimeline.structuredValue')
   const text = String(value)
+  if (key === 'rolecode') return translate('operations.teamRoles.' + text)
   if (key === 'assignmentsource' && text === 'AutomaticPool') return 'Pool automático'
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text) || /^[A-Z][A-Z0-9]+-\d{4}-\d+$/i.test(text)) return 'Referencia interna'
   if (key === 'name') return namedTeam(text, translate)

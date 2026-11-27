@@ -7,12 +7,15 @@ import { DhBadge, DhButton, DhCheckbox, DhInput, DhSelect, DhMultiSelect } from 
 import { DhCard } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
 import { useAuthStore } from '@/core/stores/authStore'
+import { useRealtimeListRefresh } from '@/core/realtime/useRealtimeListRefresh'
+import { useOperationsDashboardRealtime } from '../composables/useOperationsCaseRealtime'
 import { operationsApi, type OperationsAudit, type OperationsTeam, type OperationsUser, type OperationsMember } from '../services/operationsApi'
 
 const { t } = useI18n()
 const auth = useAuthStore()
 const canManage = computed(() => auth.hasScope('operations.team.manage'))
 const canAudit = computed(() => auth.hasScope('operations.audit.read'))
+const canManageLeadership = computed(() => ['SuperAdmin', 'SuperUsuario', 'SuperUser'].some(role => auth.hasRole(role)))
 const teams = ref<OperationsTeam[]>([])
 const users = ref<OperationsUser[]>([])
 const knownUsers = ref<OperationsUser[]>([])
@@ -29,7 +32,12 @@ const auditDisplayUsers = computed(() => [...users.value, ...auditPeople.value])
 const memberIds = ref<string[]>([])
 const memberId = ref('')
 const capacity = ref(10)
-const isSupervisor = ref(false)
+const roleCode = ref('OPERATOR')
+const roleOrder = ['LOGISTICS_MANAGER', 'OPERATIONS_HEAD', 'ORIGIN_SUPERVISOR', 'TEAM_SUPERVISOR', 'OPERATOR']
+const isLeadership = (role: string) => ['LOGISTICS_MANAGER', 'OPERATIONS_HEAD', 'ORIGIN_SUPERVISOR'].includes(role)
+const isSupervisor = computed(() => roleCode.value !== 'OPERATOR')
+const memberRole = (member: OperationsMember) => member.roleCode || (member.isSupervisor ? 'TEAM_SUPERVISOR' : 'OPERATOR')
+const roleLabel = (role: string) => t('operations.teamRoles.' + role)
 const isAvailable = ref(true)
 const showAdvanced = ref(false)
 const removingMemberId = ref('')
@@ -41,6 +49,8 @@ const catalogKeys: Record<string, string> = {
   'Origen · FCL internacional': 'fcl',
   'Origen · LCL y Aéreo internacional': 'lclAir',
   'Origen · Transporte terrestre': 'land',
+  'Origen · Centroamérica': 'centralAmerica',
+  'Origen · Tránsito': 'originTransit',
   'Documentación': 'documents',
   'Tránsito': 'transit',
   'Operaciones Panamá': 'panama',
@@ -94,6 +104,27 @@ const options = computed(() => {
     .sort((a, b) => a.label.localeCompare(b.label))
 })
 const selectedMember = computed(() => members.value.find(member => member.userId === memberId.value))
+const profiles = computed<Record<string, string[]>>(() => selected.value?.roleProfiles ?? {
+  OPERATOR: selected.value?.operatorScopes ?? [],
+  TEAM_SUPERVISOR: selected.value?.supervisorScopes ?? [],
+})
+const roleOptions = computed(() => roleOrder
+  .filter(role => Object.prototype.hasOwnProperty.call(profiles.value, role))
+  .filter(role => !isLeadership(role) || canManageLeadership.value)
+  .filter(role => role !== 'TEAM_SUPERVISOR' || !selected.value?.roleProfiles ||
+    (selectedMember.value && memberRole(selectedMember.value) === role))
+  .map(value => ({ value, label: roleLabel(value) })))
+const displayedProfiles = computed(() => roleOrder
+  .filter(role => Object.prototype.hasOwnProperty.call(profiles.value, role))
+  .filter(role => role !== 'TEAM_SUPERVISOR' || members.value.some(member => memberRole(member) === role))
+  .map(role => ({ label: roleLabel(role), scopes: profiles.value[role] ?? [] })))
+const memberGroups = computed(() => roleOrder
+  .map(role => ({ role, people: members.value.filter(member => memberRole(member) === role) }))
+  .filter(group => group.people.length))
+const canEditMember = (member: OperationsMember) => canManage.value &&
+  (!isLeadership(memberRole(member)) || canManageLeadership.value)
+const allMembers = computed(() => new Set(teams.value.filter(team => team.isActive)
+  .flatMap(team => team.members.map(member => member.userId))).size)
 const availableReviewers = computed(() => selected.value?.members.filter(member => member.isAvailable).length ?? 0)
 
 function fail(value: unknown) {
@@ -103,7 +134,7 @@ function clearForm() {
   memberId.value = ''
   memberIds.value = []
   capacity.value = 10
-  isSupervisor.value = false
+  roleCode.value = 'OPERATOR'
   isAvailable.value = true
   showAdvanced.value = false
 }
@@ -149,10 +180,11 @@ function chooseTeam(id: string) {
   void loadAudit()
 }
 function editMember(member: OperationsMember) {
+  if (!canEditMember(member)) return
   memberIds.value = []
   memberId.value = member.userId
   capacity.value = member.capacityPoints
-  isSupervisor.value = member.isSupervisor
+  roleCode.value = memberRole(member)
   isAvailable.value = member.isAvailable
   showAdvanced.value = true
 }
@@ -162,6 +194,7 @@ async function saveMember() {
   const editing = Boolean(selectedMember.value)
   const pendingIds = [...new Set(memberIds.value)]
   if (editing ? !memberId.value : pendingIds.length === 0) return
+  if (!roleOptions.value.some(option => option.value === roleCode.value)) return
   error.value = ''
   success.value = ''
   busy.value = true
@@ -169,13 +202,13 @@ async function saveMember() {
     if (editing) {
       await operationsApi.saveMember(selected.value.id, {
         userId: memberId.value, capacityPoints: capacity.value,
-        isSupervisor: isSupervisor.value, isAvailable: isAvailable.value,
+        roleCode: roleCode.value, isSupervisor: isSupervisor.value, isAvailable: !isLeadership(roleCode.value) && isAvailable.value,
       })
       success.value = t('operations.updated')
     } else {
       const result = await operationsApi.addMembers(selected.value.id, {
         userIds: pendingIds, capacityPoints: capacity.value,
-        isSupervisor: isSupervisor.value, isAvailable: isAvailable.value,
+        roleCode: roleCode.value, isSupervisor: isSupervisor.value, isAvailable: !isLeadership(roleCode.value) && isAvailable.value,
       })
       success.value = t('operations.assignedBatch', { count: result.assigned })
     }
@@ -223,6 +256,16 @@ watch(departmentFilter, () => {
   if (!filteredTeams.value.some(team => team.id === selectedId.value)) chooseTeam(filteredTeams.value[0]?.id ?? '')
 })
 watch(() => auth.userId, () => { teams.value = []; selectedId.value = ''; knownUsers.value = []; users.value = []; history.value = []; auditPeople.value = []; clearForm(); void reload(); void searchUsers() })
+watch(roleCode, (role, previous) => {
+  if (isLeadership(role)) isAvailable.value = false
+  else if (isLeadership(previous)) isAvailable.value = true
+})
+useRealtimeListRefresh({ prefixes: ['/api/operations/teams'], refresh: reload })
+useOperationsDashboardRealtime(() => {
+  window.dispatchEvent(new CustomEvent('dhole:data:changed', {
+    detail: { endpoint: '/api/operations/teams', method: 'SIGNALR' },
+  }))
+})
 onMounted(initialize)
 </script>
 
@@ -238,10 +281,11 @@ onMounted(initialize)
     <div v-if="error" role="alert" class="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-600 dark:text-red-300">{{ error }}</div>
     <div v-if="success" role="status" class="rounded-2xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm font-semibold text-green-700 dark:text-green-300">{{ success }}</div>
 
-    <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <DhCard padding="sm"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.totalTeams') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ teams.length }}</p></DhCard>
       <DhCard padding="sm"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.activeTeams') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeTeams }}</p></DhCard>
-      <DhCard padding="sm" class="col-span-2 lg:col-span-1"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.availablePeople') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeMembers }}</p></DhCard>
+      <DhCard padding="sm"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.totalPeople') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ allMembers }}</p></DhCard>
+      <DhCard padding="sm"><p class="text-xs font-semibold text-[var(--dh-text-muted)]">{{ t('operations.availablePeople') }}</p><p class="mt-2 text-3xl font-black text-[var(--dh-text)]">{{ activeMembers }}</p></DhCard>
     </div>
 
     <div class="grid items-start gap-4 lg:grid-cols-[minmax(300px,0.88fr)_minmax(0,2.12fr)]">
@@ -286,11 +330,11 @@ onMounted(initialize)
             class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-200">
             {{ t('operations.missingReviewers') }}
           </p>
-          <div v-if="selected.operatorScopes?.length || selected.supervisorScopes?.length" class="mt-5 border-t border-[var(--dh-border)] pt-4">
+          <div v-if="selected.operatorScopes?.length || selected.supervisorScopes?.length || selected.roleProfiles" class="mt-5 border-t border-[var(--dh-border)] pt-4">
             <h3 class="text-sm font-black text-[var(--dh-text)]">{{ t('operations.teamScopeProfile') }}</h3>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamScopeProfileHint') }}</p>
             <div class="mt-3 grid gap-3 md:grid-cols-2">
-              <div v-for="profile in [{ label: t('operations.operator'), scopes: selected.operatorScopes || [] }, { label: t('operations.supervisor'), scopes: selected.supervisorScopes || [] }]" :key="profile.label">
+              <div v-for="profile in displayedProfiles" :key="profile.label">
                 <p class="mb-2 text-xs font-semibold text-[var(--dh-text)]">{{ profile.label }}</p>
                 <div class="flex flex-wrap gap-1">
                   <DhBadge v-for="scope in profile.scopes" :key="scope" variant="neutral">{{ scope }}</DhBadge>
@@ -302,21 +346,26 @@ onMounted(initialize)
             <h3 class="text-sm font-black text-[var(--dh-text)]">{{ t('operations.teamMembers') }}</h3>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamMembersHint') }}</p>
             <p v-if="!members.length" class="py-7 text-center text-sm text-[var(--dh-text-muted)]">{{ t('operations.memberEmpty') }}</p>
-            <div v-else class="mt-3 space-y-2">
-              <div v-for="member in members" :key="member.userId" class="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
+            <div v-else class="mt-3 space-y-4">
+              <div v-for="group in memberGroups" :key="group.role" class="space-y-2">
+                <div class="flex items-center gap-2">
+                  <p class="text-xs font-bold text-[var(--dh-text)]">{{ roleLabel(group.role) }}</p>
+                  <DhBadge variant="neutral">{{ group.people.length }}</DhBadge>
+                </div>
+              <div v-for="member in group.people" :key="member.userId" class="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--dh-border)] bg-[var(--dh-input)] px-4 py-3">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--dh-primary)]/15 text-xs font-black text-[var(--dh-primary)]">{{ initials(member.userId) }}</span>
                 <div class="min-w-0 flex-1">
                   <p class="truncate text-sm font-bold text-[var(--dh-text)]">{{ nameFor(member.userId) }}</p>
                   <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--dh-text-muted)]">
-                    <span>{{ member.isSupervisor ? t('operations.supervisor') : t('operations.operator') }}</span>
-                    <span>·</span><span>{{ member.isAvailable ? t('operations.available') : t('operations.unavailable') }}</span>
+                    <span>{{ isLeadership(memberRole(member)) ? t('operations.leadershipAccess') : (member.isAvailable ? t('operations.available') : t('operations.unavailable')) }}</span>
                   </div>
                 </div>
-                <div v-if="canManage" class="flex flex-wrap gap-1">
+                <div v-if="canEditMember(member)" class="flex flex-wrap gap-1">
                   <DhButton size="sm" variant="secondary" :icon="Pencil" :label="t('operations.edit')" @click="editMember(member)" />
                   <DhButton size="sm" variant="danger" :icon="UserMinus" :label="removingMemberId === member.userId ? t('operations.confirmRemove') : t('operations.remove')" @click="removeMember(member.userId)" />
                   <DhButton v-if="removingMemberId === member.userId" size="sm" variant="ghost" :label="t('operations.cancel')" @click="removingMemberId = ''" />
                 </div>
+              </div>
               </div>
             </div>
           </div>
@@ -340,15 +389,17 @@ onMounted(initialize)
               {{ t('operations.selectedPeople', { count: memberIds.length }) }}
             </p>
             <p v-if="!selectedMember && !options.length" class="text-xs text-[var(--dh-text-muted)]">{{ t('operations.noEligibleUsers') }}</p>
-            <div class="flex flex-wrap gap-x-8 gap-y-3">
-              <DhCheckbox v-model="isSupervisor" :label="t('operations.supervisor')" />
+            <DhSelect :model-value="roleCode" :label="t('operations.role')" :options="roleOptions"
+              :placeholder="''" :disabled="busy" @update:model-value="roleCode = String($event)" />
+            <p class="text-xs text-[var(--dh-text-muted)]">{{ t('operations.teamRoleHints.' + roleCode) }}</p>
+            <div v-if="!isLeadership(roleCode)" class="flex flex-wrap gap-x-8 gap-y-3">
               <DhCheckbox v-model="isAvailable" :label="t('operations.availableForWork')" />
             </div>
-            <button type="button" class="flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]" :aria-expanded="showAdvanced" @click="showAdvanced = !showAdvanced">
+            <button v-if="!isLeadership(roleCode)" type="button" class="flex items-center gap-2 text-xs font-bold text-[var(--dh-primary)]" :aria-expanded="showAdvanced" @click="showAdvanced = !showAdvanced">
               <SlidersHorizontal class="h-4 w-4" />
               {{ showAdvanced ? t('operations.hideAdvanced') : t('operations.advanced') }}
             </button>
-            <div v-if="showAdvanced" class="rounded-xl border border-[var(--dh-border)] p-4">
+            <div v-if="showAdvanced && !isLeadership(roleCode)" class="rounded-xl border border-[var(--dh-border)] p-4">
               <DhInput :model-value="capacity" :label="t('operations.capacity')" type="number" :min="0.5" :max="10000" :step="0.5" @update:model-value="capacity = Number($event)" />
               <p class="mt-2 text-xs text-[var(--dh-text-muted)]">{{ t('operations.capacityHelp') }}</p>
             </div>
