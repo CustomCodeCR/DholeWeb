@@ -1,3 +1,7 @@
+## [1.145.7] - 2026-11-27
+
+- Restore declared cargo insurance in saved QUO edits without a modification request ID. Preserve existing amounts and use USD. Promote only the insurance patch; CI and staging validation required.
+
 ## [1.145.4] - 2026-11-27
 
 - PATCH: resolve amendment insurance currency by canonical Config Value; preserve negotiated charges and permit independent insurance-only seller amendments without a route-cost catalog response. Accept valid decimal Hacienda exchange rates, clarify draft status. CI/staging pending.
