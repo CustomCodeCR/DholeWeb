@@ -196,7 +196,9 @@ export type OperationsContact = {
   id: string; accountId: string; name: string; firstName?: string | null; lastName?: string | null
   jobTitle?: string | null; email?: string | null; phone?: string | null
   isPrimary: boolean; isOperationsContact: boolean
+  divisionIds?: string[]; divisions?: Array<{ id: string; name: string }>
 }
+export type OperationsContactDirectory = { divisions: Array<{ id: string; name: string }>; contacts: OperationsContact[] }
 export type OperationsQuoteComparisonRow = {
   field: string; label: string; quoted: string | null; current: string | null
   status: 'MATCH' | 'CHANGED' | 'UNCONFIRMED'
@@ -270,6 +272,7 @@ export const operationsApi = {
   linkQuote: (caseId: string, rateId: string, expectedVersion: number) => request<{ requestId?: string; status: string; duplicate: boolean }>(`/api/operations/cases/${caseId}/quote-links`, 'POST', { rateId, expectedVersion }),
   caseDetail: (id: string) => request<OperationsCaseDetail>('/api/operations/cases/' + id),
   caseContacts: (id: string) => request<OperationsContact[]>(`/api/operations/cases/${id}/operations-contacts`),
+  caseContactDirectory: (id: string) => request<OperationsContactDirectory>(`/api/operations/cases/${id}/operations-contacts?directory=true`),
   caseQuoteComparison: (id: string) => request<OperationsQuoteComparison>(`/api/operations/cases/${id}/commercial/comparison`),
   requestQuoteReview: (id: string, input: { expectedVersion: number; fingerprint: string; comment: string }) =>
     request<{ reviewId: string; status: string; duplicate: boolean }>(`/api/operations/cases/${id}/commercial/comparison/review`, 'POST', input),

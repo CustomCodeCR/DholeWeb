@@ -1,5 +1,9 @@
 ## [1.144.0] - 2026-11-27
 
+## [1.145.0] - 2026-11-27
+- CRM account divisions tab, reusable DH contact assignment controls, and Operations division selection and contact filtering.
+
+
 - MINOR: aperturas manuales y vinculación posterior QUO con scopes operativos independientes; consulta de cuenta/contactos operativos y QUO aceptadas mediante contratos limitados. Reutiliza componentes DH, mantiene realtime. No permite reemplazo de vínculos confirmados. CI y staging pendientes.
 
 ## [1.143.0] - 2026-11-27

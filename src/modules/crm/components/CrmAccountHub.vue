@@ -27,14 +27,14 @@ import CrmRecordFollowups from './CrmRecordFollowups.vue'
 import CrmDocumentsPanel from './CrmDocumentsPanel.vue'
 import { DhDrawer } from '@/shared/components/organisms'
 import { DhPagination } from '@/shared/components/molecules'
-import { DhInput, DhTextarea } from '@/shared/components/atoms'
+import { DhInput, DhTextarea, DhButton, DhMultiSelect, DhBadge } from '@/shared/components/atoms'
 import {
   Activity, CalendarClock, CheckCircle2, ClipboardList, Clock3, FileText, MapPin, Phone,
   ArrowRight, ChevronDown, History, Plus, RefreshCw, Route, Truck, UserRound, UsersRound, Wallet, XCircle,
 } from 'lucide-vue-next'
 
 // The account route-history tab is a valid destination for sheet navigation.
-type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'followups' | 'log' | 'finance' | 'documents'
+type Section = 'summary' | 'profile' | 'procedures' | 'contacts' | 'divisions' | 'commercial' | 'benefits' | 'quotes' | 'history' | 'changes' | 'agenda' | 'followups' | 'log' | 'finance' | 'documents'
 type AccountChange = { field: string; before: string | null; after: string | null }
 type AccountAuditEntry = {
   id: string
@@ -102,6 +102,7 @@ const tabs = computed(() => [
   { key: 'commercial' as const, label: locale.value === 'en' ? 'Commercial analysis' : 'Análisis comercial', icon: Route },
   { key: 'benefits' as const, label: locale.value === 'en' ? 'Preferred rates' : 'Tarifas preferenciales', icon: Wallet },
   ...(has('crm.contact.read') ? [{ key: 'contacts' as const, label: locale.value === 'en' ? 'Contacts' : 'Contactos', icon: UsersRound }] : []),
+  ...(has('crm.account.read') || has('crm.account.read-all') ? [{ key: 'divisions' as const, label: locale.value === 'en' ? 'Divisions' : 'Divisiones', icon: UsersRound }] : []),
   { key: 'quotes' as const, label: locale.value === 'en' ? 'Quotes' : 'Cotizaciones', icon: Truck },
   { key: 'changes' as const, label: locale.value === 'en' ? 'Change history' : 'Historial de cambios', icon: History },
   { key: 'agenda' as const, label: locale.value === 'en' ? 'Agenda & reminders' : 'Agenda y recordatorios', icon: CalendarClock },
@@ -148,6 +149,67 @@ const accountChangesError = ref('')
 let accountChangesGeneration = 0
 
 const contacts = ref<CrmRow[]>([])
+type AccountDivision = { id: string; name: string; contactIds: string[] }
+type DivisionDirectory = { accountVersion: number; divisions: AccountDivision[] }
+const divisionDirectory = ref<DivisionDirectory | null>(null)
+const divisionName = ref('')
+const divisionId = ref('')
+const divisionContactIds = ref<string[]>([])
+const divisionBusy = ref(false)
+const divisionError = ref('')
+const divisionFormOpen = ref(false)
+const canEditDivisionContacts = computed(() => has('crm.contact.read') && has('crm.contact.update'))
+const operationalContactOptions = computed(() => contacts.value
+  .filter(c => c.isOperationsContact === true && String(c.status || 'Active').toLowerCase() === 'active')
+  .map(c => ({ value: String(c.id), label: String(c.name || c.displayName || c.id), description: String(c.email || '') })))
+// Account realtime reconciliation updates the parent row version. Refresh only
+// the directory and relationship flags instead of reloading the whole workspace.
+let divisionRefreshGeneration = 0
+watch(() => [props.account.id, props.account.rowVersion] as const, ([id, version], [oldId, oldVersion]) => {
+  if (id !== oldId || version === oldVersion) return
+  const current = ++divisionRefreshGeneration
+  if (has('crm.account.read') || has('crm.account.read-all')) {
+    void crmRequest<DivisionDirectory>(crmPath('accounts', String(id), 'divisions'))
+      .then(result => { if (current === divisionRefreshGeneration && props.account.id === id) divisionDirectory.value = result })
+      .catch(cause => { if (current === divisionRefreshGeneration && props.account.id === id) divisionError.value = message(cause) })
+  }
+  if (has('crm.contact.read')) {
+    void crmRequest<CrmRow[]>(crmPath('accounts', String(id), 'contacts'))
+      .then(result => { if (current === divisionRefreshGeneration && props.account.id === id)
+        contacts.value = result.map(x => x.contact && typeof x.contact === 'object'
+          ? { ...(x.contact as CrmRow), isOperationsContact: x.isOperationsContact, isPrimary: x.isPrimary, relationRole: x.relationRole } : x) })
+      .catch(() => { /* Preserve the last authorized projection on transient failure. */ })
+  }
+})
+const divisionNamesForContact = (id: string) => (divisionDirectory.value?.divisions || [])
+  .filter(d => d.contactIds.includes(id)).map(d => d.name)
+function editDivision(division?: AccountDivision) {
+  divisionId.value = division?.id || ''
+  divisionName.value = division?.name || ''
+  divisionContactIds.value = [...(division?.contactIds || [])]
+  divisionFormOpen.value = true
+  divisionError.value = ''
+}
+async function saveDivision() {
+  if (!divisionDirectory.value || !has('crm.account.update') || !divisionName.value.trim() || divisionBusy.value) return
+  const id = String(props.account.id)
+  divisionBusy.value = true
+  divisionError.value = ''
+  try {
+    const path = crmPath('accounts', id, 'divisions')
+    await crmRequest(divisionId.value ? path + '/' + encodeURIComponent(divisionId.value) : path,
+      divisionId.value ? 'PUT' : 'POST', {
+        name: divisionName.value.trim(),
+        contactIds: canEditDivisionContacts.value ? divisionContactIds.value : null,
+        expectedVersion: divisionDirectory.value.accountVersion,
+      })
+    if (String(props.account.id) !== id) return
+    divisionFormOpen.value = false
+    await load()
+  } catch (cause) { if (String(props.account.id) === id) divisionError.value = message(cause) }
+  finally { divisionBusy.value = false }
+}
+
 const contactDrawerOpen = ref(false)
 function onAccountContactSaved() {
   contactDrawerOpen.value = false
@@ -718,8 +780,18 @@ async function load() {
     if (has('crm.contact.read')) jobs.push(
       get<CrmRow[]>(crmPath('accounts', accountId, 'contacts'))
         .then(result => {if (generation === requestGeneration) contacts.value =
-          result.map(x => x.contact && typeof x.contact === 'object' ? x.contact as CrmRow : x)})
+          result.map(x => x.contact && typeof x.contact === 'object' ? { ...(x.contact as CrmRow), isOperationsContact: x.isOperationsContact, isPrimary: x.isPrimary, relationRole: x.relationRole } : x)})
         .catch(() => { if (generation === requestGeneration) contacts.value = [] }))
+    if (has('crm.account.read') || has('crm.account.read-all')) jobs.push(
+      get<DivisionDirectory>(crmPath('accounts', accountId, 'divisions'))
+        .then(result => { if (generation === requestGeneration) {
+          divisionDirectory.value = result
+          divisionError.value = ''
+        }})
+        .catch(cause => { if (generation === requestGeneration) {
+          divisionDirectory.value = null
+          divisionError.value = message(cause)
+        }}))
     if (has('crm.account.read') || has('crm.account.read-all')) jobs.push(
       get<CrmRow[]>(crmPath('accounts', accountId, 'addresses'))
         .then(result => {if (generation === requestGeneration) addresses.value = result})
@@ -760,6 +832,9 @@ watch(() => props.account.id, () => {
   pricingQuoteError.value = ''
   pricingQuotesLoading.value = false
   contacts.value = []
+  divisionDirectory.value = null
+  divisionFormOpen.value = false
+  divisionError.value = ''
   contactsPage.value = 1
   contactDrawerOpen.value = false
   addresses.value = []
@@ -1215,6 +1290,43 @@ async function saveRoute() {
     <CrmCommercialBenefitsManager v-else-if="activeTab === 'benefits'" id="crm-account-benefits" role="tabpanel"
       :account-id="String(account.id)" />
 
+    <section v-else-if="activeTab === 'divisions'" id="crm-account-divisions" role="tabpanel" class="hub-panel">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="font-extrabold">{{ locale === 'en' ? 'Account divisions' : 'Divisiones de la cuenta' }}</h2>
+          <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'Internal divisions share the same fiscal account. Only active operational contacts can be assigned.' : 'Las divisiones comparten la misma cuenta fiscal. Solo se pueden asignar contactos operativos activos.' }}</p>
+        </div>
+        <DhButton v-if="has('crm.account.update')" :icon="Plus" :label="locale === 'en' ? 'New division' : 'Nueva división'" :disabled="!divisionDirectory || divisionBusy" @click="editDivision()" />
+      </div>
+      <p v-if="divisionError" role="alert" class="mb-3 text-sm text-red-500">{{ divisionError }}</p>
+      <p v-if="loading && !divisionDirectory" class="hub-empty">{{ locale === 'en' ? 'Loading divisions…' : 'Consultando divisiones…' }}</p>
+      <p v-else-if="divisionDirectory && !divisionDirectory.divisions.length" class="hub-empty">{{ locale === 'en' ? 'No divisions yet.' : 'Esta cuenta todavía no tiene divisiones.' }}</p>
+      <div v-else-if="divisionDirectory" class="grid gap-3 sm:grid-cols-2">
+        <div v-for="division in divisionDirectory.divisions" :key="division.id" class="rounded-xl border border-[var(--dh-border)] p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-sm font-bold">{{ division.name }}</h3>
+            <DhButton v-if="has('crm.account.update')" size="sm" variant="secondary" :label="locale === 'en' ? 'Edit' : 'Editar'" :disabled="divisionBusy" @click="editDivision(division)" />
+          </div>
+          <div v-if="has('crm.contact.read')" class="mt-3 flex flex-wrap gap-1">
+            <DhBadge v-for="contactId in division.contactIds" :key="contactId" variant="neutral">{{ operationalContactOptions.find(c => c.value === contactId)?.label || contactId }}</DhBadge>
+            <p v-if="!division.contactIds.length" class="text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'No assigned contacts' : 'Sin contactos asignados' }}</p>
+          </div>
+        </div>
+      </div>
+      <DhDrawer :open="divisionFormOpen && has('crm.account.update')" :title="divisionId ? (locale === 'en' ? 'Edit division' : 'Editar división') : (locale === 'en' ? 'New division' : 'Nueva división')" size="lg" @close="!divisionBusy && (divisionFormOpen = false)">
+        <form class="space-y-4 p-2" @submit.prevent="saveDivision">
+          <DhInput v-model="divisionName" :label="locale === 'en' ? 'Division name' : 'Nombre de la división'" :disabled="divisionBusy" />
+          <DhMultiSelect v-if="canEditDivisionContacts" v-model="divisionContactIds" :options="operationalContactOptions" :label="locale === 'en' ? 'Operational contacts' : 'Contactos operativos logísticos'" :disabled="divisionBusy" show-selected-labels />
+          <p class="text-xs text-[var(--dh-text-muted)]">{{ locale === 'en' ? 'One contact may belong to several divisions. Unassigned operational contacts are general account contacts.' : 'Un contacto puede pertenecer a varias divisiones. Los contactos operativos sin división son generales de la cuenta.' }}</p>
+          <p v-if="divisionError" role="alert" class="text-sm text-red-500">{{ divisionError }}</p>
+          <div class="flex justify-end gap-2">
+            <DhButton type="button" variant="secondary" :label="locale === 'en' ? 'Cancel' : 'Cancelar'" :disabled="divisionBusy" @click="divisionFormOpen = false" />
+            <DhButton type="submit" :label="locale === 'en' ? 'Save' : 'Guardar'" :loading="divisionBusy" :disabled="!divisionName.trim() || divisionName.trim().length > 120" />
+          </div>
+        </form>
+      </DhDrawer>
+    </section>
+
     <section v-else-if="activeTab === 'contacts'" id="crm-account-contacts" role="tabpanel" class="hub-panel">
       <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div><h2 class="font-extrabold">Contactos de la cuenta</h2><p class="mt-1 text-xs text-[var(--dh-text-muted)]">Personas vinculadas realmente a este cliente.</p></div>
@@ -1235,6 +1347,10 @@ async function saveRoute() {
           class="rounded-lg border border-[var(--dh-border)] p-4 hover:border-[var(--dh-primary)]">
           <p class="text-sm font-bold text-[var(--dh-primary)]">{{ text(contact.name || contact.displayName) }}</p>
           <p class="mt-2 text-xs">{{ text(contact.jobTitle) }}</p>
+          <div v-if="contact.isOperationsContact === true" class="mt-2 flex flex-wrap gap-1">
+            <DhBadge variant="primary">{{ locale === 'en' ? 'Operational' : 'Operativo logístico' }}</DhBadge>
+            <DhBadge v-for="name in divisionNamesForContact(String(contact.id))" :key="name" variant="neutral">{{ name }}</DhBadge>
+          </div>
           <p class="mt-1 break-words text-xs text-[var(--dh-text-muted)]">{{ text(contact.email) }} · {{ text(contact.countryId && contact.countryId !== account.countryId ? contact.phone : phoneWithCountryPrefix(String(contact.phone || ''), businessPhonePrefix)) }}</p>
         </RouterLink>
       </div>

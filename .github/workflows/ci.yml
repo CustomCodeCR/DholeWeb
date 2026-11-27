@@ -48,6 +48,8 @@ jobs:
         run: pnpm run test:email-mobile-i18n
       - name: Operations team catalog, i18n and dual validation regressions
         run: pnpm run test:operations
+      - name: CRM division contact filtering regression
+        run: node --experimental-strip-types --test tests/operationsAccountDivisions.test.ts
       - name: Type-check and build
         run: pnpm run build
       - name: Mount transformed Pricing wizard in SSR (blocks blank pages)
