@@ -35,3 +35,13 @@ test('Origin actual weight is independently captured and commercial reviews requ
   assert.match(detail, /!reviewComment\.trim\(\)/)
   assert.match(api, /origin\/actual-weight/)
 })
+
+test('commercial UX reuses DH controls and shows only persisted HOLD status', () => {
+  assert.match(detail, /<DhTabs v-model="comparisonFilter"/)
+  assert.match(detail, /:rows="visibleComparisonRows"/)
+  assert.match(detail, /isOperationsCaseOnHold\(record\.value\?\.status\)/)
+  assert.match(detail, /no confirman un bloqueo HOLD/)
+  assert.match(detail, /Solicitud de modificación a Pricing/)
+  assert.match(pricing, /Datos de la solicitud/)
+  assert.match(pricing, /No informado por Pricing/)
+})

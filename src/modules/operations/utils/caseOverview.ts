@@ -17,7 +17,7 @@ const stageLabels: Record<string, string> = {
   PENDING_PRICING: 'Pendiente de Pricing', REVIEWING: 'Recotización requerida', RESOLVED_NO_PRICE_CHANGE: 'Conciliado sin cambio de precio',
   READY: 'Listo para iniciar',
   IN_PROGRESS: 'En proceso',
-  ON_HOLD: 'En espera',
+  ON_HOLD: 'En espera', HOLD: 'En espera',
   COMPLETED: 'Completado',
   SKIPPED: 'No aplica',
   ACCEPTED: 'Aceptada', APPROVED: 'Aprobado', REJECTED: 'Rechazado',
@@ -55,4 +55,19 @@ export function summaryMeasure(value: string, unit: string): string {
 /** Only unfinished tasks belong in the operational pending queue. */
 export function isPendingOperationsTask(task: { status: string; completedAtUtc: string | null }): boolean {
   return !task.completedAtUtc && !['COMPLETED', 'DONE', 'CANCELLED', 'SKIPPED'].includes(task.status)
+}
+
+/** The UI reflects the persisted case status, never infers a server lock from row counts. */
+export function isOperationsCaseOnHold(status?: string | null): boolean {
+  return status === 'HOLD' || status === 'ON_HOLD'
+}
+
+/** Counts are descriptive comparisons, not commercial impact or permission decisions. */
+export function commercialComparisonCounts(rows: ReadonlyArray<{ status: string }>) {
+  return rows.reduce((counts, row) => {
+    if (row.status === 'MATCH') counts.match++
+    else if (row.status === 'CHANGED') counts.changed++
+    else if (row.status === 'UNCONFIRMED') counts.unconfirmed++
+    return counts
+  }, { match: 0, changed: 0, unconfirmed: 0 })
 }

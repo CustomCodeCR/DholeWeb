@@ -1,3 +1,7 @@
+## [1.142.0] - 2026-11-26
+
+- MINOR candidato (WIP): semáforo comercial en resumen y QUO con filtros, indicadores DH, estado HOLD exclusivamente persistido, solicitud de revisión con contexto y contador, y detalle de modificación en Pricing. Respeta permisos y sincronización existente; HOLD automático, solicitante efectivo de Pricing, manifiesto central y CI/staging pendientes. No integrar el release incompleto.
+
 ## [1.141.0] - 2026-11-26
 
 - MINOR candidato: scopes granulares y controles DH independientes para consulta, asignación y remoción de miembros. CI y staging pendientes.

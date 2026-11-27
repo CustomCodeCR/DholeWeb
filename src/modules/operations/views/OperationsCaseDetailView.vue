@@ -25,7 +25,7 @@ import {
 import OperationsAuditTimeline from '../components/OperationsAuditTimeline.vue'
 import OperationsApertureValidationPanel from '../components/OperationsApertureValidationPanel.vue'
 import { useOperationsCaseRealtime } from '../composables/useOperationsCaseRealtime'
-import { departmentStatusLabel, operationsLabel, summaryMeasure, isPendingOperationsTask } from '../utils/caseOverview'
+import { departmentStatusLabel, operationsLabel, summaryMeasure, isPendingOperationsTask, commercialComparisonCounts, isOperationsCaseOnHold } from '../utils/caseOverview'
 import { openingFieldLabel, openingStatusLabel, openingStatusVariant } from '../utils/openingFieldValidation'
 
 import { mergeCommercialOpening, useCommercialLabels, sameRevisionCommercialData, readable, countryLabel, useOpeningDocuments } from '../utils/commercialPresentation'
@@ -207,8 +207,19 @@ const comparisonColumns: DhTableColumn<OperationsQuoteComparisonRow>[] = [
   { key: 'current', label: 'Trámite actual' },
   { key: 'status', label: 'Comparación' },
 ]
-const discrepancyCount = computed(() => comparisonRows.value.filter(x => x.status === 'CHANGED').length)
-const unconfirmedCount = computed(() => comparisonRows.value.filter(x => x.status === 'UNCONFIRMED').length)
+const comparisonCounts = computed(() => commercialComparisonCounts(comparisonRows.value))
+const discrepancyCount = computed(() => comparisonCounts.value.changed)
+const unconfirmedCount = computed(() => comparisonCounts.value.unconfirmed)
+const comparisonFilter = ref('ALL')
+const comparisonFilters = computed(() => [
+  { key: 'ALL', label: `Todos (${comparisonRows.value.length})` },
+  { key: 'MATCH', label: `Coinciden (${comparisonCounts.value.match})` },
+  { key: 'UNCONFIRMED', label: `Por confirmar (${unconfirmedCount.value})` },
+  { key: 'CHANGED', label: `Diferencias (${discrepancyCount.value})` },
+])
+const visibleComparisonRows = computed(() => comparisonRows.value.filter(row => comparisonFilter.value === 'ALL' || row.status === comparisonFilter.value))
+const confirmedHold = computed(() => isOperationsCaseOnHold(record.value?.status))
+const canOpenComparison = computed(() => ['EDITABLE', 'READ_ONLY'].includes(level('QUO')))
 const selectedContacts = computed(() => new Set(Array.isArray(openingData.value.contactIds) ? openingData.value.contactIds.map(String) : []))
 const quoteData = computed(() => mergeCommercialOpening({}, workspace.value?.commercialData, supplemental.value))
 const quoteFields = computed(() => [
@@ -265,6 +276,7 @@ const commercialSeverity = computed(() => {
   return severity
 })
 const commercialLabel = computed(() => {
+  if (confirmedHold.value) return 'HOLD · Trámite en espera'
   if (comparisonError.value) return 'No se pudo comparar'
   if (!comparison.value?.hasSnapshot) return 'Sin QUO comparable'
   if (commercialSeverity.value === 'RED') return comparison.value.currentReview?.status === 'REVIEWING'
@@ -275,7 +287,7 @@ const commercialLabel = computed(() => {
   if (commercialSeverity.value === 'GREEN') return comparison.value.currentReview?.status === 'RESOLVED_NO_PRICE_CHANGE' ? 'Conciliado por Pricing' : 'Sin diferencias en campos comparados'
   return 'Pendiente de comparación'
 })
-const commercialVariant = computed(() => commercialSeverity.value === 'GREEN' ? 'success' as const :
+const commercialVariant = computed(() => confirmedHold.value ? 'danger' as const : commercialSeverity.value === 'GREEN' ? 'success' as const :
   commercialSeverity.value === 'RED' ? 'danger' as const : commercialSeverity.value === 'YELLOW' ? 'warning' as const : 'neutral' as const)
 const pendingCommercialAlerts = computed(() =>
   commercialReviews.value?.alerts.filter(x =>
@@ -684,7 +696,7 @@ useOperationsCaseRealtime(caseId, () => {
   }
   void load()
 })
-watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.value = []; record.value = null; workspace.value = null; selectedTab.value = 'RESUMEN'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
+watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.value = []; record.value = null; workspace.value = null; selectedTab.value = 'RESUMEN'; comparisonFilter.value = 'ALL'; reviewComment.value = ''; reviewDraftChanged.value = false; void load() }, { immediate: true })
 </script>
 
 <template>
@@ -696,7 +708,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
     </div>
     <DhPageHeader :title="record?.idtra || 'Expediente operativo'" subtitle="Centro de control operativo" :icon="FolderOpen" :hide-excel-export="true">
       <template #actions>
-        <DhBadge v-if="record" variant="primary">{{ currentDepartmentStatus }}</DhBadge>
+        <DhBadge v-if="record" :variant="confirmedHold ? 'danger' : 'primary'">{{ confirmedHold ? 'HOLD · En espera' : currentDepartmentStatus }}</DhBadge>
         <DhBadge v-if="record?.sourceQuoteId" :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
         <DhButton variant="secondary" :icon="RefreshCw" label="Actualizar" :loading="loading" @click="load" />
         <RouterLink v-if="record && canEditSummary && selectedTab === 'RESUMEN'" :to="{ name: 'operations-case-edit', params: { id: record.id } }">
@@ -717,6 +729,12 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
     <div v-if="loading" class="rounded-2xl bg-[var(--dh-input)] p-8 text-center text-[var(--dh-text-muted)]">Cargando expediente operativo…</div>
 
     <template v-if="record && workspace && !loading">
+      <DhCard v-if="confirmedHold" padding="sm" title="Trámite en HOLD" subtitle="Estado informado por Operations. Consulta el seguimiento comercial antes de continuar.">
+        <div class="flex flex-wrap items-center justify-between gap-3" role="status">
+          <DhBadge variant="danger">HOLD · En espera</DhBadge>
+          <DhButton v-if="record.sourceQuoteId && canOpenComparison" variant="secondary" size="sm" label="Consultar revisión comercial" @click="selectCaseTab('QUO')" />
+        </div>
+      </DhCard>
       <DhCard padding="sm"><div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Cliente</p>
@@ -737,7 +755,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
         </div>
         <div class="min-w-0">
           <p class="text-xs font-bold text-[var(--dh-text-muted)]">Estado operativo</p>
-          <DhBadge class="mt-1" variant="primary">{{ currentDepartmentStatus }}</DhBadge>
+          <DhBadge class="mt-1" :variant="confirmedHold ? 'danger' : 'primary'">{{ confirmedHold ? 'HOLD · En espera' : currentDepartmentStatus }}</DhBadge>
           <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Actualizado: {{ dateLabel(record.updatedAtUtc) }}</p>
           <p class="text-xs text-[var(--dh-text-muted)]">Versión {{ record.version }}</p>
         </div>
@@ -867,8 +885,13 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             <DhButton v-if="canLinkQuote && !record.sourceQuoteId" size="sm" variant="secondary" label="Vincular QUO" class="mt-3" @click="selectCaseTab('QUO')" />
             <div v-if="record.sourceQuoteId" class="mt-3 space-y-2">
               <DhBadge :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
-              <p v-if="comparison?.hasSnapshot" class="text-xs text-[var(--dh-text-muted)]">{{ discrepancyCount }} diferencias · {{ unconfirmedCount }} datos por confirmar</p>
-              <DhButton size="sm" variant="secondary" label="Comparar con la QUO" @click="selectCaseTab('QUO')" />
+              <div v-if="comparison?.hasSnapshot" class="flex flex-wrap gap-2">
+                <DhBadge variant="success">{{ comparisonCounts.match }} coinciden</DhBadge>
+                <DhBadge variant="warning">{{ unconfirmedCount }} por confirmar</DhBadge>
+                <DhBadge variant="danger">{{ discrepancyCount }} diferencias</DhBadge>
+              </div>
+              <p v-if="comparison?.currentReview" class="text-xs text-[var(--dh-text-muted)]">Pricing: {{ statusLabel(comparison.currentReview.status) }}</p>
+              <DhButton v-if="canOpenComparison" size="sm" variant="secondary" label="Comparar con la QUO" @click="selectCaseTab('QUO')" />
             </div>
           </DhCard>
           <DhCard v-if="!hasAperturePanel" title="Validación de apertura" padding="sm">
@@ -982,7 +1005,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             </div>
           </template>
         </DhCard>
-        <DhCard v-if="record.sourceQuoteId" title="Semáforo comercial" subtitle="Compara datos de la revisión aceptada con los valores persistidos en el IDTRA.">
+        <DhCard v-if="record.sourceQuoteId" title="Semáforo comercial" subtitle="Compara la QUO aceptada con el IDTRA y revisa las diferencias antes de solicitar una recotización.">
           <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
             <DhBadge :variant="commercialVariant">{{ commercialLabel }}</DhBadge>
             <p v-if="comparison?.hasSnapshot" class="text-sm text-[var(--dh-text-muted)]">{{ discrepancyCount }} diferencias · {{ unconfirmedCount }} datos por confirmar</p>
@@ -990,25 +1013,36 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
           <p v-if="comparisonError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudo consultar la comparación. Actualice el expediente.</p>
           <p v-else-if="!comparison?.hasSnapshot" class="text-sm text-[var(--dh-text-muted)]">No hay snapshot aceptado suficiente para comparar. No se presume coincidencia.</p>
           <template v-else>
-            <DhDataTable :columns="comparisonColumns" :rows="comparisonRows" empty-text="No hay campos comparables.">
+            <div class="mb-4 grid gap-2 sm:grid-cols-3" aria-label="Resumen de comparación comercial">
+              <DhCard padding="compact"><DhBadge variant="success">Coinciden</DhBadge><p class="mt-2 text-xl font-bold tabular-nums">{{ comparisonCounts.match }}</p><p class="text-xs text-[var(--dh-text-muted)]">Datos iguales a la QUO</p></DhCard>
+              <DhCard padding="compact"><DhBadge variant="warning">Por confirmar</DhBadge><p class="mt-2 text-xl font-bold tabular-nums">{{ unconfirmedCount }}</p><p class="text-xs text-[var(--dh-text-muted)]">Falta información verificable</p></DhCard>
+              <DhCard padding="compact"><DhBadge variant="danger">Diferencias</DhBadge><p class="mt-2 text-xl font-bold tabular-nums">{{ discrepancyCount }}</p><p class="text-xs text-[var(--dh-text-muted)]">Cambios respecto a lo cotizado</p></DhCard>
+            </div>
+            <p v-if="!confirmedHold && (discrepancyCount || unconfirmedCount > 5)" class="mb-3 text-sm text-[var(--dh-text-muted)]" role="status">Revisa las discrepancias y los datos pendientes. Estos indicadores no confirman un bloqueo HOLD; el estado operativo lo determina Operations.</p>
+            <DhTabs v-model="comparisonFilter" :items="comparisonFilters" aria-label="Filtrar datos de la comparación" class="mb-3" />
+            <DhDataTable :columns="comparisonColumns" :rows="visibleComparisonRows" empty-text="No hay datos en esta categoría.">
               <template #cell-quoted="{ row }">{{ comparisonValue(row, 'quoted') }}</template>
               <template #cell-current="{ row }">{{ comparisonValue(row, 'current') }}</template>
               <template #cell-status="{ row }"><DhBadge :variant="comparisonStatusVariant(row.status)">{{ comparisonStatusLabel(row.status) }}</DhBadge></template>
             </DhDataTable>
             <p class="mt-3 text-xs text-[var(--dh-text-muted)]">La ausencia de un dato no equivale a un cambio confirmado. El peso y volumen se comparan en unidades normalizadas.</p>
             <div v-if="comparison.currentReview" class="mt-4 border-t border-[var(--dh-border)] pt-3">
-              <p class="font-semibold">{{ statusLabel(comparison.currentReview.status) }} · {{ dateLabel(comparison.currentReview.requestedAtUtc) }}</p>
+              <div class="flex flex-wrap items-center gap-2"><DhBadge :variant="comparison.currentReview.status === 'RESOLVED_NO_PRICE_CHANGE' ? 'success' : comparison.currentReview.status === 'REJECTED' ? 'danger' : 'warning'">{{ statusLabel(comparison.currentReview.status) }}</DhBadge><span class="text-xs text-[var(--dh-text-muted)]">Solicitado: {{ dateLabel(comparison.currentReview.requestedAtUtc) }}</span></div>
               <p class="mt-1 break-words text-sm">{{ comparison.currentReview.reason }}</p>
               <p v-if="comparison.currentReview.decisionReason" class="mt-1 text-xs text-[var(--dh-text-muted)]">Pricing: {{ comparison.currentReview.decisionReason }}</p>
             </div>
             <div v-else-if="comparison.canRequest && discrepancyCount" class="mt-4 space-y-3 border-t border-[var(--dh-border)] pt-3">
-              <DhTextarea v-model="reviewComment" label="Justificación de la revisión comercial" placeholder="Explique por qué cambian las condiciones de la operación." />
-              <p v-if="reviewDraftChanged" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice la comparación antes de enviar.</p>
+              <p class="text-sm font-semibold">Solicitud de modificación a Pricing · {{ record.idtra }}</p>
+              <p class="text-xs text-[var(--dh-text-muted)]">Se enviarán {{ discrepancyCount }} diferencias confirmadas, con los valores de la QUO y del trámite. No se cambiarán los importes automáticamente.</p>
+              <DhTextarea v-model="reviewComment" label="Justificación de la revisión comercial" placeholder="Explique por qué cambian las condiciones de la operación." :rows="3" />
+              <p class="text-xs text-[var(--dh-text-muted)]">{{ reviewComment.trim().length }} / 300 caracteres</p>
+              <div v-if="reviewDraftChanged" class="flex flex-wrap items-center gap-2" role="alert"><p class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice la comparación antes de enviar.</p><DhButton variant="secondary" size="sm" label="Actualizar comparación" :loading="loading" @click="load" /></div>
               <div class="flex justify-end">
                 <DhButton label="Solicitar revisión / recotización" :loading="requestingReview"
                   :disabled="reviewDraftChanged || !reviewComment.trim() || reviewComment.trim().length > 300" @click="requestCommercialReview" />
               </div>
             </div>
+            <p v-else-if="discrepancyCount && !comparison.canRequest && !comparison.currentReview" class="mt-3 text-xs text-[var(--dh-text-muted)]">No tienes autorización para solicitar la revisión de este trámite.</p>
             <div v-if="comparison.history.some(x => x.id !== comparison?.currentReview?.id)" class="mt-4 space-y-2 border-t border-[var(--dh-border)] pt-3">
               <p class="text-sm font-semibold">Historial de revisiones comerciales</p>
               <div v-for="review in comparison.history.filter(x => x.id !== comparison?.currentReview?.id)" :key="review.id" class="border-b border-[var(--dh-border)] pb-2 text-sm">
