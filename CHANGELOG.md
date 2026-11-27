@@ -1,3 +1,7 @@
+## [1.146.4] - 2026-11-27
+
+- DH-20261127-DYNAMICS-FTL-26-7TON: synchronize ecosystem version only; no UI changes. Selective promotion; CI and staging pending.
+
 ## [1.145.7] - 2026-11-27
 
 - Restore declared cargo insurance in saved QUO edits without a modification request ID. Preserve existing amounts and use USD. Promote only the insurance patch; CI and staging validation required.
