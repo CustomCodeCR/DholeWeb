@@ -30,9 +30,9 @@ test('cargo uses the Pricing CABYS endpoint and exclusive destination handling',
   assert.match(view, /CABYS seleccionado/)
   assert.match(view, /toggleHandling\('Redestino'\)/)
   assert.match(view, /toggleHandling\('Anticipado'\)/)
-  assert.match(view, /form\.isImo = !form\.isImo/)
-  assert.match(view, /form\.stackable = !form\.stackable/)
-  assert.match(view, /form\.overweight = !form\.overweight/)
+  assert.match(view, /form\.isImo = conditionValue\(\$event\)/)
+  assert.match(view, /form\.stackable = conditionValue\(\$event\)/)
+  assert.match(view, /form\.overweight = conditionValue\(\$event\)/)
 })
 
 test('attachments are saved in Storage and referenced by openingData for drafts', () => {

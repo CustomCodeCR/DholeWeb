@@ -22,10 +22,12 @@ test('Aperturas does not collect weight or per-container weight', () => {
   assert.match(opening, /weightValue: undefined, weightUnit: undefined, weightKg: undefined/)
   assert.match(opening, /editingId\.value && item\.weightKg != null/)
 })
-test('stackable remains available in historical LCL/LTL edits and is deferred for new openings', () => {
-  assert.match(opening, /v-if="\['LCL', 'LTL'\]\.includes\(effectiveShipment\)"/)
-  assert.match(opening, /stackable: editingId\.value && \['LCL', 'LTL'\]\.includes\(effectiveShipment\.value\) \? form\.value\.stackable : null/)
-  assert.match(cases, /\['LCL','LTL'\]\.includes\(openingText\('shipmentType'\)/)
+test('stackable is captured in new and existing openings with explicit unknown state', () => {
+  assert.match(opening, /label="Estibable"/)
+  assert.match(opening, /stackable: form\.value\.stackable/)
+  assert.ok(opening.includes("stackable: null as boolean | null"))
+  assert.match(opening, /conditionSelection\(form\.stackable\)/)
+  assert.match(cases, /opening\.value\.stackable === false/)
 })
 test('review and drawer use structured client, route, cargo, documents and team sections', () => {
   for (const marker of ['Revisión de apertura', 'Cliente y responsable', 'Ruta e itinerario',

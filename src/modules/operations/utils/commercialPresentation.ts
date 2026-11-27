@@ -146,6 +146,7 @@ export function useCommercialLabels() {
     return ''
   }
   function openingField(key: string, data: Record<string, unknown>): string {
+    if (['isImo', 'stackable', 'overweight'].includes(key)) return data[key] === true ? 'Sí' : data[key] === false ? 'No' : ''
     if (key === 'incoterm') return incoterm(data.incoterm,data.incotermName)
     if (key === 'transportType') return transportLabel(data.transportType) || readable(data.transportType) || transportLabel(data.shipmentType)
     if (key === 'provenance') return ({Import:'Importación',Export:'Exportación',TransitDomestic:'Tránsito / doméstico'} as Record<string,string>)[String(data[key])] || ''

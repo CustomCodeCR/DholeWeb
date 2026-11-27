@@ -1,3 +1,7 @@
+## [1.145.6] - 2026-11-27
+- Use searchable DH selectors for real own-LCL consolidation names in manual/automatic opening and Origin; keep the exact identifier and number.
+- Restore pickup, IMO, stackability, overweight and consolidation capture and summary in Operations openings. Preserve explicit false and unconfirmed values. Candidate CI and staging pending.
+
 ## [1.145.4] - 2026-11-27
 
 ## [1.145.5] - 2026-11-27
