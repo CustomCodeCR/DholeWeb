@@ -1,3 +1,7 @@
+## [1.142.0] - 2026-11-26
+
+- MINOR: comparación de QUO y expediente con indicadores y filtros DH; estado HOLD solo cuando el servidor lo informa; revisión comercial manual con contexto y detalle en Pricing. Conserva permisos y realtime existentes. No activa bloqueos ni recotizaciones automáticas.
+
 ## [1.141.0] - 2026-11-26
 
 - MINOR candidato: scopes granulares y controles DH independientes para consulta, asignación y remoción de miembros. CI y staging pendientes.

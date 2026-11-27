@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { summaryMeasure, isPendingOperationsTask } from '../src/modules/operations/utils/caseOverview.ts'
+import { summaryMeasure, isPendingOperationsTask, commercialComparisonCounts, isOperationsCaseOnHold } from '../src/modules/operations/utils/caseOverview.ts'
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 test('missing measurements are not zero and units are displayed together', () => {
   assert.equal(summaryMeasure('', 'KG'), '')
@@ -27,4 +27,12 @@ test('summary prioritizes logistics and quote, drawer reads authoritative comple
   assert.match(drawer, /drawerPendingTasks/)
   assert.match(drawer, /useOperationsCaseRealtime/)
   assert.doesNotMatch(drawer, /openingMissing/)
+})
+
+test('comparison counts are descriptive and never synthesize a backend HOLD', () => {
+  assert.deepEqual(commercialComparisonCounts([{status:'MATCH'}, {status:'CHANGED'}, ...Array.from({length:6}, () => ({status:'UNCONFIRMED'}))]), {match:1,changed:1,unconfirmed:6})
+  assert.equal(isOperationsCaseOnHold('IN_PROGRESS'), false)
+  assert.equal(isOperationsCaseOnHold(undefined), false)
+  assert.equal(isOperationsCaseOnHold('HOLD'), true)
+  assert.equal(isOperationsCaseOnHold('ON_HOLD'), true)
 })

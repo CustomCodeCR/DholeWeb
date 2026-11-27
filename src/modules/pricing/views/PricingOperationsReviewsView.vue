@@ -59,7 +59,7 @@ const decisions = [
   { value: 'REJECTED', label: 'Rechazar solicitud' },
 ]
 function reviewType(code: string) {
-  return code === 'QUOTE_DISCREPANCY' ? 'Diferencias QUO / trámite' : 'Servicio adicional'
+  return code === 'QUOTE_DISCREPANCY' ? 'Modificación por diferencias QUO / trámite' : 'Servicio adicional'
 }
 function date(value?: string | null) {
   if (!value) return '—'
@@ -163,9 +163,15 @@ onMounted(() => { void load() })
     </DhCard>
     <DhModal :open="Boolean(selected)" title="Resolver revisión comercial" @close="selected = null">
       <div v-if="selected" class="space-y-4">
-        <p class="text-sm"><strong>{{ selected.idtra }}</strong> · {{ reviewType(selected.serviceCode) }}</p>
+        <DhCard padding="sm" title="Datos de la solicitud">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Trámite</p><RouterLink :to="`/operations/cases/${selected.caseId}`" class="font-bold text-[var(--dh-primary)] hover:underline">{{ selected.idtra }}</RouterLink></div>
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Tipo</p><p class="text-sm font-semibold">{{ reviewType(selected.serviceCode) }}</p></div>
+            <div><p class="text-xs text-[var(--dh-text-muted)]">Fecha de solicitud</p><p class="text-sm">{{ date(selected.requestedAtUtc) }}</p></div>
+          </div>
+        </DhCard>
         <RouterLink v-if="selected.acceptedOptionId || selected.quoteId" :to="`/pricing/rates/${selected.acceptedOptionId || selected.quoteId}/wizard?mode=view`" class="text-sm font-bold text-[var(--dh-primary)] hover:underline">Consultar QUO aceptada para recotizar</RouterLink>
-        <p class="text-sm text-[var(--dh-text-muted)]">{{ selected.reason }}</p>
+        <DhCard padding="sm" title="Datos y motivo de modificación"><p class="whitespace-pre-wrap break-words text-sm">{{ selected.reason }}</p></DhCard>
         <DhSelect v-model="decision" label="Decisión de Pricing" :options="decisions" />
         <DhTextarea v-model="reason" label="Motivo obligatorio de resolución" placeholder="Describa la evaluación comercial y el siguiente paso autorizado." />
         <p class="text-xs text-[var(--dh-text-muted)]">Esta decisión no sustituye la aprobación de una modificación de precio.</p>
