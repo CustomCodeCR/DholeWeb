@@ -240,7 +240,6 @@ function hydrateQuoteOpening(rate: OperationsQuoteDetail) {
   if (lines.some(line => line.isStackable === false)) form.value.stackable = false
   else if (lines.length && lines.every(line => line.isStackable === true)) form.value.stackable = true
   if (rate.containers?.some(item => (item.overweightUnitCount ?? 0) > 0)) form.value.overweight = true
-  else if (rate.containers?.length && rate.containers.every(item => typeof item.overweightUnitCount === 'number')) form.value.overweight = false
   const descriptions = [...new Set(lines.map(line => line.description?.trim()).filter(Boolean))]
   if (descriptions.length) form.value.cargoDescription = descriptions.join(' · ')
   // A single dimension set is only meaningful when the quote has one cargo line.
@@ -763,7 +762,7 @@ watch(selectedIncoterm, (next, previous) => {
 })
 const yesNoOptions = [{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]
 function conditionSelection(value: boolean | null) { return value === true ? 'YES' : value === false ? 'NO' : '' }
-function conditionValue(value: string | null) { return value === 'YES' ? true : value === 'NO' ? false : null }
+function conditionValue(value: string | number | null) { return value === 'YES' ? true : value === 'NO' ? false : null }
 function conditionLabel(value: boolean | null) { return value === true ? 'Sí' : value === false ? 'No' : 'Por confirmar' }
 const pickupSelection = computed({
   get: () => pickupRequired.value ? 'YES' : 'NO',
@@ -1228,12 +1227,14 @@ function buildOpeningData() {
       stackable: form.value.stackable,
       isImo: form.value.isImo,
       overweight: form.value.overweight,
-      consolidationReference: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.consolidationReference.trim() : '',
+      consolidationReference: ['LCL', 'LTL'].includes(effectiveShipment.value) ? String(form.value.consolidationReference ?? '').trim() : '',
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
-      ...(!editingId.value ? { pickupAddress: selectedIncoterm.value === 'EXW' || pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '', destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
-      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, pickupLocations: selectedIncoterm.value === 'EXW' || pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [], deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
+      pickupAddress: pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '',
+      pickupLocations: pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [],
+      ...(!editingId.value ? { destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
+      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
       ...(!editingId.value && !showCarrier.value ? { carrierId: '', carrierReference: '' } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...Object.fromEntries((['length', 'width', 'height'] as const).flatMap(axis => [
@@ -1422,6 +1423,8 @@ onMounted(async () => {
         if (typeof parsed.requiresPickup !== 'boolean' && typeof parsed.pickupAddress === 'string' && parsed.pickupAddress.trim())
           form.value.requiresPickup = true
         if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
+        if (!Array.isArray(form.value.pickupLocations)) form.value.pickupLocations = []
+        if (!Array.isArray(form.value.deliveryLocations)) form.value.deliveryLocations = []
       }
       if (!form.value.transportType) {
         form.value.transportType = modality.value === 'AIR' ? 'AIR'
