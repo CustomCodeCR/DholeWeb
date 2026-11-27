@@ -339,8 +339,8 @@ const autosaveReady = ref(false)
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined
 const activeStep = ref(1)
 const wizardSteps = [
-  { id: 1, label: 'Cliente y ruta', hint: 'Cliente CRM, modalidad, embarque, Incoterm y terminales' },
-  { id: 2, label: 'Carga y servicios', hint: 'Bultos, peso, volumen, equipos, servicios y proveedores' },
+  { id: 1, label: 'Cliente, ruta y servicios', hint: 'Cliente CRM, modalidad, embarque, Incoterm, terminales y servicios' },
+  { id: 2, label: 'Carga y condiciones', hint: 'Bultos, peso, volumen, equipos y condiciones especiales' },
   { id: 3, label: 'Revisión', hint: 'Confirmar datos y enviar a Coordinación Origen' },
 ]
 const activeStepMeta = computed(() => wizardSteps.find(x => x.id === activeStep.value) ?? wizardSteps[0]!)
@@ -774,8 +774,8 @@ async function loadConsolidations() {
   try {
     const rows = await operationsQuoteApi.consolidations('LCL')
     if (generation === consolidationRequest) consolidationRows.value = rows
-  } catch {
-    if (generation === consolidationRequest) consolidationError.value = 'No se pudieron consultar los consolidados de Pricing.'
+  } catch (cause) {
+    if (generation === consolidationRequest) consolidationError.value = 'No se pudieron consultar los consolidados de Pricing. ' + (cause instanceof Error ? cause.message : '')
   } finally { if (generation === consolidationRequest) consolidationLoading.value = false }
 }
 const selectedConsolidation = computed(() => consolidationRows.value.find(row => form.value.consolidationId ? row.id === form.value.consolidationId : form.value.consolidationNumber != null ? row.number === form.value.consolidationNumber : false))
@@ -790,19 +790,18 @@ watch(effectiveShipment, (mode, previous) => {
   if (previous && mode !== previous && !restoringOpening && !applyingQuote) selectConsolidation('')
   void loadConsolidations()
 }, { immediate: true })
+watch(activeStep, step => { if (step === 2 && effectiveShipment.value === 'LCL' && !consolidationLoading.value && (!consolidationRows.value.length || consolidationError.value)) void loadConsolidations() })
 watch(selectedConsolidation, row => { if (row && effectiveShipment.value === 'LCL') { form.value.consolidationId = row.id; form.value.consolidationNumber = row.number; form.value.consolidationReference = row.name } })
-const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
-watch(selectedIncoterm, (next, previous) => {
-  if (!editingId.value && !restoringOpening && !applyingQuote && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
-})
-const yesNoOptions = [{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]
-function conditionSelection(value: boolean | null) { return value === true ? 'YES' : value === false ? 'NO' : '' }
-function conditionValue(value: string | number | null) { return value === 'YES' ? true : value === 'NO' ? false : null }
+const pickupServiceSelected = computed(() => (form.value.services as unknown[]).some(service => {
+  const item = typeof service === 'string' ? currentCatalog('pricing-services').find(row => row.id === service) : service
+  const row = item && typeof item === 'object' ? item as unknown as Record<string, unknown> : {}
+  const key = [typeof service === 'string' ? service : '', row.code, row.slug, row.label, row.value, row.name, row.serviceName, row.serviceCode].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return /recolec|pick[\s_-]*up/.test(key)
+}))
+const pickupRequired = computed(() => requiresExwPickup.value || pickupServiceSelected.value)
+const stackableApplicable = computed(() => ['LCL', 'LTL', 'AIR', 'AIRCONSOL'].includes(effectiveShipment.value))
 function conditionLabel(value: boolean | null) { return value === true ? 'Sí' : value === false ? 'No' : 'Por confirmar' }
-const pickupSelection = computed({
-  get: () => pickupRequired.value ? 'YES' : 'NO',
-  set: (value: string) => { form.value.requiresPickup = value === 'YES' },
-})
+function toggleCondition(value: boolean | null) { return value !== true }
 const valid = computed(() =>
   (editingId.value ? canEdit.value : /^[0-9a-f-]{36}$/i.test(companyId.value)) &&
   (modalOptions.some(x => x.value === modality.value) || (Boolean(editingId.value) && modality.value === 'MULTIMODAL')) &&
@@ -1259,7 +1258,7 @@ function buildOpeningData() {
       // when editing an existing record; never introduce them in manual creation.
       ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined, pickupContact: undefined, pickupWindow: undefined } : {}),
       estimatedWeightKg: estimatedKg.value,
-      stackable: form.value.stackable,
+      stackable: stackableApplicable.value ? form.value.stackable : null,
       isImo: form.value.isImo,
       overweight: form.value.overweight,
       consolidationId: effectiveShipment.value === 'LCL' ? form.value.consolidationId || null : null,
@@ -1279,7 +1278,7 @@ function buildOpeningData() {
         [`${axis}Unit`, form.value[`${axis}Unit`]],
         [`${axis}Cm`, effectiveShipment.value === 'AIR' ? form.value[`${axis}Cm`] : ''],
       ])),
-      ...(!editingId.value ? { openingValidationVersion: 7, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
+      ...(!editingId.value ? { openingValidationVersion: 8, serviceSelections: currentCatalog('pricing-services').filter(item => form.value.services.includes(item.id)).map(item => ({ id: item.id, code: item.code, label: optionText(item) })), providerSelections: ([['carriers', 'carrierReference', showCarrier.value ? form.value.carrierId : ''], ['agents', 'agentReference', form.value.agentId]] as const).flatMap(([group, field, id]) => { const item = currentCatalog(group).find(row => row.id === id && row.isActive); return item ? [{ group, field, id, code: item.code, label: optionText(item) }] : [] }), polCatalogId: selectedPol.value, poeCatalogId: selectedPoe.value, podCatalogId: showPod.value ? selectedPod.value : '', polCatalogCode: catalogCode('pol', selectedPol.value), poeCatalogCode: catalogCode('poe', selectedPoe.value), podCatalogCode: showPod.value ? catalogCode('pod', selectedPod.value) : '', polTerminalType: selectedRouteType('pol', selectedPol.value), poeTerminalType: selectedRouteType('poe', selectedPoe.value), podTerminalType: showPod.value ? selectedRouteType('pod', selectedPod.value) : undefined } : {}),
       equipment: form.value.equipment.map(item => ({
         equipmentType: item.equipmentType,
         equipmentCatalogId: resolvedEquipmentId(item) || undefined,
@@ -1358,7 +1357,7 @@ const manualReviewSections = computed(() => [
   ] },
   { title: 'Mercancía y equipos', icon: Package, step: 2, rows: [
     { label: 'IMO', value: conditionLabel(form.value.isImo) },
-    { label: 'Estibable', value: conditionLabel(form.value.stackable) },
+    ...(stackableApplicable.value ? [{ label: 'Estibable', value: conditionLabel(form.value.stackable) }] : []),
     { label: 'Sobrepeso', value: conditionLabel(form.value.overweight) },
     ...(['LCL','LTL'].includes(effectiveShipment.value) ? [{ label: 'Nombre del consolidado', value: selectedConsolidation.value?.name || form.value.consolidationReference || 'Por confirmar' }] : []),
     { label: 'Cantidad de bultos', value: form.value.packageCount || 'Por completar' },
@@ -1776,8 +1775,25 @@ onMounted(async () => {
             <p class="text-sm font-semibold">{{ originTeamPreview }}</p>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El servidor confirma el equipo y asigna un operativo autorizado según disponibilidad y carga del pool.</p>
           </DhCard>
-          <div class="grid gap-4 md:grid-cols-2">
-            <DhSelect v-if="selectedIncoterm !== 'EXW'" v-model="pickupSelection" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
+          <DhCard title="Servicios solicitados y proveedores" padding="sm">
+            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Selecciona los servicios acordados. Los proveedores pueden confirmarse en Origen; no se crean costos ni tarifas.</p>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="md:col-span-2" v-if="!editingId">
+                <DhMultiSelect v-model="form.services" :options="serviceOptions" label="Servicios solicitados" placeholder="Seleccionar servicios" show-selected-labels search-placeholder="Buscar servicio..." />
+                <p v-if="!serviceOptions.length" class="mt-2 text-xs text-[var(--dh-text-muted)]">Catálogo de servicios no disponible. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadPricingCatalogs" /></p>
+              </div>
+              <div v-else class="md:col-span-2"><p class="mb-2 text-xs font-bold text-[var(--dh-text-muted)]">Servicios registrados</p><div class="flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div></div>
+              <DhSelect v-if="showCarrier" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
+              <DhSelect v-if="editingId || !requiresWarehouse" searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
+              <p v-if="(editingId || !requiresWarehouse) && selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
+              <div v-if="!editingId && requiresWarehouse" class="text-sm"><span class="text-xs font-semibold text-[var(--dh-text-muted)]">Agente de origen (paso 1)</span><p class="font-semibold">{{ form.agentReference || 'Por seleccionar' }}</p></div>
+              <DhSelect v-if="editingId && isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
+              <DhInput v-if="editingId && form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
+              <DhInput v-if="editingId && form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
+              <div v-if="editingId" class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
+            </div>
+          </DhCard>
+          <div v-if="editingId" class="grid gap-4 md:grid-cols-2">
             <DhSelect v-if="editingId" :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
           </div>
           <PricingInlandServiceLocation v-if="pickupRequired"
@@ -1842,10 +1858,10 @@ onMounted(async () => {
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <DhSelect :model-value="conditionSelection(form.isImo)" label="IMO / Peligrosa" :options="yesNoOptions" placeholder="Por confirmar" @update:model-value="form.isImo = conditionValue($event)" />
-              <DhSelect :model-value="conditionSelection(form.stackable)" label="Estibable" :options="yesNoOptions" placeholder="Por confirmar" @update:model-value="form.stackable = conditionValue($event)" />
-              <DhSelect :model-value="conditionSelection(form.overweight)" label="Sobrepeso" :options="yesNoOptions" placeholder="Por confirmar" @update:model-value="form.overweight = conditionValue($event)" />
+            <div class="flex flex-wrap gap-3">
+              <DhButton class="min-w-[150px]" :variant="form.isImo === true ? 'primary' : 'secondary'" :aria-pressed="form.isImo === true" :label="'IMO / Peligrosa · ' + conditionLabel(form.isImo)" @click="form.isImo = toggleCondition(form.isImo)" />
+              <DhButton v-if="stackableApplicable" class="min-w-[150px]" :variant="form.stackable === true ? 'primary' : 'secondary'" :aria-pressed="form.stackable === true" :label="'Estibable · ' + conditionLabel(form.stackable)" @click="form.stackable = toggleCondition(form.stackable)" />
+              <DhButton class="min-w-[150px]" :variant="form.overweight === true ? 'primary' : 'secondary'" :aria-pressed="form.overweight === true" :label="'Sobrepeso · ' + conditionLabel(form.overweight)" @click="form.overweight = toggleCondition(form.overweight)" />
             </div>
             <div v-if="editingId && isMaritime" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
               <div class="mb-3">
@@ -1941,24 +1957,6 @@ onMounted(async () => {
               </div>
             </div>
           </div>
-          <DhCard title="Servicios solicitados y proveedores" padding="sm">
-            <p class="mb-3 text-xs text-[var(--dh-text-muted)]">Selecciona los servicios acordados. Los proveedores pueden confirmarse en Origen; no se crean costos ni tarifas.</p>
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="md:col-span-2" v-if="!editingId">
-                <DhMultiSelect v-model="form.services" :options="serviceOptions" label="Servicios solicitados" placeholder="Seleccionar servicios" show-selected-labels search-placeholder="Buscar servicio..." />
-                <p v-if="!serviceOptions.length" class="mt-2 text-xs text-[var(--dh-text-muted)]">Catálogo de servicios no disponible. <DhButton size="sm" variant="secondary" label="Reintentar" @click="loadPricingCatalogs" /></p>
-              </div>
-              <div v-else class="md:col-span-2"><p class="mb-2 text-xs font-bold text-[var(--dh-text-muted)]">Servicios registrados</p><div class="flex flex-wrap gap-2"><DhBadge v-for="service in selectedServiceLabels" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!selectedServiceLabels.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div></div>
-              <DhSelect v-if="showCarrier" searchable :model-value="form.carrierId" :options="providerOptions('carriers', form.carrierReference, form.carrierId)" label="Naviera" placeholder="Por confirmar" @update:model-value="setProvider('carrier', String($event || ''))" />
-              <DhSelect v-if="editingId || !requiresWarehouse" searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
-              <p v-if="(editingId || !requiresWarehouse) && selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
-              <div v-if="!editingId && requiresWarehouse" class="text-sm"><span class="text-xs font-semibold text-[var(--dh-text-muted)]">Agente de origen (paso 1)</span><p class="font-semibold">{{ form.agentReference || 'Por seleccionar' }}</p></div>
-              <DhSelect v-if="editingId && isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
-              <DhInput v-if="editingId && form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
-              <DhInput v-if="editingId && form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
-              <div v-if="editingId" class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
-            </div>
-          </DhCard>
           <div v-if="editingId || form.supportDocuments.length" class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/35 p-4 sm:p-5">
             <h4 class="text-base font-black">Documentos de respaldo</h4>
             <p class="text-xs text-[var(--dh-text-muted)]">Imágenes, PDF, Word y Excel quedan almacenados en Storage y asociados a esta apertura.</p>
@@ -2107,7 +2105,7 @@ onMounted(async () => {
                 </div>
                 <div class="mt-4 flex flex-wrap gap-2">
                   <DhBadge :variant="form.isImo ? 'warning' : 'neutral'">IMO: {{ conditionLabel(form.isImo) }}</DhBadge>
-                  <DhBadge variant="neutral">Estibable: {{ conditionLabel(form.stackable) }}</DhBadge>
+                  <DhBadge v-if="stackableApplicable" variant="neutral">Estibable: {{ conditionLabel(form.stackable) }}</DhBadge>
                   <DhBadge :variant="form.overweight ? 'warning' : 'neutral'">Sobrepeso: {{ conditionLabel(form.overweight) }}</DhBadge>
                   <DhBadge v-if="['LCL','LTL'].includes(effectiveShipment)" variant="neutral">Consolidado: {{ form.consolidationReference || 'Por confirmar' }}</DhBadge>
                   <DhBadge v-if="isMaritime && form.portHandlingMode" variant="neutral">{{ form.portHandlingMode }}</DhBadge>
