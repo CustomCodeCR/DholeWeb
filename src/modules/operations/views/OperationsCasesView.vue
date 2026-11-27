@@ -442,7 +442,7 @@ onUnmounted(() => { clearTimeout(filterTimer); clearTimeout(crmTimer); detailSeq
       <div v-else-if="selected" class="space-y-3 pb-2">
         <DhCard padding="sm" title="Expediente operativo">
           <div class="flex flex-wrap items-center justify-between gap-3">
-            <p class="text-xl font-bold">{{ selected.idtra }}</p>
+            <div><p class="text-xl font-bold">{{ selected.idtra }}</p><p class="text-xs text-[var(--dh-text-muted)]">{{ selected.apertureType === 'AUTOMATIC' ? 'Desde Pricing' : 'Manual' }}</p></div>
             <DhBadge :variant="['HOLD', 'ON_HOLD'].includes(selected.status) ? 'danger' : selectedStage?.status === 'COMPLETED' ? 'success' : selectedStage?.status === 'PENDING' ? 'warning' : 'primary'">{{ selectedStatusLabel }}</DhBadge>
           </div>
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
