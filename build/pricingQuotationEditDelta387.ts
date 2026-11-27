@@ -368,13 +368,47 @@ async function quoteEditVerifyBeforeSave387(): Promise<boolean> {
   }
   return false
 }
-// A seller's declared-value insurance-only amendment uses the existing
+// Repair missing declared cargo insurance in saved quotes, even on direct edit.
+function quoteEditRecoverDeclaredInsurance387() {
+  if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value
+      || number(form.cargoValue) <= 0) return
+  const service = catalogs.services.find(item =>
+    /seguro.*carga|carga.*seguro/.test(normalizeCatalogValue(displayValue(item))))
+  if (!service) return
+  if (!form.serviceIds.some(id => quoteEditId387(id) === quoteEditId387(service.id)))
+    form.serviceIds = [...form.serviceIds, service.id]
+  const existing = rateLines.value.find(line => line.costDetailType === 'Insurance')
+  if (existing) {
+    if (!existing.included
+        && !(existing.detailId && explicitlyRemovedPersistedDetailIds.value.has(existing.detailId))
+        && !(typeof screen7LineWasRemoved === 'function' && screen7LineWasRemoved(existing)))
+      existing.included = true
+    return
+  }
+  const currency = catalogs.currencies.find(item =>
+    (typeof canonicalCurrencyCode === 'function'
+      ? canonicalCurrencyCode({ currencyId: item.id, currencyCode: item.code, currencyName: displayValue(item) })
+      : String(item.code ?? displayValue(item)).toUpperCase()) === 'USD')
+  if (!currency) return
+  const calculated = calculateCargoInsurance(number(form.cargoValue), number(form.freightCost))
+  const line: RateLine = {
+    key: 'quote-edit:insurance', section: 'destination_charges', name: 'Seguro de carga',
+    costDetailType: 'Insurance', costType: 'Optional', chargeBasis: 'PerShipment',
+    serviceIds: [service.id], currencyId: currency.id, currencyName: displayValue(currency),
+    currencyCode: 'USD', amountCurrencyCode: 'USD', costAmount: calculated.cost,
+    saleAmount: calculated.sale, included: true, optional: true, manual: false,
+    contextLabel: 'Calculado sobre el valor declarado de la carga',
+  }
+  if (typeof screen7LineWasRemoved !== 'function' || !screen7LineWasRemoved(line))
+    rateLines.value = [...rateLines.value, line]
+}
+
+// A declared-value insurance-only amendment uses the existing
 // commercial insurance formula and negotiated RateDetails. The live route
 // catalog cannot invalidate this independent service. All other changes
 // (including physical cargo quantities and supplier changes) retain the gate.
 function quoteEditSellerInsuranceOnly387() {
-  if (!props.modificationRequestId || !quoteEditOriginalContext387.value
-      || number(form.cargoValue) <= 0) return false
+  if (!quoteEditOriginalContext387.value || number(form.cargoValue) <= 0) return false
   const changed = quoteEditChangedKeys387()
   if ([...changed].some(key => key !== 'cargoValue' && key !== 'services')) return false
   const original = new Set(quoteEditOriginalContext387.value.services)
@@ -389,8 +423,8 @@ function quoteEditSellerInsuranceOnly387() {
 async function quoteEditApplyDelta387(): Promise<boolean> {
   if (!props.rateId || props.viewOnly || !editingRate.value || hydratingExistingRate.value) return true
   if (!quoteEditOriginalContext387.value) return false
+  quoteEditRecoverDeclaredInsurance387()
   if (quoteEditSellerInsuranceOnly387()) {
-    syncSellerModificationInsurance()
     return rateLines.value.some(line => line.costDetailType === 'Insurance' && line.included
       && Number.isFinite(Number(line.costAmount)) && Number(line.costAmount) > 0
       && Number.isFinite(Number(line.saleAmount)) && Number(line.saleAmount) > 0)
@@ -437,6 +471,7 @@ async function quoteEditApplyDelta387(): Promise<boolean> {
       appendConfiguredCostToPersistedEdit(cost)
     })
     quoteEditEnsureRequestedServices387()
+    quoteEditRecoverDeclaredInsurance387()
     quoteEditVerifiedSignature387 = signature
     return true
   })()
@@ -452,7 +487,8 @@ watch(
     form.carrierId, form.agentId, form.originId, form.destinationId, form.podId,
     form.modality, form.shipmentMode, form.merchantHaulage, form.carrierHaulage,
     form.overweight, form.dangerousCargo, form.equipmentId, form.portHandlingMode,
-    form.cargoWeightKg, form.cargoPackages, form.cargoPallets, form.equipmentQuantity, form.cargoValue] as const,
+    form.cargoWeightKg, form.cargoPackages, form.cargoPallets, form.equipmentQuantity, form.cargoValue,
+    catalogs.services.length, catalogs.currencies.length] as const,
   () => {
     if (step.value !== 7 || !props.rateId || props.viewOnly || hydratingExistingRate.value) return
     void quoteEditApplyDelta387()
