@@ -38,97 +38,7 @@ jobs:
             local key="$1"
             local value
             value="$(grep -m1 "^${key}=" "$DHOLE_ENV_FILE" | cut -d= -f2- || true)"
-            value="${value%    steps:
-      - name: Checkout service
-        uses: actions/checkout@v4
-
-      - name: Load Dhole deployment infrastructure
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .dhole-system
-
-          # El runner es self-hosted y hemos observado fallos DNS transitorios hacia
-          # github.com. No debe abortar el deploy por un único fallo de resolución.
-          cloned=0
-          for attempt in 1 2 3 4 5; do
-            if git clone --depth 1 --branch develop https://github.com/CustomCodeCR/DholeSystem.git .dhole-system; then
-              cloned=1
-              break
-            fi
-
-            rm -rf .dhole-system
-            echo "::warning::No se pudo clonar DholeSystem (intento ${attempt}/5). Verificando DNS antes de reintentar..."
-            timeout 5 getent ahosts github.com || true
-            sleep $((attempt * 5))
-          done
-
-          if [ "$cloned" -ne 1 ]; then
-            echo "::error::No se pudo resolver/clonar github.com después de 5 intentos."
-            echo "----- /etc/resolv.conf -----"
-            cat /etc/resolv.conf || true
-            echo "----- github.com -----"
-            timeout 5 getent ahosts github.com || true
-            exit 1
-          fi
-
-          test -r /opt/dhole/.env.staging
-          echo "DHOLE_ENV_FILE=/opt/dhole/.env.staging" >> "$GITHUB_ENV"
-
-      - name: Verify staging server
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker network inspect "$DHOLE_NETWORK" >/dev/null
-          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" config -q
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: web-image-${{ github.sha }}
-          path: image-bundle
-      - name: Load verified staging image
-        run: |
-          set -euo pipefail
-          (cd image-bundle && sha256sum -c SHA256SUMS)
-          docker load -i image-bundle/images.tar.gz
-          test "$(docker image inspect -f '{{.Id}}' dhole/web:staging)" = "$(docker image inspect -f '{{.Id}}' "dhole/web:staging-${GITHUB_SHA::12}")"
-          rm -rf image-bundle
-      - name: Verify staging bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm --entrypoint sh dhole/web:staging -ec '
-            if grep -R -n -E "https?://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" /usr/share/nginx/html; then
-              echo "Staging bundle contains a private-network URL."
-              exit 1
-            fi
-            if grep -R -n -F ":5209/api/notifications" /usr/share/nginx/html; then
-              echo "Staging bundle contains a direct Notifications service URL."
-              exit 1
-            fi
-          '
-
-      - name: Deploy Web staging
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" up -d --no-deps --force-recreate --pull never dhole-web
-          CONTAINER_ID="$(docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps -q dhole-web)"
-          test -n "$CONTAINER_ID"
-          for attempt in $(seq 1 30); do
-            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER_ID")"
-            if [[ "$health" == "healthy" || "$health" == "running" ]]; then break; fi
-            if [[ "$attempt" == "30" ]]; then docker logs --tail 100 "$CONTAINER_ID"; exit 1; fi
-            sleep 2
-          done
-          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps dhole-web
-          docker exec "$CONTAINER_ID" wget -qO- http://127.0.0.1/health | grep -qx 'ok'
-
-      - name: Report Docker disk usage
-        if: always()
-        continue-on-error: true
-        run: df -h /
-\r'}"
+            value="${value%$'\r'}"
             if [[ "$value" == \"*\" && "$value" == *\" ]]; then
               value="${value:1:${#value}-2}"
             elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
@@ -230,21 +140,6 @@ jobs:
           set -euo pipefail
           docker network inspect "$DHOLE_NETWORK" >/dev/null
           docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" config -q
-
-      - name: Reclaim Docker build space
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Disk before cleanup:"
-          df -h /
-          # Preserve warm dependency layers. Only reclaim old build cache under
-          # disk pressure; do not prune containers/images shared with production.
-          used="$(df -P / | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
-          if [[ "$used" =~ ^[0-9]+$ ]] && (( used >= 85 )); then
-            docker builder prune -af --filter until=168h || true
-          fi
-          echo "Disk after cleanup:"
-          df -h /
 
       - uses: actions/download-artifact@v4
         with:
