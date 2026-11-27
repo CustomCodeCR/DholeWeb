@@ -560,3 +560,33 @@ test('seller LCL insurance-only amendment with unavailable cost catalog can proc
   assert.equal(await q.apply(), false)
   assert.ok(calls > 0)
 })
+
+
+test('saved LCL edit without modificationRequestId restores missing insurance even with unchanged header and offline route catalog', async () => {
+  const q = fixture()
+  q.root.form.shipmentMode = 'LCL'
+  q.root.shipmentModeForApi.value = 'Lcl'
+  q.root.form.cargoValue = 4020.2
+  q.root.form.serviceIds.push('SEGURO')
+  q.original.value = q.snapshot()
+  q.root.loadApplicableCosts = async () => { throw new Error('unexpected route query') }
+  assert.equal(await q.apply(), true)
+  assert.equal(q.root.rateLines.value.filter((line: any) => line.costDetailType === 'Insurance').length, 1)
+  const insurance = q.root.rateLines.value.find((line: any) => line.costDetailType === 'Insurance')
+  assert.equal(insurance.currencyCode, 'USD')
+  assert.equal(insurance.costAmount, 30)
+  assert.equal(insurance.saleAmount, 45)
+  insurance.saleAmount = 60
+  assert.equal(await q.verify(), true)
+  assert.equal(insurance.saleAmount, 60)
+  assert.deepEqual(q.root.rateLines.value.slice(0, 2).map((line: any) => [line.detailId, line.saleAmount]), [['F', 5800], ['D', 290]])
+})
+
+test('direct edit with declared value persists effective insurance service and requires no route lookup', async () => {
+  const q = fixture()
+  q.root.form.cargoValue = 4020.2
+  q.root.loadApplicableCosts = async () => false
+  assert.equal(await q.apply(), true)
+  assert.ok(q.root.form.serviceIds.includes('SEGURO'))
+  assert.equal(q.root.rateLines.value.filter((line: any) => line.costDetailType === 'Insurance').length, 1)
+})
