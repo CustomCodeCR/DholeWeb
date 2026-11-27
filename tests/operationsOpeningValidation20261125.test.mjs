@@ -198,3 +198,12 @@ test('warehouse ownership respects existing agent codes and names without collap
   assert.equal(warehouseAgentOwnership('invalid', wwl), 'other')
   assert.match(source, /catalogCode\('warehouses', option.value\)/)
 })
+
+
+test('Opening exposes CABYS on creation and preserves physical quantity on unit changes', () => {
+  assert.match(source, /v-model="weightUnitSelection"/)
+  assert.match(source, /v-model="volumeUnitSelection"/)
+  assert.match(source, /kg \/ \(unit === 'LB' \? 0\.45359237 : 1\)/)
+  assert.match(source, /cbm \/ \(unit === 'CFT' \? 0\.028316846592 : 1\)/)
+  assert.match(source, /<DhTextarea v-model="form\.cargoDescription"/)
+})

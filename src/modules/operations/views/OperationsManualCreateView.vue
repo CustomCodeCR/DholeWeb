@@ -677,6 +677,28 @@ const estimatedKg = computed(() => positive(form.value.estimatedWeightValue)
   ? Number(form.value.estimatedWeightValue) * (form.value.estimatedWeightUnit === 'LB' ? 0.45359237 : 1) : null)
 const normalizedVolume = computed(() => positive(form.value.volumeValue)
   ? Number(form.value.volumeValue) * (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null)
+// Only user-driven unit changes convert the value. QUO hydration and restored drafts
+// continue to assign their original unit and value together.
+const weightUnitSelection = computed({
+  get: () => form.value.estimatedWeightUnit,
+  set: (unit: string) => {
+    if (unit !== 'KG' && unit !== 'LB') return
+    if (unit === form.value.estimatedWeightUnit) return
+    const kg = estimatedKg.value
+    if (kg !== null) form.value.estimatedWeightValue = String(kg / (unit === 'LB' ? 0.45359237 : 1))
+    form.value.estimatedWeightUnit = unit
+  },
+})
+const volumeUnitSelection = computed({
+  get: () => form.value.volumeUnit,
+  set: (unit: string) => {
+    if (unit !== 'CBM' && unit !== 'CFT') return
+    if (unit === form.value.volumeUnit) return
+    const cbm = normalizedVolume.value
+    if (cbm !== null) form.value.volumeValue = String(cbm / (unit === 'CFT' ? 0.028316846592 : 1))
+    form.value.volumeUnit = unit
+  },
+})
 function measurementLabel(value: number | null) {
   return value == null ? '—' : value.toLocaleString('es-CR', { maximumFractionDigits: 4 })
 }
@@ -1600,7 +1622,7 @@ onMounted(async () => {
         </div>
 
         <div v-show="activeStep === 2" class="space-y-5">
-          <div v-if="editingId" class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
+          <div class="space-y-3 rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4">
             <h4 class="text-base font-black">Descripción de carga y CABYS</h4>
             <div class="flex flex-wrap items-end gap-3">
               <div class="min-w-[180px] flex-1">
@@ -1617,15 +1639,15 @@ onMounted(async () => {
             </div>
             <p v-if="form.cabysCode" class="text-xs font-black">CABYS seleccionado: {{ form.cabysCode }}</p>
           </div>
-          <DhTextarea v-if="editingId" v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
+          <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
           <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real, las fechas de transporte y el consolidado.</p>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-if="editingId" v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
             <DhInput v-model="form.estimatedWeightValue" label="Peso estimado" type="number" :min="0" />
-            <DhSelect v-model="form.estimatedWeightUnit" label="Unidad de peso" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
+            <DhSelect v-model="weightUnitSelection" label="Unidad de peso" :options="[{ label: 'KG', value: 'KG' }, { label: 'LB', value: 'LB' }]" />
             <DhInput v-model="form.volumeValue" label="Volumen" type="number" :min="0" />
-            <DhSelect v-model="form.volumeUnit" label="Unidad de volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
+            <DhSelect v-model="volumeUnitSelection" label="Unidad de volumen" :options="[{ label: 'CBM', value: 'CBM' }, { label: 'CFT', value: 'CFT' }]" />
             <template v-if="editingId && effectiveShipment === 'AIR'">
               <DhInput v-model="form.lengthValue" label="Largo" type="number" :min="0" />
               <DhSelect v-model="form.lengthUnit" label="Unidad de largo" :options="dimensionOptions" />
@@ -1637,8 +1659,8 @@ onMounted(async () => {
           </div>
           <DhCard title="Equivalencias de la mercancía">
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <p class="text-sm">Peso estimado: <strong>{{ measurementLabel(estimatedKg) }} kg</strong></p>
-              <p class="text-sm">Volumen: <strong>{{ measurementLabel(normalizedVolume) }} CBM</strong></p>
+              <p class="text-sm">Peso estimado: <strong>{{ measurementLabel(estimatedKg) }} kg / {{ measurementLabel(estimatedKg === null ? null : estimatedKg / 0.45359237) }} lb</strong></p>
+              <p class="text-sm">Volumen: <strong>{{ measurementLabel(normalizedVolume) }} CBM / {{ measurementLabel(normalizedVolume === null ? null : normalizedVolume / 0.028316846592) }} CFT</strong></p>
               <p v-if="editingId && effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
             </div>
           </DhCard>
