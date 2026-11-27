@@ -50,9 +50,9 @@ test('shared DH selection controls replace free text', () => {
   assert.match(opening, /mt-6 space-y-5/)
 })
 
-test('active operational contacts are selected by default but can be deselected', () => {
+test('eligible operational contacts are selected by default but can be deselected', () => {
   assert.match(opening, /if \(!contactsTouched\.value && !form\.value\.contactIds\.length\)/)
-  assert.match(opening, /form\.value\.contactIds = operationalContacts\.value\.map\(contact => contact\.id\)/)
+  assert.match(opening, /form\.value\.contactIds = defaultDivisionContacts\(operationalContacts\.value, form\.value\.crmDivisionId, crmDivisions\.value\.length > 0\)\.map\(contact => contact\.id\)/)
   assert.match(opening, /contactsTouched\.value = true/)
   assert.match(opening, /form\.value\.contactIds\.filter\(x => x !== id\)/)
 })
