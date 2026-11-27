@@ -22,8 +22,8 @@ import { useAuthStore } from '@/core/stores/authStore'
 import { normalizeIncotermCode } from '@/modules/pricing/utils/pricingIncotermPerspective'
 import { operationForClientCountry, resolveCrmCountryCode } from '@/modules/pricing/utils/pricingClientCountryOperation'
 import { catalogMetadata, resolveLocationCountryCode } from '@/modules/pricing/utils/pricingCountryIso'
-import type { RateDto, RateOperationType } from '@/core/interfaces/pricing'
-import { PricingService } from '@/core/services/pricingService'
+import type { RateOperationType } from '@/core/interfaces/pricing'
+import { operationsQuoteApi, type OperationsQuoteSummary, type OperationsQuoteDetail } from '../services/operationsQuoteApi'
 import PricingInlandServiceLocation from '@/modules/pricing/components/PricingInlandServiceLocation.vue'
 
 type InlandPoint = { address: string; latitude?: number | null; longitude?: number | null;
@@ -59,7 +59,7 @@ const selectedOperationalContacts = computed(() =>
   operationalContacts.value.filter(contact => form.value.contactIds.includes(contact.id)))
 const modality = ref('')
 const quoteSearch = ref('')
-const quoteCandidates = ref<RateDto[]>([])
+const quoteCandidates = ref<OperationsQuoteSummary[]>([])
 const quoteRateId = ref('')
 const quoteLabel = ref('')
 const quoteBusy = ref(false)
@@ -67,7 +67,7 @@ const quoteIssue = ref('')
 const quoteHydrated = ref(false)
 let quoteGeneration = 0
 let applyingQuote = false
-const canSelectQuote = computed(() => auth.hasScope('pricing.rate.update'))
+const canSelectQuote = computed(() => auth.hasScope('operations.pricing.quote.read') && auth.hasScope('operations.pricing.quote.link'))
 function clearQuote() {
   ++quoteGeneration
   quoteSearch.value = ''
@@ -82,7 +82,7 @@ watch([accountId, modality], () => { if (!applyingQuote) clearQuote() }, { flush
 function quoteTransport(mode: string) {
   return ['FCL', 'LCL'].includes(mode) ? 'MARITIME' : ['FTL', 'LTL'].includes(mode) ? 'ROAD' : mode === 'AIR' ? 'AIR' : ''
 }
-function quoteMatchesOpening(rate: RateDto) {
+function quoteMatchesOpening(rate: OperationsQuoteSummary) {
   const mode = rate.shipmentMode.toUpperCase()
   const transport = quoteTransport(mode)
   return rate.status === 'AcceptedByClient' && Boolean(rate.quoNumber && rate.clientAccountId && transport) &&
@@ -90,7 +90,7 @@ function quoteMatchesOpening(rate: RateDto) {
     (!modality.value || mode === modality.value.toUpperCase()) &&
     (!form.value.transportType || transport === form.value.transportType)
 }
-function quoteOptionLabel(rate: RateDto) {
+function quoteOptionLabel(rate: OperationsQuoteSummary) {
   return [rate.quoNumber || rate.rateCode, rate.clientName, rate.shipmentMode, rate.polName + ' → ' + (rate.podName || rate.poeName), rate.idtraNumber].filter(Boolean).join(' · ')
 }
 async function searchQuotes() {
@@ -100,8 +100,7 @@ async function searchQuotes() {
   quoteIssue.value = ''
   quoteCandidates.value = []
   try {
-    const result = await PricingService.browseRates({ search: quoteSearch.value.trim(), status: 'AcceptedByClient',
-      excludeTariffMasters: true, groupQuotes: false, pageNumber: 1, pageSize: 50 })
+    const result = await operationsQuoteApi.search(quoteSearch.value.trim(), accountId.value || undefined)
     if (generation !== quoteGeneration) return
     quoteCandidates.value = result.items.filter(quoteMatchesOpening)
     if (!quoteCandidates.value.length) quoteIssue.value = 'No se encontraron QUO aceptadas compatibles. Revisa el número o los filtros de cliente y embarque.'
@@ -126,7 +125,7 @@ function quoteInlandPoints(points: Array<{ address: string; latitude?: number | 
   }))
 }
 
-function hydrateQuoteOpening(rate: RateDto) {
+function hydrateQuoteOpening(rate: OperationsQuoteDetail) {
   const warnings: string[] = []
   const mode = rate.shipmentMode.toUpperCase()
   if (!accountId.value && rate.clientAccountId) {
@@ -247,7 +246,7 @@ async function selectQuote(id: string) {
   quoteBusy.value = true
   quoteIssue.value = ''
   try {
-    const rate = await PricingService.getRate(id)
+    const rate = await operationsQuoteApi.detail(id)
     if (generation !== quoteGeneration) return
     if (rate.id !== id || !quoteMatchesOpening(rate)) {
       quoteIssue.value = 'La cotización ya no es compatible o no está aceptada. Revisa los datos.'
@@ -781,8 +780,8 @@ async function resolveCrmOpeningData(id: string, client: {
   institutionalExecutive.value = client.isCastroFallasExecutive === true
   try {
     const [accountResponse, contactsResponse] = await Promise.allSettled([
-      crmGet('accounts', id),
-      crmRequest<unknown>(crmPath('accounts', id, 'contacts')),
+      crmGet('operations/accounts', id),
+      crmRequest<unknown>(crmPath('operations/accounts', id, 'contacts')),
     ])
     if (generation !== clientGeneration || accountId.value !== id) return
     if (accountResponse.status === 'fulfilled') {
@@ -1440,7 +1439,7 @@ onMounted(async () => {
         <DhCard v-if="!editingId && activeStep === 1" class="mb-6" title="Cotización (QUO)" padding="sm"
           subtitle="Opcional. Vincula una QUO aceptada para cargar sus datos comerciales y logísticos disponibles.">
           <template #actions><DhBadge :variant="quoteRateId ? 'primary' : 'neutral'">{{ quoteRateId ? 'Seleccionada' : 'Sin QUO' }}</DhBadge></template>
-          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Tu usuario no tiene permiso para vincular cotizaciones.</p>
+          <p v-if="!canSelectQuote" class="text-sm text-[var(--dh-text-muted)]">Se requieren los permisos operativos de consulta y vinculación de QUO.</p>
           <div v-else class="space-y-3">
             <div v-if="quoteRateId" class="flex flex-wrap items-center justify-between gap-3">
               <p class="text-sm font-semibold">{{ quoteLabel || 'Cotización seleccionada' }}</p>
@@ -1486,7 +1485,7 @@ onMounted(async () => {
             </div>
             <div class="grid gap-4 md:grid-cols-2">
               <div class="space-y-3 md:col-span-2">
-                <PricingCrmClientSelect v-model="accountId" mode="create" :initial-name="selectedClientName" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
+                <PricingCrmClientSelect v-model="accountId" mode="operations" :initial-name="selectedClientName" :disabled="Boolean(editingId)" :inline-results="true" @selected="onCrmClientSelected" />
                 <div role="status" aria-live="polite"
                   class="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
                   :class="executiveAssigned ? 'border-[var(--dh-primary)]/35 bg-[rgb(var(--dh-primary-rgb)/0.09)]' : 'border-amber-500/35 bg-amber-500/5'">

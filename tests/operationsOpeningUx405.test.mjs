@@ -17,7 +17,7 @@ test('manual opening offers only maritime, air and road selection; historical ca
 })
 
 test('executive name is sourced from CRM account and owner labels rather than creator', () => {
-  assert.match(opening, /crmGet\('accounts', id\)/)
+  assert.match(opening, /crmGet\('operations\/accounts', id\)/)
   assert.match(opening, /crmPath\('calendar\/labels'\)/)
   assert.match(opening, /executiveUserId/)
   assert.match(opening, /institutionalExecutive/)
@@ -29,7 +29,7 @@ test('executive name is sourced from CRM account and owner labels rather than cr
 })
 
 test('only actual active operational CRM contacts can be selected for notices', () => {
-  assert.match(opening, /crmPath\('accounts', id, 'contacts'\)/)
+  assert.match(opening, /crmPath\('operations\/accounts', id, 'contacts'\)/)
   assert.match(opening, /isOperationsContact/)
   assert.match(opening, /operationalContacts\.value = entries\.flatMap/)
   assert.match(opening, /toggleOperationalContact/)

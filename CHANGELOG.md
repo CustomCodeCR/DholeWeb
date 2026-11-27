@@ -1,3 +1,7 @@
+## [1.144.0] - 2026-11-27
+
+- MINOR: aperturas manuales y vinculación posterior QUO con scopes operativos independientes; consulta de cuenta/contactos operativos y QUO aceptadas mediante contratos limitados. Reutiliza componentes DH, mantiene realtime. No permite reemplazo de vínculos confirmados. CI y staging pendientes.
+
 ## [1.143.0] - 2026-11-27
 
 - MINOR candidato parcial: formulario de apertura manual con equivalencias KG/LB y CBM/CFT en ambos sentidos, conversión al cambiar la unidad y acceso a descripción/CABYS durante la creación. Reutiliza los controles DH. CI y staging pendientes.

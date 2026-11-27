@@ -10,8 +10,7 @@ import {
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhTabs, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { PricingService } from '@/core/services/pricingService'
-import type { RateDto } from '@/core/interfaces/pricing'
+import { operationsQuoteApi, type OperationsQuoteSummary } from '../services/operationsQuoteApi'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
@@ -132,7 +131,7 @@ const openingSections = computed(() => {
 const workspace = ref<OperationsCaseWorkspace | null>(null)
 const pendingSummaryTasks = computed(() => (workspace.value?.tasks || []).filter(isPendingOperationsTask))
 const quoteSearch = ref('')
-const quoteCandidates = ref<RateDto[]>([])
+const quoteCandidates = ref<OperationsQuoteSummary[]>([])
 const quoteSelection = ref('')
 const selectedQuoteCandidate = computed(() => quoteCandidates.value.find(rate => rate.id === quoteSelection.value))
 const quoteLinkBusy = ref(false)
@@ -140,15 +139,14 @@ const quoteLinkMessage = ref('')
 const quoteLinkError = ref('')
 const pendingQuoteLink = computed(() => workspace.value?.quotes.some(quote => quote.status === 'PENDING_LINK'))
 const canLinkQuote = computed(() => record.value?.apertureType === 'MANUAL' && !record.value.sourceQuoteId &&
-  !['CANCELLED','COMPLETED'].includes(record.value.status) && auth.hasScope('pricing.rate.update') &&
-  ['operations.case.update','operations.origin.update','operations.aperture.update'].some(scope => auth.hasScope(scope)))
+  !['CANCELLED','COMPLETED'].includes(record.value.status) && auth.hasScope('operations.pricing.quote.read') && auth.hasScope('operations.pricing.quote.link'))
 watch(caseId, () => { quoteSearch.value = ''; quoteCandidates.value = []; quoteSelection.value = ''; quoteLinkError.value = ''; quoteLinkMessage.value = '' })
 async function searchAcceptedQuotes() {
   const detail = record.value
   if (!detail || !quoteSearch.value.trim() || quoteLinkBusy.value) return
   quoteLinkBusy.value = true; quoteSelection.value = ''; quoteCandidates.value = []; quoteLinkError.value = ''; quoteLinkMessage.value = ''
   try {
-    const result = await PricingService.browseRates({ search: quoteSearch.value.trim(), status: 'AcceptedByClient', excludeTariffMasters: true, groupQuotes: false, pageNumber: 1, pageSize: 50 })
+    const result = await operationsQuoteApi.search(quoteSearch.value.trim(), detail.accountId)
     if (caseId.value !== detail.id) return
     quoteCandidates.value = result.items.filter(rate => rate.status === 'AcceptedByClient' && rate.clientAccountId === detail.accountId &&
       rate.shipmentMode.toUpperCase() === detail.modalityCode.toUpperCase())
@@ -597,16 +595,11 @@ async function load() {
         const people = await operationsApi.auditActors(x.map(e => e.actorUserId))
         if (current === sequence) actors.value = people.items
       }).catch(() => {}))
-    optional.push(crmRequest<Record<string, unknown>>(crmPath('accounts', detail.accountId))
+    optional.push(crmRequest<Record<string, unknown>>(crmPath('operations/accounts', detail.accountId))
       .then(x => { if (current === sequence) {
         accountName.value = String(x.displayName || x.legalName || x.name || '').trim()
         clientExecutiveName.value = String(x.executiveName || '').trim()
       } }).catch(() => {}))
-    optional.push(crmRequest<{ displayName?: string | null }>(
-      crmPath('accounts', detail.accountId, 'assigned-executive'))
-      .then(x => { if (current === sequence && x.displayName)
-        clientExecutiveName.value = x.displayName.trim()
-      }).catch(() => {}))
     await Promise.all(optional)
   } catch (cause) {
     if (current === sequence) {
