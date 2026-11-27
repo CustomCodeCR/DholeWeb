@@ -41,7 +41,7 @@ test('only actual active operational CRM contacts can be selected for notices', 
 
 test('special conditions are accessible toggles and destination handling is exclusive', () => {
   for (const field of ['isImo', 'stackable', 'overweight']) {
-    assert.ok(opening.includes(':model-value="conditionSelection(form.' + field + ')"'))
+    assert.ok(opening.includes('form.' + field + ' = toggleCondition(form.' + field + ')'))
   }
   for (const binding of ["form.portHandlingMode === 'Redestino'", "form.portHandlingMode === 'Anticipado'"]) {
     assert.ok(opening.includes(':aria-pressed="' + binding + '"'))

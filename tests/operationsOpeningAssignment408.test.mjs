@@ -23,10 +23,10 @@ test('Aperturas does not collect weight or per-container weight', () => {
   assert.match(opening, /editingId\.value && item\.weightKg != null/)
 })
 test('stackable is captured in new and existing openings with explicit unknown state', () => {
-  assert.match(opening, /label="Estibable"/)
-  assert.match(opening, /stackable: form\.value\.stackable/)
+  assert.match(opening, /v-if="stackableApplicable"[^\n]*Estibable/)
+  assert.match(opening, /stackable: stackableApplicable\.value \? form\.value\.stackable : null/)
   assert.ok(opening.includes("stackable: null as boolean | null"))
-  assert.match(opening, /conditionSelection\(form\.stackable\)/)
+  assert.match(opening, /toggleCondition\(form\.stackable\)/)
   assert.match(cases, /opening\.value\.stackable === false/)
 })
 test('review and drawer use structured client, route, cargo, documents and team sections', () => {

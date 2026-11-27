@@ -1,3 +1,6 @@
+## [1.145.8] - 2026-11-27
+- Move services and providers to opening step 1; derive pickup from EXW or selected pickup service; use shared DH condition buttons, stacking only for consolidated and air cargo. Retry unavailable consolidation catalog.
+
 ## [1.145.7] - 2026-11-27
 
 - Restore declared cargo insurance in saved QUO edits without a modification request ID. Use USD and preserve negotiated lines; insurance-only changes do not depend on route costs. Regression tests added; CI/staging pending.
