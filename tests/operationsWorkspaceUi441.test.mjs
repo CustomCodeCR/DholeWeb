@@ -19,7 +19,7 @@ test('shared drawer uses opaque theme background and operations uses shared resp
   assert.match(dashboard, /<DhDataTable v-else :columns="recentColumns"/)
   const cases = read('src/modules/operations/views/OperationsCasesView.vue')
   assert.match(cases, /label="Procedencia"/)
-  assert.match(cases, /openingText\('weightValue'\)/)
+  assert.match(cases, /openingText\('clientPoReference'\)/)
 })
 
 test('accepted commercial data uses actual quote number, scoped snapshot and readable labels', () => {
