@@ -508,3 +508,28 @@ test('FTL agent-only edit preserves priced foreign customs, manual DUCA and frei
   q.root.form.originId = 'PA'
   assert.equal(await q.verify(), false)
 })
+
+
+test('seller amendment: declared value creates a missing insurance charge even when service was already selected', async () => {
+  const q = fixture()
+  q.root.form.shipmentMode = 'LCL'
+  q.root.shipmentModeForApi.value = 'Lcl'
+  q.root.form.serviceIds.push('SEGURO')
+  q.root.cargoInsuranceSelected.value = true
+  q.original.value = q.snapshot()
+  q.root.form.cargoValue = 4020.2
+  q.root.loadApplicableCosts = async () => { q.root.costs.value = []; return true }
+  assert.equal(await q.apply(), true)
+  const lines = q.root.rateLines.value.filter((line: any) => line.costDetailType === 'Insurance')
+  assert.equal(lines.length, 1)
+  assert.equal(lines[0].included, true)
+  assert.equal(lines[0].costAmount, 30)
+  assert.equal(lines[0].saleAmount, 45)
+  assert.equal(lines[0].serviceIds[0], 'SEGURO')
+  assert.deepEqual(q.root.rateLines.value.slice(0, 2).map((line: any) => [line.detailId, line.costAmount, line.saleAmount]),
+    [['F', 5300, 5800], ['D', 225, 290]])
+  lines[0].saleAmount = 55
+  assert.equal(await q.apply(), true)
+  assert.equal(q.root.rateLines.value.filter((line: any) => line.costDetailType === 'Insurance').length, 1)
+  assert.equal(lines[0].saleAmount, 55)
+})

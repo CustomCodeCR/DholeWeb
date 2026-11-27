@@ -1,3 +1,7 @@
+## [1.145.2] - 2026-11-27
+
+- PATCH: preserve effective insurance service IDs in seller modifications, recover missing cargo insurance when declared value changes, and preserve existing quote lines and reviewed prices. Regression coverage added; CI and staging pending.
+
 ## [1.135.0] - 2026-11-26
 
 - MINOR: DH-20261126-PRICING-CATEGORY-REPORT. Exportar Excel por categoría con permiso independiente; conserva el reporte comercial detallado. Promoción selectiva; CI pendiente.
