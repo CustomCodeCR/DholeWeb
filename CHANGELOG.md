@@ -1,5 +1,9 @@
 ## [1.144.0] - 2026-11-27
 
+## [1.145.1] - 2026-11-27
+- Improve Operations division selection with DH choice cards, searchable large catalogs, grouped contact recipients, counts, retry and recovery controls, responsive layout and regression coverage.
+
+
 ## [1.145.0] - 2026-11-27
 - CRM account divisions tab, reusable DH contact assignment controls, and Operations division selection and contact filtering.
 
