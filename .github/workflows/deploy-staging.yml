@@ -20,8 +20,173 @@ env:
   COMPOSE_PROJECT: dhole-staging
 
 jobs:
+  prepare:
+    runs-on: [self-hosted, linux, x64, dhole]
+    outputs:
+      api_url: ${{ steps.config.outputs.api_url }}
+      app_name: ${{ steps.config.outputs.app_name }}
+      frontend_domain: ${{ steps.config.outputs.frontend_domain }}
+    steps:
+      - name: Read public staging build configuration
+        id: config
+        shell: bash
+        run: |
+          set -euo pipefail
+          DHOLE_ENV_FILE=/opt/dhole/.env.staging
+          test -r "$DHOLE_ENV_FILE"
+          read_env() {
+            local key="$1"
+            local value
+            value="$(grep -m1 "^${key}=" "$DHOLE_ENV_FILE" | cut -d= -f2- || true)"
+            value="${value%    steps:
+      - name: Checkout service
+        uses: actions/checkout@v4
+
+      - name: Load Dhole deployment infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .dhole-system
+
+          # El runner es self-hosted y hemos observado fallos DNS transitorios hacia
+          # github.com. No debe abortar el deploy por un único fallo de resolución.
+          cloned=0
+          for attempt in 1 2 3 4 5; do
+            if git clone --depth 1 --branch develop https://github.com/CustomCodeCR/DholeSystem.git .dhole-system; then
+              cloned=1
+              break
+            fi
+
+            rm -rf .dhole-system
+            echo "::warning::No se pudo clonar DholeSystem (intento ${attempt}/5). Verificando DNS antes de reintentar..."
+            timeout 5 getent ahosts github.com || true
+            sleep $((attempt * 5))
+          done
+
+          if [ "$cloned" -ne 1 ]; then
+            echo "::error::No se pudo resolver/clonar github.com después de 5 intentos."
+            echo "----- /etc/resolv.conf -----"
+            cat /etc/resolv.conf || true
+            echo "----- github.com -----"
+            timeout 5 getent ahosts github.com || true
+            exit 1
+          fi
+
+          test -r /opt/dhole/.env.staging
+          echo "DHOLE_ENV_FILE=/opt/dhole/.env.staging" >> "$GITHUB_ENV"
+
+      - name: Verify staging server
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker network inspect "$DHOLE_NETWORK" >/dev/null
+          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" config -q
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-image-${{ github.sha }}
+          path: image-bundle
+      - name: Load verified staging image
+        run: |
+          set -euo pipefail
+          (cd image-bundle && sha256sum -c SHA256SUMS)
+          docker load -i image-bundle/images.tar.gz
+          test "$(docker image inspect -f '{{.Id}}' dhole/web:staging)" = "$(docker image inspect -f '{{.Id}}' "dhole/web:staging-${GITHUB_SHA::12}")"
+          rm -rf image-bundle
+      - name: Verify staging bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh dhole/web:staging -ec '
+            if grep -R -n -E "https?://(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" /usr/share/nginx/html; then
+              echo "Staging bundle contains a private-network URL."
+              exit 1
+            fi
+            if grep -R -n -F ":5209/api/notifications" /usr/share/nginx/html; then
+              echo "Staging bundle contains a direct Notifications service URL."
+              exit 1
+            fi
+          '
+
+      - name: Deploy Web staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" up -d --no-deps --force-recreate --pull never dhole-web
+          CONTAINER_ID="$(docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps -q dhole-web)"
+          test -n "$CONTAINER_ID"
+          for attempt in $(seq 1 30); do
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$CONTAINER_ID")"
+            if [[ "$health" == "healthy" || "$health" == "running" ]]; then break; fi
+            if [[ "$attempt" == "30" ]]; then docker logs --tail 100 "$CONTAINER_ID"; exit 1; fi
+            sleep 2
+          done
+          docker compose --env-file "$DHOLE_ENV_FILE" -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" -p "$COMPOSE_PROJECT" ps dhole-web
+          docker exec "$CONTAINER_ID" wget -qO- http://127.0.0.1/health | grep -qx 'ok'
+
+      - name: Report Docker disk usage
+        if: always()
+        continue-on-error: true
+        run: df -h /
+\r'}"
+            if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+              value="${value:1:${#value}-2}"
+            elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+              value="${value:1:${#value}-2}"
+            fi
+            printf '%s' "$value"
+          }
+          VITE_API_URL="$(read_env VITE_API_URL)"
+          VITE_APP_NAME="$(read_env VITE_APP_NAME)"
+          VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
+          : "${VITE_API_URL:?VITE_API_URL is required}"
+          : "${VITE_APP_NAME:?VITE_APP_NAME is required}"
+          : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required}"
+          # Only these public, browser-bundled values leave the staging host.
+          printf 'api_url=%s\napp_name=%s\nfrontend_domain=%s\n' "$VITE_API_URL" "$VITE_APP_NAME" "$VITE_FRONTEND_DOMAIN" >> "$GITHUB_OUTPUT"
+  build:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        env:
+          VITE_API_URL: ${{ needs.prepare.outputs.api_url }}
+          VITE_APP_NAME: ${{ needs.prepare.outputs.app_name }}
+          VITE_FRONTEND_DOMAIN: ${{ needs.prepare.outputs.frontend_domain }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${VITE_API_URL:?missing public API URL}"
+          : "${VITE_APP_NAME:?missing public app name}"
+          : "${VITE_FRONTEND_DOMAIN:?missing public frontend domain}"
+          SHA_TAG="${GITHUB_SHA::12}"
+          docker build --pull -f Dockerfile \
+            --build-arg VITE_API_URL="$VITE_API_URL" \
+            --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
+            --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
+            --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
+            --build-arg VITE_RELEASE_CHANNEL=staging \
+            --build-arg VITE_DHOLE_REALTIME_ENABLED=true \
+            --build-arg VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT=true \
+            --build-arg VITE_DHOLE_REALTIME_RELEASE=rt-20261107-01 \
+            -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
+      - name: Export exact staging image
+        run: |
+          set -euo pipefail
+          mkdir -p image-bundle
+          docker save dhole/web:staging "dhole/web:staging-${GITHUB_SHA::12}" | gzip -1 > image-bundle/images.tar.gz
+          (cd image-bundle && sha256sum images.tar.gz > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-image-${{ github.sha }}
+          path: image-bundle/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
   deploy:
     runs-on: [self-hosted, linux, x64, dhole]
+    needs: build
     steps:
       - name: Checkout service
         uses: actions/checkout@v4
@@ -81,89 +246,17 @@ jobs:
           echo "Disk after cleanup:"
           df -h /
 
-      - name: Build image
-        shell: bash
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-image-${{ github.sha }}
+          path: image-bundle
+      - name: Load verified staging image
         run: |
           set -euo pipefail
-          SHA_TAG="${GITHUB_SHA::12}"
-          read_env() {
-            local key="$1"
-            local value
-            value="$(grep -m1 "^${key}=" "$DHOLE_ENV_FILE" | cut -d= -f2- || true)"
-            value="${value%$'\r'}"
-            if [[ "$value" == \"*\" && "$value" == *\" ]]; then
-              value="${value:1:${#value}-2}"
-            elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
-              value="${value:1:${#value}-2}"
-            fi
-            printf '%s' "$value"
-          }
-          VITE_API_URL="$(read_env VITE_API_URL)"
-          VITE_APP_NAME="$(read_env VITE_APP_NAME)"
-          VITE_FRONTEND_DOMAIN="$(read_env VITE_FRONTEND_DOMAIN)"
-          VITE_DHOLE_REALTIME_ENABLED="true" # staging-only catalog pilot; prod build unchanged
-          VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_ENABLED"
-          VITE_DHOLE_REALTIME_RELEASE="rt-20261107-01"
-          # A standard develop deployment does not opt in unless staging
-          # explicitly sets DHOLE_REALTIME_NOTIFICATIONS_ENABLED=true.
-          [[ "$VITE_DHOLE_REALTIME_ENABLED" == "true" ]] || VITE_DHOLE_REALTIME_ENABLED=false
-          [[ "$VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT" == "true" ]] || VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT=false
-          : "${VITE_API_URL:?VITE_API_URL is required}"
-          : "${VITE_APP_NAME:?VITE_APP_NAME is required}"
-          : "${VITE_FRONTEND_DOMAIN:?VITE_FRONTEND_DOMAIN is required}"
-          # Probe DNS from the same Node image as the Dockerfile, not just the host.
-          # Fall back to the host resolver only for this trusted staging build.
-          # No daemon restart, global DNS changes, or runtime network changes.
-          node_image="$(awk 'toupper($1) == "FROM" && $2 ~ /^node:/ {print $2; exit}' Dockerfile)"
-          : "${node_image:?Node build image is required}"
-          docker pull "$node_image"
-          probe_dns() {
-            timeout 25 docker run --rm --network "$1" "$node_image" node -e '
-              const dns = require("node:dns");
-              const timer = setTimeout(() => process.exit(1), 12000);
-              dns.lookup("registry.npmjs.org", (err, address) => {
-                clearTimeout(timer);
-                if (err) { console.error(err.code); process.exit(1); }
-                console.log(address);
-              });
-            '
-          }
-          build_network=default
-          if ! probe_dns bridge; then
-            echo "::warning::Docker bridge cannot resolve npm registry; testing host network."
-            if ! probe_dns host; then
-              echo "::error::Neither Docker bridge nor host resolves registry.npmjs.org. Repair runner DNS before retrying."
-              exit 1
-            fi
-            build_network=host
-          fi
-          build_image() {
-            docker build --pull --network "$1" -f Dockerfile \
-              --build-arg VITE_API_URL="$VITE_API_URL" \
-              --build-arg VITE_APP_NAME="$VITE_APP_NAME" \
-              --build-arg VITE_FRONTEND_DOMAIN="$VITE_FRONTEND_DOMAIN" \
-              --build-arg VITE_BUILD_SHA="$GITHUB_SHA" \
-              --build-arg VITE_RELEASE_CHANNEL="staging" \
-              --build-arg VITE_DHOLE_REALTIME_ENABLED="$VITE_DHOLE_REALTIME_ENABLED" \
-              --build-arg VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT="$VITE_DHOLE_REALTIME_NOTIFICATIONS_PILOT" \
-              --build-arg VITE_DHOLE_REALTIME_RELEASE="$VITE_DHOLE_REALTIME_RELEASE" \
-              -t dhole/web:staging -t "dhole/web:staging-$SHA_TAG" .
-          }
-          build_log="$(mktemp)"
-          trap 'rm -f "$build_log"' EXIT
-          if ! build_image "$build_network" 2>&1 | tee "$build_log"; then
-            # BuildKit and docker run can have different resolver behavior.
-            # Only retry a registry DNS error, not an application/build failure.
-            if [[ "$build_network" == default ]] &&
-               grep -Eiq '(ENOTFOUND|EAI_AGAIN|Temporary failure in name resolution|Could not resolve host).*registry\.npmjs\.org|registry\.npmjs\.org.*(ENOTFOUND|EAI_AGAIN|Temporary failure in name resolution|Could not resolve host)' "$build_log" &&
-               probe_dns host; then
-              echo "::warning::BuildKit registry DNS failed; retrying with host network."
-              build_image host
-            else
-              exit 1
-            fi
-          fi
-
+          (cd image-bundle && sha256sum -c SHA256SUMS)
+          docker load -i image-bundle/images.tar.gz
+          test "$(docker image inspect -f '{{.Id}}' dhole/web:staging)" = "$(docker image inspect -f '{{.Id}}' "dhole/web:staging-${GITHUB_SHA::12}")"
+          rm -rf image-bundle
       - name: Verify staging bundle
         shell: bash
         run: |
