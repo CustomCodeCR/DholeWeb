@@ -290,7 +290,7 @@ function hydrateQuoteOpening(rate: OperationsQuoteDetail) {
     form.value.pickupLocations = pickups
     form.value.pickupAddress = pickups[0]!.address
   }
-  if (deliveries.length) {
+  if (deliveryRequired.value && deliveries.length) {
     form.value.requiresDelivery = true
     form.value.deliveryLocations = deliveries
     form.value.destinationAddress = deliveries[0]!.address
@@ -422,9 +422,15 @@ function selectedForLabel(key: string, label: string) {
   return currentCatalog(key).find(item => optionText(item).trim().toLowerCase() === label.trim().toLowerCase())?.id || ''
 }
 function reconcileLocations() {
-  selectedPol.value = selectedForLabel('pol', form.value.pol)
-  selectedPoe.value = selectedForLabel('poe', form.value.poe)
-  selectedPod.value = selectedForLabel('pod', form.value.pod)
+  selectedPol.value = quoteCatalogItem('pol', editingId.value ? form.value.polCatalogId : undefined, undefined, form.value.pol)?.id || ''
+  selectedPoe.value = quoteCatalogItem('poe', editingId.value ? form.value.poeCatalogId : undefined, undefined, form.value.poe)?.id || ''
+  selectedPod.value = quoteCatalogItem('pod', editingId.value ? form.value.podCatalogId : undefined, undefined, form.value.pod)?.id || ''
+  if (editingId.value) {
+    if (!form.value.carrierId && form.value.carrierReference)
+      form.value.carrierId = quoteCatalogItem('carriers', undefined, undefined, form.value.carrierReference)?.id || ''
+    if (!form.value.agentId && form.value.agentReference)
+      form.value.agentId = quoteCatalogItem('agents', undefined, undefined, form.value.agentReference)?.id || ''
+  }
   selectedWarehouse.value = currentCatalog('warehouses').some(item => item.id === form.value.warehouseId && item.isActive)
     ? form.value.warehouseId : selectedForLabel('warehouses', form.value.whsName)
 }
@@ -458,7 +464,7 @@ const error = ref('')
 const form = ref({
   provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '', crmDivisionName: '',
   shipmentType: '', cargoNature: '', transportType: '', incoterm: '', incotermName: '',
-  pol: '', poe: '', pod: '', pickupAddress: '', pickupContact: '',
+  pol: '', poe: '', pod: '', polCatalogId: '', poeCatalogId: '', podCatalogId: '', pickupAddress: '', pickupContact: '',
   pickupWindow: '', requiresPickup: false, whsName: '',
   destinationAddress: '', cargoDescription: '', packageCount: '',
   packageType: '', weightValue: '', weightUnit: 'KG',
@@ -694,7 +700,12 @@ watch([warehouseOptions, catalogLoading], () => {
 })
 const warehouseMeta = computed(() => catalogMetadata(warehouse.value))
 const warehouseAddress = computed(() => String(warehouseMeta.value.address || warehouseMeta.value.fullAddress || form.value.warehouseAddress || '').trim())
-const deliveryRequired = computed(() => form.value.requiresDelivery || ['DAP','DPU','DDP'].includes(selectedIncoterm.value))
+const deliveryRequired = computed(() => (form.value.services as unknown[]).some(service => {
+  const item = typeof service === 'string' ? currentCatalog('pricing-services').find(row => row.id === service) : service
+  const row = item && typeof item === 'object' ? item as Record<string, unknown> : {}
+  const key = [typeof service === 'string' ? service : '', row.code, row.label, row.name, row.serviceCode, row.serviceName].filter(Boolean).join(' ')
+  return /\b(entrega|deliver(y|ies))\b/i.test(key)
+}))
 const validPoints = (points: InlandPoint[]) => points.length > 0 && points.every(p => typeof p?.address === 'string' && p.address.trim() &&
   ['FiscalCargo','NationalizedCargo'].includes(p.cargoCondition || ''))
 // New manual openings must not assign commercial billing responsibility.
@@ -1269,8 +1280,10 @@ function buildOpeningData() {
       requiresPickup: pickupRequired.value,
       pickupAddress: pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '',
       pickupLocations: pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [],
-      ...(!editingId.value ? { destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '' } : {}),
-      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '', requiresDelivery: deliveryRequired.value, deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [] } : {}),
+      requiresDelivery: deliveryRequired.value,
+      destinationAddress: deliveryRequired.value ? (form.value.deliveryLocations[0]?.address || form.value.destinationAddress) : '',
+      deliveryLocations: deliveryRequired.value ? operationalPoints(form.value.deliveryLocations) : [],
+      ...(!editingId.value ? { operationDirection: operation.value === 'Import' ? 'IMPORT' : operation.value === 'Export' ? 'EXPORT' : 'OTHER', operationType: operation.value, clientCountryCode: clientCountry.value, pod: showPod.value ? form.value.pod : '', warehouseId: requiresWarehouse.value ? selectedWarehouse.value : '', warehouseCatalogGroup: requiresWarehouse.value ? warehouseCatalogGroup.value : '', warehouseCatalogCode: requiresWarehouse.value ? catalogCode('warehouses', selectedWarehouse.value) : '', whsName: requiresWarehouse.value ? (warehouse.value ? optionText(warehouse.value) : form.value.warehouseAddress) : '', warehouseAddress: requiresWarehouse.value ? warehouseAddress.value : '' } : {}),
       ...(!editingId.value && !showCarrier.value ? { carrierId: '', carrierReference: '' } : {}),
       portHandlingMode: isMaritime.value ? form.value.portHandlingMode : '',
       ...Object.fromEntries((['length', 'width', 'height'] as const).flatMap(axis => [
@@ -1458,6 +1471,7 @@ onMounted(async () => {
         if (incoterms.includes(term)) { form.value.incoterm = term; form.value.incotermName = term }
         if (typeof parsed.requiresPickup !== 'boolean' && typeof parsed.pickupAddress === 'string' && parsed.pickupAddress.trim())
           form.value.requiresPickup = true
+        if (!Array.isArray(form.value.services)) form.value.services = []
         if (!Array.isArray(form.value.contactIds)) form.value.contactIds = []
         if (!Array.isArray(form.value.pickupLocations)) form.value.pickupLocations = []
         if (!Array.isArray(form.value.deliveryLocations)) form.value.deliveryLocations = []
@@ -1787,19 +1801,16 @@ onMounted(async () => {
               <DhSelect v-if="editingId || !requiresWarehouse" searchable :disabled="!selectedPol" :model-value="form.agentId" :options="providerOptions('agents', form.agentReference, form.agentId)" label="Agente / oficina de origen" placeholder="Por confirmar" @update:model-value="setProvider('agent', String($event || ''))" />
               <p v-if="(editingId || !requiresWarehouse) && selectedPol && !eligibleAgents.length && !catalogLoading" class="text-xs text-[var(--dh-text-muted)] md:col-span-2">No hay agentes activos con cobertura para el país de origen. Puede confirmarse en Coordinación Origen.</p>
               <div v-if="!editingId && requiresWarehouse" class="text-sm"><span class="text-xs font-semibold text-[var(--dh-text-muted)]">Agente de origen (paso 1)</span><p class="font-semibold">{{ form.agentReference || 'Por seleccionar' }}</p></div>
-              <DhSelect v-if="editingId && isMaritime" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
+              <DhSelect v-if="editingId && isMaritime && deliveryRequired" searchable v-model="form.haulageMode" :options="[{ value: 'Merchant', label: 'Merchant Haulage' }, { value: 'Carrier', label: 'Carrier Haulage' }]" label="Transporte en destino" placeholder="Por confirmar" />
               <DhInput v-if="editingId && form.transportType === 'AIR'" v-model="form.airline" label="Referencia de aerolínea (si se conoce)" />
               <DhInput v-if="editingId && form.transportType === 'ROAD'" v-model="form.roadCarrierReference" label="Referencia de transportista (si se conoce)" />
               <div v-if="editingId" class="md:col-span-2"><DhTextarea v-model="form.observations" label="Observaciones / instrucciones para Origen" :rows="3" /></div>
             </div>
           </DhCard>
-          <div v-if="editingId" class="grid gap-4 md:grid-cols-2">
-            <DhSelect v-if="editingId" :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
-          </div>
           <PricingInlandServiceLocation v-if="pickupRequired"
             v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
-          <PricingInlandServiceLocation v-if="editingId && deliveryRequired"
+          <PricingInlandServiceLocation v-if="deliveryRequired"
             v-model="deliveryPoint" v-model:locations="form.deliveryLocations" kind="delivery" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
         </div>
@@ -2086,7 +2097,7 @@ onMounted(async () => {
                 <div class="mt-3 grid gap-3 text-xs sm:grid-cols-2">
                   <p v-if="showCarrier">Naviera: <strong>{{ form.carrierReference || 'Por confirmar' }}</strong></p>
                   <p>Agente: <strong>{{ form.agentReference || 'Por confirmar' }}</strong></p>
-                  <p v-if="editingId && isMaritime">Transporte en destino: <strong>{{ form.haulageMode || form.merchantReference || 'Por confirmar' }}</strong></p>
+                  <p v-if="editingId && isMaritime && deliveryRequired">Transporte en destino: <strong>{{ form.haulageMode || form.merchantReference || 'Por confirmar' }}</strong></p>
                   <p v-if="editingId && form.transportType === 'AIR'">Aerolínea: <strong>{{ form.airline || 'Por confirmar' }}</strong></p>
                   <p v-if="editingId && form.transportType === 'ROAD'">Transportista: <strong>{{ form.roadCarrierReference || 'Por confirmar' }}</strong></p>
                 </div>

@@ -1,3 +1,7 @@
+## [1.146.1] - 2026-11-27
+
+- Show delivery only when a delivery service is selected; preserve accepted provider and route catalog references.
+
 ## [1.146.0] - 2026-11-27
 - Separate the compact case drawer from the full operational summary using existing DH components. Add authorized related IDTRAs, CRM account details, operational task checklist and scoped private notes. Reuse scoped notification history for verified customer contacts; latest 50 records only. CI and staging pending.
 

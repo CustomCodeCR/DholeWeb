@@ -74,3 +74,10 @@ test('Operations quote lookup and link use dedicated scopes, never commercial ra
   assert.match(opening, /mode="operations"/)
   assert.match(opening, /crmPath\('operations\/accounts', id, 'contacts'\)/)
 })
+
+test('delivery visibility is derived from contracted services, not the Incoterm or a manual switch', () => {
+  assert.match(opening, /const deliveryRequired = computed\(\(\) => \(form\.value\.services/)
+  assert.match(opening, /<PricingInlandServiceLocation v-if="deliveryRequired"/)
+  assert.doesNotMatch(opening, /label="¿Requiere entrega\?"/)
+  assert.match(opening, /requiresDelivery: deliveryRequired\.value/)
+})
