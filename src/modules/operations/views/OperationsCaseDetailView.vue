@@ -84,6 +84,9 @@ const openingSections = computed(() => {
       { label: 'Descripción', key: 'cargoDescription' },
       { label: 'CABYS', key: 'cabysCode' },
       { label: 'Naturaleza de carga', key: 'cargoNature' },
+      { label: 'IMO', key: 'isImo' },
+      { label: 'Estibable', key: 'stackable' },
+      { label: 'Sobrepeso', key: 'overweight' },
       { label: 'Bultos', key: 'packageCount' },
       { label: 'Tipo de bulto', key: 'packageType' },
       { label: 'Peso estimado', key: 'estimatedWeightValue' },
@@ -95,7 +98,7 @@ const openingSections = computed(() => {
       { label: 'Unidad de volumen', key: 'volumeUnit' },
     ] },
     { title: 'Coordinación y proveedores', rows: [
-      { label: 'Consolidado', key: 'consolidationReference' },
+      { label: 'Número de consolidado', key: 'consolidationReference' },
       { label: 'Dirección de recolecta', key: 'pickupAddress' },
       { label: 'WHS', key: 'whsName' },
       { label: 'Dirección de entrega', key: 'destinationAddress' },
@@ -117,7 +120,7 @@ const openingSections = computed(() => {
   const units: Record<string, string> = { estimatedWeightValue: 'estimatedWeightUnit', actualWeightValue: 'actualWeightUnit', volumeValue: 'volumeUnit' }
   return sections.map(section => ({
     title: section.title,
-    rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg','consolidationReference'].includes(row.key)) && !inapplicable.has(row.key) && !inapplicable.has(fieldAliases[row.key] || row.key) && !['estimatedWeightUnit','actualWeightUnit','volumeUnit'].includes(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
+    rows: section.rows.filter(row => (!hasAperturePanel.value || !['etm','eta','actualWeightValue','actualWeightUnit','actualWeightKg'].includes(row.key)) && !inapplicable.has(row.key) && !inapplicable.has(fieldAliases[row.key] || row.key) && !['estimatedWeightUnit','actualWeightUnit','volumeUnit'].includes(row.key) && (!['quoteReferences','validFrom','validTo','freeDays','transitTime'].includes(row.key) || Boolean(record.value?.sourceQuoteId))).map(row => {
       const raw = openingField(row.key, data)
       const unitKey = units[row.key]
       const value = unitKey ? summaryMeasure(raw, openingField(unitKey, data)) : raw

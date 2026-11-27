@@ -237,6 +237,10 @@ function hydrateQuoteOpening(rate: OperationsQuoteDetail) {
     form.value.volumeUnit = 'CBM'
   }
   const lines = rate.cargoLines || []
+  if (lines.some(line => line.isStackable === false)) form.value.stackable = false
+  else if (lines.length && lines.every(line => line.isStackable === true)) form.value.stackable = true
+  if (rate.containers?.some(item => (item.overweightUnitCount ?? 0) > 0)) form.value.overweight = true
+  else if (rate.containers?.length && rate.containers.every(item => typeof item.overweightUnitCount === 'number')) form.value.overweight = false
   const descriptions = [...new Set(lines.map(line => line.description?.trim()).filter(Boolean))]
   if (descriptions.length) form.value.cargoDescription = descriptions.join(' · ')
   // A single dimension set is only meaningful when the quote has one cargo line.
@@ -460,8 +464,8 @@ const form = ref({
   clientCountryId: '', clientCountryOverrideId: '', operationOverride: '' as RateOperationType | '',
   pickupLocations: [] as InlandPoint[], deliveryLocations: [] as InlandPoint[], requiresDelivery: false, warehouseId: '', warehouseAddress: '',
   volumeValue: '', volumeUnit: 'CBM', consolidationReference: '',
-  isImo: false, imoClass: '', unNumber: '', stackable: true,
-  overweight: false, overweightNotes: '', carrierReference: '',
+  isImo: null as boolean | null, imoClass: '', unNumber: '', stackable: null as boolean | null,
+  overweight: null as boolean | null, overweightNotes: '', carrierReference: '',
   agentReference: '', merchantReference: '', carrierId: '', agentId: '', merchantId: '', haulageMode: '', airline: '', roadCarrierReference: '', etm: '', eta: '',
   services: [] as string[], observations: '',
   contactReferences: '', contactIds: [] as string[], commercialReviewRequested: false,
@@ -703,7 +707,7 @@ const deliveryPoint = computed<InlandPoint>({
   get: () => form.value.deliveryLocations[0] || { address: form.value.destinationAddress },
   set: p => { form.value.destinationAddress = p.address },
 })
-const requiresExwPickup = computed(() => selectedIncoterm.value === 'EXW' && operation.value === 'Import')
+const requiresExwPickup = computed(() => selectedIncoterm.value === 'EXW')
 const positive = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0
 const dimensionOptions = [{ label: 'cm', value: 'CM' }, { label: 'm', value: 'M' }, { label: 'in', value: 'IN' }]
 function toCm(value: unknown, unit: string) {
@@ -757,6 +761,10 @@ const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPi
 watch(selectedIncoterm, (next, previous) => {
   if (!editingId.value && !restoringOpening && !applyingQuote && previous === 'EXW' && next !== 'EXW') form.value.requiresPickup = false
 })
+const yesNoOptions = [{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]
+function conditionSelection(value: boolean | null) { return value === true ? 'YES' : value === false ? 'NO' : '' }
+function conditionValue(value: string | null) { return value === 'YES' ? true : value === 'NO' ? false : null }
+function conditionLabel(value: boolean | null) { return value === true ? 'Sí' : value === false ? 'No' : 'Por confirmar' }
 const pickupSelection = computed({
   get: () => pickupRequired.value ? 'YES' : 'NO',
   set: (value: string) => { form.value.requiresPickup = value === 'YES' },
@@ -1211,14 +1219,16 @@ onBeforeUnmount(() => {
 function buildOpeningData() {
   return {
       ...form.value,
-      ...(!editingId.value ? { etm: undefined, eta: undefined, consolidationReference: undefined, clientPoReference: undefined, invoiceReference: undefined } : {}),
+      ...(!editingId.value ? { etm: undefined, eta: undefined, clientPoReference: undefined, invoiceReference: undefined } : {}),
       incotermName: selectedIncoterm.value,
       // Weight belongs to Coordinación Origen. Preserve historical values only
       // when editing an existing record; never introduce them in manual creation.
       ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined, pickupContact: undefined, pickupWindow: undefined } : {}),
       estimatedWeightKg: estimatedKg.value,
-      stackable: editingId.value && ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.stackable : null,
-      ...(!editingId.value ? { isImo: form.value.isImo || undefined, overweight: form.value.overweight || undefined } : {}),
+      stackable: form.value.stackable,
+      isImo: form.value.isImo,
+      overweight: form.value.overweight,
+      consolidationReference: ['LCL', 'LTL'].includes(effectiveShipment.value) ? form.value.consolidationReference.trim() : '',
       volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
         (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
       requiresPickup: pickupRequired.value,
@@ -1302,12 +1312,17 @@ const manualReviewSections = computed(() => [
     { label: 'Tipo de embarque', value: shipmentOptions.value.find(x => x.value === effectiveShipment.value)?.label || 'Por seleccionar' },
     { label: 'Sentido de operación', value: operationLabel.value || 'Por seleccionar' },
     { label: 'Incoterm', value: selectedIncoterm.value || 'Por seleccionar' },
+    ...(pickupRequired.value ? [{ label: 'Recolecta', value: form.value.pickupLocations.map(point => point.address).filter(Boolean).join(' · ') || form.value.pickupAddress || 'Por confirmar' }] : []),
     { label: 'POL · Origen', value: form.value.pol || 'Por seleccionar' },
     { label: 'POE · Entrada', value: form.value.poe || 'Por seleccionar' },
     ...(showPod.value ? [{ label: 'POD · Destino final', value: form.value.pod || 'Por seleccionar' }] : []),
     ...(requiresWarehouse.value ? [{ label: 'WHS', value: [warehouse.value ? optionText(warehouse.value) : '', warehouseOwnerLabel.value, warehouseAddress.value].filter(Boolean).join(' · ') || 'Por seleccionar' }] : []),
   ] },
   { title: 'Mercancía y equipos', icon: Package, step: 2, rows: [
+    { label: 'IMO', value: conditionLabel(form.value.isImo) },
+    { label: 'Estibable', value: conditionLabel(form.value.stackable) },
+    { label: 'Sobrepeso', value: conditionLabel(form.value.overweight) },
+    ...(['LCL','LTL'].includes(effectiveShipment.value) ? [{ label: 'Número de consolidado', value: form.value.consolidationReference || 'Por confirmar' }] : []),
     { label: 'Cantidad de bultos', value: form.value.packageCount || 'Por completar' },
     { label: 'Peso estimado', value: positive(form.value.estimatedWeightValue) ? form.value.estimatedWeightValue + ' ' + form.value.estimatedWeightUnit : 'Por completar' },
     { label: 'Volumen', value: positive(form.value.volumeValue) ? form.value.volumeValue + ' ' + form.value.volumeUnit : 'Por completar' },
@@ -1713,11 +1728,11 @@ onMounted(async () => {
             <p class="text-sm font-semibold">{{ originTeamPreview }}</p>
             <p class="mt-1 text-xs text-[var(--dh-text-muted)]">El servidor confirma el equipo y asigna un operativo autorizado según disponibilidad y carga del pool.</p>
           </DhCard>
-          <div v-if="editingId" class="grid gap-4 md:grid-cols-2">
+          <div class="grid gap-4 md:grid-cols-2">
             <DhSelect v-if="selectedIncoterm !== 'EXW'" v-model="pickupSelection" label="¿Requiere recolecta?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" />
-            <DhSelect :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
+            <DhSelect v-if="editingId" :model-value="deliveryRequired ? 'YES' : 'NO'" :disabled="['DAP','DPU','DDP'].includes(selectedIncoterm)" label="¿Requiere entrega?" :options="[{ label: 'Sí', value: 'YES' }, { label: 'No', value: 'NO' }]" @update:model-value="form.requiresDelivery = $event === 'YES'" />
           </div>
-          <PricingInlandServiceLocation v-if="editingId && (selectedIncoterm === 'EXW' || pickupRequired)"
+          <PricingInlandServiceLocation v-if="pickupRequired"
             v-model="pickupPoint" v-model:locations="form.pickupLocations" kind="pickup" operational
             :operation-type="operation || undefined" :incoterm-code="selectedIncoterm" />
           <PricingInlandServiceLocation v-if="editingId && deliveryRequired"
@@ -1744,7 +1759,8 @@ onMounted(async () => {
             <p v-if="form.cabysCode" class="text-xs font-black">CABYS seleccionado: {{ form.cabysCode }}</p>
           </div>
           <DhTextarea v-model="form.cargoDescription" label="Descripción de la mercancía" :rows="3" />
-          <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real, las fechas de transporte y el consolidado.</p>
+          <p class="text-xs text-[var(--dh-text-muted)]">Registra las medidas estimadas. Coordinación Origen confirma el peso real y las fechas de transporte.</p>
+          <DhInput v-if="['LCL', 'LTL'].includes(effectiveShipment)" v-model="form.consolidationReference" label="Número de consolidado" placeholder="Por confirmar si aún no está disponible" />
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <DhInput v-model="form.packageCount" label="Cantidad de bultos" type="number" :min="0" />
             <DhSelect v-if="editingId" v-model="form.packageType" label="Tipo de bulto" :options="packageTypeChoiceOptions" placeholder="Seleccione tipo de bulto" />
@@ -1768,49 +1784,16 @@ onMounted(async () => {
               <p v-if="editingId && effectiveShipment === 'AIR'" class="text-sm">Dimensiones: <strong>{{ [form.lengthCm, form.widthCm, form.heightCm].map(x => measurementLabel(positive(x) ? Number(x) : null)).join(' × ') }} cm</strong></p>
             </div>
           </DhCard>
-          <div v-if="editingId" class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
+          <div class="rounded-[22px] border border-[var(--dh-border)] bg-[var(--dh-input)]/40 p-4 sm:p-5">
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div><h4 class="text-sm font-black">Condiciones especiales</h4><p class="text-xs text-[var(--dh-text-muted)]">Se mostrarán únicamente los campos que correspondan.</p></div>
             </div>
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                <button type="button" :aria-pressed="form.isImo" @click="form.isImo = !form.isImo"
-                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-                  :class="form.isImo ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
-                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
-                  <span><span class="block text-sm font-black">IMO / Peligrosa</span>
-                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Requiere clase IMO y número UN</span></span>
-                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
-                    :class="form.isImo ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
-                    <Check v-if="form.isImo" class="h-4 w-4" />
-                  </span>
-                </button>
-                <button v-if="['LCL', 'LTL'].includes(effectiveShipment)" type="button" :aria-pressed="form.stackable" @click="form.stackable = !form.stackable"
-                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-                  :class="form.stackable ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
-                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
-                  <span><span class="block text-sm font-black">Carga estibable</span>
-                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Se permite apilar mercancía</span></span>
-                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
-                    :class="form.stackable ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
-                    <Check v-if="form.stackable" class="h-4 w-4" />
-                  </span>
-                </button>
-                <button type="button" :aria-pressed="form.overweight" @click="form.overweight = !form.overweight"
-                  class="group flex min-h-[94px] items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left transition-all duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--dh-primary)]"
-                  :class="form.overweight ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.12)] shadow-sm'
-                    : 'border-[var(--dh-border)] bg-[var(--dh-card)] hover:border-[var(--dh-primary)]/50 hover:bg-[var(--dh-card-hover)]'">
-                  <span><span class="block text-sm font-black">Sobrepeso</span>
-                    <span class="mt-1 block text-xs font-medium text-[var(--dh-text-muted)]">Registrar requerimientos especiales</span></span>
-                  <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full border"
-                    :class="form.overweight ? 'border-[var(--dh-primary)] bg-[var(--dh-primary)] text-white'
-                      : 'border-[var(--dh-border)] text-[var(--dh-text-muted)]'">
-                    <Check v-if="form.overweight" class="h-4 w-4" />
-                  </span>
-                </button>
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <DhSelect :model-value="conditionSelection(form.isImo)" label="IMO / Peligrosa" :options="yesNoOptions" placeholder="Por confirmar" @update:model-value="form.isImo = conditionValue($event)" />
+              <DhSelect :model-value="conditionSelection(form.stackable)" label="Estibable" :options="yesNoOptions" placeholder="Por confirmar" @update:model-value="form.stackable = conditionValue($event)" />
+              <DhSelect :model-value="conditionSelection(form.overweight)" label="Sobrepeso" :options="yesNoOptions" placeholder="Por confirmar" @update:model-value="form.overweight = conditionValue($event)" />
             </div>
-            <div v-if="isMaritime" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
+            <div v-if="editingId && isMaritime" class="mt-4 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-input)]/30 p-4">
               <div class="mb-3">
                 <h5 class="text-sm font-black">Muellaje en destino</h5>
                 <p class="mt-1 text-xs text-[var(--dh-text-muted)]">Opciones excluyentes; selecciona únicamente la que corresponda.</p>
@@ -2068,10 +2051,11 @@ onMounted(async () => {
                   <span v-if="form.volumeValue" class="rounded-lg bg-[var(--dh-input)] px-3 py-1.5 text-xs font-bold">{{ form.volumeValue }} {{ form.volumeUnit }}</span>
                   <span v-for="(item, i) in form.equipment.filter(x => needsEquipment && x.equipmentType)" :key="i" class="rounded-lg border border-[var(--dh-primary)]/20 px-3 py-1.5 text-xs font-bold">{{ item.quantity }} × {{ item.equipmentType }}</span>
                 </div>
-                <div v-if="editingId" class="mt-4 flex flex-wrap gap-2">
-                  <DhBadge v-if="form.isImo" variant="warning">IMO / peligrosa</DhBadge>
-                  <DhBadge v-if="['LCL','LTL'].includes(effectiveShipment)" variant="neutral">{{ form.stackable ? 'Estibable' : 'No estibable' }}</DhBadge>
-                  <DhBadge v-if="form.overweight" variant="warning">Sobrepeso</DhBadge>
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <DhBadge :variant="form.isImo ? 'warning' : 'neutral'">IMO: {{ conditionLabel(form.isImo) }}</DhBadge>
+                  <DhBadge variant="neutral">Estibable: {{ conditionLabel(form.stackable) }}</DhBadge>
+                  <DhBadge :variant="form.overweight ? 'warning' : 'neutral'">Sobrepeso: {{ conditionLabel(form.overweight) }}</DhBadge>
+                  <DhBadge v-if="['LCL','LTL'].includes(effectiveShipment)" variant="neutral">Consolidado: {{ form.consolidationReference || 'Por confirmar' }}</DhBadge>
                   <DhBadge v-if="isMaritime && form.portHandlingMode" variant="neutral">{{ form.portHandlingMode }}</DhBadge>
                   <DhBadge v-if="form.cargoNature" variant="neutral">{{ form.cargoNature }}</DhBadge>
                 </div>

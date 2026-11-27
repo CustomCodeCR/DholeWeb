@@ -15,7 +15,7 @@ const canAssign = computed(() => auth.hasScope('operations.aperture.validation.a
 const pair = ref<ValidationPair | null>(null)
 const completeness = ref<OpeningCompleteness | null>(null)
 const group = ref('PENDIENTE_BLOQUEANTE')
-const originOnly = new Set(['etm','eta','actualWeight','bookingNumber','blNumber','containerNumber','consolidation'])
+const originOnly = new Set(['etm','eta','actualWeight','bookingNumber','blNumber','containerNumber'])
 const apertureFields = computed(() => (completeness.value?.fields || []).filter(f => f.completionStatus === 'PENDIENTE_BLOQUEANTE' || !originOnly.has(f.fieldCode)))
 const groups = computed(() => (['PENDIENTE_BLOQUEANTE','PENDIENTE_PERMITIDO','CONFIRMADO','NO_APLICA'] as const).map(status => ({key:status,label:openingStatusLabel(status) + ' (' + apertureFields.value.filter(f => f.completionStatus === status).length + ')'})))
 const visibleFields = computed(() => apertureFields.value.filter(f => f.completionStatus === group.value))
