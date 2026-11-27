@@ -441,6 +441,8 @@ const postingNote = ref(false)
 const audit = ref<OperationsAudit[]>([])
 const actors = ref<OperationsUser[]>([])
 const accountName = ref('')
+const accountDetails = ref<Record<string, unknown>>({})
+const notesUnavailable = ref(false)
 const clientExecutiveName = ref('')
 const responsibleNames = ref<Record<string, string>>({})
 const currentResponsibility = computed(() => workspace.value?.stages.find(s =>
@@ -581,7 +583,7 @@ async function load() {
     const optional: Promise<unknown>[] = []
     completeness.value = null
     completenessError.value = false
-    if (!hasAperturePanel.value) optional.push(operationsApi.openingCompleteness(detail.id)
+    optional.push(operationsApi.openingCompleteness(detail.id)
       .then(x => { if (current === sequence) completeness.value = x })
       .catch(() => { if (current === sequence) completenessError.value = true }))
     costs.value = []
@@ -608,6 +610,8 @@ async function load() {
     audit.value = []
     actors.value = []
     accountName.value = ''
+    accountDetails.value = {}
+    notesUnavailable.value = false
     clientExecutiveName.value = ''
     responsibleNames.value = { ...(work.people || {}) }
     optional.push(loadResponsibleNames([
@@ -627,7 +631,7 @@ async function load() {
       operationsApi.caseOriginProgress(caseId.value).then(x => { if (current === sequence) { origin.value = x; originStatus.value = x.progress?.statusCode || 'ORIGIN_COORDINATION' } }).catch(() => {}))
     if (auth.hasScope('operations.internal-note.read') &&
         work.stages.some(s => s.departmentCode === 'COORDINACION_ORIGEN')) optional.push(
-      operationsApi.caseInternalNotes(caseId.value).then(x => { if (current === sequence) notes.value = x }).catch(() => {}))
+      operationsApi.caseInternalNotes(caseId.value).then(x => { if (current === sequence) notes.value = x }).catch(() => { if (current === sequence) notesUnavailable.value = true }))
     if (auth.hasScope('operations.audit.read')) optional.push(
       operationsApi.caseAudit(caseId.value).then(async x => {
         if (current !== sequence) return
@@ -637,6 +641,7 @@ async function load() {
       }).catch(() => {}))
     optional.push(crmRequest<Record<string, unknown>>(crmPath('operations/accounts', detail.accountId))
       .then(x => { if (current === sequence) {
+        accountDetails.value = x
         accountName.value = String(x.displayName || x.legalName || x.name || '').trim()
         clientExecutiveName.value = String(x.executiveName || '').trim()
       } }).catch(() => {}))
@@ -814,7 +819,31 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
 
       <div v-if="selectedTab === 'RESUMEN'" class="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div class="min-w-0 space-y-4">
-          <DhCard padding="sm" title="Información logística">
+          <DhCard padding="sm" title="Instrucciones especiales">
+            <p v-if="readable(openingData.observations)" class="whitespace-pre-wrap break-words text-sm">{{ readable(openingData.observations) }}</p>
+            <p v-else class="text-sm text-[var(--dh-text-muted)]">Sin observaciones especiales registradas en la apertura.</p>
+          </DhCard>
+          <DhCard padding="sm" title="Historial de anotaciones internas" :icon="MessageSquareText" subtitle="Privado · no se envía al cliente">
+            <template v-if="auth.hasScope('operations.internal-note.read') && workspace.stages.some(stage => stage.departmentCode === 'COORDINACION_ORIGEN')">
+              <p v-if="notesUnavailable" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudo consultar la bitácora con los permisos actuales.</p>
+              <template v-else>
+                <div v-if="canWriteNote" class="mb-3 space-y-2">
+                  <DhTextarea v-model="noteText" label="Nueva anotación" :rows="3" />
+                  <DhButton :icon="Plus" label="Agregar nota" :loading="postingNote" :disabled="!noteText.trim()" @click="addNote" />
+                </div>
+                <div v-for="note in notes" :key="note.id" class="border-b border-[var(--dh-border)] py-3">
+                  <p class="whitespace-pre-wrap break-words text-sm">{{ note.body }}</p>
+                  <p class="mt-1 text-xs text-[var(--dh-text-muted)]">{{ dateLabel(note.createdAtUtc) }} · {{ actors.find(person => person.id === note.createdBy)?.displayName || 'Autor pendiente de consulta' }}</p>
+                </div>
+                <p v-if="!notes.length" class="text-sm text-[var(--dh-text-muted)]">Sin anotaciones internas registradas.</p>
+              </template>
+            </template>
+            <p v-else class="text-sm text-[var(--dh-text-muted)]">Bitácora no disponible para esta etapa o perfil.</p>
+          </DhCard>
+          <DhCard padding="sm" title="Historial de notificaciones del cliente">
+            <p class="text-sm text-[var(--dh-text-muted)]">El historial de comunicaciones al cliente todavía no está disponible en el expediente. No se muestran notificaciones internas como si fueran envíos al cliente.</p>
+          </DhCard>
+          <DhCard padding="sm" title="Información logística" subtitle="Campos de apertura y datos del embarque">
             <div class="mb-4 border-b border-[var(--dh-border)] pb-3">
               <h4 class="mb-2 text-sm font-semibold">Servicios contratados y operativos</h4>
               <div class="flex flex-wrap gap-2"><DhBadge v-for="service in openingServices" :key="service" variant="neutral">{{ service }}</DhBadge><span v-if="!openingServices.length" class="text-xs text-[var(--dh-text-muted)]">Sin servicios registrados</span></div>
@@ -893,7 +922,13 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               </div>
             </div>
           </DhCard>
-          <DhCard padding="sm" title="Contactos del cliente" subtitle="Encargados de operaciones activos en CRM, asociados a este cliente.">
+          <DhCard padding="sm" title="Detalles de la cuenta" subtitle="Información general y contactos operativos de CRM">
+            <div class="mb-3 grid gap-3 sm:grid-cols-2">
+              <div><p class="text-xs text-[var(--dh-text-muted)]">Cuenta</p><p class="break-words text-sm font-bold">{{ accountName || readable(openingData.clientName) || 'Pendiente de CRM' }}</p></div>
+              <div><p class="text-xs text-[var(--dh-text-muted)]">División</p><p class="text-sm font-semibold">{{ openingData.crmDivisionName || 'Sin división' }}</p></div>
+              <div v-for="field in [{label:'Razón social', value:readable(accountDetails.legalName)}, {label:'Identificación', value:readable(accountDetails.taxId)}, {label:'Teléfono', value:readable(accountDetails.phone)}, {label:'Correo', value:readable(accountDetails.email)}, {label:'Dirección', value:readable(accountDetails.address)}].filter(x => x.value)" :key="field.label"><p class="text-xs text-[var(--dh-text-muted)]">{{ field.label }}</p><p class="break-words text-sm">{{ field.value }}</p></div>
+            </div>
+            <h4 class="mb-2 border-t border-[var(--dh-border)] pt-3 text-sm font-semibold">Contactos operativos</h4>
             <p v-if="contactsLoading" class="text-sm text-[var(--dh-text-muted)]">Consultando CRM…</p>
             <p v-else-if="contactsError" role="alert" class="text-sm text-[var(--dh-text-muted)]">No se pudieron consultar los contactos. Actualice el expediente para reintentar.</p>
             <p v-else-if="!contacts.length" class="text-sm text-[var(--dh-text-muted)]">El cliente no tiene contactos operativos activos registrados.</p>
@@ -928,7 +963,15 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               <DhButton v-if="canOpenComparison" size="sm" variant="secondary" label="Comparar con la QUO" @click="selectCaseTab('QUO')" />
             </div>
           </DhCard>
-          <DhCard v-if="!hasAperturePanel" title="Validación de apertura" padding="sm">
+          <DhCard padding="sm" title="Trámites vinculados">
+            <p v-if="!workspace.relatedCases" class="text-sm text-[var(--dh-text-muted)]">Consulta de vínculos no disponible.</p>
+            <p v-else-if="!workspace.relatedCases.length" class="text-sm text-[var(--dh-text-muted)]">No hay otros trámites vinculados visibles.</p>
+            <div v-for="item in workspace.relatedCases || []" :key="item.id" class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--dh-border)] py-2">
+              <RouterLink :to="{ name: 'operations-case-detail', params: { id: item.id } }"><DhButton size="sm" variant="secondary" :label="item.idtra" /></RouterLink>
+              <span class="text-xs text-[var(--dh-text-muted)]">{{ item.modalityCode }}</span><DhBadge variant="neutral">{{ statusLabel(item.status) }}</DhBadge>
+            </div>
+          </DhCard>
+          <DhCard title="Validación de apertura" subtitle="Campos obligatorios y estados de confirmación" padding="sm">
             <p v-if="completenessError" role="alert" class="text-xs text-[var(--dh-text-muted)]">No se pudieron consultar los estados.</p>
             <p v-else-if="!completeness" class="text-xs text-[var(--dh-text-muted)]">Consultando estados…</p>
             <template v-else>
@@ -943,20 +986,16 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
               </div>
             </template>
           </DhCard>
-          <DhCard padding="sm" :title="'Tareas pendientes (' + pendingSummaryTasks.length + ')'">
-            <div v-for="task in pendingSummaryTasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
-              <p class="font-bold">{{ task.title }}</p>
-              <p class="text-xs text-[var(--dh-text-muted)]">{{ statusLabel(task.status) }} · {{ dateLabel(task.dueAtUtc) }}</p>
+          <DhCard padding="sm" title="Checklist operativo" :subtitle="pendingSummaryTasks.length + ' tareas pendientes de ' + workspace.tasks.length">
+            <div v-for="task in workspace.tasks" :key="task.id" class="mb-2 rounded-xl bg-[var(--dh-input)] p-3 text-sm last:mb-0">
+              <div class="flex flex-wrap items-center justify-between gap-2"><p class="font-bold">{{ task.title }}</p><DhBadge :variant="task.completedAtUtc || task.status === 'COMPLETED' ? 'success' : isPendingOperationsTask(task) ? 'warning' : 'neutral'">{{ statusLabel(task.status) }}</DhBadge></div>
+              <p v-if="task.details" class="mt-1 whitespace-pre-wrap text-xs">{{ task.details }}</p><p class="text-xs text-[var(--dh-text-muted)]">Vence: {{ dateLabel(task.dueAtUtc) }}</p>
               <p class="text-xs text-[var(--dh-text-muted)]">Responsable: {{ responsibleName(task.assignedUserId) }}</p>
             </div>
-            <p v-if="!pendingSummaryTasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas pendientes.</p>
+            <p v-if="!workspace.tasks.length" class="text-sm text-[var(--dh-text-muted)]">No hay tareas registradas.</p>
           </DhCard>
           <DhCard v-if="auth.hasScope('operations.audit.read')" padding="sm" title="Historial y trazabilidad">
             <OperationsAuditTimeline :events="audit" :users="actors" empty-title="Sin movimientos" empty-description="Todavía no hay eventos registrados." />
-          </DhCard>
-          <DhCard padding="sm" title="Permisos de consulta">
-            <p class="text-sm text-[var(--dh-text-soft)]">{{ canEditSummary ? 'Aperturas editable mientras esté pendiente de validación; el backend comprueba cada cambio.' : 'Consulta habilitada. La edición depende de la etapa, su estado y el permiso específico.' }}</p>
-            <p class="mt-2 text-xs text-[var(--dh-text-muted)]">Un superusuario puede consultar todos los departamentos, incluso los que aún no han iniciado, sin generar etapas ficticias.</p>
           </DhCard>
         </div>
       </div>
