@@ -1,3 +1,7 @@
+## [1.146.2] - 2026-11-27
+
+- Build staging images on GitHub-hosted runners and load checksum-verified, commit-specific images locally; preserve production workflow and runtime configuration. CI and staging pending.
+
 ## [1.146.1] - 2026-11-27
 
 - Show delivery only when a delivery service is selected; preserve accepted provider and route catalog references.
