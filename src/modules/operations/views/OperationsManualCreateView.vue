@@ -1265,9 +1265,10 @@ function buildOpeningData() {
       ...form.value,
       ...(!editingId.value ? { etm: undefined, eta: undefined, clientPoReference: undefined, invoiceReference: undefined } : {}),
       incotermName: selectedIncoterm.value,
-      // Weight belongs to Coordinación Origen. Preserve historical values only
-      // when editing an existing record; never introduce them in manual creation.
-      ...(!editingId.value ? { weightValue: undefined, weightUnit: undefined, weightKg: undefined, pickupContact: undefined, pickupWindow: undefined } : {}),
+      // Origin-owned measurements are preserved by the server; never write them from Aperturas.
+      weightValue: undefined, weightUnit: undefined, weightKg: undefined,
+      actualWeightValue: undefined, actualWeightUnit: undefined, actualWeightKg: undefined, equipmentUnits: undefined,
+      ...(!editingId.value ? { pickupContact: undefined, pickupWindow: undefined } : {}),
       estimatedWeightKg: estimatedKg.value,
       stackable: stackableApplicable.value ? form.value.stackable : null,
       isImo: form.value.isImo,
@@ -1275,8 +1276,9 @@ function buildOpeningData() {
       consolidationId: effectiveShipment.value === 'LCL' ? form.value.consolidationId || null : null,
       consolidationNumber: effectiveShipment.value === 'LCL' ? form.value.consolidationNumber : null,
       consolidationReference: ['LCL', 'LTL'].includes(effectiveShipment.value) ? String(selectedConsolidation.value?.name ?? form.value.consolidationReference ?? '').trim() : '',
-      volumeCbm: form.value.volumeValue ? Number(form.value.volumeValue) *
-        (form.value.volumeUnit === 'CFT' ? 0.028316846592 : 1) : null,
+      // Existing Pricing openings can carry zero as an unknown volume, not a measured zero.
+      volumeValue: editingId.value && Number(form.value.volumeValue) === 0 ? null : form.value.volumeValue,
+      volumeCbm: normalizedVolume.value,
       requiresPickup: pickupRequired.value,
       pickupAddress: pickupRequired.value ? (form.value.pickupLocations[0]?.address || form.value.pickupAddress) : '',
       pickupLocations: pickupRequired.value ? operationalPoints(form.value.pickupLocations) : [],

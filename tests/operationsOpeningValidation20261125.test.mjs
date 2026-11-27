@@ -210,3 +210,13 @@ test('Opening exposes CABYS on creation and preserves physical quantity on unit 
   assert.match(source, /cbm \/ \(unit === 'CFT' \? 0\.028316846592 : 1\)/)
   assert.match(source, /<DhTextarea v-model="form\.cargoDescription"/)
 })
+
+
+test('opening edits omit Origin-only measurements and serialize historical zero volume as unknown', () => {
+  const source = readFileSync(new URL('../src/modules/operations/views/OperationsManualCreateView.vue', import.meta.url), 'utf8')
+  const payload = source.slice(source.indexOf('function buildOpeningData('), source.indexOf('const completeness ='))
+  assert.ok(payload.includes('weightValue: undefined, weightUnit: undefined, weightKg: undefined'))
+  assert.ok(payload.includes('actualWeightValue: undefined, actualWeightUnit: undefined, actualWeightKg: undefined, equipmentUnits: undefined'))
+  assert.ok(payload.includes('volumeValue: editingId.value && Number(form.value.volumeValue) === 0 ? null : form.value.volumeValue'))
+  assert.ok(payload.includes('volumeCbm: normalizedVolume.value'))
+})

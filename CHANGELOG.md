@@ -1,3 +1,7 @@
+## [1.146.3] - 2026-11-27
+
+- Serialize unspecified opening volume as null when editing, and omit Origin-owned weight and equipment details from opening writes. Preserve strict creation requirements. CI and staging pending.
+
 ## [1.146.2] - 2026-11-27
 
 - Build staging images on GitHub-hosted runners and load checksum-verified, commit-specific images locally; preserve production workflow and runtime configuration. CI and staging pending.
