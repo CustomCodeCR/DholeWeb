@@ -6,8 +6,8 @@ const view = readFileSync(new URL('../src/modules/operations/views/OperationsMan
 const picker = readFileSync(new URL('../src/modules/pricing/components/PricingCrmClientSelect.vue', import.meta.url), 'utf8')
 
 test('manual opening has exactly three steps without standalone transport or services pages', () => {
-  assert.match(view, /label: 'Cliente y ruta'/)
-  assert.match(view, /label: 'Carga y servicios'/)
+  assert.match(view, /label: 'Cliente, ruta y servicios'/)
+  assert.match(view, /label: 'Carga y condiciones'/)
   assert.match(view, /label: 'Revisión'/)
   assert.doesNotMatch(view, /v-show="activeStep === [456]"/)
   assert.doesNotMatch(view, /label: 'Puntos de complejidad'/)
@@ -44,4 +44,11 @@ test('attachments are saved in Storage and referenced by openingData for drafts'
   assert.match(view, /operationsApi\.updateCase/)
   assert.match(view, /completionStatus: blockers\.value/)
   assert.match(view, /Crear y enviar a Coordinación Origen/)
+})
+
+test('services precede the cargo step and pickup is derived from the selected service or EXW', () => {
+  assert.ok(view.indexOf('<DhCard title="Servicios solicitados y proveedores"') < view.indexOf('<div v-show="activeStep === 2"'))
+  assert.doesNotMatch(view, /¿Requiere recolecta\?/)
+  assert.match(view, /pickupRequired = computed\(\(\) => requiresExwPickup\.value \|\| pickupServiceSelected\.value\)/)
+  assert.match(view, /\['LCL', 'LTL', 'AIR', 'AIRCONSOL'\]\.includes\(effectiveShipment\.value\)/)
 })
