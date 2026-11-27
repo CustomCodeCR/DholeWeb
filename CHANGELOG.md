@@ -1,3 +1,7 @@
+## [1.145.2] - 2026-11-27
+
+- PATCH: preserve effective insurance service IDs in seller modifications, recover missing cargo insurance when declared value changes, and preserve existing quote lines and reviewed prices. Regression coverage added; CI and staging pending.
+
 ## [1.144.0] - 2026-11-27
 
 ## [1.145.1] - 2026-11-27

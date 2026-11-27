@@ -177,6 +177,16 @@ function quoteEditRestoreUnchangedRequiredDetails() {
   }
 }
 
+// A seller can supply the declared value while insurance was already selected
+// in the header but absent from the original financial details.
+function quoteEditRequestedInsuranceIds387() {
+  const added = quoteEditAddedServices387()
+  const valueChanged = quoteEditChangedKeys387().has('cargoValue') && number(form.cargoValue) > 0
+  return catalogs.services.filter(service =>
+    /seguro.*carga|carga.*seguro/.test(normalizeCatalogValue(displayValue(service)))
+    && (added.has(service.id) || (valueChanged && form.serviceIds.includes(service.id))))
+    .map(service => service.id)
+}
 function quoteEditRequestedCosts387(): CostSelectDto[] {
   if (!editingRate.value || props.viewOnly || !quoteEditOriginalContext387.value) return []
   const changed = quoteEditChangedKeys387()
@@ -228,8 +238,8 @@ function quoteEditRequestedCosts387(): CostSelectDto[] {
     if (newlySelectedInland) return true
     const associatedNewService = cost.services?.some(service => added.has(service.id)) ?? false
     const newlyRequestedInsurance = cost.costDetailType === 'Insurance'
-      && [...added].some(id => catalogs.services.some(service => service.id === id
-        && /seguro.*carga|carga.*seguro/.test(normalizeCatalogValue(displayValue(service)))))
+      && quoteEditRequestedInsuranceIds387().length > 0
+      && !rateLines.value.some(line => line.costDetailType === 'Insurance')
     if (associatedNewService || newlyRequestedInsurance) return true
     // A context change does not authorize unrelated optional or global charges.
     if (cost.costType === 'Optional' || !relatedToChangedContext(cost)) return false
@@ -303,11 +313,8 @@ function quoteEditRemoveInvalidDetails387() {
 }
 function quoteEditEnsureRequestedServices387() {
   const added = quoteEditAddedServices387()
-  if (!added.size) return
-  const newInsurance = [...added].some(id => catalogs.services.some(service =>
-    service.id === id && /seguro.*carga|carga.*seguro/.test(
-      normalizeCatalogValue(displayValue(service)))))
-  if (newInsurance && !rateLines.value.some(line => line.costDetailType === 'Insurance')) {
+  const insuranceIds = quoteEditRequestedInsuranceIds387()
+  if (insuranceIds.length && !rateLines.value.some(line => line.costDetailType === 'Insurance')) {
     const currency = selectedCurrency.value ?? catalogs.currencies[0]
     if (currency) {
       const calculated = form.cargoValue > 0
@@ -315,9 +322,7 @@ function quoteEditEnsureRequestedServices387() {
       rateLines.value.push({
         key: 'quote-edit:insurance', section: 'destination_charges', name: 'Seguro de carga',
         costDetailType: 'Insurance', costType: 'Optional', chargeBasis: 'PerShipment',
-        serviceIds: [...added].filter(id => catalogs.services.some(service =>
-          service.id === id && /seguro.*carga|carga.*seguro/.test(
-            normalizeCatalogValue(displayValue(service))))),
+        serviceIds: insuranceIds,
         currencyId: currency.id, currencyName: displayValue(currency), currencyCode: currency.code,
         costAmount: calculated?.cost ?? 0, saleAmount: calculated?.sale ?? 0,
         included: true, optional: true, manual: false,
@@ -423,7 +428,7 @@ watch(
     form.carrierId, form.agentId, form.originId, form.destinationId, form.podId,
     form.modality, form.shipmentMode, form.merchantHaulage, form.carrierHaulage,
     form.overweight, form.dangerousCargo, form.equipmentId, form.portHandlingMode,
-    form.cargoWeightKg, form.cargoPackages, form.cargoPallets, form.equipmentQuantity] as const,
+    form.cargoWeightKg, form.cargoPackages, form.cargoPallets, form.equipmentQuantity, form.cargoValue] as const,
   () => {
     if (step.value !== 7 || !props.rateId || props.viewOnly || hydratingExistingRate.value) return
     void quoteEditApplyDelta387()
