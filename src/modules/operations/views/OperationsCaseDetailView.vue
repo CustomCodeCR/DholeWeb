@@ -863,6 +863,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
                   <p class="break-words text-sm font-bold">{{ contact.name || [contact.firstName, contact.lastName].filter(Boolean).join(' ') || 'Nombre no registrado' }}</p>
                   <DhBadge v-if="contact.isPrimary" variant="primary">Principal</DhBadge>
                   <DhBadge v-if="selectedContacts.has(contact.id)" variant="neutral">En apertura</DhBadge>
+                  <DhBadge v-for="division in contact.divisions || []" :key="division.id" variant="neutral">{{ division.name }}</DhBadge>
                 </div>
                 <p v-if="contact.jobTitle" class="text-xs text-[var(--dh-text-muted)]">{{ contact.jobTitle }}</p>
                 <p class="mt-1 break-all text-sm">{{ contact.email || 'Correo no registrado' }}</p>

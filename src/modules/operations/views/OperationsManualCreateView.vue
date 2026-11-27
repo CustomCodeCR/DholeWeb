@@ -47,7 +47,17 @@ const institutionalExecutive = ref(false)
 const executiveLoading = ref(false)
 const operationalContactsLoading = ref(false)
 const operationalContactsIssue = ref('')
-const operationalContacts = ref<Array<{ id: string; name: string; email: string }>>([])
+const operationalContacts = ref<Array<{ id: string; name: string; email: string; divisionIds: string[] }>>([])
+const crmDivisions = ref<Array<{ id: string; name: string }>>([])
+const eligibleOperationalContacts = computed(() => operationalContacts.value.filter(contact =>
+  !form.value.crmDivisionId || !contact.divisionIds.length || contact.divisionIds.includes(form.value.crmDivisionId)))
+function changeDivision(id: string) {
+  form.value.crmDivisionId = id
+  form.value.crmDivisionName = crmDivisions.value.find(d => d.id === id)?.name || ''
+  contactsTouched.value = true
+  form.value.contactIds = eligibleOperationalContacts.value.map(c => c.id)
+  form.value.contactReferences = form.value.contactIds.join(',')
+}
 let clientGeneration = 0
 let lastSelectedAccountId = ''
 const executiveAssigned = computed(() => institutionalExecutive.value || Boolean(executiveUserId.value))
@@ -56,7 +66,7 @@ const executiveLabel = computed(() =>
     : executiveName.value || (executiveUserId.value ? 'Ejecutivo asignado; nombre pendiente de consulta'
       : 'Sin ejecutivo comercial asignado en CRM'))
 const selectedOperationalContacts = computed(() =>
-  operationalContacts.value.filter(contact => form.value.contactIds.includes(contact.id)))
+  eligibleOperationalContacts.value.filter(contact => form.value.contactIds.includes(contact.id)))
 const modality = ref('')
 const quoteSearch = ref('')
 const quoteCandidates = ref<OperationsQuoteSummary[]>([])
@@ -396,7 +406,7 @@ function goToStep(target: number) {
 const loading = ref(true)
 const error = ref('')
 const form = ref({
-  provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '',
+  provenance: 'CLIENT', clientPoReference: '', crmDivisionId: '', crmDivisionName: '',
   shipmentType: '', cargoNature: '', transportType: '', incoterm: '', incotermName: '',
   pol: '', poe: '', pod: '', pickupAddress: '', pickupContact: '',
   pickupWindow: '', requiresPickup: false, whsName: '',
@@ -781,7 +791,8 @@ async function resolveCrmOpeningData(id: string, client: {
   try {
     const [accountResponse, contactsResponse] = await Promise.allSettled([
       crmGet('operations/accounts', id),
-      crmRequest<unknown>(crmPath('operations/accounts', id, 'contacts')),
+      editingId.value ? operationsApi.caseContactDirectory(editingId.value) :
+        crmRequest<unknown>(crmPath('operations/accounts', id, 'contacts') + '?includeDirectory=true'),
     ])
     if (generation !== clientGeneration || accountId.value !== id) return
     if (accountResponse.status === 'fulfilled') {
@@ -803,7 +814,12 @@ async function resolveCrmOpeningData(id: string, client: {
     }
     if (contactsResponse.status === 'fulfilled') {
       const raw = contactsResponse.value
-      const entries = Array.isArray(raw) ? raw
+      const directory = raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? raw as { divisions?: Array<{ id: string; name: string }>; contacts?: unknown[] } : null
+      crmDivisions.value = Array.isArray(directory?.divisions) ? directory.divisions : []
+      if (form.value.crmDivisionId) form.value.crmDivisionName =
+        crmDivisions.value.find(d => d.id === form.value.crmDivisionId)?.name || form.value.crmDivisionName
+      const entries = Array.isArray(directory?.contacts) ? directory.contacts : Array.isArray(raw) ? raw
         : raw && typeof raw === 'object' && Array.isArray((raw as {items?: unknown}).items)
           ? (raw as {items: unknown[]}).items : []
       operationalContacts.value = entries.flatMap((entry: unknown) => {
@@ -818,10 +834,10 @@ async function resolveCrmOpeningData(id: string, client: {
         const name = String(contact.name || [contact.firstName,contact.lastName].filter(Boolean).join(' ') || '').trim()
         const contactId = String(contact.id || relation.contactId || '')
         return active && operations && contactId && name && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-          ? [{ id: contactId, name, email }] : []
+          ? [{ id: contactId, name, email, divisionIds: Array.isArray(relation.divisionIds) ? relation.divisionIds.map(String) : [] }] : []
       })
       if (!contactsTouched.value && !form.value.contactIds.length) {
-        form.value.contactIds = operationalContacts.value.map(contact => contact.id)
+        form.value.contactIds = eligibleOperationalContacts.value.filter(contact => form.value.crmDivisionId || !crmDivisions.value.length || !contact.divisionIds.length).map(contact => contact.id)
         form.value.contactReferences = form.value.contactIds.join(',')
       }
     } else {
@@ -841,6 +857,9 @@ function onCrmClientSelected(client: {
   executiveName: string; executiveUserId?: string; isCastroFallasExecutive?: boolean
 } | null) {
   if (client?.kind === 'lead') {
+    crmDivisions.value = []
+    form.value.crmDivisionId = ''
+    form.value.crmDivisionName = ''
     form.value.clientCountryId = ''
     form.value.clientCountryOverrideId = ''
     form.value.operationOverride = ''
@@ -859,6 +878,9 @@ function onCrmClientSelected(client: {
     return
   }
   if (!client) {
+    crmDivisions.value = []
+    form.value.crmDivisionId = ''
+    form.value.crmDivisionName = ''
     form.value.clientCountryId = ''
     form.value.clientCountryOverrideId = ''
     form.value.operationOverride = ''
@@ -877,6 +899,9 @@ function onCrmClientSelected(client: {
     return
   }
   if (lastSelectedAccountId !== client.id) {
+    crmDivisions.value = []
+    form.value.crmDivisionId = ''
+    form.value.crmDivisionName = ''
     form.value.clientCountryOverrideId = ''
     form.value.operationOverride = ''
     form.value.clientCountryId = client.countryId || ''
@@ -1225,6 +1250,7 @@ const manualReviewSections = computed(() => [
   { title: 'Cliente y comercial', icon: UserRound, step: 1, rows: [
     { label: 'Cliente', value: selectedClientName.value || 'Por seleccionar' },
     { label: 'Vendedor', value: accountId.value ? executiveLabel.value : 'Por seleccionar' },
+    { label: 'División', value: form.value.crmDivisionName || 'Sin división' },
     { label: 'Contacto operativo', value: selectedOperationalContacts.value.map(contact => contact.name).join(' · ') || 'Sin contacto seleccionado' },
     { label: 'QUO', value: quoteRateId.value ? (quoteLabel.value || 'Vínculo seleccionado') + ' · Se verificará en Pricing' : 'Sin QUO vinculada' },
   ] },
@@ -1347,6 +1373,8 @@ onMounted(async () => {
       form.value.originCountryCode = detail.originCountryCode || ''
       form.value.destinationCountryCode = detail.destinationCountryCode || ''
       reconcileLocations()
+      contactsTouched.value = true
+      await resolveCrmOpeningData(detail.accountId, { executiveUserId: detail.executiveUserId })
       await nextTick()
       restoringOpening = false
     } catch (cause) {
@@ -1505,11 +1533,10 @@ onMounted(async () => {
               </div>
               <DhSelect v-if="editingId" v-model="form.provenance" label="Asignación recibida desde" :options="originOptions" />
               <p v-if="editingId && form.clientPoReference" class="text-sm text-[var(--dh-text-muted)]">PO: {{ form.clientPoReference }} · Editable en Coordinación Origen.</p>
-              <div v-if="editingId" class="rounded-xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-3.5">
-                <p class="text-[11px] font-black uppercase tracking-wider text-[var(--dh-text-muted)]">División comercial CRM (opcional)</p>
-                <p class="mt-1 text-xs font-semibold">{{ form.crmDivisionId || 'Sin división vinculada' }}</p>
-                <p class="mt-1 text-[11px] text-[var(--dh-text-muted)]">La selección de divisiones se habilitará cuando CRM publique su catálogo. No se aceptan referencias inventadas.</p>
-              </div>
+              <DhSelect v-if="accountId" :model-value="form.crmDivisionId" label="División de la cuenta (opcional)"
+                :options="[{ value: '', label: 'Sin división' }, ...crmDivisions.map(d => ({ value: d.id, label: d.name }))]"
+                placeholder="" :disabled="operationalContactsLoading || Boolean(operationalContactsIssue)"
+                searchable @update:model-value="changeDivision(String($event))" />
               <div class="md:col-span-2 rounded-2xl border border-[var(--dh-border)] bg-[var(--dh-card)] p-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1520,10 +1547,10 @@ onMounted(async () => {
                 </div>
                 <p v-if="operationalContactsLoading" class="mt-3 text-xs text-[var(--dh-text-muted)]">Consultando contactos de CRM…</p>
                 <p v-else-if="operationalContactsIssue" role="status" class="mt-3 text-xs text-amber-500">{{ operationalContactsIssue }}</p>
-                <p v-else-if="accountId && !operationalContacts.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">No hay contactos operativos activos con correo válido. Se pueden registrar después en CRM.</p>
+                <p v-else-if="accountId && !eligibleOperationalContacts.length" class="mt-3 text-xs text-[var(--dh-text-muted)]">No hay contactos operativos activos con correo válido. Se pueden registrar después en CRM.</p>
                 <p v-else-if="!accountId" class="mt-3 text-xs text-[var(--dh-text-muted)]">Selecciona primero una cuenta CRM.</p>
                 <div v-else class="mt-3 grid gap-2 sm:grid-cols-2">
-                  <label v-for="contact in operationalContacts" :key="contact.id"
+                  <label v-for="contact in eligibleOperationalContacts" :key="contact.id"
                     class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-left transition-colors"
                     :class="form.contactIds.includes(contact.id)
                       ? 'border-[var(--dh-primary)] bg-[rgb(var(--dh-primary-rgb)/0.08)]'
