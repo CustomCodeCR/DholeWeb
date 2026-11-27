@@ -10,7 +10,7 @@ import {
 import { DhBadge, DhButton, DhInput, DhSelect, DhTextarea } from '@/shared/components/atoms'
 import { DhCard, DhDataTable, DhTabs, type DhTableColumn } from '@/shared/components/molecules'
 import { DhPageHeader } from '@/shared/components/organisms'
-import { operationsQuoteApi, type OperationsQuoteSummary } from '../services/operationsQuoteApi'
+import { operationsQuoteApi, type OperationsQuoteSummary, type OperationsConsolidation } from '../services/operationsQuoteApi'
 import { useAuthStore } from '@/core/stores/authStore'
 import { crmPath, crmRequest } from '@/modules/crm/services/crmApi'
 import {
@@ -66,22 +66,31 @@ const openingData = computed<Record<string, unknown>>(() => {
   } catch { return {} }
 })
 const consolidationName = ref('')
+const consolidationRows = ref<OperationsConsolidation[]>([])
+const consolidationCatalogError = ref('')
+const consolidationCatalogLoading = ref(false)
 let consolidationLookup = 0
 watch(() => [record.value?.id, record.value?.sourceQuoteOptionId, record.value?.modalityCode, openingData.value.consolidationId, openingData.value.consolidationNumber, openingData.value.consolidationReference], async () => {
   const generation = ++consolidationLookup
   consolidationName.value = ''
-  if (record.value?.modalityCode !== 'LCL') return
+  consolidationRows.value = []
+  consolidationCatalogError.value = ''
+  if (record.value?.modalityCode !== 'LCL') { consolidationCatalogLoading.value = false; return }
   const data = openingData.value
+  consolidationCatalogLoading.value = true
   try {
+    const rows = await operationsQuoteApi.consolidations('LCL')
+    if (generation !== consolidationLookup) return
+    consolidationRows.value = rows
     if (data.consolidationId || data.consolidationNumber) {
-      const rows = await operationsQuoteApi.consolidations('LCL')
       const row = rows.find(item => data.consolidationId ? item.id === data.consolidationId : item.number === data.consolidationNumber)
       if (generation === consolidationLookup) consolidationName.value = row?.name || ''
     } else if (!data.consolidationReference && record.value.sourceQuoteOptionId) {
       const quote = await operationsQuoteApi.detail(record.value.sourceQuoteOptionId)
       if (generation === consolidationLookup) consolidationName.value = quote.consolidationReference || ''
     }
-  } catch { /* Preserve the previously saved reference when Pricing is unavailable. */ }
+  } catch { if (generation === consolidationLookup) consolidationCatalogError.value = 'No se pudieron consultar los consolidados de Pricing.' }
+  finally { if (generation === consolidationLookup) consolidationCatalogLoading.value = false }
 }, { immediate: true })
 const openingSections = computed(() => {
   const data = openingData.value
@@ -320,16 +329,24 @@ const originWeightValue = ref('')
 const originWeightUnit = ref('KG')
 const originWeightSaving = ref(false)
 const originWeightStale = ref(false)
-const originPlanning = ref({ etd: '', eta: '', consolidationReference: '', clientPoReference: '', invoiceReference: '' })
-const originPlanningBase = ref({ etd: '', eta: '', consolidationReference: '', clientPoReference: '', invoiceReference: '' })
+const originPlanning = ref({ etd: '', eta: '', consolidationReference: '', consolidationId: '', consolidationNumber: null as number | null, clientPoReference: '', invoiceReference: '' })
+const originPlanningBase = ref({ ...originPlanning.value })
 const originPlanningSaving = ref(false)
 const originPlanningStale = ref(false)
 const originPlanningDirty = computed(() => JSON.stringify(originPlanning.value) !== JSON.stringify(originPlanningBase.value))
 const originConsolidationApplicable = computed(() => ['LCL','LTL'].includes(record.value?.modalityCode || ''))
+const originSelectedConsolidation = computed(() => consolidationRows.value.find(row => originPlanning.value.consolidationId ? row.id === originPlanning.value.consolidationId : originPlanning.value.consolidationNumber != null ? row.number === originPlanning.value.consolidationNumber : false))
+const originConsolidationOptions = computed(() => [{ label: 'Por confirmar / sin consolidado propio', value: '' }, ...consolidationRows.value.filter(row => row.isActive || row.id === originSelectedConsolidation.value?.id).map(row => ({ label: row.name, value: row.id }))])
+function selectOriginConsolidation(value: string | number) {
+  const row = consolidationRows.value.find(item => item.id === String(value))
+  originPlanning.value.consolidationId = row?.id || ''
+  originPlanning.value.consolidationNumber = row?.number ?? null
+  originPlanning.value.consolidationReference = row?.name || ''
+}
 function hydrateOriginPlanning() {
   const data = openingData.value
   const date = (value: unknown) => /^\d{4}-\d{2}-\d{2}/.test(String(value ?? '')) ? String(value).slice(0, 10) : ''
-  originPlanningBase.value = { etd: date(data.etm), eta: date(data.eta), consolidationReference: originConsolidationApplicable.value ? String(data.consolidationReference ?? '') : '', clientPoReference: String(data.clientPoReference ?? ''), invoiceReference: String(data.invoiceReference ?? '') }
+  originPlanningBase.value = { etd: date(data.etm), eta: date(data.eta), consolidationReference: originConsolidationApplicable.value ? String(data.consolidationReference ?? '') : '', consolidationId: String(data.consolidationId ?? ''), consolidationNumber: typeof data.consolidationNumber === 'number' ? data.consolidationNumber : null, clientPoReference: String(data.clientPoReference ?? ''), invoiceReference: String(data.invoiceReference ?? '') }
   originPlanning.value = { ...originPlanningBase.value }
   originPlanningStale.value = false
 }
@@ -339,7 +356,9 @@ async function saveOriginPlanning() {
   originPlanningSaving.value = true
   error.value = ''
   try {
-    await operationsApi.updateOriginPlanning(detail.id, { expectedVersion: detail.version, ...originPlanning.value })
+    const { consolidationId, consolidationNumber, ...planning } = originPlanning.value
+    const changed = consolidationId !== originPlanningBase.value.consolidationId || consolidationNumber !== originPlanningBase.value.consolidationNumber || planning.consolidationReference !== originPlanningBase.value.consolidationReference
+    await operationsApi.updateOriginPlanning(detail.id, { expectedVersion: detail.version, ...planning, ...(detail.modalityCode === 'LCL' && changed ? { consolidationId, consolidationNumber } : {}) })
     if (caseId.value === detail.id) { await load(); message.value = 'Planificación de Origen actualizada.' }
   } catch (cause) {
     if (caseId.value === detail.id) { error.value = cause instanceof Error ? cause.message : 'No se pudo guardar la planificación.'; originPlanningStale.value = true }
@@ -1148,7 +1167,11 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
                 <DhInput v-model="originPlanning.eta" type="date" label="Llegada estimada (ETA)" />
                 <DhInput v-model="originPlanning.clientPoReference" label="PO / referencia del cliente (opcional)" :maxlength="250" />
                 <DhInput v-model="originPlanning.invoiceReference" label="Factura (opcional)" :maxlength="250" />
-                <DhInput v-if="originConsolidationApplicable" v-model="originPlanning.consolidationReference" label="Referencia de consolidado" />
+                <div v-if="record?.modalityCode === 'LCL'" class="space-y-2">
+                  <DhSelect searchable :model-value="originSelectedConsolidation?.id || originPlanning.consolidationId || ''" :options="originConsolidationOptions" label="Nombre del consolidado" placeholder="Buscar consolidado de Pricing" :disabled="consolidationCatalogLoading" @update:model-value="selectOriginConsolidation" />
+                  <p v-if="consolidationCatalogError" class="text-xs text-[var(--dh-text-muted)]">{{ consolidationCatalogError }}</p>
+                </div>
+                <DhInput v-else-if="originConsolidationApplicable" v-model="originPlanning.consolidationReference" label="Nombre del consolidado" />
               </div>
               <p v-if="originPlanningStale" role="alert" class="text-sm text-[var(--dh-text-muted)]">El expediente cambió. Actualice antes de guardar.</p>
               <div class="flex justify-end"><DhButton :icon="Save" label="Guardar planificación" :loading="originPlanningSaving" :disabled="originPlanningStale || !originPlanningDirty" @click="saveOriginPlanning" /></div>
@@ -1156,7 +1179,7 @@ watch([caseId, () => auth.userId], () => { leaving = false; ++sequence; access.v
             <div v-else class="grid gap-3 sm:grid-cols-2">
               <p>ETD: {{ originPlanningBase.etd || 'Por confirmar' }}</p><p>ETA: {{ originPlanningBase.eta || 'Por confirmar' }}</p>
               <p>PO: {{ originPlanningBase.clientPoReference || 'Sin referencia' }}</p><p>Factura: {{ originPlanningBase.invoiceReference || 'Sin referencia' }}</p>
-              <p v-if="originConsolidationApplicable">Consolidado: {{ originPlanningBase.consolidationReference || 'Por confirmar' }}</p>
+              <p v-if="originConsolidationApplicable">Consolidado: {{ consolidationName || originPlanningBase.consolidationReference || 'Por confirmar' }}</p>
             </div>
           </DhCard>
           <DhCard title="Hitos y seguimiento" subtitle="Fechas reales y planificadas registradas en Operations.">

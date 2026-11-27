@@ -188,7 +188,7 @@ function hydrateQuoteOpening(rate: OperationsQuoteDetail) {
     selectTransport(quoteTransport(mode))
     selectShipment(mode)
   }
-  if (mode === 'LCL' && (rate.consolidationId || rate.consolidationNumber)) {
+  if (mode === 'LCL') {
     form.value.consolidationId = rate.consolidationId || ''
     form.value.consolidationNumber = rate.consolidationNumber ?? null
     form.value.consolidationReference = rate.consolidationReference || ''
@@ -786,7 +786,10 @@ function selectConsolidation(value: string | number) {
   form.value.consolidationNumber = row?.number ?? null
   form.value.consolidationReference = row?.name || ''
 }
-watch(effectiveShipment, () => { void loadConsolidations() }, { immediate: true })
+watch(effectiveShipment, (mode, previous) => {
+  if (previous && mode !== previous && !restoringOpening && !applyingQuote) selectConsolidation('')
+  void loadConsolidations()
+}, { immediate: true })
 watch(selectedConsolidation, row => { if (row && effectiveShipment.value === 'LCL') { form.value.consolidationId = row.id; form.value.consolidationNumber = row.number; form.value.consolidationReference = row.name } })
 const pickupRequired = computed(() => form.value.requiresPickup || requiresExwPickup.value)
 watch(selectedIncoterm, (next, previous) => {
